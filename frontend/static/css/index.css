@@ -196,6 +196,44 @@ body {
     transform: scale(0.97);
 }
 
+/* Sidebar Item Disabled */
+.sidebar-item.disabled {
+    opacity: 0.4;
+    pointer-events: none;
+    filter: grayscale(1);
+}
+
+/* Card Glow Utilities */
+.card-glow-blue {
+    border-color: rgba(0, 113, 227, 0.3) !important;
+    box-shadow: 0 0 15px rgba(0, 113, 227, 0.1) !important;
+}
+
+.card-glow-green {
+    border-color: rgba(52, 199, 89, 0.3) !important;
+    box-shadow: 0 0 15px rgba(52, 199, 89, 0.1) !important;
+}
+
+.card-glow-orange {
+    border-color: rgba(255, 149, 0, 0.3) !important;
+    box-shadow: 0 0 15px rgba(255, 149, 0, 0.1) !important;
+}
+
+.card-glow-red {
+    border-color: rgba(255, 59, 48, 0.3) !important;
+    box-shadow: 0 0 15px rgba(255, 59, 48, 0.1) !important;
+}
+
+.card-glow-purple {
+    border-color: rgba(175, 82, 222, 0.3) !important;
+    box-shadow: 0 0 15px rgba(175, 82, 222, 0.1) !important;
+}
+
+.card-glow-teal {
+    border-color: rgba(48, 209, 232, 0.3) !important;
+    box-shadow: 0 0 15px rgba(48, 209, 232, 0.1) !important;
+}
+
 /* Apple-style Switch */
 .switch-container {
     display: flex;

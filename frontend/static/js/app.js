@@ -34,7 +34,9 @@ const STATE = {
         euroValue: 'Euro Value'
     },
     activities: [],
-    photos: []
+    photos: [],
+    budgets: [],
+    savedFormats: []    // Array of {id, name, mappings:[{variable,column}]} — max 5
 };
 
 const COUNTRIES = [
@@ -366,7 +368,8 @@ const pages = {
     settings: renderSettings,
     ai: renderAI,
     budgets: renderBudgets,
-    collections: renderCollections
+    collections: renderCollections,
+    settlement: renderSettlement
 };
 
 function navigate(pageId) {
@@ -520,7 +523,7 @@ function renderExpenses() {
 
     // Build People Options
     let peopleOptions = STATE.groups.map(p => `<option value="${p}">${p}</option>`).join('');
-    if (!peopleOptions) peopleOptions = `<option value="">No people added (Go to Groups)</option>`;
+    if (!peopleOptions) peopleOptions = `<option value="">Add companions in the personalisation section</option>`;
 
     // Build Category Options
     let categoryOptions = STATE.categories.map(c => `<option value="${c.id}">${c.icon} ${c.name}</option>`).join('');
@@ -584,6 +587,22 @@ function renderExpenses() {
                         <label style="display: block; margin-bottom: 6px; font-weight: 500;">Value in Euros (€)</label>
                         <input type="number" step="0.01" id="expEuroValue" class="glass-input" style="width: 100%;">
                     </div>
+                    
+                    <div style="margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 6px; font-weight: 500;">Split Between (%)</label>
+                        <div id="splitContainer" style="display: flex; flex-direction: column; gap: 8px;">
+                            ${STATE.groups.map(p => `
+                                <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); padding: 8px 12px; border-radius: 8px; border: 1px solid var(--glass-border);">
+                                    <span style="font-weight: 500;">${p}</span>
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <input type="number" class="glass-input split-input" data-person="${p}" value="${(100/Math.max(1, STATE.groups.length)).toFixed(1)}" step="0.1" style="width: 70px; padding: 4px 8px; text-align: center;" required>
+                                        <span style="color: var(--text-secondary); font-size: 0.9rem;">%</span>
+                                    </div>
+                                </div>
+                            `).join('')}
+                            ${STATE.groups.length === 0 ? '<span style="color: var(--text-secondary); font-size: 0.85rem;">Add companions in the personalisation section</span>' : ''}
+                        </div>
+                    </div>
                     <button type="submit" class="btn">Save Expense</button>
                 </form>
             </div>
@@ -641,6 +660,20 @@ function renderExpenses() {
 
         form.addEventListener('submit', (e) => {
             e.preventDefault();
+            
+            const splits = {};
+            let totalSplit = 0;
+            div.querySelectorAll('.split-input').forEach(input => {
+                const val = parseFloat(input.value) || 0;
+                splits[input.getAttribute('data-person')] = val;
+                totalSplit += val;
+            });
+            
+            if (STATE.groups.length > 0 && Math.abs(totalSplit - 100) > 0.5) {
+                alert("Percentages must add up to exactly 100%");
+                return;
+            }
+
             const expense = {
                 id: generateId(),
                 tripId: STATE.activeTripId,
@@ -651,7 +684,8 @@ function renderExpenses() {
                 country: div.querySelector('#expCountry').value,
                 value: parseFloat(div.querySelector('#expValue').value),
                 currency: div.querySelector('#expCurrency').value.toUpperCase(),
-                euroValue: parseFloat(div.querySelector('#expEuroValue').value) || 0
+                euroValue: parseFloat(div.querySelector('#expEuroValue').value) || 0,
+                splits: splits
             };
             STATE.expenses.push(expense);
             
@@ -708,50 +742,53 @@ function renderUpload() {
         <div class="card glass" style="border-color: rgba(33, 115, 70, 0.3); box-shadow: 0 0 15px rgba(33, 115, 70, 0.1);">
             <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
                 <h2 class="card-title" style="color: #217346; margin: 0;">Excel Upload</h2>
-                <div class="switch-container">
-                    <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);">Custom Template</span>
-                    <label class="switch">
-                        <input type="checkbox" id="formatSwitch">
-                        <span class="slider"></span>
-                    </label>
-                    <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);">Popular Formats</span>
-                </div>
             </div>
 
-            <div id="templateSection">
-                <p>Upload your .xlsx file here. Ensure it matches the 8-column template:</p>
-                <table class="liquid-table" style="margin-bottom: 12px;">
-                    <thead>
-                        <tr><th>Who Paid</th><th>Category</th><th>Label</th><th>Date</th><th>Country</th><th>Value</th><th>Currency</th><th>Euros (€)</th></tr>
-                    </thead>
-                    <tbody>
-                        <tr><td>Alice</td><td>Food</td><td>Sushi</td><td>2024-05-12</td><td>Japan</td><td>5000</td><td>JPY</td><td>31.50</td></tr>
-                    </tbody>
-                </table>
-                <button id="editMappingBtn" class="btn btn-small btn-liquid-glass">⚙️ Edit Column Mapping</button>
-            </div>
+            <!-- Format Selector -->
+            <div style="margin-bottom: 20px;">
+                <label style="display:block; font-size:0.8rem; font-weight:600; margin-bottom:8px;">Import Format</label>
+                <select id="formatSelect" class="glass-input" style="width:100%;">
+                    ${(() => {
+                        const sf = STATE.savedFormats || [];
+                        const activeTrip = STATE.trips.find(t => t.id === STATE.activeTripId);
+                        const activeId = activeTrip?.activeFormatId;
+                        const activeType = activeTrip?.activeFormatType || 'popular';
 
-            <!-- Mapping Editor Modal (Hidden by default) -->
-            <div id="mappingEditor" style="display: none; padding: 20px; background: rgba(0,0,0,0.05); border-radius: 12px; margin-top: 20px; border: 1px dashed var(--accent-blue);">
-                <h3 style="margin-bottom: 15px;">Edit Column Mapping</h3>
-                <div class="grid-2" id="mappingInputs"></div>
-                <div style="margin-top: 15px; display: flex; gap: 10px;">
-                    <button id="saveMappingBtn" class="btn btn-small">Save Mapping</button>
-                    <button id="cancelMappingBtn" class="btn btn-small btn-liquid-glass">Cancel</button>
-                </div>
-            </div>
+                        const populars = [
+                            { id: 'tricount', name: 'Tricount Export (CSV/XLSX)' },
+                            { id: 'splitwise', name: 'Splitwise Export' },
+                            { id: 'revolut', name: 'Revolut Monthly Statement' }
+                        ];
 
-            <div id="popularSection" style="display: none;">
-                <p>Select your export source to automatically map columns:</p>
-                <select id="popularFormat" class="glass-input" style="width: 100%; margin-bottom: 20px;">
-                    <option value="tricount">Tricount Export (CSV/XLSX)</option>
-                    <option value="splitwise">Splitwise Export</option>
-                    <option value="revolut">Revolut Monthly Statement</option>
+                        const popOpts = populars.map(p => 
+                            `<option value="popular:${p.id}" ${activeType === 'popular' && activeId === p.id ? 'selected' : ''}>${p.name}</option>`
+                        ).join('');
+
+                        const custOpts = sf.length === 0 
+                            ? '<option disabled>No saved custom formats yet</option>'
+                            : sf.map(f => 
+                                `<option value="custom:${f.id}" ${activeType === 'custom' && activeId === f.id ? 'selected' : ''}>${f.name}</option>`
+                            ).join('');
+
+                        return `
+                            <optgroup label="Popular Formats">${popOpts}</optgroup>
+                            <optgroup label="Custom Formats">${custOpts}</optgroup>
+                        `;
+                    })()}
                 </select>
-                <div style="padding: 16px; background: rgba(0,113,227,0.05); border-radius: 12px; border: 1px solid rgba(0,113,227,0.1); margin-bottom: 20px;">
-                    <span style="font-size: 0.8rem; font-weight: 700; color: var(--accent-blue);">💡 NOTE</span>
-                    <p style="margin: 5px 0 0; font-size: 0.85rem; color: var(--text-secondary);">We will try to auto-detect categories based on transaction names.</p>
-                </div>
+                <p id="formatNote" style="font-size:0.8rem; color:var(--text-secondary); margin-top:8px;"></p>
+            </div>
+
+            <!-- Column reference for custom formats -->
+            <div id="customFormatPreview" style="display:none; margin-bottom:16px; padding:12px 16px; background:rgba(255,149,0,0.07); border:1px solid rgba(255,149,0,0.2); border-radius:10px;">
+                <p style="font-size:0.82rem; font-weight:600; margin-bottom:8px; color:#ff9500;">Active Format Mapping</p>
+                <div id="customFormatTable"></div>
+            </div>
+
+            <!-- Popular format note -->
+            <div id="popularNote" style="padding: 16px; background: rgba(0,113,227,0.05); border-radius: 12px; border: 1px solid rgba(0,113,227,0.1); margin-bottom: 20px;">
+                <span style="font-size: 0.8rem; font-weight: 700; color: var(--accent-blue);">💡 NOTE</span>
+                <p style="margin: 5px 0 0; font-size: 0.85rem; color: var(--text-secondary);">We will try to auto-detect categories based on transaction names.</p>
             </div>
 
             <input type="file" id="excelFile" accept=".xlsx, .xls, .csv" class="glass-input" style="margin-bottom: 15px; width: 100%;">
@@ -776,17 +813,47 @@ function renderUpload() {
         let parsedRows = null;
         let currentHeader = [];
 
-        const formatSwitch = div.querySelector('#formatSwitch');
-        const popularSection = div.querySelector('#popularSection');
+        const formatSelect = div.querySelector('#formatSelect');
+        const popularNote = div.querySelector('#popularNote');
+        const customFormatPreview = div.querySelector('#customFormatPreview');
+        const customFormatTable = div.querySelector('#customFormatTable');
 
-        formatSwitch.addEventListener('change', (e) => {
-            if (e.target.checked) {
-                popularSection.style.display = 'block';
+        const updateUI = () => {
+            const val = formatSelect.value;
+            const isPopular = val.startsWith('popular:');
+            popularNote.style.display = isPopular ? 'block' : 'none';
+            
+            if (!isPopular) {
+                const formatId = val.split(':')[1];
+                const format = (STATE.savedFormats || []).find(f => f.id === formatId);
+                if (format) {
+                    customFormatPreview.style.display = 'block';
+                    customFormatTable.innerHTML = `<div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap:8px;">
+                        ${format.mappings.map(m => `<div style="font-size:0.75rem;"><span style="color:var(--text-secondary);">${m.variable}:</span> <strong>${m.column}</strong></div>`).join('')}
+                    </div>`;
+                    
+                    const trip = STATE.trips.find(t => t.id === STATE.activeTripId);
+                    if (trip) {
+                        trip.activeFormatId = formatId;
+                        trip.activeFormatType = 'custom';
+                        saveState();
+                    }
+                } else {
+                    customFormatPreview.style.display = 'none';
+                }
             } else {
-                popularSection.style.display = 'none';
+                customFormatPreview.style.display = 'none';
+                const trip = STATE.trips.find(t => t.id === STATE.activeTripId);
+                if (trip) {
+                    trip.activeFormatId = val.split(':')[1];
+                    trip.activeFormatType = 'popular';
+                    saveState();
+                }
             }
-        });
+        };
 
+        formatSelect.addEventListener('change', updateUI);
+        updateUI();
 
         div.querySelector('#excelFile').addEventListener('change', (e) => {
             const file = e.target.files[0];
@@ -807,7 +874,6 @@ function renderUpload() {
                     currentHeader = header;
                     parsedRows = json.slice(1).filter(r => r.length > 0 && r[0]);
 
-                    // Generate preview
                     const previewContainer = div.querySelector('#previewContainer');
                     const thead = div.querySelector('#previewTable thead');
                     const tbody = div.querySelector('#previewTable tbody');
@@ -833,8 +899,9 @@ function renderUpload() {
                 return;
             }
             const statusDiv = div.querySelector('#uploadStatus');
-            const isPopular = div.querySelector('#formatSwitch').checked;
-            const popularFormat = div.querySelector('#popularFormat').value;
+            const formatVal = formatSelect.value;
+            const isPopular = formatVal.startsWith('popular:');
+            const popularFormat = formatVal.split(':')[1];
             
             if (!parsedRows) {
                 statusDiv.innerText = "Please select a valid file to process.";
@@ -844,16 +911,20 @@ function renderUpload() {
 
             try {
                 let added = 0;
+                let mappings = [];
                 
-                // Helper to get index from header
-                const getIdx = (name) => currentHeader.findIndex(h => String(h || '').toLowerCase() === String(name || '').toLowerCase());
+                if (!isPopular) {
+                    const formatId = formatVal.split(':')[1];
+                    const format = STATE.savedFormats.find(f => f.id === formatId);
+                    if (!format) throw new Error("Format not found");
+                    mappings = format.mappings;
+                }
 
                 parsedRows.forEach(row => {
                     let who, catName, label, date, country, value, currency, euroValue;
 
                     if (isPopular) {
                         if (popularFormat === 'tricount') {
-                            // Mapping: Title(0), Amount(1), Currency(2), Date(3), Category(4), Paid by(5)
                             label = String(row[0] || '').trim();
                             value = parseFloat(row[1]) || 0;
                             currency = String(row[2] || 'EUR').trim().toUpperCase();
@@ -862,26 +933,30 @@ function renderUpload() {
                             who = String(row[5] || '').trim();
                             country = 'Unknown';
                         } else if (popularFormat === 'splitwise') {
-                            // Date(0), Description(1), Category(2), Cost(3), Currency(4)
                             date = String(row[0] || '').trim();
                             label = String(row[1] || '').trim();
                             catName = String(row[2] || '').trim();
                             value = parseFloat(row[3]) || 0;
                             currency = String(row[4] || 'EUR').trim().toUpperCase();
-                            who = 'Me'; // Placeholder
+                            who = 'Me';
                             country = 'Unknown';
                         }
                     } else {
-                        // Dynamic Custom Mapping
-                        const m = STATE.excelMapping;
-                        who = String(row[getIdx(m.who)] || '').trim();
-                        catName = String(row[getIdx(m.categoryId)] || '').trim();
-                        label = String(row[getIdx(m.label)] || '').trim();
-                        date = String(row[getIdx(m.date)] || '').trim();
-                        country = String(row[getIdx(m.country)] || 'Unknown').trim();
-                        value = parseFloat(row[getIdx(m.value)]) || 0;
-                        currency = String(row[getIdx(m.currency)] || 'EUR').trim().toUpperCase();
-                        euroValue = parseFloat(row[getIdx(m.euroValue)]) || 0;
+                        const colToIdx = (letter) => letter ? letter.toUpperCase().charCodeAt(0) - 65 : -1;
+                        const get = (varName) => {
+                            const mapping = mappings.find(m => m.variable === varName);
+                            if (!mapping) return '';
+                            return String(row[colToIdx(mapping.column)] || '').trim();
+                        };
+
+                        who       = get('who');
+                        catName   = get('categoryId');
+                        label     = get('label');
+                        date      = get('date');
+                        country   = get('country') || 'Unknown';
+                        value     = parseFloat(get('value')) || 0;
+                        currency  = get('currency').toUpperCase() || 'EUR';
+                        euroValue = parseFloat(get('euroValue')) || 0;
                     }
 
                     if (!euroValue || euroValue === 0) {
@@ -1278,87 +1353,131 @@ function renderInsights() {
 }
 
 // --- Page: Personalization ---
-// --- Page: Personalization ---
 function renderPersonalization() {
     const div = document.createElement('div');
     
     let catsHtml = STATE.categories.map(c => `
-        <div style="display:flex; justify-content:space-between; padding: 8px 0; border-bottom: 1px solid var(--glass-border)">
-            <span>${c.icon} ${c.name}</span>
-            <span style="color: ${c.color}">●</span>
-        </div>
+        <tr style="border-bottom: 1px solid var(--glass-border)">
+            <td style="padding: 12px; font-weight: 500;">${c.icon} ${c.name}</td>
+            <td style="padding: 12px; text-align: right;"><span style="display:inline-block; width:12px; height:12px; border-radius:50%; background: ${c.color}"></span></td>
+            <td style="padding: 12px; text-align: right;">
+                <button class="btn-small" style="background:none; color:#ff3b30; border:none; cursor:pointer;" onclick="window.deleteCategory('${c.id}')">✕</button>
+            </td>
+        </tr>
     `).join('');
 
     let groupsHtml = STATE.groups.map(g => `
-        <div style="padding: 8px 0; border-bottom: 1px solid var(--glass-border)">
-            ${g}
-        </div>
+        <tr style="border-bottom: 1px solid var(--glass-border)">
+            <td style="padding: 12px; font-weight: 500;">${g}</td>
+            <td style="padding: 12px; text-align: right;">
+                <button class="btn-small" style="background:none; color:#ff3b30; border:none; cursor:pointer;" onclick="window.deleteCompanion('${g}')">✕</button>
+            </td>
+        </tr>
     `).join('');
 
     div.innerHTML = `
-        <h1>Personalization</h1>
-        <div class="grid-2">
-            <!-- Existing Categories & Companions Cards -->
-            <div class="card glass" style="border-left: 4px solid var(--accent-blue); box-shadow: 0 0 15px rgba(0, 113, 227, 0.1);">
-                <h2 class="card-title" style="color: var(--accent-blue);">Manage Categories</h2>
-                ${catsHtml}
-                <div style="margin-top: 20px;">
-                    <p style="margin-bottom: 8px;">Add New Category:</p>
-                    <div style="display:flex; gap: 10px;">
-                        <select id="catIcon" class="glass-input" style="width: 80px;">
-                            <option value="🍷">🍷</option><option value="🏨">🏨</option><option value="✈️">✈️</option><option value="🚕">🚕</option><option value="🍕">🍕</option>
-                            <option value="🎟️">🎟️</option><option value="🛍️">🛍️</option><option value="🍦">🍦</option><option value="🥐">🥐</option><option value="🏛️">🏛️</option>
-                            <option value="🏖️">🏖️</option><option value="🎢">🎢</option><option value="🚠">🚠</option><option value="🚌">🚌</option><option value="🚆">🚆</option>
-                            <option value="🌍">🌍</option><option value="🗺️">🗺️</option><option value="🎒">🎒</option><option value="📸">📸</option><option value="☕">☕</option>
-                        </select>
-                        <input type="text" id="catName" class="glass-input" placeholder="Name" style="flex:1;">
-                        <input type="color" id="catColor" class="glass-input" value="#ff3b30">
-                        <button id="addCatBtn" class="btn btn-small">Add</button>
-                    </div>
-                </div>
-            </div>
+        <div class="ai-page-header">
+            <h1 style="background: linear-gradient(135deg, #007aff, #5856d6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Personalization</h1>
+            <p>Customize your experience, categories, and travel companions.</p>
+        </div>
 
-            <div class="card glass" style="border-left: 4px solid var(--accent-blue); box-shadow: 0 0 15px rgba(0, 113, 227, 0.1);">
-                <h2 class="card-title" style="color: var(--accent-blue);">Manage Companions</h2>
-                <p style="color: var(--text-secondary); margin-bottom: 16px;">Add the people who usually pay for expenses.</p>
-                <div style="max-height: 300px; overflow-y: auto; margin-bottom: 16px;">
-                    ${groupsHtml || '<p>No people added yet.</p>'}
-                </div>
-                <div style="margin-top: 20px;">
-                    <p style="margin-bottom: 8px;">Add New Person:</p>
-                    <div style="display: flex; gap: 10px;">
-                        <input type="text" id="newPerson" class="glass-input" style="flex: 1;" placeholder="Enter name...">
-                        <button id="addPersonBtn" class="btn btn-small">Add</button>
-                    </div>
-                </div>
+        <div id="persMenu" class="grid-2">
+            <div class="card glass card-glow-blue" style="cursor: pointer;" onclick="window.showPersTab('categories')">
+                <h2 class="card-title" style="color: var(--accent-blue);">Manage Categories</h2>
+                <p style="color: var(--text-secondary);">Customize expense categories, icons, and colors.</p>
+            </div>
+            <div class="card glass card-glow-purple" style="cursor: pointer;" onclick="window.showPersTab('companions')">
+                <h2 class="card-title" style="color: #5856d6;">Manage Companions</h2>
+                <p style="color: var(--text-secondary);">Add the people who usually travel and split expenses with you.</p>
             </div>
         </div>
 
-        <div class="card glass" style="margin-top: 24px; border-left: 4px solid #ff9500; box-shadow: 0 0 15px rgba(255, 149, 0, 0.1);">
-            <h2 class="card-title" style="color: #ff9500;">Excel Import Mapping</h2>
-            <p style="color: var(--text-secondary); margin-bottom: 20px;">Define how your Excel columns map to our internal data structure. This applies globally to all imports.</p>
+        <div id="persContent" style="display: none;">
+            <button class="btn btn-small btn-liquid-glass" style="margin-bottom: 20px;" onclick="window.showPersTab('menu')">&larr; Back to Personalization</button>
+            
+            <div id="persCategories" style="display: none;">
+                <div class="card glass card-glow-blue">
+                    <h2 class="card-title" style="color: var(--accent-blue);">Categories</h2>
+                    <table class="liquid-table" style="width: 100%; margin-bottom: 20px;">
+                        <thead>
+                            <tr>
+                                <th style="text-align: left;">Name</th>
+                                <th style="text-align: right;">Color</th>
+                                <th style="text-align: right;">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${catsHtml}
+                        </tbody>
+                    </table>
+                    
+                    <div style="margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--glass-border);">
+                        <h3 style="margin-bottom: 12px; font-size: 1rem;">Add New Category</h3>
+                        <div style="display:flex; gap: 12px; flex-wrap: wrap;">
+                            <select id="catIcon" class="glass-input" style="width: 80px;">
+                                <option value="🍷">🍷</option><option value="🏨">🏨</option><option value="✈️">✈️</option><option value="🚕">🚕</option><option value="🍕">🍕</option>
+                                <option value="🎟️">🎟️</option><option value="🛍️">🛍️</option><option value="🍦">🍦</option><option value="🥐">🥐</option><option value="🏛️">🏛️</option>
+                                <option value="🏖️">🏖️</option><option value="🎢">🎢</option><option value="🚠">🚠</option><option value="🚌">🚌</option><option value="🚆">🚆</option>
+                                <option value="🌍">🌍</option><option value="🗺️">🗺️</option><option value="🎒">🎒</option><option value="📸">📸</option><option value="☕">☕</option>
+                            </select>
+                            <input type="text" id="catName" class="glass-input" placeholder="Category Name" style="flex:1; min-width: 150px;">
+                            <input type="color" id="catColor" class="glass-input" value="#ff3b30" style="width: 50px; padding: 2px;">
+                            <button id="addCatBtn" class="btn">Add</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="persCompanions" style="display: none;">
+                <div class="card glass card-glow-purple">
+                    <h2 class="card-title" style="color: #5856d6;">Travel Companions</h2>
+                    <p style="color: var(--text-secondary); margin-bottom: 16px;">The people who usually pay for or share expenses with you.</p>
+                    <table class="liquid-table" style="width: 100%; margin-bottom: 20px;">
+                        <thead>
+                            <tr>
+                                <th style="text-align: left;">Name</th>
+                                <th style="text-align: right;">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${groupsHtml || '<tr><td colspan="2" style="text-align:center; padding: 20px; color: var(--text-secondary);">No companions added yet.</td></tr>'}
+                        </tbody>
+                    </table>
+                    
+                    <div style="margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--glass-border);">
+                        <h3 style="margin-bottom: 12px; font-size: 1rem;">Add Companion</h3>
+                        <div style="display: flex; gap: 12px;">
+                            <input type="text" id="newPerson" class="glass-input" style="flex: 1;" placeholder="Enter name...">
+                            <button id="addPersonBtn" class="btn" style="background: #5856d6;">Add Person</button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     `;
     
     setTimeout(() => {
-        div.querySelector('#addCatBtn').addEventListener('click', () => {
+        const addCatBtn = div.querySelector('#addCatBtn');
+        if (addCatBtn) addCatBtn.addEventListener('click', () => {
             const icon = div.querySelector('#catIcon').value;
-            const name = div.querySelector('#catName').value;
+            const name = div.querySelector('#catName').value.trim();
             const color = div.querySelector('#catColor').value;
             if(name) {
                 STATE.categories.push({ id: generateId(), name, icon, color });
                 saveState();
-                navigate('personalization'); // Re-render
+                navigate('personalization');
+                setTimeout(() => window.showPersTab('categories'), 50);
             }
         });
 
-        div.querySelector('#addPersonBtn').addEventListener('click', () => {
+        const addPersonBtn = div.querySelector('#addPersonBtn');
+        if (addPersonBtn) addPersonBtn.addEventListener('click', () => {
             const name = div.querySelector('#newPerson').value.trim();
             if (name && !STATE.groups.includes(name)) {
                 STATE.groups.push(name);
                 saveState();
                 navigate('personalization');
+                setTimeout(() => window.showPersTab('companions'), 50);
             }
         });
     }, 0);
@@ -1366,51 +1485,216 @@ function renderPersonalization() {
     return div;
 }
 
+window.deleteCategory = (id) => {
+    if (!confirm('Delete this category?')) return;
+    STATE.categories = STATE.categories.filter(c => c.id !== id);
+    saveState();
+    navigate('personalization');
+    setTimeout(() => window.showPersTab('categories'), 50);
+};
+
+window.deleteCompanion = (name) => {
+    if (!confirm(`Remove ${name} from companions?`)) return;
+    STATE.groups = STATE.groups.filter(g => g !== name);
+    saveState();
+    navigate('personalization');
+    setTimeout(() => window.showPersTab('companions'), 50);
+};
+
+window.showPersTab = (tab) => {
+    const menu = document.getElementById('persMenu');
+    const content = document.getElementById('persContent');
+    const cats = document.getElementById('persCategories');
+    const comps = document.getElementById('persCompanions');
+    
+    if (!menu || !content) return;
+
+    menu.style.display = tab === 'menu' ? 'grid' : 'none';
+    content.style.display = tab === 'menu' ? 'none' : 'block';
+    
+    if (tab !== 'menu') {
+        cats.style.display = tab === 'categories' ? 'block' : 'none';
+        comps.style.display = tab === 'companions' ? 'block' : 'none';
+    }
+};
+
 // --- Page: Settings ---
 function renderSettings() {
     const div = document.createElement('div');
     div.innerHTML = `
-        <h1>Settings</h1>
-        <div class="grid-2" style="margin-bottom: 24px;">
-            <!-- Reset Companions -->
-            <div class="card glass" style="border-color: rgba(0, 113, 227, 0.3); box-shadow: 0 0 15px rgba(0, 113, 227, 0.1);">
-                <h2 class="card-title" style="color: #007aff;">Reset Companions</h2>
-                <p style="color: var(--text-secondary);">Delete all your travel companions and groups.</p>
-                <button id="resetGroupsBtn" class="btn-liquid-glass" style="margin-top: 10px;">Clear Companions</button>
-            </div>
+        <div class="ai-page-header">
+            <h1 style="background: linear-gradient(135deg, #ff3b30, #ff9500); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Settings</h1>
+            <p>System configuration, data management, and import preferences.</p>
+        </div>
 
-            <!-- Reset Trips -->
-            <div class="card glass" style="border-color: rgba(255, 149, 0, 0.3); box-shadow: 0 0 15px rgba(255, 149, 0, 0.1);">
-                <h2 class="card-title" style="color: #ff9500;">Reset Trips</h2>
-                <p style="color: var(--text-secondary);">Delete all your trips and their associated expenses.</p>
-                <button id="resetTripsBtn" class="btn-liquid-glass" style="margin-top: 10px;">Delete All Trips</button>
+        <div id="settingsMenu" class="grid-2" style="margin-bottom: 24px;">
+            <div class="card glass card-glow-red" style="cursor: pointer;" onclick="window.showSettingsTab('reset')">
+                <h2 class="card-title" style="color: #ff3b30;">Reset Data</h2>
+                <p style="color: var(--text-secondary);">Wipe companions, trips, expenses, or factory reset the app.</p>
             </div>
-
-            <!-- Reset Categories -->
-            <div class="card glass" style="border-color: rgba(88, 86, 214, 0.3); box-shadow: 0 0 15px rgba(88, 86, 214, 0.1);">
-                <h2 class="card-title" style="color: #5856d6;">Reset Categories</h2>
-                <p style="color: var(--text-secondary);">Revert all custom categories to the default set.</p>
-                <button id="resetCatsBtn" class="btn-liquid-glass" style="margin-top: 10px;">Restore Defaults</button>
-            </div>
-
-            <!-- Reset Expenses -->
-            <div class="card glass" style="border-color: rgba(255, 204, 0, 0.3); box-shadow: 0 0 15px rgba(255, 204, 0, 0.1);">
-                <h2 class="card-title" style="color: #ffcc00;">Reset Expenses</h2>
-                <p style="color: var(--text-secondary);">Delete all expenses while keeping your trips and companions.</p>
-                <button id="resetExpensesBtn" class="btn-liquid-glass" style="margin-top: 10px;">Clear All Expenses</button>
+            <div class="card glass card-glow-orange" style="cursor: pointer;" onclick="window.showSettingsTab('format')">
+                <h2 class="card-title" style="color: #ff9500;">Format Options</h2>
+                <p style="color: var(--text-secondary);">Configure Excel import mappings and global formats.</p>
             </div>
         </div>
 
-        <!-- Danger Zone (Full Width) -->
-        <div class="card glass" style="border-color: rgba(255, 59, 48, 0.3); box-shadow: 0 0 20px rgba(255, 59, 48, 0.15);">
-            <h2 class="card-title" style="color: #ff3b30;">Danger Zone</h2>
-            <p>Blank slate. Permanently delete EVERYTHING and revert to original state.</p>
-            <button id="resetAppBtn" class="btn" style="background-color: #ff3b30; margin-top: 10px;">Erase All Data</button>
+        <div id="settingsContent" style="display: none;">
+            <button class="btn btn-small btn-liquid-glass" style="margin-bottom: 20px;" onclick="window.showSettingsTab('menu')">&larr; Back to Settings</button>
+            
+            <div id="settingsReset" style="display: none;">
+                <div class="grid-2" style="margin-bottom: 24px;">
+                    <div class="card glass card-glow-blue">
+                        <h2 class="card-title" style="color: #007aff;">Reset Companions</h2>
+                        <p style="color: var(--text-secondary);">Delete all your travel companions and groups.</p>
+                        <button id="resetGroupsBtn" class="btn-liquid-glass" style="margin-top: 10px; width: 100%;">Clear Companions</button>
+                    </div>
+
+                    <div class="card glass card-glow-orange">
+                        <h2 class="card-title" style="color: #ff9500;">Reset Trips</h2>
+                        <p style="color: var(--text-secondary);">Delete all your trips and their associated expenses.</p>
+                        <button id="resetTripsBtn" class="btn-liquid-glass" style="margin-top: 10px;">Delete All Trips</button>
+                    </div>
+
+                    <div class="card glass" style="border-color: rgba(88, 86, 214, 0.3);">
+                        <h2 class="card-title" style="color: #5856d6;">Reset Categories</h2>
+                        <p style="color: var(--text-secondary);">Revert all custom categories to the default set.</p>
+                        <button id="resetCatsBtn" class="btn-liquid-glass" style="margin-top: 10px;">Restore Defaults</button>
+                    </div>
+
+                    <div class="card glass" style="border-color: rgba(255, 204, 0, 0.3);">
+                        <h2 class="card-title" style="color: #ffcc00;">Reset Expenses</h2>
+                        <p style="color: var(--text-secondary);">Delete all expenses while keeping your trips and companions.</p>
+                        <button id="resetExpensesBtn" class="btn-liquid-glass" style="margin-top: 10px;">Clear All Expenses</button>
+                    </div>
+                </div>
+
+                <div class="card glass" style="border-color: rgba(255, 59, 48, 0.3); box-shadow: 0 0 20px rgba(255, 59, 48, 0.15);">
+                    <h2 class="card-title" style="color: #ff3b30;">Danger Zone</h2>
+                    <p>Blank slate. Permanently delete EVERYTHING and revert to original state.</p>
+                    <button id="resetAppBtn" class="btn" style="background-color: #ff3b30; margin-top: 10px;">Erase All Data</button>
+                </div>
+            </div>
+
+            <div id="settingsFormat" style="display: none;">
+                <div class="card glass" style="border-left: 4px solid #ff9500; box-shadow: 0 0 15px rgba(255, 149, 0, 0.1);">
+                    <h2 class="card-title" style="color: #ff9500;">Custom Excel Format Mapping</h2>
+                    <p style="color: var(--text-secondary); margin-bottom: 16px;">Build a custom format by assigning each app variable to an Excel column (A, B, C…). <strong>Required fields</strong> are marked with <span style="color:#ff3b30;">★</span>.</p>
+                    
+                    <!-- Mandatory field checklist -->
+                    <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:20px;">
+                        ${(() => {
+                            const MANDATORY = ['label','date','value','who'];
+                            const mapped = new Set((STATE.customFormat || []).map(m => m.variable));
+                            return MANDATORY.map(v => {
+                                const done = mapped.has(v);
+                                return `<span style="display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:20px;font-size:0.8rem;font-weight:600;border:1px solid ${done ? 'rgba(52,199,89,0.4)' : 'rgba(255,59,48,0.4)'};background:${done ? 'rgba(52,199,89,0.08)' : 'rgba(255,59,48,0.08)'};color:${done ? '#34c759' : '#ff3b30'};">
+                                    ${done ? '✅' : '★'} ${v}
+                                </span>`;
+                            }).join('');
+                        })()}
+                    </div>
+                    
+                    <!-- Current mappings table -->
+                    <div style="margin-bottom: 20px;">
+                        <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
+                            <thead>
+                                <tr style="border-bottom:1px solid var(--glass-border);">
+                                    <th style="text-align:left; padding:8px 12px; color:var(--text-secondary); font-weight:600; font-size:0.8rem; text-transform:uppercase;">Variable</th>
+                                    <th style="text-align:left; padding:8px 12px; color:var(--text-secondary); font-weight:600; font-size:0.8rem; text-transform:uppercase;">Column</th>
+                                    <th style="width:40px;"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="mappingTableBody">
+                                ${(() => {
+                                    const MANDATORY = new Set(['label','date','value','who']);
+                                    const fm = STATE.customFormat || [];
+                                    if (fm.length === 0) return '<tr><td colspan="3" style="padding:16px 12px; color:var(--text-secondary); text-align:center;">No mappings yet. Add one below.</td></tr>';
+                                    return [...fm].sort((a,b) => a.variable.localeCompare(b.variable)).map(m => `
+                                        <tr style="border-bottom:1px solid var(--glass-border);">
+                                            <td style="padding:10px 12px; font-weight:600;">${MANDATORY.has(m.variable) ? '<span style="color:#ff3b30;">★</span> ' : ''}${m.variable}</td>
+                                            <td style="padding:10px 12px; color:var(--accent-blue); font-weight:700;">${m.column}</td>
+                                            <td style="padding:10px 12px; text-align:center;">
+                                                <button onclick="window.removeFormatMapping('${m.variable}')" style="background:none;border:none;color:#ff3b30;cursor:pointer;font-size:1.1rem;font-weight:700;" title="Remove">✕</button>
+                                            </td>
+                                        </tr>
+                                    `).join('');
+                                })()}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Add new mapping -->
+                    <div style="display:flex; gap:12px; align-items:flex-end; margin-bottom:24px; flex-wrap:wrap;">
+                        <div style="flex:1; min-width:180px;">
+                            <label style="display:block; font-size:0.8rem; margin-bottom:6px; font-weight:600;">App Variable</label>
+                            <select id="mapVarSelect" class="glass-input" style="width:100%;">
+                                <option value="">Select variable…</option>
+                                ${(() => {
+                                    const MANDATORY = ['label','date','value','who'];
+                                    const OPTIONAL = ['country','categoryId','currency','euroValue'];
+                                    const used = new Set((STATE.customFormat || []).map(m => m.variable));
+                                    const mandOpts = MANDATORY.filter(v => !used.has(v)).map(v => `<option value="${v}">★ ${v} (required)</option>`).join('');
+                                    const optOpts = OPTIONAL.filter(v => !used.has(v)).map(v => `<option value="${v}">${v}</option>`).join('');
+                                    return mandOpts + (mandOpts && optOpts ? '' : '') + optOpts;
+                                })()}
+                            </select>
+                        </div>
+                        <div style="flex:1; min-width:120px;">
+                            <label style="display:block; font-size:0.8rem; margin-bottom:6px; font-weight:600;">Excel Column</label>
+                            <select id="mapColSelect" class="glass-input" style="width:100%;">
+                                <option value="">Select column…</option>
+                                ${(() => {
+                                    const usedCols = new Set((STATE.customFormat || []).map(m => m.column));
+                                    return 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')
+                                        .filter(c => !usedCols.has(c))
+                                        .map(c => `<option value="${c}">${c}</option>`).join('');
+                                })()}
+                            </select>
+                        </div>
+                        <button class="btn" onclick="window.addFormatMapping()" style="white-space:nowrap;">+ Add</button>
+                    </div>
+                    
+                    <!-- Save Format -->
+                    <div style="border-top:1px solid var(--glass-border); padding-top:20px;">
+                        <h3 style="font-size:0.95rem; margin-bottom:12px;">Save This Format</h3>
+                        <p style="font-size:0.82rem; color:var(--text-secondary); margin-bottom:12px;">Once all <span style="color:#ff3b30;">★ required fields</span> are mapped, give this format a name and save it. It will appear in the Upload section. Max 5 saved formats.</p>
+                        <div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
+                            <div style="flex:1; min-width:200px;">
+                                <label style="display:block; font-size:0.8rem; margin-bottom:6px; font-weight:600;">Format Name</label>
+                                <input type="text" id="formatNameInput" class="glass-input" placeholder="e.g. My Bank Export" style="width:100%;">
+                            </div>
+                            <button class="btn" onclick="window.saveCustomFormat()" style="background:linear-gradient(135deg,#ff9500,#ff3b30); white-space:nowrap;">💾 Save Format</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Existing saved formats -->
+                    ${(() => {
+                        const sf = STATE.savedFormats || [];
+                        if (sf.length === 0) return '';
+                        return `
+                        <div style="border-top:1px solid var(--glass-border); padding-top:20px; margin-top:20px;">
+                            <h3 style="font-size:0.95rem; margin-bottom:12px;">Saved Formats (${sf.length}/5)</h3>
+                            <div style="display:flex; flex-direction:column; gap:8px;">
+                                ${sf.map(f => `
+                                    <div style="display:flex; align-items:center; justify-content:space-between; padding:12px 16px; background:rgba(255,149,0,0.06); border:1px solid rgba(255,149,0,0.2); border-radius:10px;">
+                                        <div>
+                                            <strong>${f.name}</strong>
+                                            <span style="font-size:0.78rem; color:var(--text-secondary); margin-left:8px;">${f.mappings.length} fields</span>
+                                        </div>
+                                        <button onclick="window.deleteSavedFormat('${f.id}')" style="background:none;border:none;color:#ff3b30;cursor:pointer;font-size:1rem;font-weight:700;" title="Delete">✕</button>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>`;
+                    })()}
+                </div>
+            </div>
         </div>
     `;
 
     setTimeout(() => {
-        div.querySelector('#resetGroupsBtn').addEventListener('click', () => {
+        const rGrp = div.querySelector('#resetGroupsBtn');
+        if (rGrp) rGrp.addEventListener('click', () => {
             if (confirm("Clear all travel companions?")) {
                 STATE.groups = [];
                 saveState();
@@ -1418,7 +1702,8 @@ function renderSettings() {
             }
         });
 
-        div.querySelector('#resetExpensesBtn').addEventListener('click', () => {
+        const rExp = div.querySelector('#resetExpensesBtn');
+        if (rExp) rExp.addEventListener('click', () => {
             if (confirm("Delete all expenses across all trips?")) {
                 STATE.expenses = [];
                 STATE.draftExpense = {
@@ -1470,22 +1755,104 @@ function renderSettings() {
                 navigate('home');
             }
         });
+
+        // No save button needed — mappings are saved immediately on add/remove
     }, 0);
 
     return div;
 }
+
+window.showSettingsTab = (tab) => {
+    document.getElementById('settingsMenu').style.display = tab === 'menu' ? 'grid' : 'none';
+    document.getElementById('settingsContent').style.display = tab === 'menu' ? 'none' : 'block';
+    
+    if (tab !== 'menu') {
+        document.getElementById('settingsReset').style.display = tab === 'reset' ? 'block' : 'none';
+        document.getElementById('settingsFormat').style.display = tab === 'format' ? 'block' : 'none';
+    }
+};
+
+window.addFormatMapping = () => {
+    const variable = document.getElementById('mapVarSelect')?.value;
+    const column   = document.getElementById('mapColSelect')?.value;
+    if (!variable || !column) return alert('Please select both a variable and a column.');
+    STATE.customFormat = STATE.customFormat || [];
+    // Prevent duplicates
+    if (STATE.customFormat.some(m => m.variable === variable)) return alert(`"${variable}" is already mapped. Delete it first.`);
+    if (STATE.customFormat.some(m => m.column === column)) return alert(`Column "${column}" is already assigned to another variable. Choose a different column.`);
+    STATE.customFormat.push({ variable, column });
+    STATE.customFormat.sort((a, b) => a.variable.localeCompare(b.variable));
+    saveState();
+    navigate('settings');
+    setTimeout(() => window.showSettingsTab('format'), 50);
+};
+
+window.removeFormatMapping = (variable) => {
+    STATE.customFormat = (STATE.customFormat || []).filter(m => m.variable !== variable);
+    saveState();
+    navigate('settings');
+    setTimeout(() => window.showSettingsTab('format'), 50);
+};
+
+window.saveCustomFormat = () => {
+    const MANDATORY = ['label', 'date', 'value', 'who'];
+    const fmt = STATE.customFormat || [];
+    const mapped = new Set(fmt.map(m => m.variable));
+    const missing = MANDATORY.filter(v => !mapped.has(v));
+    if (missing.length > 0) {
+        alert(`Please map all required fields first:\n• ${missing.join('\n• ')}`);
+        return;
+    }
+    const name = (document.getElementById('formatNameInput')?.value || '').trim();
+    if (!name) { alert('Please give this format a name.'); return; }
+    STATE.savedFormats = STATE.savedFormats || [];
+    if (STATE.savedFormats.length >= 5) { alert('Maximum 5 saved formats reached. Delete one first.'); return; }
+    if (STATE.savedFormats.some(f => f.name.toLowerCase() === name.toLowerCase())) { alert('A format with that name already exists.'); return; }
+    STATE.savedFormats.push({ id: generateId(), name, mappings: [...fmt] });
+    STATE.customFormat = []; // Clear the draft
+    saveState();
+    navigate('settings');
+    setTimeout(() => window.showSettingsTab('format'), 50);
+};
+
+window.deleteSavedFormat = (id) => {
+    if (!confirm('Delete this saved format?')) return;
+    STATE.savedFormats = (STATE.savedFormats || []).filter(f => f.id !== id);
+    // Remove from any trip that had it active
+    STATE.trips.forEach(t => { if (t.activeFormatId === id) delete t.activeFormatId; });
+    saveState();
+    navigate('settings');
+    setTimeout(() => window.showSettingsTab('format'), 50);
+};
 
 // --- Trip Management & Topbar ---
 function updateTripSelector() {
     const selector = document.getElementById('tripSelector');
     if (!selector) return;
     
-    if (STATE.trips.length === 0) {
+    const hasTrips = STATE.trips.length > 0;
+    
+    if (!hasTrips) {
         selector.innerHTML = '<option value="">Create your first trip...</option>';
     } else {
-        selector.innerHTML = '<option value="">Active Trips...</option>' + 
+        selector.innerHTML = '<option value="">Your active trips</option>' + 
             STATE.trips.map(t => `<option value="${t.id}" ${STATE.activeTripId === t.id ? 'selected' : ''}>${t.name}</option>`).join('');
     }
+
+    // Grey out sidebar items if no trips exist
+    document.querySelectorAll('.sidebar-item').forEach(item => {
+        const page = item.dataset.page;
+        const allowed = ['home', 'settings', 'personalization', 'friends']; 
+        // User said "all other tabs (just tabs, not the menu sections) are greyed out"
+        // I'll interpret "tabs" as specific trip-related tools: Budgets, Collections, Settlements, Upload
+        const tripDependent = ['budgets', 'collections', 'settlement', 'upload']; 
+        
+        if (!hasTrips && tripDependent.includes(page)) {
+            item.classList.add('disabled');
+        } else {
+            item.classList.remove('disabled');
+        }
+    });
 }
 
 function archiveActiveTrip() {
@@ -1495,6 +1862,17 @@ function archiveActiveTrip() {
 
     if (confirm("Archive this trip? It will be moved to Collections.")) {
         const trip = STATE.trips.splice(tripIndex, 1)[0];
+        
+        // Capture related data for deep viewing in archives
+        trip.expenses = (STATE.expenses || []).filter(e => e.tripId === trip.id);
+        trip.itinerary = (STATE.activities || []).filter(a => a.tripId === trip.id);
+        trip.photos = (STATE.photos || []).filter(p => p.tripId === trip.id);
+
+        // Remove from active state
+        STATE.expenses = (STATE.expenses || []).filter(e => e.tripId !== trip.id);
+        STATE.activities = (STATE.activities || []).filter(a => a.tripId !== trip.id);
+        STATE.photos = (STATE.photos || []).filter(p => p.tripId !== trip.id);
+
         if (!STATE.archivedTrips) STATE.archivedTrips = [];
         STATE.archivedTrips.push(trip);
         STATE.activeTripId = STATE.trips.length > 0 ? STATE.trips[0].id : null;
@@ -1504,156 +1882,533 @@ function archiveActiveTrip() {
     }
 }
 
-// --- Initialization ---
-function init() {
-    loadState();
-    updateTripSelector();
-    
-    // Nav Listeners (both navbar and sidebar)
-    document.querySelectorAll('.nav-item, .sidebar-item').forEach(link => {
-        link.addEventListener('click', (e) => {
-            e.preventDefault();
-            const page = e.currentTarget.dataset.page;
-            if (page) {
-                closeSidebar();
-                navigate(page);
-            }
+// --- Page: Budgets ---
+function renderBudgets() {
+    const div = document.createElement('div');
+    STATE.budgets = STATE.budgets || [];
+
+    const tripOpts = STATE.trips.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+    const catOpts = STATE.categories.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+    const userOpts = STATE.groups.map(g => `<option value="${g}">${g}</option>`).join('');
+
+    const activeBudgetsHtml = STATE.budgets.length > 0 ? STATE.budgets.map(b => {
+        let spent = 0;
+        STATE.expenses.forEach(e => {
+            if (b.tripId && b.tripId !== 'all' && e.tripId !== b.tripId) return;
+            if (b.categoryId && b.categoryId !== 'all' && e.categoryId !== b.categoryId) return;
+            if (b.user && b.user !== 'all' && e.who !== b.user) return;
+            spent += parseFloat(e.euroValue || 0);
         });
-    });
+        
+        const pct = Math.min((spent / b.amount) * 100, 100);
+        const color = pct >= 100 ? '#ff3b30' : (pct > 80 ? '#ff9500' : '#34c759');
+        const titleParts = [];
+        if (b.tripId && b.tripId !== 'all') titleParts.push(STATE.trips.find(t=>t.id===b.tripId)?.name || 'Trip');
+        if (b.categoryId && b.categoryId !== 'all') titleParts.push(STATE.categories.find(c=>c.id===b.categoryId)?.name || 'Category');
+        if (b.user && b.user !== 'all') titleParts.push(b.user);
+        
+        const title = titleParts.length > 0 ? titleParts.join(' · ') : 'General Budget';
 
-    // Hamburger & Sidebar
-    function openSidebar() {
-        document.getElementById('sidebar').classList.add('open');
-        document.getElementById('sidebarOverlay').classList.add('open');
-    }
-    function closeSidebar() {
-        document.getElementById('sidebar').classList.remove('open');
-        document.getElementById('sidebarOverlay').classList.remove('open');
-    }
-    document.getElementById('hamburgerBtn').addEventListener('click', openSidebar);
-    document.getElementById('sidebarClose').addEventListener('click', closeSidebar);
-    document.getElementById('sidebarOverlay').addEventListener('click', closeSidebar);
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSidebar(); });
+        return `
+            <div class="card glass card-glow-blue" style="margin-bottom:16px;">
+                <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+                    <strong style="font-size:1.1rem;">${title}</strong>
+                    <button class="btn-small" style="background:none;color:#ff3b30;padding:0;min-width:auto;border:none;cursor:pointer;font-weight:600;" onclick="window.deleteBudget('${b.id}')">Delete</button>
+                </div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:8px; font-size:0.9rem;">
+                    <span>Spent: <strong>${spent.toFixed(2)}€</strong></span>
+                    <span style="color:var(--text-secondary);">Target: ${b.amount.toFixed(2)}€</span>
+                </div>
+                <div style="height:10px; background:var(--glass-border); border-radius:5px; overflow:hidden;">
+                    <div style="height:100%; width:${pct}%; background:${color}; transition:width 0.3s;"></div>
+                </div>
+            </div>
+        `;
+    }).join('') : '<p style="color:var(--text-secondary); text-align:center;">No budgets set yet.</p>';
 
-    // Trip Selector Listener
-    document.getElementById('tripSelector').addEventListener('change', (e) => {
-        STATE.activeTripId = e.target.value;
-        saveState();
-        const activeLink = document.querySelector('.nav-item.active');
-        const currentPage = activeLink ? activeLink.dataset.page : 'home';
-        navigate(currentPage);
-    });
+    div.innerHTML = `
+        <div class="ai-page-header" style="background: linear-gradient(135deg, rgba(52, 199, 89, 0.1), rgba(0, 113, 227, 0.1));">
+            <h1 style="background: linear-gradient(135deg, #34c759, #007aff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Budgets</h1>
+            <p>Set spending limits and track them across trips.</p>
+        </div>
+        
+        <div class="grid-2" style="margin-top: 24px;">
+            <div class="card glass card-glow-green">
+                <h2 class="card-title" style="color: #34c759;">Create New Budget</h2>
+                <div style="margin-bottom:12px;">
+                    <label style="display:block; font-size:0.8rem; margin-bottom:4px; font-weight:600;">Trip</label>
+                    <select id="budTrip" class="glass-input" style="width:100%;"><option value="all">All Trips</option>${tripOpts}</select>
+                </div>
+                <div style="margin-bottom:12px;">
+                    <label style="display:block; font-size:0.8rem; margin-bottom:4px; font-weight:600;">Category</label>
+                    <select id="budCat" class="glass-input" style="width:100%;"><option value="all">All Categories</option>${catOpts}</select>
+                </div>
+                <div style="margin-bottom:12px;">
+                    <label style="display:block; font-size:0.8rem; margin-bottom:4px; font-weight:600;">Person</label>
+                    <select id="budUser" class="glass-input" style="width:100%;"><option value="all">Everyone</option>${userOpts}</select>
+                </div>
+                <div style="margin-bottom:16px;">
+                    <label style="display:block; font-size:0.8rem; margin-bottom:4px; font-weight:600;">Target Amount (€)</label>
+                    <input type="number" id="budAmt" class="glass-input" style="width:100%;" placeholder="e.g. 1000">
+                </div>
+                <button id="saveBudgetBtn" class="btn" style="width:100%; background: #34c759;">Save Budget</button>
+            </div>
+            
+            <div>
+                <h2 class="card-title" style="margin-bottom:16px;">Active Tracking</h2>
+                ${activeBudgetsHtml}
+            </div>
+        </div>
+    `;
 
-    // New Trip Listener
-    document.getElementById('newTripBtn').addEventListener('click', openNewTripModal);
+    setTimeout(() => {
+        const btn = div.querySelector('#saveBudgetBtn');
+        if (btn) btn.addEventListener('click', () => {
+            const amt = parseFloat(div.querySelector('#budAmt').value);
+            if (!amt || amt <= 0) return alert('Enter a valid amount.');
+            
+            STATE.budgets.push({
+                id: generateId(),
+                tripId: div.querySelector('#budTrip').value,
+                categoryId: div.querySelector('#budCat').value,
+                user: div.querySelector('#budUser').value,
+                amount: amt
+            });
+            saveState();
+            navigate('budgets');
+        });
+    }, 0);
 
-    // Archive Trip Listener
-    if (!document.getElementById('archiveTripBtn')) {
-        const archiveBtn = document.createElement('button');
-        archiveBtn.id = 'archiveTripBtn';
-        archiveBtn.className = 'btn-archive';
-        archiveBtn.innerHTML = `
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="21 8 21 21 3 21 3 8"></polyline>
-                <rect x="1" y="3" width="22" height="5"></rect>
-                <line x1="10" y1="12" x2="14" y2="12"></line>
-            </svg>`;
-        archiveBtn.title = 'Archive active trip';
-        document.querySelector('.nav-trips').appendChild(archiveBtn);
-        archiveBtn.addEventListener('click', archiveActiveTrip);
-    }
-
-    // Initial navigation
-    navigate('home');
-
-    // Initialize Google Login
-    console.log("Initializing Google Login...");
-    initGoogleLogin();
-    console.log("Init sequence complete.");
+    return div;
 }
 
-async function initGoogleLogin() {
-    const config = await (await fetch('/api/config')).json();
-    if (!config.google_client_id) {
-        console.warn("Google Client ID not found in .env");
-        return;
-    }
+window.deleteBudget = (id) => {
+    STATE.budgets = STATE.budgets.filter(b => b.id !== id);
+    saveState();
+    navigate('budgets');
+};
 
-    window.google.accounts.id.initialize({
-        client_id: config.google_client_id,
-        callback: handleGoogleLogin
-    });
+// --- Page: Collections ---
+function renderCollections() {
+    const div = document.createElement('div');
+    const archived = STATE.archivedTrips || [];
 
-    window.google.accounts.id.renderButton(
-        document.getElementById("googleLoginBtn"),
-        { theme: "outline", size: "large", width: 250 }
-    );
+    div.innerHTML = `
+        <div class="ai-page-header" style="background: linear-gradient(135deg, rgba(255, 149, 0, 0.1), rgba(255, 59, 48, 0.1));">
+            <h1 style="background: linear-gradient(135deg, #ff9500, #ff3b30); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Collections</h1>
+            <p>Your archived travel memories and trip photos.</p>
+        </div>
+        
+        <div class="trip-nav glass" style="margin-top: 24px;">
+            <button class="trip-tab active" id="tabArchived">Archived Trips</button>
+            <button class="trip-tab" id="tabPhotos">Trip Photos</button>
+        </div>
 
-    // Logout listener
-    document.getElementById('logoutBtn').addEventListener('click', () => {
-        STATE.user = null;
-        saveState();
-        location.reload(); // Hard reset for security
-    });
+        <div id="colArchived" class="col-tab-content">
+            <div class="grid-2" style="margin-top: 16px;">
+                ${archived.length > 0 ? archived.map(t => `
+                    <div class="card glass card-glow-orange" style="display: flex; flex-direction: row; align-items: center; justify-content: space-between; padding: 20px;">
+                        <div style="cursor: pointer; flex: 1;" onclick="window.viewArchivedDetails('${t.id}')">
+                            <h3 style="margin: 0;">${t.name}</h3>
+                            <p style="color: var(--text-secondary); margin: 4px 0 0 0;">${t.country} · ${t.expenses?.length || 0} expenses</p>
+                        </div>
+                        <div style="display: flex; gap: 8px;">
+                            <button class="btn-liquid-glass btn-small" onclick="window.viewArchivedDetails('${t.id}')">View</button>
+                            <button class="btn btn-small" onclick="window.restoreTrip('${t.id}')" style="background: var(--accent-blue);">Restore</button>
+                        </div>
+                    </div>
+                `).join('') : `
+                    <div class="card glass" style="grid-column: 1 / -1; text-align: center; padding: 60px;">
+                        <div style="font-size: 4rem; margin-bottom: 20px;">📚</div>
+                        <h2>No archived trips</h2>
+                        <p style="color: var(--text-secondary);">Your travel history will appear here once you archive a trip.</p>
+                    </div>
+                `}
+            </div>
+        </div>
 
-    // Check if we have a saved user
-    if (STATE.user) {
-        updateUserUI();
-    }
+        <div id="colPhotos" class="col-tab-content" style="display: none;">
+            <div class="card glass card-glow-purple" style="margin-top: 16px; padding: 24px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                    <h2 class="card-title" style="margin: 0;">Photo Gallery</h2>
+                    <select id="photoFilter" class="glass-input" style="width: 200px;">
+                        <option value="">All Trips</option>
+                        ${STATE.trips.map(t => `<option value="${t.id}">${t.name}</option>`).join('')}
+                    </select>
+                </div>
+                <div id="galleryGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 16px;"></div>
+            </div>
+        </div>
+    `;
+
+    setTimeout(() => {
+        const tabArchived = div.querySelector('#tabArchived');
+        const tabPhotos = div.querySelector('#tabPhotos');
+        const contentArchived = div.querySelector('#colArchived');
+        const contentPhotos = div.querySelector('#colPhotos');
+
+        tabArchived.onclick = () => {
+            tabArchived.classList.add('active');
+            tabPhotos.classList.remove('active');
+            contentArchived.style.display = 'block';
+            contentPhotos.style.display = 'none';
+        };
+
+        tabPhotos.onclick = () => {
+            tabPhotos.classList.add('active');
+            tabArchived.classList.remove('active');
+            contentArchived.style.display = 'none';
+            contentPhotos.style.display = 'block';
+            renderGallery();
+        };
+
+        function renderGallery() {
+            const grid = div.querySelector('#galleryGrid');
+            const filterId = div.querySelector('#photoFilter').value;
+            const photos = (STATE.photos || []).filter(p => !filterId || p.tripId === filterId);
+            
+            grid.innerHTML = photos.length > 0 ? photos.map(p => `
+                <div style="position: relative; aspect-ratio: 1; border-radius: 12px; overflow: hidden; border: 1px solid var(--glass-border);">
+                    <img src="${p.url}" style="width: 100%; height: 100%; object-fit: cover;">
+                    <button onclick="window.deletePhoto('${p.id}')" style="position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,0.5); color: white; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 12px;">&times;</button>
+                </div>
+            `).join('') : '<p style="grid-column: 1/-1; text-align: center; color: var(--text-secondary); padding: 40px;">No photos found for this trip.</p>';
+        }
+
+        div.querySelector('#photoFilter').onchange = renderGallery;
+    }, 0);
+
+    return div;
 }
 
-async function handleGoogleLogin(response) {
-    const res = await fetch('/api/auth/google', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: response.credential })
-    });
-    const data = await res.json();
-    if (data.status === 'success') {
-        STATE.user = data.user;
+window.deletePhoto = (id) => {
+    if (!confirm("Delete this photo?")) return;
+    STATE.photos = STATE.photos.filter(p => p.id !== id);
+    saveState();
+    navigate('collections');
+    setTimeout(() => {
+        const btn = document.getElementById('tabPhotos');
+        if (btn) btn.click();
+    }, 50);
+};
+
+window.viewArchivedDetails = (id) => {
+    const trip = STATE.archivedTrips.find(t => t.id === id);
+    if (!trip) return;
+
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.style.display = 'flex';
+    
+    let totalSpent = 0;
+    (trip.expenses || []).forEach(e => totalSpent += parseFloat(e.euroValue || 0));
+
+    modal.innerHTML = `
+        <div class="card glass card-glow-orange" style="width: 600px; max-height: 80vh; overflow-y: auto; padding: 32px; border-radius: 24px; animation: modalPop 0.4s cubic-bezier(0.16, 1, 0.3, 1);">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px;">
+                <div>
+                    <h2 style="margin: 0; font-size: 1.8rem; background: linear-gradient(135deg, #ff9500, #ff3b30); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">${trip.name}</h2>
+                    <p style="color: var(--text-secondary); margin-top: 4px;">Archived Adventure · ${trip.country}</p>
+                </div>
+                <button onclick="this.closest('.modal-overlay').remove()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-secondary);">&times;</button>
+            </div>
+
+            <div class="grid-2" style="margin-bottom: 24px;">
+                <div class="card glass card-glow-green" style="padding: 16px; text-align: center; border-radius: 16px;">
+                    <div style="font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 800; letter-spacing: 0.05em; margin-bottom: 4px;">Total Spent</div>
+                    <div style="font-size: 1.5rem; font-weight: 800; color: #34c759;">€${totalSpent.toFixed(2)}</div>
+                </div>
+                <div class="card glass card-glow-blue" style="padding: 16px; text-align: center; border-radius: 16px;">
+                    <div style="font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 800; letter-spacing: 0.05em; margin-bottom: 4px;">Expenses</div>
+                    <div style="font-size: 1.5rem; font-weight: 800; color: var(--accent-blue);">${trip.expenses?.length || 0}</div>
+                </div>
+            </div>
+
+            <div style="margin-bottom: 24px;">
+                <h3 style="font-size: 1.1rem; margin-bottom: 12px; font-weight: 700;">Itinerary Summary</h3>
+                ${trip.itinerary?.length > 0 ? `
+                    <div style="display: flex; flex-direction: column; gap: 10px;">
+                        ${trip.itinerary.map(a => `
+                            <div style="display: flex; justify-content: space-between; padding: 12px; background: rgba(255,255,255,0.03); border-radius: 12px; border: 1px solid var(--glass-border);">
+                                <span style="font-weight: 600;">📍 ${a.name || 'Activity'}</span>
+                                <span style="color: var(--text-secondary); font-size: 0.85rem;">${a.date || ''}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                ` : '<p style="color: var(--text-secondary); text-align: center; padding: 20px; background: rgba(255,255,255,0.02); border-radius: 12px;">No itinerary saved for this trip.</p>'}
+            </div>
+
+            <div style="margin-bottom: 24px;">
+                <h3 style="font-size: 1.1rem; margin-bottom: 12px; font-weight: 700;">Recent Expenses</h3>
+                <table class="liquid-table" style="width: 100%;">
+                    <thead>
+                        <tr>
+                            <th style="text-align: left;">Label</th>
+                            <th style="text-align: right;">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${(trip.expenses || []).slice(0, 5).map(e => `
+                            <tr>
+                                <td style="font-weight: 500;">${e.label}</td>
+                                <td style="text-align: right; font-weight: 700;">€${parseFloat(e.euroValue || 0).toFixed(2)}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+
+            <button class="btn btn-liquid-glass" style="width: 100%;" onclick="this.closest('.modal-overlay').remove()">Close Overview</button>
+        </div>
+    `;
+    document.body.appendChild(modal);
+};
+
+window.restoreTrip = (id) => {
+    const index = STATE.archivedTrips.findIndex(t => t.id === id);
+    if (index !== -1) {
+        const trip = STATE.archivedTrips.splice(index, 1)[0];
+        if (trip.expenses) STATE.expenses.push(...trip.expenses);
+        if (trip.itinerary) STATE.activities.push(...trip.itinerary);
+        if (trip.photos) STATE.photos.push(...trip.photos);
+        
+        STATE.trips.push(trip);
+        STATE.activeTripId = trip.id;
         saveState();
-        updateUserUI();
-        await fetchUserData(); // Load cloud data after login
+        updateTripSelector();
         navigate('home');
     }
-}
+};
 
-async function fetchUserData() {
-    if (!STATE.user) return;
-    try {
-        const res = await fetch(`/api/data?user_id=${STATE.user.id}`);
-        const data = await res.json();
-        if (data.trips) {
-            STATE.trips = data.trips;
-            STATE.expenses = data.expenses;
-            STATE.activities = data.activities || [];
-            STATE.photos = data.photos || [];
-            saveState();
-        }
-    } catch (e) {
-        console.error("Failed to fetch user data:", e);
+// --- Page: Plan with AI ---
+let leafletMap = null;
+function renderAI() {
+    const div = document.createElement('div');
+    const activeTrip = STATE.trips.find(t => t.id === STATE.activeTripId);
+
+    if (!activeTrip) {
+        div.innerHTML = `
+            <div class="ai-page-header" style="background: linear-gradient(135deg, rgba(0, 113, 227, 0.1), rgba(155, 89, 182, 0.1));">
+                <h1 style="background:linear-gradient(135deg,var(--accent-blue),#9b59b6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Plan with AI ✦</h1>
+                <p>Your AI-powered travel planner</p>
+            </div>
+            <div style="position: relative; width: 100%; height: calc(100vh - 200px); min-height: 480px; border-radius: 24px; overflow: hidden; border: 1px solid var(--glass-border); margin-top: 24px;">
+                <div id="emptyMap" style="width:100%; height:100%;"></div>
+                <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,0.4);backdrop-filter:blur(8px);">
+                    <div style="text-align:center;color:white;padding:40px;max-width:480px;">
+                        <div style="font-size:4rem;margin-bottom:24px;">🌍</div>
+                        <h2 style="margin-bottom:12px;">Start your adventure</h2>
+                        <p style="font-size:1.1rem;opacity:0.9;line-height:1.6;">Create a trip first to start planning your perfect itinerary with AI.</p>
+                        <button onclick="document.getElementById('newTripBtn').click()" class="btn" style="margin-top:24px; background:white; color:var(--accent-blue);">+ Create a Trip</button>
+                    </div>
+                </div>
+            </div>`;
+        return div;
     }
+
+    const tripCountry = activeTrip.country || '';
+    const tourismTypes = [
+        { icon: '🏛️', label: 'Culture' }, { icon: '🍽️', label: 'Food' },
+        { icon: '🌿', label: 'Nature' }, { icon: '🏄', label: 'Adventure' },
+        { icon: '🌙', label: 'Nightlife' }, { icon: '🎒', label: 'Budget' }
+    ];
+
+    div.innerHTML = `
+        <div class="ai-page-header" style="background: linear-gradient(135deg, rgba(0, 113, 227, 0.1), rgba(155, 89, 182, 0.1));">
+            <h1 style="background:linear-gradient(135deg,var(--accent-blue),#9b59b6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Plan with AI ✦</h1>
+            <p>Planning your trip to <strong>${tripCountry}</strong></p>
+        </div>
+
+        <div style="display:grid;grid-template-columns:360px 1fr;gap:24px;margin-top:24px;margin-bottom:32px;">
+            <div style="display:flex;flex-direction:column;gap:16px;">
+                <div class="card glass card-glow-blue" style="padding:20px;">
+                    <h2 class="card-title" style="font-size:0.85rem;text-transform:uppercase;color:var(--accent-blue);margin-bottom:14px;letter-spacing:0.05em;">🧭 Travel Style</h2>
+                    <div style="display:flex;flex-wrap:wrap;gap:8px;">
+                        ${tourismTypes.map(t => `<button class="tourism-tag" data-type="${t.label}" style="padding: 8px 12px; border-radius: 12px; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); color: white; cursor: pointer; font-size: 0.85rem;">${t.icon} ${t.label}</button>`).join('')}
+                    </div>
+                </div>
+                <div class="card glass card-glow-blue" style="padding:20px;">
+                    <h2 class="card-title" style="font-size:0.85rem;text-transform:uppercase;color:var(--accent-blue);margin-bottom:10px;letter-spacing:0.05em;">📝 Requirements</h2>
+                    <textarea id="aiExtraContext" class="glass-input" rows="3" style="width:100%; resize:none; font-size:0.9rem;" placeholder="e.g. Vegetarian friendly, no walking more than 2km..."></textarea>
+                </div>
+                <button id="generateBtn" class="ai-generate-btn" style="width:100%; padding: 16px; border-radius: 16px; font-weight: 800;">✦ Generate Itinerary</button>
+            </div>
+
+            <div style="position:sticky;top:80px;height:500px;">
+                <div class="card glass card-glow-blue" style="padding:0;overflow:hidden;height:100%;border-radius:24px;position:relative;border:1px solid var(--glass-border);">
+                    <div id="aiLeafletMap" style="width:100%;height:100%;"></div>
+                </div>
+            </div>
+        </div>
+        <div id="itineraryOutput"></div>`;
+
+    setTimeout(() => {
+        div.querySelectorAll('.tourism-tag').forEach(btn => btn.onclick = () => btn.classList.toggle('selected'));
+        if (typeof L !== 'undefined') {
+            if (leafletMap) { leafletMap.remove(); leafletMap = null; }
+            leafletMap = L.map('aiLeafletMap', { zoomControl: true, attributionControl: false }).setView([20, 0], 2);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(leafletMap);
+        }
+
+        div.querySelector('#generateBtn').onclick = () => {
+            const outputEl = div.querySelector('#itineraryOutput');
+            outputEl.innerHTML = `<div class="ai-loading-spinner"><div class="spinner-ring"></div><div style="font-weight:600; margin-top: 16px;">Consulting AI...</div></div>`;
+            setTimeout(() => {
+                outputEl.innerHTML = `<div class="card glass card-glow-purple" style="padding:40px; text-align:center; border-radius: 24px;">
+                    <h3 style="margin-bottom: 12px;">Itinerary Generation</h3>
+                    <p style="color: var(--text-secondary); line-height: 1.6;">Full itinerary for ${tripCountry} would be generated here using Gemini API.</p>
+                </div>`;
+            }, 1500);
+        };
+    }, 0);
+
+    return div;
 }
 
-function updateUserUI() {
-    if (!STATE.user) return;
-    document.getElementById('googleLoginBtn').style.display = 'none';
-    document.getElementById('userProfile').style.display = 'flex';
-    document.getElementById('logoutBtn').style.display = 'block';
-    document.getElementById('userName').innerText = STATE.user.name;
-    document.getElementById('userEmail').innerText = STATE.user.email;
-    document.getElementById('userPicture').src = STATE.user.picture;
+// --- Page: Settlements ---
+function renderSettlement() {
+    const div = document.createElement('div');
+    const activeTrip = STATE.activeTripId ? STATE.trips.find(t => t.id === STATE.activeTripId) : null;
+    
+    if (!activeTrip) {
+        div.innerHTML = `
+            <div class="ai-page-header" style="background: linear-gradient(135deg, rgba(72, 209, 232, 0.1), rgba(0, 113, 227, 0.1));">
+                <h1 style="background: linear-gradient(135deg, #48d1e8, #007aff); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Settlements</h1>
+                <p>Calculate who owes what and settle up fairly.</p>
+            </div>
+            <div class="card glass card-glow-teal" style="text-align: center; padding: 60px; margin-top: 24px;">
+                <div style="font-size: 4rem; margin-bottom: 20px;">⚖️</div>
+                <h2>No active trip selected</h2>
+                <p style="color: var(--text-secondary);">Select a trip to calculate smart settlements and balances.</p>
+            </div>
+        `;
+        return div;
+    }
+
+    const tripExps = STATE.expenses.filter(e => e.tripId === STATE.activeTripId);
+    const balances = {};
+    STATE.groups.forEach(person => balances[person] = 0);
+    
+    tripExps.forEach(exp => {
+        const amount = parseFloat(exp.euroValue || exp.value || 0);
+        const paidBy = exp.who;
+        if (balances[paidBy] !== undefined) balances[paidBy] += amount;
+        if (exp.splits && Object.keys(exp.splits).length > 0) {
+            for (const [person, pct] of Object.entries(exp.splits)) {
+                if (balances[person] !== undefined) balances[person] -= amount * (pct / 100);
+            }
+        } else {
+            const splitAmt = amount / Math.max(STATE.groups.length, 1);
+            STATE.groups.forEach(person => balances[person] -= splitAmt);
+        }
+    });
+
+    const debts = [];
+    const creditors = [];
+    const debtors = [];
+    for (const [person, balance] of Object.entries(balances)) {
+        if (balance > 0.01) creditors.push({ person, amount: balance });
+        else if (balance < -0.01) debtors.push({ person, amount: Math.abs(balance) });
+    }
+
+    const creditorsCopy = creditors.map(c => ({ ...c }));
+    const debtorsCopy = debtors.map(d => ({ ...d }));
+    creditorsCopy.sort((a,b) => b.amount - a.amount);
+    debtorsCopy.sort((a,b) => b.amount - a.amount);
+
+    let i = 0, j = 0;
+    while (i < debtorsCopy.length && j < creditorsCopy.length) {
+        const pay = Math.min(debtorsCopy[i].amount, creditorsCopy[j].amount);
+        debts.push({ from: debtorsCopy[i].person, to: creditorsCopy[j].person, amount: pay });
+        debtorsCopy[i].amount -= pay;
+        creditorsCopy[j].amount -= pay;
+        if (debtorsCopy[i].amount < 0.01) i++;
+        if (creditorsCopy[j].amount < 0.01) j++;
+    }
+
+    div.innerHTML = `
+        <div class="ai-page-header" style="background: linear-gradient(135deg, rgba(72, 209, 232, 0.1), rgba(0, 113, 227, 0.1));">
+            <h1 style="background: linear-gradient(135deg, #48d1e8, #007aff); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Settlements</h1>
+            <p>Balanced settlements for <strong>${activeTrip.name}</strong></p>
+        </div>
+
+        <div class="grid-2" style="margin-top: 24px;">
+            <div class="card glass card-glow-teal">
+                <h2 class="card-title">Net Balances</h2>
+                <table class="liquid-table" style="width: 100%;">
+                    <thead>
+                        <tr><th style="text-align: left;">Person</th><th style="text-align: right;">Balance</th></tr>
+                    </thead>
+                    <tbody>
+                        ${Object.entries(balances).map(([person, bal]) => `
+                            <tr>
+                                <td style="font-weight: 500;">${person}</td>
+                                <td style="text-align: right; color: ${bal >= 0 ? '#34c759' : '#ff3b30'}; font-weight: 700;">
+                                    ${bal >= 0 ? '+' : ''}${bal.toFixed(2)}€
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="card glass card-glow-blue">
+                <h2 class="card-title">Suggested Payments</h2>
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+                    ${debts.length > 0 ? debts.map(d => `
+                        <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px; background: rgba(0, 113, 227, 0.05); border-radius: 12px; border: 1px solid rgba(0, 113, 227, 0.1);">
+                            <div>
+                                <span style="font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 700;">${d.from} owes</span>
+                                <div style="font-weight: 700; font-size: 1.1rem;">${d.to}</div>
+                            </div>
+                            <div style="font-size: 1.2rem; font-weight: 700; color: var(--accent-blue);">€${d.amount.toFixed(2)}</div>
+                        </div>
+                    `).join('') : '<p style="color: var(--text-secondary); text-align: center; padding: 20px;">All settled up! 🥂</p>'}
+                </div>
+            </div>
+        </div>
+    `;
+    return div;
 }
 
+// --- Social & Friends (Simplified) ---
+function renderFriends() {
+    const div = document.createElement('div');
+    div.innerHTML = `
+        <div class="ai-page-header" style="background: linear-gradient(135deg, rgba(0, 122, 255, 0.1), rgba(88, 86, 214, 0.1));">
+            <h1 style="background: linear-gradient(135deg, #007aff, #5856d6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Friends</h1>
+            <p>Connect with other travelers and share your itineraries</p>
+        </div>
+        <div class="grid-2" style="margin-top: 24px;">
+            <div class="card glass card-glow-blue">
+                <h3 style="margin-bottom: 16px; font-weight: 700;">Find Friends</h3>
+                <div style="display: flex; gap: 8px; margin-bottom: 20px;">
+                    <input type="text" class="glass-input" placeholder="Search by email..." style="flex: 1;">
+                    <button class="btn btn-small">Search</button>
+                </div>
+            </div>
+            <div class="card glass card-glow-purple">
+                <h3 style="margin-bottom: 16px; font-weight: 700;">Your Friends</h3>
+                <div style="color: var(--text-secondary); text-align: center; padding: 20px; background: rgba(255,255,255,0.02); border-radius: 12px;">No friends added yet.</div>
+            </div>
+        </div>
+    `;
+    return div;
+}
+
+function openShareModal() {
+    alert("Sharing feature is being optimized. Check back soon!");
+}
+
+// --- Trip Creation ---
 function openNewTripModal() {
     const modal = document.createElement('div');
     modal.className = 'modal-overlay';
     modal.style.display = 'flex';
     modal.innerHTML = `
-        <div class="card glass" style="width: 450px; padding: 32px; border-radius: 24px; position: relative; animation: modalPop 0.4s cubic-bezier(0.16, 1, 0.3, 1);">
+        <div class="card glass" style="width: 450px; padding: 32px; border-radius: 24px; animation: modalPop 0.4s cubic-bezier(0.16, 1, 0.3, 1);">
             <h2 style="margin-top: 0; font-size: 1.8rem; letter-spacing: -0.03em;">Create New Adventure 🌍</h2>
             <p style="color: var(--text-secondary); margin-bottom: 24px;">Where are we heading next?</p>
-            
             <div style="display: flex; flex-direction: column; gap: 16px;">
                 <div>
                     <label style="display: block; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); margin-bottom: 6px;">Trip Name</label>
@@ -1663,7 +2418,6 @@ function openNewTripModal() {
                     <label style="display: block; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); margin-bottom: 6px;">Country</label>
                     <input type="text" id="modalTripCountry" class="glass-input" placeholder="e.g. Italy" style="width: 100%;">
                 </div>
-                
                 <div style="display: flex; gap: 12px; margin-top: 12px;">
                     <button id="modalCancelBtn" class="btn btn-liquid-glass" style="flex: 1;">Cancel</button>
                     <button id="modalCreateBtn" class="btn" style="flex: 2; background: var(--accent-blue); color: white;">Create Trip</button>
@@ -1671,17 +2425,13 @@ function openNewTripModal() {
             </div>
         </div>
     `;
-
     document.body.appendChild(modal);
-    
     const nameInput = modal.querySelector('#modalTripName');
-    const countryInput = modal.querySelector('#modalTripCountry');
     nameInput.focus();
-
     modal.querySelector('#modalCancelBtn').onclick = () => modal.remove();
     modal.querySelector('#modalCreateBtn').onclick = () => {
         const name = nameInput.value.trim();
-        const country = countryInput.value.trim();
+        const country = modal.querySelector('#modalTripCountry').value.trim();
         if (name && country) {
             const id = generateId();
             STATE.trips.push({ id, name, country });
@@ -1696,563 +2446,148 @@ function openNewTripModal() {
     };
 }
 
-// ============================================================
-// --- Page: Budgets (Placeholder) ---
-// ============================================================
-function renderBudgets() {
-    const div = document.createElement('div');
-    div.innerHTML = `
-        <div class="ai-page-header">
-            <h1 style="background: linear-gradient(135deg, #34c759, #007aff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Budgets</h1>
-            <p>Set spending limits and track them across trips.</p>
-        </div>
-        <div class="card glass" style="text-align: center; padding: 60px; max-width: 500px; margin: 0 auto;">
-            <div style="font-size: 4rem; margin-bottom: 20px;">💰</div>
-            <h2 style="margin-bottom: 12px;">Coming Soon</h2>
-            <p style="color: var(--text-secondary); line-height: 1.6;">Budget tracking will let you set per-trip or per-category spending limits and get alerts when you're close to them.</p>
-        </div>
-    `;
-    return div;
-}
+// --- Initialization ---
+function init() {
+    loadState();
+    updateTripSelector();
+    
+    // Sidebar Logic
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+    const openSidebar = () => {
+        if (sidebar) sidebar.classList.add('open');
+        if (overlay) overlay.classList.add('open');
+    };
+    const closeSidebar = () => {
+        if (sidebar) sidebar.classList.remove('open');
+        if (overlay) overlay.classList.remove('open');
+    };
 
-// ============================================================
-// --- Page: Collections (Placeholder) ---
-// ============================================================
-function renderCollections() {
-    const div = document.createElement('div');
-    const archived = STATE.archivedTrips || [];
-
-    let archivedHtml = archived.length > 0 ? archived.map(t => `
-        <div class="card glass" style="display: flex; flex-direction: row; align-items: center; justify-content: space-between; padding: 20px;">
-            <div>
-                <h3 style="margin: 0;">${t.name}</h3>
-                <p style="color: var(--text-secondary); margin: 4px 0 0 0;">${t.country}</p>
-            </div>
-            <button class="btn-liquid-glass" onclick="restoreTrip('${t.id}')">Restore</button>
-        </div>
-    `).join('') : `
-        <div class="card glass" style="text-align: center; padding: 60px;">
-            <div style="font-size: 4rem; margin-bottom: 20px;">📚</div>
-            <h2 style="margin-bottom: 12px;">No archived trips</h2>
-            <p style="color: var(--text-secondary); line-height: 1.6;">Your archived trips will appear here.</p>
-        </div>
-    `;
-
-    div.innerHTML = `
-        <div class="ai-page-header">
-            <h1 style="background: linear-gradient(135deg, #ff9500, #ff3b30); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Collections</h1>
-            <p>Your archived travel memories.</p>
-        </div>
-        <div style="display: flex; flex-direction: column; gap: 16px;">
-            ${archivedHtml}
-        </div>
-    `;
-    return div;
-}
-
-// Global scope for restore button
-window.restoreTrip = (id) => {
-    const index = STATE.archivedTrips.findIndex(t => t.id === id);
-    if (index !== -1) {
-        const trip = STATE.archivedTrips.splice(index, 1)[0];
-        STATE.trips.push(trip);
-        STATE.activeTripId = trip.id;
-        saveState();
-        updateTripSelector();
-        navigate('collections');
-    }
-};
-
-// ============================================================
-// --- Page: Plan with AI ---
-// ============================================================
-const AI_KEYS = { openai: '', gemini: '' };
-let leafletMap = null; // singleton reference
-
-function renderAI() {
-    const div = document.createElement('div');
-    const activeTrip = STATE.trips.find(t => t.id === STATE.activeTripId);
-
-    // ── EMPTY STATE ──────────────────────────────────────────
-    if (!activeTrip) {
-        div.innerHTML = `
-            <div style="padding:32px 0 24px;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text',sans-serif;">
-                <h1 style="margin:0 0 6px;font-size:2.8rem;font-weight:800;letter-spacing:-0.04em;background:linear-gradient(135deg,var(--accent-blue),#9b59b6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Plan with AI ✦</h1>
-                <p style="margin:0;color:var(--text-secondary);font-size:1rem;">Your AI-powered travel planner</p>
-            </div>
-            <div style="position: relative; width: 100%; height: calc(100vh - 200px); min-height: 480px; border-radius: 20px; overflow: hidden;">
-                <div id="emptyMap" style="width:100%; height:100%;"></div>
-                <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,0.38);backdrop-filter:blur(6px);">
-                    <div style="text-align:center;color:white;padding:40px;max-width:480px;">
-                        <div style="font-size:4rem;margin-bottom:20px;">✈️</div>
-                        <p style="font-size:1.1rem;opacity:0.85;line-height:1.6;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',sans-serif;">Create a trip first to start planning your perfect itinerary with the help of Gemini &amp; ChatGPT.</p>
-                        <button onclick="document.getElementById('newTripBtn').click()" style="margin-top:24px;background:white;color:#0071e3;border:none;border-radius:980px;padding:14px 32px;font-size:1rem;font-weight:700;cursor:pointer;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',sans-serif;">+ Create a Trip</button>
-                    </div>
-                </div>
-            </div>`;
-        setTimeout(() => {
-            if (typeof L !== 'undefined') {
-                const m = L.map('emptyMap', { zoomControl: false, attributionControl: false }).setView([20, 0], 2);
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(m);
+    // Nav Listeners
+    document.querySelectorAll('.nav-item, .sidebar-item').forEach(link => {
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            const page = e.currentTarget.dataset.page;
+            if (e.currentTarget.classList.contains('disabled')) {
+                alert("Please create or select a trip first.");
+                return;
             }
-        }, 0);
-        return div;
+            if (page) {
+                closeSidebar();
+                navigate(page);
+            }
+        });
+    });
+
+    const hamBtn = document.getElementById('hamburgerBtn');
+    if (hamBtn) hamBtn.onclick = openSidebar;
+    
+    const closeBtn = document.getElementById('sidebarClose');
+    if (closeBtn) closeBtn.onclick = closeSidebar;
+    
+    if (overlay) overlay.onclick = closeSidebar;
+
+    // Trip Selector
+    const selector = document.getElementById('tripSelector');
+    if (selector) {
+        selector.onchange = (e) => {
+            STATE.activeTripId = e.target.value;
+            saveState();
+            const activeLink = document.querySelector('.nav-item.active');
+            navigate(activeLink ? activeLink.dataset.page : 'home');
+        };
     }
 
-    // ── ACTIVE TRIP STATE ────────────────────────────────────
-    const tripCountry = activeTrip.country || '';
-    const tripExps = STATE.expenses.filter(e => e.tripId === STATE.activeTripId && e.date).sort((a,b) => a.date.localeCompare(b.date));
-    const dates = tripExps.map(e => e.date);
-    const minDate = dates[0] || '';
-    const maxDate = dates[dates.length - 1] || '';
+    // New Trip
+    const newTripBtn = document.getElementById('newTripBtn');
+    if (newTripBtn) newTripBtn.onclick = openNewTripModal;
 
-    const tourismTypes = [
-        { icon: '🏛️', label: 'Culture & History' }, { icon: '🍽️', label: 'Food & Dining' },
-        { icon: '🌿', label: 'Nature & Outdoors' }, { icon: '🏄', label: 'Adventure & Sports' },
-        { icon: '🌙', label: 'Nightlife' },          { icon: '💎', label: 'Luxury' },
-        { icon: '👨‍👩‍👧', label: 'Family-Friendly' },  { icon: '🎒', label: 'Budget Travel' },
-        { icon: '🛍️', label: 'Shopping' },           { icon: '🧘', label: 'Wellness & Spa' },
-    ];
-
-    const sf = `font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text',sans-serif;`;
-
-    div.innerHTML = `
-        <div style="${sf}">
-            <!-- Header -->
-            <div style="padding:32px 0 24px;">
-                <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;">
-                    <h1 style="margin:0;font-size:2.8rem;font-weight:800;letter-spacing:-0.04em;background:linear-gradient(135deg,var(--accent-blue),#9b59b6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Plan with AI ✦</h1>
-                    <div id="aiKeyStatus" style="display:flex;gap:6px;flex-wrap:wrap;margin-left:8px;"></div>
-                </div>
-                <p style="margin:0;color:var(--text-secondary);font-size:1rem;">Planning your trip to <strong>${tripCountry}</strong></p>
-            </div>
-
-            <!-- Top 2-col: Controls | Map -->
-            <div style="display:grid;grid-template-columns:380px 1fr;gap:24px;margin-bottom:32px;">
-
-                <!-- Left: Controls -->
-                <div style="display:flex;flex-direction:column;gap:16px;">
-                    <!-- AI Engine badge -->
-                    <div class="card glass" style="padding:18px;border-color:rgba(155,89,182,0.3);">
-                        <h2 class="card-title" style="font-size:0.85rem;text-transform:uppercase;letter-spacing:0.07em;color:#9b59b6;margin-bottom:8px;">✦ AI Engine</h2>
-                        <p style="color:var(--text-secondary);font-size:0.82rem;margin:0;">Keys loaded securely from server.</p>
-                    </div>
-                    <!-- Dates -->
-                    <div class="card glass" style="padding:20px;">
-                        <h2 class="card-title" style="font-size:0.85rem;text-transform:uppercase;letter-spacing:0.07em;color:var(--accent-blue);margin-bottom:14px;">📅 Travel Dates</h2>
-                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-                            <div>
-                                <label style="display:block;font-size:0.75rem;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:5px;">From</label>
-                                <input id="aiDateFrom" type="date" class="glass-input" value="${minDate}" style="width:100%;">
-                            </div>
-                            <div>
-                                <label style="display:block;font-size:0.75rem;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:5px;">To</label>
-                                <input id="aiDateTo" type="date" class="glass-input" value="${maxDate}" style="width:100%;">
-                            </div>
-                        </div>
-                    </div>
-                    <!-- Travel style -->
-                    <div class="card glass" style="padding:20px;">
-                        <h2 class="card-title" style="font-size:0.85rem;text-transform:uppercase;letter-spacing:0.07em;color:var(--accent-blue);margin-bottom:10px;">🧭 Travel Style</h2>
-                        <div style="display:flex;flex-wrap:wrap;gap:7px;">
-                            ${tourismTypes.map(t => `<button class="tourism-tag" data-type="${t.label}">${t.icon} ${t.label}</button>`).join('')}
-                        </div>
-                    </div>
-                    <!-- Generate -->
-                    <button id="generateBtn" class="ai-generate-btn" style="width:100%;">✦ Generate My Itinerary</button>
-                </div>
-
-                <!-- Right: Leaflet Map (sticky) -->
-                <div style="position:sticky;top:80px;height:520px;">
-                    <div class="card glass" style="padding:0;overflow:hidden;height:100%;border-radius:18px;position:relative;">
-                        <div id="aiLeafletMap" style="width:100%;height:100%;"></div>
-                        <div style="position:absolute;bottom:14px;left:14px;background:var(--glass-bg);backdrop-filter:blur(12px);padding:6px 14px;border-radius:980px;border:1px solid var(--glass-border);font-size:0.82rem;font-weight:600;z-index:1000;">
-                            📍 ${tripCountry}
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Itinerary Output (full-width below) -->
-            <div id="itineraryOutput"></div>
-        </div>`;
-
-    setTimeout(() => {
-        // Tourism tags
-        div.querySelectorAll('.tourism-tag').forEach(btn => btn.addEventListener('click', () => btn.classList.toggle('selected')));
-
-        // Init Leaflet map
-        if (typeof L !== 'undefined') {
-            if (leafletMap) { leafletMap.remove(); leafletMap = null; }
-            leafletMap = L.map('aiLeafletMap', { zoomControl: true, attributionControl: false }).setView([20, 0], 2);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18 }).addTo(leafletMap);
-            // Geocode the country to center the map
-            fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(tripCountry)}&format=json&limit=1`)
-                .then(r => r.json()).then(data => {
-                    if (data[0]) leafletMap.setView([parseFloat(data[0].lat), parseFloat(data[0].lon)], 6);
-                }).catch(() => {});
+    // Archive Trip Injection
+    if (!document.getElementById('archiveTripBtn')) {
+        const archiveBtn = document.createElement('button');
+        archiveBtn.id = 'archiveTripBtn';
+        archiveBtn.className = 'btn-archive';
+        archiveBtn.innerHTML = `
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="21 8 21 21 3 21 3 8"></polyline>
+                <rect x="1" y="3" width="22" height="5"></rect>
+                <line x1="10" y1="12" x2="14" y2="12"></line>
+            </svg>`;
+        archiveBtn.title = 'Archive active trip';
+        const navTrips = document.querySelector('.nav-trips');
+        if (navTrips) {
+            navTrips.appendChild(archiveBtn);
+            archiveBtn.onclick = archiveActiveTrip;
         }
+    }
 
-        // Generate button
-        div.querySelector('#generateBtn').addEventListener('click', async () => {
-            const outputEl = div.querySelector('#itineraryOutput');
-            const statusEl = div.querySelector('#aiKeyStatus');
-            const dateFrom = div.querySelector('#aiDateFrom').value;
-            const dateTo   = div.querySelector('#aiDateTo').value;
-            const selectedTypes = [...div.querySelectorAll('.tourism-tag.selected')].map(b => b.dataset.type);
-            const country = tripCountry;
+    // Google Login
+    initGoogleLogin();
 
-            if (!dateFrom || !dateTo) { alert('Please select your travel dates.'); return; }
+    // Initial Nav
+    const urlParams = new URLSearchParams(window.location.search);
+    navigate(urlParams.get('page') || 'home', false);
+}
 
-            outputEl.innerHTML = `<div class="ai-loading-spinner"><div class="spinner-ring"></div><div style="font-weight:600;">Loading configuration...</div></div>`;
+async function initGoogleLogin() {
+    try {
+        const resp = await fetch('/api/config');
+        const config = await resp.json();
+        if (!config.google_client_id) return;
 
-            let openaiKey = '', geminiKey = '';
-            try {
-                const cfg = await fetch('/api/config').then(r => r.json());
-                openaiKey = cfg.openai_key || '';
-                geminiKey = cfg.gemini_key || '';
-            } catch(e) { console.warn('Config fetch failed', e); }
-
-            // Update status badges
-            statusEl.innerHTML = [
-                geminiKey  ? `<span style="font-size:0.75rem;padding:3px 10px;border-radius:980px;background:rgba(52,199,89,0.12);color:#34c759;border:1px solid rgba(52,199,89,0.3);">⬤ Gemini</span>`  : `<span style="font-size:0.75rem;padding:3px 10px;border-radius:980px;background:rgba(255,59,48,0.1);color:#ff3b30;border:1px solid rgba(255,59,48,0.25);">⬤ Gemini</span>`,
-                openaiKey  ? `<span style="font-size:0.75rem;padding:3px 10px;border-radius:980px;background:rgba(52,199,89,0.12);color:#34c759;border:1px solid rgba(52,199,89,0.3);">⬤ ChatGPT</span>` : `<span style="font-size:0.75rem;padding:3px 10px;border-radius:980px;background:rgba(255,59,48,0.1);color:#ff3b30;border:1px solid rgba(255,59,48,0.25);">⬤ ChatGPT</span>`
-            ].join('');
-
-            if (!openaiKey && !geminiKey) {
-                outputEl.innerHTML = `
-                    <div class="card glass" style="padding:32px;border-color:rgba(255,59,48,0.3);">
-                        <h2 style="color:#ff3b30;margin:0 0 12px;">🔑 API Keys Not Found</h2>
-                        <p style="color:var(--text-secondary);margin:0 0 16px;line-height:1.6;">The server could not find your API keys. Please make sure you have added them to your <code style="background:rgba(0,0,0,0.06);padding:2px 6px;border-radius:4px;">.env</code> file:</p>
-                        <pre style="background:rgba(0,0,0,0.05);border:1px solid var(--glass-border);border-radius:10px;padding:16px;font-size:0.85rem;line-height:1.8;overflow-x:auto;">OPENAI_API_KEY=sk-your-key-here
-GEMINI_API_KEY=AIza-your-key-here</pre>
-                        <p style="color:var(--text-secondary);margin:12px 0 0;font-size:0.85rem;">After editing the file, <strong>restart the server</strong> for the changes to take effect.</p>
-                    </div>`;
-                return;
-            }
-
-            const styles = selectedTypes.length > 0 ? selectedTypes.join(', ') : 'general tourism';
-            const from  = new Date(dateFrom), to = new Date(dateTo);
-            const numDays = Math.max(1, Math.round((to - from) / 86400000) + 1);
-
-            const prompt = `You are an expert travel planner. Create a detailed ${numDays}-day itinerary for ${country} from ${dateFrom} to ${dateTo}.
-Travel style preferences: ${styles}.
-For EACH day provide morning, afternoon, evening activities with REAL specific place names in ${country}, plus a practical tip.
-Also include a "mainLocation" field with the name of the most iconic place visited that day (used for map geocoding).
-Respond ONLY with a valid JSON array, no markdown, no extra text:
-[{"day":1,"date":"${dateFrom}","title":"Day title","mainLocation":"Specific place name","morning":{"activity":"name","description":"details"},"afternoon":{"activity":"name","description":"details"},"evening":{"activity":"name","description":"details"},"tip":"Practical tip"}]`;
-
-            outputEl.innerHTML = `<div class="ai-loading-spinner"><div class="spinner-ring"></div><div style="font-weight:600;${sf}">Consulting Gemini & ChatGPT...</div><div style="font-size:0.85rem;color:var(--text-secondary);">Building your ${numDays}-day itinerary for ${country}</div></div>`;
-
-            let geminiResult = null, openaiResult = null;
-
-            if (geminiKey) {
-                try {
-                    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
-                        method:'POST', headers:{'Content-Type':'application/json'},
-                        body: JSON.stringify({ contents:[{parts:[{text:prompt}]}], generationConfig:{temperature:0.7,maxOutputTokens:8000} })
-                    });
-                    const d = await r.json();
-                    if (d.error) console.error('Gemini Error:', d.error);
-                    geminiResult = JSON.parse((d?.candidates?.[0]?.content?.parts?.[0]?.text||'').replace(/```json/g,'').replace(/```/g,'').trim());
-                } catch(e) { console.error('Gemini Fetch Failed:', e); }
-            }
-
-            if (openaiKey) {
-                try {
-                    const r = await fetch('https://api.openai.com/v1/chat/completions', {
-                        method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${openaiKey}`},
-                        body: JSON.stringify({ model:'gpt-4o', messages:[{role:'user',content:prompt}], temperature:0.7 })
-                    });
-                    const d = await r.json();
-                    if (d.error) console.error('OpenAI Error:', d.error);
-                    openaiResult = JSON.parse((d?.choices?.[0]?.message?.content||'').replace(/```json/g,'').replace(/```/g,'').trim());
-                } catch(e) { console.error('OpenAI Fetch Failed:', e); }
-            }
-
-            let finalItinerary = null;
-            if (geminiResult && openaiResult) {
-                outputEl.innerHTML = `<div class="ai-loading-spinner"><div class="spinner-ring"></div><div style="font-weight:600;">Merging both itineraries...</div></div>`;
-                const mergePrompt = `Merge these two ${numDays}-day itineraries for ${country} into one superior plan combining the best of both. Return ONLY valid JSON array, no markdown.\nA:${JSON.stringify(geminiResult)}\nB:${JSON.stringify(openaiResult)}`;
-                try {
-                    if (geminiKey) {
-                        const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
-                            method:'POST', headers:{'Content-Type':'application/json'},
-                            body: JSON.stringify({ contents:[{parts:[{text:mergePrompt}]}], generationConfig:{temperature:0.5,maxOutputTokens:8000} })
-                        });
-                        const d = await r.json();
-                        finalItinerary = JSON.parse((d?.candidates?.[0]?.content?.parts?.[0]?.text||'').replace(/```json/g,'').replace(/```/g,'').trim());
-                    } else { finalItinerary = geminiResult; }
-                } catch(e) { finalItinerary = geminiResult || openaiResult; }
-            } else {
-                finalItinerary = geminiResult || openaiResult;
-            }
-
-            if (!finalItinerary || !finalItinerary.length) {
-                outputEl.innerHTML = `<div class="card glass" style="text-align:center;padding:40px;"><h2 style="color:#ff3b30;">Generation Failed</h2><p style="color:var(--text-secondary);">Check your API keys and try again.</p></div>`;
-                return;
-            }
-
-            // ── Render day blocks ─────────────────────────────
-            const source = geminiResult && openaiResult ? 'Gemini + ChatGPT' : (geminiResult ? 'Gemini' : 'ChatGPT');
-            outputEl.innerHTML = `
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
-                    <div>
-                        <h2 style="margin:0;font-size:2rem;font-weight:800;letter-spacing:-0.03em;${sf}">${numDays}-Day ${country} Itinerary</h2>
-                        <p style="color:var(--text-secondary);margin:6px 0 0;font-size:0.9rem;">Generated by ${source} · ${styles}</p>
-                    </div>
-                    <div style="font-size:0.78rem;color:var(--text-secondary);background:var(--glass-bg);border:1px solid var(--glass-border);padding:5px 14px;border-radius:980px;">✦ AI-Generated</div>
-                </div>
-                <div id="itineraryDays" style="display:flex;flex-direction:column;gap:16px;"></div>`;
-
-            const daysContainer = outputEl.querySelector('#itineraryDays');
-            const dayDivs = [];
-
-            finalItinerary.forEach((day, i) => {
-                const dayDiv = document.createElement('div');
-                dayDiv.id = `day-block-${i}`;
-                dayDiv.className = 'card glass';
-                dayDiv.style.cssText = `border-radius:18px;overflow:hidden;transition:box-shadow 0.3s,border-color 0.3s;${sf}`;
-                dayDiv.innerHTML = `
-                    <div style="display:flex;align-items:stretch;">
-                        <!-- Day number sidebar -->
-                        <div style="width:72px;min-width:72px;background:linear-gradient(180deg,var(--accent-blue),#9b59b6);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px 0;gap:4px;">
-                            <span style="color:rgba(255,255,255,0.7);font-size:0.65rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;">Day</span>
-                            <span style="color:white;font-size:2rem;font-weight:800;line-height:1;">${day.day}</span>
-                        </div>
-                        <!-- Content -->
-                        <div style="flex:1;padding:24px 28px;">
-                            <div style="margin-bottom:20px;">
-                                <h3 style="margin:0 0 4px;font-size:1.2rem;font-weight:700;letter-spacing:-0.02em;">${day.title || 'Day ' + day.day}</h3>
-                                <span style="font-size:0.8rem;color:var(--text-secondary);">${day.date || ''}</span>
-                            </div>
-                            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:${day.tip ? '20px' : '0'};">
-                                <div style="padding:16px;background:rgba(0,113,227,0.05);border-radius:12px;border:1px solid rgba(0,113,227,0.1);">
-                                    <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--accent-blue);margin-bottom:8px;">🌅 Morning</div>
-                                    <div style="font-weight:600;font-size:0.9rem;margin-bottom:4px;">${day.morning?.activity || ''}</div>
-                                    <div style="font-size:0.82rem;color:var(--text-secondary);line-height:1.5;">${day.morning?.description || ''}</div>
-                                </div>
-                                <div style="padding:16px;background:rgba(255,149,0,0.05);border-radius:12px;border:1px solid rgba(255,149,0,0.1);">
-                                    <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#ff9500;margin-bottom:8px;">☀️ Afternoon</div>
-                                    <div style="font-weight:600;font-size:0.9rem;margin-bottom:4px;">${day.afternoon?.activity || ''}</div>
-                                    <div style="font-size:0.82rem;color:var(--text-secondary);line-height:1.5;">${day.afternoon?.description || ''}</div>
-                                </div>
-                                <div style="padding:16px;background:rgba(155,89,182,0.05);border-radius:12px;border:1px solid rgba(155,89,182,0.1);">
-                                    <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#9b59b6;margin-bottom:8px;">🌙 Evening</div>
-                                    <div style="font-weight:600;font-size:0.9rem;margin-bottom:4px;">${day.evening?.activity || ''}</div>
-                                    <div style="font-size:0.82rem;color:var(--text-secondary);line-height:1.5;">${day.evening?.description || ''}</div>
-                                </div>
-                            </div>
-                            ${day.tip ? `<div style="padding:12px 16px;background:rgba(0,113,227,0.05);border-left:3px solid var(--accent-blue);border-radius:0 10px 10px 0;"><span style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--accent-blue);">💡 Pro Tip</span><p style="margin:5px 0 0;font-size:0.85rem;color:var(--text-secondary);">${day.tip}</p></div>` : ''}
-                        </div>
-                    </div>`;
-                daysContainer.appendChild(dayDiv);
-                dayDivs.push(dayDiv);
-            });
-
-            // ── Add Leaflet markers for each day ─────────────
-            if (leafletMap) {
-                // Clear existing markers
-                leafletMap.eachLayer(l => { if (l instanceof L.Marker) leafletMap.removeLayer(l); });
-
-                const markerCoords = [];
-                const geocodeAndMark = async (day, i) => {
-                    const loc = day.mainLocation || day.title || country;
-                    try {
-                        const r = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(loc + ', ' + country)}&format=json&limit=1`);
-                        const data = await r.json();
-                        if (!data[0]) return;
-                        const lat = parseFloat(data[0].lat), lon = parseFloat(data[0].lon);
-                        markerCoords.push([lat, lon]);
-
-                        // Custom numbered marker
-                        const icon = L.divIcon({
-                            className: '',
-                            html: `<div style="width:32px;height:32px;background:linear-gradient(135deg,#0071e3,#9b59b6);border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-weight:800;font-size:0.85rem;border:2px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.3);cursor:pointer;font-family:-apple-system,sans-serif;">${day.day}</div>`,
-                            iconSize: [32, 32], iconAnchor: [16, 16]
-                        });
-
-                        const marker = L.marker([lat, lon], { icon }).addTo(leafletMap);
-                        marker.bindPopup(`<strong style="font-family:-apple-system,sans-serif;">Day ${day.day}</strong><br><span style="font-size:0.85rem;">${day.title}</span>`);
-
-                        // Click marker → highlight day block
-                        marker.on('click', () => {
-                            dayDivs.forEach(d => {
-                                d.style.boxShadow = '';
-                                d.style.borderColor = '';
-                            });
-                            const target = dayDivs[i];
-                            if (target) {
-                                target.style.boxShadow = '0 0 0 3px var(--accent-blue), 0 8px 32px rgba(0,113,227,0.25)';
-                                target.style.borderColor = 'var(--accent-blue)';
-                                target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                            }
-                        });
-
-                        // Click day block → pan map to marker
-                        dayDivs[i].style.cursor = 'pointer';
-                        dayDivs[i].addEventListener('click', () => {
-                            leafletMap.setView([lat, lon], 10, { animate: true });
-                            marker.openPopup();
-                            dayDivs.forEach(d => { d.style.boxShadow = ''; d.style.borderColor = ''; });
-                            dayDivs[i].style.boxShadow = '0 0 0 3px var(--accent-blue), 0 8px 32px rgba(0,113,227,0.25)';
-                            dayDivs[i].style.borderColor = 'var(--accent-blue)';
-                        });
-
-                        // After all: fit map to all markers
-                        if (markerCoords.length === finalItinerary.length) {
-                            leafletMap.fitBounds(markerCoords, { padding: [40, 40] });
-                        }
-                    } catch(e) { console.warn('Geocode failed for', loc, e); }
-                };
-
-                // Stagger geocode calls to respect Nominatim rate limit
-                finalItinerary.forEach((day, i) => {
-                    setTimeout(() => geocodeAndMark(day, i), i * 1100);
-                });
-            }
+        window.google.accounts.id.initialize({
+            client_id: config.google_client_id,
+            callback: handleGoogleLogin
         });
-    }, 0);
-
-    return div;
+        window.google.accounts.id.renderButton(
+            document.getElementById("googleLoginBtn"),
+            { theme: "outline", size: "large", width: 250 }
+        );
+        const logoutBtn = document.getElementById('logoutBtn');
+        if (logoutBtn) {
+            logoutBtn.onclick = () => {
+                STATE.user = null;
+                saveState();
+                location.reload();
+            };
+        }
+        if (STATE.user) updateUserUI();
+    } catch (e) { console.error("Google Init Failed", e); }
 }
 
-// Since type="module" scripts are deferred, the DOM is already ready
-
-
-// --- Social & Friends Rendering ---
-
-async function renderFriends(container) {
-    if (!STATE.user) {
-        container.innerHTML = `
-            <div class="glass-card" style="text-align: center; padding: 40px;">
-                <h2 style="margin-bottom: 16px;">Friends & Social</h2>
-                <p style="color: var(--text-secondary); margin-bottom: 24px;">Sign in with Google to find friends and share trips!</p>
-            </div>`;
-        return;
-    }
-
-    container.innerHTML = `
-        <div class="page-header">
-            <h1 class="page-title">Friends</h1>
-            <p class="page-subtitle">Connect with other travelers and share your itineraries</p>
-        </div>
-
-        <div class="grid-2">
-            <div class="glass-card">
-                <h3 style="margin-bottom: 16px;">Find Friends</h3>
-                <div style="display: flex; gap: 8px; margin-bottom: 20px;">
-                    <input type="text" id="friendSearchInput" class="glass-input" placeholder="Search by email..." style="flex: 1;">
-                    <button id="friendSearchBtn" class="btn">Search</button>
-                </div>
-                <div id="friendSearchResults" style="display: flex; flex-direction: column; gap: 12px;"></div>
-            </div>
-
-            <div class="glass-card">
-                <h3 style="margin-bottom: 16px;">Your Friends</h3>
-                <div id="friendsList" style="display: flex; flex-direction: column; gap: 12px;">
-                    <div style="text-align: center; padding: 20px; color: var(--text-secondary);">Loading friends...</div>
-                </div>
-            </div>
-        </div>
-    `;
-
-    const searchInput = document.getElementById('friendSearchInput');
-    const searchBtn = document.getElementById('friendSearchBtn');
-    const resultsDiv = document.getElementById('friendSearchResults');
-    const listDiv = document.getElementById('friendsList');
-
-    searchBtn.addEventListener('click', async () => {
-        const query = searchInput.value;
-        if (!query) return;
-        const res = await fetch(`/api/friends/search?q=${query}`);
-        const users = await res.json();
-        
-        resultsDiv.innerHTML = users.map(u => `
-            <div class="glass-item" style="display: flex; align-items: center; justify-content: space-between; padding: 12px;">
-                <div style="display: flex; align-items: center; gap: 12px;">
-                    <img src="${u.picture}" style="width: 32px; height: 32px; border-radius: 50%;">
-                    <div>
-                        <div style="font-weight: 600; font-size: 0.9rem;">${u.name}</div>
-                        <div style="font-size: 0.75rem; color: var(--text-secondary);">${u.email}</div>
-                    </div>
-                </div>
-                <button class="btn btn-small add-friend-btn" data-id="${u.id}">Add</button>
-            </div>
-        `).join('') || '<div style="text-align: center; color: var(--text-secondary);">No users found</div>';
-
-        document.querySelectorAll('.add-friend-btn').forEach(btn => {
-            btn.addEventListener('click', async () => {
-                const friendId = btn.getAttribute('data-id');
-                await fetch('/api/friends/add', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ user_id: STATE.user.id, friend_id: friendId })
-                });
-                btn.innerText = 'Added!';
-                btn.disabled = true;
-                loadFriendsList();
-            });
-        });
+async function handleGoogleLogin(response) {
+    const res = await fetch('/api/auth/google', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: response.credential })
     });
-
-    async function loadFriendsList() {
-        const res = await fetch(`/api/friends/list?user_id=${STATE.user.id}`);
-        const friends = await res.json();
-        listDiv.innerHTML = friends.map(f => `
-            <div class="glass-item" style="display: flex; align-items: center; gap: 12px; padding: 12px;">
-                <img src="${f.picture}" style="width: 32px; height: 32px; border-radius: 50%;">
-                <div>
-                    <div style="font-weight: 600; font-size: 0.9rem;">${f.name}</div>
-                    <div style="font-size: 0.75rem; color: var(--text-secondary);">${f.email}</div>
-                </div>
-            </div>
-        `).join('') || '<div style="text-align: center; color: var(--text-secondary);">You haven\'t added any friends yet.</div>';
+    const data = await res.json();
+    if (data.status === 'success') {
+        STATE.user = data.user;
+        saveState();
+        updateUserUI();
+        navigate('home');
     }
-
-    loadFriendsList();
 }
 
-async function openShareModal(tripId) {
-    if (!STATE.user) {
-        alert("Please sign in to share trips!");
-        return;
-    }
-
-    const trip = STATE.trips.find(t => t.id === tripId);
-    const res = await fetch(`/api/friends/list?user_id=${STATE.user.id}`);
-    const friends = await res.json();
-
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    modal.style.display = 'flex';
-    modal.innerHTML = `
-        <div class="glass-card" style="width: 400px; padding: 24px; position: relative;">
-            <button class="sidebar-close-btn" style="position: absolute; top: 12px; right: 12px;">&times;</button>
-            <h2 style="margin-bottom: 8px;">Share Trip</h2>
-            <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 20px;">Invite friends to collaborate on <strong>${trip.name}</strong></p>
-            
-            <div style="display: flex; flex-direction: column; gap: 10px;">
-                ${friends.map(f => `
-                    <div class="glass-item" style="display: flex; align-items: center; justify-content: space-between; padding: 10px;">
-                        <div style="display: flex; align-items: center; gap: 10px;">
-                            <img src="${f.picture}" style="width: 28px; height: 28px; border-radius: 50%;">
-                            <span style="font-size: 0.9rem;">${f.name}</span>
-                        </div>
-                        <button class="btn btn-small share-action-btn" data-friend-id="${f.id}">Share</button>
-                    </div>
-                `).join('') || '<p style="text-align: center; color: var(--text-secondary);">Add friends first!</p>'}
-            </div>
-        </div>
-    `;
-
-    document.body.appendChild(modal);
-
-    modal.querySelector('.sidebar-close-btn').onclick = () => modal.remove();
-    modal.querySelectorAll('.share-action-btn').forEach(btn => {
-    });
+function updateUserUI() {
+    if (!STATE.user) return;
+    const loginBtn = document.getElementById('googleLoginBtn');
+    const profile = document.getElementById('userProfile');
+    const logoutBtn = document.getElementById('logoutBtn');
+    
+    if (loginBtn) loginBtn.style.display = 'none';
+    if (profile) profile.style.display = 'flex';
+    if (logoutBtn) logoutBtn.style.display = 'block';
+    
+    const nameEl = document.getElementById('userName');
+    const emailEl = document.getElementById('userEmail');
+    const picEl = document.getElementById('userPicture');
+    
+    if (nameEl) nameEl.innerText = STATE.user.name;
+    if (emailEl) emailEl.innerText = STATE.user.email;
+    if (picEl) picEl.src = STATE.user.picture;
 }
 
+document.addEventListener('DOMContentLoaded', init);
 
-
-init();
