@@ -2599,7 +2599,9 @@ window.openDayDetail = (dayId) => {
             <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 24px; flex-shrink: 0;">
                 <div>
                     <div style="font-size: 0.8rem; color: var(--accent-blue); font-weight: 800; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 4px;">Adventure Day ${day.dayNumber}</div>
-                    <h2 style="margin: 0; font-size: 2.2rem; letter-spacing: -0.06em; color: #ffffff; font-weight: 800;">${day.name || `Day ${day.dayNumber}`}</h2>
+                    <input type="text" id="editDayName" value="${day.name || `Day ${day.dayNumber}`}" 
+                        style="margin: 0; font-size: 2.2rem; letter-spacing: -0.06em; color: #ffffff; font-weight: 800; background: transparent; border: none; border-bottom: 1px solid rgba(255,255,255,0.1); width: 100%; outline: none; padding: 4px 0;"
+                        onchange="window.updateDayName('${day.id}', this.value)">
                 </div>
                 <button onclick="this.closest('.modal-overlay').remove()" style="background: rgba(255,255,255,0.1); border: none; font-size: 1.2rem; cursor: pointer; color: #ffffff; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: all 0.2s; border: 1px solid rgba(255,255,255,0.1);">&times;</button>
             </div>
@@ -2693,6 +2695,15 @@ window.deleteTicket = (dayId, index) => {
         const overlay = document.querySelector('.modal-overlay');
         if (overlay) overlay.remove();
         window.openDayDetail(dayId);
+    }
+};
+
+window.updateDayName = (dayId, newName) => {
+    const day = STATE.tripDays.find(d => d.id === dayId);
+    if (day) {
+        day.name = newName;
+        saveState();
+        if (STATE.currentPage === 'home') navigate('home');
     }
 };
 
