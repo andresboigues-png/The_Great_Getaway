@@ -1,0 +1,26 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Project-specific
+.vscode/
+.idea/
+*.log
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+travel_planner.db
+ngrok*.zip
+ngrok
