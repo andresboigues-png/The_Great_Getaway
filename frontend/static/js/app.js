@@ -36,7 +36,8 @@ const STATE = {
     activities: [],
     photos: [],
     budgets: [],
-    savedFormats: []    // Array of {id, name, mappings:[{variable,column}]} — max 5
+    savedFormats: [],    // Array of {id, name, mappings:[{variable,column}]} — max 5
+    tripDays: []        // Array of {id, tripId, name, dayNumber, photos: []}
 };
 
 const COUNTRIES = [
@@ -136,136 +137,39 @@ const TRAVEL_DATA = {
         quotes: ["“Poland is a land of resilience.”", "“Krakow is the heart of Poland.”", "“History is alive in Poland.”"],
         images: ["https://images.unsplash.com/photo-1519197924294-4ba991a11128", "https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91", "https://images.unsplash.com/photo-1512470876302-972faa2aa9a4"]
     },
-    'italy': {
-        images: [
-            'https://images.unsplash.com/photo-1523906834658-6e24ef2386f9?auto=format&fit=crop&w=1600&q=80',
-            'https://images.unsplash.com/photo-1516483638261-f4dbaf036963?auto=format&fit=crop&w=1600&q=80',
-            'https://images.unsplash.com/photo-1514890547357-a9ee288728e0?auto=format&fit=crop&w=1600&q=80',
-            'https://images.unsplash.com/photo-1498502102253-b09230526081?auto=format&fit=crop&w=1600&q=80',
-            'https://images.unsplash.com/photo-1534447677768-be436bb09401?auto=format&fit=crop&w=1600&q=80'
-        ],
-        quotes: [
-            "Italy is a dream that keeps returning for the rest of your life.",
-            "Life is a combination of magic and pasta.",
-            "You may have the universe if I may have Italy.",
-            "A man who has not been in Italy, is always conscious of an inferiority.",
-            "Italy is the only country where the distance between the possible and the real is infinite."
-        ]
+    indonesia: {
+        quotes: ["“Bali is more than a place. It’s a mood, an aspiration, a tropical state of mind.”", "“Indonesia is a string of jewels in the ocean.”", "“To be in Indonesia is to be surrounded by the spirits of nature.”"],
+        images: ["https://images.unsplash.com/photo-1537996194471-e657df975ab4", "https://images.unsplash.com/photo-1518548419970-58e3b4079ab2", "https://images.unsplash.com/photo-1555400038-63f5ba517a47"]
     },
-    'france': {
-        images: [
-            'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=1600&q=80',
-            'https://images.unsplash.com/photo-1499856871958-5b9627545d1a?auto=format&fit=crop&w=1600&q=80',
-            'https://images.unsplash.com/photo-1431274172761-fca41d93e114?auto=format&fit=crop&w=1600&q=80',
-            'https://images.unsplash.com/photo-1503917988258-f19a78767e99?auto=format&fit=crop&w=1600&q=80',
-            'https://images.unsplash.com/photo-1541944743827-e04aa6427c33?auto=format&fit=crop&w=1600&q=80'
-        ],
-        quotes: [
-            "To err is human. To loaf is Parisian.",
-            "France is the most beautiful country in the world; the problem is that it is full of French people.",
-            "Paris is always a good idea.",
-            "Life is short, buy the baguette.",
-            "Every man has two countries: his own and France."
-        ]
+    morocco: {
+        quotes: ["“Morocco is the land of the setting sun.”", "“Marrakech taught me color.” - Yves Saint Laurent", "“Morocco is like a story that never ends.”"],
+        images: ["https://images.unsplash.com/photo-1489749798305-4fea3ae63d43", "https://images.unsplash.com/photo-1539020140153-e479b8c22e70", "https://images.unsplash.com/photo-1528150353420-53bc6ca844b8"]
     },
-    'japan': {
-        images: [
-            'https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?auto=format&fit=crop&w=1600&q=80',
-            'https://images.unsplash.com/photo-1480796275473-a13da7f2356f?auto=format&fit=crop&w=1600&q=80',
-            'https://images.unsplash.com/photo-1524413840807-0c3cb6fa808d?auto=format&fit=crop&w=1600&q=80',
-            'https://images.unsplash.com/photo-1475938476655-814eb991b12e?auto=format&fit=crop&w=1600&q=80',
-            'https://images.unsplash.com/photo-1528164344705-47542687990d?auto=format&fit=crop&w=1600&q=80'
-        ],
-        quotes: [
-            "Japan is a world of its own, a beautiful enigma.",
-            "The journey of a thousand miles begins with a single step.",
-            "Even a fool has one talent.",
-            "When you bow, bow as deeply as you can.",
-            "One kind word can warm three winter months."
-        ]
+    switzerland: {
+        quotes: ["“Switzerland is a small, steep country, much more up and down than sideways.”", "“The Alps are the cathedrals of the world.”", "“Switzerland is the land of peace and chocolate.”"],
+        images: ["https://images.unsplash.com/photo-1527668752968-14dc70a27c95", "https://images.unsplash.com/photo-1516550893923-42d28e5677af", "https://images.unsplash.com/photo-1506905925346-21bda4d32df4"]
     },
-    'portugal': {
-        images: [
-            'https://images.unsplash.com/photo-1555881400-74d7acaacd8b?auto=format&fit=crop&w=1600&q=80',
-            'https://images.unsplash.com/photo-1536751048178-14106afcb46d?auto=format&fit=crop&w=1600&q=80',
-            'https://images.unsplash.com/photo-1440778303588-435521a205bc?auto=format&fit=crop&w=1600&q=80',
-            'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=1600&q=80'
-        ],
-        quotes: [
-            "Portugal is a high hill with a white house on top.",
-            "Portugal is the best place to be in the world.",
-            "Saudade: a deep emotional state of melancholic longing.",
-            "The Portuguese are a people of water and nostalgia."
-        ]
+    vietnam: {
+        quotes: ["“Vietnam is a country with a long and rich history.”", "“The food in Vietnam is a work of art.”", "“To visit Vietnam is to witness resilience.”"],
+        images: ["https://images.unsplash.com/photo-1504609773096-104ff2c73ba4", "https://images.unsplash.com/photo-1528127269322-539801943592", "https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1"]
     },
-    'spain': {
-        images: [
-            'https://images.unsplash.com/photo-1543722530-d2c3201371e7?auto=format&fit=crop&w=1600&q=80',
-            'https://images.unsplash.com/photo-1509840144521-95080401d808?auto=format&fit=crop&w=1600&q=80',
-            'https://images.unsplash.com/photo-1539037116277-4db20889f2d4?auto=format&fit=crop&w=1600&q=80',
-            'https://images.unsplash.com/photo-1512753360413-a44e4fa16640?auto=format&fit=crop&w=1600&q=80'
-        ],
-        quotes: [
-            "Spain is a beautiful country with very nice people.",
-            "In Spain, the dead are more alive than the dead of any other country in the world.",
-            "The Spaniards are always at least a hundred years behind the rest of Europe.",
-            "Any reasonable, sentient person who looks at Spain, comes to Spain, eats in Spain, drinks in Spain, they're going to fall in love."
-        ]
-    },
-    'usa': {
-        images: [
-            'https://images.unsplash.com/photo-1485738422979-f5c462d49f74?auto=format&fit=crop&w=1600&q=80',
-            'https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?auto=format&fit=crop&w=1600&q=80',
-            'https://images.unsplash.com/photo-1469474968028-56623f02e42e?auto=format&fit=crop&w=1600&q=80',
-            'https://images.unsplash.com/photo-1501594907352-04cda38ebc29?auto=format&fit=crop&w=1600&q=80'
-        ],
-        quotes: [
-            "America is a land of opportunity.",
-            "The United States is the only country where you can get a hot dog at a baseball game.",
-            "The beauty of America is that it is a land of immigrants.",
-            "America is a place where you can be whatever you want to be."
-        ]
-    },
-    'thailand': {
-        images: [
-            'https://images.unsplash.com/photo-1528181304800-2f140819898c?auto=format&fit=crop&w=1600&q=80',
-            'https://images.unsplash.com/photo-1552465011-b4e21bf6e79a?auto=format&fit=crop&w=1600&q=80',
-            'https://images.unsplash.com/photo-1506665531195-3566af2b4dfa?auto=format&fit=crop&w=1600&q=80',
-            'https://images.unsplash.com/photo-1563492065599-3520f775eeed?auto=format&fit=crop&w=1600&q=80'
-        ],
-        quotes: [
-            "Thailand is the land of smiles.",
-            "In Thailand, we say 'Mai Pen Rai' – it means don't worry about it.",
-            "The food in Thailand is some of the best in the world.",
-            "The beaches of Thailand are like a dream come true."
-        ]
-    },
-    'default': {
-        images: [
-            'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80',
-            'https://images.unsplash.com/photo-1503220317375-aaad61436b1b?auto=format&fit=crop&w=1600&q=80',
-            'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=1600&q=80',
-            'https://images.unsplash.com/photo-1530789253388-582c481c54b0?auto=format&fit=crop&w=1600&q=80',
-            'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1600&q=80',
-            'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1600&q=80',
-            'https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=1600&q=80'
-        ],
+    default: {
         quotes: [
             "The world is a book and those who do not travel read only one page.",
             "Travel is the only thing you buy that makes you richer.",
             "Not all those who wander are lost.",
             "Better to see something once than to hear about it a thousand times.",
             "Jobs fill your pocket, adventures fill your soul.",
-            "Travel far enough, you meet yourself.",
-            "Travel makes one modest. You see what a tiny place you occupy in the world.",
+            "Travel makes one modest.",
             "To travel is to live.",
-            "Travel far, travel wide, and travel with an open heart.",
-            "The journey not the arrival matters.",
-            "Adventure is worthwhile in itself.",
-            "Life is either a daring adventure or nothing at all.",
-            "We travel not to escape life, but for life not to escape us.",
-            "Investment in travel is an investment in yourself.",
-            "Take only memories, leave only footprints."
+            "Adventure is worthwhile in itself."
+        ],
+        images: [
+            'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80',
+            'https://images.unsplash.com/photo-1503220317375-aaad61436b1b?auto=format&fit=crop&w=1600&q=80',
+            'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=1600&q=80',
+            'https://images.unsplash.com/photo-1530789253388-582c481c54b0?auto=format&fit=crop&w=1600&q=80',
+            'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1600&q=80'
         ]
     }
 };
@@ -273,17 +177,23 @@ const TRAVEL_DATA = {
 let dashboardInterval = null;
 
 const CONVERSION_RATES = {
-    EUR: 1,
-    USD: 0.92,
-    GBP: 1.17,
-    JPY: 0.0061,
-    CHF: 1.04,
-    CAD: 0.68,
-    AUD: 0.61,
-    CNY: 0.13,
-    BRL: 0.18,
-    MXN: 0.054,
-    INR: 0.011
+    'EUR': 1,
+    'USD': 0.92,
+    'GBP': 1.17,
+    'JPY': 0.0062,
+    'CHF': 1.04,
+    'CAD': 0.68,
+    'AUD': 0.61,
+    'CNY': 0.13,
+    'BRL': 0.18,
+    'MXN': 0.055,
+    'INR': 0.011,
+    'IDR': 0.000058,
+    'SGD': 0.69,
+    'NZD': 0.56,
+    'HKD': 0.12,
+    'KRW': 0.00069,
+    'ZAR': 0.049
 };
 
 // Load state from LocalStorage
@@ -291,6 +201,15 @@ function loadState() {
     const saved = localStorage.getItem('theGreatEscapeState');
     if (saved) {
         Object.assign(STATE, JSON.parse(saved));
+    }
+    // Ensure new fields exist
+    if (!STATE.savedFormats) STATE.savedFormats = [];
+    if (!STATE.tripDays) STATE.tripDays = [];
+    STATE.tripDays.forEach(d => { if (!d.tickets) d.tickets = []; });
+
+    // Ensure activeTripId is valid
+    if (STATE.trips.length > 0 && (!STATE.activeTripId || !STATE.trips.find(t => t.id === STATE.activeTripId))) {
+        STATE.activeTripId = STATE.trips[0].id;
     }
 }
 
@@ -327,6 +246,10 @@ async function fetchHistoricalRates(dates) {
 
 // Save state to LocalStorage
 function saveState() {
+    // Ensure all days have tickets array
+    if (STATE.tripDays) {
+        STATE.tripDays.forEach(d => { if (!d.tickets) d.tickets = []; });
+    }
     localStorage.setItem('theGreatEscapeState', JSON.stringify(STATE));
     updateTripSelector();
     if (STATE.user) {
@@ -400,113 +323,142 @@ window.navigate = navigate;
 // --- Page: Home (Dashboard) ---
 function renderHome() {
     const div = document.createElement('div');
-    const activeTrip = STATE.activeTripId ? STATE.trips.find(t => t.id === STATE.activeTripId) : null;
-    
-    let allQuotes = [];
-    let allImages = [];
+    const activeTrip = (STATE.trips && STATE.activeTripId) ? STATE.trips.find(t => t.id === STATE.activeTripId) : null;
+    let currentPhotoIdx = 0;
 
-    if (activeTrip) {
-        const c = (activeTrip.country || '').toLowerCase();
-        const key = Object.keys(TRAVEL_DATA).find(k => c.includes(k) || k.includes(c));
-        if (key && key !== 'default') {
-            allQuotes.push(...TRAVEL_DATA[key].quotes);
-            allImages.push(...TRAVEL_DATA[key].images);
-        } else {
-            allQuotes = TRAVEL_DATA.default.quotes;
-            allImages = TRAVEL_DATA.default.images;
+    // Determine data based on activeTrip or default
+    const tripCountry = activeTrip ? (activeTrip.country || '') : '';
+    const countryKey = tripCountry.toLowerCase().split(' ')[0] || 'default';
+    const data = TRAVEL_DATA[countryKey] || TRAVEL_DATA['default'] || { quotes: ["Travel is life."], images: ["https://images.unsplash.com/photo-1469854523086-cc02fe5d8800"] };
+    
+    let displayImages = [...(data.images || [])];
+    let displayQuotes = [...(data.quotes || [])];
+
+    if (activeTrip && STATE.tripDays) {
+        const dayPhotos = STATE.tripDays
+            .filter(d => d.tripId === activeTrip.id)
+            .flatMap(d => d.photos || []);
+        
+        if (dayPhotos.length > 0) {
+            displayImages = [...dayPhotos, ...displayImages];
+            for (let i = 0; i < dayPhotos.length; i++) {
+                displayQuotes.unshift("“Capturing moments from your journey.”");
+            }
         }
-    } else {
-        allQuotes = TRAVEL_DATA.default.quotes;
-        allImages = TRAVEL_DATA.default.images;
     }
 
-    div.innerHTML = `
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-            <div>
-                <h1>${activeTrip ? `Dashboard - ${activeTrip.name}` : "Let's travel."}</h1>
-                <p style="color: var(--text-secondary);">${activeTrip ? "Welcome back. Let's get inspired." : "Create a trip to start your adventure."}</p>
+    const showNextImageAndQuote = () => {
+        if (displayImages.length === 0) return;
+        currentPhotoIdx = (currentPhotoIdx + 1) % displayImages.length;
+        const imgEl = div.querySelector('#homeHeroImg');
+        const quoteEl = div.querySelector('#homeQuote');
+        if (imgEl) {
+            imgEl.style.opacity = '0';
+            setTimeout(() => {
+                imgEl.src = displayImages[currentPhotoIdx];
+                imgEl.style.opacity = '1';
+            }, 800);
+        }
+        if (quoteEl) {
+            quoteEl.style.opacity = '0';
+            setTimeout(() => {
+                quoteEl.innerText = displayQuotes[currentPhotoIdx % displayQuotes.length] || "";
+                quoteEl.style.opacity = '1';
+            }, 800);
+        }
+    };
+
+    if (!activeTrip) {
+        div.innerHTML = `
+            <div class="ai-page-header" style="background: linear-gradient(135deg, rgba(0, 122, 255, 0.1), rgba(88, 86, 214, 0.1)); padding: 40px; text-align: center; border-radius: 28px;">
+                <h1 style="background: linear-gradient(135deg, #007aff, #5856d6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 0; font-size: 3.5rem;">Let's travel.</h1>
+                <p style="color: var(--text-secondary); max-width: 440px; margin: 10px auto 0; font-size: 1.1rem;">Your next big adventure is waiting. Create a trip to start tracking expenses and planning days.</p>
             </div>
-            ${activeTrip ? `
-            <button class="btn btn-liquid-glass" id="shareTripBtn" style="display: flex; align-items: center; gap: 8px; padding: 10px 16px;">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
-                Share Trip
-            </button>` : ''}
+            
+            <div class="card glass" style="padding: 0; overflow: hidden; height: 450px; position: relative; margin-top: 24px; border-radius: 28px; border: 1px solid var(--glass-border);">
+                <img id="homeHeroImg" src="${displayImages[0] || ''}" style="width: 100%; height: 100%; object-fit: cover; transition: opacity 0.8s ease-in-out;">
+                <div style="position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 60%);"></div>
+                <div style="position: absolute; bottom: 40px; left: 40px; right: 40px; display: flex; align-items: flex-end; justify-content: space-between;">
+                    <p id="homeQuote" style="font-size: 1.5rem; font-weight: 700; color: white; margin: 0; text-shadow: 0 2px 10px rgba(0,0,0,0.5); font-style: italic; transition: opacity 0.8s ease-in-out; max-width: 60%;">
+                        ${displayQuotes[0] || ''}
+                    </p>
+                    <button class="btn" style="background: var(--accent-blue); padding: 16px 32px; border-radius: 100px; box-shadow: 0 10px 20px rgba(0,113,227,0.3); font-weight: 700;" onclick="window.openNewTripModal()">Create First Trip</button>
+                </div>
+            </div>
+        `;
+        dashboardInterval = setInterval(showNextImageAndQuote, 6000);
+        return div;
+    }
+
+    const tripExpenses = (STATE.expenses || []).filter(e => e && e.tripId === activeTrip.id);
+
+    div.innerHTML = `
+        <div class="ai-page-header" style="background: linear-gradient(135deg, rgba(0, 122, 255, 0.1), rgba(88, 86, 214, 0.1));">
+            <h1 style="background: linear-gradient(135deg, #007aff, #5856d6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Welcome back, traveler</h1>
+            <p>You have <strong>${tripExpenses.length}</strong> expenses recorded for ${activeTrip.name}.</p>
         </div>
-
-
-
-        <div id="dashboard-container" class="glass" style="height: ${activeTrip ? '300px' : '70vh'};">
-            <div id="bg-layer"></div>
-            <div id="quote-layer" style="position: absolute; width: 100%; height: 100%;"></div>
+        
+        <div class="card glass" style="padding: 0; overflow: hidden; height: 400px; position: relative; margin-top: 24px; border-radius: 28px; border: 1px solid var(--glass-border);">
+            <img id="homeHeroImg" src="${displayImages[0] || ''}" style="width: 100%; height: 100%; object-fit: cover; transition: opacity 0.8s ease-in-out;">
+            <div style="position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 60%);"></div>
+            <div style="position: absolute; bottom: 40px; left: 40px; right: 40px;">
+                <p id="homeQuote" style="font-size: 1.5rem; font-weight: 700; color: white; margin: 0; text-shadow: 0 2px 10px rgba(0,0,0,0.5); font-style: italic; transition: opacity 0.8s ease-in-out;">
+                    ${displayQuotes[0] || ''}
+                </p>
+            </div>
         </div>
     `;
 
+    dashboardInterval = setInterval(showNextImageAndQuote, 6000);
+
+    // Trip Days Section
+    const daysContainer = document.createElement('div');
+    daysContainer.style.marginTop = '40px';
+    
+    const tripDays = (STATE.tripDays || []).filter(d => d.tripId === activeTrip.id).sort((a,b) => a.dayNumber - b.dayNumber);
+    
+    daysContainer.innerHTML = `
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
+            <h2 style="font-size: 1.5rem; letter-spacing: -0.02em;">Your Journey</h2>
+            <span style="font-size: 0.9rem; color: var(--text-secondary); font-weight: 600;">${tripDays.length} Days Planned</span>
+        </div>
+        
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 20px;">
+            ${tripDays.map(day => `
+                <div class="card glass card-glow-blue day-card" style="padding: 20px; min-height: 180px; display: flex; flex-direction: column; cursor: pointer; transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);" onclick="window.openDayDetail('${day.id}')">
+                    <div style="flex: 1;">
+                        <h3 style="margin: 0; font-size: 1.2rem;">${day.name || `Day ${day.dayNumber}`}</h3>
+                        <div style="font-size: 0.8rem; color: var(--text-secondary); font-weight: 700; text-transform: uppercase; margin-top: 4px;">Day ${day.dayNumber}</div>
+                    </div>
+                    
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 20px;">
+                        <div style="display: flex; -webkit-mask-image: linear-gradient(to right, black 70%, transparent 100%);">
+                            ${(day.photos || []).slice(0, 3).map((p, i) => `
+                                <div style="width: 32px; height: 32px; border-radius: 8px; border: 2px solid var(--glass-border); overflow: hidden; margin-left: ${i === 0 ? '0' : '-12px'}; background: var(--glass-bg);">
+                                    <img src="${p}" style="width: 100%; height: 100%; object-fit: cover;">
+                                </div>
+                            `).join('')}
+                            ${(day.photos || []).length > 3 ? `<div style="width: 32px; height: 32px; border-radius: 8px; border: 2px solid var(--glass-border); background: rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 700; margin-left: -12px;">+${day.photos.length - 3}</div>` : ''}
+                        </div>
+                        <div style="color: var(--accent-blue); font-size: 0.8rem; font-weight: 700;">Explore &rarr;</div>
+                    </div>
+                </div>
+            `).join('')}
+            
+            <div class="card glass" id="addDayBtn" style="border: 2px dashed rgba(255,255,255,0.1); background: transparent; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 180px; cursor: pointer; transition: all 0.3s; opacity: 0.7;" onmouseover="this.style.opacity='1'; this.style.borderColor='var(--accent-blue)';" onmouseout="this.style.opacity='0.7'; this.style.borderColor='rgba(255,255,255,0.1)';">
+                <div style="width: 48px; height: 48px; border-radius: 50%; background: rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: center; margin-bottom: 12px;">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--text-secondary);"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                </div>
+                <span style="font-weight: 600; color: var(--text-secondary); font-size: 0.9rem;">Add days to your trip</span>
+            </div>
+        </div>
+    `;
+    
+    div.appendChild(daysContainer);
+    
     setTimeout(() => {
-
-
-        const shareBtn = div.querySelector('#shareTripBtn');
-        if (shareBtn && activeTrip) {
-            shareBtn.onclick = () => openShareModal(STATE.activeTripId);
-        }
-        const bgLayer = div.querySelector('#bg-layer');
-        const quoteLayer = div.querySelector('#quote-layer');
-        let imgIndex = 0;
-
-        function showNextImageAndQuote() {
-            if (!document.body.contains(div)) return; // Cleanup if navigated away
-
-            const oldImages = bgLayer.querySelectorAll('.bg-image');
-            oldImages.forEach(img => img.classList.remove('active'));
-
-            const img = document.createElement('div');
-            img.className = 'bg-image';
-            img.style.backgroundImage = `url('${allImages[imgIndex % allImages.length]}')`;
-            bgLayer.appendChild(img);
-            
-            void img.offsetWidth;
-            img.classList.add('active');
-            
-            setTimeout(() => {
-                oldImages.forEach(oldImg => {
-                    if (bgLayer.contains(oldImg)) bgLayer.removeChild(oldImg);
-                });
-            }, 2000);
-
-            const quoteText = allQuotes[Math.floor(Math.random() * allQuotes.length)];
-            const quoteEl = document.createElement('div');
-            quoteEl.className = 'floating-quote';
-            quoteEl.innerText = quoteText;
-            
-            // Random but Safe Floating Logic
-            const sizes = activeTrip ? ['1.2rem', '1.4rem', '1.6rem'] : ['1.8rem', '2.2rem', '2.6rem'];
-            quoteEl.style.fontSize = sizes[Math.floor(Math.random() * sizes.length)];
-            quoteEl.style.fontWeight = '400';
-            quoteEl.style.width = 'fit-content';
-            quoteEl.style.maxWidth = '50%';
-            quoteEl.style.textShadow = '0 2px 15px rgba(0,0,0,0.8)';
-            quoteEl.style.lineHeight = '1.4';
-            quoteEl.style.position = 'absolute';
-
-            // Randomly pick a side and a vertical position
-            const side = Math.random() > 0.5 ? 'left' : 'right';
-            const horizontalPos = Math.floor(Math.random() * 15) + 5; // 5% to 20% from edge
-            const verticalPos = Math.floor(Math.random() * 60) + 10; // 10% to 70% from top
-            
-            quoteEl.style[side] = `${horizontalPos}%`;
-            quoteEl.style.top = `${verticalPos}%`;
-            quoteEl.style.textAlign = side;
-            
-            // Ensure flexbox doesn't interfere
-            quoteLayer.style.display = 'block';
-            
-            quoteLayer.innerHTML = ''; 
-            quoteLayer.appendChild(quoteEl);
-
-            imgIndex++;
-        }
-
-        showNextImageAndQuote();
-        dashboardInterval = setInterval(showNextImageAndQuote, 6000);
+        const addBtn = div.querySelector('#addDayBtn');
+        if (addBtn) addBtn.onclick = () => window.openAddDayModal(activeTrip.id);
     }, 0);
 
     return div;
@@ -570,37 +522,21 @@ function renderExpenses() {
                         <label style="display: block; margin-bottom: 6px; font-weight: 500;">Currency</label>
                         <select id="expCurrency" class="glass-input" style="width: 100%;" required>
                             <option value="">Select Currency...</option>
-                            <option value="EUR">EUR (€)</option>
-                            <option value="USD">USD ($)</option>
-                            <option value="GBP">GBP (£)</option>
-                            <option value="JPY">JPY (¥)</option>
-                            <option value="CHF">CHF</option>
-                            <option value="CAD">CAD ($)</option>
-                            <option value="AUD">AUD ($)</option>
-                            <option value="CNY">CNY (¥)</option>
-                            <option value="BRL">BRL (R$)</option>
-                            <option value="MXN">MXN ($)</option>
-                            <option value="INR">INR (₹)</option>
+                            ${Object.keys(CONVERSION_RATES).map(c => `<option value="${c}">${c}</option>`).join('')}
                         </select>
-                    </div>
-                    <div style="margin-bottom: 20px;">
-                        <label style="display: block; margin-bottom: 6px; font-weight: 500;">Value in Euros (€)</label>
-                        <input type="number" step="0.01" id="expEuroValue" class="glass-input" style="width: 100%;">
                     </div>
                     
                     <div style="margin-bottom: 20px;">
                         <label style="display: block; margin-bottom: 6px; font-weight: 500;">Split Between (%)</label>
+                        <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+                            <select id="addSplitSelect" class="glass-input" style="flex: 1;">
+                                <option value="">Add person to split...</option>
+                                ${STATE.groups.map(p => `<option value="${p}">${p}</option>`).join('')}
+                            </select>
+                            <button type="button" id="addSplitBtn" class="btn btn-small" style="padding: 0 16px;">+ Add</button>
+                        </div>
                         <div id="splitContainer" style="display: flex; flex-direction: column; gap: 8px;">
-                            ${STATE.groups.map(p => `
-                                <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); padding: 8px 12px; border-radius: 8px; border: 1px solid var(--glass-border);">
-                                    <span style="font-weight: 500;">${p}</span>
-                                    <div style="display: flex; align-items: center; gap: 8px;">
-                                        <input type="number" class="glass-input split-input" data-person="${p}" value="${(100/Math.max(1, STATE.groups.length)).toFixed(1)}" step="0.1" style="width: 70px; padding: 4px 8px; text-align: center;" required>
-                                        <span style="color: var(--text-secondary); font-size: 0.9rem;">%</span>
-                                    </div>
-                                </div>
-                            `).join('')}
-                            ${STATE.groups.length === 0 ? '<span style="color: var(--text-secondary); font-size: 0.85rem;">Add companions in the personalisation section</span>' : ''}
+                            <!-- Dynamic splitters appear here -->
                         </div>
                     </div>
                     <button type="submit" class="btn">Save Expense</button>
@@ -616,7 +552,48 @@ function renderExpenses() {
     // Handle Form Submit & Draft Saving
     setTimeout(() => {
         const form = div.querySelector('#expenseForm');
-        
+        const splitContainer = div.querySelector('#splitContainer');
+        const addSplitSelect = div.querySelector('#addSplitSelect');
+        const addSplitBtn = div.querySelector('#addSplitBtn');
+
+        let activeSplitters = []; // Array of names currently in the split
+
+        function updateSplitUI() {
+            if (activeSplitters.length === 0) {
+                splitContainer.innerHTML = '<p style="color:var(--text-secondary); font-size:0.85rem; padding:10px; border:1px dashed var(--glass-border); border-radius:8px; text-align:center;">100% will be attributed to the payer.</p>';
+                return;
+            }
+
+            const defaultPct = (100 / activeSplitters.length).toFixed(1);
+            splitContainer.innerHTML = activeSplitters.map(p => `
+                <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); padding: 8px 12px; border-radius: 8px; border: 1px solid var(--glass-border);">
+                    <span style="font-weight: 500;">${p}</span>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <input type="number" class="glass-input split-input" data-person="${p}" value="${defaultPct}" step="0.1" style="width: 70px; padding: 4px 8px; text-align: center;" required>
+                        <span style="color: var(--text-secondary); font-size: 0.9rem;">%</span>
+                        <button type="button" class="remove-splitter" data-person="${p}" style="background:none; border:none; color:#ff3b30; cursor:pointer; font-weight:700; margin-left:8px;">&times;</button>
+                    </div>
+                </div>
+            `).join('');
+
+            // Attach remove listeners
+            splitContainer.querySelectorAll('.remove-splitter').forEach(btn => {
+                btn.onclick = () => {
+                    const person = btn.getAttribute('data-person');
+                    activeSplitters = activeSplitters.filter(p => p !== person);
+                    updateSplitUI();
+                };
+            });
+        }
+
+        addSplitBtn.onclick = () => {
+            const person = addSplitSelect.value;
+            if (person && !activeSplitters.includes(person)) {
+                activeSplitters.push(person);
+                updateSplitUI();
+            }
+        };
+
         // Populate from draft
         if (STATE.draftExpense) {
             const d = STATE.draftExpense;
@@ -627,13 +604,13 @@ function renderExpenses() {
             if (d.country) div.querySelector('#expCountry').value = d.country;
             if (d.value) div.querySelector('#expValue').value = d.value;
             if (d.currency) div.querySelector('#expCurrency').value = d.currency;
-            if (d.euroValue) div.querySelector('#expEuroValue').value = d.euroValue;
         }
 
         // Live Save Draft
         form.querySelectorAll('input, select').forEach(el => {
             el.addEventListener('input', (e) => {
                 const id = e.target.id;
+                if (!id) return;
                 const val = e.target.value;
                 if (id === 'expWho') STATE.draftExpense.who = val;
                 if (id === 'expCategory') STATE.draftExpense.categoryId = val;
@@ -642,17 +619,6 @@ function renderExpenses() {
                 if (id === 'expCountry') STATE.draftExpense.country = val;
                 if (id === 'expValue') STATE.draftExpense.value = val;
                 if (id === 'expCurrency') STATE.draftExpense.currency = val;
-                if (id === 'expEuroValue') STATE.draftExpense.euroValue = val;
-                
-                // Automatic Euro Conversion
-                if (id === 'expValue' || id === 'expCurrency') {
-                    const amount = parseFloat(div.querySelector('#expValue').value) || 0;
-                    const currency = div.querySelector('#expCurrency').value;
-                    const rate = CONVERSION_RATES[currency] || 1;
-                    const euroVal = (amount * rate).toFixed(2);
-                    div.querySelector('#expEuroValue').value = euroVal;
-                    STATE.draftExpense.euroValue = euroVal;
-                }
                 
                 saveState(); // Persist draft too
             });
@@ -661,43 +627,57 @@ function renderExpenses() {
         form.addEventListener('submit', (e) => {
             e.preventDefault();
             
+            const payer = div.querySelector('#expWho').value;
             const splits = {};
             let totalSplit = 0;
-            div.querySelectorAll('.split-input').forEach(input => {
-                const val = parseFloat(input.value) || 0;
-                splits[input.getAttribute('data-person')] = val;
-                totalSplit += val;
-            });
             
-            if (STATE.groups.length > 0 && Math.abs(totalSplit - 100) > 0.5) {
-                alert("Percentages must add up to exactly 100%");
-                return;
+            const splitInputs = div.querySelectorAll('.split-input');
+            if (splitInputs.length > 0) {
+                splitInputs.forEach(input => {
+                    const val = parseFloat(input.value) || 0;
+                    splits[input.getAttribute('data-person')] = val;
+                    totalSplit += val;
+                });
+
+                if (Math.abs(totalSplit - 100) > 0.5) {
+                    alert("Percentages must add up to exactly 100%");
+                    return;
+                }
+            } else {
+                // Default: 100% to payer
+                splits[payer] = 100;
             }
 
+            const val = parseFloat(div.querySelector('#expValue').value);
+            const curr = div.querySelector('#expCurrency').value.toUpperCase();
+            
             const expense = {
                 id: generateId(),
                 tripId: STATE.activeTripId,
-                who: div.querySelector('#expWho').value,
+                who: payer,
                 categoryId: div.querySelector('#expCategory').value,
                 label: div.querySelector('#expLabel').value,
                 date: div.querySelector('#expDate').value,
                 country: div.querySelector('#expCountry').value,
-                value: parseFloat(div.querySelector('#expValue').value),
-                currency: div.querySelector('#expCurrency').value.toUpperCase(),
-                euroValue: parseFloat(div.querySelector('#expEuroValue').value) || 0,
+                value: val,
+                currency: curr,
+                euroValue: val * (CONVERSION_RATES[curr] || 1),
                 splits: splits
             };
             STATE.expenses.push(expense);
             
             // Clear draft
-            STATE.draftExpense = { who: '', categoryId: '', label: '', date: '', country: '', value: '', currency: 'EUR', euroValue: '' };
+            STATE.draftExpense = { who: '', categoryId: '', label: '', date: '', country: '', value: '', currency: 'EUR' };
             
             saveState();
             renderRecentExpenses(div.querySelector('#recentExpensesList'));
             form.reset();
+            activeSplitters = [];
+            updateSplitUI();
         });
         
         renderRecentExpenses(div.querySelector('#recentExpensesList'));
+        updateSplitUI();
     }, 0);
 
     return div;
@@ -708,31 +688,42 @@ function renderRecentExpenses(container) {
     const tripExpenses = STATE.expenses.filter(e => e.tripId === STATE.activeTripId).reverse().slice(0, 5);
     
     if (tripExpenses.length === 0) {
-        container.innerHTML = '<p>No recent expenses.</p>';
+        container.innerHTML = '<p style="text-align:center; color:var(--text-secondary); padding:20px;">No recent expenses.</p>';
         return;
     }
 
     container.innerHTML = tripExpenses.map(e => {
         const cat = STATE.categories.find(c => c.id === e.categoryId);
-        // Fallback for older data or missing euroValue
-        const displayEuro = e.euroValue || (e.value * (CONVERSION_RATES[e.currency] || 1));
+        const displayEuro = e.euroValue;
         
         return `
-            <div style="padding: 12px; border-bottom: 1px solid var(--glass-border); display: flex; justify-content: space-between; align-items: center;">
+            <div style="padding: 16px; border-bottom: 1px solid var(--glass-border); display: flex; justify-content: space-between; align-items: center; transition: background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.02)'" onmouseout="this.style.background='transparent'">
                 <div style="flex: 1;">
                     <strong style="display: block; font-size: 1.05rem;">${cat ? cat.icon : ''} ${e.label}</strong>
                     <div style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 4px;">
                         <span>📍 ${e.country || 'Unknown'}</span> • <span>${e.date}</span> • <span>Paid by ${e.who}</span>
                     </div>
                 </div>
-                <div style="text-align: right; min-width: 100px;">
-                    <div style="font-weight: 600; font-size: 1.1rem; color: var(--text-primary);">${e.value.toFixed(2)} ${e.currency}</div>
-                    <div style="font-size: 0.9rem; color: var(--accent-blue); font-weight: 500; margin-top: 2px;">≈ €${displayEuro.toFixed(2)}</div>
+                <div style="display:flex; align-items:center; gap:16px;">
+                    <div style="text-align: right;">
+                        <div style="font-weight: 600; font-size: 1.1rem; color: var(--text-primary);">${e.value.toFixed(2)} ${e.currency}</div>
+                        <div style="font-size: 0.9rem; color: var(--accent-blue); font-weight: 500; margin-top: 2px;">≈ €${displayEuro.toFixed(2)}</div>
+                    </div>
+                    <button onclick="window.deleteExpense('${e.id}')" style="background:rgba(255,59,48,0.1); border:none; color:#ff3b30; width:32px; height:32px; border-radius:8px; cursor:pointer; display:flex; align-items:center; justify-content:center;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                    </button>
                 </div>
             </div>
         `;
     }).join('');
 }
+
+window.deleteExpense = (id) => {
+    if (!confirm("Delete this expense?")) return;
+    STATE.expenses = STATE.expenses.filter(e => e.id !== id);
+    saveState();
+    navigate('expenses');
+};
 
 // --- Page: Upload ---
 function renderUpload() {
@@ -921,7 +912,7 @@ function renderUpload() {
                 }
 
                 parsedRows.forEach(row => {
-                    let who, catName, label, date, country, value, currency, euroValue;
+                    let who, catName, label, date, country, value, currency;
 
                     if (isPopular) {
                         if (popularFormat === 'tricount') {
@@ -956,12 +947,6 @@ function renderUpload() {
                         country   = get('country') || 'Unknown';
                         value     = parseFloat(get('value')) || 0;
                         currency  = get('currency').toUpperCase() || 'EUR';
-                        euroValue = parseFloat(get('euroValue')) || 0;
-                    }
-
-                    if (!euroValue || euroValue === 0) {
-                        const rate = CONVERSION_RATES[currency] || 1;
-                        euroValue = value * rate;
                     }
 
                     if (who && !STATE.groups.includes(who)) {
@@ -985,7 +970,7 @@ function renderUpload() {
                         country,
                         value,
                         currency,
-                        euroValue
+                        euroValue: value * (CONVERSION_RATES[currency] || 1)
                     };
                     STATE.expenses.push(expense);
                     added++;
@@ -1020,10 +1005,7 @@ function renderInsights() {
     
     // Trigger historical rate fetch in background
     const uniqueDates = [...new Set(tripExps.map(e => e.date).filter(d => !!d))];
-    fetchHistoricalRates(uniqueDates).then(() => {
-        // We don't force re-render here to avoid loops, 
-        // but next time they open the tab it will be more accurate
-    });
+    fetchHistoricalRates(uniqueDates).then(() => {});
 
     if (tripExps.length === 0) {
         div.innerHTML = `
@@ -1064,10 +1046,6 @@ function renderInsights() {
             let eurToTargetRate = 1 / (CONVERSION_RATES[targetCurr] || 1);
             
             if (mode === 'at_trip') {
-                const targetCacheKey = `${e.date}_EUR_${targetCurr}`;
-                // We use the same cache logic for the target currency if available
-                // (Note: Frankfurter fetchHistoricalRates stores curr -> EUR)
-                // So if target is USD, we look for date_USD_EUR and take 1/rate
                 const targetCacheKeyInv = `${e.date}_${targetCurr}_EUR`;
                 if (STATE.rateCache && STATE.rateCache[targetCacheKeyInv]) {
                     eurToTargetRate = 1 / STATE.rateCache[targetCacheKeyInv];
@@ -1175,17 +1153,7 @@ function renderInsights() {
 
                 <div style="display: flex; align-items: center; gap: 12px;">
                     <select id="insightCurrencySelector" class="glass-input" style="width: 110px; padding: 8px 12px; font-weight: 500; font-size: 0.9rem; background: var(--glass-bg);">
-                        <option value="EUR" ${targetCurr === 'EUR' ? 'selected' : ''}>EUR (€)</option>
-                        <option value="USD" ${targetCurr === 'USD' ? 'selected' : ''}>USD ($)</option>
-                        <option value="GBP" ${targetCurr === 'GBP' ? 'selected' : ''}>GBP (£)</option>
-                        <option value="JPY" ${targetCurr === 'JPY' ? 'selected' : ''}>JPY (¥)</option>
-                        <option value="CHF" ${targetCurr === 'CHF' ? 'selected' : ''}>CHF</option>
-                        <option value="CAD" ${targetCurr === 'CAD' ? 'selected' : ''}>CAD ($)</option>
-                        <option value="AUD" ${targetCurr === 'AUD' ? 'selected' : ''}>AUD ($)</option>
-                        <option value="CNY" ${targetCurr === 'CNY' ? 'selected' : ''}>CNY (¥)</option>
-                        <option value="BRL" ${targetCurr === 'BRL' ? 'selected' : ''}>BRL (R$)</option>
-                        <option value="MXN" ${targetCurr === 'MXN' ? 'selected' : ''}>MXN ($)</option>
-                        <option value="INR" ${targetCurr === 'INR' ? 'selected' : ''}>INR (₹)</option>
+                        ${Object.keys(CONVERSION_RATES).map(c => `<option value="${c}" ${targetCurr === c ? 'selected' : ''}>${c}</option>`).join('')}
                     </select>
                 </div>
             </div>
@@ -1521,308 +1489,250 @@ window.showPersTab = (tab) => {
 // --- Page: Settings ---
 function renderSettings() {
     const div = document.createElement('div');
-    div.innerHTML = `
-        <div class="ai-page-header">
-            <h1 style="background: linear-gradient(135deg, #ff3b30, #ff9500); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Settings</h1>
-            <p>System configuration, data management, and import preferences.</p>
-        </div>
+    
+    function renderMappingContent() {
+        const MANDATORY = ['label','date','value','who'];
+        const OPTIONAL = ['country','categoryId','currency'];
+        const used = new Set((STATE.customFormat || []).map(m => m.variable));
+        const sf = STATE.savedFormats || [];
 
-        <div id="settingsMenu" class="grid-2" style="margin-bottom: 24px;">
-            <div class="card glass card-glow-red" style="cursor: pointer;" onclick="window.showSettingsTab('reset')">
-                <h2 class="card-title" style="color: #ff3b30;">Reset Data</h2>
-                <p style="color: var(--text-secondary);">Wipe companions, trips, expenses, or factory reset the app.</p>
+        return `
+            <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:24px;">
+                ${MANDATORY.map(v => {
+                    const done = used.has(v);
+                    return `<span style="padding:6px 14px; border-radius:20px; font-size:0.75rem; font-weight:700; border:1px solid ${done ? 'rgba(52,199,89,0.3)' : 'rgba(255,59,48,0.3)'}; background:${done ? 'rgba(52,199,89,0.05)' : 'rgba(255,59,48,0.05)'}; color:${done ? '#34c759' : '#ff3b30'};">
+                        ${done ? '✓' : '★'} ${v.toUpperCase()}
+                    </span>`;
+                }).join('')}
             </div>
-            <div class="card glass card-glow-orange" style="cursor: pointer;" onclick="window.showSettingsTab('format')">
-                <h2 class="card-title" style="color: #ff9500;">Format Options</h2>
-                <p style="color: var(--text-secondary);">Configure Excel import mappings and global formats.</p>
+
+            <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--glass-border); border-radius: 20px; overflow: hidden; margin-bottom: 24px;">
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead style="background: rgba(255,149,0,0.05);">
+                        <tr>
+                            <th style="text-align:left; padding:16px; font-size:0.7rem; text-transform:uppercase; color:var(--text-secondary);">Variable</th>
+                            <th style="text-align:left; padding:16px; font-size:0.7rem; text-transform:uppercase; color:var(--text-secondary);">Excel Column</th>
+                            <th style="text-align:center; padding:16px; font-size:0.7rem; text-transform:uppercase; color:var(--text-secondary);">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${(STATE.customFormat || []).length === 0 ? '<tr><td colspan="3" style="padding:32px; text-align:center; color:var(--text-secondary); font-style:italic;">No mappings yet.</td></tr>' : (STATE.customFormat || []).map(m => `
+                            <tr style="border-bottom: 1px solid var(--glass-border);">
+                                <td style="padding:16px; font-weight:700;">${m.variable}</td>
+                                <td style="padding:16px;"><span style="background:#ff9500; color:white; padding:4px 10px; border-radius:8px; font-weight:800; font-size:0.8rem;">${m.column}</span></td>
+                                <td style="padding:16px; text-align:center;">
+                                    <button onclick="window.removeFormatMapping('${m.variable}')" style="background:rgba(255,59,48,0.1); border:none; color:#ff3b30; width:32px; height:32px; border-radius:50%; cursor:pointer;">&times;</button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
             </div>
-        </div>
 
-        <div id="settingsContent" style="display: none;">
-            <button class="btn btn-small btn-liquid-glass" style="margin-bottom: 20px;" onclick="window.showSettingsTab('menu')">&larr; Back to Settings</button>
-            
-            <div id="settingsReset" style="display: none;">
-                <div class="grid-2" style="margin-bottom: 24px;">
-                    <div class="card glass card-glow-blue">
-                        <h2 class="card-title" style="color: #007aff;">Reset Companions</h2>
-                        <p style="color: var(--text-secondary);">Delete all your travel companions and groups.</p>
-                        <button id="resetGroupsBtn" class="btn-liquid-glass" style="margin-top: 10px; width: 100%;">Clear Companions</button>
-                    </div>
-
-                    <div class="card glass card-glow-orange">
-                        <h2 class="card-title" style="color: #ff9500;">Reset Trips</h2>
-                        <p style="color: var(--text-secondary);">Delete all your trips and their associated expenses.</p>
-                        <button id="resetTripsBtn" class="btn-liquid-glass" style="margin-top: 10px;">Delete All Trips</button>
-                    </div>
-
-                    <div class="card glass" style="border-color: rgba(88, 86, 214, 0.3);">
-                        <h2 class="card-title" style="color: #5856d6;">Reset Categories</h2>
-                        <p style="color: var(--text-secondary);">Revert all custom categories to the default set.</p>
-                        <button id="resetCatsBtn" class="btn-liquid-glass" style="margin-top: 10px;">Restore Defaults</button>
-                    </div>
-
-                    <div class="card glass" style="border-color: rgba(255, 204, 0, 0.3);">
-                        <h2 class="card-title" style="color: #ffcc00;">Reset Expenses</h2>
-                        <p style="color: var(--text-secondary);">Delete all expenses while keeping your trips and companions.</p>
-                        <button id="resetExpensesBtn" class="btn-liquid-glass" style="margin-top: 10px;">Clear All Expenses</button>
-                    </div>
+            <div style="display:flex; gap:16px; align-items:flex-end; flex-wrap:wrap; margin-bottom:32px;">
+                <div style="flex:1; min-width:150px;">
+                    <label style="display:block; font-size:0.75rem; font-weight:800; margin-bottom:8px; color:var(--text-secondary);">VARIABLE</label>
+                    <select id="mapVarSelect" class="glass-input" style="width:100%;">
+                        <option value="">Select...</option>
+                        ${MANDATORY.concat(OPTIONAL).filter(v => !used.has(v)).map(v => `<option value="${v}">${MANDATORY.includes(v) ? '★ ' : ''}${v}</option>`).join('')}
+                    </select>
                 </div>
-
-                <div class="card glass" style="border-color: rgba(255, 59, 48, 0.3); box-shadow: 0 0 20px rgba(255, 59, 48, 0.15);">
-                    <h2 class="card-title" style="color: #ff3b30;">Danger Zone</h2>
-                    <p>Blank slate. Permanently delete EVERYTHING and revert to original state.</p>
-                    <button id="resetAppBtn" class="btn" style="background-color: #ff3b30; margin-top: 10px;">Erase All Data</button>
+                <div style="flex:1; min-width:120px;">
+                    <label style="display:block; font-size:0.75rem; font-weight:800; margin-bottom:8px; color:var(--text-secondary);">COLUMN</label>
+                    <select id="mapColSelect" class="glass-input" style="width:100%;">
+                        <option value="">Col...</option>
+                        ${'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map(c => `<option value="${c}">${c}</option>`).join('')}
+                    </select>
                 </div>
+                <button class="btn btn-liquid-glass" style="padding: 12px 24px;" onclick="window.addFormatMapping()">Map Field</button>
             </div>
 
-            <div id="settingsFormat" style="display: none;">
-                <div class="card glass" style="border-left: 4px solid #ff9500; box-shadow: 0 0 15px rgba(255, 149, 0, 0.1);">
-                    <h2 class="card-title" style="color: #ff9500;">Custom Excel Format Mapping</h2>
-                    <p style="color: var(--text-secondary); margin-bottom: 16px;">Build a custom format by assigning each app variable to an Excel column (A, B, C…). <strong>Required fields</strong> are marked with <span style="color:#ff3b30;">★</span>.</p>
-                    
-                    <!-- Mandatory field checklist -->
-                    <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:20px;">
-                        ${(() => {
-                            const MANDATORY = ['label','date','value','who'];
-                            const mapped = new Set((STATE.customFormat || []).map(m => m.variable));
-                            return MANDATORY.map(v => {
-                                const done = mapped.has(v);
-                                return `<span style="display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:20px;font-size:0.8rem;font-weight:600;border:1px solid ${done ? 'rgba(52,199,89,0.4)' : 'rgba(255,59,48,0.4)'};background:${done ? 'rgba(52,199,89,0.08)' : 'rgba(255,59,48,0.08)'};color:${done ? '#34c759' : '#ff3b30'};">
-                                    ${done ? '✅' : '★'} ${v}
-                                </span>`;
-                            }).join('');
-                        })()}
-                    </div>
-                    
-                    <!-- Current mappings table -->
-                    <div style="margin-bottom: 20px;">
-                        <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
-                            <thead>
-                                <tr style="border-bottom:1px solid var(--glass-border);">
-                                    <th style="text-align:left; padding:8px 12px; color:var(--text-secondary); font-weight:600; font-size:0.8rem; text-transform:uppercase;">Variable</th>
-                                    <th style="text-align:left; padding:8px 12px; color:var(--text-secondary); font-weight:600; font-size:0.8rem; text-transform:uppercase;">Column</th>
-                                    <th style="width:40px;"></th>
-                                </tr>
-                            </thead>
-                            <tbody id="mappingTableBody">
-                                ${(() => {
-                                    const MANDATORY = new Set(['label','date','value','who']);
-                                    const fm = STATE.customFormat || [];
-                                    if (fm.length === 0) return '<tr><td colspan="3" style="padding:16px 12px; color:var(--text-secondary); text-align:center;">No mappings yet. Add one below.</td></tr>';
-                                    return [...fm].sort((a,b) => a.variable.localeCompare(b.variable)).map(m => `
-                                        <tr style="border-bottom:1px solid var(--glass-border);">
-                                            <td style="padding:10px 12px; font-weight:600;">${MANDATORY.has(m.variable) ? '<span style="color:#ff3b30;">★</span> ' : ''}${m.variable}</td>
-                                            <td style="padding:10px 12px; color:var(--accent-blue); font-weight:700;">${m.column}</td>
-                                            <td style="padding:10px 12px; text-align:center;">
-                                                <button onclick="window.removeFormatMapping('${m.variable}')" style="background:none;border:none;color:#ff3b30;cursor:pointer;font-size:1.1rem;font-weight:700;" title="Remove">✕</button>
-                                            </td>
-                                        </tr>
-                                    `).join('');
-                                })()}
-                            </tbody>
-                        </table>
-                    </div>
-                    
-                    <!-- Add new mapping -->
-                    <div style="display:flex; gap:12px; align-items:flex-end; margin-bottom:24px; flex-wrap:wrap;">
-                        <div style="flex:1; min-width:180px;">
-                            <label style="display:block; font-size:0.8rem; margin-bottom:6px; font-weight:600;">App Variable</label>
-                            <select id="mapVarSelect" class="glass-input" style="width:100%;">
-                                <option value="">Select variable…</option>
-                                ${(() => {
-                                    const MANDATORY = ['label','date','value','who'];
-                                    const OPTIONAL = ['country','categoryId','currency','euroValue'];
-                                    const used = new Set((STATE.customFormat || []).map(m => m.variable));
-                                    const mandOpts = MANDATORY.filter(v => !used.has(v)).map(v => `<option value="${v}">★ ${v} (required)</option>`).join('');
-                                    const optOpts = OPTIONAL.filter(v => !used.has(v)).map(v => `<option value="${v}">${v}</option>`).join('');
-                                    return mandOpts + (mandOpts && optOpts ? '' : '') + optOpts;
-                                })()}
-                            </select>
+            <div style="border-top: 1px solid var(--glass-border); padding-top: 32px;">
+                <h3 style="margin-top:0;">Saved Formats (${sf.length}/5)</h3>
+                <div style="display:grid; gap:12px;">
+                    ${sf.map(f => `
+                        <div style="display:flex; align-items:center; justify-content:space-between; background:rgba(255,255,255,0.03); padding:16px; border-radius:16px; border:1px solid var(--glass-border);">
+                            <div style="font-weight:700;">${f.name}</div>
+                            <button class="btn btn-small" style="background:rgba(255,59,48,0.1); color:#ff3b30; border:none; padding:8px 16px; border-radius:12px;" onclick="window.deleteSavedFormat('${f.id}')">Delete</button>
                         </div>
-                        <div style="flex:1; min-width:120px;">
-                            <label style="display:block; font-size:0.8rem; margin-bottom:6px; font-weight:600;">Excel Column</label>
-                            <select id="mapColSelect" class="glass-input" style="width:100%;">
-                                <option value="">Select column…</option>
-                                ${(() => {
-                                    const usedCols = new Set((STATE.customFormat || []).map(m => m.column));
-                                    return 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')
-                                        .filter(c => !usedCols.has(c))
-                                        .map(c => `<option value="${c}">${c}</option>`).join('');
-                                })()}
-                            </select>
+                    `).join('')}
+                    ${sf.length < 5 ? `
+                        <div style="display:flex; gap:12px; margin-top:12px;">
+                            <input type="text" id="formatNameInput" class="glass-input" placeholder="Name this format..." style="flex:1;">
+                            <button class="btn" onclick="window.saveCustomFormat()" style="background:var(--accent-blue);">Save Format</button>
                         </div>
-                        <button class="btn" onclick="window.addFormatMapping()" style="white-space:nowrap;">+ Add</button>
-                    </div>
-                    
-                    <!-- Save Format -->
-                    <div style="border-top:1px solid var(--glass-border); padding-top:20px;">
-                        <h3 style="font-size:0.95rem; margin-bottom:12px;">Save This Format</h3>
-                        <p style="font-size:0.82rem; color:var(--text-secondary); margin-bottom:12px;">Once all <span style="color:#ff3b30;">★ required fields</span> are mapped, give this format a name and save it. It will appear in the Upload section. Max 5 saved formats.</p>
-                        <div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
-                            <div style="flex:1; min-width:200px;">
-                                <label style="display:block; font-size:0.8rem; margin-bottom:6px; font-weight:600;">Format Name</label>
-                                <input type="text" id="formatNameInput" class="glass-input" placeholder="e.g. My Bank Export" style="width:100%;">
-                            </div>
-                            <button class="btn" onclick="window.saveCustomFormat()" style="background:linear-gradient(135deg,#ff9500,#ff3b30); white-space:nowrap;">💾 Save Format</button>
-                        </div>
-                    </div>
-                    
-                    <!-- Existing saved formats -->
-                    ${(() => {
-                        const sf = STATE.savedFormats || [];
-                        if (sf.length === 0) return '';
-                        return `
-                        <div style="border-top:1px solid var(--glass-border); padding-top:20px; margin-top:20px;">
-                            <h3 style="font-size:0.95rem; margin-bottom:12px;">Saved Formats (${sf.length}/5)</h3>
-                            <div style="display:flex; flex-direction:column; gap:8px;">
-                                ${sf.map(f => `
-                                    <div style="display:flex; align-items:center; justify-content:space-between; padding:12px 16px; background:rgba(255,149,0,0.06); border:1px solid rgba(255,149,0,0.2); border-radius:10px;">
-                                        <div>
-                                            <strong>${f.name}</strong>
-                                            <span style="font-size:0.78rem; color:var(--text-secondary); margin-left:8px;">${f.mappings.length} fields</span>
-                                        </div>
-                                        <button onclick="window.deleteSavedFormat('${f.id}')" style="background:none;border:none;color:#ff3b30;cursor:pointer;font-size:1rem;font-weight:700;" title="Delete">✕</button>
-                                    </div>
-                                `).join('')}
-                            </div>
-                        </div>`;
-                    })()}
+                    ` : ''}
                 </div>
             </div>
-        </div>
-    `;
+        `;
+    }
 
-    setTimeout(() => {
-        const rGrp = div.querySelector('#resetGroupsBtn');
-        if (rGrp) rGrp.addEventListener('click', () => {
-            if (confirm("Clear all travel companions?")) {
-                STATE.groups = [];
+    const buildSettingsUI = (activeTab = 'menu') => {
+        const isMenu = activeTab === 'menu';
+        const isReset = activeTab === 'reset';
+        const isFormat = activeTab === 'format';
+
+        return `
+            <div class="ai-page-header" style="background: linear-gradient(135deg, rgba(255, 59, 48, 0.05), rgba(255, 149, 0, 0.05));">
+                <h1 style="background: linear-gradient(135deg, #ff3b30, #ff9500); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">System Control</h1>
+                <p>Manage your travel data, custom formats, and core preferences.</p>
+            </div>
+
+            ${isMenu ? `
+                <div class="settings-grid">
+                    <div class="card glass management-card" style="cursor: pointer;" onclick="window.switchSettingsTab('format')">
+                        <h2 class="card-title" style="color: #ff9500; margin: 0;">Format Options</h2>
+                        <p style="color: var(--text-secondary); margin: 8px 0 0;">Configure Excel import mappings and global data formats.</p>
+                        <div style="margin-top: 20px; color: #ff9500; font-weight: 700; font-size: 0.85rem;">Configure &rarr;</div>
+                    </div>
+
+                    <div class="card glass management-card danger-card" style="cursor: pointer;" onclick="window.switchSettingsTab('reset')">
+                        <div class="danger-glow pulse-red"></div>
+                        <h2 class="card-title" style="color: #ff3b30; margin: 0;">Data Management</h2>
+                        <p style="color: var(--text-secondary); margin: 8px 0 0;">Wipe specific data categories or perform a factory reset.</p>
+                        <div style="margin-top: 20px; color: #ff3b30; font-weight: 700; font-size: 0.85rem;">Manage Data &rarr;</div>
+                    </div>
+                </div>
+            ` : `
+                <button class="btn btn-small btn-liquid-glass" style="margin-bottom: 24px; padding: 10px 20px; border-radius: 14px;" onclick="window.switchSettingsTab('menu')">&larr; Back to Control Center</button>
+                
+                ${isReset ? `
+                    <div class="settings-grid">
+                        <div class="card glass" style="padding: 24px;">
+                            <h3 style="color: #007aff; margin-top: 0;">Companions</h3>
+                            <p style="font-size: 0.85rem; color: var(--text-secondary);">Delete your travel companions and groups.</p>
+                            <button class="btn btn-small" style="background: rgba(0, 113, 227, 0.1); color: #007aff; border: 1px solid rgba(0, 113, 227, 0.2); width: 100%;" onclick="window.confirmReset('groups')">Clear Groups</button>
+                        </div>
+                        <div class="card glass" style="padding: 24px;">
+                            <h3 style="color: #ff9500; margin-top: 0;">Trips & Days</h3>
+                            <p style="font-size: 0.85rem; color: var(--text-secondary);">Remove all trips, itineraries, and daily logs.</p>
+                            <button class="btn btn-small" style="background: rgba(255, 149, 0, 0.1); color: #ff9500; border: 1px solid rgba(255, 149, 0, 0.2); width: 100%;" onclick="window.confirmReset('trips')">Delete All Trips</button>
+                        </div>
+                        <div class="card glass" style="padding: 24px;">
+                            <h3 style="color: #5856d6; margin-top: 0;">Categories</h3>
+                            <p style="font-size: 0.85rem; color: var(--text-secondary);">Reset custom expense categories to defaults.</p>
+                            <button class="btn btn-small" style="background: rgba(88, 86, 214, 0.1); color: #5856d6; border: 1px solid rgba(88, 86, 214, 0.2); width: 100%;" onclick="window.confirmReset('categories')">Restore Defaults</button>
+                        </div>
+                        <div class="card glass danger-card" style="padding: 24px; border-color: rgba(255, 59, 48, 0.3);">
+                            <h3 style="color: #ff3b30; margin-top: 0;">Factory Reset</h3>
+                            <p style="font-size: 0.85rem; color: var(--text-secondary);">Permanently wipe every trace of data from the app.</p>
+                            <button class="btn-confirm-danger" style="font-size: 0.85rem; padding: 12px;" onclick="window.confirmReset('app')">Erase Everything</button>
+                        </div>
+                    </div>
+                ` : ''}
+
+                ${isFormat ? `
+                    <div class="card glass" style="padding: 32px; border-radius: 28px;">
+                        <h2 style="color: #ff9500; margin-top: 0;">Custom Excel Mapping</h2>
+                        <p style="color: var(--text-secondary); margin-bottom: 24px;">Define how internal app fields map to Excel columns for seamless imports.</p>
+                        
+                        <div id="mappingTableContainer">
+                            ${renderMappingContent()}
+                        </div>
+                    </div>
+                ` : ''}
+            `}
+        `;
+    };
+
+    window.switchSettingsTab = (tab) => {
+        div.innerHTML = buildSettingsUI(tab);
+    };
+
+    window.confirmReset = (type) => {
+        const configs = {
+            groups: { 
+                title: "Clear Companions?", 
+                message: "This will remove all travel companions and group lists.", 
+                confirmText: "Clear All", 
+                onConfirm: () => { STATE.groups = []; saveState(); window.switchSettingsTab('reset'); }
+            },
+            trips: { 
+                title: "Wipe All Trips?", 
+                message: "This permanently deletes every trip, day log, and itinerary.", 
+                confirmText: "Delete Trips", 
+                onConfirm: () => { STATE.trips = []; STATE.tripDays = []; STATE.expenses = []; STATE.activeTripId = null; saveState(); window.switchSettingsTab('reset'); }
+            },
+            categories: { 
+                title: "Reset Categories?", 
+                message: "Reverts all expense categories to the system defaults.", 
+                confirmText: "Restore Defaults", 
+                onConfirm: () => { 
+                    STATE.categories = [
+                        { id: 'c1', name: 'Food', icon: '🍔', color: '#ff3b30' },
+                        { id: 'c2', name: 'Transport', icon: '✈️', color: '#007aff' },
+                        { id: 'c3', name: 'Accommodation', icon: '🏨', color: '#5856d6' }
+                    ]; 
+                    saveState(); 
+                    window.switchSettingsTab('reset'); 
+                }
+            },
+            app: { 
+                title: "Factory Reset", 
+                message: "Absolute destruction. This wipes EVERY bit of data from the application.", 
+                confirmText: "ERASE EVERYTHING", 
+                requireInput: "ERASE", 
+                onConfirm: () => { localStorage.clear(); location.reload(); }
+            }
+        };
+        window.showConfirmModal(configs[type]);
+    };
+
+    window.addFormatMapping = () => {
+        const variable = document.getElementById('mapVarSelect')?.value;
+        const column   = document.getElementById('mapColSelect')?.value;
+        if (!variable || !column) return;
+        STATE.customFormat = STATE.customFormat || [];
+        if (STATE.customFormat.some(m => m.variable === variable)) return;
+        STATE.customFormat.push({ variable, column });
+        saveState();
+        window.switchSettingsTab('format');
+    };
+
+    window.removeFormatMapping = (variable) => {
+        STATE.customFormat = (STATE.customFormat || []).filter(m => m.variable !== variable);
+        saveState();
+        window.switchSettingsTab('format');
+    };
+
+    window.saveCustomFormat = () => {
+        const MANDATORY = ['label', 'date', 'value', 'who'];
+        const fmt = STATE.customFormat || [];
+        const mapped = new Set(fmt.map(m => m.variable));
+        const missing = MANDATORY.filter(v => !mapped.has(v));
+        if (missing.length > 0) return alert(`Missing required fields: ${missing.join(', ')}`);
+        const name = (document.getElementById('formatNameInput')?.value || '').trim();
+        if (!name) return;
+        STATE.savedFormats = STATE.savedFormats || [];
+        STATE.savedFormats.push({ id: generateId(), name, mappings: [...fmt] });
+        STATE.customFormat = []; 
+        saveState();
+        window.switchSettingsTab('format');
+    };
+
+    window.deleteSavedFormat = (id) => {
+        window.showConfirmModal({
+            title: "Delete Format?",
+            message: "This mapping will no longer be available for imports.",
+            confirmText: "Delete",
+            onConfirm: () => {
+                STATE.savedFormats = (STATE.savedFormats || []).filter(f => f.id !== id);
                 saveState();
-                navigate('settings');
+                window.switchSettingsTab('format');
             }
         });
+    };
 
-        const rExp = div.querySelector('#resetExpensesBtn');
-        if (rExp) rExp.addEventListener('click', () => {
-            if (confirm("Delete all expenses across all trips?")) {
-                STATE.expenses = [];
-                STATE.draftExpense = {
-                    who: '', categoryId: '', label: '', date: '', country: '', value: 0, currency: 'EUR', euroValue: ''
-                };
-                saveState();
-                navigate('settings');
-            }
-        });
-
-        div.querySelector('#resetTripsBtn').addEventListener('click', () => {
-            if (confirm("Delete all trips and expenses?")) {
-                STATE.trips = [];
-                STATE.activeTripId = null;
-                STATE.expenses = [];
-                saveState();
-                navigate('home');
-            }
-        });
-
-        div.querySelector('#resetCatsBtn').addEventListener('click', () => {
-            if (confirm("Revert categories to defaults?")) {
-                STATE.categories = [
-                    { id: '1', name: 'Hotel', icon: '🏨', color: '#ff9500' },
-                    { id: '2', name: 'Food', icon: '🍷', color: '#ff3b30' },
-                    { id: '3', name: 'Flight', icon: '✈️', color: '#007aff' },
-                    { id: '4', name: 'Transport', icon: '🚕', color: '#5856d6' },
-                    { id: '5', name: 'Activities', icon: '🎟️', color: '#34c759' }
-                ];
-                saveState();
-                navigate('settings');
-            }
-        });
-
-        div.querySelector('#resetAppBtn').addEventListener('click', () => {
-            if (confirm("Are you ABSOLUTELY sure? This will reset EVERYTHING (Trips, Expenses, Companions, Categories).")) {
-                STATE.trips = [];
-                STATE.activeTripId = null;
-                STATE.expenses = [];
-                STATE.groups = [];
-                STATE.categories = [
-                    { id: '1', name: 'Hotel', icon: '🏨', color: '#ff9500' },
-                    { id: '2', name: 'Food', icon: '🍷', color: '#ff3b30' },
-                    { id: '3', name: 'Flight', icon: '✈️', color: '#007aff' },
-                    { id: '4', name: 'Transport', icon: '🚕', color: '#5856d6' },
-                    { id: '5', name: 'Activities', icon: '🎟️', color: '#34c759' }
-                ];
-                saveState();
-                navigate('home');
-            }
-        });
-
-        // No save button needed — mappings are saved immediately on add/remove
-    }, 0);
-
+    div.innerHTML = buildSettingsUI('menu');
     return div;
 }
 
 window.showSettingsTab = (tab) => {
-    document.getElementById('settingsMenu').style.display = tab === 'menu' ? 'grid' : 'none';
-    document.getElementById('settingsContent').style.display = tab === 'menu' ? 'none' : 'block';
-    
-    if (tab !== 'menu') {
-        document.getElementById('settingsReset').style.display = tab === 'reset' ? 'block' : 'none';
-        document.getElementById('settingsFormat').style.display = tab === 'format' ? 'block' : 'none';
-    }
-};
-
-window.addFormatMapping = () => {
-    const variable = document.getElementById('mapVarSelect')?.value;
-    const column   = document.getElementById('mapColSelect')?.value;
-    if (!variable || !column) return alert('Please select both a variable and a column.');
-    STATE.customFormat = STATE.customFormat || [];
-    // Prevent duplicates
-    if (STATE.customFormat.some(m => m.variable === variable)) return alert(`"${variable}" is already mapped. Delete it first.`);
-    if (STATE.customFormat.some(m => m.column === column)) return alert(`Column "${column}" is already assigned to another variable. Choose a different column.`);
-    STATE.customFormat.push({ variable, column });
-    STATE.customFormat.sort((a, b) => a.variable.localeCompare(b.variable));
-    saveState();
+    // Legacy support for other parts of the app
     navigate('settings');
-    setTimeout(() => window.showSettingsTab('format'), 50);
-};
-
-window.removeFormatMapping = (variable) => {
-    STATE.customFormat = (STATE.customFormat || []).filter(m => m.variable !== variable);
-    saveState();
-    navigate('settings');
-    setTimeout(() => window.showSettingsTab('format'), 50);
-};
-
-window.saveCustomFormat = () => {
-    const MANDATORY = ['label', 'date', 'value', 'who'];
-    const fmt = STATE.customFormat || [];
-    const mapped = new Set(fmt.map(m => m.variable));
-    const missing = MANDATORY.filter(v => !mapped.has(v));
-    if (missing.length > 0) {
-        alert(`Please map all required fields first:\n• ${missing.join('\n• ')}`);
-        return;
-    }
-    const name = (document.getElementById('formatNameInput')?.value || '').trim();
-    if (!name) { alert('Please give this format a name.'); return; }
-    STATE.savedFormats = STATE.savedFormats || [];
-    if (STATE.savedFormats.length >= 5) { alert('Maximum 5 saved formats reached. Delete one first.'); return; }
-    if (STATE.savedFormats.some(f => f.name.toLowerCase() === name.toLowerCase())) { alert('A format with that name already exists.'); return; }
-    STATE.savedFormats.push({ id: generateId(), name, mappings: [...fmt] });
-    STATE.customFormat = []; // Clear the draft
-    saveState();
-    navigate('settings');
-    setTimeout(() => window.showSettingsTab('format'), 50);
-};
-
-window.deleteSavedFormat = (id) => {
-    if (!confirm('Delete this saved format?')) return;
-    STATE.savedFormats = (STATE.savedFormats || []).filter(f => f.id !== id);
-    // Remove from any trip that had it active
-    STATE.trips.forEach(t => { if (t.activeFormatId === id) delete t.activeFormatId; });
-    saveState();
-    navigate('settings');
-    setTimeout(() => window.showSettingsTab('format'), 50);
+    setTimeout(() => {
+        if (window.switchSettingsTab) window.switchSettingsTab(tab);
+    }, 50);
 };
 
 // --- Trip Management & Topbar ---
@@ -1839,13 +1749,9 @@ function updateTripSelector() {
             STATE.trips.map(t => `<option value="${t.id}" ${STATE.activeTripId === t.id ? 'selected' : ''}>${t.name}</option>`).join('');
     }
 
-    // Grey out sidebar items if no trips exist
     document.querySelectorAll('.sidebar-item').forEach(item => {
         const page = item.dataset.page;
-        const allowed = ['home', 'settings', 'personalization', 'friends']; 
-        // User said "all other tabs (just tabs, not the menu sections) are greyed out"
-        // I'll interpret "tabs" as specific trip-related tools: Budgets, Collections, Settlements, Upload
-        const tripDependent = ['budgets', 'collections', 'settlement', 'upload']; 
+        const tripDependent = ['expenses', 'upload', 'insights', 'ai']; 
         
         if (!hasTrips && tripDependent.includes(page)) {
             item.classList.add('disabled');
@@ -1854,7 +1760,6 @@ function updateTripSelector() {
         }
     });
 }
-
 function archiveActiveTrip() {
     if (!STATE.activeTripId) return;
     const tripIndex = STATE.trips.findIndex(t => t.id === STATE.activeTripId);
@@ -1863,12 +1768,10 @@ function archiveActiveTrip() {
     if (confirm("Archive this trip? It will be moved to Collections.")) {
         const trip = STATE.trips.splice(tripIndex, 1)[0];
         
-        // Capture related data for deep viewing in archives
         trip.expenses = (STATE.expenses || []).filter(e => e.tripId === trip.id);
         trip.itinerary = (STATE.activities || []).filter(a => a.tripId === trip.id);
         trip.photos = (STATE.photos || []).filter(p => p.tripId === trip.id);
 
-        // Remove from active state
         STATE.expenses = (STATE.expenses || []).filter(e => e.tripId !== trip.id);
         STATE.activities = (STATE.activities || []).filter(a => a.tripId !== trip.id);
         STATE.photos = (STATE.photos || []).filter(p => p.tripId !== trip.id);
@@ -1901,30 +1804,57 @@ function renderBudgets() {
         });
         
         const pct = Math.min((spent / b.amount) * 100, 100);
-        const color = pct >= 100 ? '#ff3b30' : (pct > 80 ? '#ff9500' : '#34c759');
+        const isOver = spent > b.amount;
+        const isNear = !isOver && pct > 80;
+        
+        let statusLabel = "On Track";
+        let statusColor = "#34c759";
+        
+        if (isOver) {
+            statusLabel = "Over Budget";
+            statusColor = "#ff3b30";
+        } else if (isNear) {
+            statusLabel = "Near Limit";
+            statusColor = "#ff9500";
+        }
+
+        const category = STATE.categories.find(c => c.id === b.categoryId);
+        const icon = category ? category.icon : '💰';
+        
         const titleParts = [];
         if (b.tripId && b.tripId !== 'all') titleParts.push(STATE.trips.find(t=>t.id===b.tripId)?.name || 'Trip');
-        if (b.categoryId && b.categoryId !== 'all') titleParts.push(STATE.categories.find(c=>c.id===b.categoryId)?.name || 'Category');
+        if (b.categoryId && b.categoryId !== 'all') titleParts.push(category?.name || 'Category');
         if (b.user && b.user !== 'all') titleParts.push(b.user);
         
         const title = titleParts.length > 0 ? titleParts.join(' · ') : 'General Budget';
 
         return `
-            <div class="card glass card-glow-blue" style="margin-bottom:16px;">
-                <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
-                    <strong style="font-size:1.1rem;">${title}</strong>
-                    <button class="btn-small" style="background:none;color:#ff3b30;padding:0;min-width:auto;border:none;cursor:pointer;font-weight:600;" onclick="window.deleteBudget('${b.id}')">Delete</button>
+            <div style="padding: 16px; background: rgba(255,255,255,0.03); border-radius: 16px; border: 1px solid var(--glass-border); margin-bottom: 12px;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span style="font-size: 1.1rem;">${icon}</span>
+                        <div style="font-weight: 700; font-size: 0.95rem;">${title}</div>
+                    </div>
+                    <div style="font-size: 0.7rem; font-weight: 800; color: ${statusColor}; text-transform: uppercase; letter-spacing: 0.05em;">${statusLabel}</div>
                 </div>
-                <div style="display:flex; justify-content:space-between; margin-bottom:8px; font-size:0.9rem;">
-                    <span>Spent: <strong>${spent.toFixed(2)}€</strong></span>
-                    <span style="color:var(--text-secondary);">Target: ${b.amount.toFixed(2)}€</span>
+
+                <div style="height: 6px; background: rgba(255,255,255,0.05); border-radius: 3px; overflow: hidden; margin-bottom: 8px;">
+                    <div style="height: 100%; width: ${pct}%; background: ${statusColor}; border-radius: 3px; transition: width 1s;"></div>
                 </div>
-                <div style="height:10px; background:var(--glass-border); border-radius:5px; overflow:hidden;">
-                    <div style="height:100%; width:${pct}%; background:${color}; transition:width 0.3s;"></div>
+
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                    <div style="font-size: 0.8rem; font-weight: 600;">
+                        ${spent.toFixed(0)}€ <span style="color: var(--text-secondary); opacity: 0.6;">/ ${b.amount.toFixed(0)}€</span>
+                    </div>
+                    <button class="btn-small" style="background: none; border: none; color: #ff3b30; font-size: 0.7rem; font-weight: 700; cursor: pointer; padding: 0;" onclick="window.deleteBudget('${b.id}')">Delete</button>
                 </div>
             </div>
         `;
-    }).join('') : '<p style="color:var(--text-secondary); text-align:center;">No budgets set yet.</p>';
+    }).join('') : `
+        <div style="text-align: center; padding: 32px; border: 2px dashed var(--glass-border); border-radius: 16px; color: var(--text-secondary); font-size: 0.9rem;">
+            No active budgets yet.
+        </div>
+    `;
 
     div.innerHTML = `
         <div class="ai-page-header" style="background: linear-gradient(135deg, rgba(52, 199, 89, 0.1), rgba(0, 113, 227, 0.1));">
@@ -1954,9 +1884,11 @@ function renderBudgets() {
                 <button id="saveBudgetBtn" class="btn" style="width:100%; background: #34c759;">Save Budget</button>
             </div>
             
-            <div>
-                <h2 class="card-title" style="margin-bottom:16px;">Active Tracking</h2>
-                ${activeBudgetsHtml}
+            <div class="card glass card-glow-blue">
+                <h2 class="card-title">Active Tracking</h2>
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    ${activeBudgetsHtml}
+                </div>
             </div>
         </div>
     `;
@@ -2015,6 +1947,9 @@ function renderCollections() {
                         <div style="display: flex; gap: 8px;">
                             <button class="btn-liquid-glass btn-small" onclick="window.viewArchivedDetails('${t.id}')">View</button>
                             <button class="btn btn-small" onclick="window.restoreTrip('${t.id}')" style="background: var(--accent-blue);">Restore</button>
+                            <button class="btn btn-small" onclick="window.deleteArchivedTrip('${t.id}')" style="background: rgba(255,59,48,0.1); color: #ff3b30; border: 1px solid rgba(255,59,48,0.3);">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                            </button>
                         </div>
                     </div>
                 `).join('') : `
@@ -2165,18 +2100,31 @@ window.viewArchivedDetails = (id) => {
 };
 
 window.restoreTrip = (id) => {
-    const index = STATE.archivedTrips.findIndex(t => t.id === id);
-    if (index !== -1) {
-        const trip = STATE.archivedTrips.splice(index, 1)[0];
-        if (trip.expenses) STATE.expenses.push(...trip.expenses);
-        if (trip.itinerary) STATE.activities.push(...trip.itinerary);
-        if (trip.photos) STATE.photos.push(...trip.photos);
+    const tripIndex = STATE.archivedTrips.findIndex(t => t.id === id);
+    if (tripIndex === -1) return;
+
+    if (confirm("Restore this trip to active trips?")) {
+        const trip = STATE.archivedTrips.splice(tripIndex, 1)[0];
         
-        STATE.trips.push(trip);
+        // Restore related data
+        if (trip.expenses) STATE.expenses = [...(STATE.expenses || []), ...trip.expenses];
+        if (trip.itinerary) STATE.activities = [...(STATE.activities || []), ...trip.itinerary];
+        if (trip.photos) STATE.photos = [...(STATE.photos || []), ...trip.photos];
+
+        STATE.trips.push({ id: trip.id, name: trip.name, country: trip.country });
         STATE.activeTripId = trip.id;
+        
         saveState();
         updateTripSelector();
         navigate('home');
+    }
+};
+
+window.deleteArchivedTrip = (id) => {
+    if (confirm("Permanently delete this archived trip and all its data? This cannot be undone.")) {
+        STATE.archivedTrips = (STATE.archivedTrips || []).filter(t => t.id !== id);
+        saveState();
+        navigate('collections');
     }
 };
 
@@ -2268,106 +2216,198 @@ function renderAI() {
 // --- Page: Settlements ---
 function renderSettlement() {
     const div = document.createElement('div');
-    const activeTrip = STATE.activeTripId ? STATE.trips.find(t => t.id === STATE.activeTripId) : null;
+    let currentTripId = STATE.activeTripId || (STATE.trips.length > 0 ? STATE.trips[0].id : null);
     
-    if (!activeTrip) {
-        div.innerHTML = `
+    function buildSettlementUI(tripId) {
+        const trip = STATE.trips.find(t => t.id === tripId);
+        
+        const tripsGridHtml = `
+            <div style="margin-bottom: 32px;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
+                    <h2 style="font-size: 1.2rem; letter-spacing: -0.02em; margin: 0;">Select a Trip</h2>
+                    <span style="font-size: 0.8rem; color: var(--text-secondary); font-weight: 600;">${STATE.trips.length} Adventures</span>
+                </div>
+                <div style="display: flex; gap: 16px; overflow-x: auto; padding-bottom: 12px; scroll-behavior: smooth; -webkit-overflow-scrolling: touch;">
+                    ${STATE.trips.map(t => {
+                        const total = (STATE.expenses.filter(e => e.tripId === t.id).reduce((sum, e) => sum + (parseFloat(e.euroValue) || 0), 0)).toFixed(0);
+                        const isActive = t.id === tripId;
+                        return `
+                            <div class="card glass ${isActive ? 'card-glow-blue' : ''}" 
+                                 onclick="window.switchSettlementTrip('${t.id}')"
+                                 style="min-width: 200px; padding: 20px; cursor: pointer; transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); border: 2px solid ${isActive ? 'var(--accent-blue)' : 'transparent'}; transform: ${isActive ? 'scale(1.02)' : 'scale(1)'}; opacity: ${isActive ? '1' : '0.8'};">
+                                <div style="font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 800; margin-bottom: 6px; letter-spacing: 0.05em;">Adventure</div>
+                                <div style="font-weight: 700; font-size: 1.2rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 12px;">${t.name}</div>
+                                <div style="display: flex; align-items: center; justify-content: space-between;">
+                                    <div style="font-size: 1.3rem; font-weight: 800; color: ${isActive ? 'var(--accent-blue)' : 'white'};">€${total}</div>
+                                    ${isActive ? '<div style="width: 8px; height: 8px; border-radius: 50%; background: var(--accent-blue);"></div>' : ''}
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+        `;
+
+        if (!trip) {
+            return `
+                <div class="ai-page-header" style="background: linear-gradient(135deg, rgba(72, 209, 232, 0.1), rgba(0, 113, 227, 0.1));">
+                    <h1 style="background: linear-gradient(135deg, #48d1e8, #007aff); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Settlements</h1>
+                    <p>Calculate who owes what across your adventures.</p>
+                </div>
+                <div class="card glass card-glow-teal" style="text-align: center; padding: 60px; margin-top: 24px;">
+                    <div style="font-size: 4rem; margin-bottom: 20px;">⚖️</div>
+                    <h2>No trips found</h2>
+                    <p style="color: var(--text-secondary);">Create a trip and add expenses to see settlement calculations.</p>
+                </div>
+            `;
+        }
+
+        const tripExps = STATE.expenses.filter(e => e.tripId === tripId);
+        const balances = {};
+        STATE.groups.forEach(person => balances[person] = 0);
+        
+        tripExps.forEach(exp => {
+            const amount = parseFloat(exp.euroValue || exp.value || 0);
+            const paidBy = exp.who;
+            if (balances[paidBy] !== undefined) balances[paidBy] += amount;
+            if (exp.splits && Object.keys(exp.splits).length > 0) {
+                for (const [person, pct] of Object.entries(exp.splits)) {
+                    if (balances[person] !== undefined) balances[person] -= amount * (pct / 100);
+                }
+            } else {
+                const splitAmt = amount / Math.max(STATE.groups.length, 1);
+                STATE.groups.forEach(person => balances[person] -= splitAmt);
+            }
+        });
+
+        const debts = [];
+        const creditors = [];
+        const debtors = [];
+        for (const [person, balance] of Object.entries(balances)) {
+            if (balance > 0.01) creditors.push({ person, amount: balance });
+            else if (balance < -0.01) debtors.push({ person, amount: Math.abs(balance) });
+        }
+
+        const creditorsCopy = creditors.map(c => ({ ...c }));
+        const debtorsCopy = debtors.map(d => ({ ...d }));
+        creditorsCopy.sort((a,b) => b.amount - a.amount);
+        debtorsCopy.sort((a,b) => b.amount - a.amount);
+
+        let i = 0, j = 0;
+        while (i < debtorsCopy.length && j < creditorsCopy.length) {
+            const pay = Math.min(debtorsCopy[i].amount, creditorsCopy[j].amount);
+            debts.push({ from: debtorsCopy[i].person, to: creditorsCopy[j].person, amount: pay });
+            debtorsCopy[i].amount -= pay;
+            creditorsCopy[j].amount -= pay;
+            if (debtorsCopy[i].amount < 0.01) i++;
+            if (creditorsCopy[j].amount < 0.01) j++;
+        }
+
+        const globalBalances = {};
+        STATE.groups.forEach(p => globalBalances[p] = 0);
+        STATE.expenses.forEach(exp => {
+            const amount = parseFloat(exp.euroValue || exp.value || 0);
+            if (globalBalances[exp.who] !== undefined) globalBalances[exp.who] += amount;
+            if (exp.splits && Object.keys(exp.splits).length > 0) {
+                for (const [person, pct] of Object.entries(exp.splits)) {
+                    if (globalBalances[person] !== undefined) globalBalances[person] -= amount * (pct / 100);
+                }
+            } else {
+                const splitAmt = amount / Math.max(STATE.groups.length, 1);
+                STATE.groups.forEach(person => globalBalances[person] -= splitAmt);
+            }
+        });
+
+        const maxGlobalBalance = Math.max(...Object.values(globalBalances).map(Math.abs), 1);
+
+        return `
             <div class="ai-page-header" style="background: linear-gradient(135deg, rgba(72, 209, 232, 0.1), rgba(0, 113, 227, 0.1));">
                 <h1 style="background: linear-gradient(135deg, #48d1e8, #007aff); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Settlements</h1>
                 <p>Calculate who owes what and settle up fairly.</p>
             </div>
-            <div class="card glass card-glow-teal" style="text-align: center; padding: 60px; margin-top: 24px;">
-                <div style="font-size: 4rem; margin-bottom: 20px;">⚖️</div>
-                <h2>No active trip selected</h2>
-                <p style="color: var(--text-secondary);">Select a trip to calculate smart settlements and balances.</p>
-            </div>
-        `;
-        return div;
-    }
 
-    const tripExps = STATE.expenses.filter(e => e.tripId === STATE.activeTripId);
-    const balances = {};
-    STATE.groups.forEach(person => balances[person] = 0);
-    
-    tripExps.forEach(exp => {
-        const amount = parseFloat(exp.euroValue || exp.value || 0);
-        const paidBy = exp.who;
-        if (balances[paidBy] !== undefined) balances[paidBy] += amount;
-        if (exp.splits && Object.keys(exp.splits).length > 0) {
-            for (const [person, pct] of Object.entries(exp.splits)) {
-                if (balances[person] !== undefined) balances[person] -= amount * (pct / 100);
-            }
-        } else {
-            const splitAmt = amount / Math.max(STATE.groups.length, 1);
-            STATE.groups.forEach(person => balances[person] -= splitAmt);
-        }
-    });
+            ${tripsGridHtml}
 
-    const debts = [];
-    const creditors = [];
-    const debtors = [];
-    for (const [person, balance] of Object.entries(balances)) {
-        if (balance > 0.01) creditors.push({ person, amount: balance });
-        else if (balance < -0.01) debtors.push({ person, amount: Math.abs(balance) });
-    }
-
-    const creditorsCopy = creditors.map(c => ({ ...c }));
-    const debtorsCopy = debtors.map(d => ({ ...d }));
-    creditorsCopy.sort((a,b) => b.amount - a.amount);
-    debtorsCopy.sort((a,b) => b.amount - a.amount);
-
-    let i = 0, j = 0;
-    while (i < debtorsCopy.length && j < creditorsCopy.length) {
-        const pay = Math.min(debtorsCopy[i].amount, creditorsCopy[j].amount);
-        debts.push({ from: debtorsCopy[i].person, to: creditorsCopy[j].person, amount: pay });
-        debtorsCopy[i].amount -= pay;
-        creditorsCopy[j].amount -= pay;
-        if (debtorsCopy[i].amount < 0.01) i++;
-        if (creditorsCopy[j].amount < 0.01) j++;
-    }
-
-    div.innerHTML = `
-        <div class="ai-page-header" style="background: linear-gradient(135deg, rgba(72, 209, 232, 0.1), rgba(0, 113, 227, 0.1));">
-            <h1 style="background: linear-gradient(135deg, #48d1e8, #007aff); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Settlements</h1>
-            <p>Balanced settlements for <strong>${activeTrip.name}</strong></p>
-        </div>
-
-        <div class="grid-2" style="margin-top: 24px;">
-            <div class="card glass card-glow-teal">
-                <h2 class="card-title">Net Balances</h2>
-                <table class="liquid-table" style="width: 100%;">
-                    <thead>
-                        <tr><th style="text-align: left;">Person</th><th style="text-align: right;">Balance</th></tr>
-                    </thead>
-                    <tbody>
-                        ${Object.entries(balances).map(([person, bal]) => `
-                            <tr>
-                                <td style="font-weight: 500;">${person}</td>
-                                <td style="text-align: right; color: ${bal >= 0 ? '#34c759' : '#ff3b30'}; font-weight: 700;">
-                                    ${bal >= 0 ? '+' : ''}${bal.toFixed(2)}€
-                                </td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-            </div>
-
-            <div class="card glass card-glow-blue">
-                <h2 class="card-title">Suggested Payments</h2>
-                <div style="display: flex; flex-direction: column; gap: 12px;">
-                    ${debts.length > 0 ? debts.map(d => `
-                        <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px; background: rgba(0, 113, 227, 0.05); border-radius: 12px; border: 1px solid rgba(0, 113, 227, 0.1);">
-                            <div>
-                                <span style="font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 700;">${d.from} owes</span>
-                                <div style="font-weight: 700; font-size: 1.1rem;">${d.to}</div>
-                            </div>
-                            <div style="font-size: 1.2rem; font-weight: 700; color: var(--accent-blue);">€${d.amount.toFixed(2)}</div>
-                        </div>
-                    `).join('') : '<p style="color: var(--text-secondary); text-align: center; padding: 20px;">All settled up! 🥂</p>'}
+            <div style="margin-bottom: 24px;">
+                <div style="display: inline-block; padding: 8px 16px; background: rgba(0, 113, 227, 0.1); border-radius: 100px; border: 1px solid var(--accent-blue); font-size: 0.8rem; font-weight: 700; color: var(--accent-blue); margin-bottom: 12px;">
+                    Active View: ${trip.name}
                 </div>
             </div>
-        </div>
-    `;
+
+            <div class="grid-2">
+                <div class="card glass card-glow-teal">
+                    <h2 class="card-title">Trip Balances</h2>
+                    <table class="liquid-table" style="width: 100%;">
+                        <thead>
+                            <tr><th style="text-align: left;">Person</th><th style="text-align: right;">Balance</th></tr>
+                        </thead>
+                        <tbody>
+                            ${Object.entries(balances).map(([person, bal]) => `
+                                <tr>
+                                    <td style="font-weight: 500;">${person}</td>
+                                    <td style="text-align: right; color: ${bal >= 0 ? '#34c759' : '#ff3b30'}; font-weight: 700;">
+                                        ${bal >= 0 ? '+' : ''}${bal.toFixed(2)}€
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="card glass card-glow-blue">
+                    <h2 class="card-title">Suggested Payments</h2>
+                    <div style="display: flex; flex-direction: column; gap: 12px;">
+                        ${debts.length > 0 ? debts.map(d => `
+                            <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px; background: rgba(0, 113, 227, 0.05); border-radius: 12px; border: 1px solid rgba(0, 113, 227, 0.1);">
+                                <div>
+                                    <span style="font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 700;">${d.from} pays</span>
+                                    <div style="font-weight: 700; font-size: 1.1rem;">${d.to}</div>
+                                </div>
+                                <div style="font-size: 1.2rem; font-weight: 700; color: var(--accent-blue);">€${d.amount.toFixed(2)}</div>
+                            </div>
+                        `).join('') : '<p style="color: var(--text-secondary); text-align: center; padding: 20px;">All settled for this trip! 🥂</p>'}
+                    </div>
+                </div>
+            </div>
+
+            <div class="card glass" style="margin-top: 32px; padding: 32px; border-radius: 28px;">
+                <h2 class="card-title" style="margin-bottom: 24px;">Global Net Balances</h2>
+                <div style="display: flex; flex-direction: column; gap: 24px;">
+                    ${(() => {
+                        const globalVals = Object.values(globalBalances).map(Math.abs);
+                        const hasBalances = globalVals.some(v => v > 0.01);
+                        
+                        return Object.entries(globalBalances).map(([person, bal]) => {
+                            const pct = hasBalances ? (Math.abs(bal) / maxGlobalBalance) * 100 : 0;
+                            const isPos = bal >= 0;
+                            const color = isPos ? 'linear-gradient(90deg, #34c759, #4cd964)' : 'linear-gradient(90deg, #ff3b30, #ff453a)';
+                            
+                            return `
+                                <div style="display: grid; grid-template-columns: 100px ${hasBalances ? '1fr' : ''} 80px; align-items: center; gap: 16px;">
+                                    <div style="font-weight: 700; font-size: 0.9rem;">${person}</div>
+                                    ${hasBalances ? `
+                                        <div style="height: 12px; background: rgba(255,255,255,0.05); border-radius: 6px; overflow: hidden; position: relative;">
+                                            <div style="position: absolute; height: 100%; width: ${pct}%; background: ${color}; border-radius: 6px; transition: width 0.8s cubic-bezier(0.16, 1, 0.3, 1);"></div>
+                                        </div>
+                                    ` : ''}
+                                    <div style="text-align: right; font-weight: 800; font-size: 1rem; color: ${bal > 0.01 ? '#34c759' : (bal < -0.01 ? '#ff3b30' : 'var(--text-secondary)')};">
+                                        ${bal > 0.01 ? '+' : ''}${bal.toFixed(0)}€
+                                    </div>
+                                </div>
+                            `;
+                        }).join('');
+                    })()}
+                </div>
+            </div>
+        `;
+    }
+
+    window.switchSettlementTrip = (id) => {
+        div.innerHTML = buildSettlementUI(id);
+    };
+
+    div.innerHTML = buildSettlementUI(currentTripId);
+
     return div;
 }
 
@@ -2396,31 +2436,298 @@ function renderFriends() {
     return div;
 }
 
-function openShareModal() {
-    alert("Sharing feature is being optimized. Check back soon!");
-}
+// --- Trip Journey Helpers ---
 
-// --- Trip Creation ---
-function openNewTripModal() {
+
+// --- Confirmation & Safety UI ---
+window.showConfirmModal = (options = {}) => {
+    const { 
+        title = "Are you sure?", 
+        message = "This action cannot be undone.", 
+        confirmText = "Delete", 
+        requireInput = false, 
+        onConfirm = () => {} 
+    } = options;
+
     const modal = document.createElement('div');
     modal.className = 'modal-overlay';
     modal.style.display = 'flex';
+    modal.style.backdropFilter = 'blur(15px)';
+
     modal.innerHTML = `
-        <div class="card glass" style="width: 450px; padding: 32px; border-radius: 24px; animation: modalPop 0.4s cubic-bezier(0.16, 1, 0.3, 1);">
-            <h2 style="margin-top: 0; font-size: 1.8rem; letter-spacing: -0.03em;">Create New Adventure 🌍</h2>
-            <p style="color: var(--text-secondary); margin-bottom: 24px;">Where are we heading next?</p>
-            <div style="display: flex; flex-direction: column; gap: 16px;">
-                <div>
-                    <label style="display: block; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); margin-bottom: 6px;">Trip Name</label>
-                    <input type="text" id="modalTripName" class="glass-input" placeholder="e.g. Summer in Tuscany" style="width: 100%;">
+        <div class="confirm-modal-square animation-pop">
+            <h2 class="confirm-title">${title}</h2>
+            <p class="confirm-msg">${message}</p>
+            
+            ${requireInput ? `
+                <div style="width: 100%;">
+                    <p style="font-size: 0.75rem; color: #ff3b30; font-weight: 800; text-transform: uppercase; margin-bottom: 12px; letter-spacing: 0.05em;">Type "${requireInput}" to confirm</p>
+                    <input type="text" id="safetyInput" class="confirm-input" placeholder="••••">
                 </div>
-                <div>
-                    <label style="display: block; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); margin-bottom: 6px;">Country</label>
-                    <input type="text" id="modalTripCountry" class="glass-input" placeholder="e.g. Italy" style="width: 100%;">
+            ` : ''}
+
+            <div style="width: 100%; display: flex; flex-direction: column; gap: 12px; margin-top: 12px;">
+                <button class="btn-confirm-danger" id="modalConfirmBtn" ${requireInput ? 'disabled' : ''}>${confirmText}</button>
+                <button class="btn" style="background: transparent; color: rgba(255,255,255,0.5); font-weight: 600; padding: 12px;" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    const confirmBtn = modal.querySelector('#modalConfirmBtn');
+    const input = modal.querySelector('#safetyInput');
+
+    if (requireInput && input) {
+        input.focus();
+        input.oninput = (e) => {
+            confirmBtn.disabled = e.target.value !== requireInput;
+            if (e.target.value === requireInput) {
+                confirmBtn.style.boxShadow = '0 15px 35px rgba(255, 59, 48, 0.5)';
+            } else {
+                confirmBtn.style.boxShadow = 'none';
+            }
+        };
+    }
+
+    confirmBtn.onclick = () => {
+        onConfirm();
+        modal.remove();
+    };
+};
+
+window.deleteDay = (dayId) => {
+    if (!confirm("Delete this day and all its photos?")) return;
+    STATE.tripDays = STATE.tripDays.filter(d => d.id !== dayId);
+    saveState();
+    document.querySelector('.modal-overlay').remove();
+    navigate('home');
+};
+
+window.openAddDayModal = (tripId) => {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.style.display = 'flex';
+    modal.style.backdropFilter = 'blur(25px)';
+    
+    const tripDays = (STATE.tripDays || []).filter(d => d.tripId === tripId);
+    const nextDayNum = tripDays.length + 1;
+    let selectedPhoto = null;
+
+    modal.innerHTML = `
+        <div class="card glass" style="width: 420px; height: 420px; padding: 40px; border-radius: 44px; animation: modalPop 0.4s cubic-bezier(0.16, 1, 0.3, 1); border: 1px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.05); box-shadow: 0 40px 100px rgba(0,0,0,0.6); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px; box-sizing: border-box; overflow: hidden;">
+            <div style="text-align: center;">
+                <h2 style="margin: 0; font-size: 2.2rem; letter-spacing: -0.06em; color: #ffffff; background: linear-gradient(135deg, #ffffff, #a2a2a2); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Day ${nextDayNum}</h2>
+                <p style="color: rgba(255,255,255,0.7); margin: 6px 0 0; font-size: 1rem; font-weight: 500;">Capture the beginning.</p>
+            </div>
+            
+            <div style="width: 100%; display: flex; flex-direction: column; gap: 16px;">
+                <input type="text" id="dayNameInput" class="glass-input" placeholder="Title (e.g. Tropical Morning 🏝️)" style="width: 100%; text-align: center; background: rgba(255,255,255,0.08); padding: 18px; border-radius: 20px; font-size: 1.1rem; color: #ffffff; border: 1px solid rgba(255,255,255,0.2); box-sizing: border-box;">
+                
+                <div style="width: 100%; display: flex; flex-direction: column; gap: 8px;">
+                    <button id="addPhotoDuringDay" class="btn-liquid-glass" style="width: 100%; padding: 16px; font-weight: 700; border-radius: 20px; font-size: 0.95rem; color: #ffffff; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.03); box-sizing: border-box;">+ Add First Photo</button>
+                    <input type="file" id="photoInputDuringDay" style="display: none;" accept="image/*">
+                    <div id="photoStatus" style="font-size: 0.75rem; color: #34c759; text-align: center; font-weight: 800; height: 14px; opacity: 0; transition: opacity 0.3s; text-transform: uppercase; letter-spacing: 0.05em;">Photo Ready! ✨</div>
                 </div>
-                <div style="display: flex; gap: 12px; margin-top: 12px;">
-                    <button id="modalCancelBtn" class="btn btn-liquid-glass" style="flex: 1;">Cancel</button>
-                    <button id="modalCreateBtn" class="btn" style="flex: 2; background: var(--accent-blue); color: white;">Create Trip</button>
+
+                <div style="display: flex; flex-direction: column; gap: 10px; width: 100%;">
+                    <button class="btn" style="width: 100%; background: var(--accent-blue); padding: 18px; font-weight: 800; border-radius: 20px; color: #ffffff; box-shadow: 0 10px 30px rgba(0,113,227,0.4); font-size: 1.1rem; box-sizing: border-box;" id="confirmAddDay">Launch Day</button>
+                    <button class="btn" style="width: 100%; padding: 8px; font-weight: 600; background: transparent; border: none; color: rgba(255,255,255,0.4); font-size: 0.9rem;" onclick="this.closest('.modal-overlay').remove()">Discard</button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    modal.querySelector('#dayNameInput').focus();
+    
+    const photoBtn = modal.querySelector('#addPhotoDuringDay');
+    const photoInput = modal.querySelector('#photoInputDuringDay');
+    const photoStatus = modal.querySelector('#photoStatus');
+
+    photoBtn.onclick = () => photoInput.click();
+    
+    photoInput.onchange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+            selectedPhoto = evt.target.result;
+            photoStatus.style.opacity = '1';
+            photoBtn.textContent = "Photo Selected ✓";
+            photoBtn.style.background = "rgba(52, 199, 89, 0.1)";
+            photoBtn.style.borderColor = "rgba(52, 199, 89, 0.4)";
+            photoBtn.style.color = "#34c759";
+        };
+        reader.readAsDataURL(file);
+    };
+
+    modal.querySelector('#confirmAddDay').onclick = () => {
+        const name = modal.querySelector('#dayNameInput').value.trim();
+        const newDay = {
+            id: generateId(),
+            tripId: tripId,
+            name: name,
+            dayNumber: nextDayNum,
+            photos: selectedPhoto ? [selectedPhoto] : [],
+            tickets: []
+        };
+        STATE.tripDays.push(newDay);
+        saveState();
+        modal.remove();
+        navigate('home');
+    };
+};
+
+window.openDayDetail = (dayId) => {
+    const day = STATE.tripDays.find(d => d.id === dayId);
+    if (!day) return;
+    
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.style.display = 'flex';
+    modal.style.backdropFilter = 'blur(20px)';
+    
+    const refreshModal = () => {
+        const currentModal = document.querySelector('.modal-overlay');
+        if (currentModal) currentModal.remove();
+        window.openDayDetail(dayId);
+    };
+
+    modal.innerHTML = `
+        <div class="card glass" style="width: 550px; height: 550px; overflow-y: auto; padding: 40px; border-radius: 40px; animation: modalPop 0.4s cubic-bezier(0.16, 1, 0.3, 1); border: 1px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.05); box-shadow: 0 40px 100px rgba(0,0,0,0.6); box-sizing: border-box; display: flex; flex-direction: column;">
+            <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 24px; flex-shrink: 0;">
+                <div>
+                    <div style="font-size: 0.8rem; color: var(--accent-blue); font-weight: 800; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 4px;">Adventure Day ${day.dayNumber}</div>
+                    <h2 style="margin: 0; font-size: 2.2rem; letter-spacing: -0.06em; color: #ffffff; font-weight: 800;">${day.name || `Day ${day.dayNumber}`}</h2>
+                </div>
+                <button onclick="this.closest('.modal-overlay').remove()" style="background: rgba(255,255,255,0.1); border: none; font-size: 1.2rem; cursor: pointer; color: #ffffff; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: all 0.2s; border: 1px solid rgba(255,255,255,0.1);">&times;</button>
+            </div>
+            
+            <div style="display: flex; flex-direction: column; gap: 24px; flex: 1; overflow-y: auto; padding-right: 8px; margin-bottom: 24px;" class="custom-scrollbar">
+                <!-- Photos Section -->
+                <div style="background: rgba(255,255,255,0.03); padding: 24px; border-radius: 28px; border: 1px solid rgba(255,255,255,0.1);">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
+                        <h3 style="margin: 0; font-size: 1.2rem; font-weight: 800; color: #ffffff; letter-spacing: -0.02em;">📸 Memories</h3>
+                        <button class="btn btn-small btn-liquid-glass" style="padding: 10px 20px; border-radius: 14px; font-weight: 700; color: #ffffff;" onclick="document.getElementById('dayPhotoInput').click()">Upload Photo</button>
+                        <input type="file" id="dayPhotoInput" style="display: none;" accept="image/*">
+                    </div>
+                    
+                    <div id="dayGallery" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 14px;">
+                        ${day.photos.length > 0 ? day.photos.map((p, i) => `
+                            <div style="aspect-ratio: 1; border-radius: 16px; overflow: hidden; position: relative; border: 1.5px solid rgba(255,255,255,0.1);">
+                                <img src="${p}" style="width: 100%; height: 100%; object-fit: cover;">
+                                <button onclick="window.deleteDayPhoto('${day.id}', ${i})" style="position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,0.6); backdrop-filter: blur(8px); color: white; border: none; border-radius: 50%; width: 26px; height: 26px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1rem; border: 1px solid rgba(255,255,255,0.2);">&times;</button>
+                            </div>
+                        `).join('') : `
+                            <div style="grid-column: 1 / -1; text-align: center; padding: 40px 20px; border: 2px dashed rgba(255,255,255,0.1); border-radius: 20px; color: rgba(255,255,255,0.5);">
+                                <p style="margin: 0; font-size: 0.95rem; font-weight: 500;">No photos yet.</p>
+                            </div>
+                        `}
+                    </div>
+                </div>
+
+                <!-- Tickets Section -->
+                <div style="background: rgba(255,255,255,0.03); padding: 24px; border-radius: 28px; border: 1px solid rgba(255,255,255,0.1);">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
+                        <h3 style="margin: 0; font-size: 1.2rem; font-weight: 800; color: #ffffff; letter-spacing: -0.02em;">🎫 Documents</h3>
+                        <button class="btn btn-small btn-liquid-glass" style="padding: 10px 20px; border-radius: 14px; font-weight: 700; color: #ffffff;" id="addTicketBtn">+ Add</button>
+                    </div>
+                    <div id="ticketList" style="display: flex; flex-direction: column; gap: 12px;">
+                        ${(day.tickets || []).map((t, i) => `
+                            <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(255,255,255,0.04); padding: 16px 20px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1);">
+                                <div style="display: flex; align-items: center; gap: 16px;">
+                                    <div style="font-size: 1.5rem;">📄</div>
+                                    <div>
+                                        <div style="font-weight: 700; font-size: 1rem; color: #ffffff;">${t.name}</div>
+                                        <div style="font-size: 0.8rem; color: rgba(255,255,255,0.5); font-weight: 600;">Saved on ${new Date(t.date).toLocaleDateString()}</div>
+                                    </div>
+                                </div>
+                                <button onclick="window.deleteTicket('${day.id}', ${i})" style="background:rgba(255,59,48,0.15); border:none; color:#ff3b30; width: 36px; height: 36px; border-radius: 50%; cursor:pointer; font-size: 1.2rem; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255,59,48,0.2); transition: all 0.2s;">&times;</button>
+                            </div>
+                        `).join('')}
+                        ${!day.tickets || day.tickets.length === 0 ? '<p style="color: rgba(255,255,255,0.5); text-align: center; font-size: 0.95rem; padding: 30px; border: 2px dashed rgba(255,255,255,0.1); border-radius: 20px; font-weight: 500;">No documents stored.</p>' : ''}
+                    </div>
+                </div>
+            </div>
+            
+            <div style="display: flex; gap: 16px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 24px; flex-shrink: 0;">
+                <button class="btn" style="flex: 1; padding: 16px; border-radius: 20px; color: #ff3b30; font-weight: 700; background: rgba(255,59,48,0.1); border: 1px solid rgba(255,59,48,0.2);" onclick="window.deleteDay('${day.id}')">Delete Day</button>
+                <button class="btn" style="flex: 2; background: var(--accent-blue); padding: 16px; border-radius: 20px; font-weight: 800; color: #ffffff; box-shadow: 0 10px 25px rgba(0,113,227,0.3);" onclick="this.closest('.modal-overlay').remove()">Dismiss</button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    modal.querySelector('#addTicketBtn').onclick = () => {
+        const ticketName = prompt("Enter ticket or document name (e.g. Louvre Ticket, Hotel Reservation):");
+        if (ticketName) {
+            if (!day.tickets) day.tickets = [];
+            day.tickets.push({ name: ticketName, date: new Date().toISOString() });
+            saveState();
+            refreshModal();
+        }
+    };
+
+    modal.querySelector('#dayPhotoInput').onchange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+            day.photos.push(evt.target.result);
+            saveState();
+            refreshModal();
+            if (STATE.currentPage === 'home') navigate('home');
+        };
+        reader.readAsDataURL(file);
+    };
+};
+
+window.deleteTicket = (dayId, index) => {
+    const day = STATE.tripDays.find(d => d.id === dayId);
+    if (day && day.tickets) {
+        day.tickets.splice(index, 1);
+        saveState();
+        const overlay = document.querySelector('.modal-overlay');
+        if (overlay) overlay.remove();
+        window.openDayDetail(dayId);
+    }
+};
+
+window.deleteDayPhoto = (dayId, photoIndex) => {
+    const day = STATE.tripDays.find(d => d.id === dayId);
+    if (!day) return;
+    day.photos.splice(photoIndex, 1);
+    saveState();
+    const overlay = document.querySelector('.modal-overlay');
+    if (overlay) overlay.remove();
+    window.openDayDetail(dayId);
+    if (STATE.currentPage === 'home') navigate('home');
+};
+
+// --- Trip Creation ---
+window.openNewTripModal = () => {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.style.display = 'flex';
+    modal.style.backdropFilter = 'blur(25px)';
+    
+    modal.innerHTML = `
+        <div class="card glass" style="width: 420px; height: 420px; padding: 40px; border-radius: 44px; animation: modalPop 0.4s cubic-bezier(0.16, 1, 0.3, 1); border: 1px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.05); box-shadow: 0 40px 100px rgba(0,0,0,0.6); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px; box-sizing: border-box; overflow: hidden;">
+            <div style="text-align: center;">
+                <h2 style="margin: 0; font-size: 2.2rem; letter-spacing: -0.06em; color: #ffffff;">New Trip 🌎</h2>
+                <p style="color: rgba(255,255,255,0.7); margin: 6px 0 0; font-size: 1rem; font-weight: 500;">Adventure awaits.</p>
+            </div>
+            
+            <div style="width: 100%; display: flex; flex-direction: column; gap: 16px;">
+                <input type="text" id="modalTripName" class="glass-input" placeholder="Trip Name (e.g. Bali Dreams)" style="width: 100%; text-align: center; background: rgba(255,255,255,0.08); padding: 18px; border-radius: 20px; font-size: 1.1rem; color: #ffffff; border: 1px solid rgba(255,255,255,0.2); box-sizing: border-box;">
+                <input type="text" id="modalTripCountry" class="glass-input" placeholder="Country (e.g. Indonesia)" style="width: 100%; text-align: center; background: rgba(255,255,255,0.08); padding: 18px; border-radius: 20px; font-size: 1.1rem; color: #ffffff; border: 1px solid rgba(255,255,255,0.2); box-sizing: border-box;">
+                
+                <div style="display: flex; flex-direction: column; gap: 10px; width: 100%;">
+                    <button id="modalCreateBtn" class="btn" style="width: 100%; background: var(--accent-blue); color: #ffffff; padding: 18px; font-weight: 800; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,113,227,0.4); font-size: 1.1rem; box-sizing: border-box;">Launch Adventure</button>
+                    <button id="modalCancelBtn" class="btn" style="width: 100%; padding: 8px; font-weight: 600; background: transparent; border: none; color: rgba(255,255,255,0.4); font-size: 0.9rem;">Discard</button>
                 </div>
             </div>
         </div>
@@ -2444,7 +2751,7 @@ function openNewTripModal() {
             alert("Please fill in both fields!");
         }
     };
-}
+};
 
 // --- Initialization ---
 function init() {

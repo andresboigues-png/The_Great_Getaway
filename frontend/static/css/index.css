@@ -818,3 +818,143 @@ h1 {
     justify-content: center !important;
     z-index: 10000 !important;
 }
+
+/* Custom Animations */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-15px); }
+}
+/* --- Settings & Management UI --- */
+.settings-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 24px;
+    margin-top: 24px;
+}
+
+.management-card {
+    position: relative;
+    padding: 32px;
+    border-radius: 28px;
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    overflow: hidden;
+}
+
+.management-card:hover {
+    transform: translateY(-5px);
+}
+
+.danger-card {
+    border: 1px solid rgba(255, 59, 48, 0.2);
+    background: linear-gradient(135deg, rgba(255, 59, 48, 0.05), transparent);
+}
+
+.danger-card:hover {
+    border-color: rgba(255, 59, 48, 0.4);
+    box-shadow: 0 10px 40px rgba(255, 59, 48, 0.15);
+}
+
+.danger-glow {
+    position: absolute;
+    top: -20px;
+    right: -20px;
+    width: 100px;
+    height: 100px;
+    background: radial-gradient(circle, rgba(255, 59, 48, 0.15) 0%, transparent 70%);
+    filter: blur(20px);
+}
+
+.pulse-red {
+    animation: pulseRed 3s infinite ease-in-out;
+}
+
+@keyframes pulseRed {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 0.6; }
+}
+
+/* --- Confirmation Modal (Square) --- */
+.confirm-modal-square {
+    width: 420px;
+    min-height: 420px;
+    padding: 48px;
+    border-radius: 44px;
+    background: rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(30px) saturate(180%);
+    -webkit-backdrop-filter: blur(30px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 24px;
+    box-shadow: 0 40px 100px rgba(0,0,0,0.6);
+}
+
+.confirm-title {
+    font-size: 2rem;
+    font-weight: 800;
+    letter-spacing: -0.05em;
+    margin: 0;
+    background: linear-gradient(135deg, #ffffff, #a2a2a2);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.confirm-msg {
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 1rem;
+    line-height: 1.6;
+    margin: 0;
+}
+
+.confirm-input {
+    width: 100%;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 18px;
+    padding: 16px;
+    color: white;
+    text-align: center;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    font-size: 1.1rem;
+    text-transform: uppercase;
+    outline: none;
+    transition: all 0.3s;
+}
+
+.confirm-input:focus {
+    border-color: rgba(255, 59, 48, 0.5);
+    background: rgba(255, 59, 48, 0.05);
+}
+
+.btn-confirm-danger {
+    background: #ff3b30;
+    color: white;
+    padding: 16px 32px;
+    border-radius: 18px;
+    font-weight: 800;
+    box-shadow: 0 10px 25px rgba(255, 59, 48, 0.3);
+    border: none;
+    cursor: pointer;
+    width: 100%;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.btn-confirm-danger:hover {
+    transform: scale(1.02);
+    box-shadow: 0 15px 35px rgba(255, 59, 48, 0.5);
+}
+
+.btn-confirm-danger:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+    transform: none;
+}
