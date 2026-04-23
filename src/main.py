@@ -133,7 +133,9 @@ def generate_itinerary():
     """Call Gemini API to generate a structured JSON itinerary."""
     data = request.json
     destination = data.get("destination", "Unknown")
-    days = data.get("days", 3)
+    num_days = data.get("numDays", 3)
+    date_from = data.get("dateFrom", "")
+    date_to = data.get("dateTo", "")
     styles = data.get("styles", [])
     context = data.get("context", "")
 
@@ -142,23 +144,25 @@ def generate_itinerary():
         return jsonify({"error": "Gemini API key not configured"}), 500
 
     prompt = f"""
-    You are an expert travel planner. Create a {days}-day itinerary for a trip to {destination}.
-    The user prefers these travel styles: {', '.join(styles) if styles else 'General sight-seeing'}.
-    Additional context/requirements: {context}
+    You are an expert travel planner. Create a detailed {num_days}-day itinerary for {destination} from {date_from} to {date_to}.
+    Travel style preferences: {', '.join(styles) if styles else 'general tourism'}.
+    Additional context: {context}
 
-    CRITICAL INSTRUCTION: You MUST return ONLY valid JSON. Do not wrap the JSON in markdown blocks. 
-    Return EXACTLY an array of objects, where each object represents a day.
+    CRITICAL INSTRUCTION: You MUST return ONLY valid JSON. Do not wrap the JSON in markdown blocks.
+    For EACH day provide morning, afternoon, evening activities with REAL specific place names in {destination}, plus a practical tip.
+    Also include a "mainLocation" field with the name of the most iconic place visited that day (used for map geocoding).
 
     Schema:
     [
       {{
         "day": 1,
-        "title": "Arrival & City Highlights",
-        "description": "Short description of the day's vibe.",
-        "activities": [
-          {{"time": "Morning", "title": "Visit Museum", "description": "...", "type": "Culture"}},
-          {{"time": "Afternoon", "title": "Lunch at Cafe", "description": "...", "type": "Food"}}
-        ]
+        "date": "{date_from}",
+        "title": "Day title",
+        "mainLocation": "Specific place name",
+        "morning": {{"activity": "name", "description": "details"}},
+        "afternoon": {{"activity": "name", "description": "details"}},
+        "evening": {{"activity": "name", "description": "details"}},
+        "tip": "Practical tip"
       }}
     ]
     """

@@ -2246,186 +2246,342 @@ function renderAI() {
     const div = document.createElement('div');
     const activeTrip = STATE.trips.find(t => t.id === STATE.activeTripId);
 
+    // ── EMPTY STATE ──────────────────────────────────────────
     if (!activeTrip) {
         div.innerHTML = `
-            <div class="ai-page-header">
-                <h1 style="background:linear-gradient(135deg,var(--accent-blue),#9b59b6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Plan with AI ✦</h1>
-                <p>Your AI-powered travel planner</p>
+            <div style="padding:32px 0 24px;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text',sans-serif;">
+                <h1 style="margin:0 0 6px;font-size:2.8rem;font-weight:800;letter-spacing:-0.04em;background:linear-gradient(135deg,var(--accent-blue),#9b59b6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Plan with AI ✦</h1>
+                <p style="margin:0;color:var(--text-secondary);font-size:1rem;">Your AI-powered travel planner</p>
             </div>
-            <div style="position: relative; width: 100%; height: calc(100vh - 200px); min-height: 480px; border-radius: 24px; overflow: hidden; border: 1px solid var(--glass-border); margin-top: 24px;">
+            <div style="position: relative; width: 100%; height: calc(100vh - 200px); min-height: 480px; border-radius: 20px; overflow: hidden;">
                 <div id="emptyMap" style="width:100%; height:100%;"></div>
-                <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,0.4);backdrop-filter:blur(8px);">
+                <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,0.38);backdrop-filter:blur(6px);">
                     <div style="text-align:center;color:white;padding:40px;max-width:480px;">
-                        <div style="font-size:4rem;margin-bottom:24px;">🌍</div>
-                        <h2 style="margin-bottom:12px;">Start your adventure</h2>
-                        <p style="font-size:1.1rem;opacity:0.9;line-height:1.6;">Create a trip first to start planning your perfect itinerary with AI.</p>
-                        <button onclick="document.getElementById('newTripBtn').click()" class="btn" style="margin-top:24px; background:white; color:var(--accent-blue);">+ Create a Trip</button>
+                        <div style="font-size:4rem;margin-bottom:20px;">✈️</div>
+                        <p style="font-size:1.1rem;opacity:0.85;line-height:1.6;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',sans-serif;">Create a trip first to start planning your perfect itinerary with the help of Gemini.</p>
+                        <button onclick="document.getElementById('newTripBtn').click()" style="margin-top:24px;background:white;color:#0071e3;border:none;border-radius:980px;padding:14px 32px;font-size:1rem;font-weight:700;cursor:pointer;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',sans-serif;">+ Create a Trip</button>
                     </div>
                 </div>
             </div>`;
+        setTimeout(() => {
+            if (typeof L !== 'undefined') {
+                const m = L.map('emptyMap', { zoomControl: false, attributionControl: false }).setView([20, 0], 2);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(m);
+            }
+        }, 0);
         return div;
     }
 
+    // ── ACTIVE TRIP STATE ────────────────────────────────────
     const tripCountry = activeTrip.country || '';
+    const tripExps = STATE.expenses.filter(e => e.tripId === STATE.activeTripId && e.date).sort((a,b) => a.date.localeCompare(b.date));
+    const dates = tripExps.map(e => e.date);
+    const minDate = dates[0] || '';
+    const maxDate = dates[dates.length - 1] || '';
+
     const tourismTypes = [
-        { icon: '🏛️', label: 'Culture' }, { icon: '🍽️', label: 'Food' },
-        { icon: '🌿', label: 'Nature' }, { icon: '🏄', label: 'Adventure' },
-        { icon: '🌙', label: 'Nightlife' }, { icon: '🎒', label: 'Budget' }
+        { icon: '🏛️', label: 'Culture & History' }, { icon: '🍽️', label: 'Food & Dining' },
+        { icon: '🌿', label: 'Nature & Outdoors' }, { icon: '🏄', label: 'Adventure & Sports' },
+        { icon: '🌙', label: 'Nightlife' },          { icon: '💎', label: 'Luxury' },
+        { icon: '👨‍👩‍👧', label: 'Family-Friendly' },  { icon: '🎒', label: 'Budget Travel' },
+        { icon: '🛍️', label: 'Shopping' },           { icon: '🧘', label: 'Wellness & Spa' },
     ];
 
-    div.innerHTML = `
-        <div class="ai-page-header">
-            <h1 style="background:linear-gradient(135deg,var(--accent-blue),#9b59b6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Plan with AI ✦</h1>
-            <p>Planning your trip to <strong>${tripCountry}</strong></p>
-        </div>
+    const sf = `font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text',sans-serif;`;
 
-        <div style="display:grid;grid-template-columns:360px 1fr;gap:24px;margin-top:24px;margin-bottom:32px;">
-            <div style="display:flex;flex-direction:column;gap:16px;">
-                <div class="card glass card-glow-blue" style="padding:20px;">
-                    <h2 class="card-title" style="font-size:0.85rem;text-transform:uppercase;color:var(--accent-blue);margin-bottom:14px;letter-spacing:0.05em;">⏱️ Duration</h2>
-                    <input type="number" id="aiDays" class="glass-input" style="width:100%; font-size:1rem;" min="1" max="14" value="3" placeholder="Number of days">
+    div.innerHTML = `
+        <div style="${sf}">
+            <!-- Header -->
+            <div style="padding:32px 0 24px;">
+                <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;">
+                    <h1 style="margin:0;font-size:2.8rem;font-weight:800;letter-spacing:-0.04em;background:linear-gradient(135deg,var(--accent-blue),#9b59b6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Plan with AI ✦</h1>
                 </div>
-                <div class="card glass card-glow-blue" style="padding:20px;">
-                    <h2 class="card-title" style="font-size:0.85rem;text-transform:uppercase;color:var(--accent-blue);margin-bottom:14px;letter-spacing:0.05em;">🧭 Travel Style</h2>
-                    <div style="display:flex;flex-wrap:wrap;gap:8px;">
-                        ${tourismTypes.map(t => `<button class="tourism-tag" data-type="${t.label}" style="padding: 8px 12px; border-radius: 12px; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); color: white; cursor: pointer; font-size: 0.85rem;">${t.icon} ${t.label}</button>`).join('')}
+                <p style="margin:0;color:var(--text-secondary);font-size:1rem;">Planning your trip to <strong>${tripCountry}</strong></p>
+            </div>
+
+            <!-- Top 2-col: Controls | Map -->
+            <div style="display:grid;grid-template-columns:380px 1fr;gap:24px;margin-bottom:32px;">
+
+                <!-- Left: Controls -->
+                <div style="display:flex;flex-direction:column;gap:16px;">
+                    <!-- AI Engine badge -->
+                    <div class="card glass" style="padding:18px;border-color:rgba(155,89,182,0.3);">
+                        <h2 class="card-title" style="font-size:0.85rem;text-transform:uppercase;letter-spacing:0.07em;color:#9b59b6;margin-bottom:8px;">✦ AI Engine</h2>
+                        <p style="color:var(--text-secondary);font-size:0.82rem;margin:0;">Secure server-side Gemini integration.</p>
+                    </div>
+                    <!-- Dates -->
+                    <div class="card glass" style="padding:20px;">
+                        <h2 class="card-title" style="font-size:0.85rem;text-transform:uppercase;letter-spacing:0.07em;color:var(--accent-blue);margin-bottom:14px;">📅 Travel Dates</h2>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                            <div>
+                                <label style="display:block;font-size:0.75rem;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:5px;">From</label>
+                                <input id="aiDateFrom" type="date" class="glass-input" value="${minDate}" style="width:100%;">
+                            </div>
+                            <div>
+                                <label style="display:block;font-size:0.75rem;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:5px;">To</label>
+                                <input id="aiDateTo" type="date" class="glass-input" value="${maxDate}" style="width:100%;">
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Travel style -->
+                    <div class="card glass" style="padding:20px;">
+                        <h2 class="card-title" style="font-size:0.85rem;text-transform:uppercase;letter-spacing:0.07em;color:var(--accent-blue);margin-bottom:10px;">🧭 Travel Style</h2>
+                        <div style="display:flex;flex-wrap:wrap;gap:7px;">
+                            ${tourismTypes.map(t => `<button class="tourism-tag" data-type="${t.label}" style="padding: 8px 12px; border-radius: 12px; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); color: white; cursor: pointer; font-size: 0.85rem;">${t.icon} ${t.label}</button>`).join('')}
+                        </div>
+                    </div>
+                    <div class="card glass" style="padding:20px;">
+                        <h2 class="card-title" style="font-size:0.85rem;text-transform:uppercase;color:var(--accent-blue);margin-bottom:10px;letter-spacing:0.05em;">📝 Requirements</h2>
+                        <textarea id="aiExtraContext" class="glass-input" rows="3" style="width:100%; resize:none; font-size:0.9rem;" placeholder="e.g. Vegetarian friendly, no walking more than 2km..."></textarea>
+                    </div>
+                    <!-- Generate -->
+                    <button id="generateBtn" class="btn ai-generate-btn" style="width:100%; padding: 16px; border-radius: 16px; font-weight: 800; background: linear-gradient(135deg, var(--accent-blue), #9b59b6); color: white; border: none; cursor: pointer;">✦ Generate My Itinerary</button>
+                </div>
+
+                <!-- Right: Leaflet Map (sticky) -->
+                <div style="position:sticky;top:80px;height:700px;">
+                    <div class="card glass" style="padding:0;overflow:hidden;height:100%;border-radius:18px;position:relative;">
+                        <div id="aiLeafletMap" style="width:100%;height:100%;"></div>
+                        <div style="position:absolute;bottom:14px;left:14px;background:var(--glass-bg);backdrop-filter:blur(12px);padding:6px 14px;border-radius:980px;border:1px solid var(--glass-border);font-size:0.82rem;font-weight:600;z-index:1000;color:white;">
+                            📍 ${tripCountry}
+                        </div>
                     </div>
                 </div>
-                <div class="card glass card-glow-blue" style="padding:20px;">
-                    <h2 class="card-title" style="font-size:0.85rem;text-transform:uppercase;color:var(--accent-blue);margin-bottom:10px;letter-spacing:0.05em;">📝 Requirements</h2>
-                    <textarea id="aiExtraContext" class="glass-input" rows="3" style="width:100%; resize:none; font-size:0.9rem;" placeholder="e.g. Vegetarian friendly, no walking more than 2km..."></textarea>
-                </div>
-                <button id="generateBtn" class="ai-generate-btn" style="width:100%; padding: 16px; border-radius: 16px; font-weight: 800;">✦ Generate Itinerary</button>
             </div>
 
-            <div style="position:sticky;top:80px;height:650px;">
-                <div class="card glass card-glow-blue" style="padding:0;overflow:hidden;height:100%;border-radius:24px;position:relative;border:1px solid var(--glass-border);">
-                    <div id="aiLeafletMap" style="width:100%;height:100%;"></div>
-                </div>
-            </div>
-        </div>
-        <div id="itineraryOutput" style="margin-bottom: 40px;"></div>`;
+            <!-- Itinerary Output (full-width below) -->
+            <div id="itineraryOutput" style="margin-bottom: 60px;"></div>
+        </div>`;
 
     setTimeout(() => {
-        div.querySelectorAll('.tourism-tag').forEach(btn => btn.onclick = () => btn.classList.toggle('selected'));
+        // Tourism tags
+        div.querySelectorAll('.tourism-tag').forEach(btn => btn.addEventListener('click', () => btn.classList.toggle('selected')));
+
+        // Init Leaflet map
         if (typeof L !== 'undefined') {
             if (leafletMap) { leafletMap.remove(); leafletMap = null; }
             leafletMap = L.map('aiLeafletMap', { zoomControl: true, attributionControl: false }).setView([20, 0], 2);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(leafletMap);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18 }).addTo(leafletMap);
+            // Geocode the country to center the map
+            fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(tripCountry)}&format=json&limit=1`)
+                .then(r => r.json()).then(data => {
+                    if (data[0]) leafletMap.setView([parseFloat(data[0].lat), parseFloat(data[0].lon)], 6);
+                }).catch(() => {});
         }
 
         let generatedItinerary = null;
 
-        div.querySelector('#generateBtn').onclick = async () => {
-            const days = parseInt(document.getElementById('aiDays').value) || 3;
-            const styles = Array.from(div.querySelectorAll('.tourism-tag.selected')).map(b => b.dataset.type);
-            const context = document.getElementById('aiExtraContext').value;
-            
+        // Generate button
+        div.querySelector('#generateBtn').addEventListener('click', async () => {
             const outputEl = div.querySelector('#itineraryOutput');
-            outputEl.innerHTML = `<div class="ai-loading-spinner" style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding:60px;"><div class="spinner-ring" style="width:40px; height:40px; border:3px solid rgba(255,255,255,0.1); border-top-color:var(--accent-blue); border-radius:50%; animation:spin 1s linear infinite;"></div><div style="font-weight:600; margin-top: 24px; font-size: 1.2rem;">Consulting AI...</div></div>`;
-            
+            const dateFrom = div.querySelector('#aiDateFrom').value;
+            const dateTo   = div.querySelector('#aiDateTo').value;
+            const selectedTypes = [...div.querySelectorAll('.tourism-tag.selected')].map(b => b.dataset.type);
+            const context = document.getElementById('aiExtraContext').value;
+            const country = tripCountry;
+
+            if (!dateFrom || !dateTo) { alert('Please select your travel dates.'); return; }
+
+            const from  = new Date(dateFrom), to = new Date(dateTo);
+            const numDays = Math.max(1, Math.round((to - from) / 86400000) + 1);
+
+            outputEl.innerHTML = `<div class="ai-loading-spinner" style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding:60px;"><div class="spinner-ring" style="width:40px; height:40px; border:3px solid rgba(255,255,255,0.1); border-top-color:var(--accent-blue); border-radius:50%; animation:spin 1s linear infinite;"></div><div style="font-weight:600; margin-top: 24px; font-size: 1.2rem; color: white;">Consulting Gemini AI...</div><div style="font-size:0.85rem;color:var(--text-secondary);margin-top:8px;">Building your ${numDays}-day itinerary for ${country}</div></div>`;
+
             try {
-                const response = await fetch('/api/generate_itinerary', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        destination: tripCountry,
-                        days: days,
-                        styles: styles,
-                        context: context
-                    })
+                const r = await fetch('/api/generate_itinerary', {
+                    method:'POST', headers:{'Content-Type':'application/json'},
+                    body: JSON.stringify({ destination: country, numDays: numDays, dateFrom: dateFrom, dateTo: dateTo, styles: selectedTypes, context: context })
                 });
-                
-                const result = await response.json();
-                if (result.error) throw new Error(result.error);
-                
-                generatedItinerary = result.itinerary;
-                
-                // Render Day Boxes
-                let html = `<div style="display:flex; flex-direction:column; gap:24px;">`;
-                generatedItinerary.forEach(day => {
-                    html += `
-                        <div class="card glass" style="padding: 24px; border-left: 4px solid var(--accent-blue);">
-                            <h3 style="margin-top:0; color:var(--accent-blue); font-size:1.2rem; margin-bottom: 8px;">Day ${day.day}: ${day.title}</h3>
-                            <p style="color:var(--text-secondary); margin-bottom: 20px; line-height: 1.5;">${day.description}</p>
-                            <div style="display:flex; flex-direction:column; gap:12px;">
-                                ${day.activities.map(act => `
-                                    <div style="background:rgba(255,255,255,0.05); padding:16px; border-radius:12px; border:1px solid var(--glass-border);">
-                                        <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
-                                            <strong style="color:white; font-size: 1.05rem;">${act.time} - ${act.title}</strong>
-                                            <span style="font-size:0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; background:rgba(0,122,255,0.15); color:var(--accent-blue); padding:4px 8px; border-radius:6px;">${act.type}</span>
-                                        </div>
-                                        <div style="font-size:0.9rem; color:var(--text-secondary); line-height: 1.5;">${act.description}</div>
-                                    </div>
-                                `).join('')}
-                            </div>
+                const d = await r.json();
+                if (d.error) throw new Error(d.error);
+                generatedItinerary = d.itinerary;
+            } catch(e) { 
+                outputEl.innerHTML = `<div class="card glass" style="text-align:center;padding:40px;"><h2 style="color:#ff3b30;">Generation Failed</h2><p style="color:var(--text-secondary);">${e.message}</p></div>`;
+                return;
+            }
+
+            if (!generatedItinerary || !generatedItinerary.length) {
+                outputEl.innerHTML = `<div class="card glass" style="text-align:center;padding:40px;"><h2 style="color:#ff3b30;">Generation Failed</h2><p style="color:var(--text-secondary);">Empty response received.</p></div>`;
+                return;
+            }
+
+            // ── Render day blocks ─────────────────────────────
+            outputEl.innerHTML = `
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
+                    <div>
+                        <h2 style="margin:0;font-size:2rem;font-weight:800;letter-spacing:-0.03em;color:white;${sf}">${numDays}-Day ${country} Itinerary</h2>
+                        <p style="color:var(--text-secondary);margin:6px 0 0;font-size:0.9rem;">Generated by Gemini · ${selectedTypes.join(', ') || 'General'}</p>
+                    </div>
+                    <div style="font-size:0.78rem;color:var(--text-secondary);background:var(--glass-bg);border:1px solid var(--glass-border);padding:5px 14px;border-radius:980px;">✦ AI-Generated</div>
+                </div>
+                <div id="itineraryDays" style="display:flex;flex-direction:column;gap:16px;"></div>
+                <button id="acceptPlanBtn" class="btn" style="margin-top: 24px; background: var(--accent-blue); color: white; padding: 16px; font-size: 1.1rem; width: 100%; border-radius: 16px; font-weight: 700; box-shadow: 0 10px 20px rgba(0,122,255,0.2); cursor: pointer;">Accept Plan & Add to Trip</button>`;
+
+            const daysContainer = outputEl.querySelector('#itineraryDays');
+            const dayDivs = [];
+
+            generatedItinerary.forEach((day, i) => {
+                const dayDiv = document.createElement('div');
+                dayDiv.id = `day-block-${i}`;
+                dayDiv.className = 'card glass';
+                dayDiv.style.cssText = `border-radius:18px;overflow:hidden;transition:box-shadow 0.3s,border-color 0.3s;${sf}`;
+                dayDiv.innerHTML = `
+                    <div style="display:flex;align-items:stretch;">
+                        <!-- Day number sidebar -->
+                        <div style="width:72px;min-width:72px;background:linear-gradient(180deg,var(--accent-blue),#9b59b6);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px 0;gap:4px;">
+                            <span style="color:rgba(255,255,255,0.7);font-size:0.65rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;">Day</span>
+                            <span style="color:white;font-size:2rem;font-weight:800;line-height:1;">${day.day}</span>
                         </div>
-                    `;
-                });
-                html += `
-                    <button id="acceptPlanBtn" class="btn" style="margin-top: 16px; background: var(--accent-blue); color: white; padding: 16px; font-size: 1.1rem; width: 100%; border-radius: 16px; font-weight: 700; box-shadow: 0 10px 20px rgba(0,122,255,0.2);">Accept Plan & Add to Trip</button>
-                </div>`;
-                
-                outputEl.innerHTML = html;
-                
-                // Bind accept button
-                document.getElementById('acceptPlanBtn').onclick = () => {
-                    if (!generatedItinerary) return;
-                    
-                    if (!STATE.tripDays) STATE.tripDays = [];
-                    if (!STATE.activities) STATE.activities = [];
-                    
-                    const today = new Date();
-                    
-                    generatedItinerary.forEach((dayInfo, idx) => {
-                        const dayDate = new Date(today);
-                        dayDate.setDate(today.getDate() + idx);
-                        const dateStr = dayDate.toISOString().split('T')[0];
-                        
-                        // Create Day
-                        const dayId = 'day_' + Date.now() + '_' + idx;
-                        STATE.tripDays.push({
-                            id: dayId,
-                            tripId: activeTrip.id,
-                            date: dateStr,
-                            photos: [],
-                            tickets: []
+                        <!-- Content -->
+                        <div style="flex:1;padding:24px 28px;">
+                            <div style="margin-bottom:20px;">
+                                <h3 style="margin:0 0 4px;font-size:1.2rem;font-weight:700;letter-spacing:-0.02em;color:white;">${day.title || 'Day ' + day.day}</h3>
+                                <span style="font-size:0.8rem;color:var(--text-secondary);">${day.date || ''}</span>
+                            </div>
+                            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:${day.tip ? '20px' : '0'};">
+                                <div style="padding:16px;background:rgba(0,113,227,0.05);border-radius:12px;border:1px solid rgba(0,113,227,0.1);">
+                                    <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--accent-blue);margin-bottom:8px;">🌅 Morning</div>
+                                    <div style="font-weight:600;font-size:0.9rem;margin-bottom:4px;color:white;">${day.morning?.activity || ''}</div>
+                                    <div style="font-size:0.82rem;color:var(--text-secondary);line-height:1.5;">${day.morning?.description || ''}</div>
+                                </div>
+                                <div style="padding:16px;background:rgba(255,149,0,0.05);border-radius:12px;border:1px solid rgba(255,149,0,0.1);">
+                                    <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#ff9500;margin-bottom:8px;">☀️ Afternoon</div>
+                                    <div style="font-weight:600;font-size:0.9rem;margin-bottom:4px;color:white;">${day.afternoon?.activity || ''}</div>
+                                    <div style="font-size:0.82rem;color:var(--text-secondary);line-height:1.5;">${day.afternoon?.description || ''}</div>
+                                </div>
+                                <div style="padding:16px;background:rgba(155,89,182,0.05);border-radius:12px;border:1px solid rgba(155,89,182,0.1);">
+                                    <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#9b59b6;margin-bottom:8px;">🌙 Evening</div>
+                                    <div style="font-weight:600;font-size:0.9rem;margin-bottom:4px;color:white;">${day.evening?.activity || ''}</div>
+                                    <div style="font-size:0.82rem;color:var(--text-secondary);line-height:1.5;">${day.evening?.description || ''}</div>
+                                </div>
+                            </div>
+                            ${day.tip ? `<div style="padding:12px 16px;background:rgba(0,113,227,0.05);border-left:3px solid var(--accent-blue);border-radius:0 10px 10px 0;"><span style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--accent-blue);">💡 Pro Tip</span><p style="margin:5px 0 0;font-size:0.85rem;color:var(--text-secondary);">${day.tip}</p></div>` : ''}
+                        </div>
+                    </div>`;
+                daysContainer.appendChild(dayDiv);
+                dayDivs.push(dayDiv);
+            });
+
+            // ── Add Leaflet markers for each day ─────────────
+            if (leafletMap) {
+                // Clear existing markers
+                leafletMap.eachLayer(l => { if (l instanceof L.Marker) leafletMap.removeLayer(l); });
+
+                const markerCoords = [];
+                const geocodeAndMark = async (day, i) => {
+                    const loc = day.mainLocation || day.title || country;
+                    try {
+                        const r = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(loc + ', ' + country)}&format=json&limit=1`);
+                        const data = await r.json();
+                        if (!data[0]) return;
+                        const lat = parseFloat(data[0].lat), lon = parseFloat(data[0].lon);
+                        markerCoords.push([lat, lon]);
+
+                        // Custom numbered marker
+                        const icon = L.divIcon({
+                            className: '',
+                            html: `<div style="width:32px;height:32px;background:linear-gradient(135deg,#0071e3,#9b59b6);border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-weight:800;font-size:0.85rem;border:2px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.3);cursor:pointer;font-family:-apple-system,sans-serif;">${day.day}</div>`,
+                            iconSize: [32, 32], iconAnchor: [16, 16]
                         });
-                        
-                        // Create Activities
-                        dayInfo.activities.forEach((act, aIdx) => {
+
+                        const marker = L.marker([lat, lon], { icon }).addTo(leafletMap);
+                        marker.bindPopup(`<strong style="font-family:-apple-system,sans-serif;">Day ${day.day}</strong><br><span style="font-size:0.85rem;">${day.title}</span>`);
+
+                        // Click marker → highlight day block
+                        marker.on('click', () => {
+                            dayDivs.forEach(d => {
+                                d.style.boxShadow = '';
+                                d.style.borderColor = '';
+                            });
+                            const target = dayDivs[i];
+                            if (target) {
+                                target.style.boxShadow = '0 0 0 3px var(--accent-blue), 0 8px 32px rgba(0,113,227,0.25)';
+                                target.style.borderColor = 'var(--accent-blue)';
+                                target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            }
+                        });
+
+                        // Click day block → pan map to marker
+                        dayDivs[i].style.cursor = 'pointer';
+                        dayDivs[i].addEventListener('click', () => {
+                            leafletMap.setView([lat, lon], 10, { animate: true });
+                            marker.openPopup();
+                            dayDivs.forEach(d => { d.style.boxShadow = ''; d.style.borderColor = ''; });
+                            dayDivs[i].style.boxShadow = '0 0 0 3px var(--accent-blue), 0 8px 32px rgba(0,113,227,0.25)';
+                            dayDivs[i].style.borderColor = 'var(--accent-blue)';
+                        });
+
+                        // After all: fit map to all markers
+                        if (markerCoords.length === generatedItinerary.length) {
+                            leafletMap.fitBounds(markerCoords, { padding: [40, 40] });
+                        }
+                    } catch(e) { console.warn('Geocode failed for', loc, e); }
+                };
+
+                // Stagger geocode calls to respect Nominatim rate limit
+                generatedItinerary.forEach((day, i) => {
+                    setTimeout(() => geocodeAndMark(day, i), i * 1100);
+                });
+            }
+
+            // Accept Plan logic
+            document.getElementById('acceptPlanBtn').onclick = () => {
+                if (!generatedItinerary) return;
+                
+                if (!STATE.tripDays) STATE.tripDays = [];
+                if (!STATE.activities) STATE.activities = [];
+                
+                generatedItinerary.forEach((dayInfo, idx) => {
+                    const dayDate = dayInfo.date || (new Date().toISOString().split('T')[0]);
+                    
+                    // Create Day
+                    const dayId = 'day_' + Date.now() + '_' + idx;
+                    STATE.tripDays.push({
+                        id: dayId,
+                        tripId: activeTrip.id,
+                        date: dayDate,
+                        photos: [],
+                        tickets: []
+                    });
+                    
+                    // Create Activities
+                    const acts = [
+                        { time: 'Morning', ...dayInfo.morning, type: 'Activity' },
+                        { time: 'Afternoon', ...dayInfo.afternoon, type: 'Activity' },
+                        { time: 'Evening', ...dayInfo.evening, type: 'Activity' }
+                    ];
+
+                    acts.forEach((act, aIdx) => {
+                        if (act.activity) {
                             STATE.activities.push({
                                 id: 'act_' + Date.now() + '_' + idx + '_' + aIdx,
                                 tripId: activeTrip.id,
                                 dayId: dayId,
-                                title: act.title,
+                                title: act.activity,
                                 description: act.description,
                                 type: act.type,
                                 isBooked: false
                             });
-                        });
+                        }
                     });
-                    
-                    saveState();
-                    
-                    const btn = document.getElementById('acceptPlanBtn');
-                    btn.innerHTML = '✓ Plan Accepted! (View in Home)';
-                    btn.style.background = '#34c759';
-                    btn.style.boxShadow = '0 10px 20px rgba(52,199,89,0.2)';
-                    btn.disabled = true;
-                };
+                });
+                
+                saveState();
+                
+                const btn = document.getElementById('acceptPlanBtn');
+                btn.innerHTML = '✓ Plan Accepted! (View in Home)';
+                btn.style.background = '#34c759';
+                btn.style.boxShadow = '0 10px 20px rgba(52,199,89,0.2)';
+                btn.disabled = true;
+            };
 
-            } catch (err) {
-                outputEl.innerHTML = `<div class="card glass danger-card" style="padding:24px; text-align:center;">
-                    <h3 style="color:#ff3b30; margin-top:0;">Error Generating Plan</h3>
-                    <p style="color:var(--text-secondary);">${err.message}</p>
-                </div>`;
-            }
-        };
+        });
     }, 0);
 
     return div;
 }
+
+
 
 // --- Page: Settlements ---
 function renderSettlement() {
