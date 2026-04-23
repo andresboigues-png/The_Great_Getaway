@@ -1,5 +1,7 @@
 import os
+import json
 import logging
+import requests
 from flask import Flask, render_template, request, jsonify
 from dotenv import load_dotenv
 from google.oauth2 import id_token
@@ -125,6 +127,71 @@ def get_config():
         "gemini_key": os.getenv("GEMINI_API_KEY", ""),
         "google_client_id": os.getenv("CLIENT_ID_GOOGLE_AUTH", "")
     })
+
+@app.route("/api/generate_itinerary", methods=["POST"])
+def generate_itinerary():
+    """Call Gemini API to generate a structured JSON itinerary."""
+    data = request.json
+    destination = data.get("destination", "Unknown")
+    days = data.get("days", 3)
+    styles = data.get("styles", [])
+    context = data.get("context", "")
+
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        return jsonify({"error": "Gemini API key not configured"}), 500
+
+    prompt = f"""
+    You are an expert travel planner. Create a {days}-day itinerary for a trip to {destination}.
+    The user prefers these travel styles: {', '.join(styles) if styles else 'General sight-seeing'}.
+    Additional context/requirements: {context}
+
+    CRITICAL INSTRUCTION: You MUST return ONLY valid JSON. Do not wrap the JSON in markdown blocks. 
+    Return EXACTLY an array of objects, where each object represents a day.
+
+    Schema:
+    [
+      {{
+        "day": 1,
+        "title": "Arrival & City Highlights",
+        "description": "Short description of the day's vibe.",
+        "activities": [
+          {{"time": "Morning", "title": "Visit Museum", "description": "...", "type": "Culture"}},
+          {{"time": "Afternoon", "title": "Lunch at Cafe", "description": "...", "type": "Food"}}
+        ]
+      }}
+    ]
+    """
+
+    try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+        headers = {"Content-Type": "application/json"}
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {
+                "temperature": 0.7,
+                "responseMimeType": "application/json"
+            }
+        }
+        
+        resp = requests.post(url, headers=headers, json=payload)
+        resp.raise_for_status()
+        
+        result = resp.json()
+        raw_text = result.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "[]")
+        
+        # Clean up any potential markdown formatting
+        raw_text = raw_text.strip()
+        if raw_text.startswith("```json"):
+            raw_text = raw_text[7:]
+        if raw_text.endswith("```"):
+            raw_text = raw_text[:-3]
+            
+        itinerary = json.loads(raw_text.strip())
+        return jsonify({"status": "success", "itinerary": itinerary})
+    except Exception as e:
+        logger.error(f"Gemini API Error: {e}")
+        return jsonify({"error": str(e)}), 500
 
 # --- Social Features ---
 

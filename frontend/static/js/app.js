@@ -37,7 +37,8 @@ const STATE = {
     photos: [],
     budgets: [],
     savedFormats: [],    // Array of {id, name, mappings:[{variable,column}]} — max 5
-    tripDays: []        // Array of {id, tripId, name, dayNumber, photos: []}
+    tripDays: [],        // Array of {id, tripId, name, dayNumber, photos: []}
+    activeDetailId: null // Store ID for detail views (e.g. archived trip detail)
 };
 
 const COUNTRIES = [
@@ -64,115 +65,73 @@ const COUNTRIES = [
 ].sort();
 
 // Quotes & Images Dictionary
-const TRAVEL_DATA = {
-    france: {
-        quotes: ["“Paris is always a good idea.” - Audrey Hepburn", "“To err is human. To loaf is Parisian.”", "“France has the only two things toward which we drift as we grow older - intelligence and good manners.”"],
-        images: ["https://images.unsplash.com/photo-1502602898657-3e91760cbb34", "https://images.unsplash.com/photo-1511739001486-6bfe10ce785f", "https://images.unsplash.com/photo-1499856871958-5b9627545d1a"]
-    },
-    spain: {
-        quotes: ["“Spain, the beautiful country of wine and songs.”", "“I would rather be in Spain than anywhere else in the world.” - Hemingway", "“In Spain, the dead are more alive than anywhere else.”"],
-        images: ["https://images.unsplash.com/photo-1543722530-d2c4cf99b518", "https://images.unsplash.com/photo-1504019347908-b45f9b0b3dd2", "https://images.unsplash.com/photo-1539037116277-4db20889f2d4"]
-    },
-    usa: {
-        quotes: ["“There are no rules of architecture for a castle in the clouds.”", "“The United States themselves are essentially the greatest poem.”", "“I love America more than any other country.”"],
-        images: ["https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9", "https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b", "https://images.unsplash.com/photo-1501594907352-04cda38ebc29"]
-    },
-    turkey: {
-        quotes: ["“Istanbul is a city of layers.”", "“Turkey is a cradle of civilizations.”", "“To visit Turkey is to travel through time.”"],
-        images: ["https://images.unsplash.com/photo-1524231757912-21f4fe3a7200", "https://images.unsplash.com/photo-1527838832702-585f23df463f", "https://images.unsplash.com/photo-1541432901042-2d8bd64b4a9b"]
-    },
-    italy: {
-        quotes: ["“You may have the universe if I may have Italy.”", "“Rome is the city of echoes, the city of illusions.”", "“Venice is like eating an entire box of chocolate liqueurs.”"],
-        images: ["https://images.unsplash.com/photo-1516483638261-f40af5ff1f25", "https://images.unsplash.com/photo-1525874684015-58379d421a52", "https://images.unsplash.com/photo-1552832230-c0197dd311b5"]
-    },
-    mexico: {
-        quotes: ["“Mexico is a mosaic of different worlds and times.”", "“My heart belongs to Mexico.”", "“To be in Mexico is to be where the sun is always shining.”"],
-        images: ["https://images.unsplash.com/photo-1512813583141-b921d016e1d6", "https://images.unsplash.com/photo-1518105779142-d975f22f1b0a", "https://images.unsplash.com/photo-1518633391217-09f193f350c3"]
-    },
-    uk: {
-        quotes: ["“When a man is tired of London, he is tired of life.”", "“London is a riddle. Paris is an explanation.”", "“England is a nation of shopkeepers.”"],
-        images: ["https://images.unsplash.com/photo-1513635269975-59663e0ac1ad", "https://images.unsplash.com/photo-1486299267070-83823f5448dd", "https://images.unsplash.com/photo-1529655683826-aba9b3e77383"]
-    },
-    germany: {
-        quotes: ["“Germany is a land of poets and thinkers.”", "“Everything is simple in Germany, but everything is difficult too.”", "“Berlin is a city that never is, but is always becoming.”"],
-        images: ["https://images.unsplash.com/photo-1467269204594-9661b134dd2b", "https://images.unsplash.com/photo-1506744038136-46273834b3fb", "https://images.unsplash.com/photo-1527668752968-14dc70a27c95"]
-    },
-    japan: {
-        quotes: ["“Japan is the only country where a flower can bring a nation to a standstill.”", "“Tokyo would be the most challenging city to be a tourist in.”", "“You can get lost in Tokyo and still be where you need to be.”"],
-        images: ["https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e", "https://images.unsplash.com/photo-1528360983277-13d401cdc186", "https://images.unsplash.com/photo-1542051842920-c7ba71115e4d"]
-    },
-    greece: {
-        quotes: ["“Greece is the cradle of Western civilization.”", "“The light of Greece opened my eyes.”", "“In Greece, we are all children of the sun.”"],
-        images: ["https://images.unsplash.com/photo-1533105079780-92b9be482077", "https://images.unsplash.com/photo-1503152394-c571994fd383", "https://images.unsplash.com/photo-1469796466635-455ede028ca1"]
-    },
-    thailand: {
-        quotes: ["“Thailand is a land of smiles.”", "“Bangkok is a sensory overload.”", "“The beauty of Thailand is in its diversity.”"],
-        images: ["https://images.unsplash.com/photo-1528181304800-2f140819898f", "https://images.unsplash.com/photo-1552465011-b4e21bf6e79a", "https://images.unsplash.com/photo-1504214208698-ea191f03f192"]
-    },
-    austria: {
-        quotes: ["“In Austria, the mountains are our cathedrals.”", "“Vienna is a city that dances.”", "“Music is in the air in Austria.”"],
-        images: ["https://images.unsplash.com/photo-1516550893923-42d28e5677af", "https://images.unsplash.com/photo-1527613463702-861f1c7d248d", "https://images.unsplash.com/photo-1520116468816-95b69f847357"]
-    },
-    saudi: {
-        quotes: ["“Saudi Arabia is a land of hospitality.”", "“The desert has its own magic.”", "“A bridge between past and future.”"],
-        images: ["https://images.unsplash.com/photo-1586724237569-f3d021dd4c37", "https://images.unsplash.com/photo-1551041777-ed07c469273c", "https://images.unsplash.com/photo-1518112166137-85899e90072b"]
-    },
-    uae: {
-        quotes: ["“Dubai is a city of dreams.”", "“Innovation is in our DNA.”", "“The desert meets the future.”"],
-        images: ["https://images.unsplash.com/photo-1512453979798-5ea266f8880c", "https://images.unsplash.com/photo-1518684079-3c830dcef090", "https://images.unsplash.com/photo-1512632578888-159bd082276e"]
-    },
-    malaysia: {
-        quotes: ["“Malaysia, truly Asia.”", "“A melting pot of cultures.”", "“The beauty of Malaysia lies in its harmony.”"],
-        images: ["https://images.unsplash.com/photo-1524514587686-826a7a4be03c", "https://images.unsplash.com/photo-1533051016668-36034177e685", "https://images.unsplash.com/photo-1494459942733-149d632560cc"]
-    },
-    portugal: {
-        quotes: ["“Portugal is a land of explorers.”", "“Lisbon is a city of light.”", "“The soul of Portugal is in its Fado.”"],
-        images: ["https://images.unsplash.com/photo-1555881400-74d7acaacd8b", "https://images.unsplash.com/photo-1536751048178-14106afcb46d", "https://images.unsplash.com/photo-1534351590666-13e3e96b5017"]
-    },
-    hong: {
-        quotes: ["“Hong Kong is where East meets West.”", "“The skyline of Hong Kong is incomparable.”", "“A city that never sleeps.”"],
-        images: ["https://images.unsplash.com/photo-1506351421178-63b52a2d25a2", "https://images.unsplash.com/photo-1536700503339-1e4b06520771", "https://images.unsplash.com/photo-1516893842880-5d8aada7ac05"]
-    },
-    poland: {
-        quotes: ["“Poland is a land of resilience.”", "“Krakow is the heart of Poland.”", "“History is alive in Poland.”"],
-        images: ["https://images.unsplash.com/photo-1519197924294-4ba991a11128", "https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91", "https://images.unsplash.com/photo-1512470876302-972faa2aa9a4"]
-    },
-    indonesia: {
-        quotes: ["“Bali is more than a place. It’s a mood, an aspiration, a tropical state of mind.”", "“Indonesia is a string of jewels in the ocean.”", "“To be in Indonesia is to be surrounded by the spirits of nature.”"],
-        images: ["https://images.unsplash.com/photo-1537996194471-e657df975ab4", "https://images.unsplash.com/photo-1518548419970-58e3b4079ab2", "https://images.unsplash.com/photo-1555400038-63f5ba517a47"]
-    },
-    morocco: {
-        quotes: ["“Morocco is the land of the setting sun.”", "“Marrakech taught me color.” - Yves Saint Laurent", "“Morocco is like a story that never ends.”"],
-        images: ["https://images.unsplash.com/photo-1489749798305-4fea3ae63d43", "https://images.unsplash.com/photo-1539020140153-e479b8c22e70", "https://images.unsplash.com/photo-1528150353420-53bc6ca844b8"]
-    },
-    switzerland: {
-        quotes: ["“Switzerland is a small, steep country, much more up and down than sideways.”", "“The Alps are the cathedrals of the world.”", "“Switzerland is the land of peace and chocolate.”"],
-        images: ["https://images.unsplash.com/photo-1527668752968-14dc70a27c95", "https://images.unsplash.com/photo-1516550893923-42d28e5677af", "https://images.unsplash.com/photo-1506905925346-21bda4d32df4"]
-    },
-    vietnam: {
-        quotes: ["“Vietnam is a country with a long and rich history.”", "“The food in Vietnam is a work of art.”", "“To visit Vietnam is to witness resilience.”"],
-        images: ["https://images.unsplash.com/photo-1504609773096-104ff2c73ba4", "https://images.unsplash.com/photo-1528127269322-539801943592", "https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1"]
-    },
-    default: {
-        quotes: [
-            "The world is a book and those who do not travel read only one page.",
-            "Travel is the only thing you buy that makes you richer.",
-            "Not all those who wander are lost.",
-            "Better to see something once than to hear about it a thousand times.",
-            "Jobs fill your pocket, adventures fill your soul.",
-            "Travel makes one modest.",
-            "To travel is to live.",
-            "Adventure is worthwhile in itself."
-        ],
-        images: [
-            'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80',
-            'https://images.unsplash.com/photo-1503220317375-aaad61436b1b?auto=format&fit=crop&w=1600&q=80',
-            'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=1600&q=80',
-            'https://images.unsplash.com/photo-1530789253388-582c481c54b0?auto=format&fit=crop&w=1600&q=80',
-            'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1600&q=80'
-        ]
-    }
-};
+const TRAVEL_DATA = {};
+(() => {
+    const aestheticQuotes = [
+        "To lose yourself in {country} is to find yourself.",
+        "{country}: A beautiful mosaic of culture and landscapes.",
+        "Every sunset in {country} tells a different story.",
+        "There is a quiet kind of magic waiting in {country}.",
+        "{country} isn't just a place, it's a feeling.",
+        "Wandering the timeless roads of {country}.",
+        "Discovering the hidden soul of {country}.",
+        "Let the beauty of {country} transform you.",
+        "{country} – where memories are painted in vivid colors.",
+        "Embracing the breathtaking spirit of {country}.",
+        "{country}: A love letter written in nature and history.",
+        "The rhythm of {country} beats in every traveler's heart.",
+        "Finding peace in the untamed beauty of {country}.",
+        "{country} is a canvas, and your journey is the art.",
+        "Breathe in the magic. Breathe in {country}."
+    ];
+
+    // Curated high-quality, neutral landscape images (mountains, oceans, forests, deserts)
+    const landscapeImages = [
+        "https://images.unsplash.com/photo-1470071131384-001b85755536",
+        "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b",
+        "https://images.unsplash.com/photo-1501854140801-50d01698950b",
+        "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800",
+        "https://images.unsplash.com/photo-1447752875215-b2761acb3c5d",
+        "https://images.unsplash.com/photo-1433086966358-54859d0ed716",
+        "https://images.unsplash.com/photo-1465146344425-f00d5f5c8f07",
+        "https://images.unsplash.com/photo-1472214103451-9374bd1c798e",
+        "https://images.unsplash.com/photo-1473448912268-2022ce9509d8",
+        "https://images.unsplash.com/photo-1493246507139-91e8fad9978e",
+        "https://images.unsplash.com/photo-1518182170546-076616fd61fd",
+        "https://images.unsplash.com/photo-1506744038136-46273834b3fb",
+        "https://images.unsplash.com/photo-1469474968028-56623f02e42e",
+        "https://images.unsplash.com/photo-1441974231531-c6227db76b6e",
+        "https://images.unsplash.com/photo-1507525428034-b723cf961d3e",
+        "https://images.unsplash.com/photo-1494500764479-0c8f2919a3d4",
+        "https://images.unsplash.com/photo-1475924156734-496f6cac6ec1",
+        "https://images.unsplash.com/photo-1426604966848-d7adac402bff",
+        "https://images.unsplash.com/photo-1454496522488-7a8e488e8606",
+        "https://images.unsplash.com/photo-1503220317375-aaad61436b1b",
+        "https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1",
+        "https://images.unsplash.com/photo-1530789253388-582c481c54b0",
+        "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee"
+    ].map(url => url + "?auto=format&fit=crop&w=1600&q=80");
+
+    COUNTRIES.forEach((country) => {
+        let hash = 0;
+        for (let i = 0; i < country.length; i++) {
+            hash = country.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        const imgIndex = Math.abs(hash) % landscapeImages.length;
+        const quoteIndex = Math.abs(hash) % aestheticQuotes.length;
+        
+        const key = country.toLowerCase().split(' ')[0];
+        TRAVEL_DATA[key] = {
+            quotes: [aestheticQuotes[quoteIndex].replace(/\{country\}/g, country)],
+            images: [landscapeImages[imgIndex]]
+        };
+    });
+
+    TRAVEL_DATA['default'] = {
+        quotes: ["Travel is life."],
+        images: [landscapeImages[0]]
+    };
+})();
 
 let dashboardInterval = null;
 
@@ -292,10 +251,13 @@ const pages = {
     ai: renderAI,
     budgets: renderBudgets,
     collections: renderCollections,
-    settlement: renderSettlement
+    settlement: renderSettlement,
+    'archived-detail': () => renderArchivedTripDetail(STATE.activeDetailId)
 };
 
-function navigate(pageId) {
+function navigate(pageId, data = null) {
+    if (data && data.id) STATE.activeDetailId = data.id;
+    
     if (dashboardInterval) {
         clearInterval(dashboardInterval);
         dashboardInterval = null;
@@ -327,12 +289,30 @@ function renderHome() {
     let currentPhotoIdx = 0;
 
     // Determine data based on activeTrip or default
-    const tripCountry = activeTrip ? (activeTrip.country || '') : '';
-    const countryKey = tripCountry.toLowerCase().split(' ')[0] || 'default';
-    const data = TRAVEL_DATA[countryKey] || TRAVEL_DATA['default'] || { quotes: ["Travel is life."], images: ["https://images.unsplash.com/photo-1469854523086-cc02fe5d8800"] };
-    
-    let displayImages = [...(data.images || [])];
-    let displayQuotes = [...(data.quotes || [])];
+    let displayImages = [];
+    let displayQuotes = [];
+
+    if (!activeTrip) {
+        // Collect all unique images and quotes for a global slideshow
+        const allImages = new Set();
+        const allQuotes = new Set();
+        Object.values(TRAVEL_DATA).forEach(d => {
+            if (d.images) d.images.forEach(img => allImages.add(img));
+            if (d.quotes) d.quotes.forEach(q => allQuotes.add(q));
+        });
+        displayImages = Array.from(allImages).sort(() => Math.random() - 0.5);
+        displayQuotes = Array.from(allQuotes).sort(() => Math.random() - 0.5);
+        
+        // Fallback just in case
+        if (displayImages.length === 0) displayImages = ["https://images.unsplash.com/photo-1469854523086-cc02fe5d8800"];
+        if (displayQuotes.length === 0) displayQuotes = ["Travel is life."];
+    } else {
+        const tripCountry = activeTrip.country || '';
+        const countryKey = tripCountry.toLowerCase().split(' ')[0] || 'default';
+        const data = TRAVEL_DATA[countryKey] || TRAVEL_DATA['default'];
+        displayImages = [...(data.images || [])];
+        displayQuotes = [...(data.quotes || [])];
+    }
 
     if (activeTrip && STATE.tripDays) {
         const dayPhotos = STATE.tripDays
@@ -342,7 +322,7 @@ function renderHome() {
         if (dayPhotos.length > 0) {
             displayImages = [...dayPhotos, ...displayImages];
             for (let i = 0; i < dayPhotos.length; i++) {
-                displayQuotes.unshift("“Capturing moments from your journey.”");
+                displayQuotes.unshift("Capturing moments from your journey.");
             }
         }
     }
@@ -370,7 +350,7 @@ function renderHome() {
 
     if (!activeTrip) {
         div.innerHTML = `
-            <div class="ai-page-header" style="background: linear-gradient(135deg, rgba(0, 122, 255, 0.1), rgba(88, 86, 214, 0.1)); padding: 40px; text-align: center; border-radius: 28px;">
+            <div class="ai-page-header" style="padding: 40px; text-align: center; border-radius: 28px;">
                 <h1 style="background: linear-gradient(135deg, #007aff, #5856d6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 0; font-size: 3.5rem;">Let's travel.</h1>
                 <p style="color: var(--text-secondary); max-width: 440px; margin: 10px auto 0; font-size: 1.1rem;">Your next big adventure is waiting. Create a trip to start tracking expenses and planning days.</p>
             </div>
@@ -391,10 +371,26 @@ function renderHome() {
     }
 
     const tripExpenses = (STATE.expenses || []).filter(e => e && e.tripId === activeTrip.id);
+    const tripDays = (STATE.tripDays || []).filter(d => d.tripId === activeTrip.id);
+    const isFresh = tripExpenses.length === 0 && tripDays.length === 0;
+    
+    let greeting = "Welcome back, traveler";
+    if (isFresh && activeTrip.country) {
+        const greetings = [
+            `${activeTrip.country} is a phenomenal choice!`,
+            `Ready to conquer ${activeTrip.country}?`,
+            `Let's make memories in ${activeTrip.country}.`,
+            `${activeTrip.country} awaits your arrival.`,
+            `A blank canvas in ${activeTrip.country}. Let's plan!`,
+            `Your ${activeTrip.country} adventure starts here.`,
+            `Time to write your ${activeTrip.country} story.`
+        ];
+        greeting = greetings[Math.floor(Math.random() * greetings.length)];
+    }
 
     div.innerHTML = `
-        <div class="ai-page-header" style="background: linear-gradient(135deg, rgba(0, 122, 255, 0.1), rgba(88, 86, 214, 0.1));">
-            <h1 style="background: linear-gradient(135deg, #007aff, #5856d6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Welcome back, traveler</h1>
+        <div class="ai-page-header">
+            <h1 style="background: linear-gradient(135deg, #007aff, #5856d6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">${greeting}</h1>
             <p>You have <strong>${tripExpenses.length}</strong> expenses recorded for ${activeTrip.name}.</p>
         </div>
         
@@ -415,7 +411,7 @@ function renderHome() {
     const daysContainer = document.createElement('div');
     daysContainer.style.marginTop = '40px';
     
-    const tripDays = (STATE.tripDays || []).filter(d => d.tripId === activeTrip.id).sort((a,b) => a.dayNumber - b.dayNumber);
+    tripDays.sort((a,b) => a.dayNumber - b.dayNumber);
     
     daysContainer.innerHTML = `
         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
@@ -506,13 +502,15 @@ function renderExpenses() {
                         <label style="display: block; margin-bottom: 6px; font-weight: 500;">Date</label>
                         <input type="date" id="expDate" class="glass-input" style="width: 100%;" required>
                     </div>
-                    <div style="margin-bottom: 16px;">
+                    <div style="margin-bottom: 16px; position: relative;" id="countrySearchContainer">
                         <label style="display: block; margin-bottom: 6px; font-weight: 500;">Country</label>
-                        <select id="expCountry" class="glass-input" style="width: 100%;" required>
-                            <option value="">Select Country...</option>
-                            ${COUNTRIES.map(c => `<option value="${c}">${c}</option>`).join('')}
-                            <option value="Other">Other</option>
-                        </select>
+                        <div class="custom-select-wrapper">
+                            <input type="text" id="expCountry" class="glass-input" style="width: 100%;" placeholder="Search or select country..." autocomplete="off">
+                            <div id="countryDropdownList" class="custom-select-dropdown glass shadow-xl" style="display: none; position: absolute; top: 100%; left: 0; right: 0; z-index: 1000; max-height: 250px; overflow-y: auto; margin-top: 4px; border-radius: 16px; border: 1.5px solid #002d5b; background: rgba(255,255,255,0.95);">
+                                ${COUNTRIES.sort().map(c => `<div class="dropdown-item" style="padding: 12px 16px; cursor: pointer; color: #1a3a5f; font-weight: 600; transition: background 0.2s;" data-value="${c}">${c}</div>`).join('')}
+                                <div class="dropdown-item" style="padding: 12px 16px; cursor: pointer; color: #1a3a5f; font-weight: 600; transition: background 0.2s;" data-value="Other">Other</div>
+                            </div>
+                        </div>
                     </div>
                     <div style="margin-bottom: 16px;">
                         <label style="display: block; margin-bottom: 6px; font-weight: 500;">Value</label>
@@ -624,6 +622,45 @@ function renderExpenses() {
             });
         });
 
+        // Custom Searchable Dropdown Logic
+        const countryInput = div.querySelector('#expCountry');
+        const countryList = div.querySelector('#countryDropdownList');
+        const countryItems = countryList.querySelectorAll('.dropdown-item');
+
+        countryInput.onfocus = () => {
+            countryList.style.display = 'block';
+        };
+
+        countryInput.oninput = (e) => {
+            const val = e.target.value.toLowerCase();
+            countryItems.forEach(item => {
+                const text = item.textContent.toLowerCase();
+                item.style.display = text.includes(val) ? 'block' : 'none';
+            });
+            countryList.style.display = 'block';
+        };
+
+        countryItems.forEach(item => {
+            item.onclick = (e) => {
+                countryInput.value = item.getAttribute('data-value');
+                countryList.style.display = 'none';
+                e.stopPropagation();
+                
+                // Trigger draft save manually since we set value programmatically
+                STATE.draftExpense.country = countryInput.value;
+                saveState();
+            };
+            item.onmouseover = () => item.style.background = 'rgba(0, 122, 255, 0.1)';
+            item.onmouseout = () => item.style.background = 'transparent';
+        });
+
+        // Click outside to close
+        document.addEventListener('click', (e) => {
+            if (!div.querySelector('#countrySearchContainer').contains(e.target)) {
+                countryList.style.display = 'none';
+            }
+        });
+
         form.addEventListener('submit', (e) => {
             e.preventDefault();
             
@@ -651,6 +688,9 @@ function renderExpenses() {
             const val = parseFloat(div.querySelector('#expValue').value);
             const curr = div.querySelector('#expCurrency').value.toUpperCase();
             
+            const activeTrip = STATE.trips.find(t => t.id === STATE.activeTripId);
+            const countryVal = div.querySelector('#expCountry').value || (activeTrip ? activeTrip.country : '');
+
             const expense = {
                 id: generateId(),
                 tripId: STATE.activeTripId,
@@ -658,7 +698,7 @@ function renderExpenses() {
                 categoryId: div.querySelector('#expCategory').value,
                 label: div.querySelector('#expLabel').value,
                 date: div.querySelector('#expDate').value,
-                country: div.querySelector('#expCountry').value,
+                country: countryVal,
                 value: val,
                 currency: curr,
                 euroValue: val * (CONVERSION_RATES[curr] || 1),
@@ -719,10 +759,16 @@ function renderRecentExpenses(container) {
 }
 
 window.deleteExpense = (id) => {
-    if (!confirm("Delete this expense?")) return;
-    STATE.expenses = STATE.expenses.filter(e => e.id !== id);
-    saveState();
-    navigate('expenses');
+    window.showConfirmModal({
+        title: "Delete Expense?",
+        message: "This will remove this record from your trip history.",
+        confirmText: "Delete",
+        onConfirm: () => {
+            STATE.expenses = STATE.expenses.filter(e => e.id !== id);
+            saveState();
+            navigate('expenses');
+        }
+    });
 };
 
 // --- Page: Upload ---
@@ -778,8 +824,9 @@ function renderUpload() {
 
             <!-- Popular format note -->
             <div id="popularNote" style="padding: 16px; background: rgba(0,113,227,0.05); border-radius: 12px; border: 1px solid rgba(0,113,227,0.1); margin-bottom: 20px;">
-                <span style="font-size: 0.8rem; font-weight: 700; color: var(--accent-blue);">💡 NOTE</span>
-                <p style="margin: 5px 0 0; font-size: 0.85rem; color: var(--text-secondary);">We will try to auto-detect categories based on transaction names.</p>
+                <span style="font-size: 0.8rem; font-weight: 700; color: var(--accent-blue);">💡 FORMAT PREVIEW</span>
+                <p style="margin: 5px 0 0; font-size: 0.85rem; color: var(--text-secondary);">Ensure your file contains these columns. We will try to auto-detect categories.</p>
+                <div id="popularFormatTableContainer" style="margin-top: 16px; overflow-x: auto; background: white; border-radius: 8px; border: 1px solid rgba(0,0,0,0.05);"></div>
             </div>
 
             <input type="file" id="excelFile" accept=".xlsx, .xls, .csv" class="glass-input" style="margin-bottom: 15px; width: 100%;">
@@ -834,9 +881,41 @@ function renderUpload() {
                 }
             } else {
                 customFormatPreview.style.display = 'none';
+                
+                const popId = val.split(':')[1];
+                const popContainer = div.querySelector('#popularFormatTableContainer');
+                
+                let headers = [];
+                let row = [];
+                if (popId === 'tricount') {
+                    headers = ['Title', 'Amount', 'Currency', 'Date', 'Paid by'];
+                    row = ['Dinner', '45.00', 'EUR', '2023-10-12', 'Alice'];
+                } else if (popId === 'splitwise') {
+                    headers = ['Date', 'Description', 'Category', 'Cost', 'Currency'];
+                    row = ['2023-10-12', 'Taxi', 'Transportation', '20.00', 'EUR'];
+                } else if (popId === 'revolut') {
+                    headers = ['Type', 'Product', 'Started Date', 'Description', 'Amount', 'Currency', 'State'];
+                    row = ['CARD_PAYMENT', 'Current', '2023-10-12', 'Restaurant', '-45.00', 'EUR', 'COMPLETED'];
+                }
+                
+                if (headers.length > 0) {
+                    popContainer.innerHTML = `
+                        <table class="liquid-table" style="font-size: 0.75rem; margin: 0;">
+                            <thead>
+                                <tr>${headers.map(h => `<th style="padding: 8px 12px;">${h}</th>`).join('')}</tr>
+                            </thead>
+                            <tbody>
+                                <tr>${row.map(d => `<td style="padding: 8px 12px; color: var(--text-secondary);">${d}</td>`).join('')}</tr>
+                            </tbody>
+                        </table>
+                    `;
+                } else {
+                    popContainer.innerHTML = '';
+                }
+
                 const trip = STATE.trips.find(t => t.id === STATE.activeTripId);
                 if (trip) {
-                    trip.activeFormatId = val.split(':')[1];
+                    trip.activeFormatId = popId;
                     trip.activeFormatType = 'popular';
                     saveState();
                 }
@@ -1345,7 +1424,7 @@ function renderPersonalization() {
 
     div.innerHTML = `
         <div class="ai-page-header">
-            <h1 style="background: linear-gradient(135deg, #007aff, #5856d6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Personalization</h1>
+            <h1 style="background: linear-gradient(135deg, #5ac8fa, #34c759); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Personalization</h1>
             <p>Customize your experience, categories, and travel companions.</p>
         </div>
 
@@ -1573,7 +1652,7 @@ function renderSettings() {
         const isFormat = activeTab === 'format';
 
         return `
-            <div class="ai-page-header" style="background: linear-gradient(135deg, rgba(255, 59, 48, 0.05), rgba(255, 149, 0, 0.05));">
+            <div class="ai-page-header">
                 <h1 style="background: linear-gradient(135deg, #ff3b30, #ff9500); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">System Control</h1>
                 <p>Manage your travel data, custom formats, and core preferences.</p>
             </div>
@@ -1771,10 +1850,12 @@ function archiveActiveTrip() {
         trip.expenses = (STATE.expenses || []).filter(e => e.tripId === trip.id);
         trip.itinerary = (STATE.activities || []).filter(a => a.tripId === trip.id);
         trip.photos = (STATE.photos || []).filter(p => p.tripId === trip.id);
+        trip.tripDays = (STATE.tripDays || []).filter(d => d.tripId === trip.id);
 
         STATE.expenses = (STATE.expenses || []).filter(e => e.tripId !== trip.id);
         STATE.activities = (STATE.activities || []).filter(a => a.tripId !== trip.id);
         STATE.photos = (STATE.photos || []).filter(p => p.tripId !== trip.id);
+        STATE.tripDays = (STATE.tripDays || []).filter(d => d.tripId !== trip.id);
 
         if (!STATE.archivedTrips) STATE.archivedTrips = [];
         STATE.archivedTrips.push(trip);
@@ -1857,7 +1938,7 @@ function renderBudgets() {
     `;
 
     div.innerHTML = `
-        <div class="ai-page-header" style="background: linear-gradient(135deg, rgba(52, 199, 89, 0.1), rgba(0, 113, 227, 0.1));">
+        <div class="ai-page-header">
             <h1 style="background: linear-gradient(135deg, #34c759, #007aff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Budgets</h1>
             <p>Set spending limits and track them across trips.</p>
         </div>
@@ -1926,20 +2007,19 @@ function renderCollections() {
     const archived = STATE.archivedTrips || [];
 
     div.innerHTML = `
-        <div class="ai-page-header" style="background: linear-gradient(135deg, rgba(255, 149, 0, 0.1), rgba(255, 59, 48, 0.1));">
-            <h1 style="background: linear-gradient(135deg, #ff9500, #ff3b30); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Collections</h1>
+        <div class="ai-page-header">
+            <h1 style="background: linear-gradient(135deg, #ffd60a, #ff9f0a); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Collections</h1>
             <p>Your archived travel memories and trip photos.</p>
         </div>
         
-        <div class="trip-nav glass" style="margin-top: 24px;">
+        <div class="trip-nav glass" style="margin-top: 24px; display: none;">
             <button class="trip-tab active" id="tabArchived">Archived Trips</button>
-            <button class="trip-tab" id="tabPhotos">Trip Photos</button>
         </div>
 
         <div id="colArchived" class="col-tab-content">
             <div class="grid-2" style="margin-top: 16px;">
                 ${archived.length > 0 ? archived.map(t => `
-                    <div class="card glass card-glow-orange" style="display: flex; flex-direction: row; align-items: center; justify-content: space-between; padding: 20px;">
+                    <div class="card glass card-glow-blue" style="display: flex; flex-direction: row; align-items: center; justify-content: space-between; padding: 20px;">
                         <div style="cursor: pointer; flex: 1;" onclick="window.viewArchivedDetails('${t.id}')">
                             <h3 style="margin: 0;">${t.name}</h3>
                             <p style="color: var(--text-secondary); margin: 4px 0 0 0;">${t.country} · ${t.expenses?.length || 0} expenses</p>
@@ -1961,56 +2041,12 @@ function renderCollections() {
                 `}
             </div>
         </div>
-
-        <div id="colPhotos" class="col-tab-content" style="display: none;">
-            <div class="card glass card-glow-purple" style="margin-top: 16px; padding: 24px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
-                    <h2 class="card-title" style="margin: 0;">Photo Gallery</h2>
-                    <select id="photoFilter" class="glass-input" style="width: 200px;">
-                        <option value="">All Trips</option>
-                        ${STATE.trips.map(t => `<option value="${t.id}">${t.name}</option>`).join('')}
-                    </select>
-                </div>
-                <div id="galleryGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 16px;"></div>
-            </div>
-        </div>
     `;
 
     setTimeout(() => {
-        const tabArchived = div.querySelector('#tabArchived');
-        const tabPhotos = div.querySelector('#tabPhotos');
-        const contentArchived = div.querySelector('#colArchived');
-        const contentPhotos = div.querySelector('#colPhotos');
-
-        tabArchived.onclick = () => {
-            tabArchived.classList.add('active');
-            tabPhotos.classList.remove('active');
-            contentArchived.style.display = 'block';
-            contentPhotos.style.display = 'none';
+        div.querySelector('#tabArchived').onclick = () => {
+            // Keep active
         };
-
-        tabPhotos.onclick = () => {
-            tabPhotos.classList.add('active');
-            tabArchived.classList.remove('active');
-            contentArchived.style.display = 'none';
-            contentPhotos.style.display = 'block';
-            renderGallery();
-        };
-
-        function renderGallery() {
-            const grid = div.querySelector('#galleryGrid');
-            const filterId = div.querySelector('#photoFilter').value;
-            const photos = (STATE.photos || []).filter(p => !filterId || p.tripId === filterId);
-            
-            grid.innerHTML = photos.length > 0 ? photos.map(p => `
-                <div style="position: relative; aspect-ratio: 1; border-radius: 12px; overflow: hidden; border: 1px solid var(--glass-border);">
-                    <img src="${p.url}" style="width: 100%; height: 100%; object-fit: cover;">
-                    <button onclick="window.deletePhoto('${p.id}')" style="position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,0.5); color: white; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 12px;">&times;</button>
-                </div>
-            `).join('') : '<p style="grid-column: 1/-1; text-align: center; color: var(--text-secondary); padding: 40px;">No photos found for this trip.</p>';
-        }
-
-        div.querySelector('#photoFilter').onchange = renderGallery;
     }, 0);
 
     return div;
@@ -2028,72 +2064,136 @@ window.deletePhoto = (id) => {
 };
 
 window.viewArchivedDetails = (id) => {
-    const trip = STATE.archivedTrips.find(t => t.id === id);
+    navigate('archived-detail', { id });
+};
+
+function renderArchivedTripDetail(tripId) {
+    const trip = STATE.archivedTrips.find(t => t.id === tripId);
+    const div = document.createElement('div');
+    if (!trip) {
+        div.innerHTML = `<p style="padding: 40px; text-align: center;">Trip not found.</p>`;
+        return div;
+    }
+
+    let totalSpent = 0;
+    (trip.expenses || []).forEach(e => totalSpent += parseFloat(e.euroValue || 0));
+
+    div.innerHTML = `
+        <div class="trip-banner" style="background: rgba(255,255,255,0.9); border: 1.5px solid var(--accent-blue);">
+            <div style="font-size: 0.9rem; color: rgba(0, 45, 91, 0.5); font-weight: 800; text-transform: uppercase; letter-spacing: 0.25em; margin-bottom: 12px;">Memories of</div>
+            <h1 class="trip-banner-title" style="font-size: 4rem; margin: 0; letter-spacing: -0.06em; color: var(--accent-blue); font-weight: 800; line-height: 0.95;">${trip.name}</h1>
+            <div style="display: flex; gap: 24px; margin-top: 20px; color: #1a3a5f; font-weight: 700;">
+                <span style="display: flex; align-items: center; gap: 8px;">📍 ${trip.country}</span>
+                <span style="display: flex; align-items: center; gap: 8px;">📅 ${trip.tripDays?.length || 0} Days</span>
+                <span style="display: flex; align-items: center; gap: 8px;">💰 €${totalSpent.toFixed(0)} spent</span>
+            </div>
+            <div style="position: absolute; right: 40px; bottom: 40px; display: flex; gap: 12px;">
+                <button class="btn" style="background: #002d5b; color: #ffffff; padding: 12px 24px; border-radius: 16px; font-weight: 800;" onclick="window.restoreTrip('${trip.id}')">Restore Trip</button>
+                <button class="btn" style="background: rgba(0,0,0,0.05); color: #002d5b; padding: 12px 24px; border-radius: 16px; font-weight: 800; border: 1px solid rgba(0,0,0,0.1);" onclick="navigate('collections')">Back</button>
+            </div>
+        </div>
+
+        <div class="day-blocks-grid">
+            ${(trip.tripDays || []).sort((a,b) => a.dayNumber - b.dayNumber).map(day => {
+                const dayPhotos = day.photos || [];
+                const dayDocs = day.tickets || [];
+                
+                return `
+                    <div class="day-block" onclick="window.openDayDetailView('${trip.id}', '${day.id}', true)">
+                        <div class="day-block-header">
+                            <span class="day-block-number" style="color: #007aff;">Day ${day.dayNumber}</span>
+                            <div style="display: flex; gap: 8px;">
+                                ${dayPhotos.length > 0 ? `<span style="font-size: 0.8rem; color: rgba(0, 45, 91, 0.4);">📸 ${dayPhotos.length}</span>` : ''}
+                                ${dayDocs.length > 0 ? `<span style="font-size: 0.8rem; color: rgba(0, 45, 91, 0.4);">🎫 ${dayDocs.length}</span>` : ''}
+                            </div>
+                        </div>
+                        <h3 class="day-block-name" style="color: var(--accent-blue); font-size: 1.6rem; font-weight: 800;">${day.name || `Day ${day.dayNumber}`}</h3>
+                        
+                        <div class="mini-gallery-grid">
+                            ${dayPhotos.slice(0, 3).map(p => `
+                                <div class="mini-gallery-item" style="border: 1px solid rgba(0,0,0,0.05);">
+                                    <img src="${p}">
+                                </div>
+                            `).join('')}
+                            ${dayPhotos.length === 0 ? `
+                                <div style="grid-column: 1/-1; height: 60px; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.02); border-radius: 12px; border: 1px dashed rgba(0,0,0,0.1); color: rgba(0, 45, 91, 0.3); font-size: 0.8rem;">
+                                    No memories captured
+                                </div>
+                            ` : ''}
+                        </div>
+                        
+                        ${dayDocs.length > 0 ? `
+                            <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                                ${dayDocs.slice(0, 2).map(d => `
+                                    <div class="mini-doc-tag" style="background: rgba(255,255,255,0.4); border: 1px solid rgba(0,0,0,0.05); color: #1a3a5f;">📄 ${d.name}</div>
+                                `).join('')}
+                                ${dayDocs.length > 2 ? `<div class="mini-doc-tag" style="background: rgba(255,255,255,0.4); border: 1px solid rgba(0,0,0,0.05); color: #1a3a5f;">+${dayDocs.length - 2}</div>` : ''}
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            }).join('')}
+        </div>
+    `;
+
+    return div;
+}
+
+window.openDayDetailView = (tripId, dayId, isArchived = false) => {
+    const trip = isArchived 
+        ? STATE.archivedTrips.find(t => t.id === tripId)
+        : STATE.trips.find(t => t.id === tripId);
+        
     if (!trip) return;
+    const day = (trip.tripDays || (STATE.tripDays || []).filter(d => d.tripId === trip.id)).find(d => d.id === dayId);
+    if (!day) return;
 
     const modal = document.createElement('div');
     modal.className = 'modal-overlay';
     modal.style.display = 'flex';
-    
-    let totalSpent = 0;
-    (trip.expenses || []).forEach(e => totalSpent += parseFloat(e.euroValue || 0));
+    modal.style.backdropFilter = 'blur(20px)';
 
     modal.innerHTML = `
-        <div class="card glass card-glow-orange" style="width: 600px; max-height: 80vh; overflow-y: auto; padding: 32px; border-radius: 24px; animation: modalPop 0.4s cubic-bezier(0.16, 1, 0.3, 1);">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px;">
+        <div class="card glass" style="width: 550px; height: 550px; overflow-y: auto; padding: 40px; border-radius: 40px; animation: modalPop 0.4s cubic-bezier(0.16, 1, 0.3, 1); border: 1.5px solid #002d5b; background: rgba(255,255,255,0.9); box-shadow: 0 40px 100px rgba(0,0,0,0.3); box-sizing: border-box; display: flex; flex-direction: column;">
+            <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 24px; flex-shrink: 0;">
                 <div>
-                    <h2 style="margin: 0; font-size: 1.8rem; background: linear-gradient(135deg, #ff9500, #ff3b30); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">${trip.name}</h2>
-                    <p style="color: var(--text-secondary); margin-top: 4px;">Archived Adventure · ${trip.country}</p>
+                    <div style="font-size: 0.8rem; color: #007aff; font-weight: 800; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 4px;">${isArchived ? 'Archived' : 'Trip'} Day ${day.dayNumber}</div>
+                    <h2 style="margin: 0; font-size: 2.2rem; letter-spacing: -0.06em; color: #002d5b; font-weight: 800;">${day.name || `Day ${day.dayNumber}`}</h2>
                 </div>
-                <button onclick="this.closest('.modal-overlay').remove()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-secondary);">&times;</button>
+                <button onclick="this.closest('.modal-overlay').remove()" style="background: rgba(0,0,0,0.05); border: none; font-size: 1.2rem; cursor: pointer; color: #002d5b; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: all 0.2s; border: 1px solid rgba(0,0,0,0.1);">&times;</button>
             </div>
-
-            <div class="grid-2" style="margin-bottom: 24px;">
-                <div class="card glass card-glow-green" style="padding: 16px; text-align: center; border-radius: 16px;">
-                    <div style="font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 800; letter-spacing: 0.05em; margin-bottom: 4px;">Total Spent</div>
-                    <div style="font-size: 1.5rem; font-weight: 800; color: #34c759;">€${totalSpent.toFixed(2)}</div>
-                </div>
-                <div class="card glass card-glow-blue" style="padding: 16px; text-align: center; border-radius: 16px;">
-                    <div style="font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 800; letter-spacing: 0.05em; margin-bottom: 4px;">Expenses</div>
-                    <div style="font-size: 1.5rem; font-weight: 800; color: var(--accent-blue);">${trip.expenses?.length || 0}</div>
-                </div>
-            </div>
-
-            <div style="margin-bottom: 24px;">
-                <h3 style="font-size: 1.1rem; margin-bottom: 12px; font-weight: 700;">Itinerary Summary</h3>
-                ${trip.itinerary?.length > 0 ? `
-                    <div style="display: flex; flex-direction: column; gap: 10px;">
-                        ${trip.itinerary.map(a => `
-                            <div style="display: flex; justify-content: space-between; padding: 12px; background: rgba(255,255,255,0.03); border-radius: 12px; border: 1px solid var(--glass-border);">
-                                <span style="font-weight: 600;">📍 ${a.name || 'Activity'}</span>
-                                <span style="color: var(--text-secondary); font-size: 0.85rem;">${a.date || ''}</span>
+            
+            <div style="display: flex; flex-direction: column; gap: 24px; flex: 1; overflow-y: auto; padding-right: 8px; margin-bottom: 24px;" class="custom-scrollbar">
+                <div style="background: rgba(0,0,0,0.02); padding: 24px; border-radius: 28px; border: 1px solid rgba(0,0,0,0.05);">
+                    <h3 style="margin: 0 0 20px 0; font-size: 1.2rem; font-weight: 800; color: #002d5b; letter-spacing: -0.02em;">📸 Memories</h3>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 14px;">
+                        ${(day.photos || []).map(p => `
+                            <div style="aspect-ratio: 1; border-radius: 16px; overflow: hidden; border: 1.5px solid rgba(0,0,0,0.05);">
+                                <img src="${p}" style="width: 100%; height: 100%; object-fit: cover;">
                             </div>
                         `).join('')}
                     </div>
-                ` : '<p style="color: var(--text-secondary); text-align: center; padding: 20px; background: rgba(255,255,255,0.02); border-radius: 12px;">No itinerary saved for this trip.</p>'}
-            </div>
+                </div>
 
-            <div style="margin-bottom: 24px;">
-                <h3 style="font-size: 1.1rem; margin-bottom: 12px; font-weight: 700;">Recent Expenses</h3>
-                <table class="liquid-table" style="width: 100%;">
-                    <thead>
-                        <tr>
-                            <th style="text-align: left;">Label</th>
-                            <th style="text-align: right;">Amount</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${(trip.expenses || []).slice(0, 5).map(e => `
-                            <tr>
-                                <td style="font-weight: 500;">${e.label}</td>
-                                <td style="text-align: right; font-weight: 700;">€${parseFloat(e.euroValue || 0).toFixed(2)}</td>
-                            </tr>
+                <div style="background: rgba(0,0,0,0.02); padding: 24px; border-radius: 28px; border: 1px solid rgba(0,0,0,0.05);">
+                    <h3 style="margin: 0 0 20px 0; font-size: 1.2rem; font-weight: 800; color: #002d5b; letter-spacing: -0.02em;">🎫 Documents</h3>
+                    <div style="display: flex; flex-direction: column; gap: 12px;">
+                        ${(day.tickets || []).map(t => `
+                            <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(255,255,255,0.4); padding: 16px 20px; border-radius: 20px; border: 1px solid rgba(0,0,0,0.05);">
+                                <div style="display: flex; align-items: center; gap: 16px;">
+                                    <div style="font-size: 1.5rem;">📄</div>
+                                    <div>
+                                        <div style="font-weight: 700; font-size: 1rem; color: #002d5b;">${t.name}</div>
+                                        <div style="font-size: 0.8rem; color: rgba(0, 45, 91, 0.5); font-weight: 600;">Saved on ${new Date(t.date).toLocaleDateString()}</div>
+                                    </div>
+                                </div>
+                            </div>
                         `).join('')}
-                    </tbody>
-                </table>
+                    </div>
+                </div>
             </div>
-
-            <button class="btn btn-liquid-glass" style="width: 100%;" onclick="this.closest('.modal-overlay').remove()">Close Overview</button>
+            
+            <button class="btn" style="width: 100%; background: #002d5b; padding: 16px; border-radius: 20px; font-weight: 800; color: #ffffff;" onclick="this.closest('.modal-overlay').remove()">Dismiss</button>
         </div>
     `;
     document.body.appendChild(modal);
@@ -2103,29 +2203,41 @@ window.restoreTrip = (id) => {
     const tripIndex = STATE.archivedTrips.findIndex(t => t.id === id);
     if (tripIndex === -1) return;
 
-    if (confirm("Restore this trip to active trips?")) {
-        const trip = STATE.archivedTrips.splice(tripIndex, 1)[0];
-        
-        // Restore related data
-        if (trip.expenses) STATE.expenses = [...(STATE.expenses || []), ...trip.expenses];
-        if (trip.itinerary) STATE.activities = [...(STATE.activities || []), ...trip.itinerary];
-        if (trip.photos) STATE.photos = [...(STATE.photos || []), ...trip.photos];
+    window.showConfirmModal({
+        title: "Restore Trip?",
+        message: "This will move the trip and all its memories back to your active trips.",
+        confirmText: "Restore",
+        onConfirm: () => {
+            const trip = STATE.archivedTrips.splice(tripIndex, 1)[0];
+            
+            // Restore related data
+            if (trip.expenses) STATE.expenses = [...(STATE.expenses || []), ...trip.expenses];
+            if (trip.itinerary) STATE.activities = [...(STATE.activities || []), ...trip.itinerary];
+            if (trip.photos) STATE.photos = [...(STATE.photos || []), ...trip.photos];
+            if (trip.tripDays) STATE.tripDays = [...(STATE.tripDays || []), ...trip.tripDays];
 
-        STATE.trips.push({ id: trip.id, name: trip.name, country: trip.country });
-        STATE.activeTripId = trip.id;
-        
-        saveState();
-        updateTripSelector();
-        navigate('home');
-    }
+            STATE.trips.push({ id: trip.id, name: trip.name, country: trip.country });
+            STATE.activeTripId = trip.id;
+            
+            saveState();
+            updateTripSelector();
+            navigate('home');
+        }
+    });
 };
 
 window.deleteArchivedTrip = (id) => {
-    if (confirm("Permanently delete this archived trip and all its data? This cannot be undone.")) {
-        STATE.archivedTrips = (STATE.archivedTrips || []).filter(t => t.id !== id);
-        saveState();
-        navigate('collections');
-    }
+    window.showConfirmModal({
+        title: "Delete Archived Trip?",
+        message: "Permanently delete this archived trip and all its data? This cannot be undone.",
+        confirmText: "Delete Trip",
+        requireInput: "DELETE",
+        onConfirm: () => {
+            STATE.archivedTrips = (STATE.archivedTrips || []).filter(t => t.id !== id);
+            saveState();
+            navigate('collections');
+        }
+    });
 };
 
 // --- Page: Plan with AI ---
@@ -2136,7 +2248,7 @@ function renderAI() {
 
     if (!activeTrip) {
         div.innerHTML = `
-            <div class="ai-page-header" style="background: linear-gradient(135deg, rgba(0, 113, 227, 0.1), rgba(155, 89, 182, 0.1));">
+            <div class="ai-page-header">
                 <h1 style="background:linear-gradient(135deg,var(--accent-blue),#9b59b6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Plan with AI ✦</h1>
                 <p>Your AI-powered travel planner</p>
             </div>
@@ -2162,13 +2274,17 @@ function renderAI() {
     ];
 
     div.innerHTML = `
-        <div class="ai-page-header" style="background: linear-gradient(135deg, rgba(0, 113, 227, 0.1), rgba(155, 89, 182, 0.1));">
+        <div class="ai-page-header">
             <h1 style="background:linear-gradient(135deg,var(--accent-blue),#9b59b6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Plan with AI ✦</h1>
             <p>Planning your trip to <strong>${tripCountry}</strong></p>
         </div>
 
         <div style="display:grid;grid-template-columns:360px 1fr;gap:24px;margin-top:24px;margin-bottom:32px;">
             <div style="display:flex;flex-direction:column;gap:16px;">
+                <div class="card glass card-glow-blue" style="padding:20px;">
+                    <h2 class="card-title" style="font-size:0.85rem;text-transform:uppercase;color:var(--accent-blue);margin-bottom:14px;letter-spacing:0.05em;">⏱️ Duration</h2>
+                    <input type="number" id="aiDays" class="glass-input" style="width:100%; font-size:1rem;" min="1" max="14" value="3" placeholder="Number of days">
+                </div>
                 <div class="card glass card-glow-blue" style="padding:20px;">
                     <h2 class="card-title" style="font-size:0.85rem;text-transform:uppercase;color:var(--accent-blue);margin-bottom:14px;letter-spacing:0.05em;">🧭 Travel Style</h2>
                     <div style="display:flex;flex-wrap:wrap;gap:8px;">
@@ -2182,13 +2298,13 @@ function renderAI() {
                 <button id="generateBtn" class="ai-generate-btn" style="width:100%; padding: 16px; border-radius: 16px; font-weight: 800;">✦ Generate Itinerary</button>
             </div>
 
-            <div style="position:sticky;top:80px;height:500px;">
+            <div style="position:sticky;top:80px;height:650px;">
                 <div class="card glass card-glow-blue" style="padding:0;overflow:hidden;height:100%;border-radius:24px;position:relative;border:1px solid var(--glass-border);">
                     <div id="aiLeafletMap" style="width:100%;height:100%;"></div>
                 </div>
             </div>
         </div>
-        <div id="itineraryOutput"></div>`;
+        <div id="itineraryOutput" style="margin-bottom: 40px;"></div>`;
 
     setTimeout(() => {
         div.querySelectorAll('.tourism-tag').forEach(btn => btn.onclick = () => btn.classList.toggle('selected'));
@@ -2198,15 +2314,113 @@ function renderAI() {
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(leafletMap);
         }
 
-        div.querySelector('#generateBtn').onclick = () => {
+        let generatedItinerary = null;
+
+        div.querySelector('#generateBtn').onclick = async () => {
+            const days = parseInt(document.getElementById('aiDays').value) || 3;
+            const styles = Array.from(div.querySelectorAll('.tourism-tag.selected')).map(b => b.dataset.type);
+            const context = document.getElementById('aiExtraContext').value;
+            
             const outputEl = div.querySelector('#itineraryOutput');
-            outputEl.innerHTML = `<div class="ai-loading-spinner"><div class="spinner-ring"></div><div style="font-weight:600; margin-top: 16px;">Consulting AI...</div></div>`;
-            setTimeout(() => {
-                outputEl.innerHTML = `<div class="card glass card-glow-purple" style="padding:40px; text-align:center; border-radius: 24px;">
-                    <h3 style="margin-bottom: 12px;">Itinerary Generation</h3>
-                    <p style="color: var(--text-secondary); line-height: 1.6;">Full itinerary for ${tripCountry} would be generated here using Gemini API.</p>
+            outputEl.innerHTML = `<div class="ai-loading-spinner" style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding:60px;"><div class="spinner-ring" style="width:40px; height:40px; border:3px solid rgba(255,255,255,0.1); border-top-color:var(--accent-blue); border-radius:50%; animation:spin 1s linear infinite;"></div><div style="font-weight:600; margin-top: 24px; font-size: 1.2rem;">Consulting AI...</div></div>`;
+            
+            try {
+                const response = await fetch('/api/generate_itinerary', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        destination: tripCountry,
+                        days: days,
+                        styles: styles,
+                        context: context
+                    })
+                });
+                
+                const result = await response.json();
+                if (result.error) throw new Error(result.error);
+                
+                generatedItinerary = result.itinerary;
+                
+                // Render Day Boxes
+                let html = `<div style="display:flex; flex-direction:column; gap:24px;">`;
+                generatedItinerary.forEach(day => {
+                    html += `
+                        <div class="card glass" style="padding: 24px; border-left: 4px solid var(--accent-blue);">
+                            <h3 style="margin-top:0; color:var(--accent-blue); font-size:1.2rem; margin-bottom: 8px;">Day ${day.day}: ${day.title}</h3>
+                            <p style="color:var(--text-secondary); margin-bottom: 20px; line-height: 1.5;">${day.description}</p>
+                            <div style="display:flex; flex-direction:column; gap:12px;">
+                                ${day.activities.map(act => `
+                                    <div style="background:rgba(255,255,255,0.05); padding:16px; border-radius:12px; border:1px solid var(--glass-border);">
+                                        <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+                                            <strong style="color:white; font-size: 1.05rem;">${act.time} - ${act.title}</strong>
+                                            <span style="font-size:0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; background:rgba(0,122,255,0.15); color:var(--accent-blue); padding:4px 8px; border-radius:6px;">${act.type}</span>
+                                        </div>
+                                        <div style="font-size:0.9rem; color:var(--text-secondary); line-height: 1.5;">${act.description}</div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `;
+                });
+                html += `
+                    <button id="acceptPlanBtn" class="btn" style="margin-top: 16px; background: var(--accent-blue); color: white; padding: 16px; font-size: 1.1rem; width: 100%; border-radius: 16px; font-weight: 700; box-shadow: 0 10px 20px rgba(0,122,255,0.2);">Accept Plan & Add to Trip</button>
                 </div>`;
-            }, 1500);
+                
+                outputEl.innerHTML = html;
+                
+                // Bind accept button
+                document.getElementById('acceptPlanBtn').onclick = () => {
+                    if (!generatedItinerary) return;
+                    
+                    if (!STATE.tripDays) STATE.tripDays = [];
+                    if (!STATE.activities) STATE.activities = [];
+                    
+                    const today = new Date();
+                    
+                    generatedItinerary.forEach((dayInfo, idx) => {
+                        const dayDate = new Date(today);
+                        dayDate.setDate(today.getDate() + idx);
+                        const dateStr = dayDate.toISOString().split('T')[0];
+                        
+                        // Create Day
+                        const dayId = 'day_' + Date.now() + '_' + idx;
+                        STATE.tripDays.push({
+                            id: dayId,
+                            tripId: activeTrip.id,
+                            date: dateStr,
+                            photos: [],
+                            tickets: []
+                        });
+                        
+                        // Create Activities
+                        dayInfo.activities.forEach((act, aIdx) => {
+                            STATE.activities.push({
+                                id: 'act_' + Date.now() + '_' + idx + '_' + aIdx,
+                                tripId: activeTrip.id,
+                                dayId: dayId,
+                                title: act.title,
+                                description: act.description,
+                                type: act.type,
+                                isBooked: false
+                            });
+                        });
+                    });
+                    
+                    saveState();
+                    
+                    const btn = document.getElementById('acceptPlanBtn');
+                    btn.innerHTML = '✓ Plan Accepted! (View in Home)';
+                    btn.style.background = '#34c759';
+                    btn.style.boxShadow = '0 10px 20px rgba(52,199,89,0.2)';
+                    btn.disabled = true;
+                };
+
+            } catch (err) {
+                outputEl.innerHTML = `<div class="card glass danger-card" style="padding:24px; text-align:center;">
+                    <h3 style="color:#ff3b30; margin-top:0;">Error Generating Plan</h3>
+                    <p style="color:var(--text-secondary);">${err.message}</p>
+                </div>`;
+            }
         };
     }, 0);
 
@@ -2250,7 +2464,7 @@ function renderSettlement() {
 
         if (!trip) {
             return `
-                <div class="ai-page-header" style="background: linear-gradient(135deg, rgba(72, 209, 232, 0.1), rgba(0, 113, 227, 0.1));">
+                <div class="ai-page-header">
                     <h1 style="background: linear-gradient(135deg, #48d1e8, #007aff); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Settlements</h1>
                     <p>Calculate who owes what across your adventures.</p>
                 </div>
@@ -2321,7 +2535,7 @@ function renderSettlement() {
         const maxGlobalBalance = Math.max(...Object.values(globalBalances).map(Math.abs), 1);
 
         return `
-            <div class="ai-page-header" style="background: linear-gradient(135deg, rgba(72, 209, 232, 0.1), rgba(0, 113, 227, 0.1));">
+            <div class="ai-page-header">
                 <h1 style="background: linear-gradient(135deg, #48d1e8, #007aff); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Settlements</h1>
                 <p>Calculate who owes what and settle up fairly.</p>
             </div>
@@ -2415,8 +2629,8 @@ function renderSettlement() {
 function renderFriends() {
     const div = document.createElement('div');
     div.innerHTML = `
-        <div class="ai-page-header" style="background: linear-gradient(135deg, rgba(0, 122, 255, 0.1), rgba(88, 86, 214, 0.1));">
-            <h1 style="background: linear-gradient(135deg, #007aff, #5856d6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Friends</h1>
+        <div class="ai-page-header">
+            <h1 style="background: linear-gradient(135deg, #5856d6, #ff2d55); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Friends</h1>
             <p>Connect with other travelers and share your itineraries</p>
         </div>
         <div class="grid-2" style="margin-top: 24px;">
@@ -2455,20 +2669,20 @@ window.showConfirmModal = (options = {}) => {
     modal.style.backdropFilter = 'blur(15px)';
 
     modal.innerHTML = `
-        <div class="confirm-modal-square animation-pop">
-            <h2 class="confirm-title">${title}</h2>
-            <p class="confirm-msg">${message}</p>
+        <div class="card glass shadow-2xl animation-pop" style="width: 400px; padding: 40px; border-radius: 40px; border: 1.5px solid #002d5b; background: rgba(255,255,255,0.95); display: flex; flex-direction: column; align-items: center; text-align: center;">
+            <h2 style="margin: 0 0 12px 0; font-size: 2rem; color: #002d5b; font-weight: 800; letter-spacing: -0.04em;">${title}</h2>
+            <p style="color: #1a3a5f; margin: 0 0 24px 0; font-size: 1rem; font-weight: 600; line-height: 1.5;">${message}</p>
             
             ${requireInput ? `
-                <div style="width: 100%;">
-                    <p style="font-size: 0.75rem; color: #ff3b30; font-weight: 800; text-transform: uppercase; margin-bottom: 12px; letter-spacing: 0.05em;">Type "${requireInput}" to confirm</p>
-                    <input type="text" id="safetyInput" class="confirm-input" placeholder="••••">
+                <div style="width: 100%; margin-bottom: 24px;">
+                    <p style="font-size: 0.75rem; color: #ff3b30; font-weight: 800; text-transform: uppercase; margin-bottom: 12px; letter-spacing: 0.1em;">Type "${requireInput}" to confirm</p>
+                    <input type="text" id="safetyInput" class="glass-input" placeholder="Type here..." style="width: 100%; text-align: center; border: 1.5px solid rgba(0, 45, 91, 0.1); background: rgba(0,0,0,0.03); color: #002d5b; font-weight: 700;">
                 </div>
             ` : ''}
 
-            <div style="width: 100%; display: flex; flex-direction: column; gap: 12px; margin-top: 12px;">
-                <button class="btn-confirm-danger" id="modalConfirmBtn" ${requireInput ? 'disabled' : ''}>${confirmText}</button>
-                <button class="btn" style="background: transparent; color: rgba(255,255,255,0.5); font-weight: 600; padding: 12px;" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+            <div style="width: 100%; display: flex; flex-direction: column; gap: 12px;">
+                <button class="btn" id="modalConfirmBtn" style="width: 100%; background: #ff3b30; color: #ffffff; padding: 16px; border-radius: 20px; font-weight: 800; transition: all 0.3s; ${requireInput ? 'opacity: 0.3; cursor: not-allowed;' : ''}" ${requireInput ? 'disabled' : ''}>${confirmText}</button>
+                <button class="btn" style="width: 100%; background: rgba(0,0,0,0.05); color: #002d5b; padding: 16px; border-radius: 20px; font-weight: 700;" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
             </div>
         </div>
     `;
@@ -2481,10 +2695,15 @@ window.showConfirmModal = (options = {}) => {
     if (requireInput && input) {
         input.focus();
         input.oninput = (e) => {
-            confirmBtn.disabled = e.target.value !== requireInput;
-            if (e.target.value === requireInput) {
-                confirmBtn.style.boxShadow = '0 15px 35px rgba(255, 59, 48, 0.5)';
+            const isMatch = e.target.value.trim().toUpperCase() === requireInput.toUpperCase();
+            confirmBtn.disabled = !isMatch;
+            if (isMatch) {
+                confirmBtn.style.opacity = '1';
+                confirmBtn.style.cursor = 'pointer';
+                confirmBtn.style.boxShadow = '0 15px 35px rgba(255, 59, 48, 0.4)';
             } else {
+                confirmBtn.style.opacity = '0.3';
+                confirmBtn.style.cursor = 'not-allowed';
                 confirmBtn.style.boxShadow = 'none';
             }
         };
@@ -2497,11 +2716,18 @@ window.showConfirmModal = (options = {}) => {
 };
 
 window.deleteDay = (dayId) => {
-    if (!confirm("Delete this day and all its photos?")) return;
-    STATE.tripDays = STATE.tripDays.filter(d => d.id !== dayId);
-    saveState();
-    document.querySelector('.modal-overlay').remove();
-    navigate('home');
+    window.showConfirmModal({
+        title: "Delete Day?",
+        message: "This will permanently remove this day and all its captured memories.",
+        confirmText: "Delete Day",
+        onConfirm: () => {
+            STATE.tripDays = STATE.tripDays.filter(d => d.id !== dayId);
+            saveState();
+            const modal = document.querySelector('.modal-overlay');
+            if (modal) modal.remove();
+            navigate('home');
+        }
+    });
 };
 
 window.openAddDayModal = (tripId) => {
@@ -2515,7 +2741,7 @@ window.openAddDayModal = (tripId) => {
     let selectedPhoto = null;
 
     modal.innerHTML = `
-        <div class="card glass" style="width: 420px; height: 420px; padding: 40px; border-radius: 44px; animation: modalPop 0.4s cubic-bezier(0.16, 1, 0.3, 1); border: 1px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.05); box-shadow: 0 40px 100px rgba(0,0,0,0.6); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px; box-sizing: border-box; overflow: hidden;">
+        <div class="card glass" style="width: 440px; height: auto; min-height: 460px; padding: 40px; border-radius: 44px; animation: modalPop 0.4s cubic-bezier(0.16, 1, 0.3, 1); border: 1px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.05); box-shadow: 0 40px 100px rgba(0,0,0,0.6); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px; box-sizing: border-box; overflow: hidden;">
             <div style="text-align: center;">
                 <h2 style="margin: 0; font-size: 2.2rem; letter-spacing: -0.06em; color: #ffffff; background: linear-gradient(135deg, #ffffff, #a2a2a2); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Day ${nextDayNum}</h2>
                 <p style="color: rgba(255,255,255,0.7); margin: 6px 0 0; font-size: 1rem; font-weight: 500;">Capture the beginning.</p>
@@ -2525,19 +2751,19 @@ window.openAddDayModal = (tripId) => {
                 <input type="text" id="dayNameInput" class="glass-input" placeholder="Title (e.g. Tropical Morning 🏝️)" style="width: 100%; text-align: center; background: rgba(255,255,255,0.08); padding: 18px; border-radius: 20px; font-size: 1.1rem; color: #ffffff; border: 1px solid rgba(255,255,255,0.2); box-sizing: border-box;">
                 
                 <div style="width: 100%; display: flex; flex-direction: column; gap: 8px;">
-                    <button id="addPhotoDuringDay" class="btn-liquid-glass" style="width: 100%; padding: 16px; font-weight: 700; border-radius: 20px; font-size: 0.95rem; color: #ffffff; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.03); box-sizing: border-box;">+ Add First Photo</button>
+                    <div id="addPhotoDuringDay" style="width: 100%; height: 140px; border-radius: 24px; border: 2px dashed rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.03); overflow: hidden; cursor: pointer;">
+                        <span style="color: rgba(255,255,255,0.5); font-weight: 500; font-size: 0.9rem;">+ Add Cover Photo</span>
+                    </div>
                     <input type="file" id="photoInputDuringDay" style="display: none;" accept="image/*">
-                    <div id="photoStatus" style="font-size: 0.75rem; color: #34c759; text-align: center; font-weight: 800; height: 14px; opacity: 0; transition: opacity 0.3s; text-transform: uppercase; letter-spacing: 0.05em;">Photo Ready! ✨</div>
                 </div>
-
-                <div style="display: flex; flex-direction: column; gap: 10px; width: 100%;">
-                    <button class="btn" style="width: 100%; background: var(--accent-blue); padding: 18px; font-weight: 800; border-radius: 20px; color: #ffffff; box-shadow: 0 10px 30px rgba(0,113,227,0.4); font-size: 1.1rem; box-sizing: border-box;" id="confirmAddDay">Launch Day</button>
-                    <button class="btn" style="width: 100%; padding: 8px; font-weight: 600; background: transparent; border: none; color: rgba(255,255,255,0.4); font-size: 0.9rem;" onclick="this.closest('.modal-overlay').remove()">Discard</button>
-                </div>
+            </div>
+            
+            <div style="width: 100%; display: flex; flex-direction: column; gap: 12px; margin-top: 8px;">
+                <button id="confirmAddDay" class="btn" style="width: 100%; background: var(--accent-blue); padding: 16px; border-radius: 20px; font-weight: 800; color: #ffffff;">Launch Day</button>
+                <button class="btn" style="width: 100%; background: transparent; color: rgba(255,255,255,0.5); font-weight: 600;" onclick="this.closest('.modal-overlay').remove()">Discard</button>
             </div>
         </div>
     `;
-    
     document.body.appendChild(modal);
     modal.querySelector('#dayNameInput').focus();
     
@@ -2595,34 +2821,34 @@ window.openDayDetail = (dayId) => {
     };
 
     modal.innerHTML = `
-        <div class="card glass" style="width: 550px; height: 550px; overflow-y: auto; padding: 40px; border-radius: 40px; animation: modalPop 0.4s cubic-bezier(0.16, 1, 0.3, 1); border: 1px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.05); box-shadow: 0 40px 100px rgba(0,0,0,0.6); box-sizing: border-box; display: flex; flex-direction: column;">
+        <div class="card glass shadow-2xl animation-pop" style="width: 550px; height: 550px; overflow-y: auto; padding: 40px; border-radius: 40px; border: 1.5px solid #002d5b; background: rgba(255,255,255,0.95); display: flex; flex-direction: column; box-sizing: border-box;">
             <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 24px; flex-shrink: 0;">
                 <div>
-                    <div style="font-size: 0.8rem; color: var(--accent-blue); font-weight: 800; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 4px;">Adventure Day ${day.dayNumber}</div>
+                    <div style="font-size: 0.8rem; color: #007aff; font-weight: 800; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 4px;">Adventure Day ${day.dayNumber}</div>
                     <input type="text" id="editDayName" value="${day.name || `Day ${day.dayNumber}`}" 
-                        style="margin: 0; font-size: 2.2rem; letter-spacing: -0.06em; color: #ffffff; font-weight: 800; background: transparent; border: none; border-bottom: 1px solid rgba(255,255,255,0.1); width: 100%; outline: none; padding: 4px 0;"
+                        style="margin: 0; font-size: 2.2rem; letter-spacing: -0.06em; color: #002d5b; font-weight: 800; background: transparent; border: none; border-bottom: 1.5px solid rgba(0, 45, 91, 0.1); width: 100%; outline: none; padding: 4px 0;"
                         onchange="window.updateDayName('${day.id}', this.value)">
                 </div>
-                <button onclick="this.closest('.modal-overlay').remove()" style="background: rgba(255,255,255,0.1); border: none; font-size: 1.2rem; cursor: pointer; color: #ffffff; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: all 0.2s; border: 1px solid rgba(255,255,255,0.1);">&times;</button>
+                <button onclick="this.closest('.modal-overlay').remove()" style="background: rgba(0,0,0,0.05); border: none; font-size: 1.2rem; cursor: pointer; color: #002d5b; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: all 0.2s; border: 1px solid rgba(0,0,0,0.1);">&times;</button>
             </div>
             
             <div style="display: flex; flex-direction: column; gap: 24px; flex: 1; overflow-y: auto; padding-right: 8px; margin-bottom: 24px;" class="custom-scrollbar">
                 <!-- Photos Section -->
-                <div style="background: rgba(255,255,255,0.03); padding: 24px; border-radius: 28px; border: 1px solid rgba(255,255,255,0.1);">
+                <div style="background: rgba(0,0,0,0.02); padding: 24px; border-radius: 28px; border: 1.5px solid rgba(0, 45, 91, 0.1);">
                     <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
-                        <h3 style="margin: 0; font-size: 1.2rem; font-weight: 800; color: #ffffff; letter-spacing: -0.02em;">📸 Memories</h3>
-                        <button class="btn btn-small btn-liquid-glass" style="padding: 10px 20px; border-radius: 14px; font-weight: 700; color: #ffffff;" onclick="document.getElementById('dayPhotoInput').click()">Upload Photo</button>
+                        <h3 style="margin: 0; font-size: 1.2rem; font-weight: 800; color: #002d5b; letter-spacing: -0.02em;">📸 Memories</h3>
+                        <button class="btn btn-small" style="background: #002d5b; color: #ffffff; padding: 10px 20px; border-radius: 14px; font-weight: 700;" onclick="document.getElementById('dayPhotoInput').click()">Upload Photo</button>
                         <input type="file" id="dayPhotoInput" style="display: none;" accept="image/*">
                     </div>
                     
                     <div id="dayGallery" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 14px;">
                         ${day.photos.length > 0 ? day.photos.map((p, i) => `
-                            <div style="aspect-ratio: 1; border-radius: 16px; overflow: hidden; position: relative; border: 1.5px solid rgba(255,255,255,0.1);">
+                            <div style="aspect-ratio: 1; border-radius: 16px; overflow: hidden; position: relative; border: 1.5px solid rgba(0, 45, 91, 0.1);">
                                 <img src="${p}" style="width: 100%; height: 100%; object-fit: cover;">
-                                <button onclick="window.deleteDayPhoto('${day.id}', ${i})" style="position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,0.6); backdrop-filter: blur(8px); color: white; border: none; border-radius: 50%; width: 26px; height: 26px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1rem; border: 1px solid rgba(255,255,255,0.2);">&times;</button>
+                                <button onclick="window.deleteDayPhoto('${day.id}', ${i})" style="position: absolute; top: 8px; right: 8px; background: rgba(255,255,255,0.8); backdrop-filter: blur(8px); color: #ff3b30; border: none; border-radius: 50%; width: 26px; height: 26px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1rem; border: 1px solid rgba(255,59,48,0.2);">&times;</button>
                             </div>
                         `).join('') : `
-                            <div style="grid-column: 1 / -1; text-align: center; padding: 40px 20px; border: 2px dashed rgba(255,255,255,0.1); border-radius: 20px; color: rgba(255,255,255,0.5);">
+                            <div style="grid-column: 1 / -1; text-align: center; padding: 40px 20px; border: 2px dashed rgba(0, 45, 91, 0.1); border-radius: 20px; color: #1a3a5f;">
                                 <p style="margin: 0; font-size: 0.95rem; font-weight: 500;">No photos yet.</p>
                             </div>
                         `}
@@ -2630,32 +2856,32 @@ window.openDayDetail = (dayId) => {
                 </div>
 
                 <!-- Tickets Section -->
-                <div style="background: rgba(255,255,255,0.03); padding: 24px; border-radius: 28px; border: 1px solid rgba(255,255,255,0.1);">
+                <div style="background: rgba(0,0,0,0.02); padding: 24px; border-radius: 28px; border: 1.5px solid rgba(0, 45, 91, 0.1);">
                     <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
-                        <h3 style="margin: 0; font-size: 1.2rem; font-weight: 800; color: #ffffff; letter-spacing: -0.02em;">🎫 Documents</h3>
-                        <button class="btn btn-small btn-liquid-glass" style="padding: 10px 20px; border-radius: 14px; font-weight: 700; color: #ffffff;" id="addTicketBtn">+ Add</button>
+                        <h3 style="margin: 0; font-size: 1.2rem; font-weight: 800; color: #002d5b; letter-spacing: -0.02em;">🎫 Documents</h3>
+                        <button class="btn btn-small" style="background: #002d5b; color: #ffffff; padding: 10px 20px; border-radius: 14px; font-weight: 700;" id="addTicketBtn">+ Add</button>
                     </div>
                     <div id="ticketList" style="display: flex; flex-direction: column; gap: 12px;">
                         ${(day.tickets || []).map((t, i) => `
-                            <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(255,255,255,0.04); padding: 16px 20px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1);">
+                            <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(255,255,255,0.8); padding: 16px 20px; border-radius: 20px; border: 1.5px solid rgba(0, 45, 91, 0.1);">
                                 <div style="display: flex; align-items: center; gap: 16px;">
                                     <div style="font-size: 1.5rem;">📄</div>
                                     <div>
-                                        <div style="font-weight: 700; font-size: 1rem; color: #ffffff;">${t.name}</div>
-                                        <div style="font-size: 0.8rem; color: rgba(255,255,255,0.5); font-weight: 600;">Saved on ${new Date(t.date).toLocaleDateString()}</div>
+                                        <div style="font-weight: 700; font-size: 1rem; color: #002d5b;">${t.name}</div>
+                                        <div style="font-size: 0.8rem; color: #1a3a5f; font-weight: 600;">Saved on ${new Date(t.date).toLocaleDateString()}</div>
                                     </div>
                                 </div>
-                                <button onclick="window.deleteTicket('${day.id}', ${i})" style="background:rgba(255,59,48,0.15); border:none; color:#ff3b30; width: 36px; height: 36px; border-radius: 50%; cursor:pointer; font-size: 1.2rem; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255,59,48,0.2); transition: all 0.2s;">&times;</button>
+                                <button onclick="window.deleteTicket('${day.id}', ${i})" style="background:rgba(255,59,48,0.1); border:none; color:#ff3b30; width: 36px; height: 36px; border-radius: 50%; cursor:pointer; font-size: 1.2rem; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255,59,48,0.2); transition: all 0.2s;">&times;</button>
                             </div>
                         `).join('')}
-                        ${!day.tickets || day.tickets.length === 0 ? '<p style="color: rgba(255,255,255,0.5); text-align: center; font-size: 0.95rem; padding: 30px; border: 2px dashed rgba(255,255,255,0.1); border-radius: 20px; font-weight: 500;">No documents stored.</p>' : ''}
+                        ${!day.tickets || day.tickets.length === 0 ? '<p style="color: #1a3a5f; text-align: center; font-size: 0.95rem; padding: 30px; border: 2px dashed rgba(0, 45, 91, 0.1); border-radius: 20px; font-weight: 500;">No documents stored.</p>' : ''}
                     </div>
                 </div>
             </div>
             
-            <div style="display: flex; gap: 16px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 24px; flex-shrink: 0;">
+            <div style="display: flex; gap: 16px; border-top: 1.5px solid rgba(0, 45, 91, 0.1); padding-top: 24px; flex-shrink: 0;">
                 <button class="btn" style="flex: 1; padding: 16px; border-radius: 20px; color: #ff3b30; font-weight: 700; background: rgba(255,59,48,0.1); border: 1px solid rgba(255,59,48,0.2);" onclick="window.deleteDay('${day.id}')">Delete Day</button>
-                <button class="btn" style="flex: 2; background: var(--accent-blue); padding: 16px; border-radius: 20px; font-weight: 800; color: #ffffff; box-shadow: 0 10px 25px rgba(0,113,227,0.3);" onclick="this.closest('.modal-overlay').remove()">Dismiss</button>
+                <button class="btn" style="flex: 2; background: #002d5b; padding: 16px; border-radius: 20px; font-weight: 800; color: #ffffff;" onclick="this.closest('.modal-overlay').remove()">Dismiss</button>
             </div>
         </div>
     `;
