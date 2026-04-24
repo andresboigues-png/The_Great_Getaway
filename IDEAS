@@ -1,0 +1,19 @@
+
+
+The Feature: The app calculates the total debt between friends in a shared trip.
+The UI: A clean "Settlement" dashboard showing: "Andrés owes Maria 45€" with a "Settle Up" button.
+
+
++
+
+
+
+"Revert the codebase back to the 'Savepoint: Original dashboard with new New Trip modal' commit" - For saved version 1.0
+
+"Return to the snapshot 2d5f92b" To version 2.0
+
+"Please revert the entire codebase to the state at commit 8ef83e6. This is the final polished version with square Liquid Glass modals, standardized input widths, and inline day name editing." Version 3.0
+
+Savepoint: V1.0 AI Planner successfully migrated to main with backend security
+
+"Please revert the entire codebase to the state at commit cf7c7e0. This is the Final Working AI Planner V2.0 with Gemini 2.5 Flash and no travel styles." Version 4.0

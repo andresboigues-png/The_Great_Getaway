@@ -64,72 +64,101 @@ const COUNTRIES = [
     "Venezuela", "Vietnam", "Yemen", "Zambia", "Zimbabwe"
 ].sort();
 
-// Quotes & Images Dictionary
+// Quotes & Images Dictionary — curated per-country pairs (image always matches quote)
 const TRAVEL_DATA = {};
 (() => {
-    const aestheticQuotes = [
-        "To lose yourself in {country} is to find yourself.",
-        "{country}: A beautiful mosaic of culture and landscapes.",
-        "Every sunset in {country} tells a different story.",
-        "There is a quiet kind of magic waiting in {country}.",
-        "{country} isn't just a place, it's a feeling.",
-        "Wandering the timeless roads of {country}.",
-        "Discovering the hidden soul of {country}.",
-        "Let the beauty of {country} transform you.",
-        "{country} – where memories are painted in vivid colors.",
-        "Embracing the breathtaking spirit of {country}.",
-        "{country}: A love letter written in nature and history.",
-        "The rhythm of {country} beats in every traveler's heart.",
-        "Finding peace in the untamed beauty of {country}.",
-        "{country} is a canvas, and your journey is the art.",
-        "Breathe in the magic. Breathe in {country}."
-    ];
+    // Each entry: image matches the vibe of the quote
+    const CURATED = {
+        'France':        { i: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34', q: 'France: where every cobblestone tells a love story.' },
+        'Italy':         { i: 'https://images.unsplash.com/photo-1523906834658-6e24ef2386f9', q: 'Italy is a dream that keeps returning for the rest of your life.' },
+        'Japan':         { i: 'https://images.unsplash.com/photo-1528360983277-13d401cdc186', q: 'Japan: a thousand years of beauty distilled into one perfect moment.' },
+        'Spain':         { i: 'https://images.unsplash.com/photo-1543783207-ec64e4d95325', q: 'In Spain, life is lived at full volume under a blazing sun.' },
+        'Greece':        { i: 'https://images.unsplash.com/photo-1533105079780-92b9be482077', q: 'Greece: where the sea meets legend and every sunset is eternal.' },
+        'Thailand':      { i: 'https://images.unsplash.com/photo-1552465011-b4e21bf6e79a', q: 'Thailand smiles at you from every golden temple and turquoise shore.' },
+        'Indonesia':     { i: 'https://images.unsplash.com/photo-1537996194471-e657df975ab4', q: 'Indonesia: a thousand islands, a thousand ways to lose yourself.' },
+        'Australia':     { i: 'https://images.unsplash.com/photo-1506973035872-a4ec16b8e8d9', q: 'Australia: where the outback whispers ancient stories and the ocean roars.' },
+        'Brazil':        { i: 'https://images.unsplash.com/photo-1483729558449-99ef09a8c325', q: 'Brazil beats with a rhythm the whole world can feel.' },
+        'Mexico':        { i: 'https://images.unsplash.com/photo-1512813195386-6cf811ad3542', q: 'Mexico: color, heat, and history woven into one glorious tapestry.' },
+        'India':         { i: 'https://images.unsplash.com/photo-1524492412937-b28074a5d7da', q: 'India: a civilization so vast and vivid it transforms every traveler.' },
+        'Morocco':       { i: 'https://images.unsplash.com/photo-1489749798305-4fea3ae63d43', q: 'Morocco is a fever dream of color, spice, and desert gold.' },
+        'Turkey':        { i: 'https://images.unsplash.com/photo-1541432901042-2d8bd64b4a9b', q: 'Turkey: where East meets West in a swirl of minarets and bazaars.' },
+        'Egypt':         { i: 'https://images.unsplash.com/photo-1539650116574-8efeb43e2750', q: 'Egypt: the cradle of civilization, still cradling your wonder.' },
+        'Portugal':      { i: 'https://images.unsplash.com/photo-1555881400-74d7acaacd8b', q: 'Portugal whispers of explorers and fado on every Atlantic breeze.' },
+        'Peru':          { i: 'https://images.unsplash.com/photo-1526392060635-9d6019884377', q: 'Peru: ancient mountains rise to meet the clouds that touch the stars.' },
+        'New Zealand':   { i: 'https://images.unsplash.com/photo-1507699622108-4be3abd695ad', q: 'New Zealand: where the land looks like it was sculpted by the gods.' },
+        'Iceland':       { i: 'https://images.unsplash.com/photo-1476610182048-b716b8518aae', q: 'Iceland: fire, ice, and auroras that make you believe in magic.' },
+        'Norway':        { i: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4', q: 'Norway: fjords carved from the earth as if the planet was proud of itself.' },
+        'Switzerland':   { i: 'https://images.unsplash.com/photo-1530122037265-a5f1f91d3b99', q: 'Switzerland: peaks so perfect you wonder if they are painted on.' },
+        'Canada':        { i: 'https://images.unsplash.com/photo-1501854140801-50d01698950b', q: 'Canada: wilderness so vast and pure, silence becomes the loudest sound.' },
+        'USA':           { i: 'https://images.unsplash.com/photo-1449824913935-59a10b8d2000', q: 'America: a landscape so diverse, every road trip is its own epic.' },
+        'UK':            { i: 'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad', q: 'Britain: history, green hills, and the smell of rain on old stone.' },
+        'Germany':       { i: 'https://images.unsplash.com/photo-1467269204594-9661b134dd2b', q: 'Germany: fairy-tale castles rising above misty autumn forests.' },
+        'Netherlands':   { i: 'https://images.unsplash.com/photo-1534351590666-13e3e96b5902', q: 'The Netherlands: tulip fields, canals, and a quiet beautiful life.' },
+        'Austria':       { i: 'https://images.unsplash.com/photo-1516550135131-d1d84e1f48c8', q: 'Austria: where the Alps frame every view like a masterpiece.' },
+        'Croatia':       { i: 'https://images.unsplash.com/photo-1555990538-1860574b1d2e', q: 'Croatia: Adriatic blue and ancient walls glowing gold in the dusk.' },
+        'Vietnam':       { i: 'https://images.unsplash.com/photo-1528127269322-539801943592', q: 'Vietnam: a thousand shades of green and a culture built on resilience.' },
+        'Nepal':         { i: 'https://images.unsplash.com/photo-1544735716-392fe2489ffa', q: 'Nepal: the Himalayas remind you how small and how free you are.' },
+        'UAE':           { i: 'https://images.unsplash.com/photo-1512453979798-5ea266f8880c', q: 'Dubai dreams in glass and gold against the amber desert sky.' },
+        'South Africa':  { i: 'https://images.unsplash.com/photo-1516026672322-bc52d61a55d5', q: 'South Africa: safari sunrises, ocean cliffs, and the wildest sky.' },
+        'Kenya':         { i: 'https://images.unsplash.com/photo-1547471080-7cc2caa01a7e', q: 'Kenya: the savannah stretches to the horizon, wild and alive.' },
+        'Argentina':     { i: 'https://images.unsplash.com/photo-1505118380757-91f5f5632de0', q: 'Argentina: Patagonian peaks, tango, and a passion for life.' },
+        'Colombia':      { i: 'https://images.unsplash.com/photo-1536599018102-9f803c140fc1', q: 'Colombia: flowers, coffee mountains, and a warmth that never fades.' },
+        'Cuba':          { i: 'https://images.unsplash.com/photo-1501683978810-81a7e5c98fb3', q: 'Cuba: salsa music and classic cars on streets that time forgot.' },
+        'Singapore':     { i: 'https://images.unsplash.com/photo-1525625293386-3f8f99389edd', q: 'Singapore: a garden city merging the ultramodern with the lush.' },
+        'Philippines':   { i: 'https://images.unsplash.com/photo-1518509562904-e7ef99cdcc86', q: 'The Philippines: islands of crystal water and pure joy.' },
+        'Jordan':        { i: 'https://images.unsplash.com/photo-1548786811-dd6e453ccca7', q: 'Petra rises from the rose-red cliffs: a wonder you must see to believe.' },
+        'Sri Lanka':     { i: 'https://images.unsplash.com/photo-1586774601099-f7b5f8ba5e70', q: 'Sri Lanka: emerald tea hills and lotus temples by turquoise shores.' },
+        'Maldives':      { i: 'https://images.unsplash.com/photo-1514282401047-d79a71a590e8', q: 'The Maldives: floating above the clearest water on earth.' },
+        'Barbados':      { i: 'https://images.unsplash.com/photo-1544551763-46a013bb70d5', q: 'Barbados: coral-pink sands and waves warm enough to stay forever.' },
+        'Jamaica':       { i: 'https://images.unsplash.com/photo-1518509562904-e7ef99cdcc86', q: 'Jamaica: reggae on the breeze and sea as blue as a dream.' },
+        'Iceland':       { i: 'https://images.unsplash.com/photo-1476610182048-b716b8518aae', q: 'Iceland: fire and ice and auroras that make you believe in magic.' },
+        'Mongolia':      { i: 'https://images.unsplash.com/photo-1469474968028-56623f02e42e', q: 'Mongolia: endless steppe and sky, where freedom has no edges.' },
+        'Namibia':       { i: 'https://images.unsplash.com/photo-1509773896068-7fd415d91e2e', q: 'Namibia: dunes the color of fire beneath a star-drenched sky.' },
+        'Bhutan':        { i: 'https://images.unsplash.com/photo-1544735716-392fe2489ffa', q: 'Bhutan: the last Himalayan kingdom, where happiness is policy.' },
+        'Kuwait':        { i: 'https://images.unsplash.com/photo-1512453979798-5ea266f8880c', q: 'Kuwait: a modern oasis where the desert meets ambition.' },
+        'Saudi Arabia':  { i: 'https://images.unsplash.com/photo-1509773896068-7fd415d91e2e', q: 'Saudi Arabia: ancient dunes hiding a world on the cusp of wonder.' },
+        'Chile':         { i: 'https://images.unsplash.com/photo-1467278661495-cd27b3d08b97', q: 'Chile: from the driest desert to glaciers at the end of the world.' },
+        'Cambodia':      { i: 'https://images.unsplash.com/photo-1508009603885-50cf7c579365', q: 'Angkor Wat rises from the jungle like a prayer carved in stone.' },
+        'Czech Republic':{ i: 'https://images.unsplash.com/photo-1519677100203-a0e668c92439', q: 'Prague rises from its cobblestones like a city from a storybook.' },
+        'Malaysia':      { i: 'https://images.unsplash.com/photo-1596422846543-75c6fc197f07', q: 'Malaysia: where jungle canopy meets glittering city skylines.' },
+    };
 
-    // Curated high-quality, neutral landscape images (mountains, oceans, forests, deserts)
-    const landscapeImages = [
-        "https://images.unsplash.com/photo-1470071131384-001b85755536",
-        "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b",
-        "https://images.unsplash.com/photo-1501854140801-50d01698950b",
-        "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800",
-        "https://images.unsplash.com/photo-1447752875215-b2761acb3c5d",
-        "https://images.unsplash.com/photo-1433086966358-54859d0ed716",
-        "https://images.unsplash.com/photo-1465146344425-f00d5f5c8f07",
-        "https://images.unsplash.com/photo-1472214103451-9374bd1c798e",
-        "https://images.unsplash.com/photo-1473448912268-2022ce9509d8",
-        "https://images.unsplash.com/photo-1493246507139-91e8fad9978e",
-        "https://images.unsplash.com/photo-1518182170546-076616fd61fd",
-        "https://images.unsplash.com/photo-1506744038136-46273834b3fb",
-        "https://images.unsplash.com/photo-1469474968028-56623f02e42e",
-        "https://images.unsplash.com/photo-1441974231531-c6227db76b6e",
-        "https://images.unsplash.com/photo-1507525428034-b723cf961d3e",
-        "https://images.unsplash.com/photo-1494500764479-0c8f2919a3d4",
-        "https://images.unsplash.com/photo-1475924156734-496f6cac6ec1",
-        "https://images.unsplash.com/photo-1426604966848-d7adac402bff",
-        "https://images.unsplash.com/photo-1454496522488-7a8e488e8606",
-        "https://images.unsplash.com/photo-1503220317375-aaad61436b1b",
-        "https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1",
-        "https://images.unsplash.com/photo-1530789253388-582c481c54b0",
-        "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee"
-    ].map(url => url + "?auto=format&fit=crop&w=1600&q=80");
+    // Fallback pool for unlisted countries — image and quote are always paired together
+    const fallbackPairs = [
+        { i: 'https://images.unsplash.com/photo-1470071131384-001b85755536', q: 'To lose yourself here is to find yourself.' },
+        { i: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b', q: 'A place where every path leads somewhere beautiful.' },
+        { i: 'https://images.unsplash.com/photo-1501854140801-50d01698950b', q: 'Finding peace in the untamed beauty of this land.' },
+        { i: 'https://images.unsplash.com/photo-1469474968028-56623f02e42e', q: 'Every sunrise here tells a different story.' },
+        { i: 'https://images.unsplash.com/photo-1447752875215-b2761acb3c5d', q: 'A canvas where your journey becomes the art.' },
+        { i: 'https://images.unsplash.com/photo-1433086966358-54859d0ed716', q: 'Wandering roads that feel ancient and alive.' },
+        { i: 'https://images.unsplash.com/photo-1465146344425-f00d5f5c8f07', q: 'Discovering a hidden soul in every corner.' },
+        { i: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e', q: 'Where the ocean meets the horizon and time stands still.' },
+        { i: 'https://images.unsplash.com/photo-1473448912268-2022ce9509d8', q: 'Memories painted in vivid, unforgettable colors.' },
+        { i: 'https://images.unsplash.com/photo-1493246507139-91e8fad9978e', q: 'Embracing the breathtaking spirit of this place.' },
+        { i: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb', q: 'The soul of this place beats in every traveler\'s heart.' },
+        { i: 'https://images.unsplash.com/photo-1454496522488-7a8e488e8606', q: 'Adventure is not a destination — it\'s a way of seeing.' },
+    ].map(p => ({ i: p.i + '?auto=format&fit=crop&w=1600&q=80', q: p.q }));
 
     COUNTRIES.forEach((country) => {
-        let hash = 0;
-        for (let i = 0; i < country.length; i++) {
-            hash = country.charCodeAt(i) + ((hash << 5) - hash);
-        }
-        const imgIndex = Math.abs(hash) % landscapeImages.length;
-        const quoteIndex = Math.abs(hash) % aestheticQuotes.length;
-        
         const key = country.toLowerCase().split(' ')[0];
-        TRAVEL_DATA[key] = {
-            quotes: [aestheticQuotes[quoteIndex].replace(/\{country\}/g, country)],
-            images: [landscapeImages[imgIndex]]
-        };
+        if (CURATED[country]) {
+            const c = CURATED[country];
+            TRAVEL_DATA[key] = {
+                quotes: [c.q],
+                images: [c.i + '?auto=format&fit=crop&w=1600&q=80']
+            };
+        } else {
+            // Hash to a fallback PAIR — same index ensures image always matches quote
+            let hash = 0;
+            for (let i = 0; i < country.length; i++) hash = country.charCodeAt(i) + ((hash << 5) - hash);
+            const pair = fallbackPairs[Math.abs(hash) % fallbackPairs.length];
+            TRAVEL_DATA[key] = { quotes: [pair.q], images: [pair.i] };
+        }
     });
 
     TRAVEL_DATA['default'] = {
-        quotes: ["Travel is life."],
-        images: [landscapeImages[0]]
+        quotes: ['The world is a book, and those who do not travel read only one page.'],
+        images: ['https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80']
     };
 })();
 
@@ -164,7 +193,11 @@ function loadState() {
     // Ensure new fields exist
     if (!STATE.savedFormats) STATE.savedFormats = [];
     if (!STATE.tripDays) STATE.tripDays = [];
-    STATE.tripDays.forEach(d => { if (!d.tickets) d.tickets = []; });
+    STATE.tripDays.forEach(d => {
+        if (!d.tickets) d.tickets = [];
+        if (d.notes === undefined) d.notes = '';
+        if (!d.plan) d.plan = { morning: '', afternoon: '', evening: '' };
+    });
 
     // Ensure activeTripId is valid
     if (STATE.trips.length > 0 && (!STATE.activeTripId || !STATE.trips.find(t => t.id === STATE.activeTripId))) {
@@ -293,19 +326,17 @@ function renderHome() {
     let displayQuotes = [];
 
     if (!activeTrip) {
-        // Collect all unique images and quotes for a global slideshow
-        const allImages = new Set();
-        const allQuotes = new Set();
-        Object.values(TRAVEL_DATA).forEach(d => {
-            if (d.images) d.images.forEach(img => allImages.add(img));
-            if (d.quotes) d.quotes.forEach(q => allQuotes.add(q));
-        });
-        displayImages = Array.from(allImages).sort(() => Math.random() - 0.5);
-        displayQuotes = Array.from(allQuotes).sort(() => Math.random() - 0.5);
-        
-        // Fallback just in case
-        if (displayImages.length === 0) displayImages = ["https://images.unsplash.com/photo-1469854523086-cc02fe5d8800"];
-        if (displayQuotes.length === 0) displayQuotes = ["Travel is life."];
+        // Shuffle image+quote PAIRS together so they always stay in sync
+        const pairs = Object.values(TRAVEL_DATA)
+            .filter(d => d.images && d.images[0] && d.quotes && d.quotes[0])
+            .map(d => ({ image: d.images[0], quote: d.quotes[0] }));
+        pairs.sort(() => Math.random() - 0.5);
+        displayImages = pairs.map(p => p.image);
+        displayQuotes = pairs.map(p => p.quote);
+        if (displayImages.length === 0) {
+            displayImages = ['https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80'];
+            displayQuotes = ['The world is a book, and those who do not travel read only one page.'];
+        }
     } else {
         const tripCountry = activeTrip.country || '';
         const countryKey = tripCountry.toLowerCase().split(' ')[0] || 'default';
@@ -2303,7 +2334,7 @@ function renderAI() {
             <div style="display:grid;grid-template-columns:380px 1fr;gap:24px;margin-bottom:32px;">
 
                 <!-- Left: Controls -->
-                <div style="display:flex;flex-direction:column;gap:16px;">
+                <div id="aiControlsPanel" style="display:flex;flex-direction:column;gap:16px;">
                     <!-- AI Engine badge -->
                     <div class="card glass" style="padding:18px;border-color:rgba(155,89,182,0.3);">
                         <h2 class="card-title" style="font-size:0.85rem;text-transform:uppercase;letter-spacing:0.07em;color:#9b59b6;margin-bottom:8px;">✦ AI Engine</h2>
@@ -2408,7 +2439,7 @@ function renderAI() {
                     <div style="font-size:0.78rem;color:var(--text-secondary);background:var(--glass-bg);border:1px solid var(--glass-border);padding:5px 14px;border-radius:980px;">✦ AI-Generated</div>
                 </div>
                 <div id="itineraryDays" style="display:flex;flex-direction:column;gap:16px;"></div>
-                <button id="acceptPlanBtn" class="btn" style="margin-top: 24px; background: var(--accent-blue); color: white; padding: 16px; font-size: 1.1rem; width: 100%; border-radius: 16px; font-weight: 700; box-shadow: 0 10px 20px rgba(0,122,255,0.2); cursor: pointer;">Accept Plan & Add to Trip</button>`;
+                <div style="display:flex;gap:12px;margin-top:24px;"><button id="acceptPlanBtn" class="btn" style="flex:2;background:var(--accent-blue);color:white;padding:16px;font-size:1.1rem;border-radius:16px;font-weight:700;box-shadow:0 10px 20px rgba(0,122,255,0.2);cursor:pointer;">Accept Plan & Add to Trip</button><button id="regenerateBtn" class="btn" style="flex:1;background:rgba(255,255,255,0.08);color:white;padding:16px;font-size:1rem;border-radius:16px;font-weight:700;border:1px solid var(--glass-border);cursor:pointer;">✦ Regenerate</button></div>`;
 
             const daysContainer = outputEl.querySelector('#itineraryDays');
             const dayDivs = [];
@@ -2527,14 +2558,22 @@ function renderAI() {
                 generatedItinerary.forEach((dayInfo, idx) => {
                     const dayDate = dayInfo.date || (new Date().toISOString().split('T')[0]);
                     
-                    // Create Day
+                    // Create Day with plan pre-filled from AI
                     const dayId = 'day_' + Date.now() + '_' + idx;
                     STATE.tripDays.push({
                         id: dayId,
                         tripId: activeTrip.id,
                         date: dayDate,
+                        name: dayInfo.title || `Day ${idx + 1}`,
+                        dayNumber: idx + 1,
                         photos: [],
-                        tickets: []
+                        tickets: [],
+                        notes: '',
+                        plan: {
+                            morning:   dayInfo.morning   ? `${dayInfo.morning.activity}: ${dayInfo.morning.description}`   : '',
+                            afternoon: dayInfo.afternoon ? `${dayInfo.afternoon.activity}: ${dayInfo.afternoon.description}` : '',
+                            evening:   dayInfo.evening   ? `${dayInfo.evening.activity}: ${dayInfo.evening.description}`   : ''
+                        }
                     });
                     
                     // Create Activities
@@ -2566,6 +2605,13 @@ function renderAI() {
                 btn.style.background = '#34c759';
                 btn.style.boxShadow = '0 10px 20px rgba(52,199,89,0.2)';
                 btn.disabled = true;
+            };
+
+            document.getElementById('regenerateBtn').onclick = () => {
+                outputEl.innerHTML = '';
+                const controls = div.querySelector('#aiControlsPanel');
+                if (controls) controls.scrollIntoView({ behavior: 'smooth' });
+                else window.scrollTo({ top: 0, behavior: 'smooth' });
             };
 
         });
@@ -2945,7 +2991,9 @@ window.openAddDayModal = (tripId) => {
             name: name,
             dayNumber: nextDayNum,
             photos: selectedPhoto ? [selectedPhoto] : [],
-            tickets: []
+            tickets: [],
+            notes: '',
+            plan: { morning: '', afternoon: '', evening: '' }
         };
         STATE.tripDays.push(newDay);
         saveState();
@@ -3026,6 +3074,33 @@ window.openDayDetail = (dayId) => {
                         ${!day.tickets || day.tickets.length === 0 ? '<p style="color: #1a3a5f; text-align: center; font-size: 0.95rem; padding: 30px; border: 2px dashed rgba(0, 45, 91, 0.1); border-radius: 20px; font-weight: 500;">No documents stored.</p>' : ''}
                     </div>
                 </div>
+
+                <!-- Notes Section -->
+                <div style="background: rgba(0,0,0,0.02); padding: 24px; border-radius: 28px; border: 1.5px solid rgba(0, 45, 91, 0.1);">
+                    <h3 style="margin: 0 0 14px; font-size: 1.2rem; font-weight: 800; color: #002d5b; letter-spacing: -0.02em;">📝 Notes</h3>
+                    <textarea id="dayNotesInput" style="width: 100%; min-height: 90px; background: rgba(255,255,255,0.8); border: 1.5px solid rgba(0,45,91,0.1); border-radius: 16px; padding: 14px; font-size: 0.95rem; color: #002d5b; resize: vertical; font-family: inherit; outline: none; box-sizing: border-box; line-height: 1.5;" placeholder="Write what happened today…">${day.notes || ''}</textarea>
+                    <button id="saveNotesBtn" class="btn btn-small" style="margin-top: 10px; background: #002d5b; color: #ffffff; padding: 10px 20px; border-radius: 14px; font-weight: 700;">Save Notes</button>
+                </div>
+
+                <!-- Plans Section -->
+                <div style="background: rgba(0,0,0,0.02); padding: 24px; border-radius: 28px; border: 1.5px solid rgba(0, 45, 91, 0.1);">
+                    <h3 style="margin: 0 0 14px; font-size: 1.2rem; font-weight: 800; color: #002d5b; letter-spacing: -0.02em;">🗓️ Plans</h3>
+                    <div style="display: flex; flex-direction: column; gap: 10px;">
+                        <div style="padding: 14px; background: rgba(0,113,227,0.05); border-radius: 14px; border: 1px solid rgba(0,113,227,0.12);">
+                            <div style="font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: #007aff; margin-bottom: 6px;">🌅 Morning</div>
+                            <textarea id="planMorning" style="width: 100%; background: transparent; border: none; outline: none; font-size: 0.9rem; color: #002d5b; resize: none; font-family: inherit; box-sizing: border-box;" rows="2" placeholder="Morning plans…">${(day.plan && day.plan.morning) || ''}</textarea>
+                        </div>
+                        <div style="padding: 14px; background: rgba(255,149,0,0.05); border-radius: 14px; border: 1px solid rgba(255,149,0,0.12);">
+                            <div style="font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: #ff9500; margin-bottom: 6px;">☀️ Afternoon</div>
+                            <textarea id="planAfternoon" style="width: 100%; background: transparent; border: none; outline: none; font-size: 0.9rem; color: #002d5b; resize: none; font-family: inherit; box-sizing: border-box;" rows="2" placeholder="Afternoon plans…">${(day.plan && day.plan.afternoon) || ''}</textarea>
+                        </div>
+                        <div style="padding: 14px; background: rgba(88,86,214,0.05); border-radius: 14px; border: 1px solid rgba(88,86,214,0.12);">
+                            <div style="font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: #5856d6; margin-bottom: 6px;">🌙 Evening</div>
+                            <textarea id="planEvening" style="width: 100%; background: transparent; border: none; outline: none; font-size: 0.9rem; color: #002d5b; resize: none; font-family: inherit; box-sizing: border-box;" rows="2" placeholder="Evening plans…">${(day.plan && day.plan.evening) || ''}</textarea>
+                        </div>
+                    </div>
+                    <button id="savePlanBtn" class="btn btn-small" style="margin-top: 10px; background: #5856d6; color: #ffffff; padding: 10px 20px; border-radius: 14px; font-weight: 700;">Save Plans</button>
+                </div>
             </div>
             
             <div style="display: flex; gap: 16px; border-top: 1.5px solid rgba(0, 45, 91, 0.1); padding-top: 24px; flex-shrink: 0;">
@@ -3045,6 +3120,25 @@ window.openDayDetail = (dayId) => {
             saveState();
             refreshModal();
         }
+    };
+
+    modal.querySelector('#saveNotesBtn').onclick = () => {
+        day.notes = modal.querySelector('#dayNotesInput').value;
+        saveState();
+        const btn = modal.querySelector('#saveNotesBtn');
+        btn.textContent = 'Saved ✓'; btn.style.background = '#34c759';
+        setTimeout(() => { btn.textContent = 'Save Notes'; btn.style.background = '#002d5b'; }, 2000);
+    };
+
+    modal.querySelector('#savePlanBtn').onclick = () => {
+        if (!day.plan) day.plan = {};
+        day.plan.morning   = modal.querySelector('#planMorning').value;
+        day.plan.afternoon = modal.querySelector('#planAfternoon').value;
+        day.plan.evening   = modal.querySelector('#planEvening').value;
+        saveState();
+        const btn = modal.querySelector('#savePlanBtn');
+        btn.textContent = 'Saved ✓'; btn.style.background = '#34c759';
+        setTimeout(() => { btn.textContent = 'Save Plans'; btn.style.background = '#5856d6'; }, 2000);
     };
 
     modal.querySelector('#dayPhotoInput').onchange = (e) => {
