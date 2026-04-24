@@ -136,7 +136,6 @@ def generate_itinerary():
     num_days = data.get("numDays", 3)
     date_from = data.get("dateFrom", "")
     date_to = data.get("dateTo", "")
-    styles = data.get("styles", [])
     context = data.get("context", "")
 
     api_key = os.getenv("GEMINI_API_KEY")
@@ -145,7 +144,6 @@ def generate_itinerary():
 
     prompt = f"""
     You are an expert travel planner. Create a detailed {num_days}-day itinerary for {destination} from {date_from} to {date_to}.
-    Travel style preferences: {', '.join(styles) if styles else 'general tourism'}.
     Additional context: {context}
 
     CRITICAL INSTRUCTION: You MUST return ONLY valid JSON. Do not wrap the JSON in markdown blocks.
@@ -168,7 +166,7 @@ def generate_itinerary():
     """
 
     try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
         headers = {"Content-Type": "application/json"}
         payload = {
             "contents": [{"parts": [{"text": prompt}]}],
