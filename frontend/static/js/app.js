@@ -2320,7 +2320,11 @@ function renderAI() {
         setTimeout(() => {
             if (typeof L !== 'undefined') {
                 const m = L.map('emptyMap', { zoomControl: false, attributionControl: false }).setView([20, 0], 2);
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(m);
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+                    subdomains: 'abcd',
+                    maxZoom: 20
+                }).addTo(m);
             }
         }, 0);
         return div;
@@ -2409,7 +2413,11 @@ function renderAI() {
         if (typeof L !== 'undefined') {
             if (leafletMap) { leafletMap.remove(); leafletMap = null; }
             leafletMap = L.map('aiLeafletMap', { zoomControl: true, attributionControl: false }).setView([20, 0], 2);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18 }).addTo(leafletMap);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+                subdomains: 'abcd',
+                maxZoom: 20
+            }).addTo(leafletMap);
             // Geocode the country to center the map
             fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(tripCountry)}&format=json&limit=1`)
                 .then(r => r.json()).then(data => {
