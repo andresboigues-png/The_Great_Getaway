@@ -165,30 +165,48 @@ def generate_itinerary():
     ]
     """
 
-    try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
-        headers = {"Content-Type": "application/json"}
-        payload = {
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {
-                "temperature": 0.7,
-                "responseMimeType": "application/json"
+    # gemini-flash-latest is the safest fallback as it always points to the current stable version
+    models = ["gemini-2.5-flash", "gemini-flash-latest"]
+    result_text = None
+    last_error = None
+
+    for model in models:
+        try:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+            headers = {"Content-Type": "application/json"}
+            payload = {
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {
+                    "temperature": 0.7,
+                    "responseMimeType": "application/json"
+                }
             }
-        }
-        
-        resp = requests.post(url, headers=headers, json=payload)
-        resp.raise_for_status()
-        
-        result = resp.json()
-        raw_text = result.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "[]")
-        
-        # Clean up any potential markdown formatting
-        raw_text = raw_text.strip()
-        if raw_text.startswith("```json"):
-            raw_text = raw_text[7:]
-        if raw_text.endswith("```"):
-            raw_text = raw_text[:-3]
             
+            resp = requests.post(url, headers=headers, json=payload, timeout=30)
+            resp.raise_for_status()
+            
+            result = resp.json()
+            result_text = result.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "[]")
+            if result_text:
+                break
+        except Exception as e:
+            last_error = str(e)
+            print(f"Model {model} failed: {e}")
+            continue
+
+    if not result_text:
+        return jsonify({"error": f"AI Generation failed after trying multiple models. Last error: {last_error}"}), 500
+
+    raw_text = result_text
+        
+    # Clean up any potential markdown formatting
+    raw_text = raw_text.strip()
+    if raw_text.startswith("```json"):
+        raw_text = raw_text[7:]
+    if raw_text.endswith("```"):
+        raw_text = raw_text[:-3]
+        
+    try:
         itinerary = json.loads(raw_text.strip())
         return jsonify({"status": "success", "itinerary": itinerary})
     except Exception as e:

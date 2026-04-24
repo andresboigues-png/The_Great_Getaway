@@ -326,7 +326,7 @@ function renderHome() {
     let displayQuotes = [];
 
     if (!activeTrip) {
-        // Shuffle image+quote PAIRS together so they always stay in sync
+        // Shuffled slideshow for when NO trip is selected
         const pairs = Object.values(TRAVEL_DATA)
             .filter(d => d.images && d.images[0] && d.quotes && d.quotes[0])
             .map(d => ({ image: d.images[0], quote: d.quotes[0] }));
@@ -338,28 +338,16 @@ function renderHome() {
             displayQuotes = ['The world is a book, and those who do not travel read only one page.'];
         }
     } else {
+        // STATIC single image and quote for the ACTIVE country
         const tripCountry = activeTrip.country || '';
         const countryKey = tripCountry.toLowerCase().split(' ')[0] || 'default';
         const data = TRAVEL_DATA[countryKey] || TRAVEL_DATA['default'];
-        displayImages = [...(data.images || [])];
-        displayQuotes = [...(data.quotes || [])];
-    }
-
-    if (activeTrip && STATE.tripDays) {
-        const dayPhotos = STATE.tripDays
-            .filter(d => d.tripId === activeTrip.id)
-            .flatMap(d => d.photos || []);
-        
-        if (dayPhotos.length > 0) {
-            displayImages = [...dayPhotos, ...displayImages];
-            for (let i = 0; i < dayPhotos.length; i++) {
-                displayQuotes.unshift("Capturing moments from your journey.");
-            }
-        }
+        displayImages = [data.images[0]];
+        displayQuotes = [data.quotes[0]];
     }
 
     const showNextImageAndQuote = () => {
-        if (displayImages.length === 0) return;
+        if (displayImages.length <= 1) return; // No need to cycle if only 1 image
         currentPhotoIdx = (currentPhotoIdx + 1) % displayImages.length;
         const imgEl = div.querySelector('#homeHeroImg');
         const quoteEl = div.querySelector('#homeQuote');
@@ -436,7 +424,8 @@ function renderHome() {
         </div>
     `;
 
-    dashboardInterval = setInterval(showNextImageAndQuote, 6000);
+    // No interval for active trips - keep it simple and aesthetic
+
 
     // Trip Days Section
     const daysContainer = document.createElement('div');
@@ -2222,6 +2211,33 @@ window.openDayDetailView = (tripId, dayId, isArchived = false) => {
                         `).join('')}
                     </div>
                 </div>
+
+                <!-- Notes Section (Archived View) -->
+                <div style="background: rgba(0,0,0,0.02); padding: 24px; border-radius: 28px; border: 1.5px solid rgba(0, 45, 91, 0.1);">
+                    <h3 style="margin: 0 0 14px; font-size: 1.2rem; font-weight: 800; color: #002d5b; letter-spacing: -0.02em;">📝 Notes</h3>
+                    <div style="background: rgba(255,255,255,0.8); border-radius: 16px; padding: 14px; font-size: 0.95rem; color: #002d5b; line-height: 1.5; min-height: 40px;">
+                        ${day.notes || '<span style="color: rgba(0,45,91,0.3);">No notes recorded.</span>'}
+                    </div>
+                </div>
+
+                <!-- Plans Section (Archived View) -->
+                <div style="background: rgba(0,0,0,0.02); padding: 24px; border-radius: 28px; border: 1.5px solid rgba(0, 45, 91, 0.1);">
+                    <h3 style="margin: 0 0 14px; font-size: 1.2rem; font-weight: 800; color: #002d5b; letter-spacing: -0.02em;">🗓️ Plans</h3>
+                    <div style="display: flex; flex-direction: column; gap: 10px;">
+                        <div style="padding: 14px; background: rgba(0,113,227,0.05); border-radius: 14px; border: 1px solid rgba(0,113,227,0.12);">
+                            <div style="font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: #007aff; margin-bottom: 6px;">🌅 Morning</div>
+                            <div style="font-size: 0.9rem; color: #002d5b;">${(day.plan && day.plan.morning) || '---'}</div>
+                        </div>
+                        <div style="padding: 14px; background: rgba(255,149,0,0.05); border-radius: 14px; border: 1px solid rgba(255,149,0,0.12);">
+                            <div style="font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: #ff9500; margin-bottom: 6px;">☀️ Afternoon</div>
+                            <div style="font-size: 0.9rem; color: #002d5b;">${(day.plan && day.plan.afternoon) || '---'}</div>
+                        </div>
+                        <div style="padding: 14px; background: rgba(88,86,214,0.05); border-radius: 14px; border: 1px solid rgba(88,86,214,0.12);">
+                            <div style="font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: #5856d6; margin-bottom: 6px;">🌙 Evening</div>
+                            <div style="font-size: 0.9rem; color: #002d5b;">${(day.plan && day.plan.evening) || '---'}</div>
+                        </div>
+                    </div>
+                </div>
             </div>
             
             <button class="btn" style="width: 100%; background: #002d5b; padding: 16px; border-radius: 20px; font-weight: 800; color: #ffffff;" onclick="this.closest('.modal-overlay').remove()">Dismiss</button>
@@ -2247,7 +2263,14 @@ window.restoreTrip = (id) => {
             if (trip.photos) STATE.photos = [...(STATE.photos || []), ...trip.photos];
             if (trip.tripDays) STATE.tripDays = [...(STATE.tripDays || []), ...trip.tripDays];
 
-            STATE.trips.push({ id: trip.id, name: trip.name, country: trip.country });
+            // Restore trip object (preserving all properties)
+            const restoredTrip = { ...trip };
+            delete restoredTrip.expenses;
+            delete restoredTrip.itinerary;
+            delete restoredTrip.photos;
+            delete restoredTrip.tripDays;
+            
+            STATE.trips.push(restoredTrip);
             STATE.activeTripId = trip.id;
             
             saveState();
