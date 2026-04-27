@@ -124,9 +124,9 @@ window.deleteActiveTrip = () => {
             STATE.expenses = STATE.expenses.filter(e => e.tripId !== trip.id);
             STATE.tripDays = STATE.tripDays.filter(d => d.tripId !== trip.id);
             STATE.activeTripId = STATE.trips.length > 0 ? STATE.trips[0].id : null;
-            saveState();
-            window.updateTripSelector();
-            deleteTrip(trip.id); // Delta: targeted delete on server
+
+            emit('state:changed');               // saveState + updateTripSelector via subscriber
+            deleteTrip(trip.id);                 // server delta still explicit
             navigate('home');
         }
     });
