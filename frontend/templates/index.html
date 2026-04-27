@@ -189,7 +189,11 @@
         <!-- Pages will be dynamically injected here via JS -->
     </main>
 
+    {% if dev_mode %}
+    <script type="module" src="{{ url_for('static', filename='js/src/main.js') }}"></script>
+    {% else %}
     <script src="{{ url_for('static', filename='js/app.bundle.js') }}" defer></script>
+    {% endif %}
 </body>
 
 </html>

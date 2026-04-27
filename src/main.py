@@ -34,9 +34,12 @@ init_db()
 @app.route("/")
 def home():
     """Serve the main Single Page Application (SPA) index file."""
-    return render_template("index.html", 
+    # ?dev=1 loads source modules directly (live edits, no rebuild) instead of the bundle.
+    dev_mode = request.args.get("dev") == "1"
+    return render_template("index.html",
                            google_client_id=os.getenv("CLIENT_ID_GOOGLE_AUTH"),
-                           google_maps_api_key=os.getenv("GOOGLE_MAPS_API_KEY"))
+                           google_maps_api_key=os.getenv("GOOGLE_MAPS_API_KEY"),
+                           dev_mode=dev_mode)
 
 # --- Authentication ---
 
