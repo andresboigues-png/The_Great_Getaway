@@ -388,13 +388,11 @@ window.openNewTripModal = () => {
         
         STATE.trips.push(newTrip);
         STATE.activeTripId = id;
-        saveState();
-        upsertTrip(newTrip);
-        
-        // Remove the modal explicitly from the body
+
+        emit('state:changed');               // saveState + updateTripSelector via subscriber
+        upsertTrip(newTrip);                 // server delta still explicit
+
         modal.remove();
-        
-        window.updateTripSelector();
         navigate('home');
     };
 };
@@ -463,8 +461,9 @@ window.openAddDayModal = () => {
             plan: { morning:'', afternoon:'', evening:'' } 
         };
         STATE.tripDays.push(newDay);
-        saveState();
-        if (window.upsertDay) await window.upsertDay(newDay);
+
+        emit('state:changed');               // saveState via subscriber
+        if (window.upsertDay) await window.upsertDay(newDay);  // server delta still explicit
         modal.remove();
         navigate('home');
     };
@@ -475,7 +474,8 @@ window.openEditExpenseModal = (id) => {
     if (!e) return;
     STATE.draftExpense = { ...e };
     STATE.activeTripId = e.tripId;
-    saveState();
+
+    emit('state:changed');               // saveState via subscriber
     navigate('expenses');
 };
 
