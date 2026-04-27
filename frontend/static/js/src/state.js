@@ -78,3 +78,25 @@ export function saveState() {
     // NOTE: Delta sync helpers are called explicitly at each action site.
     // saveState() no longer triggers a full server sync automatically.
 }
+
+// ── Tiny event bus ─────────────────────────────────────────────────────────────
+// emit('state:changed') from any mutation site to fan out to subscribers.
+// Existing call sites that call saveState() directly continue to work; the bus
+// is purely additive until callers opt in.
+const _subscribers = new Map();
+
+export function subscribe(event, fn) {
+    if (!_subscribers.has(event)) _subscribers.set(event, new Set());
+    _subscribers.get(event).add(fn);
+    return () => _subscribers.get(event)?.delete(fn);
+}
+
+export function emit(event, payload) {
+    _subscribers.get(event)?.forEach(fn => {
+        try { fn(payload); }
+        catch (e) { console.error(`Subscriber for "${event}" threw:`, e); }
+    });
+}
+
+// Default subscriber: persistence happens whenever state changes.
+subscribe('state:changed', saveState);

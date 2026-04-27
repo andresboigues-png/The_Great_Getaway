@@ -1,4 +1,4 @@
-import { STATE, loadState, saveState } from './state.js';
+import { STATE, loadState, saveState, emit } from './state.js';
 import { syncWithServer, pullFromServer, fetchNotifications, markNotificationsRead, fetchHistoricalRates, upsertTrip, deleteTrip, archiveTripOnServer, upsertExpense, deleteExpenseOnServer, syncCompanions, syncCategories, upsertDay, deleteDayOnServer } from './api.js';
 import { COUNTRIES, US_STATES } from './constants.js';
 import { getMediaForTrip, showLiquidAlert, showConfirmModal, generateId, formatDayDate } from './utils.js';
@@ -94,18 +94,18 @@ window.archiveActiveTrip = function() {
             trip.isArchived = true;
             trip.expenses = STATE.expenses.filter(e => e.tripId === trip.id);
             trip.tripDays = STATE.tripDays.filter(d => d.tripId === trip.id);
-            
+
             STATE.archivedTrips.push(trip);
-            
+
             // Remove from active state to keep things clean
             STATE.expenses = STATE.expenses.filter(e => e.tripId !== trip.id);
             STATE.tripDays = STATE.tripDays.filter(d => d.tripId !== trip.id);
             STATE.trips = STATE.trips.filter(t => t.id !== trip.id);
-            
+
             STATE.activeTripId = STATE.trips.length > 0 ? STATE.trips[0].id : null;
-            saveState();
-            archiveTripOnServer(trip.id); // Delta: mark archived on server
-            window.updateTripSelector();
+
+            emit('state:changed');               // saveState + updateTripSelector via subscriber
+            archiveTripOnServer(trip.id);        // server delta still explicit
             navigate('collections');
         }
     });
