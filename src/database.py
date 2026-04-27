@@ -133,11 +133,37 @@ def init_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id TEXT,
                 type TEXT,
+                title TEXT,
                 related_id TEXT,
                 message TEXT,
                 is_read INTEGER DEFAULT 0,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY(user_id) REFERENCES users(id)
+            )
+        ''')
+        # Add title column if it doesn't exist
+        try:
+            cursor.execute("ALTER TABLE notifications ADD COLUMN title TEXT")
+        except Exception: pass
+
+        # Trip Days Table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS trip_days (
+                id TEXT PRIMARY KEY,
+                trip_id TEXT,
+                day_number INTEGER,
+                date TEXT,
+                name TEXT,
+                morning TEXT,
+                afternoon TEXT,
+                evening TEXT,
+                notes TEXT,
+                photos TEXT,
+                documents TEXT,
+                tip TEXT,
+                lat REAL,
+                lng REAL,
+                FOREIGN KEY(trip_id) REFERENCES trips(id)
             )
         ''')
         

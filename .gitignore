@@ -24,3 +24,19 @@ build/
 travel_planner.db
 ngrok*.zip
 ngrok
+node_modules/
+frontend/static/js/app.bundle.js.map
+
+# OS junk
+.DS_Store
+**/.DS_Store
+
+# Claude Code local state
+.claude/
+
+# Local databases (SQLite)
+*.db
+src/database.db
+
+# Scratch / experimental data
+scratch/algeria.json

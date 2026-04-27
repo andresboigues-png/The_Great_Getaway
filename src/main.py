@@ -3,6 +3,7 @@ import json
 import logging
 import requests
 from flask import Flask, render_template, request, jsonify
+from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
@@ -23,20 +24,32 @@ app = Flask(__name__,
             template_folder="../frontend/templates",
             static_folder="../frontend/static")
 
+UPLOAD_FOLDER = os.path.join(app.static_folder, 'uploads')
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
 # Ensure DB is initialized
 init_db()
 
 @app.route("/")
 def home():
     """Serve the main Single Page Application (SPA) index file."""
-    return render_template("index.html")
+    return render_template("index.html", 
+                           google_client_id=os.getenv("CLIENT_ID_GOOGLE_AUTH"),
+                           google_maps_api_key=os.getenv("GOOGLE_MAPS_API_KEY"))
 
 # --- Authentication ---
+
+@app.route("/api/user-status")
+def user_status():
+    """Check if the user is logged in (currently always returns not logged in as sessions aren't implemented)."""
+    return jsonify({"logged_in": False})
 
 @app.route("/api/auth/google", methods=["POST"])
 def google_auth():
     """Verify Google ID Token and manage user session."""
-    token = request.json.get("token")
+    # Support both 'token' and 'credential' keys
+    token = request.json.get("token") or request.json.get("credential")
     client_id = os.getenv("CLIENT_ID_GOOGLE_AUTH")
     
     if not token or not client_id:
@@ -189,9 +202,250 @@ def sync_data():
                     label=excluded.label, amount=excluded.amount, currency=excluded.currency, trip_id=excluded.trip_id
             ''', (b['id'], user_id, b.get('tripId'), b.get('label', ''), b.get('amount', 0), b.get('currency', 'EUR')))
 
+        # Sync Trip Days
+        trip_days = data.get("trip_days", [])
+        for d in trip_days:
+            cursor.execute('''
+                INSERT INTO trip_days (id, trip_id, day_number, date, name, morning, afternoon, evening, tip, lat, lng)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    day_number=excluded.day_number,
+                    date=excluded.date,
+                    name=excluded.name,
+                    morning=excluded.morning,
+                    afternoon=excluded.afternoon,
+                    evening=excluded.evening,
+                    tip=excluded.tip,
+                    lat=excluded.lat,
+                    lng=excluded.lng
+            ''', (d['id'], d['tripId'], d.get('dayNumber'), d.get('date'), d.get('name'),
+                  json.dumps(d.get('morning', d.get('plan', {}).get('morning', ''))),
+                  json.dumps(d.get('afternoon', d.get('plan', {}).get('afternoon', ''))),
+                  json.dumps(d.get('evening', d.get('plan', {}).get('evening', ''))),
+                  d.get('tip', d.get('notes', '')),
+                  d.get('lat') or d.get('lon'), # Support both lat/lng and lat/lon
+                  d.get('lng')))
+
         conn.commit()
     
     return jsonify({"status": "synced"})
+
+# ── DELTA SYNC ENDPOINTS ──────────────────────────────────────────────────────
+# These replace the big /api/sync for targeted, granular writes.
+
+@app.route("/api/trips", methods=["POST"])
+def upsert_trip():
+    """Create or update a single trip."""
+    data = request.json
+    user_id = data.get("user_id")
+    t = data.get("trip")
+    if not user_id or not t:
+        return jsonify({"error": "Missing data"}), 400
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO trips (id, user_id, name, country, is_archived, is_public)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                name=excluded.name,
+                country=excluded.country,
+                is_archived=excluded.is_archived,
+                is_public=excluded.is_public
+        ''', (t['id'], user_id, t['name'], t.get('country', ''),
+              1 if t.get('isArchived') else 0,
+              1 if t.get('isPublic') else 0))
+        conn.commit()
+    return jsonify({"status": "ok"})
+
+
+@app.route("/api/trips/<trip_id>", methods=["DELETE"])
+def delete_trip(trip_id):
+    """Delete a trip and all its expenses."""
+    user_id = request.json.get("user_id")
+    if not user_id:
+        return jsonify({"error": "Unauthorized"}), 401
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM expenses WHERE trip_id = ?", (trip_id,))
+        cursor.execute("DELETE FROM trips WHERE id = ? AND user_id = ?", (trip_id, user_id))
+        conn.commit()
+    return jsonify({"status": "deleted"})
+
+
+@app.route("/api/trips/<trip_id>/archive", methods=["POST"])
+def archive_trip(trip_id):
+    """Mark a trip as archived (completed)."""
+    user_id = request.json.get("user_id")
+    if not user_id:
+        return jsonify({"error": "Unauthorized"}), 401
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE trips SET is_archived = 1 WHERE id = ? AND user_id = ?",
+            (trip_id, user_id)
+        )
+        conn.commit()
+    return jsonify({"status": "archived"})
+
+
+@app.route("/api/expenses", methods=["POST"])
+def upsert_expense():
+    """Create or update a single expense."""
+    data = request.json
+    user_id = data.get("user_id")
+    e = data.get("expense")
+    if not user_id or not e:
+        return jsonify({"error": "Missing data"}), 400
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO expenses (id, trip_id, who, category_id, label, date, country, value, currency, euro_value)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                who=excluded.who,
+                category_id=excluded.category_id,
+                label=excluded.label,
+                date=excluded.date,
+                country=excluded.country,
+                value=excluded.value,
+                currency=excluded.currency,
+                euro_value=excluded.euro_value
+        ''', (e['id'], e['tripId'], e['who'], e.get('categoryId', ''),
+              e.get('label', ''), e.get('date', ''), e.get('country', ''),
+              e.get('value', 0), e.get('currency', 'EUR'), e.get('euroValue', 0)))
+        conn.commit()
+    return jsonify({"status": "ok"})
+
+
+@app.route("/api/expenses/<expense_id>", methods=["DELETE"])
+def delete_expense(expense_id):
+    """Delete a single expense by ID."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM expenses WHERE id = ?", (expense_id,))
+        conn.commit()
+    return jsonify({"status": "deleted"})
+
+
+@app.route("/api/companions", methods=["POST"])
+def sync_companions():
+    """Replace the companion list for a user."""
+    data = request.json
+    user_id = data.get("user_id")
+    companions = data.get("companions", [])
+    if not user_id:
+        return jsonify({"error": "Unauthorized"}), 401
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM companions WHERE user_id = ?", (user_id,))
+        for name in companions:
+            cursor.execute(
+                "INSERT OR IGNORE INTO companions (user_id, name) VALUES (?, ?)",
+                (user_id, name)
+            )
+        conn.commit()
+    return jsonify({"status": "ok"})
+
+
+@app.route("/api/categories", methods=["POST"])
+def sync_categories():
+    """Replace the category list for a user."""
+    data = request.json
+    user_id = data.get("user_id")
+    categories = data.get("categories", [])
+    if not user_id:
+        return jsonify({"error": "Unauthorized"}), 401
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM categories WHERE user_id = ?", (user_id,))
+        for cat in categories:
+            cursor.execute('''
+                INSERT INTO categories (id, user_id, name, icon, color)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (cat['id'], user_id, cat['name'], cat.get('icon', ''), cat.get('color', '#007aff')))
+        conn.commit()
+    return jsonify({"status": "ok"})
+
+
+@app.route("/api/budgets", methods=["POST"])
+def upsert_budget():
+    """Create or update a single budget."""
+    data = request.json
+    user_id = data.get("user_id")
+    b = data.get("budget")
+    if not user_id or not b:
+        return jsonify({"error": "Missing data"}), 400
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO budgets (id, user_id, trip_id, label, amount, currency)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                label=excluded.label,
+                amount=excluded.amount,
+                currency=excluded.currency,
+                trip_id=excluded.trip_id
+        ''', (b['id'], user_id, b.get('tripId'), b.get('label', ''),
+              b.get('amount', 0), b.get('currency', 'EUR')))
+        conn.commit()
+    return jsonify({"status": "ok"})
+
+
+@app.route("/api/budgets/<budget_id>", methods=["DELETE"])
+def delete_budget(budget_id):
+    """Delete a single budget."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM budgets WHERE id = ?", (budget_id,))
+        conn.commit()
+    return jsonify({"status": "deleted"})
+
+
+@app.route("/api/days", methods=["POST"])
+def upsert_day():
+    """Create or update a single trip day."""
+    data = request.json
+    user_id = data.get("user_id")
+    d = data.get("day")
+    if not user_id or not d:
+        return jsonify({"error": "Missing data"}), 400
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO trip_days (id, trip_id, day_number, date, name, morning, afternoon, evening, tip, lat, lng)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                day_number=excluded.day_number,
+                date=excluded.date,
+                name=excluded.name,
+                morning=excluded.morning,
+                afternoon=excluded.afternoon,
+                evening=excluded.evening,
+                tip=excluded.tip,
+                lat=excluded.lat,
+                lng=excluded.lng
+        ''', (d['id'], d.get('tripId'), d.get('dayNumber'), d.get('date'), d.get('name'),
+              json.dumps(d.get('morning', d.get('plan', {}).get('morning', ''))),
+              json.dumps(d.get('afternoon', d.get('plan', {}).get('afternoon', ''))),
+              json.dumps(d.get('evening', d.get('plan', {}).get('evening', ''))),
+              d.get('tip', d.get('notes', '')),
+              d.get('lat') or d.get('lon'),
+              d.get('lng')))
+        conn.commit()
+    return jsonify({"status": "ok"})
+
+
+@app.route("/api/days/<day_id>", methods=["DELETE"])
+def delete_day(day_id):
+    """Delete a single trip day."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM trip_days WHERE id = ?", (day_id,))
+        conn.commit()
+    return jsonify({"status": "deleted"})
+
+
+# ── END DELTA SYNC ENDPOINTS ──────────────────────────────────────────────────
 
 @app.route("/api/config", methods=["GET"])
 def get_config():
@@ -326,7 +580,7 @@ def add_friend():
         
         # Create notification for the target user
         msg = f"{sender_name} sent you a friend request."
-        cursor.execute("INSERT INTO notifications (user_id, type, related_id, message) VALUES (?, 'friend_request', ?, ?)", 
+        cursor.execute("INSERT INTO notifications (user_id, type, title, related_id, message, is_read) VALUES (?, 'friend_request', 'Friend Request', ?, ?, 0)", 
                        (friend_id, user_id, msg))
         
         conn.commit()
@@ -353,7 +607,7 @@ def accept_friend():
         
         # Create notification for the sender
         msg = f"{acceptor_name} accepted your friend request."
-        cursor.execute("INSERT INTO notifications (user_id, type, related_id, message) VALUES (?, 'accepted_request', ?, ?)", 
+        cursor.execute("INSERT INTO notifications (user_id, type, title, related_id, message, is_read) VALUES (?, 'accepted_request', 'Request Accepted', ?, ?, 0)", 
                        (friend_id, user_id, msg))
         
         conn.commit()
@@ -381,7 +635,7 @@ def list_notifications():
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute('''
-            SELECT id, type, related_id, message, is_read, created_at 
+            SELECT id, type, title, related_id, message, is_read, created_at 
             FROM notifications 
             WHERE user_id = ? 
             ORDER BY created_at DESC LIMIT 50
@@ -422,7 +676,7 @@ def notify_trip_public():
         for friend in friends:
             friend_id = friend["friend_id"]
             msg = f"{user_name} completed their trip to {trip_name} and made it public!"
-            cursor.execute("INSERT INTO notifications (user_id, type, related_id, message) VALUES (?, 'trip_public', ?, ?)", 
+            cursor.execute("INSERT INTO notifications (user_id, type, title, related_id, message, is_read) VALUES (?, 'trip_public', 'Trip Completed!', ?, ?, 0)", 
                            (friend_id, user_id, msg))
         
         conn.commit()
@@ -471,7 +725,13 @@ def get_data():
             UNION
             SELECT t.* FROM trips t JOIN trip_collaborators c ON t.id = c.trip_id WHERE c.user_id = ?
         ''', (user_id, user_id))
-        trips = [dict(row) for row in cursor.fetchall()]
+        trips_rows = cursor.fetchall()
+        trips = []
+        for r in trips_rows:
+            t = dict(r)
+            t['isArchived'] = bool(t.pop('is_archived'))
+            t['isPublic'] = bool(t.pop('is_public'))
+            trips.append(t)
         
         # Get all expenses for these trips
         trip_ids = [t['id'] for t in trips]
@@ -495,13 +755,65 @@ def get_data():
         budgets_rows = cursor.fetchall()
         budgets = [{'id': r['id'], 'tripId': r['trip_id'], 'label': r['label'], 'amount': r['amount'], 'currency': r['currency']} for r in budgets_rows]
 
-    return jsonify({
-        "trips": trips, 
-        "expenses": expenses,
-        "groups": companions,
-        "categories": categories,
-        "budgets": budgets
-    })
+        # Get Trip Days
+        cursor.execute('''
+            SELECT d.* FROM trip_days d 
+            JOIN trips t ON d.trip_id = t.id 
+            WHERE t.user_id = ?
+        ''', (user_id,))
+        days_rows = cursor.fetchall()
+        trip_days = []
+        for r in days_rows:
+            day = dict(r)
+            # Re-map fields for frontend
+            day['tripId'] = day.pop('trip_id')
+            day['dayNumber'] = day.pop('day_number')
+            day['lon'] = day.pop('lng')
+            
+            # Map plan sub-object
+            day['plan'] = {
+                'morning': day.pop('morning', ''),
+                'afternoon': day.pop('afternoon', ''),
+                'evening': day.pop('evening', '')
+            }
+            
+            # Deserialize JSON fields
+            try: day['photos'] = json.loads(day['photos'])
+            except: day['photos'] = []
+            try: day['documents'] = json.loads(day['documents'])
+            except: day['documents'] = []
+            
+            trip_days.append(day)
+            
+        return jsonify({
+            "trips": trips, 
+            "expenses": expenses, 
+            "companions": companions, 
+            "categories": categories,
+            "budgets": budgets,
+            "tripDays": trip_days
+        })
+
+@app.route("/api/public-profile/<user_id>", methods=["GET"])
+def get_public_profile(user_id):
+    """Fetch public profile data for a user (Name, Bio, Public Trips, etc)."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        
+        # Get user info
+        cursor.execute("SELECT name, email, picture, bio, status FROM users WHERE id = ?", (user_id,))
+        user_row = cursor.fetchone()
+        if not user_row:
+            return jsonify({"error": "User not found"}), 404
+        
+        # Get public OR archived trips (for the footprint)
+        cursor.execute("SELECT id, name, country FROM trips WHERE user_id = ? AND (is_public = 1 OR is_archived = 1)", (user_id,))
+        trips = [dict(row) for row in cursor.fetchall()]
+        
+        return jsonify({
+            "user": dict(user_row),
+            "trips": trips
+        })
 
 @app.route("/api/profile/update", methods=["POST"])
 def update_profile():
@@ -519,10 +831,28 @@ def update_profile():
         conn.commit()
     return jsonify({"status": "updated"})
 
-def main():
-    logger.info("Starting The Great Escape backend with Social support...")
-    port = int(os.getenv("PORT", 5001))
-    app.run(host="0.0.0.0", port=port, debug=True)
+@app.route("/api/upload", methods=["POST"])
+def upload_file():
+    """Handle file uploads (photos, documents)."""
+    if 'file' not in request.files:
+        return jsonify({"error": "No file part"}), 400
+    
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({"error": "No selected file"}), 400
+    
+    if file:
+        filename = secure_filename(file.filename)
+        # Add timestamp to avoid collisions
+        import time
+        filename = f"{int(time.time())}_{filename}"
+        file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+        
+        # Return the relative path for frontend
+        return jsonify({
+            "url": f"/static/uploads/{filename}",
+            "name": file.filename
+        })
 
 @app.route("/api/user-data", methods=["DELETE"])
 def delete_user_data():
@@ -538,6 +868,7 @@ def delete_user_data():
         cursor.execute("DELETE FROM companions")
         cursor.execute("DELETE FROM categories")
         cursor.execute("DELETE FROM budgets")
+        cursor.execute("DELETE FROM trip_days")
         cursor.execute("DELETE FROM notifications")
         cursor.execute("DELETE FROM friends")
         cursor.execute("DELETE FROM users")
@@ -546,4 +877,4 @@ def delete_user_data():
 
 
 if __name__ == "__main__":
-    main()
+    app.run(host="0.0.0.0", port=5001, debug=True)

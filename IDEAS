@@ -1,12 +1,22 @@
 
+Long-term
+- Use Google maps API for home map. 
+- Use streamlit to deploy app. 
+
+
+
+Short-term
+- Clicking the name of the website should bring the user to home.
+- Add a button that lets users manually add and edit pins to the map (Like the ones that appear after the AI plan is accepted) on manually created days in Home. The way it should work is You click "Add pin" on the day, a pin appears on the map with the day number and dthen instead of "Add pin" it will now be "Edit pin"  and after that is pressed the user can move that secific pin around in the map, then by going to the day again he'll be able to "Save pin location" or delete the pin altogether. 
 
 The Feature: The app calculates the total debt between friends in a shared trip.
 The UI: A clean "Settlement" dashboard showing: "Andrés owes Maria 45€" with a "Settle Up" button.
 
 
-+
 
 
+
+*Backups:* 
 
 "Revert the codebase back to the 'Savepoint: Original dashboard with new New Trip modal' commit" - For saved version 1.0
 
