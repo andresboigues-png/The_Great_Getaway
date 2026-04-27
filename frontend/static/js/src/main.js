@@ -486,8 +486,9 @@ window.deleteExpense = (id) => {
         confirmText: "Delete",
         onConfirm: () => {
             STATE.expenses = STATE.expenses.filter(e => e.id !== id);
-            saveState();
-            deleteExpenseOnServer(id); // Delta: targeted delete on server
+
+            emit('state:changed');               // saveState via subscriber
+            deleteExpenseOnServer(id);           // server delta still explicit
             navigate('expenses');
         }
     });
