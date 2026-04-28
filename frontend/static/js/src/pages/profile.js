@@ -181,7 +181,14 @@ export function renderProfile(targetUserId = null) {
                 
                 const input = div.querySelector('#profilePhotoInput');
                 const wrapper = div.querySelector('#profilePicWrapper');
-                if (wrapper) wrapper.onclick = () => input && input.click();
+                const overlay = div.querySelector('#profilePicOverlay');
+                if (wrapper) {
+                    wrapper.onclick = () => input && input.click();
+                    if (overlay) {
+                        wrapper.onmouseenter = () => overlay.style.opacity = '1';
+                        wrapper.onmouseleave = () => overlay.style.opacity = '0';
+                    }
+                }
                 if (input) input.onchange = (e) => {
                     const file = e.target.files[0]; if (!file) return;
                     const reader = new FileReader(); reader.onload = (ev) => {
