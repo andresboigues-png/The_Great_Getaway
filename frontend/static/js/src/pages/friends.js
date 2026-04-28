@@ -1,5 +1,6 @@
 import { STATE } from '../state.js';
 import { generateId } from '../utils.js';
+import { navigate } from '../router.js';
 
 export function renderFriends() {
     const div = document.createElement('div');
@@ -23,7 +24,7 @@ export function renderFriends() {
                     friendsContainer.innerHTML = `<div style="color: var(--text-secondary); text-align: center; padding: 20px; background: rgba(255,255,255,0.02); border-radius: 12px;">No friends added yet.</div>`;
                 } else {
                     friendsContainer.innerHTML = friends.map(f => `
-                        <div onclick="window.navigate('profile', { userId: '${f.id}' })" style="display: flex; align-items: center; justify-content: space-between; background: rgba(255,255,255,0.05); padding: 12px 16px; border-radius: 16px; margin-bottom: 8px; border: 1px solid rgba(255,255,255,0.1); cursor: pointer; transition: background 0.2s;" onmouseenter="this.style.background='rgba(255,255,255,0.1)'" onmouseleave="this.style.background='rgba(255,255,255,0.05)'">
+                        <div class="friend-row" data-user-id="${f.id}" style="display: flex; align-items: center; justify-content: space-between; background: rgba(255,255,255,0.05); padding: 12px 16px; border-radius: 16px; margin-bottom: 8px; border: 1px solid rgba(255,255,255,0.1); cursor: pointer; transition: background 0.2s;" onmouseenter="this.style.background='rgba(255,255,255,0.1)'" onmouseleave="this.style.background='rgba(255,255,255,0.05)'">
                             <div style="display: flex; align-items: center; gap: 12px;">
                                 <img src="${f.picture}" style="width: 32px; height: 32px; border-radius: 50%;">
                                 <div>
@@ -50,7 +51,7 @@ export function renderFriends() {
                                     <div style="font-size: 0.75rem; color: var(--text-secondary);">${p.email}</div>
                                 </div>
                             </div>
-                            <button class="btn btn-small" onclick="window.acceptFriendRequest('${p.id}')" style="padding: 6px 12px; font-size: 0.75rem;">Accept</button>
+                            <button class="btn btn-small accept-friend-btn" data-user-id="${p.id}" style="padding: 6px 12px; font-size: 0.75rem;">Accept</button>
                         </div>
                     `).join('');
                 }
@@ -58,7 +59,7 @@ export function renderFriends() {
         } catch (e) { console.error("Error loading friends:", e); }
     };
 
-    window.searchForFriend = async () => {
+    const searchForFriend = async () => {
         const query = div.querySelector('#friendSearchInput').value.trim();
         const resultsContainer = div.querySelector('#searchResults');
         if (!query) return;
@@ -82,14 +83,14 @@ export function renderFriends() {
                                 <div style="font-size: 0.75rem; color: var(--text-secondary);">${u.email}</div>
                             </div>
                         </div>
-                        <button class="btn btn-small" onclick="window.sendFriendRequest('${u.id}')" style="padding: 6px 12px; font-size: 0.75rem;">Send Request</button>
+                        <button class="btn btn-small send-friend-btn" data-user-id="${u.id}" style="padding: 6px 12px; font-size: 0.75rem;">Send Request</button>
                     </div>
                 `).join('');
             }
         } catch (e) { resultsContainer.innerHTML = `<p style="color:red;">Error searching.</p>`; }
     };
 
-    window.sendFriendRequest = async (friendId) => {
+    const sendFriendRequest = async (friendId) => {
         if (!STATE.user) { alert("Please login first"); return; }
         if (friendId === STATE.user.id) {
             window.showToast?.("You can't send a friend request to yourself!");
@@ -112,7 +113,7 @@ export function renderFriends() {
         } catch (e) { alert("Failed to send request"); }
     };
 
-    window.acceptFriendRequest = async (friendId) => {
+    const acceptFriendRequest = async (friendId) => {
         if (!STATE.user) return;
         try {
             const res = await fetch('/api/friends/accept', {
@@ -140,8 +141,8 @@ export function renderFriends() {
                 <div class="card glass card-glow-blue">
                     <h3 style="margin-bottom: 16px; font-weight: 700;">Find Friends</h3>
                     <div style="display: flex; gap: 8px; margin-bottom: 20px;">
-                        <input type="text" id="friendSearchInput" class="glass-input" placeholder="Search by email..." style="flex: 1;" onkeyup="if(event.key === 'Enter') window.searchForFriend()">
-                        <button class="btn btn-small" onclick="window.searchForFriend()">Search</button>
+                        <input type="text" id="friendSearchInput" class="glass-input" placeholder="Search by email..." style="flex: 1;">
+                        <button class="btn btn-small" id="friendSearchBtn">Search</button>
                     </div>
                     <div id="searchResults"></div>
                 </div>
@@ -162,6 +163,22 @@ export function renderFriends() {
             </div>
         </div>
     `;
+
+    div.querySelector('#friendSearchBtn')?.addEventListener('click', searchForFriend);
+    div.querySelector('#friendSearchInput')?.addEventListener('keyup', (e) => {
+        if (e.key === 'Enter') searchForFriend();
+    });
+
+    // Delegated handler for dynamically rendered rows in #friendsList,
+    // #pendingList, #searchResults — listeners attached on div once.
+    div.addEventListener('click', (e) => {
+        const acceptBtn = e.target.closest('.accept-friend-btn');
+        if (acceptBtn) { acceptFriendRequest(acceptBtn.dataset.userId); return; }
+        const sendBtn = e.target.closest('.send-friend-btn');
+        if (sendBtn) { sendFriendRequest(sendBtn.dataset.userId); return; }
+        const friendRow = e.target.closest('.friend-row');
+        if (friendRow) { navigate('profile', { userId: friendRow.dataset.userId }); return; }
+    });
 
     setTimeout(updateFriendsList, 0);
     return div;

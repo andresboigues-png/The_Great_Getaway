@@ -3,7 +3,33 @@
 import { STATE, emit } from '../state.js';
 import { COUNTRIES, CONVERSION_RATES } from '../constants.js';
 import { generateId, showConfirmModal, showLiquidAlert } from '../utils.js';
-import { upsertExpense } from '../api.js';
+import { upsertExpense, deleteExpenseOnServer } from '../api.js';
+import { navigate } from '../router.js';
+
+export const openEditExpenseModal = (id) => {
+    const e = STATE.expenses.find(exp => exp.id === id);
+    if (!e) return;
+    STATE.draftExpense = { ...e };
+    STATE.activeTripId = e.tripId;
+
+    emit('state:changed');               // saveState via subscriber
+    navigate('expenses');
+};
+
+export const deleteExpense = (id) => {
+    showConfirmModal({
+        title: "Delete Expense?",
+        message: "This action cannot be undone.",
+        confirmText: "Delete",
+        onConfirm: () => {
+            STATE.expenses = STATE.expenses.filter(e => e.id !== id);
+
+            emit('state:changed');               // saveState via subscriber
+            deleteExpenseOnServer(id);           // server delta still explicit
+            navigate('expenses');
+        }
+    });
+};
 
 export function renderExpenses() {
     const div = document.createElement('div');
@@ -34,7 +60,7 @@ export function renderExpenses() {
                             ${peopleOptions}
                         </select>
                         ${!STATE.groups || STATE.groups.length === 0 ? `
-                        <div style="margin-top: 12px; font-size: 0.85rem; color: #0071e3; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px;" onclick="window.navigate('personalization'); setTimeout(() => window.showPersTab('companions'), 50);">
+                        <div id="addCompanionsHelper" style="margin-top: 12px; font-size: 0.85rem; color: #0071e3; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px;">
                             <span>➕</span> <span style="text-decoration: underline;">Add companions in the personalization section</span>
                         </div>` : ''}
                     </div>
@@ -161,6 +187,21 @@ export function renderExpenses() {
 
     // Handle Form Submit & Draft Saving
     setTimeout(() => {
+        div.querySelector('#addCompanionsHelper')?.addEventListener('click', () => {
+            navigate('personalization');
+            // Settings DOM doesn't exist until navigate renders it.
+            setTimeout(() => window.showPersTab('companions'), 50);
+        });
+
+        // Delegated handler for per-row edit/delete in #tripExpensesList — listener
+        // attached on div once; rows are re-rendered by renderTripExpenses().
+        div.addEventListener('click', (e) => {
+            const editBtn = e.target.closest('.expense-edit-btn');
+            if (editBtn) { openEditExpenseModal(editBtn.dataset.expenseId); return; }
+            const delBtn = e.target.closest('.expense-delete-btn');
+            if (delBtn) { deleteExpense(delBtn.dataset.expenseId); return; }
+        });
+
         const form = div.querySelector('#expenseForm');
         const splitContainer = div.querySelector('#splitContainer');
         const addSplitSelect = div.querySelector('#addSplitSelect');
@@ -470,10 +511,10 @@ export function renderTripExpenses(container, filters = {}) {
                     </div>
                     
                     <div style="display: flex; gap: 8px;">
-                        <button onclick="window.openEditExpenseModal('${e.id}')" style="background: rgba(0,113,227,0.08); border: 1px solid rgba(0,113,227,0.1); color: #0071e3; width: 36px; height: 36px; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" onmouseover="this.style.background='rgba(0,113,227,0.15)';" onmouseout="this.style.background='rgba(0,113,227,0.08)';">
+                        <button class="expense-edit-btn" data-expense-id="${e.id}" style="background: rgba(0,113,227,0.08); border: 1px solid rgba(0,113,227,0.1); color: #0071e3; width: 36px; height: 36px; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" onmouseover="this.style.background='rgba(0,113,227,0.15)';" onmouseout="this.style.background='rgba(0,113,227,0.08)';">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4L18.5 2.5z"></path></svg>
                         </button>
-                        <button onclick="window.deleteExpense('${e.id}')" style="background: rgba(255,59,48,0.08); border: 1px solid rgba(255,59,48,0.1); color: #ff3b30; width: 36px; height: 36px; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" onmouseover="this.style.background='rgba(255,59,48,0.15)';" onmouseout="this.style.background='rgba(255,59,48,0.08)';">
+                        <button class="expense-delete-btn" data-expense-id="${e.id}" style="background: rgba(255,59,48,0.08); border: 1px solid rgba(255,59,48,0.1); color: #ff3b30; width: 36px; height: 36px; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" onmouseover="this.style.background='rgba(255,59,48,0.15)';" onmouseout="this.style.background='rgba(255,59,48,0.08)';">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                         </button>
                     </div>

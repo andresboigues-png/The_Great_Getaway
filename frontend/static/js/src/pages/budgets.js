@@ -4,7 +4,7 @@ import { generateId } from '../utils.js';
 import { upsertBudget, deleteBudgetOnServer } from '../api.js';
 import { navigate } from '../router.js';
 
-window.deleteBudget = (id) => {
+const deleteBudget = (id) => {
     STATE.budgets = STATE.budgets.filter(b => b.id !== id);
     emit('state:changed');
     deleteBudgetOnServer(id); // Delta: delete budget on server
@@ -93,7 +93,7 @@ export function renderBudgets() {
                     <div style="font-size: 0.8rem; font-weight: 600;">
                         ${spent.toFixed(0)}€ <span style="color: var(--text-secondary); opacity: 0.6;">/ ${b.amount.toFixed(0)}€</span>
                     </div>
-                    <button class="btn-small" style="background: none; border: none; color: #ff3b30; font-size: 0.7rem; font-weight: 700; cursor: pointer; padding: 0;" onclick="window.deleteBudget('${b.id}')">Delete</button>
+                    <button class="btn-small delete-budget-btn" data-budget-id="${b.id}" style="background: none; border: none; color: #ff3b30; font-size: 0.7rem; font-weight: 700; cursor: pointer; padding: 0;">Delete</button>
                 </div>
             </div>
         `;
@@ -149,6 +149,11 @@ export function renderBudgets() {
     `;
 
     setTimeout(() => {
+        div.addEventListener('click', (e) => {
+            const delBtn = e.target.closest('.delete-budget-btn');
+            if (delBtn) deleteBudget(delBtn.dataset.budgetId);
+        });
+
         const btn = div.querySelector('#saveBudgetBtn');
         if (btn) btn.addEventListener('click', () => {
             const amt = parseFloat(div.querySelector('#budAmt').value);

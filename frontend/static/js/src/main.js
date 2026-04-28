@@ -1,5 +1,5 @@
 import { STATE, loadState, emit, subscribe } from './state.js';
-import { syncWithServer, pullFromServer, fetchNotifications, markNotificationsRead, upsertTrip, deleteTrip, archiveTripOnServer, upsertExpense, deleteExpenseOnServer, syncCompanions, syncCategories, upsertDay } from './api.js';
+import { syncWithServer, pullFromServer, fetchNotifications, markNotificationsRead, upsertTrip, deleteTrip, archiveTripOnServer, upsertExpense, syncCompanions, syncCategories, upsertDay } from './api.js';
 import { COUNTRIES, US_STATES } from './constants.js';
 import { showLiquidAlert, showConfirmModal, generateId } from './utils.js';
 import { navigate } from './router.js';
@@ -468,31 +468,6 @@ window.openAddDayModal = () => {
         modal.remove();
         navigate('home');
     };
-};
-
-window.openEditExpenseModal = (id) => {
-    const e = STATE.expenses.find(exp => exp.id === id);
-    if (!e) return;
-    STATE.draftExpense = { ...e };
-    STATE.activeTripId = e.tripId;
-
-    emit('state:changed');               // saveState via subscriber
-    navigate('expenses');
-};
-
-window.deleteExpense = (id) => {
-    showConfirmModal({
-        title: "Delete Expense?",
-        message: "This action cannot be undone.",
-        confirmText: "Delete",
-        onConfirm: () => {
-            STATE.expenses = STATE.expenses.filter(e => e.id !== id);
-
-            emit('state:changed');               // saveState via subscriber
-            deleteExpenseOnServer(id);           // server delta still explicit
-            navigate('expenses');
-        }
-    });
 };
 
 // Start the app
