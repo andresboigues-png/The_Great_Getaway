@@ -1,6 +1,7 @@
 import { STATE, emit } from '../state.js';
 import { syncWithServer } from '../api.js';
 import { navigate } from '../router.js';
+import { viewArchivedDetails } from './collections.js';
 
 export const logout = async () => {
     try {
@@ -41,8 +42,6 @@ export const logout = async () => {
         navigate('profile');
     } catch (e) {}
 };
-// Kept on window: profile.js:114 still uses onclick="window.logout()" — migrated in Wave 3C.
-window.logout = logout;
 
 export function renderProfile(targetUserId = null) {
     const div = document.createElement('div');
@@ -84,7 +83,7 @@ export function renderProfile(targetUserId = null) {
         div.innerHTML = `
             <div style="max-width: 800px; margin: 0 auto; padding-bottom: 60px;">
                 ${!isOwnProfile ? `
-                    <button class="btn btn-small" onclick="window.navigate('friends')" style="margin-bottom: 20px; background: rgba(0,0,0,0.05); color: var(--text-primary); border: 1px solid var(--glass-border); padding: 8px 16px; border-radius: 12px; font-weight: 700; display: flex; align-items: center; gap: 8px;">
+                    <button class="btn btn-small" id="profileBackToFriendsBtn" style="margin-bottom: 20px; background: rgba(0,0,0,0.05); color: var(--text-primary); border: 1px solid var(--glass-border); padding: 8px 16px; border-radius: 12px; font-weight: 700; display: flex; align-items: center; gap: 8px;">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
                         Back to Friends
                     </button>
@@ -113,7 +112,7 @@ export function renderProfile(targetUserId = null) {
                         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px;">
                             <h2 style="margin: 0; font-size: 1.6rem; font-weight: 700; color: var(--text-primary); letter-spacing: -0.02em;">${user.name}</h2>
                             ${isOwnProfile ? `
-                                <button id="profileLogoutBtn" style="background: transparent; color: var(--text-secondary); font-weight: 600; border: 1px solid var(--glass-border); border-radius: 8px; padding: 6px 14px; cursor: pointer; font-size: 0.85rem; transition: background 0.2s;" onmouseover="this.style.background='rgba(255,59,48,0.1)'; this.style.color='#ff3b30'; this.style.borderColor='rgba(255,59,48,0.2)';" onmouseout="this.style.background='transparent'; this.style.color='var(--text-secondary)'; this.style.borderColor='var(--glass-border)';" onclick="window.logout()">Log Out</button>
+                                <button id="profileLogoutBtn" style="background: transparent; color: var(--text-secondary); font-weight: 600; border: 1px solid var(--glass-border); border-radius: 8px; padding: 6px 14px; cursor: pointer; font-size: 0.85rem; transition: background 0.2s;" onmouseover="this.style.background='rgba(255,59,48,0.1)'; this.style.color='#ff3b30'; this.style.borderColor='rgba(255,59,48,0.2)';" onmouseout="this.style.background='transparent'; this.style.color='var(--text-secondary)'; this.style.borderColor='var(--glass-border)';">Log Out</button>
                             ` : ''}
                         </div>
                         
@@ -187,6 +186,9 @@ export function renderProfile(targetUserId = null) {
         
         // Initializing Map and Event Listeners
         setTimeout(() => {
+            div.querySelector('#profileBackToFriendsBtn')?.addEventListener('click', () => navigate('friends'));
+            div.querySelector('#profileLogoutBtn')?.addEventListener('click', () => logout());
+
             if (isOwnProfile) {
                 const statusEl = div.querySelector('#profileStatus');
                 const bioEl = div.querySelector('#profileBio');
@@ -295,18 +297,26 @@ export function renderProfile(targetUserId = null) {
                                     const tripList = tps.map(t => `
                                         <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid rgba(0,0,0,0.06);">
                                             <span style="font-weight: 600; color: #000;">${t.name}</span>
-                                            <button onclick="window.viewArchivedDetails('${t.id}')" style="background: #007aff; color: white; border: none; padding: 4px 12px; border-radius: 8px; font-weight: 700; font-size: 0.75rem; cursor: pointer;">View</button>
+                                            <button class="archived-trip-view-btn" data-trip-id="${t.id}" style="background: #007aff; color: white; border: none; padding: 4px 12px; border-radius: 8px; font-weight: 700; font-size: 0.75rem; cursor: pointer;">View</button>
                                         </div>
                                     `).join('');
 
-                                    const infoWindow = new google.maps.InfoWindow({
-                                        content: `
-                                            <div style="padding: 4px 8px; min-width: 220px; max-width: 300px; font-family: -apple-system, BlinkMacSystemFont, sans-serif;">
-                                                <div style="font-weight: 800; font-size: 0.7rem; text-transform: uppercase; color: rgba(0,0,0,0.5); letter-spacing: 0.1em; margin-bottom: 6px;">${countryKey} — ${tps.length} trip${tps.length > 1 ? 's' : ''}</div>
-                                                ${tripList}
-                                            </div>
-                                        `
+                                    // Build InfoWindow content as an HTMLElement so we can attach
+                                    // a delegated click listener to it (Google Maps renders the
+                                    // InfoWindow outside `div`, so delegation on `div` won't catch
+                                    // clicks here).
+                                    const infoContent = document.createElement('div');
+                                    infoContent.style.cssText = 'padding: 4px 8px; min-width: 220px; max-width: 300px; font-family: -apple-system, BlinkMacSystemFont, sans-serif;';
+                                    infoContent.innerHTML = `
+                                        <div style="font-weight: 800; font-size: 0.7rem; text-transform: uppercase; color: rgba(0,0,0,0.5); letter-spacing: 0.1em; margin-bottom: 6px;">${countryKey} — ${tps.length} trip${tps.length > 1 ? 's' : ''}</div>
+                                        ${tripList}
+                                    `;
+                                    infoContent.addEventListener('click', (e) => {
+                                        const btn = e.target.closest('.archived-trip-view-btn');
+                                        if (btn) viewArchivedDetails(btn.dataset.tripId);
                                     });
+
+                                    const infoWindow = new google.maps.InfoWindow({ content: infoContent });
 
                                     marker.addListener('click', () => infoWindow.open(map, marker));
                                 }

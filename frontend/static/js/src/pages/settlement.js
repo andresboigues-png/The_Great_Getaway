@@ -42,8 +42,8 @@ export function renderSettlement() {
             const total = (STATE.expenses.filter(e => e.tripId === t.id && e.isSettlement).reduce((sum, e) => sum + (parseFloat(e.euroValue) || 0), 0)).toFixed(0);
             const isActive = t.id === tripId;
             return `
-                            <div class="card glass ${isActive ? 'card-glow-blue' : ''}" 
-                                 onclick="window.switchSettlementTrip('${t.id}')"
+                            <div class="card glass settlement-trip-card ${isActive ? 'card-glow-blue' : ''}"
+                                 data-trip-id="${t.id}"
                                  style="min-width: 200px; padding: 20px; cursor: pointer; transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); border: 2px solid ${isActive ? 'var(--accent-blue)' : 'transparent'}; transform: ${isActive ? 'scale(1.02)' : 'scale(1)'}; opacity: ${isActive ? '1' : '0.8'};">
                                 <div style="font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 800; margin-bottom: 6px; letter-spacing: 0.05em;">Adventure</div>
                                 <div style="font-weight: 700; font-size: 1.2rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 12px;">${t.name}</div>
@@ -143,7 +143,7 @@ export function renderSettlement() {
             ${tripsGridHtml}
 
             <div class="card glass" style="margin-bottom: 24px; padding: 20px; border-radius: 20px; border-left: 4px solid var(--accent-blue); background: rgba(0, 113, 227, 0.03);">
-                <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;" onclick="const el = document.getElementById('globalBalancesContainer'); el.style.display = el.style.display === 'none' ? 'block' : 'none';">
+                <div id="globalBalancesHeader" style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;">
                     <h2 class="card-title" style="margin: 0; font-size: 1.1rem; color: var(--text-primary);">🌍 Global Net Balances</h2>
                     <span style="font-size: 0.8rem; color: var(--accent-blue); font-weight: 700;">Show / Hide</span>
                 </div>
@@ -213,7 +213,7 @@ export function renderSettlement() {
                                     </div>
                                     <div style="font-size: 1.1rem; font-weight: 700; color: var(--accent-blue);">€${d.amount.toFixed(2)}</div>
                                 </div>
-                                <button class="btn btn-small" style="background: var(--accent-blue); padding: 8px 16px; border-radius: 12px;" onclick="window.settleDebt('${tripId}', '${d.from}', '${d.to}', ${d.amount})">Settle</button>
+                                <button class="btn btn-small settle-debt-btn" data-trip-id="${tripId}" data-from="${d.from}" data-to="${d.to}" data-amount="${d.amount}" style="background: var(--accent-blue); padding: 8px 16px; border-radius: 12px;">Settle</button>
                             </div>
                         `).join('') : '<p style="color: var(--text-secondary); text-align: center; padding: 20px; font-weight: 600;">All settled for this trip! 🥂</p>'}
                     </div>
@@ -221,22 +221,22 @@ export function renderSettlement() {
             </div>
 
             <div style="display: flex; gap: 16px; margin-top: 32px; justify-content: center; flex-wrap: wrap;">
-                <button class="btn" style="background: rgba(255,255,255,0.1); color: var(--text-primary); border: 1px solid rgba(255,255,255,0.2); padding: 16px 32px; border-radius: 16px; font-weight: 700; display: flex; align-items: center; gap: 8px;" onclick="window.openManualSettleModal('${tripId}')">
+                <button class="btn open-manual-settle-btn" data-trip-id="${tripId}" style="background: rgba(255,255,255,0.1); color: var(--text-primary); border: 1px solid rgba(255,255,255,0.2); padding: 16px 32px; border-radius: 16px; font-weight: 700; display: flex; align-items: center; gap: 8px;">
                     <span>➕</span> Manual Settlement
                 </button>
-                <button class="btn" style="background: rgba(255,255,255,0.1); color: var(--text-primary); border: 1px solid rgba(255,255,255,0.2); padding: 16px 32px; border-radius: 16px; font-weight: 700; display: flex; align-items: center; gap: 8px;" onclick="window.openPastSettlementsModal('${tripId}')">
+                <button class="btn open-past-settle-btn" data-trip-id="${tripId}" style="background: rgba(255,255,255,0.1); color: var(--text-primary); border: 1px solid rgba(255,255,255,0.2); padding: 16px 32px; border-radius: 16px; font-weight: 700; display: flex; align-items: center; gap: 8px;">
                     <span>📜</span> Past Settlements
                 </button>
             </div>
         `;
     }
 
-    window.switchSettlementTrip = (tripId) => {
+    const switchSettlementTrip = (tripId) => {
         currentTripId = tripId;
         div.innerHTML = buildSettlementUI(tripId);
     };
 
-    window.settleDebt = (tripId, from, to, amount) => {
+    const settleDebt = (tripId, from, to, amount) => {
         const settlementExp = {
             id: generateId(),
             tripId: tripId,
@@ -254,7 +254,7 @@ export function renderSettlement() {
         div.innerHTML = buildSettlementUI(tripId);
     };
 
-    window.openManualSettleModal = (tripId) => {
+    const openManualSettleModal = (tripId) => {
         const modal = document.createElement('div');
         modal.className = 'modal-overlay';
         modal.style.display = 'flex';
@@ -300,12 +300,12 @@ export function renderSettlement() {
                 alert('Sender and receiver must be different.');
                 return;
             }
-            window.settleDebt(tripId, from, to, amount);
+            settleDebt(tripId, from, to, amount);
             modal.remove();
         };
     };
 
-    window.openPastSettlementsModal = (tripId) => {
+    const openPastSettlementsModal = (tripId) => {
         const modal = document.createElement('div');
         modal.className = 'modal-overlay';
         modal.style.display = 'flex';
@@ -324,8 +324,8 @@ export function renderSettlement() {
                     <div style="display: flex; align-items: center; gap: 16px;">
                         <div style="font-size: 1.2rem; font-weight: 800; color: #34c759;">€${s.euroValue.toFixed(2)}</div>
                         <div style="display: flex; gap: 8px;">
-                            <button class="btn btn-small" style="background: rgba(255,255,255,0.1); padding: 8px 12px; border-radius: 8px; color: white; border: 1px solid rgba(255,255,255,0.2);" onclick="window.openEditSettlementModal('${s.id}'); document.getElementById('pastSettlementsModal').remove();">Edit</button>
-                            <button class="btn btn-small" style="background: rgba(255,59,48,0.1); padding: 8px 12px; border-radius: 8px; color: #ff3b30; border: 1px solid rgba(255,59,48,0.2);" onclick="window.deleteSettlement('${s.id}', '${tripId}'); document.getElementById('pastSettlementsModal').remove();">Unsettle</button>
+                            <button class="btn btn-small edit-settlement-btn" data-settlement-id="${s.id}" style="background: rgba(255,255,255,0.1); padding: 8px 12px; border-radius: 8px; color: white; border: 1px solid rgba(255,255,255,0.2);">Edit</button>
+                            <button class="btn btn-small unsettle-settlement-btn" data-settlement-id="${s.id}" data-trip-id="${tripId}" style="background: rgba(255,59,48,0.1); padding: 8px 12px; border-radius: 8px; color: #ff3b30; border: 1px solid rgba(255,59,48,0.2);">Unsettle</button>
                         </div>
                     </div>
                 </div>
@@ -346,9 +346,25 @@ export function renderSettlement() {
         `;
         document.body.appendChild(modal);
         modal.querySelector('#closePastSettleBtn').onclick = () => modal.remove();
+
+        // Delegated handlers for the per-row Edit/Unsettle buttons in this modal.
+        modal.addEventListener('click', (e) => {
+            const editBtn = e.target.closest('.edit-settlement-btn');
+            if (editBtn) {
+                openEditSettlementModal(editBtn.dataset.settlementId);
+                modal.remove();
+                return;
+            }
+            const unsettleBtn = e.target.closest('.unsettle-settlement-btn');
+            if (unsettleBtn) {
+                deleteSettlement(unsettleBtn.dataset.settlementId, unsettleBtn.dataset.tripId);
+                modal.remove();
+                return;
+            }
+        });
     };
 
-    window.deleteSettlement = (id, tripId) => {
+    const deleteSettlement = (id, tripId) => {
         showConfirmModal({
             title: "Unsettle Payment?",
             message: "This will remove the settlement and revert the balances. Are you sure?",
@@ -361,7 +377,7 @@ export function renderSettlement() {
         });
     };
 
-    window.openEditSettlementModal = (id) => {
+    const openEditSettlementModal = (id) => {
         const s = STATE.expenses.find(e => e.id === id);
         if (!s) return;
 
@@ -433,6 +449,39 @@ export function renderSettlement() {
     };
 
     div.innerHTML = buildSettlementUI(currentTripId);
+
+    // Delegated handler — listener attached on div once; div.innerHTML is rewritten
+    // by switchSettlementTrip / settleDebt / deleteSettlement / openEditSettlementModal,
+    // so per-element listeners would die. Delegation on div survives.
+    div.addEventListener('click', (e) => {
+        const tripCard = e.target.closest('.settlement-trip-card');
+        if (tripCard) { switchSettlementTrip(tripCard.dataset.tripId); return; }
+
+        const settleBtn = e.target.closest('.settle-debt-btn');
+        if (settleBtn) {
+            settleDebt(
+                settleBtn.dataset.tripId,
+                settleBtn.dataset.from,
+                settleBtn.dataset.to,
+                parseFloat(settleBtn.dataset.amount)
+            );
+            return;
+        }
+
+        const manualBtn = e.target.closest('.open-manual-settle-btn');
+        if (manualBtn) { openManualSettleModal(manualBtn.dataset.tripId); return; }
+
+        const pastBtn = e.target.closest('.open-past-settle-btn');
+        if (pastBtn) { openPastSettlementsModal(pastBtn.dataset.tripId); return; }
+
+        const balancesHeader = e.target.closest('#globalBalancesHeader');
+        if (balancesHeader) {
+            const el = div.querySelector('#globalBalancesContainer');
+            if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+            return;
+        }
+    });
+
     return div;
 }
 

@@ -14,7 +14,7 @@ export function renderCollections() {
             <div class="card glass" style="text-align: center; padding: 60px; margin-top: 24px;">
                 <h2 style="margin-bottom: 20px;">Private Collections</h2>
                 <p style="color: var(--text-secondary); margin-bottom: 30px;">Your completed trips are safely attached to your account. Log in to access your travel history.</p>
-                <button class="btn" style="background: var(--accent-blue);" onclick="window.navigate('profile')">Log In Now</button>
+                <button class="btn" id="collectionsLoginBtn" style="background: var(--accent-blue);">Log In Now</button>
             </div>
         `;
         return div;
@@ -36,7 +36,7 @@ export function renderCollections() {
             <div class="grid-2" style="margin-top: 16px;">
                 ${archived.length > 0 ? archived.map(t => `
                     <div class="card glass card-glow-blue" style="display: flex; flex-direction: row; align-items: center; justify-content: space-between; padding: 20px;">
-                        <div style="cursor: pointer; flex: 1;" onclick="window.viewArchivedDetails('${t.id}')">
+                        <div class="archived-trip-card" data-trip-id="${t.id}" style="cursor: pointer; flex: 1;">
                             <div style="display: flex; align-items: center; gap: 10px;">
                                 <h3 style="margin: 0;">${t.name}</h3>
                             </div>
@@ -48,14 +48,14 @@ export function renderCollections() {
                             <div style="display: flex; align-items: center; gap: 12px; background: rgba(0,0,0,0.03); padding: 8px 18px; border-radius: 980px; border: 1px solid rgba(0,0,0,0.08); box-shadow: inset 0 1px 2px rgba(0,0,0,0.02), 0 4px 12px rgba(0,0,0,0.03);">
                                 <span id="publicLabel-${t.id}" style="width: 85px; display: inline-block; text-align: right; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); color: ${t.isPublic ? '#34c759' : 'rgba(0,0,0,0.3)'}; text-shadow: ${t.isPublic ? '0 0 12px rgba(52, 199, 89, 0.6)' : 'none'};">${t.isPublic ? 'Public' : 'Not public'}</span>
                                 <label class="switch" style="transform: scale(0.75);">
-                                    <input type="checkbox" ${t.isPublic ? 'checked' : ''} onchange="window.toggleTripPrivacy('${t.id}', this.checked)">
+                                    <input type="checkbox" class="trip-privacy-toggle" data-trip-id="${t.id}" ${t.isPublic ? 'checked' : ''}>
                                     <span class="slider"></span>
                                 </label>
                             </div>
                             <div style="width: 1px; height: 30px; background: var(--glass-border);"></div>
                             <div style="display: flex; gap: 8px;">
-                                <button class="btn btn-small" onclick="window.restoreTrip('${t.id}')" style="background: var(--accent-blue); padding: 8px 16px; font-weight: 700;">Restore</button>
-                                <button class="btn btn-small" onclick="window.deleteArchivedTrip('${t.id}')" style="background: rgba(255,59,48,0.1); color: #ff3b30; border: 1px solid rgba(255,59,48,0.3);" title="Delete Permanently">
+                                <button class="btn btn-small restore-trip-btn" data-trip-id="${t.id}" style="background: var(--accent-blue); padding: 8px 16px; font-weight: 700;">Restore</button>
+                                <button class="btn btn-small delete-archived-btn" data-trip-id="${t.id}" style="background: rgba(255,59,48,0.1); color: #ff3b30; border: 1px solid rgba(255,59,48,0.3);" title="Delete Permanently">
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
                                 </button>
                             </div>
@@ -71,6 +71,22 @@ export function renderCollections() {
             </div>
         </div>
     `;
+
+    div.querySelector('#collectionsLoginBtn')?.addEventListener('click', () => navigate('profile'));
+
+    // Delegated handlers for the per-trip cards in the archived list.
+    div.addEventListener('click', (e) => {
+        const restoreBtn = e.target.closest('.restore-trip-btn');
+        if (restoreBtn) { restoreTrip(restoreBtn.dataset.tripId); return; }
+        const delBtn = e.target.closest('.delete-archived-btn');
+        if (delBtn) { deleteArchivedTrip(delBtn.dataset.tripId); return; }
+        const card = e.target.closest('.archived-trip-card');
+        if (card) { viewArchivedDetails(card.dataset.tripId); return; }
+    });
+    div.addEventListener('change', (e) => {
+        const toggle = e.target.closest('.trip-privacy-toggle');
+        if (toggle) toggleTripPrivacy(toggle.dataset.tripId, toggle.checked);
+    });
 
     return div;
 }
@@ -106,7 +122,7 @@ export function renderArchivedTripDetail(tripId) {
                 <div style="display: flex; align-items: center; gap: 12px; background: rgba(255,255,255,0.08); padding: 8px 18px; border-radius: 980px; border: 1px solid rgba(255,255,255,0.15); backdrop-filter: blur(20px); box-shadow: inset 0 1px 1px rgba(255,255,255,0.1), 0 4px 12px rgba(0,0,0,0.1);">
                     <span id="publicLabel-${trip.id}" style="width: 85px; display: inline-block; text-align: right; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); color: ${trip.isPublic ? '#34c759' : '#a1a1aa'}; text-shadow: ${trip.isPublic ? '0 0 12px rgba(52, 199, 89, 0.6)' : 'none'};">${trip.isPublic ? 'Public' : 'Not public'}</span>
                     <label class="switch" style="transform: scale(0.75);">
-                        <input type="checkbox" ${trip.isPublic ? 'checked' : ''} onchange="window.toggleTripPrivacy('${trip.id}', this.checked)">
+                        <input type="checkbox" class="trip-privacy-toggle" data-trip-id="${trip.id}" ${trip.isPublic ? 'checked' : ''}>
                         <span class="slider"></span>
                     </label>
                 </div>
@@ -115,8 +131,8 @@ export function renderArchivedTripDetail(tripId) {
                 <span style="display: flex; align-items: center; gap: 8px;">€${totalSpent.toFixed(0)} spent</span>
             </div>
             <div style="position: absolute; right: 40px; bottom: 40px; display: flex; gap: 12px;">
-                <button class="btn" style="background: #002d5b; color: #ffffff; padding: 12px 24px; border-radius: 16px; font-weight: 800;" onclick="window.restoreTrip('${trip.id}')">Restore Trip</button>
-                <button class="btn" style="background: rgba(0,0,0,0.05); color: #002d5b; padding: 12px 24px; border-radius: 16px; font-weight: 800; border: 1px solid rgba(0,0,0,0.1);" onclick="window.navigate('collections')">Back</button>
+                <button class="btn restore-trip-btn" data-trip-id="${trip.id}" style="background: #002d5b; color: #ffffff; padding: 12px 24px; border-radius: 16px; font-weight: 800;">Restore Trip</button>
+                <button class="btn" id="backToCollectionsBtn" style="background: rgba(0,0,0,0.05); color: #002d5b; padding: 12px 24px; border-radius: 16px; font-weight: 800; border: 1px solid rgba(0,0,0,0.1);">Back</button>
             </div>
         </div>
 
@@ -137,16 +153,27 @@ export function renderArchivedTripDetail(tripId) {
         </div>
     `;
 
+    div.querySelector('#backToCollectionsBtn')?.addEventListener('click', () => navigate('collections'));
+    div.addEventListener('click', (e) => {
+        const restoreBtn = e.target.closest('.restore-trip-btn');
+        if (restoreBtn) restoreTrip(restoreBtn.dataset.tripId);
+    });
+    div.addEventListener('change', (e) => {
+        const toggle = e.target.closest('.trip-privacy-toggle');
+        if (toggle) toggleTripPrivacy(toggle.dataset.tripId, toggle.checked);
+    });
+
     return div;
 }
 
-window.viewArchivedDetails = (id) => {
+// Exported because profile.js (archived-trips section) also opens these.
+export const viewArchivedDetails = (id) => {
     const content = document.getElementById('app-container');
     content.innerHTML = '';
     content.appendChild(renderArchivedTripDetail(id));
 };
 
-window.toggleTripPrivacy = async (id, isPublic) => {
+const toggleTripPrivacy = async (id, isPublic) => {
     const trip = STATE.archivedTrips.find(t => t.id === id) || STATE.trips.find(t => t.id === id);
     if (!trip) return;
     trip.isPublic = isPublic;
@@ -170,7 +197,7 @@ window.toggleTripPrivacy = async (id, isPublic) => {
     }
 };
 
-window.restoreTrip = (id) => {
+const restoreTrip = (id) => {
     const trip = STATE.archivedTrips.find(t => t.id === id);
     if (!trip) return;
     
@@ -200,7 +227,7 @@ window.restoreTrip = (id) => {
     });
 };
 
-window.deleteArchivedTrip = (id) => {
+const deleteArchivedTrip = (id) => {
     showConfirmModal({
         title: "Delete Permanently?",
         message: "This trip and all its memories will be gone forever.",
