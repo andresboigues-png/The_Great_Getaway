@@ -1,4 +1,4 @@
-import { STATE, saveState } from '../state.js';
+import { STATE, emit } from '../state.js';
 
 window.logout = async () => {
     try {
@@ -6,7 +6,7 @@ window.logout = async () => {
         STATE.user = null;
         STATE.archivedTrips = [];
         STATE.notifications = [];
-        saveState();
+        emit('state:changed');
         updateUserUI();
         window.navigate('profile');
     } catch (e) {}
@@ -172,7 +172,7 @@ export function renderProfile(targetUserId = null) {
                             });
                             if (res.ok) {
                                 STATE.user.bio = newBio; STATE.user.status = newStatus;
-                                saveState(); saveBtn.style.opacity = '0'; saveBtn.style.pointerEvents = 'none';
+                                emit('state:changed'); saveBtn.style.opacity = '0'; saveBtn.style.pointerEvents = 'none';
                                 window.showToast?.("Profile updated!");
                             }
                         } catch(e) {}
@@ -185,7 +185,7 @@ export function renderProfile(targetUserId = null) {
                 if (input) input.onchange = (e) => {
                     const file = e.target.files[0]; if (!file) return;
                     const reader = new FileReader(); reader.onload = (ev) => {
-                        STATE.profilePhoto = ev.target.result; saveState();
+                        STATE.profilePhoto = ev.target.result; emit('state:changed');
                         div.querySelector('#profilePicDisplay').src = ev.target.result;
                     }; reader.readAsDataURL(file);
                 };

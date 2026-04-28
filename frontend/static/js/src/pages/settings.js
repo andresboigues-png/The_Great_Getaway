@@ -1,4 +1,4 @@
-import { STATE, saveState } from '../state.js';
+import { STATE, emit } from '../state.js';
 import { generateId, showConfirmModal } from '../utils.js';
 import { syncCategories, syncCompanions } from '../api.js';
 
@@ -42,7 +42,7 @@ window.deleteCategory = (id) => {
         confirmText: "Delete",
         onConfirm: () => {
             STATE.categories = STATE.categories.filter(c => c.id !== id);
-            saveState();
+            emit('state:changed');
             syncCategories(); // Delta: sync categories to server
             window.navigate('personalization');
             setTimeout(() => window.showPersTab('categories'), 50);
@@ -57,7 +57,7 @@ window.deleteCompanion = (name) => {
         confirmText: "Remove",
         onConfirm: () => {
             STATE.groups = STATE.groups.filter(g => g !== name);
-            saveState();
+            emit('state:changed');
             syncCompanions(); // Delta: sync companions to server
             window.navigate('personalization');
             setTimeout(() => window.showPersTab('companions'), 50);
@@ -226,7 +226,7 @@ export function renderSettings() {
                 title: "Clear Companions?",
                 message: "This will remove all travel companions and group lists.",
                 confirmText: "Clear All",
-                onConfirm: () => { STATE.groups = []; saveState(); window.switchSettingsTab('reset'); }
+                onConfirm: () => { STATE.groups = []; emit('state:changed'); window.switchSettingsTab('reset'); }
             },
             trips: {
                 title: "Wipe All Trips?",
@@ -234,7 +234,7 @@ export function renderSettings() {
                 confirmText: "Delete Trips",
                 onConfirm: async () => {
                     STATE.trips = []; STATE.archivedTrips = []; STATE.tripDays = []; STATE.expenses = []; STATE.budgets = []; STATE.activeTripId = null;
-                    saveState();
+                    emit('state:changed');
                     // Also wipe trips from server
                     if (STATE.user) {
                         try {
@@ -258,7 +258,7 @@ export function renderSettings() {
                         { id: 'c2', name: 'Transport', icon: '✈️', color: '#007aff' },
                         { id: 'c3', name: 'Accommodation', icon: '🏨', color: '#5856d6' }
                     ];
-                    saveState();
+                    emit('state:changed');
                     syncCategories(); // Delta: sync reset categories
                     window.switchSettingsTab('reset');
                 }
@@ -279,7 +279,7 @@ export function renderSettings() {
                         } catch(e) { console.error('Server wipe failed', e); }
                     }
                     STATE.trips = []; STATE.archivedTrips = []; STATE.tripDays = []; STATE.expenses = []; STATE.groups = []; STATE.budgets = []; STATE.categories = []; STATE.activeTripId = null; STATE.user = null; STATE.notifications = []; STATE.hasLoggedInBefore = false;
-                    saveState();
+                    emit('state:changed');
                     localStorage.clear();
                     location.reload();
                 }
@@ -295,13 +295,13 @@ export function renderSettings() {
         STATE.customFormat = STATE.customFormat || [];
         if (STATE.customFormat.some(m => m.variable === variable)) return;
         STATE.customFormat.push({ variable, column });
-        saveState();
+        emit('state:changed');
         window.switchSettingsTab('format');
     };
 
     window.removeFormatMapping = (variable) => {
         STATE.customFormat = (STATE.customFormat || []).filter(m => m.variable !== variable);
-        saveState();
+        emit('state:changed');
         window.switchSettingsTab('format');
     };
 
@@ -316,7 +316,7 @@ export function renderSettings() {
         STATE.savedFormats = STATE.savedFormats || [];
         STATE.savedFormats.push({ id: generateId(), name, mappings: [...fmt] });
         STATE.customFormat = [];
-        saveState();
+        emit('state:changed');
         window.switchSettingsTab('format');
     };
 
@@ -327,7 +327,7 @@ export function renderSettings() {
             confirmText: "Delete",
             onConfirm: () => {
                 STATE.savedFormats = (STATE.savedFormats || []).filter(f => f.id !== id);
-                saveState();
+                emit('state:changed');
                 window.switchSettingsTab('format');
             }
         });
@@ -340,7 +340,7 @@ export function renderSettings() {
         STATE.customFormat = [...format.mappings];
         // Remove it from saved so the user can re-save it with a new name or overwrite
         STATE.savedFormats = (STATE.savedFormats || []).filter(f => f.id !== id);
-        saveState();
+        emit('state:changed');
         window.switchSettingsTab('format');
         // Pre-fill the name input after tab renders
         setTimeout(() => {
@@ -464,7 +464,7 @@ export function renderPersonalization() {
             const color = div.querySelector('#catColor').value;
             if (name) {
                 STATE.categories.push({ id: generateId(), name, icon, color });
-                saveState();
+                emit('state:changed');
                 syncCategories(); // Delta: sync new category
                 window.navigate('personalization');
                 setTimeout(() => window.showPersTab('categories'), 50);
@@ -476,7 +476,7 @@ export function renderPersonalization() {
             const name = div.querySelector('#newPerson').value.trim();
             if (name && !STATE.groups.includes(name)) {
                 STATE.groups.push(name);
-                saveState();
+                emit('state:changed');
                 syncCompanions(); // Delta: sync new companion
                 window.navigate('personalization');
                 setTimeout(() => window.showPersTab('companions'), 50);

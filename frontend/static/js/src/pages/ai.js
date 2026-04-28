@@ -1,4 +1,4 @@
-import { STATE, saveState } from '../state.js';
+import { STATE, emit } from '../state.js';
 
 let googleMap = null;
 let mapMarkers = [];
@@ -164,7 +164,7 @@ export function renderAI() {
                     if (!STATE.mapViews) STATE.mapViews = {};
                     const c = googleMap.getCenter();
                     STATE.mapViews[aiTripMapKey] = { lat: c.lat(), lng: c.lng(), zoom: googleMap.getZoom() };
-                    saveState();
+                    emit('state:changed');
                 });
             }
 
@@ -308,7 +308,7 @@ export function renderAI() {
                         }
                     });
                 });
-                saveState();
+                emit('state:changed');
                 const btn = document.getElementById('acceptPlanBtn');
                 btn.innerHTML = '✓ Plan Accepted! (View in Home)';
                 btn.style.background = '#34c759';
@@ -326,7 +326,7 @@ export function renderAI() {
             if (!dateFrom || !dateTo) { alert('Please select your travel dates.'); return; }
             const from = new Date(dateFrom), to = new Date(dateTo);
             const numDays = Math.max(1, Math.round((to - from) / 86400000) + 1);
-            activeTrip.aiContext = context; activeTrip.aiNumDays = numDays; saveState();
+            activeTrip.aiContext = context; activeTrip.aiNumDays = numDays; emit('state:changed');
             outputEl.innerHTML = `<div style="text-align:center;padding:60px;"><div class="spinner-ring" style="width:40px;height:40px;border:3px solid rgba(255,255,255,0.1);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 20px;"></div><div style="color:white;font-weight:600;">Consulting Gemini AI...</div></div>`;
             outputEl.scrollIntoView({ behavior: 'smooth' });
             try {
@@ -337,7 +337,7 @@ export function renderAI() {
                 const d = await r.json();
                 if (d.error) throw new Error(d.error);
                 generatedItinerary = d.itinerary;
-                activeTrip.aiPlan = generatedItinerary; saveState();
+                activeTrip.aiPlan = generatedItinerary; emit('state:changed');
                 renderItineraryOutput(generatedItinerary, numDays, tripCountry);
                 outputEl.scrollIntoView({ behavior: 'smooth' });
             } catch (e) {

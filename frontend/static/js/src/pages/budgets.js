@@ -1,11 +1,11 @@
-import { STATE, saveState } from '../state.js';
+import { STATE, emit } from '../state.js';
 import { CONVERSION_RATES } from '../constants.js';
 import { generateId } from '../utils.js';
 import { upsertBudget, deleteBudgetOnServer } from '../api.js';
 
 window.deleteBudget = (id) => {
     STATE.budgets = STATE.budgets.filter(b => b.id !== id);
-    saveState();
+    emit('state:changed');
     deleteBudgetOnServer(id); // Delta: delete budget on server
     window.navigate('budgets');
 };
@@ -171,7 +171,7 @@ export function renderBudgets() {
                 originalCurrency: curr
             };
             STATE.budgets.push(budget);
-            saveState();
+            emit('state:changed');
             upsertBudget(budget); // Delta: persist budget to server
             window.navigate('budgets');
         });

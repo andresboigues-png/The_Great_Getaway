@@ -1,6 +1,6 @@
 // pages/home.js
 
-import { STATE, saveState } from '../state.js';
+import { STATE, emit } from '../state.js';
 import { INSPIRATIONAL_PAIRS, DESTINATION_DATA } from '../constants.js';
 import { getMediaForTrip, showLiquidAlert, showConfirmModal, generateId } from '../utils.js';
 
@@ -251,7 +251,7 @@ export function renderHome() {
                     
                     editingDayId = null;
                     activeMapClickListener = null;
-                    saveState();
+                    emit('state:changed');
                     if (window.upsertDay) await window.upsertDay(day);
                     window.showToast?.("Location saved!");
                     window.navigate('home', null, true);
@@ -267,7 +267,7 @@ export function renderHome() {
                     editingDayId = null;
                     activeMapClickListener = null;
                     
-                    saveState();
+                    emit('state:changed');
                     if (window.upsertDay) await window.upsertDay(day);
                     window.navigate('home', null, true);
                 };
@@ -281,7 +281,7 @@ export function renderHome() {
                         lng: center.lng(),
                         zoom: map.getZoom()
                     };
-                    saveState();
+                    emit('state:changed');
                 });
 
                 // --- BULLETPROOF BORDER & ZOOM ---
@@ -430,7 +430,7 @@ export function renderHome() {
     const allDone = steps.every(s => s.done) || STATE.guideAllDone;
     if (allDone && !STATE.guideAllDone) {
         STATE.guideAllDone = true;
-        saveState();
+        emit('state:changed');
     }
 
 
@@ -565,7 +565,7 @@ export function renderHome() {
         `;
         showBtnContainer.querySelector('button').onclick = () => {
             STATE.hideQuickAccess = false;
-            saveState();
+            emit('state:changed');
             window.navigate('home');
         };
         div.appendChild(showBtnContainer);
@@ -618,7 +618,7 @@ export function renderHome() {
             if (hBtn) hBtn.onclick = (e) => {
                 e.stopPropagation();
                 STATE.hideQuickAccess = true;
-                saveState();
+                emit('state:changed');
                 window.navigate('home');
             };
         }, 0);
@@ -653,7 +653,7 @@ window.openJournalingModal = (dayId) => {
     modal.querySelector('#closeJournalBtn').onclick = () => modal.remove();
     modal.querySelector('#saveJournalBtn').onclick = async () => {
         day.notes = modal.querySelector('#journalText').value;
-        saveState();
+        emit('state:changed');
         if (window.upsertDay) await window.upsertDay(day);
         window.showToast?.("Memories saved!");
         modal.remove();
@@ -710,7 +710,7 @@ window.openPhotosModal = (dayId) => {
         const res = await window.uploadMedia(file);
         if (res && res.url) {
             day.photos.push(res.url);
-            saveState();
+            emit('state:changed');
             if (window.upsertDay) await window.upsertDay(day);
             modal.remove();
             window.openPhotosModal(dayId);
@@ -720,7 +720,7 @@ window.openPhotosModal = (dayId) => {
     };
     window.removePhoto = async (dId, idx) => {
         day.photos.splice(idx, 1);
-        saveState();
+        emit('state:changed');
         if (window.upsertDay) await window.upsertDay(day);
         modal.remove();
         window.openPhotosModal(dId);
@@ -729,7 +729,7 @@ window.openPhotosModal = (dayId) => {
         const url = modal.querySelector('#photoUrl').value;
         if (url) {
             day.photos.push(url);
-            saveState();
+            emit('state:changed');
             if (window.upsertDay) await window.upsertDay(day);
             modal.remove();
             window.openPhotosModal(dayId);
@@ -794,7 +794,7 @@ window.openDocumentsModal = (dayId) => {
         const res = await window.uploadMedia(file);
         if (res && res.url) {
             day.documents.push({ name: res.name || file.name, url: res.url });
-            saveState();
+            emit('state:changed');
             if (window.upsertDay) await window.upsertDay(day);
             modal.remove();
             window.openDocumentsModal(dayId);
@@ -804,7 +804,7 @@ window.openDocumentsModal = (dayId) => {
     };
     window.removeDoc = async (dId, idx) => {
         day.documents.splice(idx, 1);
-        saveState();
+        emit('state:changed');
         if (window.upsertDay) await window.upsertDay(day);
         modal.remove();
         window.openDocumentsModal(dId);
@@ -814,7 +814,7 @@ window.openDocumentsModal = (dayId) => {
         const url = modal.querySelector('#docUrl').value;
         if (name && url) {
             day.documents.push({ name, url });
-            saveState();
+            emit('state:changed');
             if (window.upsertDay) await window.upsertDay(day);
             modal.remove();
             window.openDocumentsModal(dayId);
@@ -880,7 +880,7 @@ window.openDayDetail = (dayId) => {
         const notes = modal.querySelector('#detailNotes').value;
         day.plan = { morning, afternoon, evening };
         day.notes = notes;
-        saveState();
+        emit('state:changed');
         if (window.upsertDay) await window.upsertDay(day);
         window.showToast?.("Itinerary updated!");
         modal.remove();

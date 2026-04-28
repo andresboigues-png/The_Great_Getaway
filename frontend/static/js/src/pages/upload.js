@@ -1,4 +1,4 @@
-import { STATE, saveState } from '../state.js';
+import { STATE, emit } from '../state.js';
 import { CONVERSION_RATES } from '../constants.js';
 import { generateId } from '../utils.js';
 import { syncWithServer } from '../api.js';
@@ -108,7 +108,7 @@ export function renderUpload() {
                     if (trip) {
                         trip.activeFormatId = formatId;
                         trip.activeFormatType = 'custom';
-                        saveState();
+                        emit('state:changed');
                     }
                 } else {
                     customFormatPreview.style.display = 'none';
@@ -151,7 +151,7 @@ export function renderUpload() {
                 if (trip) {
                     trip.activeFormatId = popId;
                     trip.activeFormatType = 'popular';
-                    saveState();
+                    emit('state:changed');
                 }
             }
         };
@@ -289,7 +289,7 @@ export function renderUpload() {
                     added++;
                 });
 
-                saveState();
+                emit('state:changed');
                 syncWithServer(); // Bulk: sync all newly imported data to server
                 statusDiv.innerText = `Successfully imported ${added} expenses!`;
                 statusDiv.style.color = "green";

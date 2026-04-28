@@ -1,6 +1,6 @@
 // pages/settlement.js
 
-import { STATE, saveState } from '../state.js';
+import { STATE, emit } from '../state.js';
 import { generateId, showConfirmModal } from '../utils.js';
 
 export function renderSettlement() {
@@ -250,7 +250,7 @@ export function renderSettlement() {
             isSettlement: true
         };
         STATE.expenses.push(settlementExp);
-        saveState();
+        emit('state:changed');
         div.innerHTML = buildSettlementUI(tripId);
     };
 
@@ -355,7 +355,7 @@ export function renderSettlement() {
             confirmText: "Unsettle",
             onConfirm: () => {
                 STATE.expenses = STATE.expenses.filter(e => e.id !== id);
-                saveState();
+                emit('state:changed');
                 div.innerHTML = buildSettlementUI(tripId);
             }
         });
@@ -426,7 +426,7 @@ export function renderSettlement() {
             s.date = date;
             s.label = `Settlement: ${from} → ${to}`;
             
-            saveState();
+            emit('state:changed');
             modal.remove();
             div.innerHTML = buildSettlementUI(currentTripId);
         };

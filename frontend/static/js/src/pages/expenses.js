@@ -1,6 +1,6 @@
 // pages/expenses.js
 
-import { STATE, saveState } from '../state.js';
+import { STATE, emit } from '../state.js';
 import { COUNTRIES, CONVERSION_RATES } from '../constants.js';
 import { generateId, showConfirmModal, showLiquidAlert } from '../utils.js';
 import { upsertExpense } from '../api.js';
@@ -230,7 +230,7 @@ export function renderExpenses() {
                 if (id === 'expValue') STATE.draftExpense.value = val;
                 if (id === 'expCurrency') STATE.draftExpense.currency = val;
 
-                saveState(); // Persist draft too
+                emit('state:changed'); // Persist draft too
             });
         });
 
@@ -260,7 +260,7 @@ export function renderExpenses() {
 
                 // Trigger draft save manually since we set value programmatically
                 STATE.draftExpense.country = countryInput.value;
-                saveState();
+                emit('state:changed');
             };
             item.onmouseover = () => item.style.background = 'rgba(0, 122, 255, 0.1)';
             item.onmouseout = () => item.style.background = 'transparent';
@@ -338,7 +338,7 @@ export function renderExpenses() {
             // Clear draft
             STATE.draftExpense = { who: '', categoryId: '', label: '', date: '', country: '', value: '', currency: 'EUR' };
 
-            saveState();
+            emit('state:changed');
             upsertExpense(expense); // Delta: persist expense to server
             renderTripExpenses(div.querySelector('#tripExpensesList'));
             form.reset();

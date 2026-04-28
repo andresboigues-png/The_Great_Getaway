@@ -1,4 +1,4 @@
-import { STATE, saveState } from '../state.js';
+import { STATE, emit } from '../state.js';
 
 export function renderCollections() {
     const div = document.createElement('div');
@@ -148,7 +148,7 @@ window.toggleTripPrivacy = async (id, isPublic) => {
     const trip = STATE.archivedTrips.find(t => t.id === id) || STATE.trips.find(t => t.id === id);
     if (!trip) return;
     trip.isPublic = isPublic;
-    saveState();
+    emit('state:changed');
     
     const label = document.getElementById(`publicLabel-${id}`);
     if (label) {
@@ -192,7 +192,7 @@ window.restoreTrip = (id) => {
             STATE.trips.push(trip);
             STATE.archivedTrips = STATE.archivedTrips.filter(t => t.id !== id);
             STATE.activeTripId = id;
-            saveState();
+            emit('state:changed');
             window.navigate('home');
         }
     });
@@ -205,7 +205,7 @@ window.deleteArchivedTrip = (id) => {
         confirmText: "Delete",
         onConfirm: async () => {
             STATE.archivedTrips = STATE.archivedTrips.filter(t => t.id !== id);
-            saveState();
+            emit('state:changed');
             if (STATE.user) {
                 try {
                     await fetch('/api/trips/delete', {

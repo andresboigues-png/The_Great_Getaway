@@ -1,4 +1,4 @@
-import { STATE, saveState } from '../state.js';
+import { STATE } from '../state.js';
 import { generateId } from '../utils.js';
 
 export function renderFriends() {

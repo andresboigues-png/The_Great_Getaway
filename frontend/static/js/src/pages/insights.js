@@ -1,4 +1,4 @@
-import { STATE, saveState } from '../state.js';
+import { STATE, emit } from '../state.js';
 import { CONVERSION_RATES } from '../constants.js';
 import { fetchHistoricalRates } from '../api.js';
 
@@ -235,14 +235,14 @@ export function renderInsights() {
         div.querySelectorAll('.rate-mode-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 STATE.rateMode = btn.dataset.mode;
-                saveState();
+                emit('state:changed');
                 window.navigate('insights');
             });
         });
 
         div.querySelector('#insightCurrencySelector').addEventListener('change', (e) => {
             STATE.insightCurrency = e.target.value;
-            saveState();
+            emit('state:changed');
             window.navigate('insights');
         });
 
