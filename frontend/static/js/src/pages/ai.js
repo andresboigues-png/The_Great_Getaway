@@ -318,6 +318,14 @@ export function renderAI() {
 
         if (generatedItinerary) renderItineraryOutput(generatedItinerary, savedNumDays, tripCountry);
 
+        const contextInput = div.querySelector('#aiExtraContext');
+        if (contextInput) {
+            contextInput.oninput = (e) => {
+                activeTrip.aiContext = e.target.value;
+                emit('state:changed');
+            };
+        }
+
         div.querySelector('#generateBtn').addEventListener('click', async () => {
             const outputEl = div.querySelector('#itineraryOutput');
             const dateFrom = div.querySelector('#aiDateFrom').value;
