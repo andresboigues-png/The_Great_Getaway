@@ -1,4 +1,4 @@
-import { STATE, loadState, saveState, emit } from './state.js';
+import { STATE, loadState, saveState, emit, subscribe } from './state.js';
 import { syncWithServer, pullFromServer, fetchNotifications, markNotificationsRead, fetchHistoricalRates, upsertTrip, deleteTrip, archiveTripOnServer, upsertExpense, deleteExpenseOnServer, syncCompanions, syncCategories, upsertDay, deleteDayOnServer } from './api.js';
 import { COUNTRIES, US_STATES } from './constants.js';
 import { getMediaForTrip, showLiquidAlert, showConfirmModal, generateId, formatDayDate } from './utils.js';
@@ -80,6 +80,10 @@ window.updateTripSelector = function() {
         navigate('home');
     };
 }
+
+// UI subscriber: re-render the trip selector whenever state changes.
+// Lives here (not in state.js) so the data layer doesn't reach into the UI.
+subscribe('state:changed', () => window.updateTripSelector?.());
 
 window.archiveActiveTrip = function() {
     const trip = STATE.trips.find(t => t.id === STATE.activeTripId);

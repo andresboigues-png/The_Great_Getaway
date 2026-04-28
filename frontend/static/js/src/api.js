@@ -1,6 +1,6 @@
 // api.js — Backend fetch helpers
 
-import { STATE } from './state.js';
+import { STATE, emit } from './state.js';
 
 export async function syncWithServer() {
     if (!STATE.user) return;
@@ -42,10 +42,8 @@ export async function pullFromServer() {
             STATE.budgets = data.budgets || [];
             STATE.tripDays = data.tripDays || [];
             
-            saveState();
-            
-            // Trigger UI updates
-            window.updateTripSelector?.();
+            emit('state:changed');               // saveState + updateTripSelector via subscriber
+
             await fetchNotifications(); // Fetch notifications during pull
             window.updateNotificationUI?.();
             
@@ -190,7 +188,7 @@ export async function fetchHistoricalRates(dates) {
                     STATE.rateCache[`${date}_${curr}_EUR`] = 1 / rate; // Store as curr -> EUR
                 });
             });
-            saveState();
+            emit('state:changed');
         }
     } catch (e) {
         console.error("Failed to fetch historical rates:", e);

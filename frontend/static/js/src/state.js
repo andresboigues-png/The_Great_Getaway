@@ -74,15 +74,17 @@ export function saveState() {
         STATE.tripDays.forEach(d => { if (!d.tickets) d.tickets = []; });
     }
     localStorage.setItem('theGreatEscapeState', JSON.stringify(STATE));
-    window.updateTripSelector?.();
-    // NOTE: Delta sync helpers are called explicitly at each action site.
-    // saveState() no longer triggers a full server sync automatically.
+    // Pure persistence — UI updates and server deltas are handled by separate
+    // subscribers and explicit call sites. saveState used to call
+    // window.updateTripSelector here; that's now wired in main.js as a
+    // standalone subscriber to 'state:changed'.
 }
 
 // ── Tiny event bus ─────────────────────────────────────────────────────────────
 // emit('state:changed') from any mutation site to fan out to subscribers.
-// Existing call sites that call saveState() directly continue to work; the bus
-// is purely additive until callers opt in.
+// All mutation call sites now use the bus; saveState is no longer called
+// directly outside this file. UI subscribers (e.g. updateTripSelector) are
+// wired in main.js to keep this layer free of UI concerns.
 const _subscribers = new Map();
 
 export function subscribe(event, fn) {
