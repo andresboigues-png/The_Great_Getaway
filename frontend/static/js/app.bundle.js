@@ -1423,7 +1423,7 @@
                 </div>
             </div>
         </div>
-    `,setTimeout(n,0),t}window.logout=async()=>{try{await fetch(`/api/logout`,{method:`POST`}),e.user=null,e.archivedTrips=[],e.notifications=[],a(`state:changed`),Y(),window.navigate(`profile`)}catch{}};function J(t=null){let n=document.createElement(`div`),r=!t||e.user&&t===e.user.id;if(!e.user&&r){let t=e.hasLoggedInBefore;return n.innerHTML=`
+    `,setTimeout(n,0),t}window.logout=async()=>{try{await fetch(`/api/logout`,{method:`POST`}),e.user=null,e.activeTripId=null,e.trips=[],e.archivedTrips=[],e.expenses=[],e.tripDays=[],e.groups=[],e.budgets=[],e.activities=[],e.photos=[],e.notifications=[],e.savedFormats=[],e.profilePhoto=null,e.draftExpense={who:``,categoryId:``,label:``,date:``,country:``,value:``,currency:`EUR`,euroValue:``},a(`state:changed`),Y(),window.navigate(`profile`)}catch{}};function J(t=null){let n=document.createElement(`div`),r=!t||e.user&&t===e.user.id;if(!e.user&&r){let t=e.hasLoggedInBefore;return n.innerHTML=`
             <div class="ai-page-header">
                 <h1 style="background: linear-gradient(135deg, #007aff, #34c759); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Log In</h1>
                 <p>${t?`Sign in to your account to securely save and sync your trips across all your devices.`:`Sign in with Google to start syncing your trips and travel memories across all your devices.`}</p>

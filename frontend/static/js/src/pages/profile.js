@@ -3,9 +3,31 @@ import { STATE, emit } from '../state.js';
 window.logout = async () => {
     try {
         await fetch('/api/logout', { method: 'POST' });
+
+        // Clear everything tied to the logged-out user. Server still holds
+        // the authoritative copy — re-login will pull it back via pullFromServer.
         STATE.user = null;
+        STATE.activeTripId = null;
+        STATE.trips = [];
         STATE.archivedTrips = [];
+        STATE.expenses = [];
+        STATE.tripDays = [];
+        STATE.groups = [];
+        STATE.budgets = [];
+        STATE.activities = [];
+        STATE.photos = [];
         STATE.notifications = [];
+        STATE.savedFormats = [];
+        STATE.profilePhoto = null;
+        STATE.draftExpense = {
+            who: '', categoryId: '', label: '', date: '',
+            country: '', value: '', currency: 'EUR', euroValue: ''
+        };
+        // Kept intentionally:
+        // - hasLoggedInBefore (controls "Welcome back" vs "Log in" copy)
+        // - categories, excelMapping (defaults shared by anonymous + logged-in)
+        // - rateCache (currency rates aren't user-specific)
+
         emit('state:changed');
         updateUserUI();
         window.navigate('profile');
