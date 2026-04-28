@@ -264,22 +264,48 @@ export function renderProfile(targetUserId = null) {
                             });
                         });
 
-                    // Place markers
+                    // Place markers — only for trips that are BOTH archived (saved
+                    // to collections) AND made public via the privacy toggle.
+                    // Country highlights above use the broader trips list intentionally
+                    // (you still see every country you've been to), but pins are
+                    // public-only.
                     const geocoder = new google.maps.Geocoder();
                     const tripsByCountry = {};
-                    trips.forEach(t => { const k = t.country || t.name; if (k) { if (!tripsByCountry[k]) tripsByCountry[k] = []; tripsByCountry[k].push(t); } });
-                    
+                    trips.filter(t => t.isArchived && t.isPublic).forEach(t => {
+                        const k = t.country || t.name;
+                        if (k) {
+                            if (!tripsByCountry[k]) tripsByCountry[k] = [];
+                            tripsByCountry[k].push(t);
+                        }
+                    });
+
                     const addPins = async () => {
                         for (const [countryKey, tps] of Object.entries(tripsByCountry)) {
                             geocoder.geocode({ address: countryKey }, (results, status) => {
                                 if (status === "OK" && results[0]) {
                                     const pos = results[0].geometry.location;
-                                    new google.maps.Marker({
+                                    const marker = new google.maps.Marker({
                                         position: pos, map: map,
                                         icon: { path: google.maps.SymbolPath.CIRCLE, fillOpacity: 1, fillColor: '#ff2d55', strokeColor: 'white', strokeWeight: 2, scale: tps.length > 1 ? 14 : 10 }
-                                    }).addListener('click', () => {
-                                        window.showToast?.(`Trip: ${tps[0].name}`);
                                     });
+
+                                    const tripList = tps.map(t => `
+                                        <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid rgba(0,0,0,0.06);">
+                                            <span style="font-weight: 600; color: #000;">${t.name}</span>
+                                            <button onclick="window.viewArchivedDetails('${t.id}')" style="background: #007aff; color: white; border: none; padding: 4px 12px; border-radius: 8px; font-weight: 700; font-size: 0.75rem; cursor: pointer;">View</button>
+                                        </div>
+                                    `).join('');
+
+                                    const infoWindow = new google.maps.InfoWindow({
+                                        content: `
+                                            <div style="padding: 4px 8px; min-width: 220px; max-width: 300px; font-family: -apple-system, BlinkMacSystemFont, sans-serif;">
+                                                <div style="font-weight: 800; font-size: 0.7rem; text-transform: uppercase; color: rgba(0,0,0,0.5); letter-spacing: 0.1em; margin-bottom: 6px;">${countryKey} — ${tps.length} trip${tps.length > 1 ? 's' : ''}</div>
+                                                ${tripList}
+                                            </div>
+                                        `
+                                    });
+
+                                    marker.addListener('click', () => infoWindow.open(map, marker));
                                 }
                             });
                             await new Promise(r => setTimeout(r, 800));
