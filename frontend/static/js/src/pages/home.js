@@ -2,7 +2,7 @@
 
 import { STATE, emit } from '../state.js';
 import { INSPIRATIONAL_PAIRS, DESTINATION_DATA } from '../constants.js';
-import { getMediaForTrip, showLiquidAlert, showConfirmModal, generateId } from '../utils.js';
+import { getMediaForTrip, showLiquidAlert, showConfirmModal, generateId, formatDayDate } from '../utils.js';
 
 let dashboardInterval = null;
 let activeMarkers = {}; // Cache of Leaflet markers by day ID
@@ -507,7 +507,7 @@ export function renderHome() {
                                 <div style="display: flex; flex-direction: column;">
                                     <h3 style="margin: 0; font-size: 1.3rem; font-weight: 800; color: #002d5b; letter-spacing: -0.02em;">${day.name}</h3>
                                     <div style="font-size: 0.9rem; color: var(--text-secondary); font-weight: 600; margin-top: 4px; display: flex; align-items: center; gap: 8px;">
-                                        <span>📅 ${window.formatDayDate(day.date) || 'Set date'}</span>
+                                        <span>📅 ${formatDayDate(day.date) || 'Set date'}</span>
                                         ${day.lat ? `<span style="color: var(--accent-blue); opacity: 0.6;">•</span> <span style="color: var(--accent-blue);">📍 Location Set</span>` : ''}
                                     </div>
                                 </div>
@@ -836,7 +836,7 @@ window.openDayDetail = (dayId) => {
                 <div>
                     <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
                         <div style="background: var(--accent-blue); color: white; padding: 4px 12px; border-radius: 8px; font-weight: 800; font-size: 0.75rem; text-transform: uppercase;">Day ${day.dayNumber}</div>
-                        <div style="color: var(--text-secondary); font-weight: 600; font-size: 0.9rem;">${window.formatDayDate(day.date)}</div>
+                        <div style="color: var(--text-secondary); font-weight: 600; font-size: 0.9rem;">${formatDayDate(day.date)}</div>
                     </div>
                     <h2 style="font-size: 2.5rem; color: #002d5b; font-weight: 800; letter-spacing: -0.04em; margin: 0;">${day.name}</h2>
                 </div>

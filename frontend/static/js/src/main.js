@@ -1,7 +1,7 @@
 import { STATE, loadState, emit, subscribe } from './state.js';
 import { syncWithServer, pullFromServer, fetchNotifications, markNotificationsRead, upsertTrip, deleteTrip, archiveTripOnServer, upsertExpense, deleteExpenseOnServer, syncCompanions, syncCategories, upsertDay } from './api.js';
 import { COUNTRIES, US_STATES } from './constants.js';
-import { getMediaForTrip, showLiquidAlert, showConfirmModal, generateId, formatDayDate } from './utils.js';
+import { showLiquidAlert, showConfirmModal, generateId } from './utils.js';
 import { navigate } from './router.js';
 import { updateUserUI } from './pages/profile.js';
 
@@ -11,9 +11,7 @@ import { updateUserUI } from './pages/profile.js';
 // migrated to direct imports yet).
 window.showConfirmModal = showConfirmModal;
 window.showLiquidAlert = showLiquidAlert;
-window.formatDayDate = formatDayDate;
 window.navigate = navigate;
-window.markNotificationsRead = markNotificationsRead;
 window.upsertDay = upsertDay;
 
 // Global Google Client ID is now provided via index.html template from environment variables
@@ -245,7 +243,7 @@ async function init() {
             noteDropdown.style.display = isHidden ? 'flex' : 'none';
             if (isHidden) {
                 window.renderNotificationDropdown();
-                window.markNotificationsRead(); // Mark all as read when opening the list
+                markNotificationsRead(); // Mark all as read when opening the list
             }
         }
     });
