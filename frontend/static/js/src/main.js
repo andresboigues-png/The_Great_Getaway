@@ -1,24 +1,20 @@
-import { STATE, loadState, saveState, emit, subscribe } from './state.js';
-import { syncWithServer, pullFromServer, fetchNotifications, markNotificationsRead, fetchHistoricalRates, upsertTrip, deleteTrip, archiveTripOnServer, upsertExpense, deleteExpenseOnServer, syncCompanions, syncCategories, upsertDay, deleteDayOnServer } from './api.js';
+import { STATE, loadState, emit, subscribe } from './state.js';
+import { syncWithServer, pullFromServer, fetchNotifications, markNotificationsRead, upsertTrip, deleteTrip, archiveTripOnServer, upsertExpense, deleteExpenseOnServer, syncCompanions, syncCategories, upsertDay } from './api.js';
 import { COUNTRIES, US_STATES } from './constants.js';
 import { getMediaForTrip, showLiquidAlert, showConfirmModal, generateId, formatDayDate } from './utils.js';
 import { navigate } from './router.js';
 import { updateUserUI } from './pages/profile.js';
 
 // ── GLOBAL UTILITIES ──
+// Only assigned to window if something actually calls them via window.X (typically
+// inline HTML handlers like onclick="window.foo()", or module boundaries we haven't
+// migrated to direct imports yet).
 window.showConfirmModal = showConfirmModal;
 window.showLiquidAlert = showLiquidAlert;
-window.generateId = generateId;
 window.formatDayDate = formatDayDate;
 window.navigate = navigate;
-window.saveState = saveState;
-window.loadState = loadState;
-window.syncWithServer = syncWithServer;
-window.fetchNotifications = fetchNotifications;
 window.markNotificationsRead = markNotificationsRead;
-window.fetchHistoricalRates = fetchHistoricalRates;
 window.upsertDay = upsertDay;
-window.deleteDayOnServer = deleteDayOnServer;
 
 // Global Google Client ID is now provided via index.html template from environment variables
 
