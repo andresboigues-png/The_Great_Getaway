@@ -1,5 +1,6 @@
 import { STATE, emit } from '../state.js';
 import { showConfirmModal } from '../utils.js';
+import { navigate } from '../router.js';
 
 export function renderCollections() {
     const div = document.createElement('div');
@@ -194,7 +195,7 @@ window.restoreTrip = (id) => {
             STATE.archivedTrips = STATE.archivedTrips.filter(t => t.id !== id);
             STATE.activeTripId = id;
             emit('state:changed');
-            window.navigate('home');
+            navigate('home');
         }
     });
 };
@@ -216,7 +217,7 @@ window.deleteArchivedTrip = (id) => {
                     });
                 } catch (e) {}
             }
-            window.navigate('collections');
+            navigate('collections');
         }
     });
 };

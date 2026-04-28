@@ -1,6 +1,7 @@
 // api.js — Backend fetch helpers
 
 import { STATE, emit } from './state.js';
+import { navigate } from './router.js';
 
 export async function syncWithServer() {
     if (!STATE.user) return;
@@ -49,7 +50,7 @@ export async function pullFromServer() {
             
             // Re-render current page to show new data
             const currentPage = window.location.hash.replace('#', '') || 'home';
-            window.navigate(currentPage);
+            navigate(currentPage);
         }
     } catch (e) {
         console.error("Pull from server failed:", e);

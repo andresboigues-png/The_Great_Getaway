@@ -2,12 +2,13 @@ import { STATE, emit } from '../state.js';
 import { CONVERSION_RATES } from '../constants.js';
 import { generateId } from '../utils.js';
 import { upsertBudget, deleteBudgetOnServer } from '../api.js';
+import { navigate } from '../router.js';
 
 window.deleteBudget = (id) => {
     STATE.budgets = STATE.budgets.filter(b => b.id !== id);
     emit('state:changed');
     deleteBudgetOnServer(id); // Delta: delete budget on server
-    window.navigate('budgets');
+    navigate('budgets');
 };
 
 export function renderBudgets() {
@@ -173,7 +174,7 @@ export function renderBudgets() {
             STATE.budgets.push(budget);
             emit('state:changed');
             upsertBudget(budget); // Delta: persist budget to server
-            window.navigate('budgets');
+            navigate('budgets');
         });
     }, 0);
 

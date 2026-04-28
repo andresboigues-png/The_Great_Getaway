@@ -394,7 +394,7 @@ window.openNewTripModal = () => {
 
 window.openAddDayModal = () => {
     if (!STATE.activeTripId) {
-        window.showLiquidAlert("Please create a trip before adding days.");
+        showLiquidAlert("Please create a trip before adding days.");
         return;
     }
 

@@ -1,6 +1,7 @@
 import { STATE, emit } from '../state.js';
 import { generateId, showConfirmModal } from '../utils.js';
 import { syncCategories, syncCompanions } from '../api.js';
+import { navigate } from '../router.js';
 
 window.showSettingsTab = (tab) => {
     const tabs = document.querySelectorAll('.settings-tab-btn');
@@ -44,7 +45,7 @@ window.deleteCategory = (id) => {
             STATE.categories = STATE.categories.filter(c => c.id !== id);
             emit('state:changed');
             syncCategories(); // Delta: sync categories to server
-            window.navigate('personalization');
+            navigate('personalization');
             setTimeout(() => window.showPersTab('categories'), 50);
         }
     });
@@ -59,7 +60,7 @@ window.deleteCompanion = (name) => {
             STATE.groups = STATE.groups.filter(g => g !== name);
             emit('state:changed');
             syncCompanions(); // Delta: sync companions to server
-            window.navigate('personalization');
+            navigate('personalization');
             setTimeout(() => window.showPersTab('companions'), 50);
         }
     });
@@ -466,7 +467,7 @@ export function renderPersonalization() {
                 STATE.categories.push({ id: generateId(), name, icon, color });
                 emit('state:changed');
                 syncCategories(); // Delta: sync new category
-                window.navigate('personalization');
+                navigate('personalization');
                 setTimeout(() => window.showPersTab('categories'), 50);
             }
         });
@@ -478,7 +479,7 @@ export function renderPersonalization() {
                 STATE.groups.push(name);
                 emit('state:changed');
                 syncCompanions(); // Delta: sync new companion
-                window.navigate('personalization');
+                navigate('personalization');
                 setTimeout(() => window.showPersTab('companions'), 50);
             }
         });

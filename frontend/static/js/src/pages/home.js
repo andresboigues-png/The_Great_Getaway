@@ -4,6 +4,7 @@ import { STATE, emit } from '../state.js';
 import { INSPIRATIONAL_PAIRS, DESTINATION_DATA } from '../constants.js';
 import { getMediaForTrip, showLiquidAlert, showConfirmModal, generateId, formatDayDate } from '../utils.js';
 import { upsertDay } from '../api.js';
+import { navigate } from '../router.js';
 
 let dashboardInterval = null;
 let activeMarkers = {}; // Cache of Leaflet markers by day ID
@@ -220,7 +221,7 @@ export function renderHome() {
                 // Global function for manual pinning
                 window.toggleDayMenu = (dayId) => {
                     openMenuDayId = (openMenuDayId === dayId) ? null : dayId;
-                    window.navigate('home', null, true); // Preserve scroll
+                    navigate('home', null, true); // Preserve scroll
                 };
 
                 window.addDayPin = (dayId) => {
@@ -235,15 +236,15 @@ export function renderHome() {
                         day.lon = e.latlng.lng;
                         day.lng = e.latlng.lng;
                         activeMapClickListener = null;
-                        window.navigate('home', null, true); 
+                        navigate('home', null, true); 
                     };
                     
-                    window.navigate('home', null, true); 
+                    navigate('home', null, true); 
                 };
 
                 window.editDayPin = (dayId) => {
                     editingDayId = dayId;
-                    window.navigate('home', null, true);
+                    navigate('home', null, true);
                 };
 
                 window.saveDayPin = async (dayId) => {
@@ -255,7 +256,7 @@ export function renderHome() {
                     emit('state:changed');
                     await upsertDay(day);
                     window.showToast?.("Location saved!");
-                    window.navigate('home', null, true);
+                    navigate('home', null, true);
                 };
 
                 window.deleteDayPin = async (dayId) => {
@@ -270,7 +271,7 @@ export function renderHome() {
                     
                     emit('state:changed');
                     await upsertDay(day);
-                    window.navigate('home', null, true);
+                    navigate('home', null, true);
                 };
 
                 // Save Map View on change
@@ -416,16 +417,16 @@ export function renderHome() {
     if (hasFriends) STATE.guideProgress.friends = true;
 
     const steps = [
-        { text: "Log in to your account", done: STATE.guideProgress.login, icon: "🔐", action: () => window.navigate('profile') },
+        { text: "Log in to your account", done: STATE.guideProgress.login, icon: "🔐", action: () => navigate('profile') },
         { text: "Create your first trip", done: STATE.guideProgress.trip, icon: "✈️", action: () => window.openNewTripModal() },
         { text: "Add your travel companions", done: STATE.guideProgress.companions, icon: "👥", action: () => window.showPersonalizationTab('companions') },
         { text: "Set your own categories", done: STATE.guideProgress.categories, icon: "🏷️", action: () => window.showPersonalizationTab('categories') },
-        { text: 'Generate your AI travel plan<br><span style="font-size: 0.85rem; opacity: 0.8; font-weight: 500;">(or <span onclick="event.stopPropagation(); if(STATE.activeTripId){ window.openAddDayModal(STATE.activeTripId); } else { window.showLiquidAlert(\'Create a trip first\'); }" style="text-decoration: underline; color: var(--accent-blue); cursor: pointer;">create it manually</span>)</span>', done: STATE.guideProgress.plan, icon: "✦", action: () => window.navigate('ai') },
-        { text: 'Input your expenses<br><span style="font-size: 0.85rem; opacity: 0.8; font-weight: 500;">(<span onclick="event.stopPropagation(); window.navigate(\'expenses\')" style="text-decoration: underline; color: var(--accent-blue); cursor: pointer;">Manually</span> or <span onclick="event.stopPropagation(); window.navigate(\'upload\')" style="text-decoration: underline; color: var(--accent-blue); cursor: pointer;">in a batch</span>)</span>', done: STATE.guideProgress.expenses, icon: "💰", action: () => window.navigate('expenses') },
-        { text: "Explore Budgets", done: STATE.guideProgress.budgets, icon: "📊", action: () => window.navigate('budgets') },
-        { text: "Settle your first expenses", done: STATE.guideProgress.settlement, icon: "🤝", action: () => window.navigate('settlement') },
-        { text: "Discover Collections", done: STATE.guideProgress.collections, icon: "📂", action: () => window.navigate('collections') },
-        { text: "Connect with your friends", done: STATE.guideProgress.friends, icon: "📱", action: () => window.navigate('friends') }
+        { text: 'Generate your AI travel plan<br><span style="font-size: 0.85rem; opacity: 0.8; font-weight: 500;">(or <span onclick="event.stopPropagation(); if(STATE.activeTripId){ window.openAddDayModal(STATE.activeTripId); } else { window.showLiquidAlert(\'Create a trip first\'); }" style="text-decoration: underline; color: var(--accent-blue); cursor: pointer;">create it manually</span>)</span>', done: STATE.guideProgress.plan, icon: "✦", action: () => navigate('ai') },
+        { text: 'Input your expenses<br><span style="font-size: 0.85rem; opacity: 0.8; font-weight: 500;">(<span onclick="event.stopPropagation(); window.navigate(\'expenses\')" style="text-decoration: underline; color: var(--accent-blue); cursor: pointer;">Manually</span> or <span onclick="event.stopPropagation(); window.navigate(\'upload\')" style="text-decoration: underline; color: var(--accent-blue); cursor: pointer;">in a batch</span>)</span>', done: STATE.guideProgress.expenses, icon: "💰", action: () => navigate('expenses') },
+        { text: "Explore Budgets", done: STATE.guideProgress.budgets, icon: "📊", action: () => navigate('budgets') },
+        { text: "Settle your first expenses", done: STATE.guideProgress.settlement, icon: "🤝", action: () => navigate('settlement') },
+        { text: "Discover Collections", done: STATE.guideProgress.collections, icon: "📂", action: () => navigate('collections') },
+        { text: "Connect with your friends", done: STATE.guideProgress.friends, icon: "📱", action: () => navigate('friends') }
     ];
 
     const allDone = steps.every(s => s.done) || STATE.guideAllDone;
@@ -567,7 +568,7 @@ export function renderHome() {
         showBtnContainer.querySelector('button').onclick = () => {
             STATE.hideQuickAccess = false;
             emit('state:changed');
-            window.navigate('home');
+            navigate('home');
         };
         div.appendChild(showBtnContainer);
     } else {
@@ -620,7 +621,7 @@ export function renderHome() {
                 e.stopPropagation();
                 STATE.hideQuickAccess = true;
                 emit('state:changed');
-                window.navigate('home');
+                navigate('home');
             };
         }, 0);
 
@@ -658,7 +659,7 @@ window.openJournalingModal = (dayId) => {
         await upsertDay(day);
         window.showToast?.("Memories saved!");
         modal.remove();
-        window.navigate('home', null, true);
+        navigate('home', null, true);
     };
 };
 
@@ -738,7 +739,7 @@ window.openPhotosModal = (dayId) => {
     };
     modal.querySelector('#closePhotosBtn').onclick = () => {
         modal.remove();
-        window.navigate('home', null, true);
+        navigate('home', null, true);
     };
 };
 
@@ -885,7 +886,7 @@ window.openDayDetail = (dayId) => {
         await upsertDay(day);
         window.showToast?.("Itinerary updated!");
         modal.remove();
-        window.navigate('home');
+        navigate('home');
     };
 };
 

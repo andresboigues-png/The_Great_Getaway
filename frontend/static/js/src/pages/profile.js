@@ -1,5 +1,6 @@
 import { STATE, emit } from '../state.js';
 import { syncWithServer } from '../api.js';
+import { navigate } from '../router.js';
 
 window.logout = async () => {
     try {
@@ -37,7 +38,7 @@ window.logout = async () => {
 
         emit('state:changed');
         updateUserUI();
-        window.navigate('profile');
+        navigate('profile');
     } catch (e) {}
 };
 

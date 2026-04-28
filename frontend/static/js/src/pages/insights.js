@@ -1,6 +1,7 @@
 import { STATE, emit } from '../state.js';
 import { CONVERSION_RATES } from '../constants.js';
 import { fetchHistoricalRates } from '../api.js';
+import { navigate } from '../router.js';
 
 export function renderInsights() {
     const div = document.createElement('div');
@@ -27,7 +28,7 @@ export function renderInsights() {
             </div>
         `;
         setTimeout(() => {
-            div.querySelector('#goToExpensesBtn').addEventListener('click', () => window.navigate('expenses'));
+            div.querySelector('#goToExpensesBtn').addEventListener('click', () => navigate('expenses'));
         }, 0);
         return div;
     }
@@ -236,14 +237,14 @@ export function renderInsights() {
             btn.addEventListener('click', () => {
                 STATE.rateMode = btn.dataset.mode;
                 emit('state:changed');
-                window.navigate('insights');
+                navigate('insights');
             });
         });
 
         div.querySelector('#insightCurrencySelector').addEventListener('change', (e) => {
             STATE.insightCurrency = e.target.value;
             emit('state:changed');
-            window.navigate('insights');
+            navigate('insights');
         });
 
         const ctxPie = div.querySelector('#categoryChart');
