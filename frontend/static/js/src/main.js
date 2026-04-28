@@ -152,6 +152,11 @@ async function handleGoogleLogin(response) {
 
             await syncWithServer();
             await pullFromServer();
+            // Logout cleared activeTripId; server doesn't store it. Reconcile so the
+            // trip selector and the rest of the UI agree on which trip is active.
+            if (STATE.trips.length > 0 && !STATE.trips.find(t => t.id === STATE.activeTripId)) {
+                STATE.activeTripId = STATE.trips[0].id;
+            }
             emit('state:changed');               // saveState via subscriber
             updateUserUI();
             navigate('profile');
