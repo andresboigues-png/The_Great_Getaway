@@ -9,7 +9,6 @@ import { updateUserUI } from './pages/profile.js';
 // Only assigned to window if something actually calls them via window.X (typically
 // inline HTML handlers like onclick="window.foo()", or module boundaries we haven't
 // migrated to direct imports yet).
-window.showConfirmModal = showConfirmModal;
 window.showLiquidAlert = showLiquidAlert;
 window.navigate = navigate;
 window.upsertDay = upsertDay;
@@ -112,7 +111,7 @@ window.deleteActiveTrip = () => {
     const trip = STATE.trips.find(t => t.id === STATE.activeTripId);
     if (!trip) return;
 
-    window.showConfirmModal({
+    showConfirmModal({
         title: "Delete Trip?",
         message: `Are you sure you want to delete "${trip.name}" permanently? This will remove all associated expenses and days.`,
         confirmText: "Delete Permanently",
@@ -477,7 +476,7 @@ window.openEditExpenseModal = (id) => {
 };
 
 window.deleteExpense = (id) => {
-    window.showConfirmModal({
+    showConfirmModal({
         title: "Delete Expense?",
         message: "This action cannot be undone.",
         confirmText: "Delete",

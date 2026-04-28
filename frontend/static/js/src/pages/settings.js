@@ -36,7 +36,7 @@ window.showPersTab = (tab) => {
 window.showPersonalizationTab = window.showPersTab; // Alias for consistency
 
 window.deleteCategory = (id) => {
-    window.showConfirmModal({
+    showConfirmModal({
         title: "Delete Category?",
         message: "This will not affect existing expenses, but you won't be able to select this category again.",
         confirmText: "Delete",
@@ -51,7 +51,7 @@ window.deleteCategory = (id) => {
 };
 
 window.deleteCompanion = (name) => {
-    window.showConfirmModal({
+    showConfirmModal({
         title: "Remove Companion?",
         message: `Remove "${name}" from your travel companions?`,
         confirmText: "Remove",
@@ -285,7 +285,7 @@ export function renderSettings() {
                 }
             }
         };
-        window.showConfirmModal(configs[type]);
+        showConfirmModal(configs[type]);
     };
 
     window.addFormatMapping = () => {
@@ -321,7 +321,7 @@ export function renderSettings() {
     };
 
     window.deleteSavedFormat = (id) => {
-        window.showConfirmModal({
+        showConfirmModal({
             title: "Delete Format?",
             message: "This mapping will no longer be available for imports.",
             confirmText: "Delete",

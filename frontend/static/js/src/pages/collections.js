@@ -1,4 +1,5 @@
 import { STATE, emit } from '../state.js';
+import { showConfirmModal } from '../utils.js';
 
 export function renderCollections() {
     const div = document.createElement('div');
@@ -172,7 +173,7 @@ window.restoreTrip = (id) => {
     const trip = STATE.archivedTrips.find(t => t.id === id);
     if (!trip) return;
     
-    window.showConfirmModal({
+    showConfirmModal({
         title: "Restore Trip?",
         message: "This will move the trip back to your active list.",
         confirmText: "Restore",
@@ -199,7 +200,7 @@ window.restoreTrip = (id) => {
 };
 
 window.deleteArchivedTrip = (id) => {
-    window.showConfirmModal({
+    showConfirmModal({
         title: "Delete Permanently?",
         message: "This trip and all its memories will be gone forever.",
         confirmText: "Delete",

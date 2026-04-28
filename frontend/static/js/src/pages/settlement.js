@@ -349,7 +349,7 @@ export function renderSettlement() {
     };
 
     window.deleteSettlement = (id, tripId) => {
-        window.showConfirmModal({
+        showConfirmModal({
             title: "Unsettle Payment?",
             message: "This will remove the settlement and revert the balances. Are you sure?",
             confirmText: "Unsettle",
