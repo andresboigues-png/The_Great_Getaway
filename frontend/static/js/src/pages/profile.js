@@ -1,7 +1,14 @@
 import { STATE, emit } from '../state.js';
+import { syncWithServer } from '../api.js';
 
 window.logout = async () => {
     try {
+        // Final push of any unsynced local changes before we wipe local state
+        // and invalidate the session. Wrapped separately so a sync failure
+        // doesn't block the rest of logout.
+        try { await syncWithServer(); }
+        catch (e) { console.error('Final sync before logout failed:', e); }
+
         await fetch('/api/logout', { method: 'POST' });
 
         // Clear everything tied to the logged-out user. Server still holds
