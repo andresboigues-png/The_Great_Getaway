@@ -3,6 +3,7 @@
 import { STATE, emit } from '../state.js';
 import { INSPIRATIONAL_PAIRS, DESTINATION_DATA } from '../constants.js';
 import { getMediaForTrip, showLiquidAlert, showConfirmModal, generateId, formatDayDate } from '../utils.js';
+import { upsertDay } from '../api.js';
 
 let dashboardInterval = null;
 let activeMarkers = {}; // Cache of Leaflet markers by day ID
@@ -252,7 +253,7 @@ export function renderHome() {
                     editingDayId = null;
                     activeMapClickListener = null;
                     emit('state:changed');
-                    if (window.upsertDay) await window.upsertDay(day);
+                    await upsertDay(day);
                     window.showToast?.("Location saved!");
                     window.navigate('home', null, true);
                 };
@@ -268,7 +269,7 @@ export function renderHome() {
                     activeMapClickListener = null;
                     
                     emit('state:changed');
-                    if (window.upsertDay) await window.upsertDay(day);
+                    await upsertDay(day);
                     window.navigate('home', null, true);
                 };
 
@@ -654,7 +655,7 @@ window.openJournalingModal = (dayId) => {
     modal.querySelector('#saveJournalBtn').onclick = async () => {
         day.notes = modal.querySelector('#journalText').value;
         emit('state:changed');
-        if (window.upsertDay) await window.upsertDay(day);
+        await upsertDay(day);
         window.showToast?.("Memories saved!");
         modal.remove();
         window.navigate('home', null, true);
@@ -711,7 +712,7 @@ window.openPhotosModal = (dayId) => {
         if (res && res.url) {
             day.photos.push(res.url);
             emit('state:changed');
-            if (window.upsertDay) await window.upsertDay(day);
+            await upsertDay(day);
             modal.remove();
             window.openPhotosModal(dayId);
         } else {
@@ -721,7 +722,7 @@ window.openPhotosModal = (dayId) => {
     window.removePhoto = async (dId, idx) => {
         day.photos.splice(idx, 1);
         emit('state:changed');
-        if (window.upsertDay) await window.upsertDay(day);
+        await upsertDay(day);
         modal.remove();
         window.openPhotosModal(dId);
     };
@@ -730,7 +731,7 @@ window.openPhotosModal = (dayId) => {
         if (url) {
             day.photos.push(url);
             emit('state:changed');
-            if (window.upsertDay) await window.upsertDay(day);
+            await upsertDay(day);
             modal.remove();
             window.openPhotosModal(dayId);
         }
@@ -795,7 +796,7 @@ window.openDocumentsModal = (dayId) => {
         if (res && res.url) {
             day.documents.push({ name: res.name || file.name, url: res.url });
             emit('state:changed');
-            if (window.upsertDay) await window.upsertDay(day);
+            await upsertDay(day);
             modal.remove();
             window.openDocumentsModal(dayId);
         } else {
@@ -805,7 +806,7 @@ window.openDocumentsModal = (dayId) => {
     window.removeDoc = async (dId, idx) => {
         day.documents.splice(idx, 1);
         emit('state:changed');
-        if (window.upsertDay) await window.upsertDay(day);
+        await upsertDay(day);
         modal.remove();
         window.openDocumentsModal(dId);
     };
@@ -815,7 +816,7 @@ window.openDocumentsModal = (dayId) => {
         if (name && url) {
             day.documents.push({ name, url });
             emit('state:changed');
-            if (window.upsertDay) await window.upsertDay(day);
+            await upsertDay(day);
             modal.remove();
             window.openDocumentsModal(dayId);
         }
@@ -881,7 +882,7 @@ window.openDayDetail = (dayId) => {
         day.plan = { morning, afternoon, evening };
         day.notes = notes;
         emit('state:changed');
-        if (window.upsertDay) await window.upsertDay(day);
+        await upsertDay(day);
         window.showToast?.("Itinerary updated!");
         modal.remove();
         window.navigate('home');

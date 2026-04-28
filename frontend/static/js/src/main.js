@@ -11,7 +11,6 @@ import { updateUserUI } from './pages/profile.js';
 // migrated to direct imports yet).
 window.showLiquidAlert = showLiquidAlert;
 window.navigate = navigate;
-window.upsertDay = upsertDay;
 
 // Global Google Client ID is now provided via index.html template from environment variables
 
@@ -459,7 +458,7 @@ window.openAddDayModal = () => {
         STATE.tripDays.push(newDay);
 
         emit('state:changed');               // saveState via subscriber
-        if (window.upsertDay) await window.upsertDay(newDay);  // server delta still explicit
+        await upsertDay(newDay);             // server delta still explicit
         modal.remove();
         navigate('home');
     };
