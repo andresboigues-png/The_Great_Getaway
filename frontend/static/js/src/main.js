@@ -76,9 +76,8 @@ window.updateTripSelector = function() {
 
     selector.onchange = (e) => {
         STATE.activeTripId = e.target.value;
-        saveState();
+        emit('state:changed');               // saveState + updateTripSelector via subscriber
         navigate('home');
-        window.updateTripSelector();
     };
 }
 
@@ -157,7 +156,7 @@ async function handleGoogleLogin(response) {
 
             await syncWithServer();
             await pullFromServer();
-            saveState();
+            emit('state:changed');               // saveState via subscriber
             updateUserUI();
             navigate('profile');
         }
