@@ -2,7 +2,7 @@ import { STATE, emit } from '../state.js';
 import { syncWithServer } from '../api.js';
 import { navigate } from '../router.js';
 
-window.logout = async () => {
+export const logout = async () => {
     try {
         // Final push of any unsynced local changes before we wipe local state
         // and invalidate the session. Wrapped separately so a sync failure
@@ -41,6 +41,8 @@ window.logout = async () => {
         navigate('profile');
     } catch (e) {}
 };
+// Kept on window: profile.js:114 still uses onclick="window.logout()" — migrated in Wave 3C.
+window.logout = logout;
 
 export function renderProfile(targetUserId = null) {
     const div = document.createElement('div');

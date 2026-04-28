@@ -3,16 +3,16 @@ import { generateId, showConfirmModal } from '../utils.js';
 import { syncCategories, syncCompanions } from '../api.js';
 import { navigate } from '../router.js';
 
-window.showSettingsTab = (tab) => {
+export const showSettingsTab = (tab) => {
     const tabs = document.querySelectorAll('.settings-tab-btn');
     const sections = document.querySelectorAll('.settings-section');
-    
+
     tabs.forEach(t => t.classList.remove('active'));
     sections.forEach(s => s.classList.remove('active'));
-    
+
     const activeTab = Array.from(tabs).find(t => t.innerText.toLowerCase().includes(tab.toLowerCase()));
     if (activeTab) activeTab.classList.add('active');
-    
+
     const activeSection = document.getElementById(`settings-${tab}`);
     if (activeSection) activeSection.classList.add('active');
 };

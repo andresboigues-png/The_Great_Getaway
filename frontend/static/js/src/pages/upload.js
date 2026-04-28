@@ -2,6 +2,8 @@ import { STATE, emit } from '../state.js';
 import { CONVERSION_RATES } from '../constants.js';
 import { generateId } from '../utils.js';
 import { syncWithServer } from '../api.js';
+import { navigate } from '../router.js';
+import { showSettingsTab } from './settings.js';
 
 export function renderUpload() {
     const div = document.createElement('div');
@@ -45,7 +47,7 @@ export function renderUpload() {
         })()}
                 </select>
                 <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 12px; line-height: 1.5;">
-                    Use your favourite app's format or <a href="#" onclick="window.showSettingsTab('format'); return false;" style="color: var(--accent-blue); text-decoration: none; font-weight: 600;">customize your own upload format</a> in settings.
+                    Use your favourite app's format or <a href="#" id="uploadFormatSettingsLink" style="color: var(--accent-blue); text-decoration: none; font-weight: 600;">customize your own upload format</a> in settings.
                 </p>
                 <p id="formatNote" style="font-size:0.8rem; color:var(--text-secondary); margin-top:8px;"></p>
             </div>
@@ -84,6 +86,13 @@ export function renderUpload() {
     setTimeout(() => {
         let parsedRows = null;
         let currentHeader = [];
+
+        div.querySelector('#uploadFormatSettingsLink')?.addEventListener('click', (e) => {
+            e.preventDefault();
+            navigate('settings');
+            // Settings DOM doesn't exist until navigate renders it.
+            setTimeout(() => showSettingsTab('format'), 50);
+        });
 
         const formatSelect = div.querySelector('#formatSelect');
         const popularNote = div.querySelector('#popularNote');

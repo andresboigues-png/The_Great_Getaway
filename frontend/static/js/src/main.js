@@ -3,7 +3,7 @@ import { syncWithServer, pullFromServer, fetchNotifications, markNotificationsRe
 import { COUNTRIES, US_STATES } from './constants.js';
 import { showLiquidAlert, showConfirmModal, generateId } from './utils.js';
 import { navigate } from './router.js';
-import { updateUserUI } from './pages/profile.js';
+import { updateUserUI, logout } from './pages/profile.js';
 
 // ── GLOBAL UTILITIES ──
 // Only assigned to window if something actually calls them via window.X (typically
@@ -77,7 +77,7 @@ window.updateTripSelector = function() {
 // Lives here (not in state.js) so the data layer doesn't reach into the UI.
 subscribe('state:changed', () => window.updateTripSelector?.());
 
-window.archiveActiveTrip = function() {
+function archiveActiveTrip() {
     const trip = STATE.trips.find(t => t.id === STATE.activeTripId);
     if (!trip) return;
 
@@ -106,7 +106,7 @@ window.archiveActiveTrip = function() {
     });
 }
 
-window.deleteActiveTrip = () => {
+const deleteActiveTrip = () => {
     const trip = STATE.trips.find(t => t.id === STATE.activeTripId);
     if (!trip) return;
 
@@ -247,8 +247,12 @@ async function init() {
     });
 
     document.getElementById('newTripBtn')?.addEventListener('click', () => {
-        window.openNewTripModal();
+        openNewTripModal();
     });
+
+    document.getElementById('sidebarLogoutBtn')?.addEventListener('click', () => logout());
+    document.getElementById('completeTripBtn')?.addEventListener('click', archiveActiveTrip);
+    document.getElementById('deleteTripBtn')?.addEventListener('click', deleteActiveTrip);
 
     document.addEventListener('click', (e) => {
         // Close notification dropdown if clicking outside
@@ -278,7 +282,7 @@ async function init() {
 
 // ── MODAL HELPERS ──
 
-window.openNewTripModal = () => {
+const openNewTripModal = () => {
     const modal = document.createElement('div');
     modal.className = 'modal-overlay';
     modal.style.display = 'flex';
@@ -391,6 +395,8 @@ window.openNewTripModal = () => {
         navigate('home');
     };
 };
+// Kept on window: home.js + ai.js still call window.openNewTripModal — migrated in Wave 3D.
+window.openNewTripModal = openNewTripModal;
 
 window.openAddDayModal = () => {
     if (!STATE.activeTripId) {
