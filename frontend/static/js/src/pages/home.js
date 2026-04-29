@@ -6,6 +6,7 @@ import { getMediaForTrip, showLiquidAlert, showConfirmModal, generateId, formatD
 import { upsertDay } from '../api.js';
 import { navigate } from '../router.js';
 import { showPersTab } from './settings.js';
+import { openNewTripModal, openAddDayModal } from '../modals.js';
 
 let dashboardInterval = null;
 let activeMarkers = {}; // Cache of Leaflet markers by day ID
@@ -141,7 +142,7 @@ export function renderHome() {
             </div>
         `;
         dashboardInterval = setInterval(showNextImageAndQuote, 6000);
-        div.querySelector('#homeCreateFirstTripBtn')?.addEventListener('click', () => window.openNewTripModal());
+        div.querySelector('#homeCreateFirstTripBtn')?.addEventListener('click', () => openNewTripModal());
     } else {
         const tripExpenses = (STATE.expenses || []).filter(e => e && e.tripId === activeTrip.id);
         const tripDays = (STATE.tripDays || []).filter(d => d.tripId === activeTrip.id);
@@ -422,7 +423,7 @@ export function renderHome() {
 
     const steps = [
         { text: "Log in to your account", done: STATE.guideProgress.login, icon: "🔐", action: () => navigate('profile') },
-        { text: "Create your first trip", done: STATE.guideProgress.trip, icon: "✈️", action: () => window.openNewTripModal() },
+        { text: "Create your first trip", done: STATE.guideProgress.trip, icon: "✈️", action: () => openNewTripModal() },
         // Personalization page DOM (#persMenu/#persContent/#persCategories/
         // #persCompanions) only exists once the page has rendered, so navigate
         // first and switch the tab on the next tick.
@@ -592,7 +593,7 @@ export function renderHome() {
 
         setTimeout(() => {
             const addBtn = div.querySelector('#addDayBtn');
-            if (addBtn) addBtn.onclick = () => window.openAddDayModal(activeTrip.id);
+            if (addBtn) addBtn.onclick = () => openAddDayModal(activeTrip.id);
         }, 0);
     }
 
@@ -662,7 +663,7 @@ export function renderHome() {
                     if (action === 'open-add-day') {
                         // openAddDayModal handles the no-active-trip case itself
                         // with its own alert; no pre-check needed.
-                        window.openAddDayModal();
+                        openAddDayModal();
                     } else if (action === 'navigate-expenses') {
                         navigate('expenses');
                     } else if (action === 'navigate-upload') {

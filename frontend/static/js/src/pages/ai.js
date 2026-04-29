@@ -1,4 +1,5 @@
 import { STATE, emit } from '../state.js';
+import { openNewTripModal } from '../modals.js';
 
 let googleMap = null;
 let mapMarkers = [];
@@ -26,7 +27,7 @@ export function renderAI() {
                 </div>
             </div>`;
         setTimeout(() => {
-            div.querySelector('#aiStartJourneyBtn')?.addEventListener('click', () => window.openNewTripModal());
+            div.querySelector('#aiStartJourneyBtn')?.addEventListener('click', () => openNewTripModal());
             if (typeof google !== 'undefined' && google.maps) {
                 new google.maps.Map(document.getElementById('emptyMap'), {
                     center: { lat: 20, lng: 0 },
