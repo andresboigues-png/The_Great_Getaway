@@ -422,8 +422,11 @@ export function renderHome() {
     const steps = [
         { text: "Log in to your account", done: STATE.guideProgress.login, icon: "🔐", action: () => navigate('profile') },
         { text: "Create your first trip", done: STATE.guideProgress.trip, icon: "✈️", action: () => window.openNewTripModal() },
-        { text: "Add your travel companions", done: STATE.guideProgress.companions, icon: "👥", action: () => window.showPersonalizationTab('companions') },
-        { text: "Set your own categories", done: STATE.guideProgress.categories, icon: "🏷️", action: () => window.showPersonalizationTab('categories') },
+        // Personalization page DOM (#persMenu/#persContent/#persCategories/
+        // #persCompanions) only exists once the page has rendered, so navigate
+        // first and switch the tab on the next tick.
+        { text: "Add your travel companions", done: STATE.guideProgress.companions, icon: "👥", action: () => { navigate('personalization'); setTimeout(() => window.showPersTab('companions'), 50); } },
+        { text: "Set your own categories", done: STATE.guideProgress.categories, icon: "🏷️", action: () => { navigate('personalization'); setTimeout(() => window.showPersTab('categories'), 50); } },
         { text: 'Generate your AI travel plan<br><span style="font-size: 0.85rem; opacity: 0.8; font-weight: 500;">(or <span data-guide-action="open-add-day" style="text-decoration: underline; color: var(--accent-blue); cursor: pointer;">create it manually</span>)</span>', done: STATE.guideProgress.plan, icon: "✦", action: () => navigate('ai') },
         { text: 'Input your expenses<br><span style="font-size: 0.85rem; opacity: 0.8; font-weight: 500;">(<span data-guide-action="navigate-expenses" style="text-decoration: underline; color: var(--accent-blue); cursor: pointer;">Manually</span> or <span data-guide-action="navigate-upload" style="text-decoration: underline; color: var(--accent-blue); cursor: pointer;">in a batch</span>)</span>', done: STATE.guideProgress.expenses, icon: "💰", action: () => navigate('expenses') },
         { text: "Explore Budgets", done: STATE.guideProgress.budgets, icon: "📊", action: () => navigate('budgets') },
@@ -656,8 +659,9 @@ export function renderHome() {
                 if (innerAction) {
                     const action = innerAction.dataset.guideAction;
                     if (action === 'open-add-day') {
-                        if (STATE.activeTripId) window.openAddDayModal(STATE.activeTripId);
-                        else showLiquidAlert('Create a trip first');
+                        // openAddDayModal handles the no-active-trip case itself
+                        // with its own alert; no pre-check needed.
+                        window.openAddDayModal();
                     } else if (action === 'navigate-expenses') {
                         navigate('expenses');
                     } else if (action === 'navigate-upload') {
