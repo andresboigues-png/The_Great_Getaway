@@ -5,6 +5,7 @@ import { INSPIRATIONAL_PAIRS, DESTINATION_DATA } from '../constants.js';
 import { getMediaForTrip, showLiquidAlert, showConfirmModal, generateId, formatDayDate } from '../utils.js';
 import { upsertDay } from '../api.js';
 import { navigate } from '../router.js';
+import { showPersTab } from './settings.js';
 
 let dashboardInterval = null;
 let activeMarkers = {}; // Cache of Leaflet markers by day ID
@@ -425,8 +426,8 @@ export function renderHome() {
         // Personalization page DOM (#persMenu/#persContent/#persCategories/
         // #persCompanions) only exists once the page has rendered, so navigate
         // first and switch the tab on the next tick.
-        { text: "Add your travel companions", done: STATE.guideProgress.companions, icon: "👥", action: () => { navigate('personalization'); setTimeout(() => window.showPersTab('companions'), 50); } },
-        { text: "Set your own categories", done: STATE.guideProgress.categories, icon: "🏷️", action: () => { navigate('personalization'); setTimeout(() => window.showPersTab('categories'), 50); } },
+        { text: "Add your travel companions", done: STATE.guideProgress.companions, icon: "👥", action: () => { navigate('personalization'); setTimeout(() => showPersTab('companions'), 50); } },
+        { text: "Set your own categories", done: STATE.guideProgress.categories, icon: "🏷️", action: () => { navigate('personalization'); setTimeout(() => showPersTab('categories'), 50); } },
         { text: 'Generate your AI travel plan<br><span style="font-size: 0.85rem; opacity: 0.8; font-weight: 500;">(or <span data-guide-action="open-add-day" style="text-decoration: underline; color: var(--accent-blue); cursor: pointer;">create it manually</span>)</span>', done: STATE.guideProgress.plan, icon: "✦", action: () => navigate('ai') },
         { text: 'Input your expenses<br><span style="font-size: 0.85rem; opacity: 0.8; font-weight: 500;">(<span data-guide-action="navigate-expenses" style="text-decoration: underline; color: var(--accent-blue); cursor: pointer;">Manually</span> or <span data-guide-action="navigate-upload" style="text-decoration: underline; color: var(--accent-blue); cursor: pointer;">in a batch</span>)</span>', done: STATE.guideProgress.expenses, icon: "💰", action: () => navigate('expenses') },
         { text: "Explore Budgets", done: STATE.guideProgress.budgets, icon: "📊", action: () => navigate('budgets') },

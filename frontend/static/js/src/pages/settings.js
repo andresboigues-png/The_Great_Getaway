@@ -17,7 +17,9 @@ export const showSettingsTab = (tab) => {
     if (activeSection) activeSection.classList.add('active');
 };
 
-window.showPersTab = (tab) => {
+// Exported because home.js (guide actions) and expenses.js (Add Companions
+// helper) reach in here to switch the personalization tab after navigating.
+export const showPersTab = (tab) => {
     const menu = document.getElementById('persMenu');
     const content = document.getElementById('persContent');
     const catSection = document.getElementById('persCategories');
@@ -34,9 +36,7 @@ window.showPersTab = (tab) => {
     }
 };
 
-window.showPersonalizationTab = window.showPersTab; // Alias for consistency
-
-window.deleteCategory = (id) => {
+const deleteCategory = (id) => {
     showConfirmModal({
         title: "Delete Category?",
         message: "This will not affect existing expenses, but you won't be able to select this category again.",
@@ -46,12 +46,12 @@ window.deleteCategory = (id) => {
             emit('state:changed');
             syncCategories(); // Delta: sync categories to server
             navigate('personalization');
-            setTimeout(() => window.showPersTab('categories'), 50);
+            setTimeout(() => showPersTab('categories'), 50);
         }
     });
 };
 
-window.deleteCompanion = (name) => {
+const deleteCompanion = (name) => {
     showConfirmModal({
         title: "Remove Companion?",
         message: `Remove "${name}" from your travel companions?`,
@@ -61,7 +61,7 @@ window.deleteCompanion = (name) => {
             emit('state:changed');
             syncCompanions(); // Delta: sync companions to server
             navigate('personalization');
-            setTimeout(() => window.showPersTab('companions'), 50);
+            setTimeout(() => showPersTab('companions'), 50);
         }
     });
 };
@@ -100,7 +100,7 @@ export function renderSettings() {
                                 <td style="padding:16px; font-weight:700;">${m.variable}</td>
                                 <td style="padding:16px;"><span style="background:#ff9500; color:white; padding:4px 10px; border-radius:8px; font-weight:800; font-size:0.8rem;">${m.column}</span></td>
                                 <td style="padding:16px; text-align:center;">
-                                    <button onclick="window.removeFormatMapping('${m.variable}')" style="background:rgba(255,59,48,0.1); border:none; color:#ff3b30; width:32px; height:32px; border-radius:50%; cursor:pointer;">&times;</button>
+                                    <button class="remove-mapping-btn" data-variable="${m.variable}" style="background:rgba(255,59,48,0.1); border:none; color:#ff3b30; width:32px; height:32px; border-radius:50%; cursor:pointer;">&times;</button>
                                 </td>
                             </tr>
                         `).join('')}
@@ -123,7 +123,7 @@ export function renderSettings() {
                         ${'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map(c => `<option value="${c}">${c}</option>`).join('')}
                     </select>
                 </div>
-                <button class="btn btn-liquid-glass" style="padding: 12px 24px;" onclick="window.addFormatMapping()">Map Field</button>
+                <button class="btn btn-liquid-glass" id="addFormatMappingBtn" style="padding: 12px 24px;">Map Field</button>
             </div>
 
             <div style="border-top: 1px solid var(--glass-border); padding-top: 32px;">
@@ -133,15 +133,15 @@ export function renderSettings() {
                         <div style="display:flex; align-items:center; justify-content:space-between; background:rgba(255,255,255,0.03); padding:16px; border-radius:16px; border:1px solid var(--glass-border);">
                             <div style="font-weight:700;">${f.name}</div>
                             <div style="display:flex; gap:8px;">
-                                <button class="btn btn-small" style="background:rgba(0,113,227,0.1); color:#007aff; border:none; padding:8px 16px; border-radius:12px;" onclick="window.editSavedFormat('${f.id}')">Edit</button>
-                                <button class="btn btn-small" style="background:rgba(255,59,48,0.1); color:#ff3b30; border:none; padding:8px 16px; border-radius:12px;" onclick="window.deleteSavedFormat('${f.id}')">Delete</button>
+                                <button class="btn btn-small edit-saved-format-btn" data-format-id="${f.id}" style="background:rgba(0,113,227,0.1); color:#007aff; border:none; padding:8px 16px; border-radius:12px;">Edit</button>
+                                <button class="btn btn-small delete-saved-format-btn" data-format-id="${f.id}" style="background:rgba(255,59,48,0.1); color:#ff3b30; border:none; padding:8px 16px; border-radius:12px;">Delete</button>
                             </div>
                         </div>
                     `).join('')}
                     ${sf.length < 5 ? `
                         <div style="display:flex; gap:12px; margin-top:12px;">
                             <input type="text" id="formatNameInput" class="glass-input" placeholder="Name this format..." style="flex:1;">
-                            <button class="btn" onclick="window.saveCustomFormat()" style="background:var(--accent-blue);">Save Format</button>
+                            <button class="btn" id="saveCustomFormatBtn" style="background:var(--accent-blue);">Save Format</button>
                         </div>
                     ` : ''}
                 </div>
@@ -162,13 +162,13 @@ export function renderSettings() {
 
             ${isMenu ? `
                 <div class="settings-grid">
-                    <div class="card glass management-card" style="cursor: pointer;" onclick="window.switchSettingsTab('format')">
+                    <div class="card glass management-card settings-tab-card" data-tab="format" style="cursor: pointer;">
                         <h2 class="card-title" style="color: #ff9500; margin: 0;">Format Options</h2>
                         <p style="color: var(--text-secondary); margin: 8px 0 0;">Configure Excel import mappings and global data formats.</p>
                         <div style="margin-top: 20px; color: #ff9500; font-weight: 700; font-size: 0.85rem;">Configure &rarr;</div>
                     </div>
 
-                    <div class="card glass management-card danger-card" style="cursor: pointer;" onclick="window.switchSettingsTab('reset')">
+                    <div class="card glass management-card danger-card settings-tab-card" data-tab="reset" style="cursor: pointer;">
                         <div class="danger-glow pulse-red"></div>
                         <h2 class="card-title" style="color: #ff3b30; margin: 0;">Data Management</h2>
                         <p style="color: var(--text-secondary); margin: 8px 0 0;">Wipe specific data categories or perform a factory reset.</p>
@@ -176,29 +176,29 @@ export function renderSettings() {
                     </div>
                 </div>
             ` : `
-                <button class="btn btn-small btn-liquid-glass" style="margin-bottom: 24px; padding: 10px 20px; border-radius: 14px;" onclick="window.switchSettingsTab('menu')">&larr; Back to Control Center</button>
+                <button class="btn btn-small btn-liquid-glass settings-tab-card" data-tab="menu" style="margin-bottom: 24px; padding: 10px 20px; border-radius: 14px;">&larr; Back to Control Center</button>
                 
                 ${isReset ? `
                     <div class="settings-grid">
                         <div class="card glass" style="padding: 24px;">
                             <h3 style="color: #007aff; margin-top: 0;">Companions</h3>
                             <p style="font-size: 0.85rem; color: var(--text-secondary);">Delete your travel companions and groups.</p>
-                            <button class="btn btn-small" style="background: rgba(0, 113, 227, 0.1); color: #007aff; border: 1px solid rgba(0, 113, 227, 0.2); width: 100%;" onclick="window.confirmReset('groups')">Clear Groups</button>
+                            <button class="btn btn-small confirm-reset-btn" data-reset-type="groups" style="background: rgba(0, 113, 227, 0.1); color: #007aff; border: 1px solid rgba(0, 113, 227, 0.2); width: 100%;">Clear Groups</button>
                         </div>
                         <div class="card glass" style="padding: 24px;">
                             <h3 style="color: #ff9500; margin-top: 0;">Trips & Days</h3>
                             <p style="font-size: 0.85rem; color: var(--text-secondary);">Remove all trips, itineraries, and daily logs.</p>
-                            <button class="btn btn-small" style="background: rgba(255, 149, 0, 0.1); color: #ff9500; border: 1px solid rgba(255, 149, 0, 0.2); width: 100%;" onclick="window.confirmReset('trips')">Delete All Trips</button>
+                            <button class="btn btn-small confirm-reset-btn" data-reset-type="trips" style="background: rgba(255, 149, 0, 0.1); color: #ff9500; border: 1px solid rgba(255, 149, 0, 0.2); width: 100%;">Delete All Trips</button>
                         </div>
                         <div class="card glass" style="padding: 24px;">
                             <h3 style="color: #5856d6; margin-top: 0;">Categories</h3>
                             <p style="font-size: 0.85rem; color: var(--text-secondary);">Reset custom expense categories to defaults.</p>
-                            <button class="btn btn-small" style="background: rgba(88, 86, 214, 0.1); color: #5856d6; border: 1px solid rgba(88, 86, 214, 0.2); width: 100%;" onclick="window.confirmReset('categories')">Restore Defaults</button>
+                            <button class="btn btn-small confirm-reset-btn" data-reset-type="categories" style="background: rgba(88, 86, 214, 0.1); color: #5856d6; border: 1px solid rgba(88, 86, 214, 0.2); width: 100%;">Restore Defaults</button>
                         </div>
                         <div class="card glass danger-card" style="padding: 24px; border-color: rgba(255, 59, 48, 0.3);">
                             <h3 style="color: #ff3b30; margin-top: 0;">Factory Reset</h3>
                             <p style="font-size: 0.85rem; color: var(--text-secondary);">Permanently wipe every trace of data from the app.</p>
-                            <button class="btn-confirm-danger" style="font-size: 0.85rem; padding: 12px;" onclick="window.confirmReset('app')">Erase Everything</button>
+                            <button class="btn-confirm-danger confirm-reset-btn" data-reset-type="app" style="font-size: 0.85rem; padding: 12px;">Erase Everything</button>
                         </div>
                     </div>
                 ` : ''}
@@ -217,17 +217,17 @@ export function renderSettings() {
         `;
     };
 
-    window.switchSettingsTab = (tab) => {
+    const switchSettingsTab = (tab) => {
         div.innerHTML = buildSettingsUI(tab);
     };
 
-    window.confirmReset = (type) => {
+    const confirmReset = (type) => {
         const configs = {
             groups: {
                 title: "Clear Companions?",
                 message: "This will remove all travel companions and group lists.",
                 confirmText: "Clear All",
-                onConfirm: () => { STATE.groups = []; emit('state:changed'); window.switchSettingsTab('reset'); }
+                onConfirm: () => { STATE.groups = []; emit('state:changed'); switchSettingsTab('reset'); }
             },
             trips: {
                 title: "Wipe All Trips?",
@@ -246,7 +246,7 @@ export function renderSettings() {
                             });
                         } catch(e) { console.error('Server wipe failed', e); }
                     }
-                    window.switchSettingsTab('reset');
+                    switchSettingsTab('reset');
                 }
             },
             categories: {
@@ -261,7 +261,7 @@ export function renderSettings() {
                     ];
                     emit('state:changed');
                     syncCategories(); // Delta: sync reset categories
-                    window.switchSettingsTab('reset');
+                    switchSettingsTab('reset');
                 }
             },
             app: {
@@ -289,7 +289,7 @@ export function renderSettings() {
         showConfirmModal(configs[type]);
     };
 
-    window.addFormatMapping = () => {
+    const addFormatMapping = () => {
         const variable = document.getElementById('mapVarSelect')?.value;
         const column = document.getElementById('mapColSelect')?.value;
         if (!variable || !column) return;
@@ -297,16 +297,16 @@ export function renderSettings() {
         if (STATE.customFormat.some(m => m.variable === variable)) return;
         STATE.customFormat.push({ variable, column });
         emit('state:changed');
-        window.switchSettingsTab('format');
+        switchSettingsTab('format');
     };
 
-    window.removeFormatMapping = (variable) => {
+    const removeFormatMapping = (variable) => {
         STATE.customFormat = (STATE.customFormat || []).filter(m => m.variable !== variable);
         emit('state:changed');
-        window.switchSettingsTab('format');
+        switchSettingsTab('format');
     };
 
-    window.saveCustomFormat = () => {
+    const saveCustomFormat = () => {
         const MANDATORY = ['label', 'date', 'value', 'who'];
         const fmt = STATE.customFormat || [];
         const mapped = new Set(fmt.map(m => m.variable));
@@ -318,10 +318,10 @@ export function renderSettings() {
         STATE.savedFormats.push({ id: generateId(), name, mappings: [...fmt] });
         STATE.customFormat = [];
         emit('state:changed');
-        window.switchSettingsTab('format');
+        switchSettingsTab('format');
     };
 
-    window.deleteSavedFormat = (id) => {
+    const deleteSavedFormat = (id) => {
         showConfirmModal({
             title: "Delete Format?",
             message: "This mapping will no longer be available for imports.",
@@ -329,12 +329,12 @@ export function renderSettings() {
             onConfirm: () => {
                 STATE.savedFormats = (STATE.savedFormats || []).filter(f => f.id !== id);
                 emit('state:changed');
-                window.switchSettingsTab('format');
+                switchSettingsTab('format');
             }
         });
     };
 
-    window.editSavedFormat = (id) => {
+    const editSavedFormat = (id) => {
         const format = (STATE.savedFormats || []).find(f => f.id === id);
         if (!format) return;
         // Load the saved format's mappings into the active editor
@@ -342,7 +342,7 @@ export function renderSettings() {
         // Remove it from saved so the user can re-save it with a new name or overwrite
         STATE.savedFormats = (STATE.savedFormats || []).filter(f => f.id !== id);
         emit('state:changed');
-        window.switchSettingsTab('format');
+        switchSettingsTab('format');
         // Pre-fill the name input after tab renders
         setTimeout(() => {
             const nameInput = document.getElementById('formatNameInput');
@@ -351,6 +351,30 @@ export function renderSettings() {
     };
 
     div.innerHTML = buildSettingsUI('menu');
+
+    // Delegated handler — listener attached on div once; switchSettingsTab
+    // rewrites div.innerHTML on every tab change, so per-element listeners
+    // would die. Delegation on div survives.
+    div.addEventListener('click', (e) => {
+        const tabCard = e.target.closest('.settings-tab-card');
+        if (tabCard) { switchSettingsTab(tabCard.dataset.tab); return; }
+
+        const resetBtn = e.target.closest('.confirm-reset-btn');
+        if (resetBtn) { confirmReset(resetBtn.dataset.resetType); return; }
+
+        const removeMappingBtn = e.target.closest('.remove-mapping-btn');
+        if (removeMappingBtn) { removeFormatMapping(removeMappingBtn.dataset.variable); return; }
+
+        const editFormatBtn = e.target.closest('.edit-saved-format-btn');
+        if (editFormatBtn) { editSavedFormat(editFormatBtn.dataset.formatId); return; }
+
+        const delFormatBtn = e.target.closest('.delete-saved-format-btn');
+        if (delFormatBtn) { deleteSavedFormat(delFormatBtn.dataset.formatId); return; }
+
+        if (e.target.closest('#addFormatMappingBtn')) { addFormatMapping(); return; }
+        if (e.target.closest('#saveCustomFormatBtn')) { saveCustomFormat(); return; }
+    });
+
     return div;
 }
 
@@ -362,7 +386,7 @@ export function renderPersonalization() {
             <td style="padding: 12px; font-weight: 500;">${c.icon} ${c.name}</td>
             <td style="padding: 12px; text-align: right;"><span style="display:inline-block; width:12px; height:12px; border-radius:50%; background: ${c.color}"></span></td>
             <td style="padding: 12px; text-align: right;">
-                <button class="btn-small" style="background:none; color:#ff3b30; border:none; cursor:pointer;" onclick="window.deleteCategory('${c.id}')">✕</button>
+                <button class="btn-small delete-category-btn" data-category-id="${c.id}" style="background:none; color:#ff3b30; border:none; cursor:pointer;">✕</button>
             </td>
         </tr>
     `).join('');
@@ -371,7 +395,7 @@ export function renderPersonalization() {
         <tr style="border-bottom: 1px solid var(--glass-border)">
             <td style="padding: 12px; font-weight: 500;">${g}</td>
             <td style="padding: 12px; text-align: right;">
-                <button class="btn-small" style="background:none; color:#ff3b30; border:none; cursor:pointer;" onclick="window.deleteCompanion('${g}')">✕</button>
+                <button class="btn-small delete-companion-btn" data-companion="${g}" style="background:none; color:#ff3b30; border:none; cursor:pointer;">✕</button>
             </td>
         </tr>
     `).join('');
@@ -383,18 +407,18 @@ export function renderPersonalization() {
         </div>
 
         <div id="persMenu" class="grid-2">
-            <div class="card glass card-glow-blue" style="cursor: pointer;" onclick="window.showPersTab('categories')">
+            <div class="card glass card-glow-blue pers-tab-card" data-tab="categories" style="cursor: pointer;">
                 <h2 class="card-title" style="color: var(--accent-blue);">Manage Categories</h2>
                 <p style="color: var(--text-secondary);">Customize expense categories, icons, and colors.</p>
             </div>
-            <div class="card glass card-glow-purple" style="cursor: pointer;" onclick="window.showPersTab('companions')">
+            <div class="card glass card-glow-purple pers-tab-card" data-tab="companions" style="cursor: pointer;">
                 <h2 class="card-title" style="color: #5856d6;">Manage Companions</h2>
                 <p style="color: var(--text-secondary);">Add the people who usually travel and split expenses with you.</p>
             </div>
         </div>
 
         <div id="persContent" style="display: none;">
-            <button class="btn btn-small btn-liquid-glass" style="margin-bottom: 20px;" onclick="window.showPersTab('menu')">&larr; Back to Personalization</button>
+            <button class="btn btn-small btn-liquid-glass pers-tab-card" data-tab="menu" style="margin-bottom: 20px;">&larr; Back to Personalization</button>
             
             <div id="persCategories" style="display: none;">
                 <div class="card glass card-glow-blue">
@@ -457,6 +481,18 @@ export function renderPersonalization() {
         </div>
     `;
 
+    // Delegated handler for the per-row delete buttons + the menu/back tab cards.
+    div.addEventListener('click', (e) => {
+        const persTabCard = e.target.closest('.pers-tab-card');
+        if (persTabCard) { showPersTab(persTabCard.dataset.tab); return; }
+
+        const delCatBtn = e.target.closest('.delete-category-btn');
+        if (delCatBtn) { deleteCategory(delCatBtn.dataset.categoryId); return; }
+
+        const delCompBtn = e.target.closest('.delete-companion-btn');
+        if (delCompBtn) { deleteCompanion(delCompBtn.dataset.companion); return; }
+    });
+
     setTimeout(() => {
         const addCatBtn = div.querySelector('#addCatBtn');
         if (addCatBtn) addCatBtn.addEventListener('click', () => {
@@ -468,7 +504,7 @@ export function renderPersonalization() {
                 emit('state:changed');
                 syncCategories(); // Delta: sync new category
                 navigate('personalization');
-                setTimeout(() => window.showPersTab('categories'), 50);
+                setTimeout(() => showPersTab('categories'), 50);
             }
         });
 
@@ -480,7 +516,7 @@ export function renderPersonalization() {
                 emit('state:changed');
                 syncCompanions(); // Delta: sync new companion
                 navigate('personalization');
-                setTimeout(() => window.showPersTab('companions'), 50);
+                setTimeout(() => showPersTab('companions'), 50);
             }
         });
     }, 0);

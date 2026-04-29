@@ -400,7 +400,9 @@ const openNewTripModal = () => {
         navigate('home');
     };
 };
-// Kept on window: home.js + ai.js still call window.openNewTripModal — migrated in Wave 3D.
+// Kept on window: home.js + ai.js still reference window.openNewTripModal from
+// JS callbacks (Wave 3 only converted inline HTML handlers, not JS-side window
+// access). Deferred to a future "drop window.* globals" pass.
 window.openNewTripModal = openNewTripModal;
 
 window.openAddDayModal = () => {

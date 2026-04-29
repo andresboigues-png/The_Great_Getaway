@@ -5,6 +5,7 @@ import { COUNTRIES, CONVERSION_RATES } from '../constants.js';
 import { generateId, showConfirmModal, showLiquidAlert } from '../utils.js';
 import { upsertExpense, deleteExpenseOnServer } from '../api.js';
 import { navigate } from '../router.js';
+import { showPersTab } from './settings.js';
 
 export const openEditExpenseModal = (id) => {
     const e = STATE.expenses.find(exp => exp.id === id);
@@ -190,7 +191,7 @@ export function renderExpenses() {
         div.querySelector('#addCompanionsHelper')?.addEventListener('click', () => {
             navigate('personalization');
             // Settings DOM doesn't exist until navigate renders it.
-            setTimeout(() => window.showPersTab('companions'), 50);
+            setTimeout(() => showPersTab('companions'), 50);
         });
 
         // Delegated handler for per-row edit/delete in #tripExpensesList — listener
