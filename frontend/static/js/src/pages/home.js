@@ -12,6 +12,64 @@ let editingDayId = null; // ID of the day currently being geolocated/pinned
 let activeMapClickListener = null; // Reference to the active map click handler
 let openMenuDayId = null; // Track which day's sidebar menu is open
 
+// Per-day card action helpers. The map setTimeout below detects
+// activeMapClickListener and wires it on the map; these helpers just mutate
+// the module-level state and re-navigate so renderHome runs again.
+const toggleDayMenu = (dayId) => {
+    openMenuDayId = (openMenuDayId === dayId) ? null : dayId;
+    navigate('home', null, true); // Preserve scroll
+};
+
+const addDayPin = (dayId) => {
+    const day = STATE.tripDays.find(d => d.id === dayId);
+    if (!day) return;
+
+    editingDayId = dayId;
+    window.showToast?.("Click on the map to set the location for this day!");
+
+    activeMapClickListener = (e) => {
+        day.lat = e.latlng.lat;
+        day.lon = e.latlng.lng;
+        day.lng = e.latlng.lng;
+        activeMapClickListener = null;
+        navigate('home', null, true);
+    };
+
+    navigate('home', null, true);
+};
+
+const editDayPin = (dayId) => {
+    editingDayId = dayId;
+    navigate('home', null, true);
+};
+
+const saveDayPin = async (dayId) => {
+    const day = STATE.tripDays.find(d => d.id === dayId);
+    if (!day) return;
+
+    editingDayId = null;
+    activeMapClickListener = null;
+    emit('state:changed');
+    await upsertDay(day);
+    window.showToast?.("Location saved!");
+    navigate('home', null, true);
+};
+
+const deleteDayPin = async (dayId) => {
+    const day = STATE.tripDays.find(d => d.id === dayId);
+    if (!day) return;
+
+    day.lat = null;
+    day.lon = null;
+    day.lng = null;
+    editingDayId = null;
+    activeMapClickListener = null;
+
+    emit('state:changed');
+    await upsertDay(day);
+    navigate('home', null, true);
+};
+
 export function renderHome() {
     const div = document.createElement('div');
     const activeTrip = (STATE.trips && STATE.activeTripId) ? STATE.trips.find(t => t.id === STATE.activeTripId) : null;
@@ -77,11 +135,12 @@ export function renderHome() {
                     <p id="homeQuote" style="font-size: 1.5rem; font-weight: 700; color: white; margin: 0; text-shadow: 0 2px 10px rgba(0,0,0,0.5); font-style: italic; transition: opacity 0.8s ease-in-out; max-width: 60%;">
                         ${displayQuotes[0] || ''}
                     </p>
-                    <button class="btn" style="background: var(--accent-blue); padding: 12px 24px; border-radius: 100px; box-shadow: 0 10px 20px rgba(0,113,227,0.3); font-weight: 700; font-size: 0.95rem;" onclick="window.openNewTripModal()">Create First Trip</button>
+                    <button class="btn" id="homeCreateFirstTripBtn" style="background: var(--accent-blue); padding: 12px 24px; border-radius: 100px; box-shadow: 0 10px 20px rgba(0,113,227,0.3); font-weight: 700; font-size: 0.95rem;">Create First Trip</button>
                 </div>
             </div>
         `;
         dashboardInterval = setInterval(showNextImageAndQuote, 6000);
+        div.querySelector('#homeCreateFirstTripBtn')?.addEventListener('click', () => window.openNewTripModal());
     } else {
         const tripExpenses = (STATE.expenses || []).filter(e => e && e.tripId === activeTrip.id);
         const tripDays = (STATE.tripDays || []).filter(d => d.tripId === activeTrip.id);
@@ -217,62 +276,6 @@ export function renderHome() {
                     map.addListener('click', (e) => activeMapClickListener({ latlng: { lat: e.latLng.lat(), lng: e.latLng.lng() } }));
                     mapContainer.style.cursor = 'crosshair';
                 }
-
-                // Global function for manual pinning
-                window.toggleDayMenu = (dayId) => {
-                    openMenuDayId = (openMenuDayId === dayId) ? null : dayId;
-                    navigate('home', null, true); // Preserve scroll
-                };
-
-                window.addDayPin = (dayId) => {
-                    const day = STATE.tripDays.find(d => d.id === dayId);
-                    if (!day) return;
-                    
-                    editingDayId = dayId;
-                    window.showToast?.("Click on the map to set the location for this day!");
-                    
-                    activeMapClickListener = (e) => {
-                        day.lat = e.latlng.lat;
-                        day.lon = e.latlng.lng;
-                        day.lng = e.latlng.lng;
-                        activeMapClickListener = null;
-                        navigate('home', null, true); 
-                    };
-                    
-                    navigate('home', null, true); 
-                };
-
-                window.editDayPin = (dayId) => {
-                    editingDayId = dayId;
-                    navigate('home', null, true);
-                };
-
-                window.saveDayPin = async (dayId) => {
-                    const day = STATE.tripDays.find(d => d.id === dayId);
-                    if (!day) return;
-                    
-                    editingDayId = null;
-                    activeMapClickListener = null;
-                    emit('state:changed');
-                    await upsertDay(day);
-                    window.showToast?.("Location saved!");
-                    navigate('home', null, true);
-                };
-
-                window.deleteDayPin = async (dayId) => {
-                    const day = STATE.tripDays.find(d => d.id === dayId);
-                    if (!day) return;
-                    
-                    day.lat = null;
-                    day.lon = null;
-                    day.lng = null;
-                    editingDayId = null;
-                    activeMapClickListener = null;
-                    
-                    emit('state:changed');
-                    await upsertDay(day);
-                    navigate('home', null, true);
-                };
 
                 // Save Map View on change
                 map.addListener('idle', () => {
@@ -421,8 +424,8 @@ export function renderHome() {
         { text: "Create your first trip", done: STATE.guideProgress.trip, icon: "✈️", action: () => window.openNewTripModal() },
         { text: "Add your travel companions", done: STATE.guideProgress.companions, icon: "👥", action: () => window.showPersonalizationTab('companions') },
         { text: "Set your own categories", done: STATE.guideProgress.categories, icon: "🏷️", action: () => window.showPersonalizationTab('categories') },
-        { text: 'Generate your AI travel plan<br><span style="font-size: 0.85rem; opacity: 0.8; font-weight: 500;">(or <span onclick="event.stopPropagation(); if(STATE.activeTripId){ window.openAddDayModal(STATE.activeTripId); } else { window.showLiquidAlert(\'Create a trip first\'); }" style="text-decoration: underline; color: var(--accent-blue); cursor: pointer;">create it manually</span>)</span>', done: STATE.guideProgress.plan, icon: "✦", action: () => navigate('ai') },
-        { text: 'Input your expenses<br><span style="font-size: 0.85rem; opacity: 0.8; font-weight: 500;">(<span onclick="event.stopPropagation(); window.navigate(\'expenses\')" style="text-decoration: underline; color: var(--accent-blue); cursor: pointer;">Manually</span> or <span onclick="event.stopPropagation(); window.navigate(\'upload\')" style="text-decoration: underline; color: var(--accent-blue); cursor: pointer;">in a batch</span>)</span>', done: STATE.guideProgress.expenses, icon: "💰", action: () => navigate('expenses') },
+        { text: 'Generate your AI travel plan<br><span style="font-size: 0.85rem; opacity: 0.8; font-weight: 500;">(or <span data-guide-action="open-add-day" style="text-decoration: underline; color: var(--accent-blue); cursor: pointer;">create it manually</span>)</span>', done: STATE.guideProgress.plan, icon: "✦", action: () => navigate('ai') },
+        { text: 'Input your expenses<br><span style="font-size: 0.85rem; opacity: 0.8; font-weight: 500;">(<span data-guide-action="navigate-expenses" style="text-decoration: underline; color: var(--accent-blue); cursor: pointer;">Manually</span> or <span data-guide-action="navigate-upload" style="text-decoration: underline; color: var(--accent-blue); cursor: pointer;">in a batch</span>)</span>', done: STATE.guideProgress.expenses, icon: "💰", action: () => navigate('expenses') },
         { text: "Explore Budgets", done: STATE.guideProgress.budgets, icon: "📊", action: () => navigate('budgets') },
         { text: "Settle your first expenses", done: STATE.guideProgress.settlement, icon: "🤝", action: () => navigate('settlement') },
         { text: "Discover Collections", done: STATE.guideProgress.collections, icon: "📂", action: () => navigate('collections') },
@@ -471,32 +474,32 @@ export function renderHome() {
                         
                         ${editingDayId === day.id ? `
                             <div style="display: flex; gap: 4px;">
-                                <button onclick="event.stopPropagation(); window.saveDayPin('${day.id}')" style="flex: 2; display: flex; align-items: center; justify-content: center; padding: 10px; border-radius: 12px; border: none; background: #34c759; color: white; font-size: 0.85rem; font-weight: 700; cursor: pointer;">Save Pin</button>
-                                <button onclick="event.stopPropagation(); window.deleteDayPin('${day.id}')" style="flex: 1; display: flex; align-items: center; justify-content: center; padding: 10px; border-radius: 12px; border: none; background: rgba(255,59,48,0.1); color: #ff3b30; font-size: 0.85rem; font-weight: 700; cursor: pointer;">X</button>
+                                <button class="day-pin-save-btn" data-day-id="${day.id}" style="flex: 2; display: flex; align-items: center; justify-content: center; padding: 10px; border-radius: 12px; border: none; background: #34c759; color: white; font-size: 0.85rem; font-weight: 700; cursor: pointer;">Save Pin</button>
+                                <button class="day-pin-delete-btn" data-day-id="${day.id}" style="flex: 1; display: flex; align-items: center; justify-content: center; padding: 10px; border-radius: 12px; border: none; background: rgba(255,59,48,0.1); color: #ff3b30; font-size: 0.85rem; font-weight: 700; cursor: pointer;">X</button>
                             </div>
                         ` : `
-                            <button onclick="event.stopPropagation(); ${day.lat ? `window.editDayPin('${day.id}')` : `window.addDayPin('${day.id}')`}" style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 12px; border: none; background: rgba(0,113,227,0.06); color: var(--accent-blue); font-size: 0.85rem; font-weight: 700; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='rgba(0,113,227,0.12)';" onmouseout="this.style.background='rgba(0,113,227,0.06)';">
+                            <button class="day-pin-toggle-btn" data-day-id="${day.id}" style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 12px; border: none; background: rgba(0,113,227,0.06); color: var(--accent-blue); font-size: 0.85rem; font-weight: 700; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='rgba(0,113,227,0.12)';" onmouseout="this.style.background='rgba(0,113,227,0.06)';">
                                 <span>${day.lat ? '📍 Edit Pin Location' : '📍 Add Pin to Map'}</span>
                             </button>
                         `}
-                        
-                        <button onclick="event.stopPropagation(); window.openJournalingModal('${day.id}')" style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 12px; border: none; background: rgba(0,0,0,0.03); color: #002d5b; font-size: 0.85rem; font-weight: 700; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='rgba(0,0,0,0.06)';" onmouseout="this.style.background='rgba(0,0,0,0.03)';">
+
+                        <button class="day-journaling-btn" data-day-id="${day.id}" style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 12px; border: none; background: rgba(0,0,0,0.03); color: #002d5b; font-size: 0.85rem; font-weight: 700; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='rgba(0,0,0,0.06)';" onmouseout="this.style.background='rgba(0,0,0,0.03)';">
                             <span>✍️ Journaling</span>
                         </button>
-                        
-                        <button onclick="event.stopPropagation(); window.openPhotosModal('${day.id}')" style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 12px; border: none; background: rgba(0,0,0,0.03); color: #002d5b; font-size: 0.85rem; font-weight: 700; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='rgba(0,0,0,0.06)';" onmouseout="this.style.background='rgba(0,0,0,0.03)';">
+
+                        <button class="day-photos-btn" data-day-id="${day.id}" style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 12px; border: none; background: rgba(0,0,0,0.03); color: #002d5b; font-size: 0.85rem; font-weight: 700; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='rgba(0,0,0,0.06)';" onmouseout="this.style.background='rgba(0,0,0,0.03)';">
                             <span>📸 Add Photos</span>
                         </button>
-                        
-                        <button onclick="event.stopPropagation(); window.openDocumentsModal('${day.id}')" style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 12px; border: none; background: rgba(0,0,0,0.03); color: #002d5b; font-size: 0.85rem; font-weight: 700; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='rgba(0,0,0,0.06)';" onmouseout="this.style.background='rgba(0,0,0,0.03)';">
+
+                        <button class="day-documents-btn" data-day-id="${day.id}" style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 12px; border: none; background: rgba(0,0,0,0.03); color: #002d5b; font-size: 0.85rem; font-weight: 700; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='rgba(0,0,0,0.06)';" onmouseout="this.style.background='rgba(0,0,0,0.03)';">
                             <span>📄 Documents</span>
                         </button>
                     </div>
 
                     <!-- MAIN CARD -->
-                    <div class="day-card card glass" 
-                         style="flex: 1; padding: 20px 28px; border-radius: 28px; border: 1.5px solid ${isOpen ? 'var(--accent-blue)' : 'rgba(0,0,0,0.05)'}; background: ${isOpen ? 'rgba(255,255,255,0.95)' : 'white'}; cursor: pointer; transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); box-shadow: ${isOpen ? '0 20px 40px rgba(0,0,0,0.1)' : 'none'};" 
-                         onclick="event.stopPropagation(); window.toggleDayMenu('${day.id}')"
+                    <div class="day-card card glass"
+                         data-day-id="${day.id}"
+                         style="flex: 1; padding: 20px 28px; border-radius: 28px; border: 1.5px solid ${isOpen ? 'var(--accent-blue)' : 'rgba(0,0,0,0.05)'}; background: ${isOpen ? 'rgba(255,255,255,0.95)' : 'white'}; cursor: pointer; transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); box-shadow: ${isOpen ? '0 20px 40px rgba(0,0,0,0.1)' : 'none'};"
                          onmouseover="${!isOpen ? "this.style.transform='translateX(8px)'; this.style.borderColor='rgba(0,113,227,0.2)';" : ""}"
                          onmouseout="${!isOpen ? "this.style.transform='none'; this.style.borderColor='rgba(0,0,0,0.05)';" : ""}">
                         
@@ -517,7 +520,7 @@ export function renderHome() {
                             
                             <div style="display: flex; align-items: center; gap: 16px;">
                                 ${isOpen ? `
-                                    <button onclick="event.stopPropagation(); window.openDayDetail('${day.id}')" class="btn btn-liquid-glass" style="padding: 8px 16px; font-size: 0.8rem; font-weight: 700; background: var(--accent-blue); color: white; border: none; border-radius: 10px;">Open Full Plan</button>
+                                    <button class="btn btn-liquid-glass day-detail-btn" data-day-id="${day.id}" style="padding: 8px 16px; font-size: 0.8rem; font-weight: 700; background: var(--accent-blue); color: white; border: none; border-radius: 10px;">Open Full Plan</button>
                                 ` : `
                                     <div style="width: 32px; height: 32px; border-radius: 50%; background: rgba(0,0,0,0.03); display: flex; align-items: center; justify-content: center; color: #002d5b; transition: all 0.3s;">
                                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
@@ -546,6 +549,42 @@ export function renderHome() {
 
     if (activeTrip) {
         div.appendChild(daysContainer);
+
+        // Delegated handler — per-day rows are dynamic; inner action buttons are
+        // checked first so the outer card click (toggleDayMenu) only fires when
+        // the user clicked the card body itself, not an action button.
+        daysContainer.addEventListener('click', (e) => {
+            const saveBtn = e.target.closest('.day-pin-save-btn');
+            if (saveBtn) { saveDayPin(saveBtn.dataset.dayId); return; }
+
+            const delPinBtn = e.target.closest('.day-pin-delete-btn');
+            if (delPinBtn) { deleteDayPin(delPinBtn.dataset.dayId); return; }
+
+            const togglePinBtn = e.target.closest('.day-pin-toggle-btn');
+            if (togglePinBtn) {
+                const dayId = togglePinBtn.dataset.dayId;
+                const day = STATE.tripDays.find(d => d.id === dayId);
+                if (day?.lat) editDayPin(dayId);
+                else addDayPin(dayId);
+                return;
+            }
+
+            const journalBtn = e.target.closest('.day-journaling-btn');
+            if (journalBtn) { openJournalingModal(journalBtn.dataset.dayId); return; }
+
+            const photosBtn = e.target.closest('.day-photos-btn');
+            if (photosBtn) { openPhotosModal(photosBtn.dataset.dayId); return; }
+
+            const docsBtn = e.target.closest('.day-documents-btn');
+            if (docsBtn) { openDocumentsModal(docsBtn.dataset.dayId); return; }
+
+            const detailBtn = e.target.closest('.day-detail-btn');
+            if (detailBtn) { openDayDetail(detailBtn.dataset.dayId); return; }
+
+            // Outer card click — only reached if no inner button matched.
+            const card = e.target.closest('.day-card');
+            if (card) { toggleDayMenu(card.dataset.dayId); return; }
+        });
 
         setTimeout(() => {
             const addBtn = div.querySelector('#addDayBtn');
@@ -610,11 +649,28 @@ export function renderHome() {
         `;
 
         setTimeout(() => {
-            guideContainer.querySelectorAll('.guide-step-card').forEach(card => {
-                card.onclick = () => {
+            // Delegated handler — inner [data-guide-action] spans are checked
+            // first so they don't bubble to the outer card's main action.
+            guideContainer.addEventListener('click', (e) => {
+                const innerAction = e.target.closest('[data-guide-action]');
+                if (innerAction) {
+                    const action = innerAction.dataset.guideAction;
+                    if (action === 'open-add-day') {
+                        if (STATE.activeTripId) window.openAddDayModal(STATE.activeTripId);
+                        else showLiquidAlert('Create a trip first');
+                    } else if (action === 'navigate-expenses') {
+                        navigate('expenses');
+                    } else if (action === 'navigate-upload') {
+                        navigate('upload');
+                    }
+                    return;
+                }
+
+                const card = e.target.closest('.guide-step-card');
+                if (card) {
                     const idx = card.dataset.index;
-                    if (steps[idx].action) steps[idx].action();
-                };
+                    if (steps[idx]?.action) steps[idx].action();
+                }
             });
             const hBtn = guideContainer.querySelector('#hideQuickAccessBtn');
             if (hBtn) hBtn.onclick = (e) => {
@@ -632,7 +688,7 @@ export function renderHome() {
 }
 
 // --- Day Interaction Modals (Extracted from Map Logic) ---
-window.openJournalingModal = (dayId) => {
+const openJournalingModal = (dayId) => {
     const day = STATE.tripDays.find(d => d.id === dayId);
     if (!day) return;
     
@@ -663,7 +719,7 @@ window.openJournalingModal = (dayId) => {
     };
 };
 
-window.openPhotosModal = (dayId) => {
+const openPhotosModal = (dayId) => {
     const day = STATE.tripDays.find(d => d.id === dayId);
     if (!day) return;
     if (!day.photos) day.photos = [];
@@ -680,7 +736,7 @@ window.openPhotosModal = (dayId) => {
                     day.photos.map((p, idx) => `
                         <div style="position: relative; aspect-ratio: 1; border-radius: 16px; overflow: hidden; border: 1px solid rgba(0,0,0,0.05);">
                             <img src="${p}" style="width: 100%; height: 100%; object-fit: cover;">
-                            <button onclick="window.removePhoto('${dayId}', ${idx})" style="position: absolute; top: 4px; right: 4px; width: 24px; height: 24px; border-radius: 50%; background: rgba(255,59,48,0.8); color: white; border: none; font-size: 0.7rem; font-weight: 800; cursor: pointer;">✕</button>
+                            <button class="remove-photo-btn" data-day-id="${dayId}" data-photo-idx="${idx}" style="position: absolute; top: 4px; right: 4px; width: 24px; height: 24px; border-radius: 50%; background: rgba(255,59,48,0.8); color: white; border: none; font-size: 0.7rem; font-weight: 800; cursor: pointer;">✕</button>
                         </div>
                     `).join('')
                 }
@@ -715,18 +771,25 @@ window.openPhotosModal = (dayId) => {
             emit('state:changed');
             await upsertDay(day);
             modal.remove();
-            window.openPhotosModal(dayId);
+            openPhotosModal(dayId);
         } else {
             modal.querySelector('#uploadStatusText').textContent = "❌ Failed. Try again.";
         }
     };
-    window.removePhoto = async (dId, idx) => {
+    const removePhoto = async (dId, idx) => {
         day.photos.splice(idx, 1);
         emit('state:changed');
         await upsertDay(day);
         modal.remove();
-        window.openPhotosModal(dId);
+        openPhotosModal(dId);
     };
+    // Delegated handler for the per-photo "✕" buttons in the gallery grid.
+    modal.addEventListener('click', (e) => {
+        const removeBtn = e.target.closest('.remove-photo-btn');
+        if (removeBtn) {
+            removePhoto(removeBtn.dataset.dayId, parseInt(removeBtn.dataset.photoIdx, 10));
+        }
+    });
     modal.querySelector('#addPhotoBtn').onclick = async () => {
         const url = modal.querySelector('#photoUrl').value;
         if (url) {
@@ -734,7 +797,7 @@ window.openPhotosModal = (dayId) => {
             emit('state:changed');
             await upsertDay(day);
             modal.remove();
-            window.openPhotosModal(dayId);
+            openPhotosModal(dayId);
         }
     };
     modal.querySelector('#closePhotosBtn').onclick = () => {
@@ -743,7 +806,7 @@ window.openPhotosModal = (dayId) => {
     };
 };
 
-window.openDocumentsModal = (dayId) => {
+const openDocumentsModal = (dayId) => {
     const day = STATE.tripDays.find(d => d.id === dayId);
     if (!day) return;
     if (!day.documents) day.documents = [];
@@ -763,7 +826,7 @@ window.openDocumentsModal = (dayId) => {
                                 <span style="font-size: 1.2rem;">📄</span>
                                 <a href="${d.url}" target="_blank" style="color: var(--accent-blue); text-decoration: none; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${d.name}</a>
                             </div>
-                            <button onclick="window.removeDoc('${dayId}', ${idx})" style="background: none; border: none; color: #ff3b30; font-weight: 800; cursor: pointer;">✕</button>
+                            <button class="remove-doc-btn" data-day-id="${dayId}" data-doc-idx="${idx}" style="background: none; border: none; color: #ff3b30; font-weight: 800; cursor: pointer;">✕</button>
                         </div>
                     `).join('')
                 }
@@ -799,18 +862,25 @@ window.openDocumentsModal = (dayId) => {
             emit('state:changed');
             await upsertDay(day);
             modal.remove();
-            window.openDocumentsModal(dayId);
+            openDocumentsModal(dayId);
         } else {
             modal.querySelector('#uploadDocStatusText').textContent = "❌ Failed. Try again.";
         }
     };
-    window.removeDoc = async (dId, idx) => {
+    const removeDoc = async (dId, idx) => {
         day.documents.splice(idx, 1);
         emit('state:changed');
         await upsertDay(day);
         modal.remove();
-        window.openDocumentsModal(dId);
+        openDocumentsModal(dId);
     };
+    // Delegated handler for the per-doc "✕" buttons.
+    modal.addEventListener('click', (e) => {
+        const removeBtn = e.target.closest('.remove-doc-btn');
+        if (removeBtn) {
+            removeDoc(removeBtn.dataset.dayId, parseInt(removeBtn.dataset.docIdx, 10));
+        }
+    });
     modal.querySelector('#addDocBtn').onclick = async () => {
         const name = modal.querySelector('#docName').value;
         const url = modal.querySelector('#docUrl').value;
@@ -819,13 +889,13 @@ window.openDocumentsModal = (dayId) => {
             emit('state:changed');
             await upsertDay(day);
             modal.remove();
-            window.openDocumentsModal(dayId);
+            openDocumentsModal(dayId);
         }
     };
     modal.querySelector('#closeDocsBtn').onclick = () => modal.remove();
 };
 
-window.openDayDetail = (dayId) => {
+const openDayDetail = (dayId) => {
     const day = STATE.tripDays.find(d => d.id === dayId);
     if (!day) return;
     const modal = document.createElement('div');
