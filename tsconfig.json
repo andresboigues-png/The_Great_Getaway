@@ -18,5 +18,5 @@
         "esModuleInterop": true
     },
     "include": ["frontend/static/js/src/**/*.js", "frontend/static/js/src/**/*.d.ts"],
-    "exclude": ["node_modules", "frontend/static/js/app.js", "frontend/static/js/app.bundle.js", "scratch", "tests"]
+    "exclude": ["node_modules", "frontend/static/js/app.bundle.js", "scratch", "tests"]
 }

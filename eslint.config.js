@@ -1,6 +1,6 @@
 // ESLint flat config — modern format (ESLint 9+).
-// Lints frontend/static/js/src/** only; the legacy monolith app.js, the
-// vite-bundled output app.bundle.js, and one-off data files are ignored.
+// Lints frontend/static/js/src/** only; the vite-bundled output and one-off
+// data files are ignored.
 
 import js from '@eslint/js';
 import globals from 'globals';
@@ -10,7 +10,6 @@ export default [
     {
         ignores: [
             'node_modules/**',
-            'frontend/static/js/app.js',
             'frontend/static/js/app.bundle.js',
             'frontend/static/js/app.bundle.js.map',
             'facts_dict.js',

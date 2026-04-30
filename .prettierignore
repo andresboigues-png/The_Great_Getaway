@@ -1,5 +1,4 @@
 node_modules
-frontend/static/js/app.js
 frontend/static/js/app.bundle.js
 frontend/static/js/app.bundle.js.map
 facts_dict.js
