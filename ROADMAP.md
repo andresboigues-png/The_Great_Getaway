@@ -194,7 +194,7 @@ work both in browser and in a future webview, and upload abuse is bounded.
 
 - [ ] Playwright: add `edit expense`, `archive trip`, `add ticket to day`,
       `settlement flow`, `AI plan generation` (mock the AI call), `friend
-    request flow`. Bring smoke suite to ~15 tests.
+request flow`. Bring smoke suite to ~15 tests.
 - [ ] **Visual regression**: `toHaveScreenshot()` on the components-preview
       page. Catches CSS regressions automatically.
 

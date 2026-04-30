@@ -1,0 +1,96 @@
+name: CI
+
+# Runs on every push to any branch + every PR.
+# Three jobs run in parallel: lint, typecheck, e2e tests.
+# Build is verified inside the e2e job (the prod bundle has to compile
+# for the dev server to even boot).
+
+on:
+    push:
+        branches: ['**']
+    pull_request:
+        branches: [main]
+
+# Cancel in-progress runs of the same workflow on the same branch.
+concurrency:
+    group: ${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    lint:
+        name: Lint + format check
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: '24'
+                  cache: 'npm'
+            - run: npm ci
+            - run: npm run lint
+            - run: npm run format:check
+
+    typecheck:
+        name: TypeScript checkJs
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: '24'
+                  cache: 'npm'
+            - run: npm ci
+            - run: npm run typecheck
+
+    build:
+        name: Vite build
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: '24'
+                  cache: 'npm'
+            - run: npm ci
+            - run: npm run build
+
+    e2e:
+        name: Playwright smoke
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+        steps:
+            - uses: actions/checkout@v4
+
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: '24'
+                  cache: 'npm'
+
+            - uses: actions/setup-python@v5
+              with:
+                  python-version: '3.12'
+                  cache: 'pip'
+
+            - run: npm ci
+            - run: pip install -r requirements.txt
+            - run: npx playwright install --with-deps chromium
+
+            # The Flask app serves app.bundle.js by default (no ?dev=1), so
+            # build before testing.
+            - run: npm run build
+
+            # CI=true tells the playwright config to do a fresh server boot
+            # (no `reuseExistingServer`).
+            - name: Run e2e tests
+              env:
+                  CI: 'true'
+              run: npm run test:e2e
+
+            # Upload the report on failure for debugging.
+            - name: Upload Playwright report
+              if: failure()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: playwright-report
+                  path: playwright-report/
+                  retention-days: 7

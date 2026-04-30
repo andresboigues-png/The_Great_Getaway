@@ -9,3 +9,8 @@ package-lock.json
 .claude
 test-results
 playwright-report
+
+# Pre-Phase-D legacy: HTML + CSS will be reformatted when we extract
+# the design system. Ignoring for now to keep CI clean.
+frontend/static/css/index.css
+frontend/templates/index.html
