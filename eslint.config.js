@@ -42,6 +42,23 @@ export default [
         },
     },
 
+    // The service worker runs in its own global scope (self, not window).
+    {
+        files: ['frontend/static/sw.js'],
+        languageOptions: {
+            ecmaVersion: 2024,
+            sourceType: 'script',
+            globals: { ...globals.serviceworker },
+        },
+        rules: {
+            // The unused `event` arg on install/activate is conventional;
+            // it documents the listener signature.
+            'no-unused-vars': ['warn', { args: 'none' }],
+            // SW startup log is intentional debug aid.
+            'no-console': 'off',
+        },
+    },
+
     {
         files: ['frontend/static/js/src/**/*.js'],
         languageOptions: {

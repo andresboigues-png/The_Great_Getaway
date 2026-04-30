@@ -7,23 +7,51 @@ Newest entry at the top.
 
 ---
 
-## Session 2 — 2026-04-30 (in progress)
+## Session 2 — 2026-04-30 — Phase A complete
 
 **Started with**: GitHub backup live; yesterday's work uncommitted.
 
-**Done so far**:
+**Done**:
 
-- Two clean commits of yesterday's work pushed to GitHub:
+- Yesterday's session committed in two clean chunks + pushed:
     - `Phase 5: simplify pass + lint/format/typecheck tooling`
     - `Add Playwright e2e smoke suite (5 tests, ~8s)`
-- Created `VISION.md` from the founder's vision document.
-- Updated `ROADMAP.md` with the full Phase A–N plan + mobile additions.
-- Created this `SESSION_LOG.md`.
+- Created `VISION.md` and `SESSION_LOG.md`.
+- Rewrote `ROADMAP.md` with the full Phase A–N plan including mobile-app
+  path (PWA → Capacitor → store submission).
+- **Phase A1** — deleted dead `frontend/static/js/app.js` (5,639 lines).
+  Cleaned up stale ignore rules in three config files.
+- **Phase A2** — GitHub Actions CI: four parallel jobs (lint, typecheck,
+  build, e2e) on every push and PR. Failed e2e runs upload the
+  playwright report as an artifact.
+- **Phase A3** — PWA manifest + service worker stub. Flask serves
+  `/sw.js` (with `Service-Worker-Allowed: /`) and `/manifest.json`.
+  index.html gets the manifest link, theme-color, and Apple-specific
+  meta tags. main.js registers the SW after `window.load`. Phase L
+  will layer caching strategies on top.
+- **Phase A4** — Sentry via the loader script (lazy SDK load on first
+  error). Environment-tagged: `development` on localhost, `production`
+  elsewhere — so dev noise is filterable. Common third-party noise
+  ignored at the SDK level. Public key in URL is intentionally public
+  (Sentry's standard model), not a secret.
+- **Phase A5** — `README.md` from scratch: pitch, quick-start,
+  available commands, tech stack, project layout, doc pointers, CI
+  status badge, dev workflow notes.
 
-**Currently doing**: Phase A — locking in foundation.
+**State at end of session**:
 
-**Next**: continue Phase A sub-tasks (delete dead app.js → CI → PWA →
-Sentry → README).
+- All quality gates green: lint (0 errors / 6 warnings), typecheck,
+  format, build (271.18 kB), e2e (5/5 in ~9s).
+- 6 commits pushed to `claude/affectionate-shtern-6e47d8`; main is one
+  PR / merge away whenever ready.
+- CI runs on every push automatically — first run is in flight or done
+  by the time anyone reads this.
+
+**Next session — start of Phase B**: type the 7 deferred pages (`ai`,
+`expenses`, `home`, `profile`, `settings`, `settlement`, `upload`).
+Mechanical work; the pattern is established. Likely 3–4 hours; should
+catch a handful of latent bugs along the way (see `dashboardInterval`
+class from Session 1).
 
 ---
 
