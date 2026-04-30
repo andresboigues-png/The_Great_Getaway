@@ -516,8 +516,11 @@ def generate_itinerary():
     ]
     """
 
-    # gemini-flash-latest is the safest fallback as it always points to the current stable version
-    models = ["gemini-2.5-flash", "gemini-flash-latest"]
+    # Try gemini-flash-latest first — it's the alias for the current stable
+    # version and tends to be more reliable than the pinned -2.5-flash, which
+    # can return 503 (UNAVAILABLE) during demand spikes. Pinned version is
+    # the second fallback for when -latest itself rolls a bad change.
+    models = ["gemini-flash-latest", "gemini-2.5-flash"]
     result_text = None
     last_error = None
 
@@ -532,21 +535,29 @@ def generate_itinerary():
                     "responseMimeType": "application/json"
                 }
             }
-            
+
             resp = requests.post(url, headers=headers, json=payload, timeout=30)
-            resp.raise_for_status()
-            
+            # Capture Google's error body before raising — a bare HTTPError
+            # message ("503 Server Error") hides the actual reason.
+            if not resp.ok:
+                try:
+                    err_body = resp.json().get("error", {})
+                    raise RuntimeError(f"{err_body.get('status', resp.status_code)}: {err_body.get('message', resp.text[:200])}")
+                except ValueError:
+                    raise RuntimeError(f"HTTP {resp.status_code}: {resp.text[:200]}")
+
             result = resp.json()
             result_text = result.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "[]")
             if result_text:
                 break
         except Exception as e:
             last_error = str(e)
-            print(f"Model {model} failed: {e}")
+            logger.warning(f"Gemini model {model} failed: {e}")
             continue
 
     if not result_text:
-        return jsonify({"error": f"AI Generation failed after trying multiple models. Last error: {last_error}"}), 500
+        # Surface the actual reason — front-end shows this in the failure card.
+        return jsonify({"error": f"AI generation failed. Last error: {last_error}"}), 502
 
     raw_text = result_text
         
