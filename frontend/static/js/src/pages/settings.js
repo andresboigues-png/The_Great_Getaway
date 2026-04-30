@@ -1,10 +1,11 @@
+// @ts-check
 import { STATE, emit } from '../state.js';
-import { generateId, showConfirmModal } from '../utils.js';
+import { generateId, showConfirmModal, q } from '../utils.js';
 import { syncCategories, syncCompanions } from '../api.js';
 import { navigate } from '../router.js';
 
 export const showSettingsTab = (tab) => {
-    const tabs = document.querySelectorAll('.settings-tab-btn');
+    const tabs = /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll('.settings-tab-btn'));
     const sections = document.querySelectorAll('.settings-section');
 
     tabs.forEach(t => t.classList.remove('active'));
@@ -290,8 +291,8 @@ export function renderSettings() {
     };
 
     const addFormatMapping = () => {
-        const variable = document.getElementById('mapVarSelect')?.value;
-        const column = document.getElementById('mapColSelect')?.value;
+        const variable = /** @type {HTMLSelectElement | null} */ (document.getElementById('mapVarSelect'))?.value;
+        const column = /** @type {HTMLSelectElement | null} */ (document.getElementById('mapColSelect'))?.value;
         if (!variable || !column) return;
         STATE.customFormat = STATE.customFormat || [];
         if (STATE.customFormat.some(m => m.variable === variable)) return;
@@ -312,7 +313,7 @@ export function renderSettings() {
         const mapped = new Set(fmt.map(m => m.variable));
         const missing = MANDATORY.filter(v => !mapped.has(v));
         if (missing.length > 0) return alert(`Missing required fields: ${missing.join(', ')}`);
-        const name = (document.getElementById('formatNameInput')?.value || '').trim();
+        const name = (/** @type {HTMLInputElement | null} */ (document.getElementById('formatNameInput'))?.value || '').trim();
         if (!name) return;
         STATE.savedFormats = STATE.savedFormats || [];
         STATE.savedFormats.push({ id: generateId(), name, mappings: [...fmt] });
@@ -345,7 +346,7 @@ export function renderSettings() {
         switchSettingsTab('format');
         // Pre-fill the name input after tab renders
         setTimeout(() => {
-            const nameInput = document.getElementById('formatNameInput');
+            const nameInput = /** @type {HTMLInputElement | null} */ (document.getElementById('formatNameInput'));
             if (nameInput) nameInput.value = format.name;
         }, 50);
     };
@@ -356,23 +357,26 @@ export function renderSettings() {
     // rewrites div.innerHTML on every tab change, so per-element listeners
     // would die. Delegation on div survives.
     div.addEventListener('click', (e) => {
-        const tabCard = e.target.closest('.settings-tab-card');
-        if (tabCard) { switchSettingsTab(tabCard.dataset.tab); return; }
+        const target = /** @type {HTMLElement | null} */ (e.target);
+        if (!target) return;
 
-        const resetBtn = e.target.closest('.confirm-reset-btn');
-        if (resetBtn) { confirmReset(resetBtn.dataset.resetType); return; }
+        const tabCard = /** @type {HTMLElement | null} */ (target.closest('.settings-tab-card'));
+        if (tabCard?.dataset.tab) { switchSettingsTab(tabCard.dataset.tab); return; }
 
-        const removeMappingBtn = e.target.closest('.remove-mapping-btn');
-        if (removeMappingBtn) { removeFormatMapping(removeMappingBtn.dataset.variable); return; }
+        const resetBtn = /** @type {HTMLElement | null} */ (target.closest('.confirm-reset-btn'));
+        if (resetBtn?.dataset.resetType) { confirmReset(resetBtn.dataset.resetType); return; }
 
-        const editFormatBtn = e.target.closest('.edit-saved-format-btn');
-        if (editFormatBtn) { editSavedFormat(editFormatBtn.dataset.formatId); return; }
+        const removeMappingBtn = /** @type {HTMLElement | null} */ (target.closest('.remove-mapping-btn'));
+        if (removeMappingBtn?.dataset.variable) { removeFormatMapping(removeMappingBtn.dataset.variable); return; }
 
-        const delFormatBtn = e.target.closest('.delete-saved-format-btn');
-        if (delFormatBtn) { deleteSavedFormat(delFormatBtn.dataset.formatId); return; }
+        const editFormatBtn = /** @type {HTMLElement | null} */ (target.closest('.edit-saved-format-btn'));
+        if (editFormatBtn?.dataset.formatId) { editSavedFormat(editFormatBtn.dataset.formatId); return; }
 
-        if (e.target.closest('#addFormatMappingBtn')) { addFormatMapping(); return; }
-        if (e.target.closest('#saveCustomFormatBtn')) { saveCustomFormat(); return; }
+        const delFormatBtn = /** @type {HTMLElement | null} */ (target.closest('.delete-saved-format-btn'));
+        if (delFormatBtn?.dataset.formatId) { deleteSavedFormat(delFormatBtn.dataset.formatId); return; }
+
+        if (target.closest('#addFormatMappingBtn')) { addFormatMapping(); return; }
+        if (target.closest('#saveCustomFormatBtn')) { saveCustomFormat(); return; }
     });
 
     return div;
@@ -483,22 +487,25 @@ export function renderPersonalization() {
 
     // Delegated handler for the per-row delete buttons + the menu/back tab cards.
     div.addEventListener('click', (e) => {
-        const persTabCard = e.target.closest('.pers-tab-card');
-        if (persTabCard) { showPersTab(persTabCard.dataset.tab); return; }
+        const target = /** @type {HTMLElement | null} */ (e.target);
+        if (!target) return;
 
-        const delCatBtn = e.target.closest('.delete-category-btn');
-        if (delCatBtn) { deleteCategory(delCatBtn.dataset.categoryId); return; }
+        const persTabCard = /** @type {HTMLElement | null} */ (target.closest('.pers-tab-card'));
+        if (persTabCard?.dataset.tab) { showPersTab(persTabCard.dataset.tab); return; }
 
-        const delCompBtn = e.target.closest('.delete-companion-btn');
-        if (delCompBtn) { deleteCompanion(delCompBtn.dataset.companion); return; }
+        const delCatBtn = /** @type {HTMLElement | null} */ (target.closest('.delete-category-btn'));
+        if (delCatBtn?.dataset.categoryId) { deleteCategory(delCatBtn.dataset.categoryId); return; }
+
+        const delCompBtn = /** @type {HTMLElement | null} */ (target.closest('.delete-companion-btn'));
+        if (delCompBtn?.dataset.companion) { deleteCompanion(delCompBtn.dataset.companion); return; }
     });
 
     setTimeout(() => {
         const addCatBtn = div.querySelector('#addCatBtn');
         if (addCatBtn) addCatBtn.addEventListener('click', () => {
-            const icon = div.querySelector('#catIcon').value;
-            const name = div.querySelector('#catName').value.trim();
-            const color = div.querySelector('#catColor').value;
+            const icon = /** @type {HTMLSelectElement} */ (q(div, '#catIcon')).value;
+            const name = /** @type {HTMLInputElement} */ (q(div, '#catName')).value.trim();
+            const color = /** @type {HTMLInputElement} */ (q(div, '#catColor')).value;
             if (name) {
                 STATE.categories.push({ id: generateId(), name, icon, color });
                 emit('state:changed');
@@ -510,7 +517,7 @@ export function renderPersonalization() {
 
         const addPersonBtn = div.querySelector('#addPersonBtn');
         if (addPersonBtn) addPersonBtn.addEventListener('click', () => {
-            const name = div.querySelector('#newPerson').value.trim();
+            const name = /** @type {HTMLInputElement} */ (q(div, '#newPerson')).value.trim();
             if (name && !STATE.groups.includes(name)) {
                 STATE.groups.push(name);
                 emit('state:changed');

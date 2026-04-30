@@ -1,7 +1,11 @@
+// @ts-check
 import { STATE, emit } from '../state.js';
+import { q } from '../utils.js';
 import { openNewTripModal } from '../modals.js';
 
+/** @type {any} */
 let googleMap = null;
+/** @type {any[]} */
 let mapMarkers = [];
 
 export function renderAI() {
@@ -170,7 +174,7 @@ export function renderAI() {
                 });
             }
 
-            const badge = div.querySelector('#aiZoomBadge');
+            const badge = /** @type {HTMLElement | null} */ (div.querySelector('#aiZoomBadge'));
             if (badge) badge.onclick = () => {
                 const aiTripMapKey = activeTrip.id + '_ai';
                 if (STATE.mapViews && STATE.mapViews[aiTripMapKey]) delete STATE.mapViews[aiTripMapKey];
@@ -181,7 +185,7 @@ export function renderAI() {
         let generatedItinerary = savedPlan;
 
         const renderItineraryOutput = (itinerary, numDays, country) => {
-            const outputEl = div.querySelector('#itineraryOutput');
+            const outputEl = q(div, '#itineraryOutput');
             if (!itinerary || !itinerary.length) {
                 outputEl.innerHTML = '';
                 return;
@@ -198,10 +202,10 @@ export function renderAI() {
                 <div id="itineraryDays" style="display:flex;flex-direction:column;gap:16px;"></div>
                 <div style="display:flex;gap:12px;margin-top:24px;"><button id="acceptPlanBtn" class="btn" style="flex:2;background:var(--accent-blue);color:white;padding:16px;font-size:1.1rem;border-radius:16px;font-weight:700;box-shadow:0 10px 20px rgba(0,122,255,0.2);cursor:pointer;">Accept Plan & Add to Trip</button></div>`;
 
-            const daysContainer = outputEl.querySelector('#itineraryDays');
+            const daysContainer = q(outputEl, '#itineraryDays');
             const dayDivs = [];
 
-            itinerary.forEach((day, i) => {
+            itinerary.forEach((/** @type {any} */ day, /** @type {number} */ _i) => {
                 const dayDiv = document.createElement('div');
                 dayDiv.className = 'card glass';
                 dayDiv.style.cssText = `border-radius:18px;overflow:hidden;transition:box-shadow 0.3s,border-color 0.3s;${sf}`;
@@ -296,9 +300,10 @@ export function renderAI() {
                 itinerary.forEach((day, i) => setTimeout(() => geocodeAndMark(day, i), i * 500));
             }
 
-            document.getElementById('acceptPlanBtn').onclick = () => {
+            const acceptBtn = /** @type {HTMLButtonElement | null} */ (document.getElementById('acceptPlanBtn'));
+            if (acceptBtn) acceptBtn.onclick = () => {
                 if (!itinerary) return;
-                itinerary.forEach((dayInfo, idx) => {
+                itinerary.forEach((/** @type {any} */ dayInfo, /** @type {number} */ idx) => {
                     const dayDate = dayInfo.date || (new Date().toISOString().split('T')[0]);
                     const dayId = 'day_' + Date.now() + '_' + idx;
                     STATE.tripDays.push({
@@ -311,31 +316,31 @@ export function renderAI() {
                     });
                 });
                 emit('state:changed');
-                const btn = document.getElementById('acceptPlanBtn');
-                btn.innerHTML = '✓ Plan Accepted! (View in Home)';
-                btn.style.background = '#34c759';
-                btn.disabled = true;
+                acceptBtn.innerHTML = '✓ Plan Accepted! (View in Home)';
+                acceptBtn.style.background = '#34c759';
+                acceptBtn.disabled = true;
             };
         };
 
         if (generatedItinerary) renderItineraryOutput(generatedItinerary, savedNumDays, tripCountry);
 
-        const contextInput = div.querySelector('#aiExtraContext');
+        const contextInput = /** @type {HTMLTextAreaElement | null} */ (div.querySelector('#aiExtraContext'));
         if (contextInput) {
             contextInput.oninput = (e) => {
-                activeTrip.aiContext = e.target.value;
+                activeTrip.aiContext = /** @type {HTMLTextAreaElement} */ (e.target).value;
                 emit('state:changed');
             };
         }
 
-        div.querySelector('#generateBtn').addEventListener('click', async () => {
-            const outputEl = div.querySelector('#itineraryOutput');
-            const dateFrom = div.querySelector('#aiDateFrom').value;
-            const dateTo = div.querySelector('#aiDateTo').value;
-            const context = document.getElementById('aiExtraContext').value;
+        div.querySelector('#generateBtn')?.addEventListener('click', async () => {
+            const outputEl = q(div, '#itineraryOutput');
+            const dateFrom = /** @type {HTMLInputElement} */ (q(div, '#aiDateFrom')).value;
+            const dateTo = /** @type {HTMLInputElement} */ (q(div, '#aiDateTo')).value;
+            const ctxInput = /** @type {HTMLTextAreaElement | null} */ (document.getElementById('aiExtraContext'));
+            const context = ctxInput?.value ?? '';
             if (!dateFrom || !dateTo) { alert('Please select your travel dates.'); return; }
             const from = new Date(dateFrom), to = new Date(dateTo);
-            const numDays = Math.max(1, Math.round((to - from) / 86400000) + 1);
+            const numDays = Math.max(1, Math.round((to.getTime() - from.getTime()) / 86400000) + 1);
             activeTrip.aiContext = context; activeTrip.aiNumDays = numDays; emit('state:changed');
             outputEl.innerHTML = `<div style="text-align:center;padding:60px;"><div class="spinner-ring" style="width:40px;height:40px;border:3px solid rgba(255,255,255,0.1);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 20px;"></div><div style="color:white;font-weight:600;">Consulting Gemini AI...</div></div>`;
             outputEl.scrollIntoView({ behavior: 'smooth' });
@@ -347,11 +352,11 @@ export function renderAI() {
                 const d = await r.json();
                 if (d.error) throw new Error(d.error);
                 generatedItinerary = d.itinerary;
-                activeTrip.aiPlan = generatedItinerary; emit('state:changed');
+                activeTrip.aiPlan = generatedItinerary ?? undefined; emit('state:changed');
                 renderItineraryOutput(generatedItinerary, numDays, tripCountry);
                 outputEl.scrollIntoView({ behavior: 'smooth' });
             } catch (e) {
-                outputEl.innerHTML = `<div class="card glass" style="text-align:center;padding:40px;"><h2 style="color:#ff3b30;">Generation Failed</h2><p>${e.message}</p></div>`;
+                outputEl.innerHTML = `<div class="card glass" style="text-align:center;padding:40px;"><h2 style="color:#ff3b30;">Generation Failed</h2><p>${/** @type {Error} */ (e).message}</p></div>`;
             }
         });
     }, 0);

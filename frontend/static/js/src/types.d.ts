@@ -32,6 +32,12 @@ export interface Trip {
     tripDays?: TripDay[];
     /** Snapshot of expense objects, populated when the trip is archived. */
     expenses?: Expense[];
+    /** Last AI-generated plan markdown, persisted so it survives navigation. */
+    aiPlan?: string;
+    /** Free-form context the user types in for AI plan generation. */
+    aiContext?: string;
+    /** How many days the AI was asked to plan for. */
+    aiNumDays?: number | string;
 }
 
 export interface TripDay {
@@ -142,6 +148,10 @@ export interface AppState {
     notifications: Notification[];
     /** Optional custom column mapping built up in the upload wizard. */
     customFormat?: { variable: string; column: string }[];
+    /** Saved map camera state per trip+page key (e.g. "tripId_ai"). */
+    mapViews?: Record<string, { lat: number; lng: number; zoom: number }>;
+    /** Profile photo URL set in Phase G+; legacy null-out path uses this. */
+    profilePhoto?: string | null;
 }
 
 /** Event names emitted via state.emit / subscribed via state.subscribe. */
