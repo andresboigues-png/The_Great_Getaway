@@ -1,6 +1,7 @@
+// @ts-check
 import { STATE, emit } from '../state.js';
 import { CONVERSION_RATES } from '../constants.js';
-import { generateId } from '../utils.js';
+import { generateId, q } from '../utils.js';
 import { syncWithServer } from '../api.js';
 import { navigate } from '../router.js';
 import { showSettingsTab } from './settings.js';
@@ -84,8 +85,8 @@ export function renderUpload() {
     `;
 
     setTimeout(() => {
+        /** @type {any[][] | null} */
         let parsedRows = null;
-        let currentHeader = [];
 
         div.querySelector('#uploadFormatSettingsLink')?.addEventListener('click', (e) => {
             e.preventDefault();
@@ -94,10 +95,10 @@ export function renderUpload() {
             setTimeout(() => showSettingsTab('format'), 50);
         });
 
-        const formatSelect = div.querySelector('#formatSelect');
-        const popularNote = div.querySelector('#popularNote');
-        const customFormatPreview = div.querySelector('#customFormatPreview');
-        const customFormatTable = div.querySelector('#customFormatTable');
+        const formatSelect = /** @type {HTMLSelectElement} */ (q(div, '#formatSelect'));
+        const popularNote = q(div, '#popularNote');
+        const customFormatPreview = q(div, '#customFormatPreview');
+        const customFormatTable = q(div, '#customFormatTable');
 
         const updateUI = () => {
             const val = formatSelect.value;
@@ -126,9 +127,11 @@ export function renderUpload() {
                 customFormatPreview.style.display = 'none';
 
                 const popId = val.split(':')[1];
-                const popContainer = div.querySelector('#popularFormatTableContainer');
+                const popContainer = q(div, '#popularFormatTableContainer');
 
+                /** @type {string[]} */
                 let headers = [];
+                /** @type {string[]} */
                 let row = [];
                 if (popId === 'tricount') {
                     headers = ['Title', 'Amount', 'Currency', 'Date', 'Paid by'];
@@ -168,34 +171,34 @@ export function renderUpload() {
         formatSelect.addEventListener('change', updateUI);
         updateUI();
 
-        div.querySelector('#excelFile').addEventListener('change', (e) => {
-            const file = e.target.files[0];
+        q(div, '#excelFile').addEventListener('change', (e) => {
+            const file = /** @type {HTMLInputElement} */ (e.target).files?.[0];
             if (!file) return;
 
             const reader = new FileReader();
             reader.onload = function (evt) {
                 try {
-                    const data = new Uint8Array(evt.target.result);
+                    const data = new Uint8Array(/** @type {ArrayBuffer} */ (evt.target?.result));
                     const workbook = XLSX.read(data, { type: 'array' });
                     const firstSheetName = workbook.SheetNames[0];
                     const worksheet = workbook.Sheets[firstSheetName];
+                    /** @type {any[][]} */
                     const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
                     if (json.length < 2) return;
 
                     const header = json[0];
-                    currentHeader = header;
                     parsedRows = json.slice(1).filter(r => r.length > 0 && r[0]);
 
-                    const previewContainer = div.querySelector('#previewContainer');
-                    const thead = div.querySelector('#previewTable thead');
-                    const tbody = div.querySelector('#previewTable tbody');
+                    const previewContainer = q(div, '#previewContainer');
+                    const thead = q(div, '#previewTable thead');
+                    const tbody = q(div, '#previewTable tbody');
 
-                    thead.innerHTML = '<tr>' + header.map(h => `<th>${h || ''}</th>`).join('') + '</tr>';
+                    thead.innerHTML = '<tr>' + header.map((/** @type {any} */ h) => `<th>${h || ''}</th>`).join('') + '</tr>';
 
                     const previewRows = parsedRows.slice(0, 3);
-                    tbody.innerHTML = previewRows.map(row => {
-                        return '<tr>' + header.map((_, i) => `<td>${row[i] || ''}</td>`).join('') + '</tr>';
+                    tbody.innerHTML = previewRows.map((/** @type {any[]} */ row) => {
+                        return '<tr>' + header.map((/** @type {any} */ _, /** @type {number} */ i) => `<td>${row[i] || ''}</td>`).join('') + '</tr>';
                     }).join('');
 
                     previewContainer.style.display = 'block';
@@ -206,12 +209,13 @@ export function renderUpload() {
             reader.readAsArrayBuffer(file);
         });
 
-        div.querySelector('#uploadBtn').addEventListener('click', () => {
+        q(div, '#uploadBtn').addEventListener('click', () => {
             if (!STATE.activeTripId) {
                 alert("Please select or create a trip first!");
                 return;
             }
-            const statusDiv = div.querySelector('#uploadStatus');
+            const activeTripId = STATE.activeTripId;
+            const statusDiv = q(div, '#uploadStatus');
             const formatVal = formatSelect.value;
             const isPopular = formatVal.startsWith('popular:');
             const popularFormat = formatVal.split(':')[1];
@@ -233,8 +237,9 @@ export function renderUpload() {
                     mappings = format.mappings;
                 }
 
-                parsedRows.forEach(row => {
-                    let who, catName, label, date, country, value, currency;
+                parsedRows.forEach((/** @type {any[]} */ row) => {
+                    let who = '', catName = '', label = '', date = '', country = '';
+                    let value = 0, currency = 'EUR';
 
                     if (isPopular) {
                         if (popularFormat === 'tricount') {
@@ -255,9 +260,11 @@ export function renderUpload() {
                             country = 'Unknown';
                         }
                     } else {
+                        /** @param {string} letter */
                         const colToIdx = (letter) => letter ? letter.toUpperCase().charCodeAt(0) - 65 : -1;
+                        /** @param {string} varName */
                         const get = (varName) => {
-                            const mapping = mappings.find(m => m.variable === varName);
+                            const mapping = mappings.find((/** @type {{variable: string; column: string}} */ m) => m.variable === varName);
                             if (!mapping) return '';
                             return String(row[colToIdx(mapping.column)] || '').trim();
                         };
@@ -282,9 +289,10 @@ export function renderUpload() {
                     }
                     const categoryId = category ? category.id : STATE.categories[0].id;
 
+                    /** @type {import('../types').Expense} */
                     const expense = {
                         id: generateId(),
-                        tripId: STATE.activeTripId,
+                        tripId: activeTripId,
                         who,
                         categoryId,
                         label,
@@ -303,7 +311,7 @@ export function renderUpload() {
                 statusDiv.innerText = `Successfully imported ${added} expenses!`;
                 statusDiv.style.color = "green";
                 parsedRows = null;
-                div.querySelector('#previewContainer').style.display = 'none';
+                q(div, '#previewContainer').style.display = 'none';
             } catch (error) {
                 console.error(error);
                 statusDiv.innerText = "Error parsing file. Check the format.";

@@ -1,7 +1,8 @@
+// @ts-check
 // pages/settlement.js
 
 import { STATE, emit } from '../state.js';
-import { generateId, showConfirmModal } from '../utils.js';
+import { generateId, showConfirmModal, q } from '../utils.js';
 
 export function renderSettlement() {
     const div = document.createElement('div');
@@ -39,7 +40,7 @@ export function renderSettlement() {
                 </div>
                 <div style="display: flex; gap: 16px; overflow-x: auto; padding-bottom: 12px; scroll-behavior: smooth; -webkit-overflow-scrolling: touch;">
                     ${STATE.trips.map(t => {
-            const total = (STATE.expenses.filter(e => e.tripId === t.id && e.isSettlement).reduce((sum, e) => sum + (parseFloat(e.euroValue) || 0), 0)).toFixed(0);
+            const total = (STATE.expenses.filter(e => e.tripId === t.id && e.isSettlement).reduce((sum, e) => sum + (e.euroValue || 0), 0)).toFixed(0);
             const isActive = t.id === tripId;
             return `
                             <div class="card glass settlement-trip-card ${isActive ? 'card-glow-blue' : ''}"
@@ -73,16 +74,17 @@ export function renderSettlement() {
         }
 
         const tripExps = STATE.expenses.filter(e => e.tripId === tripId);
+        /** @type {Record<string, number>} */
         const balances = {};
         STATE.groups.forEach(person => balances[person] = 0);
 
         tripExps.forEach(exp => {
-            const amount = parseFloat(exp.euroValue || exp.value || 0);
+            const amount = exp.euroValue || exp.value || 0;
             const paidBy = exp.who;
             if (balances[paidBy] !== undefined) balances[paidBy] += amount;
             if (exp.splits && Object.keys(exp.splits).length > 0) {
                 for (const [person, pct] of Object.entries(exp.splits)) {
-                    if (balances[person] !== undefined) balances[person] -= amount * (pct / 100);
+                    if (balances[person] !== undefined) balances[person] -= amount * (Number(pct) / 100);
                 }
             } else {
                 const splitAmt = amount / Math.max(STATE.groups.length, 1);
@@ -114,17 +116,18 @@ export function renderSettlement() {
         }
 
         // Global balances: include ALL expenses across all trips (active + completed)
+        /** @type {Record<string, number>} */
         const globalBalances = {};
         STATE.groups.forEach(p => globalBalances[p] = 0);
         const archivedExps = (STATE.archivedTrips || []).flatMap(t => t.expenses || []);
         const allExpenses = [...STATE.expenses, ...archivedExps];
         allExpenses.forEach(exp => {
-            const amount = parseFloat(exp.euroValue || exp.euro_value || exp.value || 0);
+            const amount = exp.euroValue || exp.euro_value || exp.value || 0;
             const payer = exp.who;
             if (globalBalances[payer] !== undefined) globalBalances[payer] += amount;
             if (exp.splits && Object.keys(exp.splits).length > 0) {
                 for (const [person, pct] of Object.entries(exp.splits)) {
-                    if (globalBalances[person] !== undefined) globalBalances[person] -= amount * (pct / 100);
+                    if (globalBalances[person] !== undefined) globalBalances[person] -= amount * (Number(pct) / 100);
                 }
             } else {
                 const splitAmt = amount / Math.max(STATE.groups.length, 1);
@@ -237,6 +240,7 @@ export function renderSettlement() {
     };
 
     const settleDebt = (tripId, from, to, amount) => {
+        /** @type {import('../types').Expense} */
         const settlementExp = {
             id: generateId(),
             tripId: tripId,
@@ -245,6 +249,8 @@ export function renderSettlement() {
             euroValue: amount,
             currency: 'EUR',
             who: from,
+            categoryId: STATE.categories[0]?.id ?? '',
+            country: 'Settlement',
             date: new Date().toISOString().split('T')[0],
             splits: { [to]: 100 },
             isSettlement: true
@@ -289,12 +295,12 @@ export function renderSettlement() {
         `;
         document.body.appendChild(modal);
 
-        modal.querySelector('#cancelManualSettleBtn').onclick = () => modal.remove();
-        modal.querySelector('#manualSettleForm').onsubmit = (evt) => {
+        /** @type {HTMLButtonElement} */ (q(modal, '#cancelManualSettleBtn')).onclick = () => modal.remove();
+        /** @type {HTMLFormElement} */ (q(modal, '#manualSettleForm')).onsubmit = (evt) => {
             evt.preventDefault();
-            const from = modal.querySelector('#manualSettleFrom').value;
-            const to = modal.querySelector('#manualSettleTo').value;
-            const amount = parseFloat(modal.querySelector('#manualSettleAmount').value);
+            const from = /** @type {HTMLSelectElement} */ (q(modal, '#manualSettleFrom')).value;
+            const to = /** @type {HTMLSelectElement} */ (q(modal, '#manualSettleTo')).value;
+            const amount = parseFloat(/** @type {HTMLInputElement} */ (q(modal, '#manualSettleAmount')).value);
             
             if (from === to) {
                 alert('Sender and receiver must be different.');
@@ -311,7 +317,7 @@ export function renderSettlement() {
         modal.style.display = 'flex';
         modal.style.backdropFilter = 'blur(25px)';
 
-        const pastSettlements = STATE.expenses.filter(e => e.tripId === tripId && e.isSettlement).sort((a, b) => new Date(b.date) - new Date(a.date));
+        const pastSettlements = STATE.expenses.filter(e => e.tripId === tripId && e.isSettlement).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         
         const listHtml = pastSettlements.length === 0 
             ? '<p style="color: var(--text-secondary); text-align: center; padding: 20px;">No past settlements recorded for this trip.</p>'
@@ -345,18 +351,20 @@ export function renderSettlement() {
             </div>
         `;
         document.body.appendChild(modal);
-        modal.querySelector('#closePastSettleBtn').onclick = () => modal.remove();
+        /** @type {HTMLButtonElement} */ (q(modal, '#closePastSettleBtn')).onclick = () => modal.remove();
 
         // Delegated handlers for the per-row Edit/Unsettle buttons in this modal.
         modal.addEventListener('click', (e) => {
-            const editBtn = e.target.closest('.edit-settlement-btn');
-            if (editBtn) {
+            const target = /** @type {HTMLElement | null} */ (e.target);
+            if (!target) return;
+            const editBtn = /** @type {HTMLElement | null} */ (target.closest('.edit-settlement-btn'));
+            if (editBtn?.dataset.settlementId) {
                 openEditSettlementModal(editBtn.dataset.settlementId);
                 modal.remove();
                 return;
             }
-            const unsettleBtn = e.target.closest('.unsettle-settlement-btn');
-            if (unsettleBtn) {
+            const unsettleBtn = /** @type {HTMLElement | null} */ (target.closest('.unsettle-settlement-btn'));
+            if (unsettleBtn?.dataset.settlementId && unsettleBtn.dataset.tripId) {
                 deleteSettlement(unsettleBtn.dataset.settlementId, unsettleBtn.dataset.tripId);
                 modal.remove();
                 return;
@@ -422,13 +430,13 @@ export function renderSettlement() {
         `;
         document.body.appendChild(modal);
 
-        modal.querySelector('#cancelEditSettleBtn').onclick = () => modal.remove();
-        modal.querySelector('#editSettlementForm').onsubmit = (evt) => {
+        /** @type {HTMLButtonElement} */ (q(modal, '#cancelEditSettleBtn')).onclick = () => modal.remove();
+        /** @type {HTMLFormElement} */ (q(modal, '#editSettlementForm')).onsubmit = (evt) => {
             evt.preventDefault();
-            const from = modal.querySelector('#editSettleFrom').value;
-            const to = modal.querySelector('#editSettleTo').value;
-            const amount = parseFloat(modal.querySelector('#editSettleAmount').value);
-            const date = modal.querySelector('#editSettleDate').value;
+            const from = /** @type {HTMLSelectElement} */ (q(modal, '#editSettleFrom')).value;
+            const to = /** @type {HTMLSelectElement} */ (q(modal, '#editSettleTo')).value;
+            const amount = parseFloat(/** @type {HTMLInputElement} */ (q(modal, '#editSettleAmount')).value);
+            const date = /** @type {HTMLInputElement} */ (q(modal, '#editSettleDate')).value;
             
             if (from === to) {
                 alert('Sender and receiver must be different.');
@@ -454,11 +462,14 @@ export function renderSettlement() {
     // by switchSettlementTrip / settleDebt / deleteSettlement / openEditSettlementModal,
     // so per-element listeners would die. Delegation on div survives.
     div.addEventListener('click', (e) => {
-        const tripCard = e.target.closest('.settlement-trip-card');
-        if (tripCard) { switchSettlementTrip(tripCard.dataset.tripId); return; }
+        const target = /** @type {HTMLElement | null} */ (e.target);
+        if (!target) return;
 
-        const settleBtn = e.target.closest('.settle-debt-btn');
-        if (settleBtn) {
+        const tripCard = /** @type {HTMLElement | null} */ (target.closest('.settlement-trip-card'));
+        if (tripCard?.dataset.tripId) { switchSettlementTrip(tripCard.dataset.tripId); return; }
+
+        const settleBtn = /** @type {HTMLElement | null} */ (target.closest('.settle-debt-btn'));
+        if (settleBtn?.dataset.tripId && settleBtn.dataset.from && settleBtn.dataset.to && settleBtn.dataset.amount) {
             settleDebt(
                 settleBtn.dataset.tripId,
                 settleBtn.dataset.from,
@@ -468,15 +479,15 @@ export function renderSettlement() {
             return;
         }
 
-        const manualBtn = e.target.closest('.open-manual-settle-btn');
-        if (manualBtn) { openManualSettleModal(manualBtn.dataset.tripId); return; }
+        const manualBtn = /** @type {HTMLElement | null} */ (target.closest('.open-manual-settle-btn'));
+        if (manualBtn?.dataset.tripId) { openManualSettleModal(manualBtn.dataset.tripId); return; }
 
-        const pastBtn = e.target.closest('.open-past-settle-btn');
-        if (pastBtn) { openPastSettlementsModal(pastBtn.dataset.tripId); return; }
+        const pastBtn = /** @type {HTMLElement | null} */ (target.closest('.open-past-settle-btn'));
+        if (pastBtn?.dataset.tripId) { openPastSettlementsModal(pastBtn.dataset.tripId); return; }
 
-        const balancesHeader = e.target.closest('#globalBalancesHeader');
+        const balancesHeader = target.closest('#globalBalancesHeader');
         if (balancesHeader) {
-            const el = div.querySelector('#globalBalancesContainer');
+            const el = /** @type {HTMLElement | null} */ (div.querySelector('#globalBalancesContainer'));
             if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
             return;
         }

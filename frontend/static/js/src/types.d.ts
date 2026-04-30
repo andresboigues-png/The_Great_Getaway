@@ -10,6 +10,10 @@ export interface User {
     email: string;
     picture?: string;
     firstName?: string;
+    /** Profile bio shown on the public profile page. */
+    bio?: string;
+    /** Short status / mood line ("✈️ Currently in Tokyo"). */
+    status?: string;
 }
 
 export interface Category {
@@ -38,6 +42,14 @@ export interface Trip {
     aiContext?: string;
     /** How many days the AI was asked to plan for. */
     aiNumDays?: number | string;
+    /** Last-used Excel-import format mapping for this trip (id ref). */
+    activeFormatId?: string;
+    /** 'popular' or 'custom' — which side of the format picker is active. */
+    activeFormatType?: 'popular' | 'custom';
+    /** Trip start date (YYYY-MM-DD); set by AI planner / archived metadata. */
+    dateFrom?: string;
+    /** Trip end date (YYYY-MM-DD). */
+    dateTo?: string;
 }
 
 export interface TripDay {
@@ -83,6 +95,11 @@ export interface Expense {
     euroValue: number;
     /** True for synthetic settlement expenses created in settlement.js. */
     isSettlement?: boolean;
+    /** Per-payer split amounts (EUR). Indexed by companion name. */
+    splits?: Record<string, number>;
+    /** Legacy snake_case mirror of euroValue used by some old data; readers
+     *  should treat as fallback. New code writes euroValue only. */
+    euro_value?: number;
 }
 
 export interface Budget {
@@ -165,6 +182,8 @@ declare global {
         googleMapsApiKey?: string;
         isGoogleAuthenticated?: boolean;
         activeMap?: unknown;
+        /** Google Identity SDK on window once gsi/client loads. */
+        google?: any;
     }
     /** Loaded via <script> from Google Identity / Maps. */
     const google: any;

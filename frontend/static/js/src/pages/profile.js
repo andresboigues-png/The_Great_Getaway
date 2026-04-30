@@ -1,6 +1,7 @@
+// @ts-check
 import { STATE, emit } from '../state.js';
 import { syncWithServer } from '../api.js';
-import { showLiquidAlert } from '../utils.js';
+import { showLiquidAlert, q } from '../utils.js';
 import { navigate } from '../router.js';
 import { viewArchivedDetails } from './collections.js';
 
@@ -192,14 +193,16 @@ export function renderProfile(targetUserId = null) {
             div.querySelector('#profileLogoutBtn')?.addEventListener('click', () => logout());
 
             if (isOwnProfile) {
-                const statusEl = div.querySelector('#profileStatus');
-                const bioEl = div.querySelector('#profileBio');
-                const saveBtn = div.querySelector('#saveProfileBtn');
-                if (statusEl) statusEl.onchange = () => { saveBtn.style.opacity = '1'; saveBtn.style.pointerEvents = 'auto'; };
-                if (bioEl) bioEl.oninput = () => { saveBtn.style.opacity = '1'; saveBtn.style.pointerEvents = 'auto'; };
+                const statusEl = /** @type {HTMLInputElement | null} */ (div.querySelector('#profileStatus'));
+                const bioEl = /** @type {HTMLTextAreaElement | null} */ (div.querySelector('#profileBio'));
+                const saveBtn = /** @type {HTMLButtonElement | null} */ (div.querySelector('#saveProfileBtn'));
+                if (statusEl && saveBtn) statusEl.onchange = () => { saveBtn.style.opacity = '1'; saveBtn.style.pointerEvents = 'auto'; };
+                if (bioEl && saveBtn) bioEl.oninput = () => { saveBtn.style.opacity = '1'; saveBtn.style.pointerEvents = 'auto'; };
                 if (saveBtn) {
                     saveBtn.onclick = async () => {
-                        const newStatus = statusEl.value; const newBio = bioEl.value;
+                        if (!STATE.user || !statusEl || !bioEl) return;
+                        const newStatus = statusEl.value;
+                        const newBio = bioEl.value;
                         try {
                             const res = await fetch('/api/profile/update', {
                                 method: 'POST',
@@ -214,10 +217,10 @@ export function renderProfile(targetUserId = null) {
                         } catch(e) {}
                     };
                 }
-                
-                const input = div.querySelector('#profilePhotoInput');
-                const wrapper = div.querySelector('#profilePicWrapper');
-                const overlay = div.querySelector('#profilePicOverlay');
+
+                const input = /** @type {HTMLInputElement | null} */ (div.querySelector('#profilePhotoInput'));
+                const wrapper = /** @type {HTMLElement | null} */ (div.querySelector('#profilePicWrapper'));
+                const overlay = /** @type {HTMLElement | null} */ (div.querySelector('#profilePicOverlay'));
                 if (wrapper) {
                     wrapper.onclick = () => input && input.click();
                     if (overlay) {
@@ -226,11 +229,15 @@ export function renderProfile(targetUserId = null) {
                     }
                 }
                 if (input) input.onchange = (e) => {
-                    const file = e.target.files[0]; if (!file) return;
-                    const reader = new FileReader(); reader.onload = (ev) => {
-                        STATE.profilePhoto = ev.target.result; emit('state:changed');
-                        div.querySelector('#profilePicDisplay').src = ev.target.result;
-                    }; reader.readAsDataURL(file);
+                    const file = /** @type {HTMLInputElement} */ (e.target).files?.[0]; if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                        const result = typeof ev.target?.result === 'string' ? ev.target.result : null;
+                        STATE.profilePhoto = result; emit('state:changed');
+                        const display = /** @type {HTMLImageElement | null} */ (div.querySelector('#profilePicDisplay'));
+                        if (display && result) display.src = result;
+                    };
+                    reader.readAsDataURL(file);
                 };
             }
 
@@ -314,8 +321,10 @@ export function renderProfile(targetUserId = null) {
                                         ${tripList}
                                     `;
                                     infoContent.addEventListener('click', (e) => {
-                                        const btn = e.target.closest('.archived-trip-view-btn');
-                                        if (btn) viewArchivedDetails(btn.dataset.tripId);
+                                        const btn = /** @type {HTMLElement | null} */ (
+                                            /** @type {HTMLElement | null} */ (e.target)?.closest('.archived-trip-view-btn')
+                                        );
+                                        if (btn?.dataset.tripId) viewArchivedDetails(btn.dataset.tripId);
                                     });
 
                                     const infoWindow = new google.maps.InfoWindow({ content: infoContent });
@@ -356,7 +365,7 @@ export function updateUserUI() {
     const icon = document.getElementById('sidebarProfileIcon');
     const label = document.getElementById('sidebarProfileLabel');
     const sub = document.getElementById('sidebarProfileSub');
-    const pic = document.getElementById('sidebarProfilePic');
+    const pic = /** @type {HTMLImageElement | null} */ (document.getElementById('sidebarProfilePic'));
     const logoutBtn = document.getElementById('sidebarLogoutBtn');
 
     if (STATE.user) {
@@ -364,7 +373,7 @@ export function updateUserUI() {
         if (icon) { icon.style.display = 'none'; }
         if (label) { label.textContent = STATE.user.name; }
         if (sub) { sub.style.display = 'block'; sub.textContent = 'Logged in ✓'; }
-        if (pic) { pic.src = STATE.user.picture; }
+        if (pic) { pic.src = STATE.user.picture ?? ''; }
         if (logoutBtn) { logoutBtn.style.display = 'block'; }
     } else {
         if (avatar) { avatar.style.display = 'none'; }
