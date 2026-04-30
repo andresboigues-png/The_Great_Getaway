@@ -287,3 +287,15 @@ if (document.readyState === 'loading') {
 } else {
     init();
 }
+
+// PWA: register the service worker after the page has loaded so it doesn't
+// race with first paint. Phase A stub — real caching strategies come in
+// Phase L. Only runs in browsers that support SW (essentially all modern
+// ones; the feature-check just keeps non-supporting environments quiet).
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch((err) => {
+            console.warn('[sw] registration failed', err);
+        });
+    });
+}

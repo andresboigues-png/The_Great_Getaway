@@ -3,10 +3,21 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>The Great Getaway</title>
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/index.css') }}">
+
+    <!-- PWA: installable on iOS/Android, standalone display, themed nav.
+         Real PNG icons + splash screens come in Phase L. -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#0071e3">
+    <!-- iOS Safari needs its own meta tags; manifest.json alone is ignored. -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="The GG">
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='favicon.svg') }}">
+
     <!-- Removed Leaflet -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>

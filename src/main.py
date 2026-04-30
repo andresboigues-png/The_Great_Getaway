@@ -2,7 +2,7 @@ import os
 import json
 import logging
 import requests
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 from google.oauth2 import id_token
@@ -40,6 +40,26 @@ def home():
                            google_client_id=os.getenv("CLIENT_ID_GOOGLE_AUTH"),
                            google_maps_api_key=os.getenv("GOOGLE_MAPS_API_KEY"),
                            dev_mode=dev_mode)
+
+
+# --- PWA: serve the service worker from root scope ---
+# A service worker can only control URLs under its own path. Putting sw.js
+# at /static/sw.js would limit its scope to /static/, so we expose it at /sw.js
+# (and let it claim the entire origin via scope: '/').
+@app.route("/sw.js")
+def service_worker():
+    response = send_from_directory(app.static_folder, "sw.js", mimetype="application/javascript")
+    # Browsers honour this header for cross-scope SW registration.
+    response.headers["Service-Worker-Allowed"] = "/"
+    # SW shouldn't be cached aggressively — we want updates to roll out fast.
+    response.headers["Cache-Control"] = "no-cache"
+    return response
+
+
+@app.route("/manifest.json")
+def manifest():
+    return send_from_directory(app.static_folder, "manifest.json", mimetype="application/manifest+json")
+
 
 # --- Authentication ---
 

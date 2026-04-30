@@ -1,0 +1,21 @@
+{
+    "name": "The Great Getaway",
+    "short_name": "The GG",
+    "description": "Plan, track, and share your travels.",
+    "start_url": "/",
+    "scope": "/",
+    "display": "standalone",
+    "orientation": "portrait",
+    "background_color": "#ffffff",
+    "theme_color": "#0071e3",
+    "lang": "en",
+    "categories": ["travel", "lifestyle", "social"],
+    "icons": [
+        {
+            "src": "/static/favicon.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "any"
+        }
+    ]
+}
