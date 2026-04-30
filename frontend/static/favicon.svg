@@ -1,3 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <text y="52" font-size="56">✈️</text>
+  <!-- White background. Square; OS launchers handle rounding for PWA icons. -->
+  <rect width="64" height="64" fill="#ffffff" />
+  <!-- Blue ring, centered. r=22 + stroke-width=6 leaves 7 units margin per edge. -->
+  <circle cx="32" cy="32" r="22" fill="none" stroke="#0071e3" stroke-width="6" />
 </svg>
