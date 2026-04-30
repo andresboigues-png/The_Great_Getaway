@@ -116,13 +116,13 @@ helps me."** They should feel TGG is something they can trust to travel with.
 ## Open questions (to resolve as we go)
 
 - **Social topology**: open public network (anyone can follow anyone) or
-  friends-only invitation graph? Affects onboarding, moderation, growth.
+  friends-only invitation graph? Affects onboarding, moderation, growth. Answer: Basically, the idea is that there will be public profiles and proivate ones. 
 - **Monetization timing**: when does the organic-business-discovery layer
   enter? Year 1 (lean into it early) or year 3 (after the social network
-  has critical mass)?
+  has critical mass)? Answer: I haven't really planned that out, might need your help on this. On the one hand we want this asap as we want to see how to correctly iterate it, on the other, it'll be hard to talk to businesses and present value if we haven't really got any critical mass yet. Another idea is to target tourism companies (Abreu viagens, etc.) for a platform that they can use to store & shre data with their clients. We get users, they get a database without needing to invest capital. That's something to think about. 
 - **Geographic scope at launch**: global from day one, or one strong market
   first? Affects currency support, language, regulatory complexity, cold-
-  start network effects.
+  start network effects. Answer: Global from day one.
 
 These don't need answers now. They'll get answered as the product takes shape
 and signal arrives from real users.
