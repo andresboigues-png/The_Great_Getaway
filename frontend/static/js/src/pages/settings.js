@@ -381,7 +381,7 @@ export function renderSettings() {
 export function renderPersonalization() {
     const div = document.createElement('div');
 
-    let catsHtml = STATE.categories.map(c => `
+    const catsHtml = STATE.categories.map(c => `
         <tr style="border-bottom: 1px solid var(--glass-border)">
             <td style="padding: 12px; font-weight: 500;">${c.icon} ${c.name}</td>
             <td style="padding: 12px; text-align: right;"><span style="display:inline-block; width:12px; height:12px; border-radius:50%; background: ${c.color}"></span></td>
@@ -391,7 +391,7 @@ export function renderPersonalization() {
         </tr>
     `).join('');
 
-    let groupsHtml = STATE.groups.map(g => `
+    const groupsHtml = STATE.groups.map(g => `
         <tr style="border-bottom: 1px solid var(--glass-border)">
             <td style="padding: 12px; font-weight: 500;">${g}</td>
             <td style="padding: 12px; text-align: right;">

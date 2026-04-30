@@ -1,4 +1,5 @@
-import { renderHome } from './pages/home.js';
+// @ts-check
+import { renderHome, stopHomeSlideshow } from './pages/home.js';
 import { renderExpenses } from './pages/expenses.js';
 import { renderUpload } from './pages/upload.js';
 import { renderInsights } from './pages/insights.js';
@@ -10,18 +11,21 @@ import { renderSettlement } from './pages/settlement.js';
 import { renderFriends } from './pages/friends.js';
 import { renderProfile } from './pages/profile.js';
 
-let dashboardInterval = null;
 let isInternalNav = false;
 
+/**
+ * @param {string} page
+ * @param {{ userId?: string } | null} [params]
+ * @param {boolean} [preserveScroll]
+ */
 export function navigate(page, params = null, preserveScroll = false) {
     const content = document.getElementById('app-container');
     if (!content) return;
 
-    // Clear interval from home if we leave home
-    if (dashboardInterval) {
-        clearInterval(dashboardInterval);
-        dashboardInterval = null;
-    }
+    // Stop home's empty-state slideshow if we're leaving home (no-op if it's
+    // not running). Old code had a `dashboardInterval` here that home.js
+    // assigned to a separate variable, so the timer leaked.
+    stopHomeSlideshow();
 
     content.innerHTML = '';
     let pageEl = null;
@@ -46,24 +50,20 @@ export function navigate(page, params = null, preserveScroll = false) {
         content.appendChild(pageEl);
     }
 
-    // Update active nav state
+    // Update active nav state. Phase 3A swapped inline onclick="" for
+    // data-page=""; we match against that now.
     document.querySelectorAll('.nav-item').forEach(item => {
-        item.classList.remove('active');
-        if (item.getAttribute('onclick')?.includes(`navigate('${page}')`)) {
-            item.classList.add('active');
-        }
+        item.classList.toggle('active', item.getAttribute('data-page') === page);
     });
 
     // Update hash for deep linking / persistence on refresh
     isInternalNav = true;
     window.location.hash = page;
-    
+
     if (!preserveScroll) {
         window.scrollTo(0, 0);
     }
 }
-
-window.navigate = navigate;
 
 window.onhashchange = () => {
     if (isInternalNav) {

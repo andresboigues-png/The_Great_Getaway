@@ -1,3 +1,4 @@
+// @ts-check
 import { STATE, emit } from '../state.js';
 import { showConfirmModal } from '../utils.js';
 import { navigate } from '../router.js';
@@ -76,16 +77,20 @@ export function renderCollections() {
 
     // Delegated handlers for the per-trip cards in the archived list.
     div.addEventListener('click', (e) => {
-        const restoreBtn = e.target.closest('.restore-trip-btn');
-        if (restoreBtn) { restoreTrip(restoreBtn.dataset.tripId); return; }
-        const delBtn = e.target.closest('.delete-archived-btn');
-        if (delBtn) { deleteArchivedTrip(delBtn.dataset.tripId); return; }
-        const card = e.target.closest('.archived-trip-card');
-        if (card) { viewArchivedDetails(card.dataset.tripId); return; }
+        const target = /** @type {HTMLElement | null} */ (e.target);
+        if (!target) return;
+        const restoreBtn = /** @type {HTMLElement | null} */ (target.closest('.restore-trip-btn'));
+        if (restoreBtn?.dataset.tripId) { restoreTrip(restoreBtn.dataset.tripId); return; }
+        const delBtn = /** @type {HTMLElement | null} */ (target.closest('.delete-archived-btn'));
+        if (delBtn?.dataset.tripId) { deleteArchivedTrip(delBtn.dataset.tripId); return; }
+        const card = /** @type {HTMLElement | null} */ (target.closest('.archived-trip-card'));
+        if (card?.dataset.tripId) { viewArchivedDetails(card.dataset.tripId); return; }
     });
     div.addEventListener('change', (e) => {
-        const toggle = e.target.closest('.trip-privacy-toggle');
-        if (toggle) toggleTripPrivacy(toggle.dataset.tripId, toggle.checked);
+        const toggle = /** @type {HTMLInputElement | null} */ (
+            /** @type {HTMLElement | null} */ (e.target)?.closest('.trip-privacy-toggle')
+        );
+        if (toggle?.dataset.tripId) toggleTripPrivacy(toggle.dataset.tripId, toggle.checked);
     });
 
     return div;
@@ -100,7 +105,7 @@ export function renderArchivedTripDetail(tripId) {
     }
 
     let totalSpent = 0;
-    (trip.expenses || []).filter(e => !e.isSettlement).forEach(e => totalSpent += parseFloat(e.euroValue || 0));
+    (trip.expenses || []).filter(e => !e.isSettlement).forEach(e => totalSpent += (e.euroValue || 0));
 
     let firstPhoto = null;
     if (trip.tripDays) {
@@ -155,12 +160,16 @@ export function renderArchivedTripDetail(tripId) {
 
     div.querySelector('#backToCollectionsBtn')?.addEventListener('click', () => navigate('collections'));
     div.addEventListener('click', (e) => {
-        const restoreBtn = e.target.closest('.restore-trip-btn');
-        if (restoreBtn) restoreTrip(restoreBtn.dataset.tripId);
+        const restoreBtn = /** @type {HTMLElement | null} */ (
+            /** @type {HTMLElement | null} */ (e.target)?.closest('.restore-trip-btn')
+        );
+        if (restoreBtn?.dataset.tripId) restoreTrip(restoreBtn.dataset.tripId);
     });
     div.addEventListener('change', (e) => {
-        const toggle = e.target.closest('.trip-privacy-toggle');
-        if (toggle) toggleTripPrivacy(toggle.dataset.tripId, toggle.checked);
+        const toggle = /** @type {HTMLInputElement | null} */ (
+            /** @type {HTMLElement | null} */ (e.target)?.closest('.trip-privacy-toggle')
+        );
+        if (toggle?.dataset.tripId) toggleTripPrivacy(toggle.dataset.tripId, toggle.checked);
     });
 
     return div;
@@ -169,6 +178,7 @@ export function renderArchivedTripDetail(tripId) {
 // Exported because profile.js (archived-trips section) also opens these.
 export const viewArchivedDetails = (id) => {
     const content = document.getElementById('app-container');
+    if (!content) return;
     content.innerHTML = '';
     content.appendChild(renderArchivedTripDetail(id));
 };

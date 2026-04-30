@@ -1,7 +1,12 @@
+// @ts-check
 // src/utils.js
 
 import { TRAVEL_DATA_DEFAULT, DESTINATION_DATA } from './constants.js';
 
+/**
+ * @param {import('./types').Trip | null | undefined} trip
+ * @returns {{ quotes: string[]; images: string[]; facts: string[] }}
+ */
 export function getMediaForTrip(trip) {
     if (!trip) return { quotes: [TRAVEL_DATA_DEFAULT.q], images: [`https://images.unsplash.com/photo-${TRAVEL_DATA_DEFAULT.i}?auto=format&fit=crop&w=1600&q=80`], facts: [TRAVEL_DATA_DEFAULT.f] };
     
@@ -104,14 +109,15 @@ export function showConfirmModal(options = {}) {
 
     document.body.appendChild(modal);
 
-    const confirmBtn = modal.querySelector('#modalConfirmBtn');
-    const cancelBtn = modal.querySelector('#modalCancelBtn');
-    const input = modal.querySelector('#safetyInput');
+    const confirmBtn = /** @type {HTMLButtonElement} */ (modal.querySelector('#modalConfirmBtn'));
+    const cancelBtn = /** @type {HTMLButtonElement} */ (modal.querySelector('#modalCancelBtn'));
+    const input = /** @type {HTMLInputElement | null} */ (modal.querySelector('#safetyInput'));
 
     if (requireInput && input) {
         input.focus();
         input.oninput = (e) => {
-            const isMatch = e.target.value.trim().toUpperCase() === requireInput.toUpperCase();
+            const target = /** @type {HTMLInputElement} */ (e.target);
+            const isMatch = target.value.trim().toUpperCase() === requireInput.toUpperCase();
             confirmBtn.disabled = !isMatch;
             if (isMatch) {
                 confirmBtn.style.opacity = '1';
@@ -137,14 +143,33 @@ export function generateId() {
     return Math.random().toString(36).substr(2, 9);
 }
 
+// Typed querySelector for elements the caller knows it just inserted.
+// Returns HTMLElement (so .style/.onclick are accessible) and throws on miss.
+// For inputs/buttons that need .value/.disabled, cast inline at the call site.
+/**
+ * @param {ParentNode} parent
+ * @param {string} selector
+ * @returns {HTMLElement}
+ */
+export function q(parent, selector) {
+    const el = parent.querySelector(selector);
+    if (!el) throw new Error(`Element not found: ${selector}`);
+    return /** @type {HTMLElement} */ (el);
+}
+
+/**
+ * @param {string} dateStr  YYYY-MM-DD
+ * @returns {string}
+ */
 export function formatDayDate(dateStr) {
     if (!dateStr) return '';
     // Use 'UTC' to avoid timezone shifts when parsing YYYY-MM-DD
     const date = new Date(dateStr + 'T00:00:00Z');
     const now = new Date();
+    /** @type {Intl.DateTimeFormatOptions} */
     const options = { month: 'short', day: 'numeric', timeZone: 'UTC' };
     let formatted = date.toLocaleDateString('en-US', options);
-    
+
     if (date.getUTCFullYear() !== now.getFullYear()) {
         formatted += ` - ${date.getUTCFullYear()}`;
     }

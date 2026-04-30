@@ -40,3 +40,8 @@ src/database.db
 
 # Scratch / experimental data
 scratch/algeria.json
+.husky/_
+
+# Playwright artifacts
+test-results/
+playwright-report/

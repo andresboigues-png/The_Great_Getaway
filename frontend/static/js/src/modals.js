@@ -1,3 +1,4 @@
+// @ts-check
 // modals.js — Trip-level modal helpers shared between home.js + ai.js.
 //
 // Lives outside pages/ to avoid the home.js ↔ ai.js circular that would
@@ -5,7 +6,7 @@
 
 import { STATE, emit } from './state.js';
 import { COUNTRIES, US_STATES } from './constants.js';
-import { generateId, showLiquidAlert } from './utils.js';
+import { generateId, showLiquidAlert, q } from './utils.js';
 import { upsertTrip, upsertDay } from './api.js';
 import { navigate } from './router.js';
 
@@ -50,26 +51,26 @@ export const openNewTripModal = () => {
     `;
 
     document.body.appendChild(modal);
-    const input = modal.querySelector('#tripCountryInput');
-    const list = modal.querySelector('#tripCountryList');
-    const items = list.querySelectorAll('.dropdown-item');
+    const input = /** @type {HTMLInputElement} */ (q(modal, '#tripCountryInput'));
+    const list = q(modal, '#tripCountryList');
+    const items = /** @type {NodeListOf<HTMLElement>} */ (list.querySelectorAll('.dropdown-item'));
     input.onfocus = () => { list.style.display = 'block'; };
     input.oninput = (e) => {
-        const val = e.target.value.toLowerCase();
-        items.forEach(item => { item.style.display = item.textContent.toLowerCase().includes(val) ? 'block' : 'none'; });
+        const val = /** @type {HTMLInputElement} */ (e.target).value.toLowerCase();
+        items.forEach(item => { item.style.display = (item.textContent ?? '').toLowerCase().includes(val) ? 'block' : 'none'; });
         list.style.display = 'block';
     };
 
-    const stateContainer = modal.querySelector('#newTripStateContainer');
-    const stateInput = modal.querySelector('#tripStateInput');
-    const stateList = modal.querySelector('#tripStateList');
-    const stateItems = stateList.querySelectorAll('.dropdown-item');
+    const stateContainer = q(modal, '#newTripStateContainer');
+    const stateInput = /** @type {HTMLInputElement} */ (q(modal, '#tripStateInput'));
+    const stateList = q(modal, '#tripStateList');
+    const stateItems = /** @type {NodeListOf<HTMLElement>} */ (stateList.querySelectorAll('.dropdown-item'));
 
     items.forEach(item => {
         item.onclick = (e) => {
             e.preventDefault();
             e.stopPropagation();
-            const countryVal = item.getAttribute('data-value');
+            const countryVal = item.getAttribute('data-value') ?? '';
             input.value = countryVal;
             list.style.display = 'none';
 
@@ -85,25 +86,25 @@ export const openNewTripModal = () => {
 
     stateInput.onfocus = () => { stateList.style.display = 'block'; };
     stateInput.oninput = (e) => {
-        const val = e.target.value.toLowerCase();
-        stateItems.forEach(item => { item.style.display = item.textContent.toLowerCase().includes(val) ? 'block' : 'none'; });
+        const val = /** @type {HTMLInputElement} */ (e.target).value.toLowerCase();
+        stateItems.forEach(item => { item.style.display = (item.textContent ?? '').toLowerCase().includes(val) ? 'block' : 'none'; });
         stateList.style.display = 'block';
     };
     stateItems.forEach(item => {
         item.onclick = (e) => {
             e.preventDefault();
             e.stopPropagation();
-            stateInput.value = item.getAttribute('data-value');
+            stateInput.value = item.getAttribute('data-value') ?? '';
             stateList.style.display = 'none';
         };
     });
-    modal.querySelector('#cancelTripBtn').onclick = () => modal.remove();
-    modal.querySelector('#newTripForm').onsubmit = (e) => {
+    /** @type {HTMLButtonElement} */ (q(modal, '#cancelTripBtn')).onclick = () => modal.remove();
+    /** @type {HTMLFormElement} */ (q(modal, '#newTripForm')).onsubmit = (e) => {
         e.preventDefault();
         const id = generateId();
-        const name = modal.querySelector('#tripName').value;
-        const country = modal.querySelector('#tripCountryInput').value;
-        const state = modal.querySelector('#tripStateInput').value;
+        const name = /** @type {HTMLInputElement} */ (q(modal, '#tripName')).value;
+        const country = /** @type {HTMLInputElement} */ (q(modal, '#tripCountryInput')).value;
+        const state = /** @type {HTMLInputElement} */ (q(modal, '#tripStateInput')).value;
 
         let finalDestination = country;
         if (country === "United States (USA)" && state) {
@@ -170,15 +171,20 @@ export const openAddDayModal = () => {
         </div>
     `;
     document.body.appendChild(modal);
-    modal.querySelector('#cancelDayBtn').onclick = () => modal.remove();
-    modal.querySelector('#addDayForm').onsubmit = async (e) => {
+    // activeTripId is non-null thanks to the guard at the top of the function;
+    // capture it into a local const so the async closure below sees the
+    // narrowed type.
+    const activeTripId = STATE.activeTripId;
+    /** @type {HTMLButtonElement} */ (q(modal, '#cancelDayBtn')).onclick = () => modal.remove();
+    /** @type {HTMLFormElement} */ (q(modal, '#addDayForm')).onsubmit = async (e) => {
         e.preventDefault();
         const id = generateId();
-        const name = modal.querySelector('#dayName').value;
-        const date = modal.querySelector('#dayDate').value;
+        const name = /** @type {HTMLInputElement} */ (q(modal, '#dayName')).value;
+        const date = /** @type {HTMLInputElement} */ (q(modal, '#dayDate')).value;
+        /** @type {import('./types').TripDay} */
         const newDay = {
             id,
-            tripId: STATE.activeTripId,
+            tripId: activeTripId,
             name,
             date,
             dayNumber: nextDayNumber,

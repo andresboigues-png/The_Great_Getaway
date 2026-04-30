@@ -1,3 +1,4 @@
+// @ts-check
 // api.js — Backend fetch helpers
 
 import { STATE, emit } from './state.js';
@@ -45,9 +46,8 @@ export async function pullFromServer() {
             
             emit('state:changed');               // saveState + updateTripSelector via subscriber
 
-            await fetchNotifications(); // Fetch notifications during pull
-            window.updateNotificationUI?.();
-            
+            await fetchNotifications(); // already emits 'notifications:changed'
+
             // Re-render current page to show new data
             const currentPage = window.location.hash.replace('#', '') || 'home';
             navigate(currentPage);
@@ -137,6 +137,19 @@ export function deleteDayOnServer(dayId) {
     if (!STATE.user) return;
     return _delete(`/api/days/${dayId}`, { user_id: STATE.user.id });
 }
+
+/** POST a file to /api/upload. Returns the parsed JSON response, or null on failure. */
+export async function uploadMedia(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+        const res = await fetch('/api/upload', { method: 'POST', body: formData });
+        return await res.json();
+    } catch (e) {
+        console.error("Upload failed", e);
+        return null;
+    }
+}
 // ── END DELTA SYNC HELPERS ────────────────────────────────────────────────────
 
 export async function fetchNotifications() {
@@ -145,7 +158,7 @@ export async function fetchNotifications() {
         const res = await fetch(`/api/notifications/list?user_id=${encodeURIComponent(STATE.user.id)}`);
         const notifications = await res.json();
         STATE.notifications = notifications;
-        window.updateNotificationUI?.();
+        emit('notifications:changed');
     } catch (e) {
         console.error("Failed to fetch notifications:", e);
     }
@@ -160,7 +173,7 @@ export async function markNotificationsRead() {
             body: JSON.stringify({ user_id: STATE.user.id })
         });
         STATE.notifications.forEach(n => n.is_read = 1);
-        window.updateNotificationUI?.();
+        emit('notifications:changed');
     } catch (e) {
         console.error("Failed to mark notifications read:", e);
     }

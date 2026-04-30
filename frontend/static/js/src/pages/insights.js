@@ -1,3 +1,4 @@
+// @ts-check
 import { STATE, emit } from '../state.js';
 import { CONVERSION_RATES } from '../constants.js';
 import { fetchHistoricalRates } from '../api.js';
@@ -28,7 +29,7 @@ export function renderInsights() {
             </div>
         `;
         setTimeout(() => {
-            div.querySelector('#goToExpensesBtn').addEventListener('click', () => navigate('expenses'));
+            div.querySelector('#goToExpensesBtn')?.addEventListener('click', () => navigate('expenses'));
         }, 0);
         return div;
     }
@@ -96,8 +97,8 @@ export function renderInsights() {
         .sort((a, b) => b[1] - a[1])
         .slice(0, 10);
 
-    let topSpender = sortedSpenders.length > 0 ? sortedSpenders[0][0] : "N/A";
-    let topSpenderAmount = sortedSpenders.length > 0 ? sortedSpenders[0][1] : 0;
+    const topSpender = sortedSpenders.length > 0 ? sortedSpenders[0][0] : "N/A";
+    const topSpenderAmount = sortedSpenders.length > 0 ? sortedSpenders[0][1] : 0;
 
     const spenderRankingHtml = sortedSpenders.slice(1).map(([who, amount], index) => `
         <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 10px;">
@@ -233,16 +234,18 @@ export function renderInsights() {
     `;
 
     setTimeout(() => {
-        div.querySelectorAll('.rate-mode-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                STATE.rateMode = btn.dataset.mode;
+        div.querySelectorAll('.rate-mode-btn').forEach((btn) => {
+            const b = /** @type {HTMLElement} */ (btn);
+            b.addEventListener('click', () => {
+                const mode = b.dataset.mode;
+                if (mode === 'at_trip' || mode === 'today') STATE.rateMode = mode;
                 emit('state:changed');
                 navigate('insights');
             });
         });
 
-        div.querySelector('#insightCurrencySelector').addEventListener('change', (e) => {
-            STATE.insightCurrency = e.target.value;
+        div.querySelector('#insightCurrencySelector')?.addEventListener('change', (e) => {
+            STATE.insightCurrency = /** @type {HTMLSelectElement} */ (e.target).value;
             emit('state:changed');
             navigate('insights');
         });

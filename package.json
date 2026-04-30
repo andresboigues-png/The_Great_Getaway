@@ -1,16 +1,50 @@
 {
-  "name": "the-great-escape",
-  "version": "1.0.0",
-  "description": "The Great Escape — Travel Planning App",
-  "type": "module",
-  "scripts": {
-    "build": "vite build",
-    "watch": "vite build --watch"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "devDependencies": {
-    "vite": "^8.0.10"
-  }
+    "name": "the-great-escape",
+    "version": "1.0.0",
+    "description": "The Great Escape — Travel Planning App",
+    "type": "module",
+    "scripts": {
+        "build": "vite build",
+        "watch": "vite build --watch",
+        "lint": "eslint .",
+        "lint:fix": "eslint . --fix",
+        "format": "prettier --write .",
+        "format:check": "prettier --check .",
+        "typecheck": "tsc --noEmit",
+        "test:e2e": "playwright test",
+        "test:e2e:ui": "playwright test --ui",
+        "prepare": "husky"
+    },
+    "lint-staged": {
+        "frontend/static/js/src/**/*.js": [
+            "eslint --fix",
+            "prettier --write"
+        ],
+        "tests/e2e/**/*.js": [
+            "eslint --fix",
+            "prettier --write"
+        ],
+        "{playwright,vite,eslint}.config.js": [
+            "eslint --fix",
+            "prettier --write"
+        ],
+        "*.{json,md,html,css}": [
+            "prettier --write"
+        ]
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "devDependencies": {
+        "@eslint/js": "^9.39.4",
+        "@playwright/test": "^1.59.1",
+        "eslint": "^9.39.4",
+        "eslint-config-prettier": "^10.1.8",
+        "globals": "^17.5.0",
+        "husky": "^9.1.7",
+        "lint-staged": "^16.4.0",
+        "prettier": "^3.8.3",
+        "typescript": "^6.0.3",
+        "vite": "^8.0.10"
+    }
 }

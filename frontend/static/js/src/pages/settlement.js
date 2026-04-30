@@ -388,7 +388,7 @@ export function renderSettlement() {
 
         const peopleOptionsFrom = STATE.groups.map(p => `<option value="${p}" ${s.who === p ? 'selected' : ''}>${p}</option>`).join('');
         // To find the "to" person, we look at splits
-        let toPerson = Object.keys(s.splits || {})[0];
+        const toPerson = Object.keys(s.splits || {})[0];
         const peopleOptionsTo = STATE.groups.map(p => `<option value="${p}" ${toPerson === p ? 'selected' : ''}>${p}</option>`).join('');
 
         modal.innerHTML = `

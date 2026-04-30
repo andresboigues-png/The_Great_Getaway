@@ -1,6 +1,7 @@
+// @ts-check
 import { STATE, emit } from '../state.js';
 import { CONVERSION_RATES } from '../constants.js';
-import { generateId } from '../utils.js';
+import { generateId, q } from '../utils.js';
 import { upsertBudget, deleteBudgetOnServer } from '../api.js';
 import { navigate } from '../router.js';
 
@@ -47,7 +48,7 @@ export function renderBudgets() {
             if (b.tripId && b.tripId !== 'all' && e.tripId !== b.tripId) return;
             if (b.categoryId && b.categoryId !== 'all' && e.categoryId !== b.categoryId) return;
             if (b.user && b.user !== 'all' && e.who !== b.user) return;
-            spent += parseFloat(e.euroValue || 0);
+            spent += e.euroValue || 0;
         });
 
         const pct = Math.min((spent / b.amount) * 100, 100);
@@ -150,14 +151,16 @@ export function renderBudgets() {
 
     setTimeout(() => {
         div.addEventListener('click', (e) => {
-            const delBtn = e.target.closest('.delete-budget-btn');
-            if (delBtn) deleteBudget(delBtn.dataset.budgetId);
+            const delBtn = /** @type {HTMLElement | null} */ (
+                /** @type {HTMLElement | null} */ (e.target)?.closest('.delete-budget-btn')
+            );
+            if (delBtn?.dataset.budgetId) deleteBudget(delBtn.dataset.budgetId);
         });
 
         const btn = div.querySelector('#saveBudgetBtn');
         if (btn) btn.addEventListener('click', () => {
-            const amt = parseFloat(div.querySelector('#budAmt').value);
-            const curr = div.querySelector('#budCurr').value;
+            const amt = parseFloat(/** @type {HTMLInputElement} */ (q(div, '#budAmt')).value);
+            const curr = /** @type {HTMLSelectElement} */ (q(div, '#budCurr')).value;
             if (!amt || amt <= 0) return alert('Enter a valid amount.');
 
             // Convert to EUR for consistent tracking if needed
@@ -167,11 +170,12 @@ export function renderBudgets() {
                 eurAmt = amt * rate;
             }
 
+            /** @type {import('../types').Budget} */
             const budget = {
                 id: generateId(),
-                tripId: div.querySelector('#budTrip').value,
-                categoryId: div.querySelector('#budCat').value,
-                user: div.querySelector('#budUser').value,
+                tripId: /** @type {HTMLSelectElement} */ (q(div, '#budTrip')).value,
+                categoryId: /** @type {HTMLSelectElement} */ (q(div, '#budCat')).value,
+                user: /** @type {HTMLSelectElement} */ (q(div, '#budUser')).value,
                 amount: eurAmt,
                 originalAmount: amt,
                 originalCurrency: curr

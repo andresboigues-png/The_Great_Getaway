@@ -1,3 +1,4 @@
+// @ts-check
 // src/constants.js
 
 export const COUNTRIES = [

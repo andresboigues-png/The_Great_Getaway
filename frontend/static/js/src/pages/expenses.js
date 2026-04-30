@@ -2,7 +2,7 @@
 
 import { STATE, emit } from '../state.js';
 import { COUNTRIES, CONVERSION_RATES } from '../constants.js';
-import { generateId, showConfirmModal, showLiquidAlert } from '../utils.js';
+import { generateId, showConfirmModal } from '../utils.js';
 import { upsertExpense, deleteExpenseOnServer } from '../api.js';
 import { navigate } from '../router.js';
 import { showPersTab } from './settings.js';
@@ -45,7 +45,7 @@ export function renderExpenses() {
     if (!peopleOptions) peopleOptions = `<option value="">Add companions in the personalisation section</option>`;
 
     // Build Category Options
-    let categoryOptions = STATE.categories.map(c => `<option value="${c.id}">${c.icon} ${c.name}</option>`).join('');
+    const categoryOptions = STATE.categories.map(c => `<option value="${c.id}">${c.icon} ${c.name}</option>`).join('');
 
     div.innerHTML = `
         <h1 style="margin-bottom: 32px;">Expenses</h1>

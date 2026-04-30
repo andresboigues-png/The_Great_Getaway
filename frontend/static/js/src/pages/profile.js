@@ -1,5 +1,6 @@
 import { STATE, emit } from '../state.js';
 import { syncWithServer } from '../api.js';
+import { showLiquidAlert } from '../utils.js';
 import { navigate } from '../router.js';
 import { viewArchivedDetails } from './collections.js';
 
@@ -43,6 +44,7 @@ export const logout = async () => {
     } catch (e) {}
 };
 
+/** @param {string | null} [targetUserId] */
 export function renderProfile(targetUserId = null) {
     const div = document.createElement('div');
     
@@ -207,7 +209,7 @@ export function renderProfile(targetUserId = null) {
                             if (res.ok) {
                                 STATE.user.bio = newBio; STATE.user.status = newStatus;
                                 emit('state:changed'); saveBtn.style.opacity = '0'; saveBtn.style.pointerEvents = 'none';
-                                window.showToast?.("Profile updated!");
+                                showLiquidAlert("Profile updated!");
                             }
                         } catch(e) {}
                     };

@@ -1,31 +1,25 @@
+// @ts-check
 import { STATE, loadState, emit, subscribe } from './state.js';
-import { syncWithServer, pullFromServer, fetchNotifications, markNotificationsRead, deleteTrip, archiveTripOnServer, upsertExpense, syncCompanions, syncCategories } from './api.js';
-import { showLiquidAlert, showConfirmModal } from './utils.js';
+import { syncWithServer, pullFromServer, fetchNotifications, markNotificationsRead, deleteTrip, archiveTripOnServer } from './api.js';
+import { showConfirmModal } from './utils.js';
 import { navigate } from './router.js';
 import { updateUserUI, logout } from './pages/profile.js';
 import { openNewTripModal } from './modals.js';
-
-// ── GLOBAL UTILITIES ──
-// Only assigned to window if something actually calls them via window.X (typically
-// inline HTML handlers like onclick="window.foo()", or module boundaries we haven't
-// migrated to direct imports yet).
-window.showLiquidAlert = showLiquidAlert;
-window.navigate = navigate;
 
 // Global Google Client ID is now provided via index.html template from environment variables
 
 // ── UI HELPERS ──
 
-window.updateNotificationUI = function() {
+export function updateNotificationUI() {
     const badge = document.getElementById('notificationBadge');
     const unread = (STATE.notifications || []).filter(n => !n.is_read).length;
     if (badge) {
         badge.style.display = unread > 0 ? 'flex' : 'none';
-        badge.textContent = unread > 9 ? '9+' : unread;
+        badge.textContent = unread > 9 ? '9+' : String(unread);
     }
 }
 
-window.renderNotificationDropdown = function() {
+function renderNotificationDropdown() {
     const list = document.getElementById('notificationList');
     if (!list) return;
 
@@ -44,8 +38,8 @@ window.renderNotificationDropdown = function() {
     `).join('');
 }
 
-window.updateTripSelector = function() {
-    const selector = document.getElementById('tripSelector');
+function updateTripSelector() {
+    const selector = /** @type {HTMLSelectElement | null} */ (document.getElementById('tripSelector'));
     const completeBtn = document.getElementById('completeTripBtn');
     const deleteBtn = document.getElementById('deleteTripBtn');
     if (!selector) return;
@@ -67,15 +61,16 @@ window.updateTripSelector = function() {
     if (deleteBtn) deleteBtn.style.display = hasActive ? 'flex' : 'none';
 
     selector.onchange = (e) => {
-        STATE.activeTripId = e.target.value;
+        STATE.activeTripId = /** @type {HTMLSelectElement} */ (e.target).value;
         emit('state:changed');               // saveState + updateTripSelector via subscriber
         navigate('home');
     };
 }
 
-// UI subscriber: re-render the trip selector whenever state changes.
-// Lives here (not in state.js) so the data layer doesn't reach into the UI.
-subscribe('state:changed', () => window.updateTripSelector?.());
+// UI subscribers — kept here (not in state.js) so the data layer doesn't reach
+// into the UI. api.js emits 'notifications:changed' from the fetch helpers.
+subscribe('state:changed', updateTripSelector);
+subscribe('notifications:changed', updateNotificationUI);
 
 function archiveActiveTrip() {
     const trip = STATE.trips.find(t => t.id === STATE.activeTripId);
@@ -202,7 +197,7 @@ async function init() {
         trips.forEach(tId => {
             const days = STATE.tripDays.filter(d => d.tripId === tId).sort((a, b) => {
                 if (a.dayNumber && b.dayNumber) return a.dayNumber - b.dayNumber;
-                return new Date(a.date) - new Date(b.date);
+                return new Date(a.date).getTime() - new Date(b.date).getTime();
             });
             days.forEach((d, idx) => {
                 if (!d.dayNumber) d.dayNumber = idx + 1;
@@ -211,8 +206,8 @@ async function init() {
     }
 
     updateUserUI();
-    window.updateNotificationUI();
-    window.updateTripSelector();
+    updateNotificationUI();
+    updateTripSelector();
     
     // Determine start page based on hash or default to home
     const startPage = window.location.hash.replace('#', '') || 'home';
@@ -230,7 +225,7 @@ async function init() {
     document.getElementById('sidebarOverlay')?.addEventListener('click', toggleSidebar);
     document.getElementById('sidebarClose')?.addEventListener('click', toggleSidebar);
 
-    const brand = document.querySelector('.nav-brand');
+    const brand = /** @type {HTMLElement | null} */ (document.querySelector('.nav-brand'));
     if (brand) {
         brand.style.cursor = 'pointer';
         brand.onclick = () => navigate('home');
@@ -245,7 +240,7 @@ async function init() {
             const isHidden = noteDropdown.style.display === 'none' || !noteDropdown.style.display;
             noteDropdown.style.display = isHidden ? 'flex' : 'none';
             if (isHidden) {
-                window.renderNotificationDropdown();
+                renderNotificationDropdown();
                 markNotificationsRead(); // Mark all as read when opening the list
             }
         }
@@ -260,16 +255,17 @@ async function init() {
     document.getElementById('deleteTripBtn')?.addEventListener('click', deleteActiveTrip);
 
     document.addEventListener('click', (e) => {
+        const target = /** @type {HTMLElement | null} */ (e.target);
         // Close notification dropdown if clicking outside
-        if (noteDropdown && noteDropdown.style.display === 'flex' && !noteDropdown.contains(e.target) && e.target !== bellBtn) {
+        if (noteDropdown && noteDropdown.style.display === 'flex' && !noteDropdown.contains(target) && target !== bellBtn) {
             noteDropdown.style.display = 'none';
         }
-        
+
         // Navigation listener (delegated)
-        const navLink = e.target.closest('[data-page]');
+        const navLink = target?.closest('[data-page]');
         if (navLink) {
             e.preventDefault();
-            const page = navLink.getAttribute('data-page');
+            const page = navLink.getAttribute('data-page') ?? 'home';
             navigate(page);
             // Auto-close sidebar
             document.getElementById('sidebar')?.classList.remove('open');

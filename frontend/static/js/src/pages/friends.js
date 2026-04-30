@@ -1,5 +1,6 @@
+// @ts-check
 import { STATE } from '../state.js';
-import { generateId } from '../utils.js';
+import { showLiquidAlert, q } from '../utils.js';
 import { navigate } from '../router.js';
 
 export function renderFriends() {
@@ -60,8 +61,9 @@ export function renderFriends() {
     };
 
     const searchForFriend = async () => {
-        const query = div.querySelector('#friendSearchInput').value.trim();
-        const resultsContainer = div.querySelector('#searchResults');
+        if (!STATE.user) return;
+        const query = /** @type {HTMLInputElement} */ (q(div, '#friendSearchInput')).value.trim();
+        const resultsContainer = q(div, '#searchResults');
         if (!query) return;
 
         resultsContainer.innerHTML = `<p style="text-align:center; padding:10px; font-size:0.8rem; color:var(--text-secondary);">Searching...</p>`;
@@ -69,7 +71,7 @@ export function renderFriends() {
         try {
             const res = await fetch(`/api/friends/search?q=${encodeURIComponent(query)}`);
             const allUsers = await res.json();
-            const users = allUsers.filter(u => u.id !== STATE.user.id);
+            const users = allUsers.filter((/** @type {{id: string}} */ u) => u.id !== STATE.user?.id);
 
             if (users.length === 0) {
                 resultsContainer.innerHTML = `<p style="text-align:center; padding:10px; font-size:0.8rem; color:var(--text-secondary);">No user found. Ask them to login first!</p>`;
@@ -93,7 +95,7 @@ export function renderFriends() {
     const sendFriendRequest = async (friendId) => {
         if (!STATE.user) { alert("Please login first"); return; }
         if (friendId === STATE.user.id) {
-            window.showToast?.("You can't send a friend request to yourself!");
+            showLiquidAlert("You can't send a friend request to yourself!");
             return;
         }
         try {
@@ -104,8 +106,8 @@ export function renderFriends() {
             });
             const data = await res.json();
             if (data.status === 'success') {
-                div.querySelector('#searchResults').innerHTML = `<p style="text-align:center; padding:10px; font-size:0.8rem; color:#34c759;">Request sent!</p>`;
-                div.querySelector('#friendSearchInput').value = '';
+                q(div, '#searchResults').innerHTML = `<p style="text-align:center; padding:10px; font-size:0.8rem; color:#34c759;">Request sent!</p>`;
+                /** @type {HTMLInputElement} */ (q(div, '#friendSearchInput')).value = '';
                 updateFriendsList();
             } else if (data.status === 'error') {
                 alert(data.message);
@@ -123,7 +125,7 @@ export function renderFriends() {
             });
             const data = await res.json();
             if (data.status === 'success') {
-                window.showToast?.("Friend request accepted!");
+                showLiquidAlert("Friend request accepted!");
                 updateFriendsList();
             } else {
                 alert(data.message || "Failed to accept request");
@@ -166,17 +168,19 @@ export function renderFriends() {
 
     div.querySelector('#friendSearchBtn')?.addEventListener('click', searchForFriend);
     div.querySelector('#friendSearchInput')?.addEventListener('keyup', (e) => {
-        if (e.key === 'Enter') searchForFriend();
+        if (/** @type {KeyboardEvent} */ (e).key === 'Enter') searchForFriend();
     });
 
     // Delegated handler for dynamically rendered rows in #friendsList,
     // #pendingList, #searchResults — listeners attached on div once.
     div.addEventListener('click', (e) => {
-        const acceptBtn = e.target.closest('.accept-friend-btn');
+        const target = /** @type {HTMLElement | null} */ (e.target);
+        if (!target) return;
+        const acceptBtn = /** @type {HTMLElement | null} */ (target.closest('.accept-friend-btn'));
         if (acceptBtn) { acceptFriendRequest(acceptBtn.dataset.userId); return; }
-        const sendBtn = e.target.closest('.send-friend-btn');
+        const sendBtn = /** @type {HTMLElement | null} */ (target.closest('.send-friend-btn'));
         if (sendBtn) { sendFriendRequest(sendBtn.dataset.userId); return; }
-        const friendRow = e.target.closest('.friend-row');
+        const friendRow = /** @type {HTMLElement | null} */ (target.closest('.friend-row'));
         if (friendRow) { navigate('profile', { userId: friendRow.dataset.userId }); return; }
     });
 

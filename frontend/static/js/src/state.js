@@ -1,7 +1,9 @@
+// @ts-check
 // state.js — Global STATE object and persistence helpers
 
 // api.js helpers are imported at call-site, not here.
 
+/** @type {import('./types').AppState} */
 export const STATE = {
     trips: [],
     activeTripId: null,
@@ -75,9 +77,7 @@ export function saveState() {
     }
     localStorage.setItem('theGreatEscapeState', JSON.stringify(STATE));
     // Pure persistence — UI updates and server deltas are handled by separate
-    // subscribers and explicit call sites. saveState used to call
-    // window.updateTripSelector here; that's now wired in main.js as a
-    // standalone subscriber to 'state:changed'.
+    // subscribers (see main.js) and explicit call sites.
 }
 
 // ── Tiny event bus ─────────────────────────────────────────────────────────────

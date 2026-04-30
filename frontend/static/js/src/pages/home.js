@@ -1,14 +1,22 @@
 // pages/home.js
 
 import { STATE, emit } from '../state.js';
-import { INSPIRATIONAL_PAIRS, DESTINATION_DATA } from '../constants.js';
-import { getMediaForTrip, showLiquidAlert, showConfirmModal, generateId, formatDayDate } from '../utils.js';
-import { upsertDay } from '../api.js';
+import { INSPIRATIONAL_PAIRS } from '../constants.js';
+import { getMediaForTrip, showLiquidAlert, formatDayDate } from '../utils.js';
+import { upsertDay, uploadMedia } from '../api.js';
 import { navigate } from '../router.js';
 import { showPersTab } from './settings.js';
 import { openNewTripModal, openAddDayModal } from '../modals.js';
 
-let dashboardInterval = null;
+// Empty-state slideshow timer. Lives in this module; router.js calls
+// stopHomeSlideshow() on every navigate so the timer doesn't leak past home.
+let _slideshowTimer = null;
+export function stopHomeSlideshow() {
+    if (_slideshowTimer) {
+        clearInterval(_slideshowTimer);
+        _slideshowTimer = null;
+    }
+}
 let activeMarkers = {}; // Cache of Leaflet markers by day ID
 let editingDayId = null; // ID of the day currently being geolocated/pinned
 let activeMapClickListener = null; // Reference to the active map click handler
@@ -27,7 +35,7 @@ const addDayPin = (dayId) => {
     if (!day) return;
 
     editingDayId = dayId;
-    window.showToast?.("Click on the map to set the location for this day!");
+    showLiquidAlert("Click on the map to set the location for this day!");
 
     activeMapClickListener = (e) => {
         day.lat = e.latlng.lat;
@@ -53,7 +61,7 @@ const saveDayPin = async (dayId) => {
     activeMapClickListener = null;
     emit('state:changed');
     await upsertDay(day);
-    window.showToast?.("Location saved!");
+    showLiquidAlert("Location saved!");
     navigate('home', null, true);
 };
 
@@ -95,7 +103,7 @@ export function renderHome() {
         // STATIC single image and alternate between quote/fact for the ACTIVE trip
         const data = getMediaForTrip(activeTrip);
         
-        let showQuote = localStorage.getItem('home_media_toggle') !== 'fact';
+        const showQuote = localStorage.getItem('home_media_toggle') !== 'fact';
         localStorage.setItem('home_media_toggle', showQuote ? 'fact' : 'quote');
 
         displayImages = [data.images[0]];
@@ -141,7 +149,8 @@ export function renderHome() {
                 </div>
             </div>
         `;
-        dashboardInterval = setInterval(showNextImageAndQuote, 6000);
+        stopHomeSlideshow();
+        _slideshowTimer = setInterval(showNextImageAndQuote, 6000);
         div.querySelector('#homeCreateFirstTripBtn')?.addEventListener('click', () => openNewTripModal());
     } else {
         const tripExpenses = (STATE.expenses || []).filter(e => e && e.tripId === activeTrip.id);
@@ -208,23 +217,7 @@ export function renderHome() {
                 };
 
                 const map = new google.maps.Map(mapContainer, mapOptions);
-                window.activeMap = map; // Store globally for navigation helpers
-
-                // Helper for direct file uploads
-                window.uploadMedia = async (file) => {
-                    const formData = new FormData();
-                    formData.append('file', file);
-                    try {
-                        const res = await fetch('/api/upload', {
-                            method: 'POST',
-                            body: formData
-                        });
-                        return await res.json();
-                    } catch (e) {
-                        console.error("Upload failed", e);
-                        return null;
-                    }
-                };
+                window.activeMap = map; // Read by external Google Maps callbacks; keep on window.
 
                 // Add pins for accepted Trip Days that have locations
                 const currentTripDays = activeTrip ? (STATE.tripDays || []).filter(d => d.tripId === activeTrip.id) : [];
@@ -348,7 +341,7 @@ export function renderHome() {
                 .then(d => {
                     if (d && d[0]) {
                         const result = d[0];
-                        let areaId = (result.osm_type === 'relation') ? 3600000000 + parseInt(result.osm_id) : 
+                        const areaId = (result.osm_type === 'relation') ? 3600000000 + parseInt(result.osm_id) : 
                                      (result.osm_type === 'way') ? 2400000000 + parseInt(result.osm_id) : null;
 
                         if (areaId) {
@@ -719,7 +712,7 @@ const openJournalingModal = (dayId) => {
         day.notes = modal.querySelector('#journalText').value;
         emit('state:changed');
         await upsertDay(day);
-        window.showToast?.("Memories saved!");
+        showLiquidAlert("Memories saved!");
         modal.remove();
         navigate('home', null, true);
     };
@@ -771,7 +764,7 @@ const openPhotosModal = (dayId) => {
         const file = e.target.files[0];
         if (!file) return;
         modal.querySelector('#uploadStatusText').textContent = "⌛ Uploading...";
-        const res = await window.uploadMedia(file);
+        const res = await uploadMedia(file);
         if (res && res.url) {
             day.photos.push(res.url);
             emit('state:changed');
@@ -862,7 +855,7 @@ const openDocumentsModal = (dayId) => {
         const file = e.target.files[0];
         if (!file) return;
         modal.querySelector('#uploadDocStatusText').textContent = "⌛ Uploading...";
-        const res = await window.uploadMedia(file);
+        const res = await uploadMedia(file);
         if (res && res.url) {
             day.documents.push({ name: res.name || file.name, url: res.url });
             emit('state:changed');
@@ -960,7 +953,7 @@ const openDayDetail = (dayId) => {
         day.notes = notes;
         emit('state:changed');
         await upsertDay(day);
-        window.showToast?.("Itinerary updated!");
+        showLiquidAlert("Itinerary updated!");
         modal.remove();
         navigate('home');
     };

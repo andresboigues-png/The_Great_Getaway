@@ -1,0 +1,12 @@
+node_modules
+frontend/static/js/app.js
+frontend/static/js/app.bundle.js
+frontend/static/js/app.bundle.js.map
+facts_dict.js
+scratch
+tests/__init__.py
+src
+package-lock.json
+.claude
+test-results
+playwright-report
