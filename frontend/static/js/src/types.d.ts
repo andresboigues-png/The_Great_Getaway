@@ -68,6 +68,8 @@ export interface TripDay {
     lng?: number | null;
     tickets?: Ticket[];
     documents?: Document[];
+    /** Free-form "pro tip" string surfaced on the day-detail card. */
+    tip?: string;
 }
 
 export interface Ticket {
@@ -169,6 +171,12 @@ export interface AppState {
     mapViews?: Record<string, { lat: number; lng: number; zoom: number }>;
     /** Profile photo URL set in Phase G+; legacy null-out path uses this. */
     profilePhoto?: string | null;
+    /** Per-step boolean checks for the home-page Getting Started guide. */
+    guideProgress?: Record<string, boolean>;
+    /** Once true, the guide is hidden — user clicked "I'm done!" or completed all steps. */
+    guideAllDone?: boolean;
+    /** Collapses the home-page Quick Access bar. */
+    hideQuickAccess?: boolean;
 }
 
 /** Event names emitted via state.emit / subscribed via state.subscribe. */

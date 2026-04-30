@@ -7,6 +7,38 @@ Newest entry at the top.
 
 ---
 
+## Session 2 — 2026-04-30 — Phase A + B complete
+
+**Phase B done**: all 7 deferred pages typed in this session
+(settings, ai, upload, profile, settlement, home, expenses). 18/18
+source files now under `// @ts-check`. types.d.ts grew to capture
+fields surfaced by the typecheck:
+
+- `Trip.aiPlan / aiContext / aiNumDays` — AI page persistence.
+- `Trip.activeFormatId / activeFormatType` — upload's format picker.
+- `Trip.dateFrom / dateTo` — profile timeline.
+- `Trip.isPublic` — public archived trips.
+- `TripDay.tip` — pro-tip text on day detail card.
+- `User.bio / status` — public profile fields.
+- `Expense.splits / euro_value / isSettlement` — settlement engine.
+- `AppState.mapViews` — saved Google Map camera per trip+page.
+- `AppState.guideProgress / guideAllDone / hideQuickAccess` — home
+  Getting Started guide.
+- `AppState.profilePhoto` — logout flow nulls this.
+- `Window.google` — Google Identity SDK on window.
+
+A few real bugs caught and fixed along the way:
+
+- settlement.js's `settleDebt()` was creating Expense objects missing
+  `categoryId` and `country` (required fields). Filled with sensible
+  defaults — wouldn't have crashed, just left holes that broke
+  downstream consumers like settlement totals.
+- Several `Date - Date` arithmetic sites (would have run as
+  `(NaN-NaN)` if Date coercion ever changed) — converted to explicit
+  `.getTime()`.
+
+---
+
 ## Session 2 — 2026-04-30 — Phase A complete
 
 **Started with**: GitHub backup live; yesterday's work uncommitted.

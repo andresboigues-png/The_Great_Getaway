@@ -1,8 +1,9 @@
+// @ts-check
 // pages/expenses.js
 
 import { STATE, emit } from '../state.js';
 import { COUNTRIES, CONVERSION_RATES } from '../constants.js';
-import { generateId, showConfirmModal } from '../utils.js';
+import { generateId, showConfirmModal, q } from '../utils.js';
 import { upsertExpense, deleteExpenseOnServer } from '../api.js';
 import { navigate } from '../router.js';
 import { showPersTab } from './settings.js';
@@ -197,17 +198,20 @@ export function renderExpenses() {
         // Delegated handler for per-row edit/delete in #tripExpensesList — listener
         // attached on div once; rows are re-rendered by renderTripExpenses().
         div.addEventListener('click', (e) => {
-            const editBtn = e.target.closest('.expense-edit-btn');
-            if (editBtn) { openEditExpenseModal(editBtn.dataset.expenseId); return; }
-            const delBtn = e.target.closest('.expense-delete-btn');
-            if (delBtn) { deleteExpense(delBtn.dataset.expenseId); return; }
+            const target = /** @type {HTMLElement | null} */ (e.target);
+            if (!target) return;
+            const editBtn = /** @type {HTMLElement | null} */ (target.closest('.expense-edit-btn'));
+            if (editBtn?.dataset.expenseId) { openEditExpenseModal(editBtn.dataset.expenseId); return; }
+            const delBtn = /** @type {HTMLElement | null} */ (target.closest('.expense-delete-btn'));
+            if (delBtn?.dataset.expenseId) { deleteExpense(delBtn.dataset.expenseId); return; }
         });
 
-        const form = div.querySelector('#expenseForm');
-        const splitContainer = div.querySelector('#splitContainer');
-        const addSplitSelect = div.querySelector('#addSplitSelect');
-        const addSplitBtn = div.querySelector('#addSplitBtn');
+        const form = /** @type {HTMLFormElement} */ (q(div, '#expenseForm'));
+        const splitContainer = q(div, '#splitContainer');
+        const addSplitSelect = /** @type {HTMLSelectElement} */ (q(div, '#addSplitSelect'));
+        const addSplitBtn = /** @type {HTMLButtonElement} */ (q(div, '#addSplitBtn'));
 
+        /** @type {string[]} */
         let activeSplitters = []; // Array of names currently in the split
 
         function updateSplitUI() {
@@ -230,7 +234,7 @@ export function renderExpenses() {
 
             // Attach remove listeners
             splitContainer.querySelectorAll('.remove-splitter').forEach(btn => {
-                btn.onclick = () => {
+                /** @type {HTMLButtonElement} */ (btn).onclick = () => {
                     const person = btn.getAttribute('data-person');
                     activeSplitters = activeSplitters.filter(p => p !== person);
                     updateSplitUI();
@@ -249,21 +253,22 @@ export function renderExpenses() {
         // Populate from draft
         if (STATE.draftExpense) {
             const d = STATE.draftExpense;
-            if (d.who) div.querySelector('#expWho').value = d.who;
-            if (d.categoryId) div.querySelector('#expCategory').value = d.categoryId;
-            if (d.label) div.querySelector('#expLabel').value = d.label;
-            if (d.date) div.querySelector('#expDate').value = d.date;
-            if (d.country) div.querySelector('#expCountry').value = d.country;
-            if (d.value) div.querySelector('#expValue').value = d.value;
-            if (d.currency) div.querySelector('#expCurrency').value = d.currency;
+            if (d.who) /** @type {HTMLSelectElement} */ (q(div, '#expWho')).value = d.who;
+            if (d.categoryId) /** @type {HTMLSelectElement} */ (q(div, '#expCategory')).value = d.categoryId;
+            if (d.label) /** @type {HTMLInputElement} */ (q(div, '#expLabel')).value = d.label;
+            if (d.date) /** @type {HTMLInputElement} */ (q(div, '#expDate')).value = d.date;
+            if (d.country) /** @type {HTMLInputElement} */ (q(div, '#expCountry')).value = d.country;
+            if (d.value) /** @type {HTMLInputElement} */ (q(div, '#expValue')).value = String(d.value);
+            if (d.currency) /** @type {HTMLSelectElement} */ (q(div, '#expCurrency')).value = d.currency;
         }
 
         // Live Save Draft
         form.querySelectorAll('input, select').forEach(el => {
             el.addEventListener('input', (e) => {
-                const id = e.target.id;
+                const t = /** @type {HTMLInputElement | HTMLSelectElement} */ (e.target);
+                const id = t.id;
                 if (!id) return;
-                const val = e.target.value;
+                const val = t.value;
                 if (id === 'expWho') STATE.draftExpense.who = val;
                 if (id === 'expCategory') STATE.draftExpense.categoryId = val;
                 if (id === 'expLabel') STATE.draftExpense.label = val;
@@ -277,18 +282,18 @@ export function renderExpenses() {
         });
 
         // Custom Searchable Dropdown Logic
-        const countryInput = div.querySelector('#expCountry');
-        const countryList = div.querySelector('#countryDropdownList');
-        const countryItems = countryList.querySelectorAll('.dropdown-item');
+        const countryInput = /** @type {HTMLInputElement} */ (q(div, '#expCountry'));
+        const countryList = q(div, '#countryDropdownList');
+        const countryItems = /** @type {NodeListOf<HTMLElement>} */ (countryList.querySelectorAll('.dropdown-item'));
 
         countryInput.onfocus = () => {
             countryList.style.display = 'block';
         };
 
         countryInput.oninput = (e) => {
-            const val = e.target.value.toLowerCase();
+            const val = /** @type {HTMLInputElement} */ (e.target).value.toLowerCase();
             countryItems.forEach(item => {
-                const text = item.textContent.toLowerCase();
+                const text = (item.textContent ?? '').toLowerCase();
                 item.style.display = text.includes(val) ? 'block' : 'none';
             });
             countryList.style.display = 'block';
@@ -296,7 +301,7 @@ export function renderExpenses() {
 
         countryItems.forEach(item => {
             item.onclick = (e) => {
-                countryInput.value = item.getAttribute('data-value');
+                countryInput.value = item.getAttribute('data-value') ?? '';
                 countryList.style.display = 'none';
                 e.stopPropagation();
 
@@ -310,23 +315,29 @@ export function renderExpenses() {
 
         // Click outside to close
         document.addEventListener('click', (e) => {
-            if (!div.querySelector('#countrySearchContainer').contains(e.target)) {
+            const target = /** @type {Node | null} */ (e.target);
+            const container = q(div, '#countrySearchContainer');
+            if (!target || !container.contains(target)) {
                 countryList.style.display = 'none';
             }
         });
 
         form.addEventListener('submit', (e) => {
             e.preventDefault();
+            if (!STATE.activeTripId) return;
+            const tripId = STATE.activeTripId;
 
-            const payer = div.querySelector('#expWho').value;
+            const payer = /** @type {HTMLSelectElement} */ (q(div, '#expWho')).value;
+            /** @type {Record<string, number>} */
             const splits = {};
             let totalSplit = 0;
 
-            const splitInputs = div.querySelectorAll('.split-input');
+            const splitInputs = /** @type {NodeListOf<HTMLInputElement>} */ (div.querySelectorAll('.split-input'));
             if (splitInputs.length > 0) {
                 splitInputs.forEach(input => {
                     const val = parseFloat(input.value) || 0;
-                    splits[input.getAttribute('data-person')] = val;
+                    const person = input.getAttribute('data-person');
+                    if (person) splits[person] = val;
                     totalSplit += val;
                 });
 
@@ -339,8 +350,8 @@ export function renderExpenses() {
                 splits[payer] = 100;
             }
 
-            const val = parseFloat(div.querySelector('#expValue').value);
-            const curr = div.querySelector('#expCurrency').value.toUpperCase();
+            const val = parseFloat(/** @type {HTMLInputElement} */ (q(div, '#expValue')).value);
+            const curr = /** @type {HTMLSelectElement} */ (q(div, '#expCurrency')).value.toUpperCase();
 
             if (isNaN(val) || val <= 0) {
                 alert("Please enter a valid expense value.");
@@ -351,17 +362,18 @@ export function renderExpenses() {
                 return;
             }
 
-            const activeTrip = STATE.trips.find(t => t.id === STATE.activeTripId);
-            const countryVal = div.querySelector('#expCountry').value || (activeTrip ? activeTrip.country : '');
+            const activeTrip = STATE.trips.find(t => t.id === tripId);
+            const countryVal = /** @type {HTMLInputElement} */ (q(div, '#expCountry')).value || (activeTrip ? activeTrip.country : '');
 
             const isEdit = !!STATE.draftExpense?.id;
+            /** @type {import('../types').Expense} */
             const expense = {
-                id: isEdit ? STATE.draftExpense.id : generateId(),
-                tripId: STATE.activeTripId,
+                id: isEdit && STATE.draftExpense.id ? STATE.draftExpense.id : generateId(),
+                tripId,
                 who: payer,
-                categoryId: div.querySelector('#expCategory').value,
-                label: div.querySelector('#expLabel').value,
-                date: div.querySelector('#expDate').value,
+                categoryId: /** @type {HTMLSelectElement} */ (q(div, '#expCategory')).value,
+                label: /** @type {HTMLInputElement} */ (q(div, '#expLabel')).value,
+                date: /** @type {HTMLInputElement} */ (q(div, '#expDate')).value,
                 country: countryVal,
                 value: val,
                 currency: curr,
@@ -378,11 +390,12 @@ export function renderExpenses() {
             }
 
             // Clear draft
-            STATE.draftExpense = { who: '', categoryId: '', label: '', date: '', country: '', value: '', currency: 'EUR' };
+            STATE.draftExpense = { who: '', categoryId: '', label: '', date: '', country: '', value: '', currency: 'EUR', euroValue: '' };
 
             emit('state:changed');
             upsertExpense(expense); // Delta: persist expense to server
-            renderTripExpenses(div.querySelector('#tripExpensesList'));
+            const list = q(div, '#tripExpensesList');
+            renderTripExpenses(list);
             form.reset();
             activeSplitters = [];
             updateSplitUI();
@@ -390,53 +403,58 @@ export function renderExpenses() {
 
         // Filter Logic
         const filterExps = () => {
-            const search = div.querySelector('#filterSearch').value.toLowerCase();
-            const catId = div.querySelector('#filterCategory').value;
-            const who = div.querySelector('#filterWho').value;
-            const dateFrom = div.querySelector('#filterDateFrom').value;
-            const dateTo = div.querySelector('#filterDateTo').value;
-            const minVal = parseFloat(div.querySelector('#filterMinVal').value) || 0;
-            const maxVal = parseFloat(div.querySelector('#filterMaxVal').value) || Infinity;
-            
-            renderTripExpenses(div.querySelector('#tripExpensesList'), { 
-                search, catId, who, dateFrom, dateTo, minVal, maxVal 
+            const search = /** @type {HTMLInputElement} */ (q(div, '#filterSearch')).value.toLowerCase();
+            const catId = /** @type {HTMLSelectElement} */ (q(div, '#filterCategory')).value;
+            const who = /** @type {HTMLSelectElement} */ (q(div, '#filterWho')).value;
+            const dateFrom = /** @type {HTMLInputElement} */ (q(div, '#filterDateFrom')).value;
+            const dateTo = /** @type {HTMLInputElement} */ (q(div, '#filterDateTo')).value;
+            const minVal = parseFloat(/** @type {HTMLInputElement} */ (q(div, '#filterMinVal')).value) || 0;
+            const maxVal = parseFloat(/** @type {HTMLInputElement} */ (q(div, '#filterMaxVal')).value) || Infinity;
+
+            renderTripExpenses(q(div, '#tripExpensesList'), {
+                search, catId, who, dateFrom, dateTo, minVal, maxVal
             });
         };
 
-        div.querySelector('#filterSearch').oninput = filterExps;
-        div.querySelector('#filterCategory').onchange = filterExps;
-        div.querySelector('#filterWho').onchange = filterExps;
-        div.querySelector('#filterDateFrom').onchange = filterExps;
-        div.querySelector('#filterDateTo').onchange = filterExps;
-        div.querySelector('#filterMinVal').oninput = filterExps;
-        div.querySelector('#filterMaxVal').oninput = filterExps;
+        /** @type {HTMLInputElement} */ (q(div, '#filterSearch')).oninput = filterExps;
+        /** @type {HTMLSelectElement} */ (q(div, '#filterCategory')).onchange = filterExps;
+        /** @type {HTMLSelectElement} */ (q(div, '#filterWho')).onchange = filterExps;
+        /** @type {HTMLInputElement} */ (q(div, '#filterDateFrom')).onchange = filterExps;
+        /** @type {HTMLInputElement} */ (q(div, '#filterDateTo')).onchange = filterExps;
+        /** @type {HTMLInputElement} */ (q(div, '#filterMinVal')).oninput = filterExps;
+        /** @type {HTMLInputElement} */ (q(div, '#filterMaxVal')).oninput = filterExps;
 
-        div.querySelector('#clearFiltersBtn').onclick = () => {
-            div.querySelector('#filterSearch').value = '';
-            div.querySelector('#filterCategory').value = 'all';
-            div.querySelector('#filterWho').value = 'all';
-            div.querySelector('#filterDateFrom').value = '';
-            div.querySelector('#filterDateTo').value = '';
-            div.querySelector('#filterMinVal').value = '';
-            div.querySelector('#filterMaxVal').value = '';
-            renderTripExpenses(div.querySelector('#tripExpensesList'));
+        /** @type {HTMLButtonElement} */ (q(div, '#clearFiltersBtn')).onclick = () => {
+            /** @type {HTMLInputElement} */ (q(div, '#filterSearch')).value = '';
+            /** @type {HTMLSelectElement} */ (q(div, '#filterCategory')).value = 'all';
+            /** @type {HTMLSelectElement} */ (q(div, '#filterWho')).value = 'all';
+            /** @type {HTMLInputElement} */ (q(div, '#filterDateFrom')).value = '';
+            /** @type {HTMLInputElement} */ (q(div, '#filterDateTo')).value = '';
+            /** @type {HTMLInputElement} */ (q(div, '#filterMinVal')).value = '';
+            /** @type {HTMLInputElement} */ (q(div, '#filterMaxVal')).value = '';
+            renderTripExpenses(q(div, '#tripExpensesList'));
         };
 
-        renderTripExpenses(div.querySelector('#tripExpensesList'));
+        renderTripExpenses(q(div, '#tripExpensesList'));
         updateSplitUI();
     }, 0);
 
     return div;
 }
 
+/**
+ * @param {HTMLElement} container
+ * @param {{ search?: string; catId?: string; who?: string; dateFrom?: string; dateTo?: string; minVal?: number; maxVal?: number }} [filters]
+ */
 export function renderTripExpenses(container, filters = {}) {
     if (!container) return;
 
     let tripExpenses = STATE.expenses.filter(e => e.tripId === STATE.activeTripId);
 
     // Apply Filters
-    if (filters.search) {
-        tripExpenses = tripExpenses.filter(e => e.label.toLowerCase().includes(filters.search));
+    const search = filters.search;
+    if (search) {
+        tripExpenses = tripExpenses.filter(e => e.label.toLowerCase().includes(search));
     }
     if (filters.catId && filters.catId !== 'all') {
         if (filters.catId === 'settlement') {
@@ -451,20 +469,15 @@ export function renderTripExpenses(container, filters = {}) {
     if (filters.who && filters.who !== 'all') {
         tripExpenses = tripExpenses.filter(e => e.who === filters.who);
     }
-    if (filters.dateFrom) {
-        tripExpenses = tripExpenses.filter(e => e.date >= filters.dateFrom);
-    }
-    if (filters.dateTo) {
-        tripExpenses = tripExpenses.filter(e => e.date <= filters.dateTo);
-    }
-    if (filters.minVal !== undefined) {
-        tripExpenses = tripExpenses.filter(e => (e.euroValue || 0) >= filters.minVal);
-    }
-    if (filters.maxVal !== undefined && filters.maxVal !== Infinity) {
-        tripExpenses = tripExpenses.filter(e => (e.euroValue || 0) <= filters.maxVal);
+    const { dateFrom, dateTo, minVal, maxVal } = filters;
+    if (dateFrom) tripExpenses = tripExpenses.filter(e => e.date >= dateFrom);
+    if (dateTo) tripExpenses = tripExpenses.filter(e => e.date <= dateTo);
+    if (minVal !== undefined) tripExpenses = tripExpenses.filter(e => (e.euroValue || 0) >= minVal);
+    if (maxVal !== undefined && maxVal !== Infinity) {
+        tripExpenses = tripExpenses.filter(e => (e.euroValue || 0) <= maxVal);
     }
 
-    tripExpenses.sort((a, b) => new Date(b.date) - new Date(a.date));
+    tripExpenses.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     function formatAppleDate(dateStr) {
         if (!dateStr) return 'Global';

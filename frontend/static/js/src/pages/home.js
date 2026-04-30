@@ -1,8 +1,9 @@
+// @ts-check
 // pages/home.js
 
 import { STATE, emit } from '../state.js';
 import { INSPIRATIONAL_PAIRS } from '../constants.js';
-import { getMediaForTrip, showLiquidAlert, formatDayDate } from '../utils.js';
+import { getMediaForTrip, showLiquidAlert, formatDayDate, q } from '../utils.js';
 import { upsertDay, uploadMedia } from '../api.js';
 import { navigate } from '../router.js';
 import { showPersTab } from './settings.js';
@@ -113,8 +114,8 @@ export function renderHome() {
     const showNextImageAndQuote = () => {
         if (displayImages.length <= 1) return; // No need to cycle if only 1 image
         currentPhotoIdx = (currentPhotoIdx + 1) % displayImages.length;
-        const imgEl = div.querySelector('#homeHeroImg');
-        const quoteEl = div.querySelector('#homeQuote');
+        const imgEl = /** @type {HTMLImageElement | null} */ (div.querySelector('#homeHeroImg'));
+        const quoteEl = /** @type {HTMLElement | null} */ (div.querySelector('#homeQuote'));
         if (imgEl) {
             imgEl.style.opacity = '0';
             setTimeout(() => {
@@ -274,6 +275,7 @@ export function renderHome() {
 
                 // Save Map View on change
                 map.addListener('idle', () => {
+                    if (!tripMapKey) return;
                     if (!STATE.mapViews) STATE.mapViews = {};
                     const center = map.getCenter();
                     STATE.mapViews[tripMapKey] = {
@@ -552,14 +554,17 @@ export function renderHome() {
         // checked first so the outer card click (toggleDayMenu) only fires when
         // the user clicked the card body itself, not an action button.
         daysContainer.addEventListener('click', (e) => {
-            const saveBtn = e.target.closest('.day-pin-save-btn');
-            if (saveBtn) { saveDayPin(saveBtn.dataset.dayId); return; }
+            const target = /** @type {HTMLElement | null} */ (e.target);
+            if (!target) return;
 
-            const delPinBtn = e.target.closest('.day-pin-delete-btn');
-            if (delPinBtn) { deleteDayPin(delPinBtn.dataset.dayId); return; }
+            const saveBtn = /** @type {HTMLElement | null} */ (target.closest('.day-pin-save-btn'));
+            if (saveBtn?.dataset.dayId) { saveDayPin(saveBtn.dataset.dayId); return; }
 
-            const togglePinBtn = e.target.closest('.day-pin-toggle-btn');
-            if (togglePinBtn) {
+            const delPinBtn = /** @type {HTMLElement | null} */ (target.closest('.day-pin-delete-btn'));
+            if (delPinBtn?.dataset.dayId) { deleteDayPin(delPinBtn.dataset.dayId); return; }
+
+            const togglePinBtn = /** @type {HTMLElement | null} */ (target.closest('.day-pin-toggle-btn'));
+            if (togglePinBtn?.dataset.dayId) {
                 const dayId = togglePinBtn.dataset.dayId;
                 const day = STATE.tripDays.find(d => d.id === dayId);
                 if (day?.lat) editDayPin(dayId);
@@ -567,26 +572,26 @@ export function renderHome() {
                 return;
             }
 
-            const journalBtn = e.target.closest('.day-journaling-btn');
-            if (journalBtn) { openJournalingModal(journalBtn.dataset.dayId); return; }
+            const journalBtn = /** @type {HTMLElement | null} */ (target.closest('.day-journaling-btn'));
+            if (journalBtn?.dataset.dayId) { openJournalingModal(journalBtn.dataset.dayId); return; }
 
-            const photosBtn = e.target.closest('.day-photos-btn');
-            if (photosBtn) { openPhotosModal(photosBtn.dataset.dayId); return; }
+            const photosBtn = /** @type {HTMLElement | null} */ (target.closest('.day-photos-btn'));
+            if (photosBtn?.dataset.dayId) { openPhotosModal(photosBtn.dataset.dayId); return; }
 
-            const docsBtn = e.target.closest('.day-documents-btn');
-            if (docsBtn) { openDocumentsModal(docsBtn.dataset.dayId); return; }
+            const docsBtn = /** @type {HTMLElement | null} */ (target.closest('.day-documents-btn'));
+            if (docsBtn?.dataset.dayId) { openDocumentsModal(docsBtn.dataset.dayId); return; }
 
-            const detailBtn = e.target.closest('.day-detail-btn');
-            if (detailBtn) { openDayDetail(detailBtn.dataset.dayId); return; }
+            const detailBtn = /** @type {HTMLElement | null} */ (target.closest('.day-detail-btn'));
+            if (detailBtn?.dataset.dayId) { openDayDetail(detailBtn.dataset.dayId); return; }
 
             // Outer card click — only reached if no inner button matched.
-            const card = e.target.closest('.day-card');
-            if (card) { toggleDayMenu(card.dataset.dayId); return; }
+            const card = /** @type {HTMLElement | null} */ (target.closest('.day-card'));
+            if (card?.dataset.dayId) { toggleDayMenu(card.dataset.dayId); return; }
         });
 
         setTimeout(() => {
-            const addBtn = div.querySelector('#addDayBtn');
-            if (addBtn) addBtn.onclick = () => openAddDayModal(activeTrip.id);
+            const addBtn = /** @type {HTMLButtonElement | null} */ (div.querySelector('#addDayBtn'));
+            if (addBtn) addBtn.onclick = () => openAddDayModal();
         }, 0);
     }
 
@@ -602,7 +607,8 @@ export function renderHome() {
                 🧭 Show Quick Access
             </button>
         `;
-        showBtnContainer.querySelector('button').onclick = () => {
+        const showBtn = /** @type {HTMLButtonElement | null} */ (showBtnContainer.querySelector('button'));
+        if (showBtn) showBtn.onclick = () => {
             STATE.hideQuickAccess = false;
             emit('state:changed');
             navigate('home');
@@ -650,7 +656,10 @@ export function renderHome() {
             // Delegated handler — inner [data-guide-action] spans are checked
             // first so they don't bubble to the outer card's main action.
             guideContainer.addEventListener('click', (e) => {
-                const innerAction = e.target.closest('[data-guide-action]');
+                const target = /** @type {HTMLElement | null} */ (e.target);
+                if (!target) return;
+
+                const innerAction = /** @type {HTMLElement | null} */ (target.closest('[data-guide-action]'));
                 if (innerAction) {
                     const action = innerAction.dataset.guideAction;
                     if (action === 'open-add-day') {
@@ -665,13 +674,13 @@ export function renderHome() {
                     return;
                 }
 
-                const card = e.target.closest('.guide-step-card');
-                if (card) {
-                    const idx = card.dataset.index;
-                    if (steps[idx]?.action) steps[idx].action();
+                const card = /** @type {HTMLElement | null} */ (target.closest('.guide-step-card'));
+                if (card?.dataset.index) {
+                    const idx = Number(card.dataset.index);
+                    steps[idx]?.action();
                 }
             });
-            const hBtn = guideContainer.querySelector('#hideQuickAccessBtn');
+            const hBtn = /** @type {HTMLButtonElement | null} */ (guideContainer.querySelector('#hideQuickAccessBtn'));
             if (hBtn) hBtn.onclick = (e) => {
                 e.stopPropagation();
                 STATE.hideQuickAccess = true;
@@ -707,9 +716,9 @@ const openJournalingModal = (dayId) => {
         </div>
     `;
     document.body.appendChild(modal);
-    modal.querySelector('#closeJournalBtn').onclick = () => modal.remove();
-    modal.querySelector('#saveJournalBtn').onclick = async () => {
-        day.notes = modal.querySelector('#journalText').value;
+    /** @type {HTMLButtonElement} */ (q(modal, '#closeJournalBtn')).onclick = () => modal.remove();
+    /** @type {HTMLButtonElement} */ (q(modal, '#saveJournalBtn')).onclick = async () => {
+        day.notes = /** @type {HTMLTextAreaElement} */ (q(modal, '#journalText')).value;
         emit('state:changed');
         await upsertDay(day);
         showLiquidAlert("Memories saved!");
@@ -759,11 +768,12 @@ const openPhotosModal = (dayId) => {
         </div>
     `;
     document.body.appendChild(modal);
-    const fileInput = modal.querySelector('#photoUpload');
+    const fileInput = /** @type {HTMLInputElement} */ (q(modal, '#photoUpload'));
     fileInput.onchange = async (e) => {
-        const file = e.target.files[0];
+        const file = /** @type {HTMLInputElement} */ (e.target).files?.[0];
         if (!file) return;
-        modal.querySelector('#uploadStatusText').textContent = "⌛ Uploading...";
+        const status = q(modal, '#uploadStatusText');
+        status.textContent = "⌛ Uploading...";
         const res = await uploadMedia(file);
         if (res && res.url) {
             day.photos.push(res.url);
@@ -772,9 +782,10 @@ const openPhotosModal = (dayId) => {
             modal.remove();
             openPhotosModal(dayId);
         } else {
-            modal.querySelector('#uploadStatusText').textContent = "❌ Failed. Try again.";
+            status.textContent = "❌ Failed. Try again.";
         }
     };
+    /** @param {string} dId @param {number} idx */
     const removePhoto = async (dId, idx) => {
         day.photos.splice(idx, 1);
         emit('state:changed');
@@ -784,13 +795,15 @@ const openPhotosModal = (dayId) => {
     };
     // Delegated handler for the per-photo "✕" buttons in the gallery grid.
     modal.addEventListener('click', (e) => {
-        const removeBtn = e.target.closest('.remove-photo-btn');
-        if (removeBtn) {
+        const removeBtn = /** @type {HTMLElement | null} */ (
+            /** @type {HTMLElement | null} */ (e.target)?.closest('.remove-photo-btn')
+        );
+        if (removeBtn?.dataset.dayId && removeBtn.dataset.photoIdx) {
             removePhoto(removeBtn.dataset.dayId, parseInt(removeBtn.dataset.photoIdx, 10));
         }
     });
-    modal.querySelector('#addPhotoBtn').onclick = async () => {
-        const url = modal.querySelector('#photoUrl').value;
+    /** @type {HTMLButtonElement} */ (q(modal, '#addPhotoBtn')).onclick = async () => {
+        const url = /** @type {HTMLInputElement} */ (q(modal, '#photoUrl')).value;
         if (url) {
             day.photos.push(url);
             emit('state:changed');
@@ -799,7 +812,7 @@ const openPhotosModal = (dayId) => {
             openPhotosModal(dayId);
         }
     };
-    modal.querySelector('#closePhotosBtn').onclick = () => {
+    /** @type {HTMLButtonElement} */ (q(modal, '#closePhotosBtn')).onclick = () => {
         modal.remove();
         navigate('home', null, true);
     };
@@ -850,24 +863,29 @@ const openDocumentsModal = (dayId) => {
         </div>
     `;
     document.body.appendChild(modal);
-    const docInput = modal.querySelector('#docUpload');
+    // day.documents is initialized to [] above this block; capture into a
+    // local non-undefined ref so the closures below see the narrowed type.
+    const docs = day.documents;
+    const docInput = /** @type {HTMLInputElement} */ (q(modal, '#docUpload'));
     docInput.onchange = async (e) => {
-        const file = e.target.files[0];
+        const file = /** @type {HTMLInputElement} */ (e.target).files?.[0];
         if (!file) return;
-        modal.querySelector('#uploadDocStatusText').textContent = "⌛ Uploading...";
+        const status = q(modal, '#uploadDocStatusText');
+        status.textContent = "⌛ Uploading...";
         const res = await uploadMedia(file);
         if (res && res.url) {
-            day.documents.push({ name: res.name || file.name, url: res.url });
+            docs.push({ name: res.name || file.name, url: res.url });
             emit('state:changed');
             await upsertDay(day);
             modal.remove();
             openDocumentsModal(dayId);
         } else {
-            modal.querySelector('#uploadDocStatusText').textContent = "❌ Failed. Try again.";
+            status.textContent = "❌ Failed. Try again.";
         }
     };
+    /** @param {string} dId @param {number} idx */
     const removeDoc = async (dId, idx) => {
-        day.documents.splice(idx, 1);
+        docs.splice(idx, 1);
         emit('state:changed');
         await upsertDay(day);
         modal.remove();
@@ -875,23 +893,25 @@ const openDocumentsModal = (dayId) => {
     };
     // Delegated handler for the per-doc "✕" buttons.
     modal.addEventListener('click', (e) => {
-        const removeBtn = e.target.closest('.remove-doc-btn');
-        if (removeBtn) {
+        const removeBtn = /** @type {HTMLElement | null} */ (
+            /** @type {HTMLElement | null} */ (e.target)?.closest('.remove-doc-btn')
+        );
+        if (removeBtn?.dataset.dayId && removeBtn.dataset.docIdx) {
             removeDoc(removeBtn.dataset.dayId, parseInt(removeBtn.dataset.docIdx, 10));
         }
     });
-    modal.querySelector('#addDocBtn').onclick = async () => {
-        const name = modal.querySelector('#docName').value;
-        const url = modal.querySelector('#docUrl').value;
+    /** @type {HTMLButtonElement} */ (q(modal, '#addDocBtn')).onclick = async () => {
+        const name = /** @type {HTMLInputElement} */ (q(modal, '#docName')).value;
+        const url = /** @type {HTMLInputElement} */ (q(modal, '#docUrl')).value;
         if (name && url) {
-            day.documents.push({ name, url });
+            docs.push({ name, url });
             emit('state:changed');
             await upsertDay(day);
             modal.remove();
             openDocumentsModal(dayId);
         }
     };
-    modal.querySelector('#closeDocsBtn').onclick = () => modal.remove();
+    /** @type {HTMLButtonElement} */ (q(modal, '#closeDocsBtn')).onclick = () => modal.remove();
 };
 
 const openDayDetail = (dayId) => {
@@ -943,12 +963,12 @@ const openDayDetail = (dayId) => {
         </div>
     `;
     document.body.appendChild(modal);
-    modal.querySelector('#closeDetailBtn').onclick = () => modal.remove();
-    modal.querySelector('#saveDetailBtn').onclick = async () => {
-        const morning = modal.querySelector('[data-time="morning"]').value;
-        const afternoon = modal.querySelector('[data-time="afternoon"]').value;
-        const evening = modal.querySelector('[data-time="evening"]').value;
-        const notes = modal.querySelector('#detailNotes').value;
+    /** @type {HTMLButtonElement} */ (q(modal, '#closeDetailBtn')).onclick = () => modal.remove();
+    /** @type {HTMLButtonElement} */ (q(modal, '#saveDetailBtn')).onclick = async () => {
+        const morning = /** @type {HTMLTextAreaElement} */ (q(modal, '[data-time="morning"]')).value;
+        const afternoon = /** @type {HTMLTextAreaElement} */ (q(modal, '[data-time="afternoon"]')).value;
+        const evening = /** @type {HTMLTextAreaElement} */ (q(modal, '[data-time="evening"]')).value;
+        const notes = /** @type {HTMLTextAreaElement} */ (q(modal, '#detailNotes')).value;
         day.plan = { morning, afternoon, evening };
         day.notes = notes;
         emit('state:changed');
