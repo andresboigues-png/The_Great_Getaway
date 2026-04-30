@@ -18,6 +18,31 @@
     <meta name="apple-mobile-web-app-title" content="The GG">
     <link rel="apple-touch-icon" href="{{ url_for('static', filename='favicon.svg') }}">
 
+    <!-- Sentry — error tracking. Loader is async and lazy-loads the full
+         SDK on first error. Placed early so it can capture errors from
+         the other CDN scripts that follow. The hash in the URL is the
+         Sentry public key (intentionally public, not a secret). -->
+    <script
+        src="https://js-de.sentry-cdn.com/4807f5072827f760461e06af2dbb446c.min.js"
+        crossorigin="anonymous"></script>
+    <script>
+        // Tag every event with environment so dev/prod are separable in
+        // the Sentry dashboard. The loader auto-initializes with its
+        // dashboard defaults; sentryOnLoad lets us re-init with overrides.
+        window.sentryOnLoad = function () {
+            var hostname = location.hostname;
+            var isLocal = hostname === 'localhost' || hostname === '127.0.0.1';
+            // eslint-disable-next-line no-undef
+            Sentry.init({
+                environment: isLocal ? 'development' : 'production',
+                // Drop known third-party noise we can't control.
+                ignoreErrors: [/google.*api/i, /gapi/i, /Cannot read properties of undefined \(reading 'google'\)/],
+                // Performance traces off for now — opt in later if useful.
+                tracesSampleRate: 0,
+            });
+        };
+    </script>
+
     <!-- Removed Leaflet -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>

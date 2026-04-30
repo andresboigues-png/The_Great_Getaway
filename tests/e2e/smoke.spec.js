@@ -37,6 +37,10 @@ test.describe('The Great Getaway — smoke', () => {
             /Failed to load resource/i,
             /favicon/i,
             /maps\.googleapis/i,
+            // Sentry CDN can fail to load behind firewalls / on flaky
+            // network — we don't want test runs gated on it.
+            /sentry-cdn/i,
+            /sentry\.io/i,
         ];
         const real = errors.filter((e) => !ignored.some((re) => re.test(e)));
         expect(real, 'unexpected console errors').toEqual([]);
