@@ -530,9 +530,14 @@ export function renderHome() {
                  *  reverse-geocode zoom levels finest → coarsest. Returns
                  *  the ISO country code from address.country_code so the
                  *  caller can widen the home-page slideshow's country
-                 *  roster without a separate lookup. */
+                 *  roster without a separate lookup.
+                 *
+                 *  Zoom 6 (country) deliberately omitted — outlining an
+                 *  entire country when the user picked a town would dominate
+                 *  the map; the viewport-rectangle fallback in the IIFE is
+                 *  a better match for the user's "where I'm going" intent. */
                 const fetchSmallestRegion = async (lat, lng) => {
-                    for (const zoom of [10, 8, 6]) {
+                    for (const zoom of [10, 8]) {
                         // addressdetails=1 brings back address.country_code
                         // for the slideshow roster — same call, no extra cost.
                         const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&zoom=${zoom}&format=json&polygon_geojson=1&addressdetails=1`;
@@ -548,58 +553,58 @@ export function renderHome() {
                     return null;
                 };
 
-                /** Try forward search for a query string. Returns a primary
+                /** Try forward search for the trip's name. Returns a primary
                  *  region object, or null if nothing matches with a real
-                 *  polygon. Strips postal-code prefixes and stops at the
-                 *  first part that actually resolves. */
+                 *  polygon. Strips postal-code prefixes; does NOT walk up
+                 *  to broader names because falling through to "Portugal"
+                 *  for a town-level trip drew the entire country instead
+                 *  of a useful regional outline. The IIFE's rectangle
+                 *  fallback covers the no-match case. */
                 const fetchForwardRegion = async (rawQuery) => {
-                    // Strip leading postal-code-like tokens. Google's
-                    // `formatted_address` for European places often prefixes
-                    // the postal code ("8950 Castro Marim, Portugal") which
-                    // Nominatim doesn't match in forward search.
                     const stripped = rawQuery.replace(/^\d{3,6}[\s,-]+/, '').trim();
-                    // Walk comma parts most-specific → least-specific. So
-                    // "Castro Marim, Portugal" → ["Castro Marim, Portugal",
-                    //  "Portugal"]. The first that resolves wins.
-                    const parts = stripped.split(',').map(p => p.trim()).filter(Boolean);
-                    /** @type {string[]} */
-                    const candidates = [];
-                    for (let i = 0; i < parts.length; i++) {
-                        candidates.push(parts.slice(i).join(', '));
-                    }
-                    for (const q of candidates) {
-                        // addressdetails=1 makes Nominatim include
-                        // address.country_code so we can widen the
-                        // slideshow roster without a second call.
-                        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&polygon_geojson=1&addressdetails=1`;
-                        const data = await cachedNominatimGet(url);
-                        const hit = data && data[0];
-                        if (hit && hit.geojson && hit.geojson.type !== 'Point') {
-                            return {
-                                geom: hit.geojson,
-                                osmKey: `${hit.osm_type}/${hit.osm_id}`,
-                                matched: q,
-                                countryCode: (hit.address && hit.address.country_code || '').toUpperCase(),
-                            };
-                        }
+                    if (!stripped) return null;
+                    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(stripped)}&format=json&limit=1&polygon_geojson=1&addressdetails=1`;
+                    const data = await cachedNominatimGet(url);
+                    const hit = data && data[0];
+                    if (hit && hit.geojson && hit.geojson.type !== 'Point') {
+                        return {
+                            geom: hit.geojson,
+                            osmKey: `${hit.osm_type}/${hit.osm_id}`,
+                            matched: stripped,
+                            countryCode: (hit.address && hit.address.country_code || '').toUpperCase(),
+                        };
                     }
                     return null;
                 };
 
                 /** Build a rectangle Polygon from the viewport bbox — used
-                 *  as a always-works fallback when Nominatim is unreachable
-                 *  (rate-limited, blocked, offline). Coordinates in [lng, lat]
-                 *  order per GeoJSON, ring closed. */
-                const rectFromViewport = (v) => ({
-                    type: 'Polygon',
-                    coordinates: [[
-                        [v.west, v.south],
-                        [v.east, v.south],
-                        [v.east, v.north],
-                        [v.west, v.north],
-                        [v.west, v.south],
-                    ]],
-                });
+                 *  as a always-works fallback when Nominatim is unreachable.
+                 *  Shrunk to 50% linear (25% area) around the viewport's
+                 *  centre because Google's place viewports are typically
+                 *  generous (sized to "show with context" rather than
+                 *  "the place itself"), and a tighter rectangle better
+                 *  matches the user's mental model of where they're going. */
+                const VIEWPORT_SHRINK = 0.5;
+                const rectFromViewport = (v) => {
+                    const cLat = (v.south + v.north) / 2;
+                    const cLng = (v.west + v.east) / 2;
+                    const halfH = ((v.north - v.south) / 2) * VIEWPORT_SHRINK;
+                    const halfW = ((v.east - v.west) / 2) * VIEWPORT_SHRINK;
+                    const south = cLat - halfH;
+                    const north = cLat + halfH;
+                    const west = cLng - halfW;
+                    const east = cLng + halfW;
+                    return {
+                        type: 'Polygon',
+                        coordinates: [[
+                            [west, south],
+                            [east, south],
+                            [east, north],
+                            [west, north],
+                            [west, south],
+                        ]],
+                    };
+                };
 
                 (async () => {
                     console.log('[Border] start; query=', cleanQuery,
