@@ -413,45 +413,96 @@ export function renderHome() {
                     });
                 };
 
+                // Collect every point that ought to fall inside the border:
+                // the trip's place itself, plus any day pins. We grow the
+                // border to the smallest admin polygon that contains all of
+                // these — pin a day in Lisbon on a Castro-Marim trip and the
+                // border bumps up from Algarve to Portugal automatically.
+                /** @type {{lat:number,lng:number}[]} */
+                const pinsToContain = [];
+                if (typeof activeTrip.lat === 'number' && typeof activeTrip.lng === 'number') {
+                    pinsToContain.push({ lat: activeTrip.lat, lng: activeTrip.lng });
+                }
+                for (const d of currentTripDays) {
+                    const pinLat = d.lat, pinLng = d.lon || d.lng;
+                    if (typeof pinLat === 'number' && typeof pinLng === 'number') {
+                        pinsToContain.push({ lat: pinLat, lng: pinLng });
+                    }
+                }
+
+                /** Nominatim returns boundingbox as ["south","north","west","east"]
+                 *  strings. Test whether every pin is inside that box. Bbox is a
+                 *  reasonable proxy for "inside polygon" — false positives only
+                 *  for concave polygons where a pin sits inside the bbox but
+                 *  outside the actual coastline, and even then we just over-
+                 *  shoot to a slightly bigger polygon, never under-shoot. */
+                const bboxContainsAll = (boundingbox) => {
+                    if (!boundingbox || boundingbox.length !== 4) return false;
+                    const [s, n, w, e] = boundingbox.map(parseFloat);
+                    if ([s, n, w, e].some(isNaN)) return false;
+                    return pinsToContain.every(p =>
+                        p.lat >= s && p.lat <= n && p.lng >= w && p.lng <= e
+                    );
+                };
+
                 const headers = { 'User-Agent': 'TheGreatGetaway/1.2' };
                 (async () => {
+                    // Each candidate is { geom, bbox }; we apply the first one
+                    // whose bbox contains every pin. If none qualifies, we
+                    // fall back to the largest candidate so the user sees
+                    // *some* border instead of nothing.
+                    /** @type {{geom: any, bbox: string[]}[]} */
+                    const candidates = [];
+
                     // Stage A: forward search with the picked place name.
                     try {
                         const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(cleanQuery)}&format=json&limit=1&polygon_geojson=1`;
                         const data = await fetch(url, { headers }).then(r => r.json());
-                        const geom = data && data[0] && data[0].geojson;
-                        if (geom && geom.type !== 'Point') {
-                            applyBorder(geom);
-                            return;
+                        const hit = data && data[0];
+                        if (hit && hit.geojson && hit.geojson.type !== 'Point') {
+                            if (pinsToContain.length === 0 || bboxContainsAll(hit.boundingbox)) {
+                                applyBorder(hit.geojson);
+                                return;
+                            }
+                            candidates.push({ geom: hit.geojson, bbox: hit.boundingbox });
                         }
                     } catch (err) {
                         console.error("Border forward search failed:", err);
                     }
 
-                    // Stage B: reverse geocode at finer-to-coarser zoom levels
-                    // until something returns a real polygon. Skip if we lack
-                    // coords (legacy trip pre-Places migration that hasn't been
-                    // backfilled yet — the geocoder backfill above will fix it
-                    // on the next render).
+                    // Stage B: reverse geocode at finer-to-coarser zoom levels.
+                    // Skip if we lack coords (legacy trip pre-Places migration
+                    // — the geocoder backfill above will fix it on the next
+                    // render).
                     const lat = activeTrip.lat, lng = activeTrip.lng;
                     if (typeof lat !== 'number' || typeof lng !== 'number') {
-                        console.warn("Border: no coords for reverse fallback on", cleanQuery);
+                        if (candidates.length > 0) applyBorder(candidates[candidates.length - 1].geom);
+                        else console.warn("Border: no coords for reverse fallback on", cleanQuery);
                         return;
                     }
                     for (const zoom of [12, 10, 8, 6]) {
                         try {
                             const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&zoom=${zoom}&format=json&polygon_geojson=1`;
                             const data = await fetch(url, { headers }).then(r => r.json());
-                            const geom = data && data.geojson;
-                            if (geom && geom.type !== 'Point') {
-                                applyBorder(geom);
-                                return;
+                            if (data && data.geojson && data.geojson.type !== 'Point') {
+                                if (pinsToContain.length === 0 || bboxContainsAll(data.boundingbox)) {
+                                    applyBorder(data.geojson);
+                                    return;
+                                }
+                                candidates.push({ geom: data.geojson, bbox: data.boundingbox });
                             }
                         } catch (err) {
                             console.error(`Border reverse@${zoom} failed:`, err);
                         }
                     }
-                    console.warn("Border: no polygon at any zoom for", cleanQuery);
+                    // Nothing strictly contained all pins (e.g. user pinned a
+                    // day on the opposite side of the planet). Use the largest
+                    // candidate so they still see *a* border.
+                    if (candidates.length > 0) {
+                        applyBorder(candidates[candidates.length - 1].geom);
+                    } else {
+                        console.warn("Border: no polygon at any zoom for", cleanQuery);
+                    }
                 })();
 
                 // 3. Selective Labels (Overpass) — also gated by isAddressLevel

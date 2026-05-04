@@ -71,8 +71,13 @@ export function renderSettings() {
     const div = document.createElement('div');
 
     function renderMappingContent() {
-        const MANDATORY = ['label', 'date', 'value', 'who'];
-        const OPTIONAL = ['country', 'categoryId', 'currency'];
+        // categoryId is mandatory: without it every imported expense lands
+        // in the default category. The matching path in upload.js does
+        // find-or-create on the cell value, so users can either reuse an
+        // existing category or auto-create a new one just by filling the
+        // column — but the column itself has to be mapped.
+        const MANDATORY = ['label', 'date', 'value', 'who', 'categoryId'];
+        const OPTIONAL = ['country', 'currency'];
         const used = new Set((STATE.customFormat || []).map(m => m.variable));
         const sf = STATE.savedFormats || [];
 
@@ -308,7 +313,8 @@ export function renderSettings() {
     };
 
     const saveCustomFormat = () => {
-        const MANDATORY = ['label', 'date', 'value', 'who'];
+        // Keep this in sync with the MANDATORY list in renderMappingContent.
+        const MANDATORY = ['label', 'date', 'value', 'who', 'categoryId'];
         const fmt = STATE.customFormat || [];
         const mapped = new Set(fmt.map(m => m.variable));
         const missing = MANDATORY.filter(v => !mapped.has(v));

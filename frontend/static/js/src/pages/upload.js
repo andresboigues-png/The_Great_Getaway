@@ -6,6 +6,81 @@ import { syncWithServer } from '../api.js';
 import { navigate } from '../router.js';
 import { showSettingsTab } from './settings.js';
 
+// Pad number to 2 digits.
+const _pad2 = (n) => String(n).padStart(2, '0');
+
+/**
+ * Robust cell-date → "YYYY-MM-DD" string. Handles every format we've seen
+ * leak in via spreadsheet uploads:
+ *   - Date object (XLSX with cellDates:true returns these for typed cells)
+ *   - "YYYY-MM-DD" or "YYYY/MM/DD" — passed through after normalization
+ *   - "DD/MM/YYYY" or "DD-MM-YYYY" — heuristic: 4-digit year is the year
+ *   - "MM/DD/YYYY" — same regex, year still pinned to the 4-digit token
+ *   - Excel serial number (raw float, or a numeric string like "45357")
+ *   - Anything unparseable → '' (caller decides what to do; better than
+ *     silently writing Jan 1 epoch)
+ *
+ * @param {unknown} cell
+ * @returns {string}
+ */
+function parseCellDate(cell) {
+    if (cell === null || cell === undefined || cell === '') return '';
+    // 1. Real Date — easy.
+    if (cell instanceof Date && !isNaN(cell.getTime())) {
+        return `${cell.getFullYear()}-${_pad2(cell.getMonth() + 1)}-${_pad2(cell.getDate())}`;
+    }
+
+    const raw = String(cell).trim();
+    if (!raw) return '';
+
+    // 2. Numeric → Excel serial date. Excel's epoch is 1899-12-30 (the
+    //    "1900-01-00" off-by-one bug means serial 1 is actually 1900-01-01,
+    //    so 1899-12-30 + N days produces the right calendar date).
+    if (/^-?\d+(\.\d+)?$/.test(raw)) {
+        const serial = parseFloat(raw);
+        // Plausible range: ~1900-01-01 (1) to ~2100 (~73000). Reject obviously
+        // wrong numbers so we don't pretend "12345" was a date.
+        if (serial > 0 && serial < 73000) {
+            const epoch = Date.UTC(1899, 11, 30);
+            const ms = epoch + Math.round(serial) * 86400000;
+            const d = new Date(ms);
+            if (!isNaN(d.getTime())) {
+                return `${d.getUTCFullYear()}-${_pad2(d.getUTCMonth() + 1)}-${_pad2(d.getUTCDate())}`;
+            }
+        }
+        return '';
+    }
+
+    // 3. String date — split on common separators and figure out which
+    //    token is the year (the 4-digit one).
+    const parts = raw.split(/[/\-.]/).map(p => p.trim()).filter(Boolean);
+    if (parts.length === 3) {
+        const yIdx = parts.findIndex(p => /^\d{4}$/.test(p));
+        if (yIdx === -1) return '';  // No 4-digit year, can't disambiguate.
+        const year = parts[yIdx];
+        const others = parts.filter((_, i) => i !== yIdx).map(Number);
+        if (others.some(n => isNaN(n))) return '';
+        // If first token is the year (YYYY-MM-DD), order is month, day.
+        // If last token is the year (DD-MM-YYYY most common in EU), the
+        // first remaining token is the day; for US (MM-DD-YYYY) it's the
+        // month. We can't distinguish DD/MM from MM/DD without locale info,
+        // so heuristic: if either >12 it must be the day; otherwise prefer
+        // day-first (the rest of this app already targets EU users).
+        let month, day;
+        if (yIdx === 0) {
+            [month, day] = others;
+        } else {
+            const [a, b] = others;
+            if (a > 12) { day = a; month = b; }
+            else if (b > 12) { day = b; month = a; }
+            else { day = a; month = b; }  // EU default
+        }
+        if (month < 1 || month > 12 || day < 1 || day > 31) return '';
+        return `${year}-${_pad2(month)}-${_pad2(day)}`;
+    }
+    return '';
+}
+
 export function renderUpload() {
     const div = document.createElement('div');
     div.innerHTML = `
@@ -179,7 +254,13 @@ export function renderUpload() {
             reader.onload = function (evt) {
                 try {
                     const data = new Uint8Array(/** @type {ArrayBuffer} */ (evt.target?.result));
-                    const workbook = XLSX.read(data, { type: 'array' });
+                    // cellDates: true tells SheetJS to convert XLSX-typed
+                    // date cells into JS Date objects instead of returning
+                    // the raw Excel serial number (days since 1900-01-01).
+                    // Without it `String(row[dateCol])` gives '45357' which
+                    // later parses as an invalid Date and falls back to
+                    // Jan 1 — every imported expense looked the same.
+                    const workbook = XLSX.read(data, { type: 'array', cellDates: true });
                     const firstSheetName = workbook.SheetNames[0];
                     const worksheet = workbook.Sheets[firstSheetName];
                     /** @type {any[][]} */
@@ -246,12 +327,12 @@ export function renderUpload() {
                             label = String(row[0] || '').trim();
                             value = parseFloat(row[1]) || 0;
                             currency = String(row[2] || 'EUR').trim().toUpperCase();
-                            date = String(row[3] || '').trim();
+                            date = parseCellDate(row[3]);
                             catName = String(row[4] || '').trim();
                             who = String(row[5] || '').trim();
                             country = 'Unknown';
                         } else if (popularFormat === 'splitwise') {
-                            date = String(row[0] || '').trim();
+                            date = parseCellDate(row[0]);
                             label = String(row[1] || '').trim();
                             catName = String(row[2] || '').trim();
                             value = parseFloat(row[3]) || 0;
@@ -268,11 +349,18 @@ export function renderUpload() {
                             if (!mapping) return '';
                             return String(row[colToIdx(mapping.column)] || '').trim();
                         };
+                        /** Raw cell read for date — keeps Date objects intact
+                         *  rather than stringifying first and losing them. */
+                        const getRaw = (varName) => {
+                            const mapping = mappings.find((/** @type {{variable: string; column: string}} */ m) => m.variable === varName);
+                            if (!mapping) return null;
+                            return row[colToIdx(mapping.column)];
+                        };
 
                         who = get('who');
                         catName = get('categoryId');
                         label = get('label');
-                        date = get('date');
+                        date = parseCellDate(getRaw('date'));
                         country = get('country') || 'Unknown';
                         value = parseFloat(get('value')) || 0;
                         currency = get('currency').toUpperCase() || 'EUR';
