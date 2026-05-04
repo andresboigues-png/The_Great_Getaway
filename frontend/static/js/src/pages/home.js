@@ -490,6 +490,42 @@ export function renderHome() {
                 }
 
                 const headers = { 'User-Agent': 'TheGreatGetaway/1.2' };
+
+                // Nominatim caps anonymous use at ~1 request/second per IP.
+                // Repeated trip navigations + ~5-8 calls per render burns
+                // through that fast and we get HTTP 429 (Too Many Requests),
+                // which our `.json()` parse blows up on so every call ends
+                // up returning null and no border draws. Cache successful
+                // JSON responses in sessionStorage so the same trip never
+                // hits the network twice in one session.
+                const NOMINATIM_CACHE_PREFIX = 'tggNominatim:';
+                const cachedNominatimGet = async (url) => {
+                    try {
+                        const hit = sessionStorage.getItem(NOMINATIM_CACHE_PREFIX + url);
+                        if (hit) return JSON.parse(hit);
+                    } catch (_) { /* sessionStorage unavailable or full */ }
+                    try {
+                        const res = await fetch(url, { headers });
+                        if (!res.ok) {
+                            console.warn('[Border] Nominatim non-OK:', res.status, url);
+                            return null;
+                        }
+                        const ct = res.headers.get('content-type') || '';
+                        if (!ct.includes('json')) {
+                            console.warn('[Border] Nominatim non-JSON response (likely rate-limited):', url);
+                            return null;
+                        }
+                        const data = await res.json();
+                        try {
+                            sessionStorage.setItem(NOMINATIM_CACHE_PREFIX + url, JSON.stringify(data));
+                        } catch (_) { /* quota exceeded */ }
+                        return data;
+                    } catch (err) {
+                        console.error('[Border] Nominatim fetch threw:', err);
+                        return null;
+                    }
+                };
+
                 /** Smallest admin polygon containing this lat/lng. Walks
                  *  reverse-geocode zoom levels finest → coarsest. Returns
                  *  the ISO country code from address.country_code so the
@@ -497,18 +533,16 @@ export function renderHome() {
                  *  roster without a separate lookup. */
                 const fetchSmallestRegion = async (lat, lng) => {
                     for (const zoom of [10, 8, 6]) {
-                        try {
-                            const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&zoom=${zoom}&format=json&polygon_geojson=1`;
-                            const data = await fetch(url, { headers }).then(r => r.json());
-                            if (data && data.geojson && data.geojson.type !== 'Point') {
-                                return {
-                                    geom: data.geojson,
-                                    osmKey: `${data.osm_type}/${data.osm_id}`,
-                                    countryCode: (data.address && data.address.country_code || '').toUpperCase(),
-                                };
-                            }
-                        } catch (err) {
-                            console.error(`Region reverse@${zoom} failed:`, err);
+                        // addressdetails=1 brings back address.country_code
+                        // for the slideshow roster — same call, no extra cost.
+                        const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&zoom=${zoom}&format=json&polygon_geojson=1&addressdetails=1`;
+                        const data = await cachedNominatimGet(url);
+                        if (data && data.geojson && data.geojson.type !== 'Point') {
+                            return {
+                                geom: data.geojson,
+                                osmKey: `${data.osm_type}/${data.osm_id}`,
+                                countryCode: (data.address && data.address.country_code || '').toUpperCase(),
+                            };
                         }
                     }
                     return null;
@@ -534,23 +568,19 @@ export function renderHome() {
                         candidates.push(parts.slice(i).join(', '));
                     }
                     for (const q of candidates) {
-                        try {
-                            // addressdetails=1 makes Nominatim include
-                            // address.country_code so we can widen the
-                            // slideshow roster without a second call.
-                            const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&polygon_geojson=1&addressdetails=1`;
-                            const data = await fetch(url, { headers }).then(r => r.json());
-                            const hit = data && data[0];
-                            if (hit && hit.geojson && hit.geojson.type !== 'Point') {
-                                return {
-                                    geom: hit.geojson,
-                                    osmKey: `${hit.osm_type}/${hit.osm_id}`,
-                                    matched: q,
-                                    countryCode: (hit.address && hit.address.country_code || '').toUpperCase(),
-                                };
-                            }
-                        } catch (err) {
-                            console.error('[Border] forward search threw for', q, err);
+                        // addressdetails=1 makes Nominatim include
+                        // address.country_code so we can widen the
+                        // slideshow roster without a second call.
+                        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&polygon_geojson=1&addressdetails=1`;
+                        const data = await cachedNominatimGet(url);
+                        const hit = data && data[0];
+                        if (hit && hit.geojson && hit.geojson.type !== 'Point') {
+                            return {
+                                geom: hit.geojson,
+                                osmKey: `${hit.osm_type}/${hit.osm_id}`,
+                                matched: q,
+                                countryCode: (hit.address && hit.address.country_code || '').toUpperCase(),
+                            };
                         }
                     }
                     return null;
