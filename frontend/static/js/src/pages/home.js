@@ -488,10 +488,41 @@ export function renderHome() {
                     return null;
                 };
 
+                /** Try forward search for a query string. Returns a primary
+                 *  region object, or null if nothing matches with a real
+                 *  polygon. Strips postal-code prefixes and stops at the
+                 *  first part that actually resolves. */
+                const fetchForwardRegion = async (rawQuery) => {
+                    // Strip leading postal-code-like tokens. Google's
+                    // `formatted_address` for European places often prefixes
+                    // the postal code ("8950 Castro Marim, Portugal") which
+                    // Nominatim doesn't match in forward search.
+                    const stripped = rawQuery.replace(/^\d{3,6}[\s,-]+/, '').trim();
+                    // Walk comma parts most-specific → least-specific. So
+                    // "Castro Marim, Portugal" → ["Castro Marim, Portugal",
+                    //  "Portugal"]. The first that resolves wins.
+                    const parts = stripped.split(',').map(p => p.trim()).filter(Boolean);
+                    /** @type {string[]} */
+                    const candidates = [];
+                    for (let i = 0; i < parts.length; i++) {
+                        candidates.push(parts.slice(i).join(', '));
+                    }
+                    for (const q of candidates) {
+                        try {
+                            const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&polygon_geojson=1`;
+                            const data = await fetch(url, { headers }).then(r => r.json());
+                            const hit = data && data[0];
+                            if (hit && hit.geojson && hit.geojson.type !== 'Point') {
+                                return { geom: hit.geojson, osmKey: `${hit.osm_type}/${hit.osm_id}`, matched: q };
+                            }
+                        } catch (err) {
+                            console.error('[Border] forward search threw for', q, err);
+                        }
+                    }
+                    return null;
+                };
+
                 (async () => {
-                    // Diagnostic logs: every step prints so we can see in the
-                    // browser console exactly where the border flow stalls.
-                    // Remove these once the multi-region behavior is confirmed.
                     console.log('[Border] start; query=', cleanQuery,
                                 'lat=', activeTrip.lat, 'lng=', activeTrip.lng,
                                 'dayPins=', dayPins.length);
@@ -503,34 +534,26 @@ export function renderHome() {
                     /** @type {any[]} */
                     const drawnGeoms = [];
 
-                    // Step 1: primary border via forward search by name.
+                    // Step 1: forward search (with postal-code stripping +
+                    // comma walk-up).
+                    /** @type {{geom: any, osmKey: string} | null} */
                     let primary = null;
-                    try {
-                        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(cleanQuery)}&format=json&limit=1&polygon_geojson=1`;
-                        console.log('[Border] forward search:', url);
-                        const data = await fetch(url, { headers }).then(r => r.json());
-                        console.log('[Border] forward response keys:',
-                                    data && data[0] ? Object.keys(data[0]) : '(empty)',
-                                    'geom type:', data && data[0] && data[0].geojson && data[0].geojson.type);
-                        const hit = data && data[0];
-                        if (hit && hit.geojson && hit.geojson.type !== 'Point') {
-                            primary = { geom: hit.geojson, osmKey: `${hit.osm_type}/${hit.osm_id}` };
-                        }
-                    } catch (err) {
-                        console.error('[Border] forward search threw:', err);
+                    const forwardHit = await fetchForwardRegion(cleanQuery);
+                    if (forwardHit) {
+                        console.log('[Border] forward matched', forwardHit.matched, '→', forwardHit.osmKey);
+                        primary = { geom: forwardHit.geom, osmKey: forwardHit.osmKey };
                     }
 
-                    // Step 2: forward search miss → fall back to reverse
-                    // geocode at trip coords (smallest enclosing admin).
+                    // Step 2: forward miss → reverse geocode at trip coords.
                     if (!primary
                         && typeof activeTrip.lat === 'number'
                         && typeof activeTrip.lng === 'number') {
-                        console.log('[Border] forward miss, falling back to reverse@trip-coords');
+                        console.log('[Border] forward miss, reverse@trip-coords');
                         primary = await fetchSmallestRegion(activeTrip.lat, activeTrip.lng);
                     }
 
                     if (primary) {
-                        console.log('[Border] drawing primary,', primary.osmKey);
+                        console.log('[Border] drawing primary', primary.osmKey);
                         addBorderPolygon(primary.geom);
                         drawnKeys.add(primary.osmKey);
                         drawnGeoms.push(primary.geom);
