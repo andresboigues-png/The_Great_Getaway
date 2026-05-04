@@ -694,7 +694,13 @@ export function renderHome() {
     daysContainer.innerHTML = `
         <div style="display: flex; flex-direction: column; margin-bottom: 24px;">
             <div style="display: flex; align-items: center; gap: 12px;">
-                <h2 style="font-size: 1.8rem; letter-spacing: -0.03em; margin: 0; font-weight: 800; color: #002d5b;">${tripTitle}</h2>
+                ${activeTrip ? `
+                    <button id="resetMapViewBtn" title="Reset the map view to show the whole trip" style="background: none; border: none; padding: 0; margin: 0; cursor: pointer; text-align: left;" onmouseover="this.querySelector('h2').style.color='var(--accent-blue)';" onmouseout="this.querySelector('h2').style.color='#002d5b';">
+                        <h2 style="font-size: 1.8rem; letter-spacing: -0.03em; margin: 0; font-weight: 800; color: #002d5b; transition: color 0.2s;">${tripTitle}</h2>
+                    </button>
+                ` : `
+                    <h2 style="font-size: 1.8rem; letter-spacing: -0.03em; margin: 0; font-weight: 800; color: #002d5b;">${tripTitle}</h2>
+                `}
                 ${activeTrip ? `
                     <button id="editTripBtn" title="Edit trip name and location" style="display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0; border-radius: 10px; border: 1px solid rgba(0,0,0,0.06); background: rgba(0,0,0,0.03); color: #002d5b; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='rgba(0,113,227,0.08)'; this.style.borderColor='rgba(0,113,227,0.2)'; this.style.color='var(--accent-blue)';" onmouseout="this.style.background='rgba(0,0,0,0.03)'; this.style.borderColor='rgba(0,0,0,0.06)'; this.style.color='#002d5b';">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
@@ -809,6 +815,34 @@ export function renderHome() {
         daysContainer.addEventListener('click', (e) => {
             const target = /** @type {HTMLElement | null} */ (e.target);
             if (!target) return;
+
+            // Reset map view — clicking the trip name fits the map to all
+            // current border polygons. Useful when the user has panned the
+            // map away and wants to return to the canonical view of the
+            // trip's full footprint (covers multi-region polygons too).
+            if (target.closest('#resetMapViewBtn')) {
+                const map = /** @type {any} */ (window.activeMap);
+                if (!map || !activeTrip) return;
+                /** @type {any} */
+                const _g = google;
+                const bounds = new _g.maps.LatLngBounds();
+                map.data.forEach(/** @type {(f: any) => void} */ (f) => {
+                    f.getGeometry().forEachLatLng(/** @type {(p: any) => void} */ (p) => bounds.extend(p));
+                });
+                if (!bounds.isEmpty()) {
+                    map.fitBounds(bounds);
+                } else if (activeTrip.viewport) {
+                    // Polygons haven't loaded yet (e.g. just-mounted page) —
+                    // fall back to the trip's stored viewport.
+                    const v = activeTrip.viewport;
+                    map.fitBounds(new _g.maps.LatLngBounds(
+                        { lat: v.south, lng: v.west },
+                        { lat: v.north, lng: v.east },
+                    ));
+                }
+                // map's idle listener will persist the new view to STATE.mapViews.
+                return;
+            }
 
             // Edit-trip pencil — sits at the top of daysContainer, no per-day data.
             if (target.closest('#editTripBtn')) { openEditTripModal(activeTrip); return; }
