@@ -75,36 +75,86 @@ export function currencySymbol(code) {
     return CURRENCY_SYMBOLS[code] || (code + ' ');
 }
 
+// Build a case-insensitive lookup once at module load. Google's
+// `formatted_address` gives us "United States" but the dataset is keyed
+// "Usa"; users may also mix casing themselves. Lowercase keys + a tiny
+// alias table handle both without forcing the dataset to be re-keyed.
+const DEST_ALIASES = {
+    'united states': 'Usa',
+    'united states of america': 'Usa',
+    'usa': 'Usa',
+    'us': 'Usa',
+    'united kingdom': 'UK',
+    'uk': 'UK',
+    'great britain': 'UK',
+    'czechia': 'Czech Republic',
+};
+const _destLookup = (() => {
+    /** @type {Record<string, string>} */
+    const map = {};
+    for (const key of Object.keys(DESTINATION_DATA)) {
+        map[key.toLowerCase()] = key;
+    }
+    for (const [alias, canonical] of Object.entries(DEST_ALIASES)) {
+        if (DESTINATION_DATA[canonical]) map[alias] = canonical;
+    }
+    return map;
+})();
+
+/**
+ * Resolve a `trip.country` string to a DESTINATION_DATA entry by walking the
+ * comma-separated parts most-specific-first. Lets us match the picked place
+ * itself ("California") when it's in the dataset, then fall back to the
+ * surrounding country ("Castro Marim, Portugal" → "Portugal"), and finally
+ * to nothing (caller renders a generic placeholder).
+ *
+ * Also handles the legacy "USA - California" format the country/state
+ * dropdown produced before the Places migration.
+ *
+ * @param {string} countryStr
+ * @returns {{ q: string, i: string, f: string } | null}
+ */
+function resolveDestinationData(countryStr) {
+    if (!countryStr) return null;
+
+    // Legacy two-part format from the old dropdown.
+    if (countryStr.includes(' - ')) {
+        const state = countryStr.split(' - ')[1].trim();
+        const key = _destLookup[state.toLowerCase()];
+        if (key) return DESTINATION_DATA[key];
+    }
+
+    // Walk comma parts left-to-right (most specific → least specific).
+    const parts = countryStr.split(',').map(p => p.trim()).filter(Boolean);
+    for (const part of parts) {
+        const key = _destLookup[part.toLowerCase()];
+        if (key) return DESTINATION_DATA[key];
+    }
+    return null;
+}
+
 /**
  * @param {import('./types').Trip | null | undefined} trip
  * @returns {{ quotes: string[]; images: string[]; facts: string[] }}
  */
 export function getMediaForTrip(trip) {
     if (!trip) return { quotes: [TRAVEL_DATA_DEFAULT.q], images: [`https://images.unsplash.com/photo-${TRAVEL_DATA_DEFAULT.i}?auto=format&fit=crop&w=1600&q=80`], facts: [TRAVEL_DATA_DEFAULT.f] };
-    
-    let data = null;
+
     const countryStr = trip.country || '';
-    
-    if (countryStr.includes(' - ')) {
-        const parts = countryStr.split(' - ');
-        const state = parts[1];
-        if (DESTINATION_DATA[state]) {
-            data = DESTINATION_DATA[state];
-        }
-    } else if (DESTINATION_DATA[countryStr]) {
-        data = DESTINATION_DATA[countryStr];
-    } else if (countryStr === 'United States (USA)') {
-        data = DESTINATION_DATA['Usa'] || DESTINATION_DATA['United States'];
-    }
-    
+    let data = resolveDestinationData(countryStr);
+
     if (!data) {
+        // Pick a friendlier label than the full place string for the
+        // generic copy: just the last comma part (usually the country).
+        const parts = countryStr.split(',').map(p => p.trim()).filter(Boolean);
+        const label = parts[parts.length - 1] || countryStr;
         data = {
-            q: `${countryStr} is waiting for you.`,
+            q: `${label} is waiting for you.`,
             i: "1501854140801-50d01698950b",
-            f: `Did you know? ${countryStr} is full of hidden gems waiting to be explored.`
+            f: `Did you know? ${label} is full of hidden gems waiting to be explored.`
         };
     }
-    
+
     return {
         quotes: [data.q],
         images: [`https://images.unsplash.com/photo-${data.i}?auto=format&fit=crop&w=1600&q=80`],
