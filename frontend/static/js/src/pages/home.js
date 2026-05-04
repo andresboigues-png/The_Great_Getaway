@@ -84,21 +84,22 @@ const deleteDayPin = async (dayId) => {
 const deleteDay = (dayId) => {
     const day = STATE.tripDays.find(d => d.id === dayId);
     if (!day) return;
+    const isStartingPoint = Number(day.dayNumber) === 0;
 
     showConfirmModal({
-        title: `Delete Day ${day.dayNumber}?`,
+        title: isStartingPoint ? 'Remove Trip Genesis?' : `Delete Day ${day.dayNumber}?`,
         message: "This removes the day and all its journaling, photos, and documents. This can't be undone.",
-        confirmText: "Delete Day",
+        confirmText: isStartingPoint ? 'Remove' : 'Delete Day',
         onConfirm: async () => {
             const tripId = day.tripId;
 
             STATE.tripDays = STATE.tripDays.filter(d => d.id !== dayId);
 
-            // Renumber remaining days for this trip so dayNumber stays sequential.
-            // Sort defensively — render relies on dayNumber order, but the array
-            // itself isn't guaranteed to be sorted before this point.
+            // Renumber remaining numbered days starting from 1. Day 0
+            // (Trip Genesis) is preserved as-is — it's not part of the
+            // sequential numbering.
             STATE.tripDays
-                .filter(d => d.tripId === tripId)
+                .filter(d => d.tripId === tripId && Number(d.dayNumber) > 0)
                 .sort((a, b) => a.dayNumber - b.dayNumber)
                 .forEach((d, i) => { d.dayNumber = i + 1; });
 
@@ -108,13 +109,19 @@ const deleteDay = (dayId) => {
                 activeMapClickListener = null;
             }
 
+            // Clear the per-trip Day-0 flag when the user removes Genesis,
+            // so a subsequent home render can lazy-recreate it cleanly.
+            if (isStartingPoint) {
+                try { sessionStorage.removeItem(`tggDay0Created:${tripId}`); } catch (_) {}
+            }
+
             emit('state:changed');
             await deleteDayOnServer(dayId);
             // Persist the renumbered survivors so server stays in sync.
             await Promise.all(
                 STATE.tripDays.filter(d => d.tripId === tripId).map(d => upsertDay(d))
             );
-            showLiquidAlert("Day deleted");
+            showLiquidAlert(isStartingPoint ? 'Trip Genesis removed' : 'Day deleted');
             navigate('home', null, true);
         }
     });
@@ -336,13 +343,17 @@ export function renderHome() {
                         const isEditing = editingDayId === day.id;
                         const isStartingPoint = day.dayNumber === 0;
 
-                        // Numbered days are circles with the day number as a
-                        // label. Genesis is a star *shape* (custom SVG path on
-                        // the icon itself, no Label) — that way the glyph
-                        // can't disappear into a missing-font fallback or get
-                        // clipped at re-render, and the user gets the star
-                        // they asked for.
-                        const STAR_PATH = 'M 0,-12 L 3.527,-3.708 L 11.41,-3.708 L 5.155,1.708 L 7.41,9.708 L 0,4.708 L -7.41,9.708 L -5.155,1.708 L -11.41,-3.708 L -3.527,-3.708 Z';
+                        // Genesis: green circle with a white star inside,
+                        // shipped as one SVG data-URL — no text label, no
+                        // font fallback, the glyph is part of the image so
+                        // it never glitches on re-render.
+                        // Numbered days: blue circle with the day number as a
+                        // label.
+                        const GENESIS_SVG = 'data:image/svg+xml;utf8,'
+                            + '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">'
+                            + '<circle cx="24" cy="24" r="21" fill="%2334c759" stroke="white" stroke-width="3"/>'
+                            + '<path d="M 24,11 L 27.06,18.96 L 35.55,19.49 L 28.92,24.92 L 31.0,33.16 L 24,28.6 L 17,33.16 L 19.08,24.92 L 12.45,19.49 L 20.94,18.96 Z" fill="white"/>'
+                            + '</svg>';
                         const marker = new google.maps.Marker({
                             position: { lat: day.lat, lng: lon },
                             map: map,
@@ -360,16 +371,9 @@ export function renderHome() {
                                 },
                             icon: isStartingPoint
                                 ? {
-                                    // SVG star path — coords sized so scale: 2
-                                    // produces roughly the same visual radius
-                                    // as the day-marker circles at scale: 18.
-                                    path: STAR_PATH,
-                                    fillOpacity: 1,
-                                    fillColor: '#34c759',
-                                    strokeColor: 'white',
-                                    strokeWeight: 2,
-                                    scale: 2,
-                                    anchor: new google.maps.Point(0, 0),
+                                    url: GENESIS_SVG,
+                                    scaledSize: new google.maps.Size(48, 48),
+                                    anchor: new google.maps.Point(24, 24),
                                 }
                                 : {
                                     path: google.maps.SymbolPath.CIRCLE,
@@ -576,48 +580,67 @@ export function renderHome() {
     // Day 0 / Trip Genesis: every trip with a known location auto-gets a
     // dayNumber:0 entry. We render it as a regular TripDay so the existing
     // pin / journaling / photos / documents / delete actions all work for
-    // free — no special-case storage. Lazy-create on first render so trips
-    // that pre-date this feature pick it up automatically.
+    // free — no special-case storage.
     //
-    // Safety dedup first: if a previous render leaked multiple day-0 entries
-    // (race / pre-emit bug), keep only the oldest by id and drop the rest.
+    // Idempotency: track creation in sessionStorage too, not just by checking
+    // tripDays. The pure tripDays check was racing with pullFromServer —
+    // upsertDay's network round-trip hadn't completed by the time the next
+    // render's pullFromServer overwrote STATE.tripDays from the backend, so
+    // a fresh day-0 got created on every reload. The sessionStorage flag is
+    // set synchronously and survives reloads within the session.
     if (activeTrip) {
-        const existingDay0s = tripDays.filter(d => d.dayNumber === 0);
+        // Dedup any existing duplicates first — keeps oldest by id, deletes
+        // the rest from STATE + backend. Self-heals trips that accumulated
+        // duplicates from earlier buggy versions.
+        const existingDay0s = tripDays.filter(d => Number(d.dayNumber) === 0);
         if (existingDay0s.length > 1) {
-            const keep = existingDay0s[0];
             for (const dup of existingDay0s.slice(1)) {
                 STATE.tripDays = STATE.tripDays.filter(d => d.id !== dup.id);
                 deleteDayOnServer(dup.id);
             }
-            // Recompute local view after dedup.
             tripDays.length = 0;
             tripDays.push(...STATE.tripDays.filter(d => d.tripId === activeTrip.id));
-            void keep;
         }
-    }
-    if (activeTrip
-        && typeof activeTrip.lat === 'number'
-        && typeof activeTrip.lng === 'number'
-        && !tripDays.some(d => d.dayNumber === 0)) {
-        /** @type {import('../types').TripDay} */
-        const day0 = {
-            id: generateId(),
-            tripId: activeTrip.id,
-            name: 'Trip Genesis',
-            date: '',
-            dayNumber: 0,
-            lat: activeTrip.lat,
-            lng: activeTrip.lng,
-            photos: [],
-            notes: '',
-            plan: { morning: '', afternoon: '', evening: '' },
-            tickets: [],
-            documents: [],
-        };
-        STATE.tripDays.push(day0);
-        tripDays.push(day0);
-        upsertDay(day0); // backend persistence
-        emit('state:changed'); // localStorage persistence + UI subscribers
+
+        const day0FlagKey = `tggDay0Created:${activeTrip.id}`;
+        const flagSet = (() => {
+            try { return sessionStorage.getItem(day0FlagKey) === '1'; }
+            catch (_) { return false; }
+        })();
+        const hasDay0 = tripDays.some(d => Number(d.dayNumber) === 0);
+
+        // If we have one already, just remember it for this session.
+        if (hasDay0 && !flagSet) {
+            try { sessionStorage.setItem(day0FlagKey, '1'); } catch (_) {}
+        }
+
+        // Create only when both signals say "missing" — no day-0 in state
+        // AND we haven't already created one this session.
+        if (!hasDay0
+            && !flagSet
+            && typeof activeTrip.lat === 'number'
+            && typeof activeTrip.lng === 'number') {
+            /** @type {import('../types').TripDay} */
+            const day0 = {
+                id: generateId(),
+                tripId: activeTrip.id,
+                name: 'Trip Genesis',
+                date: '',
+                dayNumber: 0,
+                lat: activeTrip.lat,
+                lng: activeTrip.lng,
+                photos: [],
+                notes: '',
+                plan: { morning: '', afternoon: '', evening: '' },
+                tickets: [],
+                documents: [],
+            };
+            STATE.tripDays.push(day0);
+            tripDays.push(day0);
+            try { sessionStorage.setItem(day0FlagKey, '1'); } catch (_) {}
+            upsertDay(day0);
+            emit('state:changed');
+        }
     }
 
     tripDays.sort((a, b) => a.dayNumber - b.dayNumber);
