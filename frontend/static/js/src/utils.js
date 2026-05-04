@@ -336,15 +336,14 @@ export function q(parent, selector) {
  */
 export function formatDayDate(dateStr) {
     if (!dateStr) return '';
-    // Use 'UTC' to avoid timezone shifts when parsing YYYY-MM-DD
+    // Storage is canonical YYYY-MM-DD (sortable, browser-safe). For display
+    // we render DD-MM-YYYY everywhere — explicit zero-padding so single-
+    // digit days/months don't drift width and break alignment in tight
+    // rows. UTC parsing avoids midnight-near-DST timezone shifts.
     const date = new Date(dateStr + 'T00:00:00Z');
-    const now = new Date();
-    /** @type {Intl.DateTimeFormatOptions} */
-    const options = { month: 'short', day: 'numeric', timeZone: 'UTC' };
-    let formatted = date.toLocaleDateString('en-US', options);
-
-    if (date.getUTCFullYear() !== now.getFullYear()) {
-        formatted += ` - ${date.getUTCFullYear()}`;
-    }
-    return formatted;
+    if (isNaN(date.getTime())) return '';
+    const dd = String(date.getUTCDate()).padStart(2, '0');
+    const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const yyyy = date.getUTCFullYear();
+    return `${dd}-${mm}-${yyyy}`;
 }

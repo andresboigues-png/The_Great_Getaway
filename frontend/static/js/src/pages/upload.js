@@ -358,7 +358,9 @@ export function renderUpload() {
                         };
 
                         who = get('who');
-                        catName = get('categoryId');
+                        // 'category' is the current variable name; older saved
+                        // formats called it 'categoryId'. Read whichever exists.
+                        catName = get('category') || get('categoryId');
                         label = get('label');
                         date = parseCellDate(getRaw('date'));
                         country = get('country') || 'Unknown';

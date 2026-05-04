@@ -481,9 +481,14 @@ export function renderTripExpenses(container, filters = {}) {
 
     function formatAppleDate(dateStr) {
         if (!dateStr) return 'Global';
-        const date = new Date(dateStr);
-        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        return `${months[date.getMonth()]} ${date.getDate()}`;
+        // DD-MM-YYYY everywhere the user reads a date. Storage stays ISO
+        // YYYY-MM-DD (only the rendering changes).
+        const date = new Date(dateStr + 'T00:00:00Z');
+        if (isNaN(date.getTime())) return 'Global';
+        const dd = String(date.getUTCDate()).padStart(2, '0');
+        const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
+        const yyyy = date.getUTCFullYear();
+        return `${dd}-${mm}-${yyyy}`;
     }
 
     if (tripExpenses.length === 0) {

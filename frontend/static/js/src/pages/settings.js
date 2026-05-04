@@ -71,12 +71,14 @@ export function renderSettings() {
     const div = document.createElement('div');
 
     function renderMappingContent() {
-        // categoryId is mandatory: without it every imported expense lands
+        // 'category' is mandatory: without it every imported expense lands
         // in the default category. The matching path in upload.js does
         // find-or-create on the cell value, so users can either reuse an
         // existing category or auto-create a new one just by filling the
-        // column — but the column itself has to be mapped.
-        const MANDATORY = ['label', 'date', 'value', 'who', 'categoryId'];
+        // column — but the column itself has to be mapped. Old saved
+        // formats use 'categoryId' as the variable name; the upload reader
+        // accepts both for back-compat.
+        const MANDATORY = ['label', 'date', 'value', 'who', 'category'];
         const OPTIONAL = ['country', 'currency'];
         const used = new Set((STATE.customFormat || []).map(m => m.variable));
         const sf = STATE.savedFormats || [];
@@ -314,9 +316,11 @@ export function renderSettings() {
 
     const saveCustomFormat = () => {
         // Keep this in sync with the MANDATORY list in renderMappingContent.
-        const MANDATORY = ['label', 'date', 'value', 'who', 'categoryId'];
+        // We accept legacy 'categoryId' as a synonym for 'category' so users
+        // who saved a format before the rename don't get blocked from saving.
+        const MANDATORY = ['label', 'date', 'value', 'who', 'category'];
         const fmt = STATE.customFormat || [];
-        const mapped = new Set(fmt.map(m => m.variable));
+        const mapped = new Set(fmt.map(m => m.variable === 'categoryId' ? 'category' : m.variable));
         const missing = MANDATORY.filter(v => !mapped.has(v));
         if (missing.length > 0) return alert(`Missing required fields: ${missing.join(', ')}`);
         const name = (/** @type {HTMLInputElement | null} */ (document.getElementById('formatNameInput'))?.value || '').trim();
