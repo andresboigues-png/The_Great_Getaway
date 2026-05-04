@@ -162,6 +162,20 @@ function resolveByCountryCode(countryCode) {
  * @param {string} countryStr
  * @returns {{ q: string, i: string, f: string } | null}
  */
+/**
+ * Strip postal-code-like leading tokens from a place name. Google's
+ * formatted_address often prefixes "8950 Castro Marim, Portugal" — fine for
+ * geocoding, ugly for "Time to write your 8950 Castro Marim, Portugal story".
+ * Also collapses repeated whitespace.
+ *
+ * @param {string | null | undefined} name
+ * @returns {string}
+ */
+export function cleanPlaceName(name) {
+    if (!name) return '';
+    return String(name).replace(/^\d{3,6}[\s,-]+/, '').replace(/\s+/g, ' ').trim();
+}
+
 function resolveDestinationData(countryStr) {
     if (!countryStr) return null;
 

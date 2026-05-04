@@ -296,6 +296,18 @@ export const openEditTripModal = (trip) => {
             delete STATE.mapViews[trip.id + '_ai'];
         }
 
+        // Day 0 (Starting Point) tracks the trip's location. When the place
+        // changes here, follow it to the day-0 entry — otherwise the
+        // starting-point marker would still pin to the old spot.
+        if (placeChanged) {
+            const day0 = (STATE.tripDays || []).find(d => d.tripId === trip.id && d.dayNumber === 0);
+            if (day0) {
+                day0.lat = picked.lat;
+                day0.lng = picked.lng;
+                day0.lon = picked.lng;
+            }
+        }
+
         emit('state:changed');
         upsertTrip(trip);
 
@@ -312,7 +324,12 @@ export const openAddDayModal = () => {
 
     // Logic: Only require date for the first day, auto-increment for others
     const tripDays = (STATE.tripDays || []).filter(d => d.tripId === STATE.activeTripId).sort((a, b) => a.dayNumber - b.dayNumber);
-    const nextDayNumber = tripDays.length + 1;
+    // Day 0 is the auto-created Trip Genesis entry — skip it when computing
+    // the next user-facing day number, otherwise the first added day jumps
+    // straight to "Day 2" (genesis counts as 1 in tripDays.length).
+    const numberedDays = tripDays.filter(d => d.dayNumber > 0);
+    const maxDayNumber = numberedDays.length > 0 ? numberedDays[numberedDays.length - 1].dayNumber : 0;
+    const nextDayNumber = maxDayNumber + 1;
     let suggestedDate = '';
 
     if (tripDays.length > 0) {

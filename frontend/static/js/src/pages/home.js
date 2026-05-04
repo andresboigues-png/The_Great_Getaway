@@ -3,7 +3,7 @@
 
 import { STATE, emit } from '../state.js';
 import { INSPIRATIONAL_PAIRS } from '../constants.js';
-import { getMediaForTrip, showLiquidAlert, formatDayDate, q, showConfirmModal } from '../utils.js';
+import { getMediaForTrip, showLiquidAlert, formatDayDate, q, showConfirmModal, generateId, cleanPlaceName } from '../utils.js';
 import { upsertDay, uploadMedia, deleteDayOnServer, upsertTrip } from '../api.js';
 import { navigate } from '../router.js';
 import { showPersTab } from './settings.js';
@@ -155,20 +155,41 @@ export function renderHome() {
         const discoveredCodes = new Set();
         if (activeTrip.countryCode) discoveredCodes.add(activeTrip.countryCode);
 
+        // Pull country codes for already-geocoded day pins out of
+        // sessionStorage at render time — saves the wait for the async
+        // reverse-geocode loop to repopulate the roster on every reload.
+        // (cache writer lives in the map-init block below.)
+        const tripDaysForRoster = (STATE.tripDays || []).filter(d => d.tripId === activeTrip.id);
+        for (const day of tripDaysForRoster) {
+            const lat = day.lat, lng = day.lon || day.lng;
+            if (typeof lat !== 'number' || typeof lng !== 'number') continue;
+            try {
+                const cached = sessionStorage.getItem(`tggDayCountry:${lat.toFixed(4)},${lng.toFixed(4)}`);
+                if (cached) discoveredCodes.add(cached);
+            } catch (_) { /* sessionStorage unavailable */ }
+        }
+
         const refreshSlideshowMedia = () => {
             const data = getMediaForTrip(activeTrip, [...discoveredCodes]);
-            displayImages = data.images;
-            displayQuotes = showQuote ? data.quotes : data.facts;
+            // Random pick from the country roster — on reload you might see
+            // Italy's "la dolce vita" or Portugal's population fact, etc.
+            // No timer cycles this; reload to roll again.
+            const pool = showQuote ? data.quotes : data.facts;
+            const idx = pool.length > 0 ? Math.floor(Math.random() * pool.length) : 0;
+            displayQuotes = [pool[idx] || ''];
+            displayImages = data.images.length > idx ? [data.images[idx]] : (data.images[0] ? [data.images[0]] : []);
             if (currentPhotoIdx >= displayImages.length) currentPhotoIdx = 0;
         };
         refreshSlideshowMedia();
 
+        // When the geocoder later discovers a new country for a day pin,
+        // cache it so the *next* reload's roster is wider. We deliberately
+        // don't refresh the on-screen quote mid-session — the user wanted
+        // quotes to change on reload, not flicker as pins resolve.
         addDiscoveredCountry = (cc) => {
             if (!cc) return;
             const up = cc.toUpperCase();
-            if (discoveredCodes.has(up)) return;
             discoveredCodes.add(up);
-            refreshSlideshowMedia();
         };
     }
 
@@ -221,10 +242,14 @@ export function renderHome() {
 
         let greeting = "Welcome back, traveler";
         if (isFresh && activeTrip.country) {
-            // Show state name only when it's a US state (format: "USA - California")
-            const displayCountry = activeTrip.country.includes(' - ')
-                ? activeTrip.country.split(' - ')[1]
-                : activeTrip.country;
+            // Show state name for US states ("USA - California" → "California");
+            // strip postal-code prefixes ("8950 Castro Marim, Portugal" → "Castro Marim, Portugal")
+            // before they leak into greetings/headers.
+            const displayCountry = cleanPlaceName(
+                activeTrip.country.includes(' - ')
+                    ? activeTrip.country.split(' - ')[1]
+                    : activeTrip.country
+            );
             const firstName = (STATE.user && STATE.user.firstName) ? STATE.user.firstName : "traveler";
             const greetings = [
                 `Welcome back, ${firstName}!`,
@@ -252,45 +277,51 @@ export function renderHome() {
             </div>
         `;
 
+        // Active trips show only the map, no slideshow + no images. The
+        // quote/fact at the top is statically picked at render time from
+        // the multi-country roster (random index → on reload you may see
+        // a different country's quote). Make sure no leftover timer from a
+        // previous no-trip render keeps cycling on top of the map.
+        stopHomeSlideshow();
+
         setTimeout(() => {
             const mapContainer = document.getElementById('homeHeroMap');
             if (mapContainer && typeof google !== 'undefined' && google.maps && activeTrip) {
-                // New trips carry placeId + viewport directly; legacy trips
-                // only have `country` (sometimes "USA - California"). Build the
-                // free-text query for both Nominatim border lookup and the
-                // Geocoder fallback in one place.
+                // Legacy trips only have `country` (sometimes "USA - California"
+                // pre-Places-migration). Build a free-text query for the
+                // Geocoder backfill that runs when viewport is missing.
                 const query = activeTrip.country || '';
                 const isLegacyUSState = query.includes(' - ');
                 const searchQuery = isLegacyUSState ? (query.split(' - ')[1] + ', USA') : query;
-                const placeTypes = activeTrip.placeTypes || [];
-                // Address-level places (a specific building, address, or POI)
-                // have no meaningful admin polygon — skip the blue border for
-                // those and just zoom to the location.
-                const isAddressLevel = placeTypes.some(t =>
-                    t === 'street_address' || t === 'premise' || t === 'point_of_interest' ||
-                    t === 'establishment' || t === 'subpremise'
-                );
 
                 // Restore saved map view per trip
                 const tripMapKey = activeTrip ? activeTrip.id : null;
                 const savedMapView = tripMapKey && STATE.mapViews && STATE.mapViews[tripMapKey];
 
                 const mapOptions = {
-                    // Vector Map ID with data-driven boundaries enabled.
-                    // Without this we get a raster map and no FeatureLayer
-                    // access, so trip-region outlining stops working.
-                    mapId: 'b37432c0f948ecbac8fa99c1',
                     center: savedMapView ? { lat: savedMapView.lat, lng: savedMapView.lng } : { lat: 20, lng: 0 },
                     zoom: savedMapView ? savedMapView.zoom : 2,
                     minZoom: 2,
-                    mapTypeId: 'hybrid',
+                    // roadmap (not hybrid) so our `styles` array actually
+                    // takes effect — satellite/hybrid ignores most styles.
+                    mapTypeId: 'roadmap',
                     disableDefaultUI: true,
+                    keyboardShortcuts: false,
                     gestureHandling: 'greedy',
                     backgroundColor: '#ffffff',
                     restriction: {
                         latLngBounds: { north: 85, south: -85, west: -180, east: 180 },
                         strictBounds: true,
                     },
+                    // Hide Google's POI icons (supermarkets, restaurants, etc.) —
+                    // they clutter the trip map and compete visually with our
+                    // own day markers. Keep transit/road labels for context.
+                    styles: [
+                        { featureType: 'poi', elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
+                        { featureType: 'poi', elementType: 'labels.text', stylers: [{ visibility: 'off' }] },
+                        { featureType: 'poi.park', elementType: 'labels.text', stylers: [{ visibility: 'simplified' }] },
+                        { featureType: 'transit.station', elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
+                    ],
                 };
 
                 const map = new google.maps.Map(mapContainer, mapOptions);
@@ -303,26 +334,38 @@ export function renderHome() {
                     if (day.lat && (day.lon || day.lng)) {
                         const lon = day.lon || day.lng;
                         const isEditing = editingDayId === day.id;
-                        
+                        const isStartingPoint = day.dayNumber === 0;
+
+                        // Genesis marker: green circle with no label (the
+                        // ★ glyph rendered inconsistently across font stacks
+                        // and looked broken when re-created during a re-render).
+                        // Color + size + zIndex distinguish it from numbered days.
                         const marker = new google.maps.Marker({
                             position: { lat: day.lat, lng: lon },
                             map: map,
                             draggable: isEditing,
-                            title: `Day ${day.dayNumber}: ${day.name}`,
-                            label: {
-                                text: String(day.dayNumber),
-                                color: 'white',
-                                fontWeight: '800',
-                                fontSize: isEditing ? '14px' : '12px'
-                            },
+                            title: isStartingPoint
+                                ? 'Trip Genesis'
+                                : `Day ${day.dayNumber}: ${day.name}`,
+                            label: isStartingPoint
+                                ? undefined
+                                : {
+                                    text: String(day.dayNumber),
+                                    color: 'white',
+                                    fontWeight: '800',
+                                    fontSize: isEditing ? '16px' : '14px',
+                                },
                             icon: {
                                 path: google.maps.SymbolPath.CIRCLE,
                                 fillOpacity: 1,
-                                fillColor: isEditing ? '#ff3b30' : '#007aff',
+                                fillColor: isEditing
+                                    ? '#ff3b30'
+                                    : (isStartingPoint ? '#34c759' : '#007aff'),
                                 strokeColor: 'white',
-                                strokeWeight: 2,
-                                scale: isEditing ? 18 : 14,
-                            }
+                                strokeWeight: 3,
+                                scale: isEditing ? 22 : (isStartingPoint ? 22 : 18),
+                            },
+                            zIndex: isStartingPoint ? 1 : 100, // numbered days draw above starting point
                         });
 
                         activeMarkers[day.id] = marker;
@@ -407,133 +450,44 @@ export function renderHome() {
                     }
                 }
 
-                // 2. Blue Border via Google's data-driven boundary styling.
-                //    The vector Map ID has Country / Admin1 / Admin2 / Locality
-                //    feature layers enabled in GCP — we just style the place
-                //    IDs we want outlined and Google paints them server-side.
-                //    No Nominatim, no rate limits, no async failures.
-                //
-                //    For trip's primary place: we have trip.placeId from the
-                //    Places autocomplete pick. Apply directly.
-                //    For day pins: reverse-geocode via google.maps.Geocoder
-                //    (free under the Maps quota, way more reliable than
-                //    Nominatim) to find the containing locality's place_id,
-                //    then add to the styled set. Same call gives us the
-                //    country code which feeds the slideshow widening.
-                console.log('[Border] check: isAddressLevel=', isAddressLevel,
-                            'placeId=', activeTrip.placeId,
-                            'placeTypes=', activeTrip.placeTypes);
-                if (!isAddressLevel && activeTrip.placeId) {
+                // Slideshow country detection for day pins. We dropped the
+                // blue-border drawing entirely (was unreliable across services),
+                // so the only thing left worth doing here is widening the
+                // home-page slideshow's country roster: reverse-geocode each
+                // day pin once, pull the country code, feed addDiscoveredCountry.
+                // Cached in sessionStorage so trip navigations don't re-bill
+                // the Geocoder quota.
+                if (currentTripDays.some(d => typeof d.lat === 'number')) {
                     /** @type {any} */
                     const _g = google;
-                    const FEATURE_TYPES = [
-                        _g.maps.FeatureType.COUNTRY,
-                        _g.maps.FeatureType.ADMINISTRATIVE_AREA_LEVEL_1,
-                        _g.maps.FeatureType.ADMINISTRATIVE_AREA_LEVEL_2,
-                        _g.maps.FeatureType.LOCALITY,
-                    ];
-
-                    /** @type {Set<string>} place IDs to outline */
-                    const styledPlaceIds = new Set();
-                    styledPlaceIds.add(activeTrip.placeId);
-                    console.log('[Border] styling place IDs:', [...styledPlaceIds]);
-
-                    /** Counters so we can see if Google ever invokes our
-                     *  style function — if it doesn't, the FeatureLayer is
-                     *  empty (data-driven styling not actually active). */
-                    let _styleFnCalls = 0;
-                    let _styleFnMatches = 0;
-
-                    const refreshBoundaries = () => {
-                        const styleFn = (params) => {
-                            _styleFnCalls++;
-                            if (styledPlaceIds.has(params.feature.placeId)) {
-                                _styleFnMatches++;
-                                return {
-                                    strokeColor: '#007aff',
-                                    strokeWeight: 2.2,
-                                    strokeOpacity: 0.9,
-                                    fillOpacity: 0,
-                                };
-                            }
-                            return null;
-                        };
-                        for (const type of FEATURE_TYPES) {
-                            try {
-                                const layer = map.getFeatureLayer(type);
-                                if (layer) {
-                                    layer.style = styleFn;
-                                    console.log('[Border] applied style to layer:', type);
-                                } else {
-                                    console.warn('[Border] getFeatureLayer returned falsy for:', type);
-                                }
-                            } catch (err) {
-                                console.warn('[Border] feature layer unavailable:', type, err);
-                            }
-                        }
-                    };
-                    refreshBoundaries();
-                    // After tiles have rendered, report whether the style fn
-                    // actually got called. Zero calls means data-driven
-                    // styling isn't live on this Map ID.
-                    setTimeout(() => {
-                        console.log('[Border] style fn calls:', _styleFnCalls, 'matches:', _styleFnMatches);
-                    }, 4000);
-
-                    // Look up containing locality (or admin1 fallback) for a
-                    // day pin. Cached in sessionStorage so navigating between
-                    // trips doesn't re-charge geocoder quota.
-                    const DAY_CACHE_PREFIX = 'tggDayPlace:';
-                    const cachedDayLookup = async (lat, lng) => {
+                    const DAY_CACHE_PREFIX = 'tggDayCountry:';
+                    const cachedCountryFor = async (lat, lng) => {
                         const key = `${lat.toFixed(4)},${lng.toFixed(4)}`;
                         try {
                             const hit = sessionStorage.getItem(DAY_CACHE_PREFIX + key);
-                            if (hit) return JSON.parse(hit);
+                            if (hit) return hit;
                         } catch (_) { /* unavailable */ }
-                        const geocoder = new _g.maps.Geocoder();
                         try {
+                            const geocoder = new _g.maps.Geocoder();
                             const resp = await geocoder.geocode({ location: { lat, lng } });
                             const results = (resp && resp.results) || [];
-                            // Pick the smallest admin level that has a place_id.
-                            // Fall back to admin1 if no locality (rural pins).
-                            const localityResult = results.find(r => (r.types || []).includes('locality'))
-                                || results.find(r => (r.types || []).includes('administrative_area_level_2'))
-                                || results.find(r => (r.types || []).includes('administrative_area_level_1'));
-                            // Country pulled from any result's components.
-                            let countryCode = '';
                             for (const r of results) {
                                 const cc = (r.address_components || []).find(c => (c.types || []).includes('country'));
-                                if (cc && cc.short_name) { countryCode = cc.short_name.toUpperCase(); break; }
+                                if (cc && cc.short_name) {
+                                    const code = cc.short_name.toUpperCase();
+                                    try { sessionStorage.setItem(DAY_CACHE_PREFIX + key, code); } catch (_) {}
+                                    return code;
+                                }
                             }
-                            const out = {
-                                placeId: localityResult ? localityResult.place_id : null,
-                                countryCode,
-                            };
-                            try {
-                                sessionStorage.setItem(DAY_CACHE_PREFIX + key, JSON.stringify(out));
-                            } catch (_) { /* quota */ }
-                            return out;
-                        } catch (err) {
-                            console.warn('[Border] day-pin geocode failed:', err);
-                            return { placeId: null, countryCode: '' };
-                        }
+                        } catch (_) { /* ignore — no slideshow widening for this pin */ }
+                        return '';
                     };
-
-                    // Async: walk day pins. Each adds its locality's place ID
-                    // to the styled set (border widens) and feeds its country
-                    // to the slideshow roster.
                     (async () => {
                         for (const day of currentTripDays) {
                             const pinLat = day.lat, pinLng = day.lon || day.lng;
                             if (typeof pinLat !== 'number' || typeof pinLng !== 'number') continue;
-                            const { placeId, countryCode } = await cachedDayLookup(pinLat, pinLng);
-                            let changed = false;
-                            if (placeId && !styledPlaceIds.has(placeId)) {
-                                styledPlaceIds.add(placeId);
-                                changed = true;
-                            }
-                            if (countryCode) addDiscoveredCountry(countryCode);
-                            if (changed) refreshBoundaries();
+                            const code = await cachedCountryFor(pinLat, pinLng);
+                            if (code) addDiscoveredCountry(code);
                         }
                     })();
                 }
@@ -605,6 +559,35 @@ export function renderHome() {
     const daysContainer = document.createElement('div');
     daysContainer.style.marginTop = '40px';
 
+    // Day 0 / Starting Point: every trip with a known location auto-gets a
+    // dayNumber:0 entry. We render it as a regular TripDay so the existing
+    // pin / journaling / photos / documents / delete actions all work for
+    // free — no special-case storage. Lazy-create on first render so trips
+    // that pre-date this feature pick it up automatically.
+    if (activeTrip
+        && typeof activeTrip.lat === 'number'
+        && typeof activeTrip.lng === 'number'
+        && !tripDays.some(d => d.dayNumber === 0)) {
+        /** @type {import('../types').TripDay} */
+        const day0 = {
+            id: generateId(),
+            tripId: activeTrip.id,
+            name: 'Starting Point',
+            date: '',
+            dayNumber: 0,
+            lat: activeTrip.lat,
+            lng: activeTrip.lng,
+            photos: [],
+            notes: '',
+            plan: { morning: '', afternoon: '', evening: '' },
+            tickets: [],
+            documents: [],
+        };
+        STATE.tripDays.push(day0);
+        tripDays.push(day0);
+        upsertDay(day0); // persist
+    }
+
     tripDays.sort((a, b) => a.dayNumber - b.dayNumber);
 
     const tripTitle = (activeTrip && activeTrip.name) ? activeTrip.name : 'Your Journey';
@@ -634,10 +617,11 @@ export function renderHome() {
 
             ${tripDays.map(day => {
                 const isOpen = openMenuDayId === day.id;
+                const isStartingPoint = day.dayNumber === 0;
                 return `
                 <div style="display: flex; align-items: flex-start; gap: ${isOpen ? '24px' : '0'}; position: relative; transition: gap 0.4s cubic-bezier(0.16, 1, 0.3, 1);">
-                    <!-- Timeline Dot -->
-                    <div style="position: absolute; left: -14px; top: 22px; width: 10px; height: 10px; border-radius: 50%; background: ${isOpen ? 'var(--accent-blue)' : 'white'}; border: 2px solid var(--accent-blue); z-index: 2; box-shadow: 0 0 0 4px white;"></div>
+                    <!-- Timeline Dot — Starting Point uses a green dot to distinguish from numbered days -->
+                    <div style="position: absolute; left: -14px; top: 22px; width: 10px; height: 10px; border-radius: 50%; background: ${isOpen ? (isStartingPoint ? '#34c759' : 'var(--accent-blue)') : 'white'}; border: 2px solid ${isStartingPoint ? '#34c759' : 'var(--accent-blue)'}; z-index: 2; box-shadow: 0 0 0 4px white;"></div>
 
                     <!-- LEFT SPACE MENU — collapses both width AND height to 0 when closed.
                          (Width alone isn't enough: flex column children still stack to their
@@ -682,15 +666,23 @@ export function renderHome() {
                         
                         <div style="display: flex; align-items: center; justify-content: space-between;">
                             <div style="display: flex; align-items: center; gap: 20px;">
-                                <div style="background: linear-gradient(135deg, var(--accent-blue), #9b59b6); color: white; width: 54px; height: 54px; border-radius: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: -apple-system, sans-serif; box-shadow: 0 10px 20px rgba(0,113,227,0.15);">
-                                    <span style="font-size: 0.65rem; font-weight: 800; text-transform: uppercase; opacity: 0.8; letter-spacing: 0.05em; line-height: 1;">Day</span>
-                                    <span style="font-size: 1.4rem; font-weight: 800; line-height: 1.1;">${day.dayNumber}</span>
-                                </div>
+                                ${isStartingPoint ? `
+                                    <div style="background: linear-gradient(135deg, #34c759, #30b350); color: white; width: 54px; height: 54px; border-radius: 16px; display: flex; align-items: center; justify-content: center; font-family: -apple-system, sans-serif; box-shadow: 0 10px 20px rgba(52,199,89,0.18);">
+                                        <span style="font-size: 1.6rem; line-height: 1;">📍</span>
+                                    </div>
+                                ` : `
+                                    <div style="background: linear-gradient(135deg, var(--accent-blue), #9b59b6); color: white; width: 54px; height: 54px; border-radius: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: -apple-system, sans-serif; box-shadow: 0 10px 20px rgba(0,113,227,0.15);">
+                                        <span style="font-size: 0.65rem; font-weight: 800; text-transform: uppercase; opacity: 0.8; letter-spacing: 0.05em; line-height: 1;">Day</span>
+                                        <span style="font-size: 1.4rem; font-weight: 800; line-height: 1.1;">${day.dayNumber}</span>
+                                    </div>
+                                `}
                                 <div style="display: flex; flex-direction: column;">
-                                    <h3 style="margin: 0; font-size: 1.3rem; font-weight: 800; color: #002d5b; letter-spacing: -0.02em;">${day.name}</h3>
+                                    <h3 style="margin: 0; font-size: 1.3rem; font-weight: 800; color: #002d5b; letter-spacing: -0.02em;">${isStartingPoint ? 'Trip Genesis' : day.name}</h3>
                                     <div style="font-size: 0.9rem; color: var(--text-secondary); font-weight: 600; margin-top: 4px; display: flex; align-items: center; gap: 8px;">
-                                        <span>📅 ${formatDayDate(day.date) || 'Set date'}</span>
-                                        ${day.lat ? `<span style="color: var(--accent-blue); opacity: 0.6;">•</span> <span style="color: var(--accent-blue);">📍 Location Set</span>` : ''}
+                                        ${isStartingPoint
+                                            ? `<span>${activeTrip && activeTrip.country ? cleanPlaceName(activeTrip.country) : 'Where the trip begins'}</span>`
+                                            : `<span>📅 ${formatDayDate(day.date) || 'Set date'}</span>`}
+                                        ${day.lat && !isStartingPoint ? `<span style="color: var(--accent-blue); opacity: 0.6;">•</span> <span style="color: var(--accent-blue);">📍 Location Set</span>` : ''}
                                     </div>
                                 </div>
                             </div>
