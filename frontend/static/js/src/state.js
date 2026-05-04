@@ -1,6 +1,9 @@
 // @ts-check
 // state.js — Global STATE object and persistence helpers
 
+import { EVENTS } from './constants.js';
+import { validateLoadedState } from './schemas.js';
+
 // api.js helpers are imported at call-site, not here.
 
 /** @type {import('./types').AppState} */
@@ -52,7 +55,25 @@ export const STATE = {
 export function loadState() {
     const saved = localStorage.getItem('theGreatEscapeState');
     if (saved) {
-        Object.assign(STATE, JSON.parse(saved));
+        // Schema validation at the boundary — corrupt localStorage (manual
+        // edits, version mismatch, half-flushed writes) would otherwise leak
+        // bad shapes into STATE and crash 5 levels deep. validateLoadedState
+        // returns ok=false with a useful message; we log and start fresh.
+        let parsed;
+        try {
+            parsed = JSON.parse(saved);
+        } catch (e) {
+            console.error('localStorage parse failed — starting with empty state:', e);
+            parsed = null;
+        }
+        if (parsed) {
+            const result = validateLoadedState(parsed);
+            if (result.ok) {
+                Object.assign(STATE, result.value);
+            } else {
+                console.error('localStorage shape invalid — starting with empty state:', result.error);
+            }
+        }
     }
     // Ensure new fields exist
     if (!STATE.savedFormats) STATE.savedFormats = [];
@@ -81,18 +102,31 @@ export function saveState() {
 }
 
 // ── Tiny event bus ─────────────────────────────────────────────────────────────
-// emit('state:changed') from any mutation site to fan out to subscribers.
+// emit(EVENTS.STATE_CHANGED) from any mutation site to fan out to subscribers.
 // All mutation call sites now use the bus; saveState is no longer called
 // directly outside this file. UI subscribers (e.g. updateTripSelector) are
 // wired in main.js to keep this layer free of UI concerns.
+//
+// `event` is typed against the EventName union so typos like 'state:changd'
+// fail typecheck. Plain literals matching the values still pass — no need
+// to refactor every call site to use the constant.
 const _subscribers = new Map();
 
+/**
+ * @param {import('./constants.js').EventName} event
+ * @param {(payload?: any) => void} fn
+ * @returns {() => void} unsubscribe
+ */
 export function subscribe(event, fn) {
     if (!_subscribers.has(event)) _subscribers.set(event, new Set());
     _subscribers.get(event).add(fn);
     return () => _subscribers.get(event)?.delete(fn);
 }
 
+/**
+ * @param {import('./constants.js').EventName} event
+ * @param {any} [payload]
+ */
 export function emit(event, payload) {
     _subscribers.get(event)?.forEach(fn => {
         try { fn(payload); }
@@ -101,4 +135,4 @@ export function emit(event, payload) {
 }
 
 // Default subscriber: persistence happens whenever state changes.
-subscribe('state:changed', saveState);
+subscribe(EVENTS.STATE_CHANGED, saveState);

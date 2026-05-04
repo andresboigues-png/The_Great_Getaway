@@ -17,6 +17,7 @@ export default [
             'tests/**',
             'src/**',
             '.claude/**',
+            '.venv/**',
         ],
     },
 

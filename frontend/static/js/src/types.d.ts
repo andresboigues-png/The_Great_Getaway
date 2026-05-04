@@ -14,6 +14,10 @@ export interface User {
     bio?: string;
     /** Short status / mood line ("✈️ Currently in Tokyo"). */
     status?: string;
+    /** ISO 4217 code (e.g. "USD"). NULL/undefined = not picked yet —
+     *  callers should use `getHomeCurrency()` which falls back to the
+     *  browser-locale default. */
+    homeCurrency?: string | null;
 }
 
 export interface Category {
@@ -26,7 +30,9 @@ export interface Category {
 export interface Trip {
     id: string;
     name: string;
-    /** Country name, or "USA - <state>" for US trips. */
+    /** Human-readable destination name. Set from `place.formatted_address`
+     *  for new trips ("Paris, France"); legacy trips have country names or
+     *  "USA - <state>" pairs. Read by every legacy display site. */
     country: string;
     budget: number;
     isArchived: boolean;
@@ -50,6 +56,21 @@ export interface Trip {
     dateFrom?: string;
     /** Trip end date (YYYY-MM-DD). */
     dateTo?: string;
+    // ── Google Places fields (set when trip created via Places Autocomplete) ──
+    /** Stable Google Place identifier — empty string means manual fallback entry. */
+    placeId?: string;
+    /** Center latitude of the picked place. Used for friends-map pins and
+     *  reverse-geocoding fallback when forward Nominatim fails. */
+    lat?: number;
+    /** Center longitude of the picked place. */
+    lng?: number;
+    /** Map viewport bounds returned by Google. Persisted so the map zooms
+     *  without needing a Geocoder round-trip on every render. */
+    viewport?: { south: number; west: number; north: number; east: number } | null;
+    /** Google place_types[] (e.g. 'country', 'locality', 'point_of_interest').
+     *  The map render branches on these — address-level types skip the
+     *  blue border since OSM has no admin polygon for a single building. */
+    placeTypes?: string[];
 }
 
 export interface TripDay {

@@ -2,6 +2,7 @@
 import { STATE } from '../state.js';
 import { showLiquidAlert, q } from '../utils.js';
 import { navigate } from '../router.js';
+import { apiUrl } from '../api.js';
 
 export function renderFriends() {
     const div = document.createElement('div');
@@ -10,11 +11,11 @@ export function renderFriends() {
         if (!STATE.user) return;
         try {
             // Fetch Friends
-            const resFriends = await fetch(`/api/friends/list?user_id=${STATE.user.id}`);
+            const resFriends = await fetch(apiUrl(`/api/friends/list?user_id=${STATE.user.id}`));
             const friends = await resFriends.json();
             
             // Fetch Pending Requests
-            const resPending = await fetch(`/api/friends/pending?user_id=${STATE.user.id}`);
+            const resPending = await fetch(apiUrl(`/api/friends/pending?user_id=${STATE.user.id}`));
             const pending = await resPending.json();
             
             const friendsContainer = div.querySelector('#friendsList');
@@ -69,7 +70,7 @@ export function renderFriends() {
         resultsContainer.innerHTML = `<p style="text-align:center; padding:10px; font-size:0.8rem; color:var(--text-secondary);">Searching...</p>`;
 
         try {
-            const res = await fetch(`/api/friends/search?q=${encodeURIComponent(query)}`);
+            const res = await fetch(apiUrl(`/api/friends/search?q=${encodeURIComponent(query)}`));
             const allUsers = await res.json();
             const users = allUsers.filter((/** @type {{id: string}} */ u) => u.id !== STATE.user?.id);
 
@@ -99,7 +100,7 @@ export function renderFriends() {
             return;
         }
         try {
-            const res = await fetch('/api/friends/add', {
+            const res = await fetch(apiUrl('/api/friends/add'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ user_id: STATE.user.id, friend_id: friendId })
@@ -118,7 +119,7 @@ export function renderFriends() {
     const acceptFriendRequest = async (friendId) => {
         if (!STATE.user) return;
         try {
-            const res = await fetch('/api/friends/accept', {
+            const res = await fetch(apiUrl('/api/friends/accept'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ user_id: STATE.user.id, friend_id: friendId })

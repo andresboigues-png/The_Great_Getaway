@@ -1,6 +1,6 @@
 // @ts-check
 import { STATE, emit } from '../state.js';
-import { syncWithServer } from '../api.js';
+import { syncWithServer, apiUrl } from '../api.js';
 import { showLiquidAlert, getHomeCurrency } from '../utils.js';
 import { CONVERSION_RATES, CURRENCY_SYMBOLS } from '../constants.js';
 import { navigate } from '../router.js';
@@ -14,7 +14,7 @@ export const logout = async () => {
         try { await syncWithServer(); }
         catch (e) { console.error('Final sync before logout failed:', e); }
 
-        await fetch('/api/logout', { method: 'POST' });
+        await fetch(apiUrl('/api/logout'), { method: 'POST' });
 
         // Clear everything tied to the logged-out user. Server still holds
         // the authoritative copy — re-login will pull it back via pullFromServer.
@@ -226,7 +226,7 @@ export function renderProfile(targetUserId = null) {
                         const newBio = bioEl.value;
                         const newHomeCurrency = homeCurrencyEl ? homeCurrencyEl.value : (STATE.user.homeCurrency || null);
                         try {
-                            const res = await fetch('/api/profile/update', {
+                            const res = await fetch(apiUrl('/api/profile/update'), {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({
@@ -322,7 +322,7 @@ export function renderProfile(targetUserId = null) {
                         }
                     });
 
-                    /** @param {google.maps.LatLng | google.maps.LatLngLiteral} pos
+                    /** @param {any} pos
                      *  @param {string} countryKey
                      *  @param {any[]} tps */
                     const placeMarker = (pos, countryKey, tps) => {
@@ -390,7 +390,7 @@ export function renderProfile(targetUserId = null) {
         renderData(STATE.user, completedTrips);
     } else {
         div.innerHTML = `<div style="display:flex; justify-content:center; align-items:center; height:300px;"><p style="font-weight:700; color:var(--text-secondary); animation: pulse 1.5s infinite;">Fetching profile...</p></div>`;
-        fetch(`/api/public-profile/${targetUserId}`)
+        fetch(apiUrl(`/api/public-profile/${targetUserId}`))
             .then(res => res.json())
             .then(data => {
                 if (data.error) div.innerHTML = `<p style="text-align:center; padding:50px;">User not found.</p>`;

@@ -1,4 +1,5 @@
 // @ts-check
+import { PAGES } from './constants.js';
 import { renderHome, stopHomeSlideshow } from './pages/home.js';
 import { renderExpenses } from './pages/expenses.js';
 import { renderUpload } from './pages/upload.js';
@@ -14,7 +15,11 @@ import { renderProfile } from './pages/profile.js';
 let isInternalNav = false;
 
 /**
- * @param {string} page
+ * Navigate to a known page. The PageName union from constants.js typechecks
+ * the input — typos like 'collectons' fail at edit time instead of silently
+ * falling through to the default branch and rendering home.
+ *
+ * @param {import('./constants.js').PageName} page
  * @param {{ userId?: string } | null} [params]
  * @param {boolean} [preserveScroll]
  */
@@ -31,18 +36,18 @@ export function navigate(page, params = null, preserveScroll = false) {
     let pageEl = null;
 
     switch (page) {
-        case 'home': pageEl = renderHome(); break;
-        case 'expenses': pageEl = renderExpenses(); break;
-        case 'upload': pageEl = renderUpload(); break;
-        case 'insights': pageEl = renderInsights(); break;
-        case 'settings': pageEl = renderSettings(); break;
-        case 'personalization': pageEl = renderPersonalization(); break;
-        case 'budgets': pageEl = renderBudgets(); break;
-        case 'collections': pageEl = renderCollections(); break;
-        case 'ai': pageEl = renderAI(); break;
-        case 'settlement': pageEl = renderSettlement(); break;
-        case 'friends': pageEl = renderFriends(); break;
-        case 'profile': pageEl = renderProfile(params?.userId); break;
+        case PAGES.HOME: pageEl = renderHome(); break;
+        case PAGES.EXPENSES: pageEl = renderExpenses(); break;
+        case PAGES.UPLOAD: pageEl = renderUpload(); break;
+        case PAGES.INSIGHTS: pageEl = renderInsights(); break;
+        case PAGES.SETTINGS: pageEl = renderSettings(); break;
+        case PAGES.PERSONALIZATION: pageEl = renderPersonalization(); break;
+        case PAGES.BUDGETS: pageEl = renderBudgets(); break;
+        case PAGES.COLLECTIONS: pageEl = renderCollections(); break;
+        case PAGES.AI: pageEl = renderAI(); break;
+        case PAGES.SETTLEMENT: pageEl = renderSettlement(); break;
+        case PAGES.FRIENDS: pageEl = renderFriends(); break;
+        case PAGES.PROFILE: pageEl = renderProfile(params?.userId); break;
         default: pageEl = renderHome();
     }
 
@@ -70,6 +75,13 @@ window.onhashchange = () => {
         isInternalNav = false;
         return;
     }
-    const page = window.location.hash.replace('#', '') || 'home';
+    const hash = window.location.hash.replace('#', '');
+    // Validate the hash against known pages so a malformed deep link
+    // (e.g. someone shares a URL with #profle) lands on home rather than
+    // tripping the default branch with an unknown name.
+    const known = /** @type {string[]} */ (Object.values(PAGES));
+    const page = /** @type {import('./constants.js').PageName} */ (
+        known.includes(hash) ? hash : PAGES.HOME
+    );
     navigate(page);
 };

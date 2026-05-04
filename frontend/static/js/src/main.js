@@ -1,8 +1,24 @@
 // @ts-check
 import { STATE, loadState, emit, subscribe } from './state.js';
-import { syncWithServer, pullFromServer, fetchNotifications, markNotificationsRead, deleteTrip, archiveTripOnServer } from './api.js';
+import { syncWithServer, pullFromServer, fetchNotifications, markNotificationsRead, deleteTrip, archiveTripOnServer, apiUrl } from './api.js';
 import { showConfirmModal } from './utils.js';
 import { navigate } from './router.js';
+import { PAGES } from './constants.js';
+
+/**
+ * Narrow an arbitrary string (from the URL hash or a `data-page` attribute)
+ * down to a known PageName, falling back to home for unknown values. Keeps
+ * the typed `navigate()` signature honest at the boundary where strings come
+ * from outside the app.
+ * @param {string} raw
+ * @returns {import('./constants.js').PageName}
+ */
+function resolvePage(raw) {
+    const known = /** @type {string[]} */ (Object.values(PAGES));
+    return /** @type {import('./constants.js').PageName} */ (
+        known.includes(raw) ? raw : PAGES.HOME
+    );
+}
 import { updateUserUI, logout } from './pages/profile.js';
 import { openNewTripModal } from './modals.js';
 
@@ -140,7 +156,7 @@ const deleteActiveTrip = () => {
 
 async function handleGoogleLogin(response) {
     try {
-        const res = await fetch('/api/auth/google', {
+        const res = await fetch(apiUrl('/api/auth/google'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ credential: response.credential })
@@ -195,7 +211,7 @@ async function init() {
     
     // Check session
     try {
-        const res = await fetch('/api/user-status');
+        const res = await fetch(apiUrl('/api/user-status'));
         const data = await res.json();
         if (data.logged_in) {
             STATE.user = data.user;
@@ -224,7 +240,7 @@ async function init() {
     updateTripSelector();
     
     // Determine start page based on hash or default to home
-    const startPage = window.location.hash.replace('#', '') || 'home';
+    const startPage = resolvePage(window.location.hash.replace('#', '') || PAGES.HOME);
     navigate(startPage);
     
     initGoogleLogin();
@@ -279,7 +295,7 @@ async function init() {
         const navLink = target?.closest('[data-page]');
         if (navLink) {
             e.preventDefault();
-            const page = navLink.getAttribute('data-page') ?? 'home';
+            const page = resolvePage(navLink.getAttribute('data-page') ?? PAGES.HOME);
             navigate(page);
             // Auto-close sidebar
             document.getElementById('sidebar')?.classList.remove('open');

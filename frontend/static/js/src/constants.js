@@ -1,6 +1,48 @@
 // @ts-check
 // src/constants.js
 
+// ── App-wide route + event keys ────────────────────────────────────────────
+// Canonical names for everything stringly-typed across the app — page routes
+// (consumed by router.js) and pub/sub event names (consumed by state.js).
+// `emit`/`subscribe`/`navigate` are typed against these so a typo like
+// PAGES.HOMEX or EVENTS.STATE_CHANGD fails typecheck instead of silently
+// no-oping at runtime. Plain string literals matching the values still pass
+// (back-compat — no need for a sweeping refactor of every call site).
+
+/**
+ * @typedef {'home'|'expenses'|'upload'|'insights'|'settings'|'personalization'|'budgets'|'collections'|'ai'|'settlement'|'friends'|'profile'} PageName
+ */
+export const PAGES = {
+    HOME: /** @type {PageName} */ ('home'),
+    EXPENSES: /** @type {PageName} */ ('expenses'),
+    UPLOAD: /** @type {PageName} */ ('upload'),
+    INSIGHTS: /** @type {PageName} */ ('insights'),
+    SETTINGS: /** @type {PageName} */ ('settings'),
+    PERSONALIZATION: /** @type {PageName} */ ('personalization'),
+    BUDGETS: /** @type {PageName} */ ('budgets'),
+    COLLECTIONS: /** @type {PageName} */ ('collections'),
+    AI: /** @type {PageName} */ ('ai'),
+    SETTLEMENT: /** @type {PageName} */ ('settlement'),
+    FRIENDS: /** @type {PageName} */ ('friends'),
+    PROFILE: /** @type {PageName} */ ('profile'),
+};
+
+/** @typedef {'state:changed'|'notifications:changed'} EventName */
+export const EVENTS = {
+    STATE_CHANGED: /** @type {EventName} */ ('state:changed'),
+    NOTIFICATIONS_CHANGED: /** @type {EventName} */ ('notifications:changed'),
+};
+
+// ── API base URL ──────────────────────────────────────────────────────────
+// Empty string by default — fetches resolve relative to the current origin,
+// which is what dev + Flask production both want. Capacitor webviews can't
+// hit `localhost`, so they set `window.__GG_API_BASE__` at app-boot time
+// (e.g. in the Capacitor wrapper config) to point at the deployed backend.
+// Read once, frozen — there's no use case for changing it after init.
+export const API_BASE_URL = (typeof window !== 'undefined' && /** @type {any} */ (window).__GG_API_BASE__)
+    ? /** @type {string} */ (/** @type {any} */ (window).__GG_API_BASE__)
+    : '';
+
 export const COUNTRIES = [
     "Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Antigua and Barbuda", "Argentina", "Armenia", "Australia", "Austria",
     "Azerbaijan", "Bahamas", "Bahrain", "Bangladesh", "Barbados", "Belarus", "Belgium", "Belize", "Benin", "Bhutan",

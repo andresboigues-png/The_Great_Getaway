@@ -1,7 +1,7 @@
 // @ts-check
 import { STATE, emit } from '../state.js';
 import { generateId, showConfirmModal, q } from '../utils.js';
-import { syncCategories, syncCompanions } from '../api.js';
+import { syncCategories, syncCompanions, apiUrl } from '../api.js';
 import { navigate } from '../router.js';
 
 export const showSettingsTab = (tab) => {
@@ -240,7 +240,7 @@ export function renderSettings() {
                     // Also wipe trips from server
                     if (STATE.user) {
                         try {
-                            await fetch('/api/user-data', {
+                            await fetch(apiUrl('/api/user-data'), {
                                 method: 'DELETE',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ user_id: STATE.user.id })
@@ -273,7 +273,7 @@ export function renderSettings() {
                     // Wipe server data first if logged in
                     if (STATE.user) {
                         try {
-                            await fetch('/api/user-data', {
+                            await fetch(apiUrl('/api/user-data'), {
                                 method: 'DELETE',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ user_id: STATE.user.id })

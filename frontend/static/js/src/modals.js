@@ -25,7 +25,7 @@ import { navigate } from './router.js';
  * @param {HTMLInputElement} opts.placeInput
  * @param {HTMLElement} opts.hint
  * @param {HTMLButtonElement} opts.submitBtn
- * @param {PickedPlace | null} [opts.initialPlace] — pre-fills the input + starts with submit enabled (edit mode).
+ * @param {PickedPlace | null} [opts.initialPlace] - pre-fills the input + starts with submit enabled (edit mode).
  * @returns {{ getPicked: () => PickedPlace | null }}
  */
 function _wirePlacePicker({ placeInput, hint, submitBtn, initialPlace = null }) {

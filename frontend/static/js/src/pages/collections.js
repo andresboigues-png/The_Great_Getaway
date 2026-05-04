@@ -2,6 +2,7 @@
 import { STATE, emit } from '../state.js';
 import { showConfirmModal, formatHome } from '../utils.js';
 import { navigate } from '../router.js';
+import { apiUrl } from '../api.js';
 
 export function renderCollections() {
     const div = document.createElement('div');
@@ -199,7 +200,7 @@ const toggleTripPrivacy = async (id, isPublic) => {
 
     if (STATE.user) {
         try {
-            await fetch('/api/trips/privacy', {
+            await fetch(apiUrl('/api/trips/privacy'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ user_id: STATE.user.id, trip_id: id, is_public: isPublic })
@@ -248,7 +249,7 @@ const deleteArchivedTrip = (id) => {
             emit('state:changed');
             if (STATE.user) {
                 try {
-                    await fetch('/api/trips/delete', {
+                    await fetch(apiUrl('/api/trips/delete'), {
                         method: 'DELETE',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ user_id: STATE.user.id, trip_id: id })

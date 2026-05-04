@@ -3,11 +3,19 @@
 
 import { STATE, emit } from './state.js';
 import { navigate } from './router.js';
+import { API_BASE_URL, EVENTS, PAGES } from './constants.js';
+import { validateServerData } from './schemas.js';
+
+// All fetch URLs are built via apiUrl() so the API_BASE_URL constant is the
+// single point that needs to change when the backend isn't co-located with
+// the frontend (e.g. the Capacitor mobile shell can't talk to localhost).
+// Exported so page-level files can use it for their direct fetches too.
+export const apiUrl = (path) => `${API_BASE_URL}${path}`;
 
 export async function syncWithServer() {
     if (!STATE.user) return;
     try {
-        await fetch('/api/sync', {
+        await fetch(apiUrl('/api/sync'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -30,28 +38,40 @@ export async function syncWithServer() {
 export async function pullFromServer() {
     if (!STATE.user) return;
     try {
-        const res = await fetch(`/api/data?user_id=${encodeURIComponent(STATE.user.id)}`);
-        const data = await res.json();
-        if (data) {
-            // Split trips into active and archived
-            const allTrips = data.trips || [];
-            STATE.trips = allTrips.filter(t => !t.isArchived);
-            STATE.archivedTrips = allTrips.filter(t => t.isArchived);
-            
-            STATE.expenses = data.expenses || [];
-            STATE.groups = data.companions || [];
-            STATE.categories = data.categories || [];
-            STATE.budgets = data.budgets || [];
-            STATE.tripDays = data.tripDays || [];
-            
-            emit('state:changed');               // saveState + updateTripSelector via subscriber
-
-            await fetchNotifications(); // already emits 'notifications:changed'
-
-            // Re-render current page to show new data
-            const currentPage = window.location.hash.replace('#', '') || 'home';
-            navigate(currentPage);
+        const res = await fetch(apiUrl(`/api/data?user_id=${encodeURIComponent(STATE.user.id)}`));
+        const raw = await res.json();
+        // Schema gate: a malformed response (HTML error page, partial outage,
+        // schema drift) used to silently overwrite STATE with junk. Now we
+        // log + skip the update so the next pull can retry against good data.
+        const result = validateServerData(raw);
+        if (!result.ok) {
+            console.error('pullFromServer: server data invalid —', result.error);
+            return;
         }
+        const data = result.value;
+
+        // Split trips into active and archived
+        const allTrips = data.trips || [];
+        STATE.trips = allTrips.filter(t => !t.isArchived);
+        STATE.archivedTrips = allTrips.filter(t => t.isArchived);
+
+        STATE.expenses = data.expenses || [];
+        STATE.groups = data.companions || [];
+        STATE.categories = data.categories || [];
+        STATE.budgets = data.budgets || [];
+        STATE.tripDays = data.tripDays || [];
+
+        emit(EVENTS.STATE_CHANGED);          // saveState + updateTripSelector via subscriber
+
+        await fetchNotifications(); // already emits 'notifications:changed'
+
+        // Re-render current page to show new data
+        const known = /** @type {string[]} */ (Object.values(PAGES));
+        const hash = window.location.hash.replace('#', '');
+        const current = /** @type {import('./constants.js').PageName} */ (
+            known.includes(hash) ? hash : PAGES.HOME
+        );
+        navigate(current);
     } catch (e) {
         console.error("Pull from server failed:", e);
     }
@@ -60,13 +80,13 @@ export async function pullFromServer() {
 // ── DELTA SYNC HELPERS ────────────────────────────────────────────────────────
 // These make targeted calls instead of sending the entire STATE each time.
 
-const _post = (url, body) => fetch(url, {
+const _post = (url, body) => fetch(apiUrl(url), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
 }).catch(e => console.error(`POST ${url} failed:`, e));
 
-const _delete = (url, body) => fetch(url, {
+const _delete = (url, body) => fetch(apiUrl(url), {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
@@ -143,7 +163,7 @@ export async function uploadMedia(file) {
     const formData = new FormData();
     formData.append('file', file);
     try {
-        const res = await fetch('/api/upload', { method: 'POST', body: formData });
+        const res = await fetch(apiUrl('/api/upload'), { method: 'POST', body: formData });
         return await res.json();
     } catch (e) {
         console.error("Upload failed", e);
@@ -155,10 +175,10 @@ export async function uploadMedia(file) {
 export async function fetchNotifications() {
     if (!STATE.user) return;
     try {
-        const res = await fetch(`/api/notifications/list?user_id=${encodeURIComponent(STATE.user.id)}`);
+        const res = await fetch(apiUrl(`/api/notifications/list?user_id=${encodeURIComponent(STATE.user.id)}`));
         const notifications = await res.json();
         STATE.notifications = notifications;
-        emit('notifications:changed');
+        emit(EVENTS.NOTIFICATIONS_CHANGED);
     } catch (e) {
         console.error("Failed to fetch notifications:", e);
     }
@@ -167,13 +187,13 @@ export async function fetchNotifications() {
 export async function markNotificationsRead() {
     if (!STATE.user) return;
     try {
-        await fetch('/api/notifications/read', {
+        await fetch(apiUrl('/api/notifications/read'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ user_id: STATE.user.id })
         });
         STATE.notifications.forEach(n => n.is_read = 1);
-        emit('notifications:changed');
+        emit(EVENTS.NOTIFICATIONS_CHANGED);
     } catch (e) {
         console.error("Failed to mark notifications read:", e);
     }
