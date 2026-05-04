@@ -420,6 +420,9 @@ export function renderHome() {
                 //    Nominatim) to find the containing locality's place_id,
                 //    then add to the styled set. Same call gives us the
                 //    country code which feeds the slideshow widening.
+                console.log('[Border] check: isAddressLevel=', isAddressLevel,
+                            'placeId=', activeTrip.placeId,
+                            'placeTypes=', activeTrip.placeTypes);
                 if (!isAddressLevel && activeTrip.placeId) {
                     /** @type {any} */
                     const _g = google;
@@ -433,10 +436,19 @@ export function renderHome() {
                     /** @type {Set<string>} place IDs to outline */
                     const styledPlaceIds = new Set();
                     styledPlaceIds.add(activeTrip.placeId);
+                    console.log('[Border] styling place IDs:', [...styledPlaceIds]);
+
+                    /** Counters so we can see if Google ever invokes our
+                     *  style function — if it doesn't, the FeatureLayer is
+                     *  empty (data-driven styling not actually active). */
+                    let _styleFnCalls = 0;
+                    let _styleFnMatches = 0;
 
                     const refreshBoundaries = () => {
                         const styleFn = (params) => {
+                            _styleFnCalls++;
                             if (styledPlaceIds.has(params.feature.placeId)) {
+                                _styleFnMatches++;
                                 return {
                                     strokeColor: '#007aff',
                                     strokeWeight: 2.2,
@@ -449,15 +461,24 @@ export function renderHome() {
                         for (const type of FEATURE_TYPES) {
                             try {
                                 const layer = map.getFeatureLayer(type);
-                                if (layer) layer.style = styleFn;
+                                if (layer) {
+                                    layer.style = styleFn;
+                                    console.log('[Border] applied style to layer:', type);
+                                } else {
+                                    console.warn('[Border] getFeatureLayer returned falsy for:', type);
+                                }
                             } catch (err) {
-                                // Layer not enabled in the Map ID's GCP config.
-                                // Skip silently — other layers still work.
                                 console.warn('[Border] feature layer unavailable:', type, err);
                             }
                         }
                     };
                     refreshBoundaries();
+                    // After tiles have rendered, report whether the style fn
+                    // actually got called. Zero calls means data-driven
+                    // styling isn't live on this Map ID.
+                    setTimeout(() => {
+                        console.log('[Border] style fn calls:', _styleFnCalls, 'matches:', _styleFnMatches);
+                    }, 4000);
 
                     // Look up containing locality (or admin1 fallback) for a
                     // day pin. Cached in sessionStorage so navigating between
