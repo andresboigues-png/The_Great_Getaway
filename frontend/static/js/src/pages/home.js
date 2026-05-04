@@ -489,11 +489,15 @@ export function renderHome() {
                 };
 
                 (async () => {
-                    // Clear any previous features before drawing fresh ones.
+                    // Diagnostic logs: every step prints so we can see in the
+                    // browser console exactly where the border flow stalls.
+                    // Remove these once the multi-region behavior is confirmed.
+                    console.log('[Border] start; query=', cleanQuery,
+                                'lat=', activeTrip.lat, 'lng=', activeTrip.lng,
+                                'dayPins=', dayPins.length);
+
                     map.data.forEach(f => map.data.remove(f));
 
-                    // Track what we've drawn so we can dedupe and so day-pin
-                    // outlier checks can run against the actual geometry.
                     /** @type {Set<string>} */
                     const drawnKeys = new Set();
                     /** @type {any[]} */
@@ -503,13 +507,17 @@ export function renderHome() {
                     let primary = null;
                     try {
                         const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(cleanQuery)}&format=json&limit=1&polygon_geojson=1`;
+                        console.log('[Border] forward search:', url);
                         const data = await fetch(url, { headers }).then(r => r.json());
+                        console.log('[Border] forward response keys:',
+                                    data && data[0] ? Object.keys(data[0]) : '(empty)',
+                                    'geom type:', data && data[0] && data[0].geojson && data[0].geojson.type);
                         const hit = data && data[0];
                         if (hit && hit.geojson && hit.geojson.type !== 'Point') {
                             primary = { geom: hit.geojson, osmKey: `${hit.osm_type}/${hit.osm_id}` };
                         }
                     } catch (err) {
-                        console.error("Border forward search failed:", err);
+                        console.error('[Border] forward search threw:', err);
                     }
 
                     // Step 2: forward search miss → fall back to reverse
@@ -517,28 +525,31 @@ export function renderHome() {
                     if (!primary
                         && typeof activeTrip.lat === 'number'
                         && typeof activeTrip.lng === 'number') {
+                        console.log('[Border] forward miss, falling back to reverse@trip-coords');
                         primary = await fetchSmallestRegion(activeTrip.lat, activeTrip.lng);
                     }
 
                     if (primary) {
+                        console.log('[Border] drawing primary,', primary.osmKey);
                         addBorderPolygon(primary.geom);
                         drawnKeys.add(primary.osmKey);
                         drawnGeoms.push(primary.geom);
                     } else {
-                        console.warn("Border: no polygon found for", cleanQuery);
+                        console.warn('[Border] no polygon found for', cleanQuery);
                     }
 
                     // Step 3: any day pin outside every drawn polygon gets
-                    // its own region added. Different country, weird outlier,
-                    // both are fine — we just paint another polygon.
+                    // its own region added.
                     for (const pin of dayPins) {
                         if (drawnGeoms.some(g => pointInGeometry(pin, g))) continue;
+                        console.log('[Border] day pin outside; fetching region for', pin);
                         const region = await fetchSmallestRegion(pin.lat, pin.lng);
                         if (!region || drawnKeys.has(region.osmKey)) continue;
                         addBorderPolygon(region.geom);
                         drawnKeys.add(region.osmKey);
                         drawnGeoms.push(region.geom);
                     }
+                    console.log('[Border] done; drew', drawnKeys.size, 'polygon(s)');
                 })();
 
                 // 3. Selective Labels (Overpass) — also gated by isAddressLevel
