@@ -120,15 +120,26 @@ export function renderAI() {
         </div>`;
 
     setTimeout(() => {
-        // Zoom helper
+        // Zoom helper. Prefers the viewport stored on the trip (set in the
+        // create-modal Places picker). Falls back to a Geocoder lookup for
+        // legacy trips that pre-date the migration.
         const zoomToLocation = (location) => {
             if (!googleMap) return;
-            
+
             const aiTripMapKey = activeTrip.id + '_ai';
             if (STATE.mapViews && STATE.mapViews[aiTripMapKey]) {
                 const saved = STATE.mapViews[aiTripMapKey];
                 googleMap.setCenter({ lat: saved.lat, lng: saved.lng });
                 googleMap.setZoom(saved.zoom);
+                return;
+            }
+
+            if (activeTrip.viewport) {
+                const v = activeTrip.viewport;
+                googleMap.fitBounds(new google.maps.LatLngBounds(
+                    { lat: v.south, lng: v.west },
+                    { lat: v.north, lng: v.east },
+                ));
                 return;
             }
 

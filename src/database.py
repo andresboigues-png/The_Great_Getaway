@@ -21,15 +21,21 @@ def init_db():
                 picture TEXT,
                 bio TEXT,
                 status TEXT,
+                home_currency TEXT,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         ''')
-        # Add bio/status if they don't exist
+        # Add bio/status/home_currency if they don't exist
         try:
             cursor.execute("ALTER TABLE users ADD COLUMN bio TEXT")
         except Exception: pass
         try:
             cursor.execute("ALTER TABLE users ADD COLUMN status TEXT")
+        except Exception: pass
+        # home_currency stays NULL for legacy users — the frontend interprets
+        # NULL as "not set yet" and defaults from browser locale on first load.
+        try:
+            cursor.execute("ALTER TABLE users ADD COLUMN home_currency TEXT")
         except Exception: pass
         
         # Trips Table (Linked to an owner)
@@ -41,6 +47,11 @@ def init_db():
                 country TEXT,
                 is_archived INTEGER DEFAULT 0,
                 is_public INTEGER DEFAULT 0,
+                place_id TEXT,
+                lat REAL,
+                lng REAL,
+                viewport_json TEXT,
+                place_types TEXT,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY(user_id) REFERENCES users(id)
             )
@@ -50,6 +61,23 @@ def init_db():
             cursor.execute("ALTER TABLE trips ADD COLUMN is_public INTEGER DEFAULT 0")
         except Exception:
             pass  # Column already exists
+
+        # Google Places fields. Existing rows keep `country` populated as the
+        # human-readable name; new rows additionally carry place_id + lat/lng +
+        # the viewport (stored as a JSON {south, west, north, east}) and the
+        # place's `types` array. The map render uses lat/lng/viewport directly
+        # when present and falls back to geocoding `country` for legacy trips.
+        for col, ddl in [
+            ("place_id", "ALTER TABLE trips ADD COLUMN place_id TEXT"),
+            ("lat", "ALTER TABLE trips ADD COLUMN lat REAL"),
+            ("lng", "ALTER TABLE trips ADD COLUMN lng REAL"),
+            ("viewport_json", "ALTER TABLE trips ADD COLUMN viewport_json TEXT"),
+            ("place_types", "ALTER TABLE trips ADD COLUMN place_types TEXT"),
+        ]:
+            try:
+                cursor.execute(ddl)
+            except Exception:
+                pass  # Column already exists
         
         # Expenses Table (Linked to a trip)
         cursor.execute('''

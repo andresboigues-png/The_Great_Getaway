@@ -3,7 +3,7 @@
 
 import { STATE, emit } from '../state.js';
 import { COUNTRIES, CONVERSION_RATES } from '../constants.js';
-import { generateId, showConfirmModal, q } from '../utils.js';
+import { generateId, showConfirmModal, q, formatHome, getHomeCurrency } from '../utils.js';
 import { upsertExpense, deleteExpenseOnServer } from '../api.js';
 import { navigate } from '../router.js';
 import { showPersTab } from './settings.js';
@@ -496,9 +496,14 @@ export function renderTripExpenses(container, filters = {}) {
         return;
     }
 
+    const homeCurrency = getHomeCurrency();
     container.innerHTML = tripExpenses.map(e => {
         const cat = STATE.categories.find(c => c.id === e.categoryId);
-        const displayEuro = e.euroValue;
+        // Convert from the original currency to the user's home currency for
+        // the blue helper line. Skip the line entirely when the expense was
+        // already in the home currency (no extra info to add).
+        const showConverted = e.currency !== homeCurrency;
+        const convertedDisplay = showConverted ? `≈ ${formatHome(e.value, e.currency)}` : '';
 
         return `
             <div class="card glass" style="padding: 14px 22px; border-radius: 24px; border: 1px solid rgba(255,255,255,0.4); background: rgba(255,255,255,0.15); backdrop-filter: blur(25px); display: flex; justify-content: space-between; align-items: center; transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); box-shadow: 0 10px 30px rgba(0,0,0,0.1);" onmouseover="this.style.transform='scale(1.012)'; this.style.boxShadow='0 20px 50px rgba(0,0,0,0.2)'; this.style.background='rgba(255,255,255,0.2)';" onmouseout="this.style.transform='none'; this.style.boxShadow='0 10px 30px rgba(0,0,0,0.1)'; this.style.background='rgba(255,255,255,0.15)';">
@@ -521,7 +526,7 @@ export function renderTripExpenses(container, filters = {}) {
                 <div style="display: flex; align-items: center; gap: 12px;">
                     <div style="text-align: right;">
                         <div style="font-weight: 800; font-size: 1.2rem; color: #000000; letter-spacing: -0.03em;">${e.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span style="font-size: 0.75rem; opacity: 0.5; font-weight: 600;">${e.currency}</span></div>
-                        <div style="font-size: 0.85rem; color: #0071e3; font-weight: 700; margin-top: 1px;">≈ €${(displayEuro || 0).toFixed(2)}</div>
+                        ${convertedDisplay ? `<div style="font-size: 0.85rem; color: #0071e3; font-weight: 700; margin-top: 1px;">${convertedDisplay}</div>` : ''}
                     </div>
                     
                     <div style="display: flex; gap: 8px;">

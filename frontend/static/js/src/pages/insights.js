@@ -3,6 +3,7 @@ import { STATE, emit } from '../state.js';
 import { CONVERSION_RATES } from '../constants.js';
 import { fetchHistoricalRates } from '../api.js';
 import { navigate } from '../router.js';
+import { getHomeCurrency, currencySymbol } from '../utils.js';
 
 export function renderInsights() {
     const div = document.createElement('div');
@@ -34,8 +35,12 @@ export function renderInsights() {
         return div;
     }
 
-    // Helper for conversion based on current insightCurrency and rateMode
-    const targetCurr = STATE.insightCurrency || 'EUR';
+    // Helper for conversion based on current insightCurrency and rateMode.
+    // Defaults to the user's home currency when the per-page toggle is unset
+    // — first-time visit shows totals in their familiar currency, but they
+    // can still switch to compare in other currencies via the dropdown.
+    const targetCurr = STATE.insightCurrency || getHomeCurrency();
+    const targetSym = currencySymbol(targetCurr);
     const mode = STATE.rateMode || 'at_trip';
 
     const convertedExps = tripExps.map(e => {
@@ -103,7 +108,7 @@ export function renderInsights() {
     const spenderRankingHtml = sortedSpenders.slice(1).map(([who, amount], index) => `
         <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 10px;">
             <span style="font-weight: 500;">${index + 2}. ${who}</span>
-            <span style="color: var(--accent-blue); font-weight: 600;">${targetCurr === 'EUR' ? '€' : ''}${amount.toFixed(2)}${targetCurr !== 'EUR' ? ' ' + targetCurr : ''}</span>
+            <span style="color: var(--accent-blue); font-weight: 600;">${targetSym}${amount.toFixed(2)}</span>
         </div>
     `).join('');
 
@@ -175,8 +180,8 @@ export function renderInsights() {
             <div class="card glass" style="background: linear-gradient(135deg, var(--glass-bg), rgba(0,113,227,0.03)); border-left: 4px solid var(--accent-blue);">
                 <h2 class="card-title" style="font-size: 1rem; color: var(--accent-blue); text-transform: uppercase; letter-spacing: 0.1em;">Total Spent on your trip</h2>
                 <div style="display: flex; align-items: baseline; gap: 10px;">
-                    <h1 style="margin: 0; font-size: 4.5rem; font-weight: 800; letter-spacing: -0.05em;">${targetCurr === 'EUR' ? '€' : ''}${totalDisplay.toFixed(2)}</h1>
-                    <span style="font-size: 1.5rem; color: var(--text-secondary); font-weight: 400;">${targetCurr !== 'EUR' ? targetCurr : ''}</span>
+                    <h1 style="margin: 0; font-size: 4.5rem; font-weight: 800; letter-spacing: -0.05em;">${targetSym}${totalDisplay.toFixed(2)}</h1>
+                    <span style="font-size: 1.5rem; color: var(--text-secondary); font-weight: 400;">${targetCurr}</span>
                 </div>
                 <p style="color: var(--text-secondary); margin-top: 10px; font-size: 1.1rem;">Spent across <strong>${totalCount}</strong> transactions during your travels.</p>
             </div>
@@ -186,12 +191,12 @@ export function renderInsights() {
         <div class="grid-2" style="grid-template-columns: 1fr 1fr; margin-bottom: 32px;">
             <div class="card glass">
                 <h2 class="card-title" style="font-size: 0.9rem; color: var(--text-secondary);">Avg. Daily Spend</h2>
-                <h1 style="margin: 0; font-size: 2.5rem;">${targetCurr === 'EUR' ? '€' : ''}${(totalDisplay / (Object.keys(dateTotals).length || 1)).toFixed(2)}<small style="font-size: 1rem; font-weight: 400; color: var(--text-secondary); margin-left: 8px;">/ day</small></h1>
+                <h1 style="margin: 0; font-size: 2.5rem;">${targetSym}${(totalDisplay / (Object.keys(dateTotals).length || 1)).toFixed(2)}<small style="font-size: 1rem; font-weight: 400; color: var(--text-secondary); margin-left: 8px;">/ day</small></h1>
             </div>
             ${highestExpense ? `
             <div class="card glass">
                 <h2 class="card-title" style="font-size: 0.9rem; color: var(--text-secondary);">Single Peak</h2>
-                <h1 style="margin: 0; font-size: 2.5rem; color: #ff3b30;">${targetCurr === 'EUR' ? '€' : ''}${highestExpense.displayValue.toFixed(2)}</h1>
+                <h1 style="margin: 0; font-size: 2.5rem; color: #ff3b30;">${targetSym}${highestExpense.displayValue.toFixed(2)}</h1>
                 <p style="margin: 4px 0 0 0; font-size: 0.9rem; color: var(--text-secondary);">${highestExpense.label} • ${highestExpense.who}</p>
             </div>
             ` : ''}
@@ -203,7 +208,7 @@ export function renderInsights() {
                 <h2 class="card-title">Top Spenders</h2>
                 <div style="margin-bottom: 20px;">
                     <h1 style="margin: 0; font-size: 2rem; color: var(--text-primary);">${topSpender}</h1>
-                    <span style="color: var(--accent-blue); font-weight: 700; font-size: 1.1rem;">${totalDisplay > 0 ? (targetCurr === 'EUR' ? '€' : '') + topSpenderAmount.toFixed(2) : '0'}</span>
+                    <span style="color: var(--accent-blue); font-weight: 700; font-size: 1.1rem;">${totalDisplay > 0 ? targetSym + topSpenderAmount.toFixed(2) : '0'}</span>
                 </div>
                 <div style="margin-top: 20px; display: flex; flex-direction: column; gap: 4px;">
                     ${spenderRankingHtml}
@@ -321,7 +326,7 @@ export function renderInsights() {
                             grid: { color: 'rgba(255,255,255,0.05)' },
                             ticks: {
                                 maxTicksLimit: 5,
-                                callback: value => (targetCurr === 'EUR' ? '€' : '') + value
+                                callback: value => targetSym + value
                             }
                         }
                     }

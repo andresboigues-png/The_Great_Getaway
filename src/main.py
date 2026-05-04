@@ -98,12 +98,14 @@ def google_auth():
                     picture=excluded.picture
             ''', (user_id, email, name, picture))
             
-            # Fetch bio and status
-            cursor.execute("SELECT bio, status FROM users WHERE id = ?", (user_id,))
+            # Fetch bio, status, and home currency
+            cursor.execute("SELECT bio, status, home_currency FROM users WHERE id = ?", (user_id,))
             user_row = cursor.fetchone()
             db_bio = user_row['bio'] if user_row else ""
             db_status = user_row['status'] if user_row else ""
-            
+            # NULL means "never set" — frontend defaults from browser locale.
+            db_home_currency = user_row['home_currency'] if user_row else None
+
             conn.commit()
 
         return jsonify({
@@ -114,7 +116,8 @@ def google_auth():
                 "email": email,
                 "picture": picture,
                 "bio": db_bio or "",
-                "status": db_status or ""
+                "status": db_status or "",
+                "homeCurrency": db_home_currency,
             }
         })
     except ValueError as e:
@@ -141,27 +144,52 @@ def sync_data():
         # Sync Trips
         for t in trips:
             cursor.execute('''
-                INSERT INTO trips (id, user_id, name, country, is_archived, is_public)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO trips (id, user_id, name, country, is_archived, is_public,
+                                   place_id, lat, lng, viewport_json, place_types)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     name=excluded.name,
                     country=excluded.country,
                     is_archived=excluded.is_archived,
-                    is_public=excluded.is_public
-            ''', (t['id'], user_id, t['name'], t['country'], 1 if t.get('is_archived') else 0, 1 if t.get('isPublic') else 0))
-        
+                    is_public=excluded.is_public,
+                    place_id=excluded.place_id,
+                    lat=excluded.lat,
+                    lng=excluded.lng,
+                    viewport_json=excluded.viewport_json,
+                    place_types=excluded.place_types
+            ''', (t['id'], user_id, t['name'], t['country'],
+                  1 if t.get('is_archived') else 0,
+                  1 if t.get('isPublic') else 0,
+                  t.get('placeId'),
+                  t.get('lat'),
+                  t.get('lng'),
+                  json.dumps(t['viewport']) if t.get('viewport') else None,
+                  json.dumps(t['placeTypes']) if t.get('placeTypes') else None))
+
         # Sync Archived Trips
         archived_trips = data.get("archived_trips", [])
         for t in archived_trips:
             cursor.execute('''
-                INSERT INTO trips (id, user_id, name, country, is_archived, is_public)
-                VALUES (?, ?, ?, ?, 1, ?)
+                INSERT INTO trips (id, user_id, name, country, is_archived, is_public,
+                                   place_id, lat, lng, viewport_json, place_types)
+                VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     name=excluded.name,
                     country=excluded.country,
                     is_archived=1,
-                    is_public=excluded.is_public
-            ''', (t['id'], user_id, t['name'], t['country'], 1 if t.get('isPublic') else 0))
+                    is_public=excluded.is_public,
+                    place_id=excluded.place_id,
+                    lat=excluded.lat,
+                    lng=excluded.lng,
+                    viewport_json=excluded.viewport_json,
+                    place_types=excluded.place_types
+            ''', (t['id'], user_id, t['name'], t['country'],
+                  1 if t.get('isPublic') else 0,
+                  t.get('placeId'),
+                  t.get('lat'),
+                  t.get('lng'),
+                  json.dumps(t['viewport']) if t.get('viewport') else None,
+                  json.dumps(t['placeTypes']) if t.get('placeTypes') else None))
             
             # Also sync expenses inside archived trips if they exist
             if 'expenses' in t:
@@ -267,16 +295,27 @@ def upsert_trip():
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute('''
-            INSERT INTO trips (id, user_id, name, country, is_archived, is_public)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO trips (id, user_id, name, country, is_archived, is_public,
+                               place_id, lat, lng, viewport_json, place_types)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 name=excluded.name,
                 country=excluded.country,
                 is_archived=excluded.is_archived,
-                is_public=excluded.is_public
+                is_public=excluded.is_public,
+                place_id=excluded.place_id,
+                lat=excluded.lat,
+                lng=excluded.lng,
+                viewport_json=excluded.viewport_json,
+                place_types=excluded.place_types
         ''', (t['id'], user_id, t['name'], t.get('country', ''),
               1 if t.get('isArchived') else 0,
-              1 if t.get('isPublic') else 0))
+              1 if t.get('isPublic') else 0,
+              t.get('placeId'),
+              t.get('lat'),
+              t.get('lng'),
+              json.dumps(t['viewport']) if t.get('viewport') else None,
+              json.dumps(t['placeTypes']) if t.get('placeTypes') else None))
         conn.commit()
     return jsonify({"status": "ok"})
 
@@ -765,6 +804,11 @@ def get_data():
             t = dict(r)
             t['isArchived'] = bool(t.pop('is_archived'))
             t['isPublic'] = bool(t.pop('is_public'))
+            t['placeId'] = t.pop('place_id', None)
+            viewport_raw = t.pop('viewport_json', None)
+            t['viewport'] = json.loads(viewport_raw) if viewport_raw else None
+            types_raw = t.pop('place_types', None)
+            t['placeTypes'] = json.loads(types_raw) if types_raw else None
             trips.append(t)
         
         # Get all expenses for these trips
@@ -840,10 +884,29 @@ def get_public_profile(user_id):
         if not user_row:
             return jsonify({"error": "User not found"}), 404
         
-        # Get public OR archived trips (for the footprint)
-        cursor.execute("SELECT id, name, country FROM trips WHERE user_id = ? AND (is_public = 1 OR is_archived = 1)", (user_id,))
-        trips = [dict(row) for row in cursor.fetchall()]
-        
+        # Get public OR archived trips (for the footprint). Include the
+        # is_public / is_archived flags — the friends-map pin filter on the
+        # frontend keys off these, and stripping them silently hid every pin.
+        # Also include place_id/lat/lng/viewport so friends-map pins can render
+        # without a per-country geocoder round-trip.
+        cursor.execute(
+            "SELECT id, name, country, is_public, is_archived, "
+            "place_id, lat, lng, viewport_json, place_types "
+            "FROM trips WHERE user_id = ? AND (is_public = 1 OR is_archived = 1)",
+            (user_id,),
+        )
+        trips = []
+        for row in cursor.fetchall():
+            t = dict(row)
+            t['isPublic'] = bool(t.pop('is_public'))
+            t['isArchived'] = bool(t.pop('is_archived'))
+            t['placeId'] = t.pop('place_id', None)
+            viewport_raw = t.pop('viewport_json', None)
+            t['viewport'] = json.loads(viewport_raw) if viewport_raw else None
+            types_raw = t.pop('place_types', None)
+            t['placeTypes'] = json.loads(types_raw) if types_raw else None
+            trips.append(t)
+
         return jsonify({
             "user": dict(user_row),
             "trips": trips
@@ -851,17 +914,26 @@ def get_public_profile(user_id):
 
 @app.route("/api/profile/update", methods=["POST"])
 def update_profile():
-    """Update user bio and status."""
-    user_id = request.json.get("user_id")
-    bio = request.json.get("bio")
-    status = request.json.get("status")
-    
+    """Update user bio, status, and/or home currency. Any field omitted in
+    the payload is left unchanged so callers can patch a single field."""
+    payload = request.json or {}
+    user_id = payload.get("user_id")
     if not user_id:
         return jsonify({"error": "Unauthorized"}), 401
-        
+
+    fields = []
+    values = []
+    for key, column in (("bio", "bio"), ("status", "status"), ("homeCurrency", "home_currency")):
+        if key in payload:
+            fields.append(f"{column} = ?")
+            values.append(payload[key])
+    if not fields:
+        return jsonify({"status": "noop"})
+
+    values.append(user_id)
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("UPDATE users SET bio = ?, status = ? WHERE id = ?", (bio, status, user_id))
+        cursor.execute(f"UPDATE users SET {', '.join(fields)} WHERE id = ?", values)
         conn.commit()
     return jsonify({"status": "updated"})
 

@@ -1,6 +1,6 @@
 // @ts-check
 import { STATE, emit } from '../state.js';
-import { showConfirmModal } from '../utils.js';
+import { showConfirmModal, formatHome } from '../utils.js';
 import { navigate } from '../router.js';
 
 export function renderCollections() {
@@ -18,6 +18,7 @@ export function renderCollections() {
                 <button class="btn" id="collectionsLoginBtn" style="background: var(--accent-blue);">Log In Now</button>
             </div>
         `;
+        div.querySelector('#collectionsLoginBtn')?.addEventListener('click', () => navigate('profile'));
         return div;
     }
 
@@ -43,7 +44,7 @@ export function renderCollections() {
                             </div>
                             <p style="color: var(--text-secondary); margin: 4px 0 0 0; font-size: 0.85rem;">${t.country}</p>
                             <p style="color: var(--text-secondary); margin: 2px 0 0 0; font-size: 0.85rem;">${(t.expenses || []).filter(e => !e.isSettlement).length} expenses</p>
-                            <p style="color: var(--accent-blue); margin: 2px 0 0 0; font-size: 0.85rem; font-weight: 700;">Total: €${(t.expenses || []).filter(e => !e.isSettlement).reduce((sum, e) => sum + (e.euroValue || 0), 0).toFixed(2)}</p>
+                            <p style="color: var(--accent-blue); margin: 2px 0 0 0; font-size: 0.85rem; font-weight: 700;">Total: ${formatHome((t.expenses || []).filter(e => !e.isSettlement).reduce((sum, e) => sum + (e.euroValue || 0), 0), 'EUR')}</p>
                         </div>
                         <div style="display: flex; align-items: center; gap: 20px;">
                             <div style="display: flex; align-items: center; gap: 12px; background: rgba(0,0,0,0.03); padding: 8px 18px; border-radius: 980px; border: 1px solid rgba(0,0,0,0.08); box-shadow: inset 0 1px 2px rgba(0,0,0,0.02), 0 4px 12px rgba(0,0,0,0.03);">
@@ -133,7 +134,7 @@ export function renderArchivedTripDetail(tripId) {
                 </div>
 
                 <span style="display: flex; align-items: center; gap: 8px;">${trip.tripDays?.length || 0} Days</span>
-                <span style="display: flex; align-items: center; gap: 8px;">€${totalSpent.toFixed(0)} spent</span>
+                <span style="display: flex; align-items: center; gap: 8px;">${formatHome(totalSpent, 'EUR')} spent</span>
             </div>
             <div style="position: absolute; right: 40px; bottom: 40px; display: flex; gap: 12px;">
                 <button class="btn restore-trip-btn" data-trip-id="${trip.id}" style="background: #002d5b; color: #ffffff; padding: 12px 24px; border-radius: 16px; font-weight: 800;">Restore Trip</button>

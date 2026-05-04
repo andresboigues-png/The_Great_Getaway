@@ -1,7 +1,7 @@
 // @ts-check
 import { STATE, emit } from '../state.js';
 import { CONVERSION_RATES } from '../constants.js';
-import { generateId, q } from '../utils.js';
+import { generateId, q, formatHome, getHomeCurrency } from '../utils.js';
 import { upsertBudget, deleteBudgetOnServer } from '../api.js';
 import { navigate } from '../router.js';
 
@@ -92,7 +92,7 @@ export function renderBudgets() {
 
                 <div style="display: flex; align-items: center; justify-content: space-between;">
                     <div style="font-size: 0.8rem; font-weight: 600;">
-                        ${spent.toFixed(0)}€ <span style="color: var(--text-secondary); opacity: 0.6;">/ ${b.amount.toFixed(0)}€</span>
+                        ${formatHome(spent, 'EUR')} <span style="color: var(--text-secondary); opacity: 0.6;">/ ${formatHome(b.amount, 'EUR')}</span>
                     </div>
                     <button class="btn-small delete-budget-btn" data-budget-id="${b.id}" style="background: none; border: none; color: #ff3b30; font-size: 0.7rem; font-weight: 700; cursor: pointer; padding: 0;">Delete</button>
                 </div>
@@ -133,7 +133,7 @@ export function renderBudgets() {
                     <div>
                         <label style="display:block; font-size:0.8rem; margin-bottom:4px; font-weight:600;">Currency</label>
                         <select id="budCurr" class="glass-input" style="width:100%;">
-                            ${Object.keys(CONVERSION_RATES).map(c => `<option value="${c}" ${STATE.insightCurrency === c ? 'selected' : ''}>${c}</option>`).join('')}
+                            ${Object.keys(CONVERSION_RATES).map(c => `<option value="${c}" ${getHomeCurrency() === c ? 'selected' : ''}>${c}</option>`).join('')}
                         </select>
                     </div>
                 </div>

@@ -1,7 +1,8 @@
 // @ts-check
 import { STATE, emit } from '../state.js';
 import { syncWithServer } from '../api.js';
-import { showLiquidAlert, q } from '../utils.js';
+import { showLiquidAlert, getHomeCurrency } from '../utils.js';
+import { CONVERSION_RATES, CURRENCY_SYMBOLS } from '../constants.js';
 import { navigate } from '../router.js';
 import { viewArchivedDetails } from './collections.js';
 
@@ -157,6 +158,23 @@ export function renderProfile(targetUserId = null) {
                             <!-- Bio -->
                             ${isOwnProfile ? `
                                 <textarea id="profileBio" placeholder="Add a bio..." style="width: 100%; max-width: 500px; min-height: 40px; background: transparent; border: 1px solid transparent; border-radius: 8px; color: var(--text-primary); font-size: 0.95rem; font-family: inherit; line-height: 1.5; resize: none; outline: none; padding: 6px; margin-left: -6px; transition: all 0.2s;" onfocus="this.style.background='rgba(0,0,0,0.03)'; this.style.borderColor='var(--glass-border)';" onblur="this.style.background='transparent'; this.style.borderColor='transparent';">${user.bio || ''}</textarea>
+
+                                <!-- Home currency picker — the currency totals
+                                     and insights will be displayed in. -->
+                                <div style="margin-top: 14px; max-width: 500px;">
+                                    <label for="profileHomeCurrency" style="display: block; font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 6px; letter-spacing: 0.04em;">
+                                        Home currency — what you'll see totals and insights in
+                                    </label>
+                                    <div style="position: relative; display: inline-block;">
+                                        <select id="profileHomeCurrency" style="appearance: none; background: rgba(0, 113, 227, 0.08); color: var(--accent-blue); border: 1px solid rgba(0, 113, 227, 0.15); border-radius: 12px; padding: 6px 28px 6px 12px; font-size: 0.85rem; font-weight: 700; cursor: pointer; outline: none; transition: all 0.2s;">
+                                            ${Object.keys(CONVERSION_RATES).map(code => `
+                                                <option value="${code}" ${getHomeCurrency() === code ? 'selected' : ''}>${CURRENCY_SYMBOLS[code] || code}  ${code}</option>
+                                            `).join('')}
+                                        </select>
+                                        <div style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); pointer-events: none; color: var(--accent-blue); font-size: 0.6rem;">▼</div>
+                                    </div>
+                                </div>
+
                                 <div style="margin-top: 8px;">
                                     <button id="saveProfileBtn" class="btn btn-small" style="background: var(--text-primary); color: var(--bg-color); padding: 6px 16px; border-radius: 8px; font-weight: 700; font-size: 0.8rem; opacity: 0; transition: opacity 0.3s; pointer-events: none;">Save Profile</button>
                                 </div>
@@ -195,22 +213,33 @@ export function renderProfile(targetUserId = null) {
             if (isOwnProfile) {
                 const statusEl = /** @type {HTMLInputElement | null} */ (div.querySelector('#profileStatus'));
                 const bioEl = /** @type {HTMLTextAreaElement | null} */ (div.querySelector('#profileBio'));
+                const homeCurrencyEl = /** @type {HTMLSelectElement | null} */ (div.querySelector('#profileHomeCurrency'));
                 const saveBtn = /** @type {HTMLButtonElement | null} */ (div.querySelector('#saveProfileBtn'));
-                if (statusEl && saveBtn) statusEl.onchange = () => { saveBtn.style.opacity = '1'; saveBtn.style.pointerEvents = 'auto'; };
-                if (bioEl && saveBtn) bioEl.oninput = () => { saveBtn.style.opacity = '1'; saveBtn.style.pointerEvents = 'auto'; };
+                const showSave = () => { if (saveBtn) { saveBtn.style.opacity = '1'; saveBtn.style.pointerEvents = 'auto'; } };
+                if (statusEl) statusEl.onchange = showSave;
+                if (bioEl) bioEl.oninput = showSave;
+                if (homeCurrencyEl) homeCurrencyEl.onchange = showSave;
                 if (saveBtn) {
                     saveBtn.onclick = async () => {
                         if (!STATE.user || !statusEl || !bioEl) return;
                         const newStatus = statusEl.value;
                         const newBio = bioEl.value;
+                        const newHomeCurrency = homeCurrencyEl ? homeCurrencyEl.value : (STATE.user.homeCurrency || null);
                         try {
                             const res = await fetch('/api/profile/update', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ user_id: STATE.user.id, bio: newBio, status: newStatus })
+                                body: JSON.stringify({
+                                    user_id: STATE.user.id,
+                                    bio: newBio,
+                                    status: newStatus,
+                                    homeCurrency: newHomeCurrency,
+                                })
                             });
                             if (res.ok) {
-                                STATE.user.bio = newBio; STATE.user.status = newStatus;
+                                STATE.user.bio = newBio;
+                                STATE.user.status = newStatus;
+                                STATE.user.homeCurrency = newHomeCurrency;
                                 emit('state:changed'); saveBtn.style.opacity = '0'; saveBtn.style.pointerEvents = 'none';
                                 showLiquidAlert("Profile updated!");
                             }
@@ -278,14 +307,14 @@ export function renderProfile(targetUserId = null) {
                             });
                         });
 
-                    // Place markers — only for trips that are BOTH archived (saved
-                    // to collections) AND made public via the privacy toggle.
-                    // Country highlights above use the broader trips list intentionally
-                    // (you still see every country you've been to), but pins are
-                    // public-only.
+                    // Place markers for every trip the user has marked public.
+                    // (Today the privacy toggle only appears on archived trips, but
+                    // the user's stated intent is "public = pin," so we key off
+                    // isPublic alone — not archived-AND-public — so the day the
+                    // toggle shows up on active trips, pins follow automatically.)
                     const geocoder = new google.maps.Geocoder();
                     const tripsByCountry = {};
-                    trips.filter(t => t.isArchived && t.isPublic).forEach(t => {
+                    trips.filter(t => t.isPublic).forEach(t => {
                         const k = t.country || t.name;
                         if (k) {
                             if (!tripsByCountry[k]) tripsByCountry[k] = [];
@@ -293,43 +322,56 @@ export function renderProfile(targetUserId = null) {
                         }
                     });
 
+                    /** @param {google.maps.LatLng | google.maps.LatLngLiteral} pos
+                     *  @param {string} countryKey
+                     *  @param {any[]} tps */
+                    const placeMarker = (pos, countryKey, tps) => {
+                        const marker = new google.maps.Marker({
+                            position: pos, map: map,
+                            icon: { path: google.maps.SymbolPath.CIRCLE, fillOpacity: 1, fillColor: '#ff2d55', strokeColor: 'white', strokeWeight: 2, scale: tps.length > 1 ? 14 : 10 }
+                        });
+
+                        const tripList = tps.map(t => `
+                            <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid rgba(0,0,0,0.06);">
+                                <span style="font-weight: 600; color: #000;">${t.name}</span>
+                                <button class="archived-trip-view-btn" data-trip-id="${t.id}" style="background: #007aff; color: white; border: none; padding: 4px 12px; border-radius: 8px; font-weight: 700; font-size: 0.75rem; cursor: pointer;">View</button>
+                            </div>
+                        `).join('');
+
+                        // Build InfoWindow content as an HTMLElement so we can attach
+                        // a delegated click listener to it (Google Maps renders the
+                        // InfoWindow outside `div`, so delegation on `div` won't catch
+                        // clicks here).
+                        const infoContent = document.createElement('div');
+                        infoContent.style.cssText = 'padding: 4px 8px; min-width: 220px; max-width: 300px; font-family: -apple-system, BlinkMacSystemFont, sans-serif;';
+                        infoContent.innerHTML = `
+                            <div style="font-weight: 800; font-size: 0.7rem; text-transform: uppercase; color: rgba(0,0,0,0.5); letter-spacing: 0.1em; margin-bottom: 6px;">${countryKey} — ${tps.length} trip${tps.length > 1 ? 's' : ''}</div>
+                            ${tripList}
+                        `;
+                        infoContent.addEventListener('click', (e) => {
+                            const btn = /** @type {HTMLElement | null} */ (
+                                /** @type {HTMLElement | null} */ (e.target)?.closest('.archived-trip-view-btn')
+                            );
+                            if (btn?.dataset.tripId) viewArchivedDetails(btn.dataset.tripId);
+                        });
+
+                        const infoWindow = new google.maps.InfoWindow({ content: infoContent });
+                        marker.addListener('click', () => infoWindow.open(map, marker));
+                    };
+
                     const addPins = async () => {
                         for (const [countryKey, tps] of Object.entries(tripsByCountry)) {
+                            // Prefer stored coords on any trip in the cluster.
+                            // Falls back to Geocoder for legacy trips that
+                            // were created before the Places migration.
+                            const withCoords = /** @type {any} */ (tps).find(t => typeof t.lat === 'number' && typeof t.lng === 'number');
+                            if (withCoords) {
+                                placeMarker({ lat: withCoords.lat, lng: withCoords.lng }, countryKey, /** @type {any} */ (tps));
+                                continue; // no API call, no throttle needed
+                            }
                             geocoder.geocode({ address: countryKey }, (results, status) => {
                                 if (status === "OK" && results[0]) {
-                                    const pos = results[0].geometry.location;
-                                    const marker = new google.maps.Marker({
-                                        position: pos, map: map,
-                                        icon: { path: google.maps.SymbolPath.CIRCLE, fillOpacity: 1, fillColor: '#ff2d55', strokeColor: 'white', strokeWeight: 2, scale: tps.length > 1 ? 14 : 10 }
-                                    });
-
-                                    const tripList = tps.map(t => `
-                                        <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid rgba(0,0,0,0.06);">
-                                            <span style="font-weight: 600; color: #000;">${t.name}</span>
-                                            <button class="archived-trip-view-btn" data-trip-id="${t.id}" style="background: #007aff; color: white; border: none; padding: 4px 12px; border-radius: 8px; font-weight: 700; font-size: 0.75rem; cursor: pointer;">View</button>
-                                        </div>
-                                    `).join('');
-
-                                    // Build InfoWindow content as an HTMLElement so we can attach
-                                    // a delegated click listener to it (Google Maps renders the
-                                    // InfoWindow outside `div`, so delegation on `div` won't catch
-                                    // clicks here).
-                                    const infoContent = document.createElement('div');
-                                    infoContent.style.cssText = 'padding: 4px 8px; min-width: 220px; max-width: 300px; font-family: -apple-system, BlinkMacSystemFont, sans-serif;';
-                                    infoContent.innerHTML = `
-                                        <div style="font-weight: 800; font-size: 0.7rem; text-transform: uppercase; color: rgba(0,0,0,0.5); letter-spacing: 0.1em; margin-bottom: 6px;">${countryKey} — ${tps.length} trip${tps.length > 1 ? 's' : ''}</div>
-                                        ${tripList}
-                                    `;
-                                    infoContent.addEventListener('click', (e) => {
-                                        const btn = /** @type {HTMLElement | null} */ (
-                                            /** @type {HTMLElement | null} */ (e.target)?.closest('.archived-trip-view-btn')
-                                        );
-                                        if (btn?.dataset.tripId) viewArchivedDetails(btn.dataset.tripId);
-                                    });
-
-                                    const infoWindow = new google.maps.InfoWindow({ content: infoContent });
-
-                                    marker.addListener('click', () => infoWindow.open(map, marker));
+                                    placeMarker(results[0].geometry.location, countryKey, /** @type {any} */ (tps));
                                 }
                             });
                             await new Promise(r => setTimeout(r, 800));

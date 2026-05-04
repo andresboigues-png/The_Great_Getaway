@@ -65,6 +65,25 @@ export const CONVERSION_RATES = {
     'ZAR': 0.049
 };
 
+// Display symbols paired with the codes in CONVERSION_RATES. Falls back to
+// the code itself ("CHF 12.50") when no symbol is meaningful.
+export const CURRENCY_SYMBOLS = {
+    'EUR': '€', 'USD': '$', 'GBP': '£', 'JPY': '¥', 'CHF': 'CHF',
+    'CAD': 'C$', 'AUD': 'A$', 'CNY': '¥', 'BRL': 'R$', 'MXN': 'MX$',
+    'INR': '₹', 'IDR': 'Rp', 'SGD': 'S$', 'NZD': 'NZ$', 'HKD': 'HK$',
+    'KRW': '₩', 'ZAR': 'R',
+};
+
+// Map browser locale region (e.g. "en-US" → "US") to a default home currency.
+// Used only for first-time setup when the user hasn't picked one yet. Regions
+// not listed default to EUR (Eurozone is broad, and unknown is the safest
+// "neutral" choice for everyone else).
+export const LOCALE_TO_CURRENCY = {
+    US: 'USD', GB: 'GBP', AU: 'AUD', CA: 'CAD', NZ: 'NZD',
+    JP: 'JPY', CH: 'CHF', BR: 'BRL', MX: 'MXN', IN: 'INR',
+    ID: 'IDR', SG: 'SGD', HK: 'HKD', KR: 'KRW', ZA: 'ZAR', CN: 'CNY',
+};
+
 export const DESTINATION_DATA = {
     "Afghanistan": { i: "1589192144353-8e7c107077a1", q: "Central Asia's crossroads.", f: "Did you know that Afghanistan has a population of about 37 million people? Its capital city is Kabul." },
     "Alabama": { i: "1469474968028-56623f02e42e", q: "Sweet Home Alabama.", f: "Did you know that the Alabama State has a population of about 5 million people? Its biggest city is Huntsville." },

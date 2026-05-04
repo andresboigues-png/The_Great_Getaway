@@ -858,6 +858,13 @@ h1 {
     z-index: 10000 !important;
 }
 
+/* Google Places Autocomplete dropdown is rendered to <body> with a default
+   z-index of 1000, which sits behind .modal-overlay (10000). Lift it above
+   so suggestions show when the trip-create modal is open. */
+.pac-container {
+    z-index: 100000 !important;
+}
+
 /* Custom Animations */
 @keyframes fadeIn {
     from {

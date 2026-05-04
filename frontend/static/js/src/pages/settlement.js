@@ -2,7 +2,7 @@
 // pages/settlement.js
 
 import { STATE, emit } from '../state.js';
-import { generateId, showConfirmModal, q } from '../utils.js';
+import { generateId, showConfirmModal, q, formatHome, getHomeCurrency, convertCurrency } from '../utils.js';
 
 export function renderSettlement() {
     const div = document.createElement('div');
@@ -40,7 +40,7 @@ export function renderSettlement() {
                 </div>
                 <div style="display: flex; gap: 16px; overflow-x: auto; padding-bottom: 12px; scroll-behavior: smooth; -webkit-overflow-scrolling: touch;">
                     ${STATE.trips.map(t => {
-            const total = (STATE.expenses.filter(e => e.tripId === t.id && e.isSettlement).reduce((sum, e) => sum + (e.euroValue || 0), 0)).toFixed(0);
+            const total = STATE.expenses.filter(e => e.tripId === t.id && e.isSettlement).reduce((sum, e) => sum + (e.euroValue || 0), 0);
             const isActive = t.id === tripId;
             return `
                             <div class="card glass settlement-trip-card ${isActive ? 'card-glow-blue' : ''}"
@@ -49,7 +49,7 @@ export function renderSettlement() {
                                 <div style="font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 800; margin-bottom: 6px; letter-spacing: 0.05em;">Adventure</div>
                                 <div style="font-weight: 700; font-size: 1.2rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 12px;">${t.name}</div>
                                 <div style="display: flex; align-items: center; justify-content: space-between;">
-                                    <div style="font-size: 1.3rem; font-weight: 800; color: ${isActive ? 'var(--accent-blue)' : 'white'};">€${total}</div>
+                                    <div style="font-size: 1.3rem; font-weight: 800; color: ${isActive ? 'var(--accent-blue)' : 'white'};">${formatHome(total, 'EUR')}</div>
                                     ${isActive ? '<div style="width: 8px; height: 8px; border-radius: 50%; background: var(--accent-blue);"></div>' : ''}
                                 </div>
                             </div>
@@ -168,7 +168,7 @@ export function renderSettlement() {
                                             </div>
                                         ` : ''}
                                         <div style="text-align: right; font-weight: 800; font-size: 1rem; color: ${bal > 0.01 ? '#34c759' : (bal < -0.01 ? '#ff3b30' : 'var(--text-secondary)')};">
-                                            ${bal > 0.01 ? '+' : ''}${bal.toFixed(0)}€
+                                            ${bal > 0.01 ? '+' : ''}${formatHome(bal, 'EUR')}
                                         </div>
                                     </div>
                                 `;
@@ -196,7 +196,7 @@ export function renderSettlement() {
                                 <tr>
                                     <td style="font-weight: 500;">${person}</td>
                                     <td style="text-align: right; color: ${bal >= 0 ? '#34c759' : '#ff3b30'}; font-weight: 700;">
-                                        ${bal >= 0 ? '+' : ''}${bal.toFixed(2)}€
+                                        ${bal >= 0 ? '+' : ''}${formatHome(bal, 'EUR')}
                                     </td>
                                 </tr>
                             `).join('')}
@@ -214,7 +214,7 @@ export function renderSettlement() {
                                         <span style="font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 700;">${d.from} pays</span>
                                         <div style="font-weight: 700; font-size: 1.1rem;">${d.to}</div>
                                     </div>
-                                    <div style="font-size: 1.1rem; font-weight: 700; color: var(--accent-blue);">€${d.amount.toFixed(2)}</div>
+                                    <div style="font-size: 1.1rem; font-weight: 700; color: var(--accent-blue);">${formatHome(d.amount, 'EUR')}</div>
                                 </div>
                                 <button class="btn btn-small settle-debt-btn" data-trip-id="${tripId}" data-from="${d.from}" data-to="${d.to}" data-amount="${d.amount}" style="background: var(--accent-blue); padding: 8px 16px; border-radius: 12px;">Settle</button>
                             </div>
@@ -239,15 +239,24 @@ export function renderSettlement() {
         div.innerHTML = buildSettlementUI(tripId);
     };
 
-    const settleDebt = (tripId, from, to, amount) => {
+    /**
+     * Record a settlement payment. Accepts the amount in any currency; we
+     * always store both the original (value/currency) and the EUR-equivalent
+     * (euroValue) so balances stay consistent regardless of the user's home
+     * currency. The "Settle" button on suggested payments still passes EUR
+     * directly (the suggestion is computed in EUR), so callers can opt into
+     * either currency without breaking the balance math.
+     */
+    const settleDebt = (tripId, from, to, amount, currency = 'EUR') => {
+        const euroValue = convertCurrency(amount, currency, 'EUR');
         /** @type {import('../types').Expense} */
         const settlementExp = {
             id: generateId(),
             tripId: tripId,
             label: `Settlement: ${from} → ${to}`,
             value: amount,
-            euroValue: amount,
-            currency: 'EUR',
+            euroValue: euroValue,
+            currency: currency,
             who: from,
             categoryId: STATE.categories[0]?.id ?? '',
             country: 'Settlement',
@@ -282,7 +291,7 @@ export function renderSettlement() {
                         <select id="manualSettleTo" class="glass-input" style="width: 100%; padding: 12px; border-radius: 12px; background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2);">${peopleOptions}</select>
                     </div>
                     <div>
-                        <label style="display: block; margin-bottom: 6px; font-size: 0.75rem; font-weight: 700; color: rgba(255,255,255,0.7); text-transform: uppercase;">Amount (€)</label>
+                        <label style="display: block; margin-bottom: 6px; font-size: 0.75rem; font-weight: 700; color: rgba(255,255,255,0.7); text-transform: uppercase;">Amount (${getHomeCurrency()})</label>
                         <input type="number" step="0.01" min="0.01" id="manualSettleAmount" class="glass-input" style="width: 100%; padding: 12px; border-radius: 12px; background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2);" placeholder="0.00" required>
                     </div>
 
@@ -301,12 +310,14 @@ export function renderSettlement() {
             const from = /** @type {HTMLSelectElement} */ (q(modal, '#manualSettleFrom')).value;
             const to = /** @type {HTMLSelectElement} */ (q(modal, '#manualSettleTo')).value;
             const amount = parseFloat(/** @type {HTMLInputElement} */ (q(modal, '#manualSettleAmount')).value);
-            
+
             if (from === to) {
                 alert('Sender and receiver must be different.');
                 return;
             }
-            settleDebt(tripId, from, to, amount);
+            // Manual entry is in the user's home currency; settleDebt converts
+            // to EUR internally so balance math stays in one canonical unit.
+            settleDebt(tripId, from, to, amount, getHomeCurrency());
             modal.remove();
         };
     };
@@ -328,7 +339,7 @@ export function renderSettlement() {
                         <div style="font-size: 0.8rem; color: rgba(255,255,255,0.7); margin-top: 4px;">${s.date}</div>
                     </div>
                     <div style="display: flex; align-items: center; gap: 16px;">
-                        <div style="font-size: 1.2rem; font-weight: 800; color: #34c759;">€${s.euroValue.toFixed(2)}</div>
+                        <div style="font-size: 1.2rem; font-weight: 800; color: #34c759;">${formatHome(s.euroValue, 'EUR')}</div>
                         <div style="display: flex; gap: 8px;">
                             <button class="btn btn-small edit-settlement-btn" data-settlement-id="${s.id}" style="background: rgba(255,255,255,0.1); padding: 8px 12px; border-radius: 8px; color: white; border: 1px solid rgba(255,255,255,0.2);">Edit</button>
                             <button class="btn btn-small unsettle-settlement-btn" data-settlement-id="${s.id}" data-trip-id="${tripId}" style="background: rgba(255,59,48,0.1); padding: 8px 12px; border-radius: 8px; color: #ff3b30; border: 1px solid rgba(255,59,48,0.2);">Unsettle</button>
@@ -413,8 +424,8 @@ export function renderSettlement() {
                         <select id="editSettleTo" class="glass-input" style="width: 100%; padding: 12px; border-radius: 12px; background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2);">${peopleOptionsTo}</select>
                     </div>
                     <div>
-                        <label style="display: block; margin-bottom: 6px; font-size: 0.75rem; font-weight: 700; color: rgba(255,255,255,0.7); text-transform: uppercase;">Amount (€)</label>
-                        <input type="number" step="0.01" min="0.01" id="editSettleAmount" value="${s.euroValue}" class="glass-input" style="width: 100%; padding: 12px; border-radius: 12px; background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2);" required>
+                        <label style="display: block; margin-bottom: 6px; font-size: 0.75rem; font-weight: 700; color: rgba(255,255,255,0.7); text-transform: uppercase;">Amount (${getHomeCurrency()})</label>
+                        <input type="number" step="0.01" min="0.01" id="editSettleAmount" value="${convertCurrency(s.euroValue, 'EUR', getHomeCurrency()).toFixed(2)}" class="glass-input" style="width: 100%; padding: 12px; border-radius: 12px; background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2);" required>
                     </div>
                     <div>
                         <label style="display: block; margin-bottom: 6px; font-size: 0.75rem; font-weight: 700; color: rgba(255,255,255,0.7); text-transform: uppercase;">Date</label>
@@ -443,10 +454,15 @@ export function renderSettlement() {
                 return;
             }
 
+            // Input is in the user's home currency; persist both the original
+            // (value/currency) and the EUR canonical form so balance math
+            // continues to work regardless of which currency was used.
+            const home = getHomeCurrency();
             s.who = from;
             s.splits = { [to]: 100 };
             s.value = amount;
-            s.euroValue = amount;
+            s.currency = home;
+            s.euroValue = convertCurrency(amount, home, 'EUR');
             s.date = date;
             s.label = `Settlement: ${from} → ${to}`;
             

@@ -1,7 +1,79 @@
 // @ts-check
 // src/utils.js
 
-import { TRAVEL_DATA_DEFAULT, DESTINATION_DATA } from './constants.js';
+import { TRAVEL_DATA_DEFAULT, DESTINATION_DATA, CONVERSION_RATES, CURRENCY_SYMBOLS, LOCALE_TO_CURRENCY } from './constants.js';
+import { STATE } from './state.js';
+
+// ── Home currency helpers ─────────────────────────────────────────────────
+// Display preference layered on top of the existing EUR-denominated storage.
+// All expenses still store {value, currency, euroValue}; these helpers just
+// translate at render time. Keep the storage model unchanged so we don't
+// have to migrate historical data when a user switches their home currency.
+
+/**
+ * Best-guess default home currency from the browser's locale region. EUR for
+ * regions we don't recognize (Eurozone is broad and EUR is the existing
+ * baseline). Used only when the user has never set one explicitly.
+ * @returns {string}
+ */
+export function detectHomeCurrency() {
+    try {
+        const lang = (typeof navigator !== 'undefined' && navigator.language) || 'en-US';
+        const region = lang.split('-')[1];
+        if (region && LOCALE_TO_CURRENCY[region.toUpperCase()]) {
+            return LOCALE_TO_CURRENCY[region.toUpperCase()];
+        }
+    } catch (_) { /* fall through */ }
+    return 'EUR';
+}
+
+/**
+ * Resolve the user's effective home currency. Reads STATE.user.homeCurrency
+ * if set, otherwise falls back to the locale-detected default. Always returns
+ * a valid 3-letter code present in CONVERSION_RATES.
+ * @returns {string}
+ */
+export function getHomeCurrency() {
+    const set = STATE.user && STATE.user.homeCurrency;
+    if (set && CONVERSION_RATES[set]) return set;
+    const detected = detectHomeCurrency();
+    return CONVERSION_RATES[detected] ? detected : 'EUR';
+}
+
+/**
+ * Convert an amount from one currency to another via the EUR-pivot table in
+ * CONVERSION_RATES. Direct conversion (not double-rounded through EUR display)
+ * by combining the two pivot rates in one multiplication.
+ * @param {number} amount
+ * @param {string} from
+ * @param {string} to
+ * @returns {number}
+ */
+export function convertCurrency(amount, from, to) {
+    if (from === to) return amount;
+    const fromRate = CONVERSION_RATES[from] || 1;  // 1 unit of `from` = X EUR
+    const toRate = CONVERSION_RATES[to] || 1;       // 1 unit of `to`   = Y EUR
+    return amount * fromRate / toRate;
+}
+
+/**
+ * Format an amount in the user's home currency with the right symbol and
+ * 2 decimals. Convenience wrapper used by every display site.
+ * @param {number} amount
+ * @param {string} from — original currency code of `amount`
+ * @returns {string}
+ */
+export function formatHome(amount, from = 'EUR') {
+    const home = getHomeCurrency();
+    const converted = convertCurrency(amount, from, home);
+    const sym = CURRENCY_SYMBOLS[home] || home + ' ';
+    return `${sym}${converted.toFixed(2)}`;
+}
+
+/** Symbol lookup for any code (€, $, £, …). Falls back to the code + space. */
+export function currencySymbol(code) {
+    return CURRENCY_SYMBOLS[code] || (code + ' ');
+}
 
 /**
  * @param {import('./types').Trip | null | undefined} trip

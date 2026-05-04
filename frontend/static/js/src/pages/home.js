@@ -3,11 +3,11 @@
 
 import { STATE, emit } from '../state.js';
 import { INSPIRATIONAL_PAIRS } from '../constants.js';
-import { getMediaForTrip, showLiquidAlert, formatDayDate, q } from '../utils.js';
-import { upsertDay, uploadMedia } from '../api.js';
+import { getMediaForTrip, showLiquidAlert, formatDayDate, q, showConfirmModal } from '../utils.js';
+import { upsertDay, uploadMedia, deleteDayOnServer, upsertTrip } from '../api.js';
 import { navigate } from '../router.js';
 import { showPersTab } from './settings.js';
-import { openNewTripModal, openAddDayModal } from '../modals.js';
+import { openNewTripModal, openAddDayModal, openEditTripModal } from '../modals.js';
 
 // Empty-state slideshow timer. Lives in this module; router.js calls
 // stopHomeSlideshow() on every navigate so the timer doesn't leak past home.
@@ -81,6 +81,45 @@ const deleteDayPin = async (dayId) => {
     navigate('home', null, true);
 };
 
+const deleteDay = (dayId) => {
+    const day = STATE.tripDays.find(d => d.id === dayId);
+    if (!day) return;
+
+    showConfirmModal({
+        title: `Delete Day ${day.dayNumber}?`,
+        message: "This removes the day and all its journaling, photos, and documents. This can't be undone.",
+        confirmText: "Delete Day",
+        onConfirm: async () => {
+            const tripId = day.tripId;
+
+            STATE.tripDays = STATE.tripDays.filter(d => d.id !== dayId);
+
+            // Renumber remaining days for this trip so dayNumber stays sequential.
+            // Sort defensively — render relies on dayNumber order, but the array
+            // itself isn't guaranteed to be sorted before this point.
+            STATE.tripDays
+                .filter(d => d.tripId === tripId)
+                .sort((a, b) => a.dayNumber - b.dayNumber)
+                .forEach((d, i) => { d.dayNumber = i + 1; });
+
+            if (openMenuDayId === dayId) openMenuDayId = null;
+            if (editingDayId === dayId) {
+                editingDayId = null;
+                activeMapClickListener = null;
+            }
+
+            emit('state:changed');
+            await deleteDayOnServer(dayId);
+            // Persist the renumbered survivors so server stays in sync.
+            await Promise.all(
+                STATE.tripDays.filter(d => d.tripId === tripId).map(d => upsertDay(d))
+            );
+            showLiquidAlert("Day deleted");
+            navigate('home', null, true);
+        }
+    });
+};
+
 export function renderHome() {
     const div = document.createElement('div');
     const activeTrip = (STATE.trips && STATE.activeTripId) ? STATE.trips.find(t => t.id === STATE.activeTripId) : null;
@@ -146,7 +185,7 @@ export function renderHome() {
                     <p id="homeQuote" style="font-size: 1.5rem; font-weight: 700; color: white; margin: 0; text-shadow: 0 2px 10px rgba(0,0,0,0.5); font-style: italic; transition: opacity 0.8s ease-in-out; max-width: 60%;">
                         ${displayQuotes[0] || ''}
                     </p>
-                    <button class="btn" id="homeCreateFirstTripBtn" style="background: var(--accent-blue); padding: 12px 24px; border-radius: 100px; box-shadow: 0 10px 20px rgba(0,113,227,0.3); font-weight: 700; font-size: 0.95rem;">Create First Trip</button>
+                    <button class="btn" id="homeCreateFirstTripBtn" style="background: var(--accent-blue); padding: 12px 24px; border-radius: 100px; box-shadow: 0 10px 20px rgba(0,113,227,0.3); font-weight: 700; font-size: 0.95rem;">Create Trips</button>
                 </div>
             </div>
         `;
@@ -194,9 +233,21 @@ export function renderHome() {
         setTimeout(() => {
             const mapContainer = document.getElementById('homeHeroMap');
             if (mapContainer && typeof google !== 'undefined' && google.maps && activeTrip) {
+                // New trips carry placeId + viewport directly; legacy trips
+                // only have `country` (sometimes "USA - California"). Build the
+                // free-text query for both Nominatim border lookup and the
+                // Geocoder fallback in one place.
                 const query = activeTrip.country || '';
-                const isUSState = query.includes(' - ');
-                const searchQuery = isUSState ? (query.split(' - ')[1] + ', USA') : query;
+                const isLegacyUSState = query.includes(' - ');
+                const searchQuery = isLegacyUSState ? (query.split(' - ')[1] + ', USA') : query;
+                const placeTypes = activeTrip.placeTypes || [];
+                // Address-level places (a specific building, address, or POI)
+                // have no meaningful admin polygon — skip the blue border for
+                // those and just zoom to the location.
+                const isAddressLevel = placeTypes.some(t =>
+                    t === 'street_address' || t === 'premise' || t === 'point_of_interest' ||
+                    t === 'establishment' || t === 'subpremise'
+                );
 
                 // Restore saved map view per trip
                 const tripMapKey = activeTrip ? activeTrip.id : null;
@@ -288,56 +339,123 @@ export function renderHome() {
 
                 // --- BULLETPROOF BORDER & ZOOM ---
                 const cleanQuery = searchQuery.trim();
-                console.log("Map Init: Target ->", cleanQuery);
 
-                // 1. Google Geocoder for Precision Zoom
-                const geocoder = new google.maps.Geocoder();
-                geocoder.geocode({ address: cleanQuery }, (results, status) => {
-                    if (status === "OK" && results[0]) {
-                        const bounds = results[0].geometry.viewport;
+                // 1. Precision Zoom — only run when there's no saved view
+                //    for this trip. Otherwise the user's last pan/zoom would
+                //    be overridden every time they navigate back to the page.
+                //    For trips with a stored viewport: use it directly (zero
+                //    API calls). For legacy trips: Geocoder + persist result
+                //    so the next render skips the lookup.
+                if (!savedMapView) {
+                    if (activeTrip.viewport) {
+                        const v = activeTrip.viewport;
+                        const bounds = new google.maps.LatLngBounds(
+                            { lat: v.south, lng: v.west },
+                            { lat: v.north, lng: v.east },
+                        );
                         google.maps.event.addListenerOnce(map, 'tilesloaded', () => {
                             map.fitBounds(bounds);
                         });
-                    }
-                });
-
-                // 2. Nominatim for the Blue Border (with proper GeoJSON wrapping)
-                const nominatimUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(cleanQuery)}&format=json&limit=1&polygon_geojson=1`;
-                fetch(nominatimUrl, { headers: { 'User-Agent': 'TheGreatGetaway/1.2' } })
-                .then(res => res.json())
-                .then(data => {
-                    if (data && data[0] && data[0].geojson) {
-                        const geometry = data[0].geojson;
-                        
-                        // Wrap the raw geometry in a proper GeoJSON Feature object
-                        const geoJsonFeature = {
-                            type: "Feature",
-                            geometry: geometry,
-                            properties: { name: cleanQuery }
-                        };
-                        
-                        // Clear existing and add new feature
-                        map.data.forEach(f => map.data.remove(f));
-                        map.data.addGeoJson(geoJsonFeature);
-                        
-                        // Apply robust styling
-                        map.data.setStyle({
-                            fillColor: 'transparent',
-                            fillOpacity: 0,
-                            strokeColor: '#007aff',
-                            strokeWeight: 2.2,
-                            strokeOpacity: 0.9,
-                            visible: true,
-                            clickable: false
-                        });
-                        console.log("Border successfully applied for:", cleanQuery);
                     } else {
-                        console.warn("Nominatim: Geometry not found for", cleanQuery);
+                        const geocoder = new google.maps.Geocoder();
+                        geocoder.geocode({ address: cleanQuery }, (results, status) => {
+                            if (status === "OK" && results[0]) {
+                                const bounds = results[0].geometry.viewport;
+                                google.maps.event.addListenerOnce(map, 'tilesloaded', () => {
+                                    map.fitBounds(bounds);
+                                });
+                                // Backfill: persist the geocoded viewport + center
+                                // so this trip stops needing the geocoder on every
+                                // render. Only writes once (next load short-circuits).
+                                const sw = bounds.getSouthWest();
+                                const ne = bounds.getNorthEast();
+                                const center = results[0].geometry.location;
+                                activeTrip.lat = center.lat();
+                                activeTrip.lng = center.lng();
+                                activeTrip.viewport = {
+                                    south: sw.lat(), west: sw.lng(),
+                                    north: ne.lat(), east: ne.lng(),
+                                };
+                                upsertTrip(activeTrip);
+                            }
+                        });
                     }
-                })
-                .catch(err => console.error("Border fetch failed:", err));
+                }
 
-                // 3. Selective Labels (Overpass)
+                // 2. Nominatim for the Blue Border. Skipped for address/POI
+                //    places — there's no meaningful polygon for "100 Main St."
+                if (!isAddressLevel) {
+                // Border lookup. Two-stage strategy:
+                //   (a) Forward search by name — works for places with a clean
+                //       polygon in OSM (countries, big cities, regions).
+                //   (b) If forward fails, switch to *reverse* geocoding at the
+                //       trip's coordinates with progressively coarser zoom.
+                //       This is more reliable than walking comma-separated
+                //       address parts: small towns (e.g. "Castro Marim,
+                //       Portugal") have a 2-part formatted_address with
+                //       nothing between the town and the country, but reverse
+                //       at zoom 8 returns the surrounding *region* polygon.
+                //
+                //   Zoom level → Nominatim feature class:
+                //     12  town/borough        10  city/county
+                //      8  state/region         6  country
+                const applyBorder = (geometry) => {
+                    map.data.forEach(f => map.data.remove(f));
+                    map.data.addGeoJson({ type: "Feature", geometry, properties: {} });
+                    map.data.setStyle({
+                        fillColor: 'transparent',
+                        fillOpacity: 0,
+                        strokeColor: '#007aff',
+                        strokeWeight: 2.2,
+                        strokeOpacity: 0.9,
+                        visible: true,
+                        clickable: false,
+                    });
+                };
+
+                const headers = { 'User-Agent': 'TheGreatGetaway/1.2' };
+                (async () => {
+                    // Stage A: forward search with the picked place name.
+                    try {
+                        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(cleanQuery)}&format=json&limit=1&polygon_geojson=1`;
+                        const data = await fetch(url, { headers }).then(r => r.json());
+                        const geom = data && data[0] && data[0].geojson;
+                        if (geom && geom.type !== 'Point') {
+                            applyBorder(geom);
+                            return;
+                        }
+                    } catch (err) {
+                        console.error("Border forward search failed:", err);
+                    }
+
+                    // Stage B: reverse geocode at finer-to-coarser zoom levels
+                    // until something returns a real polygon. Skip if we lack
+                    // coords (legacy trip pre-Places migration that hasn't been
+                    // backfilled yet — the geocoder backfill above will fix it
+                    // on the next render).
+                    const lat = activeTrip.lat, lng = activeTrip.lng;
+                    if (typeof lat !== 'number' || typeof lng !== 'number') {
+                        console.warn("Border: no coords for reverse fallback on", cleanQuery);
+                        return;
+                    }
+                    for (const zoom of [12, 10, 8, 6]) {
+                        try {
+                            const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&zoom=${zoom}&format=json&polygon_geojson=1`;
+                            const data = await fetch(url, { headers }).then(r => r.json());
+                            const geom = data && data.geojson;
+                            if (geom && geom.type !== 'Point') {
+                                applyBorder(geom);
+                                return;
+                            }
+                        } catch (err) {
+                            console.error(`Border reverse@${zoom} failed:`, err);
+                        }
+                    }
+                    console.warn("Border: no polygon at any zoom for", cleanQuery);
+                })();
+
+                // 3. Selective Labels (Overpass) — also gated by isAddressLevel
+                //    since a single building has no city labels worth painting.
                 fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(cleanQuery)}&format=json&limit=1`)
                 .then(r => r.json())
                 .then(d => {
@@ -379,6 +497,7 @@ export function renderHome() {
                         }
                     }
                 });
+                } // end if (!isAddressLevel) — wraps blocks 2 and 3
             }
         }, 100);
     }
@@ -449,14 +568,21 @@ export function renderHome() {
 
     tripDays.sort((a, b) => a.dayNumber - b.dayNumber);
 
+    const tripTitle = (activeTrip && activeTrip.name) ? activeTrip.name : 'Your Journey';
+
     daysContainer.innerHTML = `
         <div style="display: flex; flex-direction: column; margin-bottom: 24px;">
-            <div style="display: flex; align-items: center; justify-content: space-between;">
-                <h2 style="font-size: 1.8rem; letter-spacing: -0.03em; margin: 0; font-weight: 800; color: #002d5b;">Your Journey</h2>
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <h2 style="font-size: 1.8rem; letter-spacing: -0.03em; margin: 0; font-weight: 800; color: #002d5b;">${tripTitle}</h2>
+                ${activeTrip ? `
+                    <button id="editTripBtn" title="Edit trip name and location" style="display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0; border-radius: 10px; border: 1px solid rgba(0,0,0,0.06); background: rgba(0,0,0,0.03); color: #002d5b; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='rgba(0,113,227,0.08)'; this.style.borderColor='rgba(0,113,227,0.2)'; this.style.color='var(--accent-blue)';" onmouseout="this.style.background='rgba(0,0,0,0.03)'; this.style.borderColor='rgba(0,0,0,0.06)'; this.style.color='#002d5b';">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                    </button>
+                ` : ''}
             </div>
             <p style="font-size: 0.95rem; color: var(--text-secondary); margin: 6px 0 0; font-weight: 500;">${tripDays.length} Day${tripDays.length !== 1 ? 's' : ''} of adventure</p>
         </div>
-        
+
         <div style="display: flex; flex-direction: column; gap: 32px; position: relative; padding-left: 20px;">
             <!-- Subtle Timeline Line -->
             <div style="position: absolute; left: 10px; top: 10px; bottom: 10px; width: 2px; background: linear-gradient(180deg, var(--accent-blue) 0%, rgba(0,113,227,0.05) 100%); border-radius: 1px; opacity: 0.3;"></div>
@@ -464,12 +590,14 @@ export function renderHome() {
             ${tripDays.map(day => {
                 const isOpen = openMenuDayId === day.id;
                 return `
-                <div style="display: flex; align-items: flex-start; gap: 24px; position: relative;">
+                <div style="display: flex; align-items: flex-start; gap: ${isOpen ? '24px' : '0'}; position: relative; transition: gap 0.4s cubic-bezier(0.16, 1, 0.3, 1);">
                     <!-- Timeline Dot -->
                     <div style="position: absolute; left: -14px; top: 22px; width: 10px; height: 10px; border-radius: 50%; background: ${isOpen ? 'var(--accent-blue)' : 'white'}; border: 2px solid var(--accent-blue); z-index: 2; box-shadow: 0 0 0 4px white;"></div>
-                    
-                    <!-- LEFT SPACE MENU -->
-                    <div style="width: 200px; min-width: 200px; opacity: ${isOpen ? 1 : 0}; transform: translateX(${isOpen ? '0' : '-20px'}); transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); pointer-events: ${isOpen ? 'auto' : 'none'}; display: flex; flex-direction: column; gap: 8px; padding-top: 4px;">
+
+                    <!-- LEFT SPACE MENU — collapses both width AND height to 0 when closed.
+                         (Width alone isn't enough: flex column children still stack to their
+                         natural height, which would inflate the row and leave a vertical gap.) -->
+                    <div style="width: ${isOpen ? '200px' : '0'}; min-width: ${isOpen ? '200px' : '0'}; max-height: ${isOpen ? '500px' : '0'}; opacity: ${isOpen ? 1 : 0}; transform: translateX(${isOpen ? '0' : '-20px'}); transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1), min-width 0.4s cubic-bezier(0.16, 1, 0.3, 1), max-height 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1), transform 0.4s cubic-bezier(0.16, 1, 0.3, 1); pointer-events: ${isOpen ? 'auto' : 'none'}; overflow: hidden; display: flex; flex-direction: column; gap: 8px; padding-top: ${isOpen ? '4px' : '0'};">
                         <div style="font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent-blue); margin-bottom: 4px; padding-left: 12px;">Actions</div>
                         
                         ${editingDayId === day.id ? `
@@ -493,6 +621,10 @@ export function renderHome() {
 
                         <button class="day-documents-btn" data-day-id="${day.id}" style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 12px; border: none; background: rgba(0,0,0,0.03); color: #002d5b; font-size: 0.85rem; font-weight: 700; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='rgba(0,0,0,0.06)';" onmouseout="this.style.background='rgba(0,0,0,0.03)';">
                             <span>📄 Documents</span>
+                        </button>
+
+                        <button class="day-delete-btn" data-day-id="${day.id}" style="margin-top: 4px; display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 12px; border: none; background: rgba(255,59,48,0.06); color: #ff3b30; font-size: 0.85rem; font-weight: 700; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='rgba(255,59,48,0.12)';" onmouseout="this.style.background='rgba(255,59,48,0.06)';">
+                            <span>🗑️ Delete Day</span>
                         </button>
                     </div>
 
@@ -557,6 +689,9 @@ export function renderHome() {
             const target = /** @type {HTMLElement | null} */ (e.target);
             if (!target) return;
 
+            // Edit-trip pencil — sits at the top of daysContainer, no per-day data.
+            if (target.closest('#editTripBtn')) { openEditTripModal(activeTrip); return; }
+
             const saveBtn = /** @type {HTMLElement | null} */ (target.closest('.day-pin-save-btn'));
             if (saveBtn?.dataset.dayId) { saveDayPin(saveBtn.dataset.dayId); return; }
 
@@ -580,6 +715,9 @@ export function renderHome() {
 
             const docsBtn = /** @type {HTMLElement | null} */ (target.closest('.day-documents-btn'));
             if (docsBtn?.dataset.dayId) { openDocumentsModal(docsBtn.dataset.dayId); return; }
+
+            const delDayBtn = /** @type {HTMLElement | null} */ (target.closest('.day-delete-btn'));
+            if (delDayBtn?.dataset.dayId) { deleteDay(delDayBtn.dataset.dayId); return; }
 
             const detailBtn = /** @type {HTMLElement | null} */ (target.closest('.day-detail-btn'));
             if (detailBtn?.dataset.dayId) { openDayDetail(detailBtn.dataset.dayId); return; }

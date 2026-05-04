@@ -76,6 +76,20 @@ function archiveActiveTrip() {
     const trip = STATE.trips.find(t => t.id === STATE.activeTripId);
     if (!trip) return;
 
+    // Archived trips live in the user's collections on the server. Without a
+    // logged-in user, the archive would attach to whichever profile signs in
+    // next — silently polluting their collection. Block at the boundary.
+    if (!STATE.user) {
+        showConfirmModal({
+            title: "Log In to Archive",
+            message: "Archived trips live in your profile's collections, so you need to be logged in to archive a trip.",
+            confirmText: "Log In",
+            confirmColor: "#0071e3",
+            onConfirm: () => navigate('profile')
+        });
+        return;
+    }
+
     showConfirmModal({
         title: "Archive Trip?",
         message: "This will move the trip to your collections and lock editing.",
