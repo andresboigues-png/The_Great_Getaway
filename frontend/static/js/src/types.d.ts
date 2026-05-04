@@ -71,6 +71,11 @@ export interface Trip {
      *  The map render branches on these — address-level types skip the
      *  blue border since OSM has no admin polygon for a single building. */
     placeTypes?: string[];
+    /** ISO 3166-1 alpha-2 country code (e.g. 'FR', 'PT'). Locale-invariant
+     *  by construction — extracted from address_components.country.short_name
+     *  on pick. Used by getMediaForTrip to map back to the English-keyed
+     *  destination dataset regardless of the user's browser language. */
+    countryCode?: string | null;
 }
 
 export interface TripDay {

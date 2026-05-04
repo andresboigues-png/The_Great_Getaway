@@ -52,6 +52,7 @@ def init_db():
                 lng REAL,
                 viewport_json TEXT,
                 place_types TEXT,
+                country_code TEXT,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY(user_id) REFERENCES users(id)
             )
@@ -73,6 +74,11 @@ def init_db():
             ("lng", "ALTER TABLE trips ADD COLUMN lng REAL"),
             ("viewport_json", "ALTER TABLE trips ADD COLUMN viewport_json TEXT"),
             ("place_types", "ALTER TABLE trips ADD COLUMN place_types TEXT"),
+            # ISO 3166-1 alpha-2 country code (e.g. "FR", "PT", "US"). Stable
+            # across UI languages — Google's `formatted_address` localizes to
+            # the user's locale ("Paris, França") so name-based dataset lookup
+            # would miss for non-English users; the ISO code never localizes.
+            ("country_code", "ALTER TABLE trips ADD COLUMN country_code TEXT"),
         ]:
             try:
                 cursor.execute(ddl)

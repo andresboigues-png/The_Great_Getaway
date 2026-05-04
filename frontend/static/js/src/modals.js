@@ -12,7 +12,8 @@ import { navigate } from './router.js';
 /**
  * @typedef {{ placeId: string, name: string, lat: number, lng: number,
  *             viewport: {south:number,west:number,north:number,east:number}|null,
- *             types: string[] }} PickedPlace
+ *             types: string[],
+ *             countryCode: string|null }} PickedPlace
  */
 
 /**
@@ -73,7 +74,7 @@ function _wirePlacePicker({ placeInput, hint, submitBtn, initialPlace = null }) 
         placeInput.oninput = () => {
             const val = placeInput.value.trim();
             if (val.length > 1) {
-                setPicked({ placeId: '', name: val, lat: 0, lng: 0, viewport: null, types: [] });
+                setPicked({ placeId: '', name: val, lat: 0, lng: 0, viewport: null, types: [], countryCode: null });
             } else {
                 setPicked(null);
             }
@@ -83,7 +84,11 @@ function _wirePlacePicker({ placeInput, hint, submitBtn, initialPlace = null }) 
 
     // @ts-ignore
     const autocomplete = new google.maps.places.Autocomplete(placeInput, {
-        fields: ['place_id', 'name', 'formatted_address', 'geometry', 'types'],
+        // address_components is needed to extract the ISO country code — the
+        // `formatted_address` we save into trip.country is localized to the
+        // user's browser language ("Paris, França" for a Portuguese locale),
+        // which would defeat name-based matching against our English dataset.
+        fields: ['place_id', 'name', 'formatted_address', 'geometry', 'types', 'address_components'],
     });
     autocomplete.addListener('place_changed', () => {
         const place = autocomplete.getPlace();
@@ -93,6 +98,10 @@ function _wirePlacePicker({ placeInput, hint, submitBtn, initialPlace = null }) 
         }
         const loc = place.geometry.location;
         const vp = place.geometry.viewport;
+        // The country component's short_name is the ISO 3166-1 alpha-2 code
+        // ("FR", "PT", "US") — locale-invariant by definition.
+        const countryComp = (place.address_components || []).find(c => (c.types || []).includes('country'));
+        const countryCode = countryComp ? (countryComp.short_name || null) : null;
         setPicked({
             placeId: place.place_id || '',
             name: place.formatted_address || place.name || placeInput.value,
@@ -105,6 +114,7 @@ function _wirePlacePicker({ placeInput, hint, submitBtn, initialPlace = null }) 
                 east: vp.getNorthEast().lng(),
             } : null,
             types: place.types || [],
+            countryCode,
         });
     });
     // If the user edits the input after picking, invalidate so the place data
@@ -174,6 +184,7 @@ export const openNewTripModal = () => {
             lng: pickedPlace.lng,
             viewport: pickedPlace.viewport,
             placeTypes: pickedPlace.types,
+            countryCode: pickedPlace.countryCode,
             budget: 0,
             isArchived: false,
         };
@@ -244,6 +255,7 @@ export const openEditTripModal = (trip) => {
             lng: trip.lng || 0,
             viewport: trip.viewport || null,
             types: trip.placeTypes || [],
+            countryCode: trip.countryCode || null,
         }
         : null;
 
@@ -273,6 +285,7 @@ export const openEditTripModal = (trip) => {
         trip.lng = picked.lng;
         trip.viewport = picked.viewport;
         trip.placeTypes = picked.types;
+        trip.countryCode = picked.countryCode;
 
         // Saved pan/zoom is keyed by trip id and reflects the OLD location's
         // map view — clear it so the map re-zooms to the new viewport on

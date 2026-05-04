@@ -79,6 +79,8 @@ export function currencySymbol(code) {
 // `formatted_address` gives us "United States" but the dataset is keyed
 // "Usa"; users may also mix casing themselves. Lowercase keys + a tiny
 // alias table handle both without forcing the dataset to be re-keyed.
+// Also covers the truncated dataset keys (e.g. the entry for Burkina Faso
+// is keyed "Burkina") so a lookup of the full English name still hits.
 const DEST_ALIASES = {
     'united states': 'Usa',
     'united states of america': 'Usa',
@@ -87,7 +89,20 @@ const DEST_ALIASES = {
     'united kingdom': 'UK',
     'uk': 'UK',
     'great britain': 'UK',
-    'czechia': 'Czech Republic',
+    'united arab emirates': 'UAE',
+    'czechia': 'Czech',
+    'czech republic': 'Czech',
+    'burkina faso': 'Burkina',
+    'cabo verde': 'Cabo',
+    'cape verde': 'Cabo',
+    'dominican republic': 'Dominican',
+    'equatorial guinea': 'Equatorial',
+    'marshall islands': 'Marshall',
+    'saint vincent and the grenadines': 'Saint Vincent',
+    'st. vincent and the grenadines': 'Saint Vincent',
+    'saint kitts and nevis': 'Saint Kitts And Nevis',
+    'st. kitts and nevis': 'Saint Kitts And Nevis',
+    'sao tome and principe': 'Sao Tome And Principe',
 };
 const _destLookup = (() => {
     /** @type {Record<string, string>} */
@@ -100,6 +115,39 @@ const _destLookup = (() => {
     }
     return map;
 })();
+
+// `Intl.DisplayNames` is browser-native (Chrome 81+, Safari 14.1+, Firefox 86+)
+// and converts an ISO country code → English country name without us shipping
+// a 195-entry mapping table. Cached at module load.
+const _isoToEnglish = (() => {
+    try {
+        // @ts-ignore — Intl.DisplayNames is in lib.es2020+.
+        return new Intl.DisplayNames(['en'], { type: 'region' });
+    } catch (_) {
+        return null;
+    }
+})();
+
+/**
+ * Map an ISO 3166-1 alpha-2 country code (set on the trip when the user
+ * picked the place via Google Places) to a DESTINATION_DATA entry. Locale-
+ * invariant — works regardless of the user's browser language.
+ *
+ * @param {string | null | undefined} countryCode
+ * @returns {{ q: string, i: string, f: string } | null}
+ */
+function resolveByCountryCode(countryCode) {
+    if (!countryCode || !_isoToEnglish) return null;
+    let englishName;
+    try {
+        englishName = _isoToEnglish.of(countryCode.toUpperCase());
+    } catch (_) {
+        return null;
+    }
+    if (!englishName) return null;
+    const key = _destLookup[englishName.toLowerCase()];
+    return key ? DESTINATION_DATA[key] : null;
+}
 
 /**
  * Resolve a `trip.country` string to a DESTINATION_DATA entry by walking the
@@ -141,7 +189,10 @@ export function getMediaForTrip(trip) {
     if (!trip) return { quotes: [TRAVEL_DATA_DEFAULT.q], images: [`https://images.unsplash.com/photo-${TRAVEL_DATA_DEFAULT.i}?auto=format&fit=crop&w=1600&q=80`], facts: [TRAVEL_DATA_DEFAULT.f] };
 
     const countryStr = trip.country || '';
-    let data = resolveDestinationData(countryStr);
+    // ISO code lookup runs first — it's locale-invariant, so a Portuguese
+    // user picking "Paris, França" still hits the France entry. Falls back
+    // to name-based comma walk for legacy trips that pre-date countryCode.
+    let data = resolveByCountryCode(trip.countryCode) || resolveDestinationData(countryStr);
 
     if (!data) {
         // Pick a friendlier label than the full place string for the
