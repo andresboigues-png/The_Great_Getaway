@@ -141,6 +141,11 @@ export function renderUpload() {
                 <div id="popularFormatTableContainer" style="margin-top: 16px; overflow-x: auto; background: white; border-radius: 8px; border: 1px solid rgba(0,0,0,0.05);"></div>
             </div>
 
+            <div style="padding: 12px 16px; background: rgba(0,113,227,0.05); border: 1px solid rgba(0,113,227,0.15); border-radius: 12px; margin-bottom: 15px;">
+                <p style="margin: 0; font-size: 0.82rem; color: var(--accent-blue); font-weight: 600;">📅 Date format</p>
+                <p style="margin: 4px 0 0; font-size: 0.8rem; color: var(--text-secondary); line-height: 1.5;">Use <strong>DD-MM-YYYY</strong> (e.g. <code style="background: rgba(0,0,0,0.04); padding: 1px 6px; border-radius: 4px;">15-03-2024</code>) or <strong>YYYY-MM-DD</strong>. Excel-typed date cells are recognised automatically.</p>
+            </div>
+
             <input type="file" id="excelFile" accept=".xlsx, .xls, .csv" class="glass-input" style="margin-bottom: 15px; width: 100%;">
             
             <div id="previewContainer" style="display: none; margin-bottom: 15px;">

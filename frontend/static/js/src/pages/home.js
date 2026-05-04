@@ -399,9 +399,8 @@ export function renderHome() {
                 //   Zoom level → Nominatim feature class:
                 //     12  town/borough        10  city/county
                 //      8  state/region         6  country
-                const applyBorder = (geometry) => {
-                    map.data.forEach(f => map.data.remove(f));
-                    map.data.addGeoJson({ type: "Feature", geometry, properties: {} });
+                // Border styling — applied once after every Feature is added.
+                const applyBorderStyle = () => {
                     map.data.setStyle({
                         fillColor: 'transparent',
                         fillOpacity: 0,
@@ -413,11 +412,13 @@ export function renderHome() {
                     });
                 };
 
-                // Collect every point that ought to fall inside the border:
-                // the trip's place itself, plus any day pins. We grow the
-                // border to the smallest admin polygon that contains all of
-                // these — pin a day in Lisbon on a Castro-Marim trip and the
-                // border bumps up from Algarve to Portugal automatically.
+                // Collect every pin we want covered by a border: the trip's
+                // place + any day pins. When pins span multiple admin regions
+                // (e.g. a Castro Marim trip with a day pinned across the
+                // border in Spain), we render *one polygon per region* so
+                // the user sees both areas highlighted instead of trying
+                // to find a single zone that doesn't exist (no admin
+                // polygon spans the Portugal-Spain border).
                 /** @type {{lat:number,lng:number}[]} */
                 const pinsToContain = [];
                 if (typeof activeTrip.lat === 'number' && typeof activeTrip.lng === 'number') {
@@ -430,79 +431,127 @@ export function renderHome() {
                     }
                 }
 
-                /** Nominatim returns boundingbox as ["south","north","west","east"]
-                 *  strings. Test whether every pin is inside that box. Bbox is a
-                 *  reasonable proxy for "inside polygon" — false positives only
-                 *  for concave polygons where a pin sits inside the bbox but
-                 *  outside the actual coastline, and even then we just over-
-                 *  shoot to a slightly bigger polygon, never under-shoot. */
-                const bboxContainsAll = (boundingbox) => {
-                    if (!boundingbox || boundingbox.length !== 4) return false;
-                    const [s, n, w, e] = boundingbox.map(parseFloat);
-                    if ([s, n, w, e].some(isNaN)) return false;
-                    return pinsToContain.every(p =>
-                        p.lat >= s && p.lat <= n && p.lng >= w && p.lng <= e
-                    );
+                /** Ray-cast a {lat, lng} point against a [lng, lat] ring. True if
+                 *  inside or on the boundary. Standard even-odd rule. */
+                const pointInRing = (point, ring) => {
+                    const x = point.lng, y = point.lat;
+                    let inside = false;
+                    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+                        const xi = ring[i][0], yi = ring[i][1];
+                        const xj = ring[j][0], yj = ring[j][1];
+                        const intersect = ((yi > y) !== (yj > y))
+                            && (x < ((xj - xi) * (y - yi)) / ((yj - yi) || 1e-12) + xi);
+                        if (intersect) inside = !inside;
+                    }
+                    return inside;
+                };
+                /** Test whether a {lat, lng} sits inside a Nominatim GeoJSON
+                 *  geometry. Handles Polygon (single outer ring + holes) and
+                 *  MultiPolygon (array of polygons). Holes are subtracted. */
+                const pointInGeometry = (point, geom) => {
+                    if (!geom) return false;
+                    const polygons = geom.type === 'MultiPolygon'
+                        ? geom.coordinates
+                        : geom.type === 'Polygon' ? [geom.coordinates] : [];
+                    for (const poly of polygons) {
+                        const [outer, ...holes] = poly;
+                        if (!outer) continue;
+                        if (pointInRing(point, outer)) {
+                            // Inside the outer ring — make sure we're not inside a hole.
+                            const inHole = holes.some(h => pointInRing(point, h));
+                            if (!inHole) return true;
+                        }
+                    }
+                    return false;
                 };
 
                 const headers = { 'User-Agent': 'TheGreatGetaway/1.2' };
-                (async () => {
-                    // Each candidate is { geom, bbox }; we apply the first one
-                    // whose bbox contains every pin. If none qualifies, we
-                    // fall back to the largest candidate so the user sees
-                    // *some* border instead of nothing.
-                    /** @type {{geom: any, bbox: string[]}[]} */
-                    const candidates = [];
+                /** Smallest admin polygon containing this pin. Walks reverse-
+                 *  geocode zoom levels finest → coarsest, returns the first
+                 *  hit + its osm identifier (for dedupe across pins). */
+                const fetchSmallestRegion = async (lat, lng) => {
+                    for (const zoom of [10, 8, 6]) {
+                        try {
+                            const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&zoom=${zoom}&format=json&polygon_geojson=1`;
+                            const data = await fetch(url, { headers }).then(r => r.json());
+                            if (data && data.geojson && data.geojson.type !== 'Point') {
+                                return {
+                                    geom: data.geojson,
+                                    osmKey: `${data.osm_type}/${data.osm_id}`,
+                                };
+                            }
+                        } catch (err) {
+                            console.error(`Region reverse@${zoom} failed:`, err);
+                        }
+                    }
+                    return null;
+                };
 
-                    // Stage A: forward search with the picked place name.
+                (async () => {
+                    // Step 1: try a forward search by the trip's name. For
+                    // country/region/city trips this gives a precise polygon
+                    // in one call (cheaper than reverse-geocoding when it
+                    // works). For small towns it usually misses — that's
+                    // fine, step 3 will recover via reverse geocoding at the
+                    // trip's coordinates.
+                    /** @type {{geom: any, osmKey: string}[]} */
+                    const regions = [];
+                    /** @type {Set<string>} */
+                    const seen = new Set();
+                    const addRegion = (region) => {
+                        if (!region || seen.has(region.osmKey)) return;
+                        seen.add(region.osmKey);
+                        regions.push(region);
+                    };
+
+                    let primaryGeom = null;
                     try {
                         const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(cleanQuery)}&format=json&limit=1&polygon_geojson=1`;
                         const data = await fetch(url, { headers }).then(r => r.json());
                         const hit = data && data[0];
                         if (hit && hit.geojson && hit.geojson.type !== 'Point') {
-                            if (pinsToContain.length === 0 || bboxContainsAll(hit.boundingbox)) {
-                                applyBorder(hit.geojson);
-                                return;
-                            }
-                            candidates.push({ geom: hit.geojson, bbox: hit.boundingbox });
+                            primaryGeom = hit.geojson;
+                            addRegion({ geom: hit.geojson, osmKey: `${hit.osm_type}/${hit.osm_id}` });
                         }
                     } catch (err) {
                         console.error("Border forward search failed:", err);
                     }
 
-                    // Stage B: reverse geocode at finer-to-coarser zoom levels.
-                    // Skip if we lack coords (legacy trip pre-Places migration
-                    // — the geocoder backfill above will fix it on the next
-                    // render).
-                    const lat = activeTrip.lat, lng = activeTrip.lng;
-                    if (typeof lat !== 'number' || typeof lng !== 'number') {
-                        if (candidates.length > 0) applyBorder(candidates[candidates.length - 1].geom);
-                        else console.warn("Border: no coords for reverse fallback on", cleanQuery);
-                        return;
-                    }
-                    for (const zoom of [12, 10, 8, 6]) {
-                        try {
-                            const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&zoom=${zoom}&format=json&polygon_geojson=1`;
-                            const data = await fetch(url, { headers }).then(r => r.json());
-                            if (data && data.geojson && data.geojson.type !== 'Point') {
-                                if (pinsToContain.length === 0 || bboxContainsAll(data.boundingbox)) {
-                                    applyBorder(data.geojson);
-                                    return;
-                                }
-                                candidates.push({ geom: data.geojson, bbox: data.boundingbox });
-                            }
-                        } catch (err) {
-                            console.error(`Border reverse@${zoom} failed:`, err);
+                    // Step 2: any day pin that's *actually* outside the
+                    // primary polygon (ray-cast, not bbox — bbox false-
+                    // positives cross country borders along straight bbox
+                    // edges) gets its own region added.
+                    for (const pin of pinsToContain) {
+                        if (primaryGeom && pointInGeometry(pin, primaryGeom)) continue;
+                        const region = await fetchSmallestRegion(pin.lat, pin.lng);
+                        if (region) {
+                            // Skip pins already inside an already-added region.
+                            if (regions.some(r => pointInGeometry(pin, r.geom))) continue;
+                            addRegion(region);
                         }
                     }
-                    // Nothing strictly contained all pins (e.g. user pinned a
-                    // day on the opposite side of the planet). Use the largest
-                    // candidate so they still see *a* border.
-                    if (candidates.length > 0) {
-                        applyBorder(candidates[candidates.length - 1].geom);
-                    } else {
-                        console.warn("Border: no polygon at any zoom for", cleanQuery);
+
+                    // Step 3: if the forward search whiffed AND we ended up
+                    // with no regions at all (rare — happens when both the
+                    // forward search fails *and* we have no coords yet),
+                    // do one reverse geocode at the trip center as a final
+                    // fallback so the user always sees *some* border.
+                    if (regions.length === 0
+                        && typeof activeTrip.lat === 'number'
+                        && typeof activeTrip.lng === 'number') {
+                        const fallback = await fetchSmallestRegion(activeTrip.lat, activeTrip.lng);
+                        addRegion(fallback);
                     }
+
+                    if (regions.length === 0) {
+                        console.warn("Border: no polygon found for", cleanQuery);
+                        return;
+                    }
+                    map.data.forEach(f => map.data.remove(f));
+                    for (const r of regions) {
+                        map.data.addGeoJson({ type: 'Feature', geometry: r.geom, properties: {} });
+                    }
+                    applyBorderStyle();
                 })();
 
                 // 3. Selective Labels (Overpass) — also gated by isAddressLevel
