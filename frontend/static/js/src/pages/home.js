@@ -586,6 +586,21 @@ export function renderHome() {
                     return null;
                 };
 
+                /** Build a rectangle Polygon from the viewport bbox — used
+                 *  as a always-works fallback when Nominatim is unreachable
+                 *  (rate-limited, blocked, offline). Coordinates in [lng, lat]
+                 *  order per GeoJSON, ring closed. */
+                const rectFromViewport = (v) => ({
+                    type: 'Polygon',
+                    coordinates: [[
+                        [v.west, v.south],
+                        [v.east, v.south],
+                        [v.east, v.north],
+                        [v.west, v.north],
+                        [v.west, v.south],
+                    ]],
+                });
+
                 (async () => {
                     console.log('[Border] start; query=', cleanQuery,
                                 'lat=', activeTrip.lat, 'lng=', activeTrip.lng,
@@ -622,12 +637,25 @@ export function renderHome() {
                         drawnKeys.add(primary.osmKey);
                         drawnGeoms.push(primary.geom);
                         addDiscoveredCountry(primary.countryCode);
+                    } else if (activeTrip.viewport) {
+                        // Step 2b: Nominatim is unreachable (rate-limited,
+                        // blocked, etc.). Draw the trip's viewport as a
+                        // rectangle so the user always sees *some* outline
+                        // around the trip area instead of a blank map.
+                        console.warn('[Border] Nominatim unavailable, falling back to viewport rectangle');
+                        const rect = rectFromViewport(activeTrip.viewport);
+                        addBorderPolygon(rect);
+                        drawnGeoms.push(rect);
+                        // Use the trip's stored countryCode for the slideshow
+                        // since the rectangle doesn't carry one.
+                        if (activeTrip.countryCode) addDiscoveredCountry(activeTrip.countryCode);
                     } else {
-                        console.warn('[Border] no polygon found for', cleanQuery);
+                        console.warn('[Border] no polygon and no viewport for', cleanQuery);
                     }
 
                     // Step 3: any day pin outside every drawn polygon gets
-                    // its own region added.
+                    // its own region added. Nominatim-only — if it fails for
+                    // a pin, we silently skip (the primary border still shows).
                     for (const pin of dayPins) {
                         if (drawnGeoms.some(g => pointInGeometry(pin, g))) continue;
                         console.log('[Border] day pin outside; fetching region for', pin);
@@ -638,7 +666,7 @@ export function renderHome() {
                         drawnGeoms.push(region.geom);
                         addDiscoveredCountry(region.countryCode);
                     }
-                    console.log('[Border] done; drew', drawnKeys.size, 'polygon(s)');
+                    console.log('[Border] done; drew', drawnKeys.size + (primary ? 0 : (activeTrip.viewport ? 1 : 0)), 'polygon(s)');
                 })();
 
                 // 3. Selective Labels (Overpass) — also gated by isAddressLevel
