@@ -129,6 +129,14 @@ export function renderHome() {
     let displayImages = [];
     let displayQuotes = [];
 
+    /** The border IIFE (further down in this same render) calls
+     *  addDiscoveredCountry() each time a new ISO country code surfaces
+     *  from Nominatim. Quotes/facts/images for that country then join the
+     *  slideshow roster on its next tick. Default no-op so the no-trip
+     *  branch doesn't have to special-case it. */
+    /** @type {(cc: string | null | undefined) => void} */
+    let addDiscoveredCountry = () => {};
+
     if (!activeTrip) {
         // Shuffled slideshow for when NO trip is selected (Inspirational Quotes ONLY)
         displayImages = INSPIRATIONAL_PAIRS.map(p => p.i);
@@ -140,14 +148,28 @@ export function renderHome() {
         displayImages = indices.map(i => displayImages[i]);
         displayQuotes = indices.map(i => displayQuotes[i]);
     } else {
-        // STATIC single image and alternate between quote/fact for the ACTIVE trip
-        const data = getMediaForTrip(activeTrip);
-        
         const showQuote = localStorage.getItem('home_media_toggle') !== 'fact';
         localStorage.setItem('home_media_toggle', showQuote ? 'fact' : 'quote');
 
-        displayImages = [data.images[0]];
-        displayQuotes = [showQuote ? data.quotes[0] : data.facts[0]];
+        /** @type {Set<string>} ISO codes seen for this trip. */
+        const discoveredCodes = new Set();
+        if (activeTrip.countryCode) discoveredCodes.add(activeTrip.countryCode);
+
+        const refreshSlideshowMedia = () => {
+            const data = getMediaForTrip(activeTrip, [...discoveredCodes]);
+            displayImages = data.images;
+            displayQuotes = showQuote ? data.quotes : data.facts;
+            if (currentPhotoIdx >= displayImages.length) currentPhotoIdx = 0;
+        };
+        refreshSlideshowMedia();
+
+        addDiscoveredCountry = (cc) => {
+            if (!cc) return;
+            const up = cc.toUpperCase();
+            if (discoveredCodes.has(up)) return;
+            discoveredCodes.add(up);
+            refreshSlideshowMedia();
+        };
     }
 
     const showNextImageAndQuote = () => {
@@ -469,7 +491,10 @@ export function renderHome() {
 
                 const headers = { 'User-Agent': 'TheGreatGetaway/1.2' };
                 /** Smallest admin polygon containing this lat/lng. Walks
-                 *  reverse-geocode zoom levels finest → coarsest. */
+                 *  reverse-geocode zoom levels finest → coarsest. Returns
+                 *  the ISO country code from address.country_code so the
+                 *  caller can widen the home-page slideshow's country
+                 *  roster without a separate lookup. */
                 const fetchSmallestRegion = async (lat, lng) => {
                     for (const zoom of [10, 8, 6]) {
                         try {
@@ -479,6 +504,7 @@ export function renderHome() {
                                 return {
                                     geom: data.geojson,
                                     osmKey: `${data.osm_type}/${data.osm_id}`,
+                                    countryCode: (data.address && data.address.country_code || '').toUpperCase(),
                                 };
                             }
                         } catch (err) {
@@ -509,11 +535,19 @@ export function renderHome() {
                     }
                     for (const q of candidates) {
                         try {
-                            const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&polygon_geojson=1`;
+                            // addressdetails=1 makes Nominatim include
+                            // address.country_code so we can widen the
+                            // slideshow roster without a second call.
+                            const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&polygon_geojson=1&addressdetails=1`;
                             const data = await fetch(url, { headers }).then(r => r.json());
                             const hit = data && data[0];
                             if (hit && hit.geojson && hit.geojson.type !== 'Point') {
-                                return { geom: hit.geojson, osmKey: `${hit.osm_type}/${hit.osm_id}`, matched: q };
+                                return {
+                                    geom: hit.geojson,
+                                    osmKey: `${hit.osm_type}/${hit.osm_id}`,
+                                    matched: q,
+                                    countryCode: (hit.address && hit.address.country_code || '').toUpperCase(),
+                                };
                             }
                         } catch (err) {
                             console.error('[Border] forward search threw for', q, err);
@@ -536,12 +570,12 @@ export function renderHome() {
 
                     // Step 1: forward search (with postal-code stripping +
                     // comma walk-up).
-                    /** @type {{geom: any, osmKey: string} | null} */
+                    /** @type {{geom: any, osmKey: string, countryCode?: string} | null} */
                     let primary = null;
                     const forwardHit = await fetchForwardRegion(cleanQuery);
                     if (forwardHit) {
                         console.log('[Border] forward matched', forwardHit.matched, '→', forwardHit.osmKey);
-                        primary = { geom: forwardHit.geom, osmKey: forwardHit.osmKey };
+                        primary = { geom: forwardHit.geom, osmKey: forwardHit.osmKey, countryCode: forwardHit.countryCode };
                     }
 
                     // Step 2: forward miss → reverse geocode at trip coords.
@@ -557,6 +591,7 @@ export function renderHome() {
                         addBorderPolygon(primary.geom);
                         drawnKeys.add(primary.osmKey);
                         drawnGeoms.push(primary.geom);
+                        addDiscoveredCountry(primary.countryCode);
                     } else {
                         console.warn('[Border] no polygon found for', cleanQuery);
                     }
@@ -571,6 +606,7 @@ export function renderHome() {
                         addBorderPolygon(region.geom);
                         drawnKeys.add(region.osmKey);
                         drawnGeoms.push(region.geom);
+                        addDiscoveredCountry(region.countryCode);
                     }
                     console.log('[Border] done; drew', drawnKeys.size, 'polygon(s)');
                 })();

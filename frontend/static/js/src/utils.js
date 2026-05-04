@@ -181,35 +181,65 @@ function resolveDestinationData(countryStr) {
     return null;
 }
 
+const _imgUrl = (id) => `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=1600&q=80`;
+
 /**
  * @param {import('./types').Trip | null | undefined} trip
+ * @param {string[]} [extraCountryCodes] - additional ISO codes discovered
+ *   beyond the trip's primary one. Used by the home page to widen the
+ *   slideshow's quote/fact roster once polygons reveal that the trip
+ *   touches multiple countries (e.g. Castro Marim + a day pin in Spain).
  * @returns {{ quotes: string[]; images: string[]; facts: string[] }}
  */
-export function getMediaForTrip(trip) {
-    if (!trip) return { quotes: [TRAVEL_DATA_DEFAULT.q], images: [`https://images.unsplash.com/photo-${TRAVEL_DATA_DEFAULT.i}?auto=format&fit=crop&w=1600&q=80`], facts: [TRAVEL_DATA_DEFAULT.f] };
+export function getMediaForTrip(trip, extraCountryCodes = []) {
+    if (!trip) return { quotes: [TRAVEL_DATA_DEFAULT.q], images: [_imgUrl(TRAVEL_DATA_DEFAULT.i)], facts: [TRAVEL_DATA_DEFAULT.f] };
 
-    const countryStr = trip.country || '';
-    // ISO code lookup runs first — it's locale-invariant, so a Portuguese
-    // user picking "Paris, França" still hits the France entry. Falls back
-    // to name-based comma walk for legacy trips that pre-date countryCode.
-    let data = resolveByCountryCode(trip.countryCode) || resolveDestinationData(countryStr);
+    // Build a unique list of ISO codes most-specific first. Trip's own
+    // countryCode (set when the user picked the place) leads, then the
+    // extras (typically discovered later via reverse-geocoded day-pin
+    // outliers). Order matters: the slideshow shows entries in the order
+    // we return them.
+    const codes = [];
+    const seenCodes = new Set();
+    const pushCode = (c) => {
+        const up = (c || '').toUpperCase();
+        if (up && !seenCodes.has(up)) {
+            seenCodes.add(up);
+            codes.push(up);
+        }
+    };
+    pushCode(trip.countryCode);
+    for (const c of extraCountryCodes) pushCode(c);
 
-    if (!data) {
-        // Pick a friendlier label than the full place string for the
-        // generic copy: just the last comma part (usually the country).
-        const parts = countryStr.split(',').map(p => p.trim()).filter(Boolean);
-        const label = parts[parts.length - 1] || countryStr;
-        data = {
+    /** @type {{q:string,i:string,f:string}[]} */
+    const entries = [];
+    for (const code of codes) {
+        const data = resolveByCountryCode(code);
+        if (data) entries.push(data);
+    }
+
+    // Legacy trips with no countryCode (or no entry for the resolved name)
+    // fall back to a comma-walk on the trip's `country` string.
+    if (entries.length === 0) {
+        const fallback = resolveDestinationData(trip.country || '');
+        if (fallback) entries.push(fallback);
+    }
+
+    // Last resort: synthesize generic copy from whatever label we have.
+    if (entries.length === 0) {
+        const parts = (trip.country || '').split(',').map(p => p.trim()).filter(Boolean);
+        const label = parts[parts.length - 1] || trip.country || '';
+        entries.push({
             q: `${label} is waiting for you.`,
-            i: "1501854140801-50d01698950b",
-            f: `Did you know? ${label} is full of hidden gems waiting to be explored.`
-        };
+            i: '1501854140801-50d01698950b',
+            f: `Did you know? ${label} is full of hidden gems waiting to be explored.`,
+        });
     }
 
     return {
-        quotes: [data.q],
-        images: [`https://images.unsplash.com/photo-${data.i}?auto=format&fit=crop&w=1600&q=80`],
-        facts: [data.f]
+        quotes: entries.map(e => e.q),
+        images: entries.map(e => _imgUrl(e.i)),
+        facts: entries.map(e => e.f),
     };
 }
 
