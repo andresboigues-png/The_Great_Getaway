@@ -276,10 +276,14 @@ export function renderHome() {
                 const savedMapView = tripMapKey && STATE.mapViews && STATE.mapViews[tripMapKey];
 
                 const mapOptions = {
+                    // Vector Map ID with data-driven boundaries enabled.
+                    // Without this we get a raster map and no FeatureLayer
+                    // access, so trip-region outlining stops working.
+                    mapId: 'b37432c0f948ecbac8fa99c1',
                     center: savedMapView ? { lat: savedMapView.lat, lng: savedMapView.lng } : { lat: 20, lng: 0 },
                     zoom: savedMapView ? savedMapView.zoom : 2,
                     minZoom: 2,
-                    mapTypeId: 'hybrid', 
+                    mapTypeId: 'hybrid',
                     disableDefaultUI: true,
                     gestureHandling: 'greedy',
                     backgroundColor: '#ffffff',
@@ -287,7 +291,6 @@ export function renderHome() {
                         latLngBounds: { north: 85, south: -85, west: -180, east: 180 },
                         strictBounds: true,
                     },
-                    styles: []
                 };
 
                 const map = new google.maps.Map(mapContainer, mapOptions);
@@ -404,320 +407,115 @@ export function renderHome() {
                     }
                 }
 
-                // 2. Nominatim for the Blue Border. Skipped for address/POI
-                //    places — there's no meaningful polygon for "100 Main St."
-                if (!isAddressLevel) {
-                // Border lookup. Two-stage strategy:
-                //   (a) Forward search by name — works for places with a clean
-                //       polygon in OSM (countries, big cities, regions).
-                //   (b) If forward fails, switch to *reverse* geocoding at the
-                //       trip's coordinates with progressively coarser zoom.
-                //       This is more reliable than walking comma-separated
-                //       address parts: small towns (e.g. "Castro Marim,
-                //       Portugal") have a 2-part formatted_address with
-                //       nothing between the town and the country, but reverse
-                //       at zoom 8 returns the surrounding *region* polygon.
+                // 2. Blue Border via Google's data-driven boundary styling.
+                //    The vector Map ID has Country / Admin1 / Admin2 / Locality
+                //    feature layers enabled in GCP — we just style the place
+                //    IDs we want outlined and Google paints them server-side.
+                //    No Nominatim, no rate limits, no async failures.
                 //
-                //   Zoom level → Nominatim feature class:
-                //     12  town/borough        10  city/county
-                //      8  state/region         6  country
-                // Border styling — applied once after every Feature is added.
-                const setBorderStyle = () => {
-                    map.data.setStyle({
-                        fillColor: 'transparent',
-                        fillOpacity: 0,
-                        strokeColor: '#007aff',
-                        strokeWeight: 2.2,
-                        strokeOpacity: 0.9,
-                        visible: true,
-                        clickable: false,
-                    });
-                };
+                //    For trip's primary place: we have trip.placeId from the
+                //    Places autocomplete pick. Apply directly.
+                //    For day pins: reverse-geocode via google.maps.Geocoder
+                //    (free under the Maps quota, way more reliable than
+                //    Nominatim) to find the containing locality's place_id,
+                //    then add to the styled set. Same call gives us the
+                //    country code which feeds the slideshow widening.
+                if (!isAddressLevel && activeTrip.placeId) {
+                    /** @type {any} */
+                    const _g = google;
+                    const FEATURE_TYPES = [
+                        _g.maps.FeatureType.COUNTRY,
+                        _g.maps.FeatureType.ADMINISTRATIVE_AREA_LEVEL_1,
+                        _g.maps.FeatureType.ADMINISTRATIVE_AREA_LEVEL_2,
+                        _g.maps.FeatureType.LOCALITY,
+                    ];
 
-                /** Add a Polygon/MultiPolygon as a Feature on map.data and
-                 *  re-apply the style. Returns the geometry it added so the
-                 *  caller can later test ray-cast containment against it. */
-                const addBorderPolygon = (geometry) => {
-                    map.data.addGeoJson({ type: 'Feature', geometry, properties: {} });
-                    setBorderStyle();
-                    return geometry;
-                };
+                    /** @type {Set<string>} place IDs to outline */
+                    const styledPlaceIds = new Set();
+                    styledPlaceIds.add(activeTrip.placeId);
 
-                /** Ray-cast a {lat, lng} point against a [lng, lat] ring. */
-                const pointInRing = (point, ring) => {
-                    const x = point.lng, y = point.lat;
-                    let inside = false;
-                    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-                        const xi = ring[i][0], yi = ring[i][1];
-                        const xj = ring[j][0], yj = ring[j][1];
-                        if (
-                            (yi > y) !== (yj > y) &&
-                            x < ((xj - xi) * (y - yi)) / (yj - yi || 1e-12) + xi
-                        ) {
-                            inside = !inside;
-                        }
-                    }
-                    return inside;
-                };
-                /** Polygon | MultiPolygon containment test (handles holes). */
-                const pointInGeometry = (point, geom) => {
-                    if (!geom) return false;
-                    const polys = geom.type === 'MultiPolygon'
-                        ? geom.coordinates
-                        : geom.type === 'Polygon' ? [geom.coordinates] : [];
-                    for (const poly of polys) {
-                        const [outer, ...holes] = poly;
-                        if (!outer) continue;
-                        if (pointInRing(point, outer) && !holes.some(h => pointInRing(point, h))) {
-                            return true;
-                        }
-                    }
-                    return false;
-                };
-
-                // Day pins that should sit inside the border. Trip center is
-                // *not* included here — the primary border (drawn first) is
-                // expected to enclose it. If a day pin falls outside the
-                // primary border (ray-cast, not bbox), we fetch *its* region
-                // and add a second polygon so the user sees both areas.
-                /** @type {{lat:number,lng:number}[]} */
-                const dayPins = [];
-                for (const d of currentTripDays) {
-                    const pinLat = d.lat, pinLng = d.lon || d.lng;
-                    if (typeof pinLat === 'number' && typeof pinLng === 'number') {
-                        dayPins.push({ lat: pinLat, lng: pinLng });
-                    }
-                }
-
-                const headers = { 'User-Agent': 'TheGreatGetaway/1.2' };
-
-                // Nominatim caps anonymous use at ~1 request/second per IP.
-                // Repeated trip navigations + ~5-8 calls per render burns
-                // through that fast and we get HTTP 429 (Too Many Requests),
-                // which our `.json()` parse blows up on so every call ends
-                // up returning null and no border draws. Cache successful
-                // JSON responses in sessionStorage so the same trip never
-                // hits the network twice in one session.
-                const NOMINATIM_CACHE_PREFIX = 'tggNominatim:';
-                const cachedNominatimGet = async (url) => {
-                    try {
-                        const hit = sessionStorage.getItem(NOMINATIM_CACHE_PREFIX + url);
-                        if (hit) return JSON.parse(hit);
-                    } catch (_) { /* sessionStorage unavailable or full */ }
-                    try {
-                        const res = await fetch(url, { headers });
-                        if (!res.ok) {
-                            console.warn('[Border] Nominatim non-OK:', res.status, url);
+                    const refreshBoundaries = () => {
+                        const styleFn = (params) => {
+                            if (styledPlaceIds.has(params.feature.placeId)) {
+                                return {
+                                    strokeColor: '#007aff',
+                                    strokeWeight: 2.2,
+                                    strokeOpacity: 0.9,
+                                    fillOpacity: 0,
+                                };
+                            }
                             return null;
-                        }
-                        const ct = res.headers.get('content-type') || '';
-                        if (!ct.includes('json')) {
-                            console.warn('[Border] Nominatim non-JSON response (likely rate-limited):', url);
-                            return null;
-                        }
-                        const data = await res.json();
-                        try {
-                            sessionStorage.setItem(NOMINATIM_CACHE_PREFIX + url, JSON.stringify(data));
-                        } catch (_) { /* quota exceeded */ }
-                        return data;
-                    } catch (err) {
-                        console.error('[Border] Nominatim fetch threw:', err);
-                        return null;
-                    }
-                };
-
-                /** Smallest admin polygon containing this lat/lng. Walks
-                 *  reverse-geocode zoom levels finest → coarsest. Returns
-                 *  the ISO country code from address.country_code so the
-                 *  caller can widen the home-page slideshow's country
-                 *  roster without a separate lookup.
-                 *
-                 *  Zoom 6 (country) deliberately omitted — outlining an
-                 *  entire country when the user picked a town would dominate
-                 *  the map; the viewport-rectangle fallback in the IIFE is
-                 *  a better match for the user's "where I'm going" intent. */
-                const fetchSmallestRegion = async (lat, lng) => {
-                    for (const zoom of [10, 8]) {
-                        // addressdetails=1 brings back address.country_code
-                        // for the slideshow roster — same call, no extra cost.
-                        const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&zoom=${zoom}&format=json&polygon_geojson=1&addressdetails=1`;
-                        const data = await cachedNominatimGet(url);
-                        if (data && data.geojson && data.geojson.type !== 'Point') {
-                            return {
-                                geom: data.geojson,
-                                osmKey: `${data.osm_type}/${data.osm_id}`,
-                                countryCode: (data.address && data.address.country_code || '').toUpperCase(),
-                            };
-                        }
-                    }
-                    return null;
-                };
-
-                /** Try forward search for the trip's name. Returns a primary
-                 *  region object, or null if nothing matches with a real
-                 *  polygon. Strips postal-code prefixes; does NOT walk up
-                 *  to broader names because falling through to "Portugal"
-                 *  for a town-level trip drew the entire country instead
-                 *  of a useful regional outline. The IIFE's rectangle
-                 *  fallback covers the no-match case. */
-                const fetchForwardRegion = async (rawQuery) => {
-                    const stripped = rawQuery.replace(/^\d{3,6}[\s,-]+/, '').trim();
-                    if (!stripped) return null;
-                    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(stripped)}&format=json&limit=1&polygon_geojson=1&addressdetails=1`;
-                    const data = await cachedNominatimGet(url);
-                    const hit = data && data[0];
-                    if (hit && hit.geojson && hit.geojson.type !== 'Point') {
-                        return {
-                            geom: hit.geojson,
-                            osmKey: `${hit.osm_type}/${hit.osm_id}`,
-                            matched: stripped,
-                            countryCode: (hit.address && hit.address.country_code || '').toUpperCase(),
                         };
-                    }
-                    return null;
-                };
-
-                /** Build a rectangle Polygon from the viewport bbox — used
-                 *  as a always-works fallback when Nominatim is unreachable.
-                 *  Shrunk to 50% linear (25% area) around the viewport's
-                 *  centre because Google's place viewports are typically
-                 *  generous (sized to "show with context" rather than
-                 *  "the place itself"), and a tighter rectangle better
-                 *  matches the user's mental model of where they're going. */
-                const VIEWPORT_SHRINK = 0.5;
-                const rectFromViewport = (v) => {
-                    const cLat = (v.south + v.north) / 2;
-                    const cLng = (v.west + v.east) / 2;
-                    const halfH = ((v.north - v.south) / 2) * VIEWPORT_SHRINK;
-                    const halfW = ((v.east - v.west) / 2) * VIEWPORT_SHRINK;
-                    const south = cLat - halfH;
-                    const north = cLat + halfH;
-                    const west = cLng - halfW;
-                    const east = cLng + halfW;
-                    return {
-                        type: 'Polygon',
-                        coordinates: [[
-                            [west, south],
-                            [east, south],
-                            [east, north],
-                            [west, north],
-                            [west, south],
-                        ]],
-                    };
-                };
-
-                (async () => {
-                    console.log('[Border] start; query=', cleanQuery,
-                                'lat=', activeTrip.lat, 'lng=', activeTrip.lng,
-                                'dayPins=', dayPins.length);
-
-                    map.data.forEach(f => map.data.remove(f));
-
-                    /** @type {Set<string>} */
-                    const drawnKeys = new Set();
-                    /** @type {any[]} */
-                    const drawnGeoms = [];
-
-                    // Step 1: forward search (with postal-code stripping +
-                    // comma walk-up).
-                    /** @type {{geom: any, osmKey: string, countryCode?: string} | null} */
-                    let primary = null;
-                    const forwardHit = await fetchForwardRegion(cleanQuery);
-                    if (forwardHit) {
-                        console.log('[Border] forward matched', forwardHit.matched, '→', forwardHit.osmKey);
-                        primary = { geom: forwardHit.geom, osmKey: forwardHit.osmKey, countryCode: forwardHit.countryCode };
-                    }
-
-                    // Step 2: forward miss → reverse geocode at trip coords.
-                    if (!primary
-                        && typeof activeTrip.lat === 'number'
-                        && typeof activeTrip.lng === 'number') {
-                        console.log('[Border] forward miss, reverse@trip-coords');
-                        primary = await fetchSmallestRegion(activeTrip.lat, activeTrip.lng);
-                    }
-
-                    if (primary) {
-                        console.log('[Border] drawing primary', primary.osmKey);
-                        addBorderPolygon(primary.geom);
-                        drawnKeys.add(primary.osmKey);
-                        drawnGeoms.push(primary.geom);
-                        addDiscoveredCountry(primary.countryCode);
-                    } else if (activeTrip.viewport) {
-                        // Step 2b: Nominatim is unreachable (rate-limited,
-                        // blocked, etc.). Draw the trip's viewport as a
-                        // rectangle so the user always sees *some* outline
-                        // around the trip area instead of a blank map.
-                        console.warn('[Border] Nominatim unavailable, falling back to viewport rectangle');
-                        const rect = rectFromViewport(activeTrip.viewport);
-                        addBorderPolygon(rect);
-                        drawnGeoms.push(rect);
-                        // Use the trip's stored countryCode for the slideshow
-                        // since the rectangle doesn't carry one.
-                        if (activeTrip.countryCode) addDiscoveredCountry(activeTrip.countryCode);
-                    } else {
-                        console.warn('[Border] no polygon and no viewport for', cleanQuery);
-                    }
-
-                    // Step 3: any day pin outside every drawn polygon gets
-                    // its own region added. Nominatim-only — if it fails for
-                    // a pin, we silently skip (the primary border still shows).
-                    for (const pin of dayPins) {
-                        if (drawnGeoms.some(g => pointInGeometry(pin, g))) continue;
-                        console.log('[Border] day pin outside; fetching region for', pin);
-                        const region = await fetchSmallestRegion(pin.lat, pin.lng);
-                        if (!region || drawnKeys.has(region.osmKey)) continue;
-                        addBorderPolygon(region.geom);
-                        drawnKeys.add(region.osmKey);
-                        drawnGeoms.push(region.geom);
-                        addDiscoveredCountry(region.countryCode);
-                    }
-                    console.log('[Border] done; drew', drawnKeys.size + (primary ? 0 : (activeTrip.viewport ? 1 : 0)), 'polygon(s)');
-                })();
-
-                // 3. Selective Labels (Overpass) — also gated by isAddressLevel
-                //    since a single building has no city labels worth painting.
-                fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(cleanQuery)}&format=json&limit=1`)
-                .then(r => r.json())
-                .then(d => {
-                    if (d && d[0]) {
-                        const result = d[0];
-                        const areaId = (result.osm_type === 'relation') ? 3600000000 + parseInt(result.osm_id) : 
-                                     (result.osm_type === 'way') ? 2400000000 + parseInt(result.osm_id) : null;
-
-                        if (areaId) {
-                            const overpassQuery = `[out:json][timeout:15];area(${areaId})->.searchArea;node["place"~"city|town"](area.searchArea);out center;`;
-                            fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(overpassQuery)}`)
-                            .then(r => r.json())
-                            .then(cityData => {
-                                if (cityData && cityData.elements) {
-                                    const cities = cityData.elements.sort((a, b) => {
-                                        const popA = parseInt((a.tags && a.tags.population) || 0);
-                                        const popB = parseInt((b.tags && b.tags.population) || 0);
-                                        return popB - popA;
-                                    }).slice(0, 15);
-
-                                    cities.forEach(city => {
-                                        if (city.lat && city.lon && city.tags && city.tags.name) {
-                                            new google.maps.Marker({
-                                                position: { lat: city.lat, lng: city.lon },
-                                                map: map,
-                                                icon: { path: google.maps.SymbolPath.CIRCLE, scale: 0 },
-                                                label: {
-                                                    text: city.tags["name:en"] || city.tags.name,
-                                                    color: 'white',
-                                                    fontSize: '11px',
-                                                    fontWeight: '700',
-                                                    className: 'map-city-label'
-                                                }
-                                            });
-                                        }
-                                    });
-                                }
-                            });
+                        for (const type of FEATURE_TYPES) {
+                            try {
+                                const layer = map.getFeatureLayer(type);
+                                if (layer) layer.style = styleFn;
+                            } catch (err) {
+                                // Layer not enabled in the Map ID's GCP config.
+                                // Skip silently — other layers still work.
+                                console.warn('[Border] feature layer unavailable:', type, err);
+                            }
                         }
-                    }
-                });
-                } // end if (!isAddressLevel) — wraps blocks 2 and 3
+                    };
+                    refreshBoundaries();
+
+                    // Look up containing locality (or admin1 fallback) for a
+                    // day pin. Cached in sessionStorage so navigating between
+                    // trips doesn't re-charge geocoder quota.
+                    const DAY_CACHE_PREFIX = 'tggDayPlace:';
+                    const cachedDayLookup = async (lat, lng) => {
+                        const key = `${lat.toFixed(4)},${lng.toFixed(4)}`;
+                        try {
+                            const hit = sessionStorage.getItem(DAY_CACHE_PREFIX + key);
+                            if (hit) return JSON.parse(hit);
+                        } catch (_) { /* unavailable */ }
+                        const geocoder = new _g.maps.Geocoder();
+                        try {
+                            const resp = await geocoder.geocode({ location: { lat, lng } });
+                            const results = (resp && resp.results) || [];
+                            // Pick the smallest admin level that has a place_id.
+                            // Fall back to admin1 if no locality (rural pins).
+                            const localityResult = results.find(r => (r.types || []).includes('locality'))
+                                || results.find(r => (r.types || []).includes('administrative_area_level_2'))
+                                || results.find(r => (r.types || []).includes('administrative_area_level_1'));
+                            // Country pulled from any result's components.
+                            let countryCode = '';
+                            for (const r of results) {
+                                const cc = (r.address_components || []).find(c => (c.types || []).includes('country'));
+                                if (cc && cc.short_name) { countryCode = cc.short_name.toUpperCase(); break; }
+                            }
+                            const out = {
+                                placeId: localityResult ? localityResult.place_id : null,
+                                countryCode,
+                            };
+                            try {
+                                sessionStorage.setItem(DAY_CACHE_PREFIX + key, JSON.stringify(out));
+                            } catch (_) { /* quota */ }
+                            return out;
+                        } catch (err) {
+                            console.warn('[Border] day-pin geocode failed:', err);
+                            return { placeId: null, countryCode: '' };
+                        }
+                    };
+
+                    // Async: walk day pins. Each adds its locality's place ID
+                    // to the styled set (border widens) and feeds its country
+                    // to the slideshow roster.
+                    (async () => {
+                        for (const day of currentTripDays) {
+                            const pinLat = day.lat, pinLng = day.lon || day.lng;
+                            if (typeof pinLat !== 'number' || typeof pinLng !== 'number') continue;
+                            const { placeId, countryCode } = await cachedDayLookup(pinLat, pinLng);
+                            let changed = false;
+                            if (placeId && !styledPlaceIds.has(placeId)) {
+                                styledPlaceIds.add(placeId);
+                                changed = true;
+                            }
+                            if (countryCode) addDiscoveredCountry(countryCode);
+                            if (changed) refreshBoundaries();
+                        }
+                    })();
+                }
             }
         }, 100);
     }
@@ -924,22 +722,31 @@ export function renderHome() {
                 if (!map || !activeTrip) return;
                 /** @type {any} */
                 const _g = google;
+                // Boundaries are now rendered server-side via FeatureLayer
+                // (data-driven styling) — they're not on map.data, so we
+                // can't compute bounds from drawn features. Fit to the
+                // union of every pin (trip + day pins), padded a bit so
+                // the trip's region polygon reads comfortably around them.
                 const bounds = new _g.maps.LatLngBounds();
-                map.data.forEach(/** @type {(f: any) => void} */ (f) => {
-                    f.getGeometry().forEachLatLng(/** @type {(p: any) => void} */ (p) => bounds.extend(p));
-                });
+                if (typeof activeTrip.lat === 'number' && typeof activeTrip.lng === 'number') {
+                    bounds.extend({ lat: activeTrip.lat, lng: activeTrip.lng });
+                }
+                const tripDaysHere = (STATE.tripDays || []).filter(d => d.tripId === activeTrip.id);
+                for (const day of tripDaysHere) {
+                    if (typeof day.lat === 'number') {
+                        bounds.extend({ lat: day.lat, lng: day.lon || day.lng });
+                    }
+                }
                 if (!bounds.isEmpty()) {
-                    map.fitBounds(bounds);
+                    map.fitBounds(bounds, 80);
                 } else if (activeTrip.viewport) {
-                    // Polygons haven't loaded yet (e.g. just-mounted page) —
-                    // fall back to the trip's stored viewport.
                     const v = activeTrip.viewport;
                     map.fitBounds(new _g.maps.LatLngBounds(
                         { lat: v.south, lng: v.west },
                         { lat: v.north, lng: v.east },
                     ));
                 }
-                // map's idle listener will persist the new view to STATE.mapViews.
+                // map's idle listener persists the new view to STATE.mapViews.
                 return;
             }
 
