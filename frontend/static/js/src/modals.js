@@ -13,6 +13,7 @@ import {
     inviteTripMember,
     respondTripInvite,
     removeTripMember,
+    pullFromServer,
 } from './api.js';
 import { navigate } from './router.js';
 import {
@@ -818,11 +819,21 @@ export const openTripInviteResponseModal = (notification) => {
             modal.remove();
             return;
         }
-        showLiquidAlert("Joined the trip");
         modal.remove();
-        // The trip will appear on the next /api/data poll. We don't try to
-        // optimistically inject it — the server has the canonical members
-        // list, and racing against that creates inconsistency bugs.
+        // Pull canonical state so the new trip lands in STATE.trips with
+        // its members + myRole + myArchived populated, then switch the
+        // active trip to it so the user sees the result of accepting
+        // right away. Without this, the trip would only show up on the
+        // next /api/data poll — which today only happens at sign-in,
+        // so the user had to log out + back in to see their trip.
+        await pullFromServer();
+        const accepted = STATE.trips.find(t => t.id === tripId);
+        if (accepted) {
+            STATE.activeTripId = tripId;
+            emit('state:changed');
+        }
+        showLiquidAlert("Joined the trip");
+        navigate('home');
     };
     /** @type {HTMLButtonElement} */ (q(modal, '#tripInviteDeclineBtn')).onclick = async () => {
         const result = await respondTripInvite(tripId, false);
