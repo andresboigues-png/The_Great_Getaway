@@ -228,11 +228,11 @@ export function renderHome() {
                 <p style="color: var(--text-secondary); max-width: 440px; margin: 10px auto 0; font-size: 1.1rem;">Your next big adventure is waiting. Create a trip to start tracking expenses and planning days.</p>
             </div>
             
-            <div class="card glass hero-card hero-card--lg">
+            <div class="card glass cover-card cover-card--lg">
                 <img id="homeHeroImg" src="${displayImages[0] || ''}" style="width: 100%; height: 100%; object-fit: cover; transition: opacity 0.8s ease-in-out;">
-                <div class="hero-gradient"></div>
-                <div class="hero-content" style="display: flex; align-items: flex-end; justify-content: space-between;">
-                    <p id="homeQuote" class="hero-quote" style="max-width: 60%;">
+                <div class="cover-card__gradient"></div>
+                <div class="cover-card__content" style="display: flex; align-items: flex-end; justify-content: space-between;">
+                    <p id="homeQuote" class="cover-card__quote" style="max-width: 60%;">
                         ${displayQuotes[0] || ''}
                     </p>
                     <button class="btn" id="homeCreateFirstTripBtn" style="background: var(--accent-blue); padding: 12px 24px; border-radius: 100px; box-shadow: 0 10px 20px rgba(0,113,227,0.3); font-weight: 700; font-size: 0.95rem;">Create Trips</button>
@@ -273,11 +273,11 @@ export function renderHome() {
                 ${activeTrip ? `<p>You have <strong>${tripExpenses.length}</strong> expenses recorded for ${activeTrip.name}.</p>` : `<p>Welcome! Start by creating your first trip.</p>`}
             </div>
             
-            <div class="card glass hero-card hero-card--md">
+            <div class="card glass cover-card cover-card--md">
                 <div id="homeHeroMap" style="width: 100%; height: 100%; position: absolute; inset: 0; z-index: 0;"></div>
-                <div class="hero-gradient" style="pointer-events: none; z-index: 1;"></div>
-                <div class="hero-content" style="pointer-events: none; z-index: 2;">
-                    <p id="homeQuote" class="hero-quote">
+                <div class="cover-card__gradient" style="pointer-events: none; z-index: 1;"></div>
+                <div class="cover-card__content" style="pointer-events: none; z-index: 2;">
+                    <p id="homeQuote" class="cover-card__quote">
                         ${displayQuotes[0] || ''}
                     </p>
                 </div>
@@ -651,7 +651,7 @@ export function renderHome() {
         <div style="display: flex; flex-direction: column; margin-bottom: 24px;">
             <div style="display: flex; align-items: center; gap: 12px;">
                 ${activeTrip ? `
-                    <button id="resetMapViewBtn" class="title-link-btn" title="Reset the map view to show the whole trip">
+                    <button id="resetMapViewBtn" title="Reset the map view to show the whole trip">
                         <h2 style="font-size: var(--font-3xl); letter-spacing: -0.03em; margin: 0; font-weight: 800; color: #002d5b;">${tripTitle}</h2>
                     </button>
                 ` : `
@@ -687,7 +687,7 @@ export function renderHome() {
                         ${editingDayId === day.id ? `
                             <div style="display: flex; gap: var(--space-1);">
                                 <button class="day-action-btn day-action-btn--success day-pin-save-btn" data-day-id="${day.id}" style="flex: 2; justify-content: center;">Save Pin</button>
-                                <button class="day-action-btn day-action-btn--danger-strong day-pin-delete-btn" data-day-id="${day.id}" style="flex: 1; justify-content: center;">X</button>
+                                <button class="day-action-btn day-action-btn--danger-fill day-pin-delete-btn" data-day-id="${day.id}" style="flex: 1; justify-content: center;">X</button>
                             </div>
                         ` : `
                             <button class="day-action-btn day-action-btn--brand day-pin-toggle-btn" data-day-id="${day.id}">
@@ -762,7 +762,7 @@ export function renderHome() {
             `}).join('')}
             
             <!-- ADD DAY BUTTON (Vertical Timeline Style) -->
-            <div id="addDayBtn" class="add-day-btn">
+            <div id="addDayBtn">
                 <div class="add-dot" style="width: 14px; height: 14px; border-radius: 50%; border: 2px dashed var(--accent-blue); background: transparent; margin-left: -2px;"></div>
                 <div class="add-text" style="font-weight: 700; color: var(--text-secondary); font-size: var(--font-lg); letter-spacing: -0.01em;">+ Add a new day to your journey</div>
             </div>
@@ -972,7 +972,7 @@ const openJournalingModal = (dayId) => {
     modal.innerHTML = `
         <div class="card-glass-modal-light" style="width: 580px;">
             <h2 style="font-size: var(--font-3xl); margin-bottom: var(--space-2); color: #002d5b; font-weight: 800; letter-spacing: -0.04em;">Day ${day.dayNumber} Journaling</h2>
-            <p class="modal-subtitle">Capture your memories and stories from ${day.name}</p>
+            <p class="text-subtitle">Capture your memories and stories from ${day.name}</p>
             <textarea id="journalText" class="glass-input" style="width: 100%; height: 240px; padding: var(--space-5); border-radius: var(--radius-xl); font-size: 1.05rem; line-height: 1.6; margin-bottom: var(--space-5); border: 1px solid rgba(0,0,0,0.05);" placeholder="What happened today? How did you feel?">${day.notes || ''}</textarea>
             <div style="display: flex; gap: var(--space-3);">
                 <button id="saveJournalBtn" class="btn-primary" style="flex: 2; padding: var(--space-4); border-radius: var(--radius-lg); font-size: var(--font-lg);">Save Story</button>
@@ -1002,8 +1002,8 @@ const openPhotosModal = (dayId) => {
     modal.style.backdropFilter = 'blur(25px)';
     modal.innerHTML = `
         <div class="card-glass-modal-light" style="width: 500px;">
-            <h2 class="modal-h2">Photo Gallery</h2>
-            <p class="modal-subtitle">Add images that define your Day ${day.dayNumber}</p>
+            <h2 class="h2-display">Photo Gallery</h2>
+            <p class="text-subtitle">Add images that define your Day ${day.dayNumber}</p>
             <div id="photoList" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-3); margin-bottom: var(--space-6); max-height: 300px; overflow-y: auto; padding: var(--space-1);">
                 ${day.photos.length === 0 ? '<p style="grid-column: 1/-1; text-align: center; color: var(--text-secondary); padding: var(--space-10);">No photos added yet.</p>' :
                     day.photos.map((p, idx) => `
@@ -1093,8 +1093,8 @@ const openDocumentsModal = (dayId) => {
     modal.style.backdropFilter = 'blur(25px)';
     modal.innerHTML = `
         <div class="card-glass-modal-light" style="width: 460px;">
-            <h2 class="modal-h2">Documents</h2>
-            <p class="modal-subtitle">Tickets, bookings, and important info</p>
+            <h2 class="h2-display">Documents</h2>
+            <p class="text-subtitle">Tickets, bookings, and important info</p>
             <div id="docList" style="display: flex; flex-direction: column; gap: var(--space-2); margin-bottom: var(--space-6); max-height: 250px; overflow-y: auto;">
                 ${day.documents.length === 0 ? '<p style="text-align: center; color: var(--text-secondary); padding: var(--space-8);">No documents linked.</p>' :
                     day.documents.map((d, idx) => `
@@ -1201,25 +1201,25 @@ const openDayDetail = (dayId) => {
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-10);">
                 <div style="display: flex; flex-direction: column; gap: var(--space-6);">
                     <div class="subcard-soft">
-                        <h4 class="section-tag">Morning</h4>
+                        <h4 class="text-tag">Morning</h4>
                         <textarea class="plain-textarea plan-input" data-time="morning" placeholder="Morning plans...">${day.plan?.morning || ''}</textarea>
                     </div>
                     <div class="subcard-soft">
-                        <h4 class="section-tag" style="--accent: 255,149,0;">Afternoon</h4>
+                        <h4 class="text-tag" style="--accent: 255,149,0;">Afternoon</h4>
                         <textarea class="plain-textarea plan-input" data-time="afternoon" placeholder="Afternoon plans...">${day.plan?.afternoon || ''}</textarea>
                     </div>
                     <div class="subcard-soft">
-                        <h4 class="section-tag" style="--accent: 88,86,214;">Evening</h4>
+                        <h4 class="text-tag" style="--accent: 88,86,214;">Evening</h4>
                         <textarea class="plain-textarea plan-input" data-time="evening" placeholder="Evening plans...">${day.plan?.evening || ''}</textarea>
                     </div>
                 </div>
                 <div style="display: flex; flex-direction: column; gap: var(--space-6);">
                     <div style="flex: 1; background: rgba(0,113,227,0.05); padding: var(--space-6); border-radius: 24px; border: 1px solid rgba(0,113,227,0.1);">
-                        <h4 class="section-tag">Personal Notes</h4>
+                        <h4 class="text-tag">Personal Notes</h4>
                         <textarea id="detailNotes" class="plain-textarea plain-textarea--no-resize" style="height: 200px;" placeholder="Private thoughts about this day...">${day.notes || ''}</textarea>
                     </div>
                     <div style="background: #000; padding: var(--space-6); border-radius: 24px; color: white;">
-                        <h4 class="section-tag" style="--accent: 52,199,89;">Expert Tip</h4>
+                        <h4 class="text-tag" style="--accent: 52,199,89;">Expert Tip</h4>
                         <p style="margin: 0; font-size: var(--font-md); line-height: 1.5; opacity: 0.9;">${day.tip || "Always keep a portable charger and a small bottle of water in your bag for long exploration days."}</p>
                     </div>
                     <button id="saveDetailBtn" class="btn-primary" style="width: 100%; padding: var(--space-5); border-radius: var(--radius-xl); font-size: var(--font-xl);">Save All Changes</button>

@@ -72,6 +72,25 @@
     --surface-subtle-hover: rgba(0, 0, 0, 0.08);
 
     --easing-smooth: cubic-bezier(0.16, 1, 0.3, 1);
+
+    /* Animation durations — anything UI-driven should pull from these
+       so a "feels fast" / "feels slow" pass is one-line. */
+    --duration-instant: 0.1s;
+    --duration-fast: 0.15s;
+    --duration-normal: 0.2s;
+    --duration-medium: 0.3s;
+    --duration-slow: 0.4s;
+    --duration-slower: 0.8s;
+
+    /* Z-index scale — explicit layers so future components can't pick
+       a number that collides with an existing one. */
+    --z-base: 1;
+    --z-dropdown: 100;
+    --z-sidebar: 1999;
+    --z-overlay: 1998;
+    --z-modal: 10000;
+    --z-toast: 99999;
+    --z-pac: 100000;
 }
 
 /* Dark Mode Support */
@@ -1431,10 +1450,12 @@ h1 {
 }
 .day-row.is-open { gap: var(--space-6); }
 
-/* Home hero card — full-bleed image / map background with rounded
-   corners and dark gradient overlay. Two height variants used: 450px
-   (no-trip empty state) and 400px (active trip). */
-.hero-card {
+/* Cover card — full-bleed image / map background with rounded corners
+   and dark gradient overlay. Two height variants used: 450px (no-trip
+   empty state) and 400px (active trip). Renamed from `.hero-card`
+   because `.hero-stat-card` (insights total-spent) shared the prefix
+   for an unrelated component. */
+.cover-card {
     padding: 0;
     overflow: hidden;
     position: relative;
@@ -1442,27 +1463,27 @@ h1 {
     border-radius: var(--radius-2xl);
     border: 1px solid var(--glass-border);
 }
-.hero-card--lg { height: 450px; }
-.hero-card--md { height: 400px; }
-.hero-gradient {
+.cover-card--lg { height: 450px; }
+.cover-card--md { height: 400px; }
+.cover-card__gradient {
     position: absolute;
     inset: 0;
     background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 60%);
 }
-.hero-content {
+.cover-card__content {
     position: absolute;
     bottom: var(--space-10);
     left: var(--space-10);
     right: var(--space-10);
 }
-.hero-quote {
+.cover-card__quote {
     font-size: 1.5rem;
     font-weight: 700;
     color: white;
     margin: 0;
     text-shadow: 0 2px 10px rgba(0,0,0,0.5);
     font-style: italic;
-    transition: opacity 0.8s ease-in-out;
+    transition: opacity var(--duration-slower) ease-in-out;
 }
 
 /* Profile picture wrapper — hovering reveals the "change photo" overlay
@@ -1471,26 +1492,24 @@ h1 {
 #profilePicOverlay { transition: opacity 0.2s ease; }
 #profilePicWrapper:hover #profilePicOverlay { opacity: 1; }
 
-/* Modal headline + subtitle — used by the home journaling/photos/
-   documents modals (light-bg cards). Heading is dark navy, subtitle
-   is muted. */
-.modal-h2 {
+/* Typography helpers — named for the look, not the context, so they
+   compose freely. Dark-navy display heading + muted body subtitle. */
+.h2-display {
     font-size: var(--font-3xl);
     margin-bottom: var(--space-2);
     color: #002d5b;
     font-weight: 800;
 }
-.modal-subtitle {
+.text-subtitle {
     color: var(--text-secondary);
     font-weight: 600;
     margin-bottom: var(--space-5);
     font-size: var(--font-md);
 }
 
-/* Section tag — small uppercase accent label that introduces a
-   subsection (e.g. "Morning"/"Afternoon"/"Evening" headers in the
-   day-detail modal). Color comes from `--accent` per call site. */
-.section-tag {
+/* Tag — small uppercase accent label that introduces a subsection.
+   Color comes from `--accent` (R,G,B) per call site. */
+.text-tag {
     margin: 0 0 var(--space-4);
     font-size: var(--font-base);
     font-weight: 800;
@@ -2064,17 +2083,18 @@ h1 {
 }
 .icon-btn-circle:focus-visible { outline: 2px solid rgb(var(--accent)); outline-offset: 2px; }
 
-/* Sidebar logout button — bare icon button that goes red on hover. */
-.sidebar-logout-btn {
+/* `#sidebarLogoutBtn` — bare icon button that goes red on hover.
+   ID-scoped (single instance, in index.html navbar). */
+#sidebarLogoutBtn {
     background: none;
     border: none;
     cursor: pointer;
     color: var(--text-secondary);
     padding: var(--space-2);
-    transition: color 0.2s ease;
+    transition: color var(--duration-normal) ease;
 }
-.sidebar-logout-btn:hover { color: #ff3b30; }
-.sidebar-logout-btn:focus-visible { outline: 2px solid #ff3b30; outline-offset: 2px; border-radius: 4px; }
+#sidebarLogoutBtn:hover { color: #ff3b30; }
+#sidebarLogoutBtn:focus-visible { outline: 2px solid #ff3b30; outline-offset: 2px; border-radius: 4px; }
 
 /* Day timeline card — collapsed state slides right + tinted border on
    hover. The `is-open` state is set by JS when the per-day menu is
@@ -2253,9 +2273,9 @@ h1 {
 .btn-neutral:active { transform: scale(0.98); }
 .btn-neutral:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 2px; }
 
-/* AI page zoom badge — pill anchored to bottom-left of the AI map. Glass
-   bg darkens slightly on hover. */
-.zoom-badge {
+/* `#aiZoomBadge` — pill anchored to bottom-left of the AI page map.
+   Glass bg darkens slightly on hover. ID-scoped (single instance). */
+#aiZoomBadge {
     background: var(--glass-bg);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
@@ -2269,9 +2289,9 @@ h1 {
     display: flex;
     align-items: center;
     gap: 6px;
-    transition: background-color 0.2s ease;
+    transition: background-color var(--duration-normal) ease;
 }
-.zoom-badge:hover { background: rgba(255,255,255,0.2); }
+#aiZoomBadge:hover { background: rgba(255,255,255,0.2); }
 
 /* Premium glass card — empty-state hero card on the AI page. Lifts on
    hover with a stronger shadow. */
@@ -2350,25 +2370,23 @@ h1 {
 }
 .btn-chip-danger:hover { background: rgba(255,59,48,0.15); }
 
-/* "+ Add a new day" timeline button — animates its dashed dot and text
-   on hover. Replaces inline `onmouseover` that mutated `.add-dot` and
-   `.add-text` children. */
-.add-day-btn {
+/* `#addDayBtn` — "+ Add a new day" timeline button. Animates its
+   dashed dot + text on hover. ID-scoped because it's the only one. */
+#addDayBtn {
     margin-top: var(--space-2);
     display: flex;
     align-items: center;
     gap: var(--space-6);
     cursor: pointer;
 }
-.add-day-btn .add-dot { transition: transform 0.3s ease; }
-.add-day-btn .add-text { transition: color 0.3s ease; }
-.add-day-btn:hover .add-dot { transform: scale(1.3); }
-.add-day-btn:hover .add-text { color: var(--accent-blue); }
+#addDayBtn .add-dot { transition: transform var(--duration-medium) ease; }
+#addDayBtn .add-text { transition: color var(--duration-medium) ease; }
+#addDayBtn:hover .add-dot { transform: scale(1.3); }
+#addDayBtn:hover .add-text { color: var(--accent-blue); }
 
-/* Bare button that styles its inner H2 like a clickable trip title.
-   Replaces the inline `onmouseover="this.querySelector('h2').style.color..."`
-   on `#resetMapViewBtn`. */
-.title-link-btn {
+/* `#resetMapViewBtn` — bare button styling its inner H2 like a
+   clickable trip title. ID-scoped (single instance). */
+#resetMapViewBtn {
     background: none;
     border: none;
     padding: 0;
@@ -2376,8 +2394,8 @@ h1 {
     cursor: pointer;
     text-align: left;
 }
-.title-link-btn h2 { transition: color 0.2s ease; }
-.title-link-btn:hover h2 { color: var(--accent-blue); }
+#resetMapViewBtn h2 { transition: color var(--duration-normal) ease; }
+#resetMapViewBtn:hover h2 { color: var(--accent-blue); }
 
 /* Guide step card on the home empty-state. Lifts on hover (replaces
    inline onmouseover/onmouseout transform). Background and border are
@@ -2649,11 +2667,14 @@ h1 {
     color: #ff3b30;
 }
 .day-action-btn--danger:hover { background: rgba(255,59,48,0.12); }
-.day-action-btn--danger-strong {
+/* `--danger` is a soft tint; `--danger-fill` is a stronger, opaque-ish
+   tint used when the destructive action is the focus (e.g. the "X"
+   button next to "Save Pin" — visually competing with green Save). */
+.day-action-btn--danger-fill {
     background: rgba(255,59,48,0.1);
     color: #ff3b30;
 }
-.day-action-btn--danger-strong:hover { background: rgba(255,59,48,0.18); }
+.day-action-btn--danger-fill:hover { background: rgba(255,59,48,0.18); }
 
 /* Danger confirmation panel — used by showConfirmModal. The `.card-glass-modal`
    above is too light for high-stakes confirmations; this variant darkens the

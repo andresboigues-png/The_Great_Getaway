@@ -109,7 +109,7 @@ export function renderAI() {
                 <div style="position:sticky;top:80px;height:700px;">
                     <div class="card glass" style="padding:0;overflow:hidden;height:100%;border-radius:18px;position:relative;">
                         <div id="aiGoogleMap" style="width:100%;height:100%;"></div>
-                        <div id="aiZoomBadge" class="zoom-badge" style="position:absolute;bottom:14px;left:14px;z-index:1000;">
+                        <div id="aiZoomBadge" style="position:absolute;bottom:14px;left:14px;z-index:1000;">
                             <span>📍</span> <span>${tripCountry}</span>
                         </div>
                     </div>
