@@ -1242,6 +1242,99 @@ h1 {
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background: rgba(255, 255, 255, 0.2);
 }
+/* ════════════════════════════════════════════════════════════════════════
+   Force-state simulators — used by /components preview only
+   ════════════════════════════════════════════════════════════════════════
+   `:hover` can't be triggered without an actual mouse cursor, which
+   makes screenshot-based regression checks of hover state impossible.
+   These `.is-hovered` rules duplicate the hover styling under a class
+   so the preview page can demonstrate it inline. Only the components
+   that are repeatedly demonstrated need these — everything else still
+   responds to live :hover. */
+.btn-primary.is-hovered { background: var(--accent-blue-hover); }
+.btn-primary.is-hovered.btn-primary--lg { transform: translateY(-2px); box-shadow: 0 20px 50px rgba(0,113,227,0.4); }
+
+.btn-ghost.is-hovered { background: var(--glass-fill-strong); border-color: rgba(255,255,255,0.4); }
+
+.btn-primary-pill.is-hovered {
+    background: var(--accent-blue-hover);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(0, 113, 227, 0.35);
+}
+
+.btn-glass-light.is-hovered { background: rgba(255,255,255,0.7); }
+.btn-neutral.is-hovered { background: rgba(0,0,0,0.08); }
+.btn-logout.is-hovered { background: rgba(255,59,48,0.1); color: #ff3b30; border-color: rgba(255,59,48,0.2); }
+.btn-chip-danger.is-hovered { background: rgba(255,59,48,0.15); }
+
+.pill-btn-warn-hover.is-hovered {
+    background: rgba(255,59,48,0.1);
+    color: #ff3b30;
+    border-color: rgba(255,59,48,0.2);
+}
+
+.day-action-btn--neutral.is-hovered { background: rgba(0,0,0,0.06); }
+.day-action-btn--brand.is-hovered { background: rgba(0,113,227,0.12); }
+.day-action-btn--success.is-hovered { background: #2eaf4f; }
+.day-action-btn--danger.is-hovered { background: rgba(255,59,48,0.12); }
+.day-action-btn--danger-fill.is-hovered { background: rgba(255,59,48,0.18); }
+
+.upload-dropzone.is-hovered { background: rgba(0,113,227,0.15); }
+
+.icon-btn-square.is-hovered {
+    background: rgba(0,113,227,0.08);
+    border-color: rgba(0,113,227,0.2);
+    color: var(--accent-blue);
+}
+.icon-btn-circle.is-hovered { background: rgba(var(--accent), 0.2); transform: scale(1.05); }
+.icon-action-btn.is-hovered { background: rgba(var(--accent), 0.15); }
+.icon-x-btn.is-hovered { background: rgba(255,59,48,0.18); }
+.close-x-btn.is-hovered { background: rgba(0,0,0,0.1); }
+
+.themed-block-btn.is-hovered { background: rgba(var(--accent, 0,113,227), 0.18); }
+
+.toggle-btn.is-hovered { background: rgba(0,113,227,0.08); }
+
+.user-row--neutral.is-hovered { background: rgba(255,255,255,0.1); }
+
+.dropdown-item.is-hovered { background: rgba(0, 122, 255, 0.1); }
+
+.expense-row.is-hovered {
+    transform: scale(1.012);
+    background: rgba(255,255,255,0.2);
+    box-shadow: 0 20px 50px rgba(0,0,0,0.2);
+}
+
+.settlement-trip-card.is-hovered { opacity: 1; }
+
+.guide-step-card.is-hovered {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 24px rgba(0,0,0,0.08);
+}
+
+.premium-glass-card.is-hovered {
+    transform: translateY(-5px);
+    box-shadow: 0 40px 80px rgba(0,0,0,0.15), 0 15px 30px rgba(0,113,227,0.15);
+}
+
+.zoom-badge.is-hovered, #aiZoomBadge.is-hovered { background: rgba(255,255,255,0.2); }
+
+#sidebarLogoutBtn.is-hovered { color: #ff3b30; }
+#resetMapViewBtn.is-hovered h2 { color: var(--accent-blue); }
+
+/* `.is-focused` simulator — replays focus-visible outline on demo elements. */
+.btn-primary.is-focused,
+.btn-ghost.is-focused,
+.btn-primary-pill.is-focused,
+.icon-btn-square.is-focused,
+.icon-btn-circle.is-focused,
+.icon-action-btn.is-focused,
+.themed-block-btn.is-focused,
+.btn-neutral.is-focused {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
+}
+
 /* Map City Labels */
 .map-city-label {
     text-shadow: 0 0 4px rgba(0,0,0,0.8), 0 0 8px rgba(0,0,0,0.5);
@@ -1784,25 +1877,27 @@ h1 {
 }
 
 /* Notification dropdown items — title, message, timestamp. The title's
-   color comes from a `--accent` variable per row (alert vs default). */
+   color comes from a `--accent` variable per row (alert vs default).
+   BEM-style sub-element naming to match `.expense-row`, `.debt-row`,
+   `.callout-tinted`, etc. */
 .notification-empty {
     padding: var(--space-5);
     text-align: center;
     color: var(--text-secondary);
     font-size: var(--font-base);
 }
-.notification-title {
+.notification-item__title {
     font-weight: 700;
     font-size: var(--font-base);
     margin-bottom: var(--space-1);
     color: rgb(var(--accent, 0,113,227));
 }
-.notification-message {
+.notification-item__message {
     font-size: var(--font-sm);
     color: var(--text-secondary);
     line-height: 1.4;
 }
-.notification-time {
+.notification-item__time {
     font-size: var(--font-2xs);
     color: rgba(0,0,0,0.3);
     margin-top: var(--space-2);

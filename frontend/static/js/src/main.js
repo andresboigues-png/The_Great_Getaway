@@ -47,9 +47,9 @@ function renderNotificationDropdown() {
 
     list.innerHTML = notes.map(n => `
         <div class="notification-item ${n.is_read ? '' : 'unread'}">
-            <div class="notification-title" style="--accent: ${n.type === 'alert' ? '255,59,48' : '0,113,227'};">${n.title || (n.type === 'friend_request' ? 'Friend Request' : n.type === 'accepted_request' ? 'Request Accepted' : 'Notification')}</div>
-            <div class="notification-message">${n.message}</div>
-            <div class="notification-time">${new Date(n.created_at).toLocaleDateString()}</div>
+            <div class="notification-item__title" style="--accent: ${n.type === 'alert' ? '255,59,48' : '0,113,227'};">${n.title || (n.type === 'friend_request' ? 'Friend Request' : n.type === 'accepted_request' ? 'Request Accepted' : 'Notification')}</div>
+            <div class="notification-item__message">${n.message}</div>
+            <div class="notification-item__time">${new Date(n.created_at).toLocaleDateString()}</div>
         </div>
     `).join('');
 }
