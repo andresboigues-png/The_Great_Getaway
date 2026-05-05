@@ -479,6 +479,17 @@ def invite_trip_member():
         if not _can_edit_trip(cursor, trip_id, inviter):
             return jsonify({"error": "Forbidden"}), 403
 
+        # Audit gate: target must be an accepted-linked companion of the
+        # inviter. By design, you can only invite people you've already
+        # connected with via the companion-link flow — prevents random
+        # trip-invitation spam against arbitrary user_ids.
+        cursor.execute(
+            "SELECT 1 FROM companions WHERE user_id = ? AND linked_user_id = ? AND link_status = 'accepted'",
+            (inviter, target),
+        )
+        if not cursor.fetchone():
+            return jsonify({"error": "Target must be a linked companion"}), 403
+
         # If the target already has any member row (pending or accepted),
         # update its role/status; otherwise insert a fresh pending row.
         cursor.execute(
@@ -751,7 +762,11 @@ def _ensure_user_exists(cursor, user_id):
 def invite_companion_link():
     """Invite a friend to link as a companion. Sets the inviter's row to
     `pending` and fires a `companion_link_invite` notification at the
-    friend; the friend creates their own row on accept (see /respond)."""
+    friend; the friend creates their own row on accept (see /respond).
+
+    Audit gate: target MUST be an accepted friend already. Without this
+    check the endpoint would be a way to spam invitations at any user
+    by guessing their id, since user_id is just a body parameter."""
     data = request.json or {}
     user_id = data.get("user_id")             # inviter (A)
     companion_name = data.get("companion_name")
@@ -765,6 +780,12 @@ def invite_companion_link():
         cursor = conn.cursor()
         if not _ensure_user_exists(cursor, friend_user_id):
             return jsonify({"error": "Friend not found"}), 404
+        cursor.execute(
+            "SELECT 1 FROM friends WHERE user_id = ? AND friend_id = ? AND status = 'accepted'",
+            (user_id, friend_user_id),
+        )
+        if not cursor.fetchone():
+            return jsonify({"error": "Target is not an accepted friend"}), 403
         # The companion row must already exist (the user added it locally
         # before clicking the link button). Reject anything else — we don't
         # want this endpoint to be a backdoor for creating companions.
@@ -955,10 +976,18 @@ def upsert_budget():
 
 @app.route("/api/budgets/<budget_id>", methods=["DELETE"])
 def delete_budget(budget_id):
-    """Delete a single budget."""
+    """Delete a single budget. Owner-of-budget only — budgets are personal,
+    each user has their own. The endpoint used to delete by id alone, which
+    let any caller wipe anyone's budget if they could guess an id."""
+    user_id = (request.json or {}).get("user_id")
+    if not user_id:
+        return jsonify({"error": "Unauthorized"}), 401
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM budgets WHERE id = ?", (budget_id,))
+        cursor.execute(
+            "DELETE FROM budgets WHERE id = ? AND user_id = ?",
+            (budget_id, user_id),
+        )
         conn.commit()
     return jsonify({"status": "deleted"})
 
@@ -1038,6 +1067,18 @@ def generate_itinerary():
     date_from = data.get("dateFrom", "")
     date_to = data.get("dateTo", "")
     context = data.get("context", "")
+    user_id = data.get("user_id")
+
+    # Audit gate: require an authenticated user. The endpoint calls a paid
+    # LLM (Gemini), so a missing user_id check would let anonymous traffic
+    # burn API quota by hitting the URL directly.
+    if not user_id:
+        return jsonify({"error": "Unauthorized"}), 401
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1 FROM users WHERE id = ?", (user_id,))
+        if not cursor.fetchone():
+            return jsonify({"error": "Unauthorized"}), 401
 
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
@@ -1522,21 +1563,32 @@ def update_profile():
 
 @app.route("/api/upload", methods=["POST"])
 def upload_file():
-    """Handle file uploads (photos, documents)."""
+    """Handle file uploads (photos, documents). Requires an authenticated
+    user — without this gate the endpoint accepts any POST and writes the
+    payload to /static/uploads, so anonymous traffic could fill the disk."""
+    user_id = request.form.get("user_id")
+    if not user_id:
+        return jsonify({"error": "Unauthorized"}), 401
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1 FROM users WHERE id = ?", (user_id,))
+        if not cursor.fetchone():
+            return jsonify({"error": "Unauthorized"}), 401
+
     if 'file' not in request.files:
         return jsonify({"error": "No file part"}), 400
-    
+
     file = request.files['file']
     if file.filename == '':
         return jsonify({"error": "No selected file"}), 400
-    
+
     if file:
         filename = secure_filename(file.filename)
         # Add timestamp to avoid collisions
         import time
         filename = f"{int(time.time())}_{filename}"
         file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-        
+
         # Return the relative path for frontend
         return jsonify({
             "url": f"/static/uploads/{filename}",

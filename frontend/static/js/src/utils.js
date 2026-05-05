@@ -360,6 +360,27 @@ export function q(parent, selector) {
     return /** @type {HTMLElement} */ (el);
 }
 
+/** HTML-escape a user-controlled string before splicing it into a template
+ *  literal that becomes innerHTML. Use everywhere a value originated from
+ *  another user (cross-account) and could carry markup — trip names, day
+ *  names, expense labels, companion names that travel through notifications,
+ *  user.name from an OAuth payload (defensively).
+ *
+ *  Self-XSS through your own local roster is out of scope; this is for
+ *  cross-user surfaces (shared trips, member lists, notification strings).
+ *
+ *  @param {unknown} v
+ *  @returns {string} */
+export function esc(v) {
+    if (v === null || v === undefined) return '';
+    return String(v)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 /**
  * @param {string} dateStr  YYYY-MM-DD
  * @returns {string}

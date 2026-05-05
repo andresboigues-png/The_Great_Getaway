@@ -3,6 +3,7 @@ import { STATE, emit } from '../state.js';
 import { q } from '../utils.js';
 import { openNewTripModal } from '../modals.js';
 import { apiUrl } from '../api.js';
+import { canEdit } from '../permissions.js';
 
 /** @type {any} */
 let googleMap = null;
@@ -60,6 +61,11 @@ export function renderAI() {
     const savedContext = activeTrip.aiContext || '';
     const savedNumDays = activeTrip.aiNumDays || 1;
 
+    // Phase 4 — generating/accepting plans writes to the trip (aiPlan,
+    // tripDays). Relaxers see the saved plan if one exists but can't
+    // generate or import a new one.
+    const tripIsEditable = canEdit(activeTrip);
+
     const sf = `font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text',sans-serif;`;
 
     div.innerHTML = `
@@ -104,7 +110,11 @@ export function renderAI() {
                         <textarea id="aiExtraContext" class="glass-input" style="width:100%; resize:none; font-size:0.9rem; box-sizing: border-box; flex:1 1 auto; min-height:120px;" placeholder="e.g. Vegetarian friendly, no walking more than 2km...">${savedContext}</textarea>
                     </div>
                     <!-- Generate -->
-                    <button id="generateBtn" class="ai-generate-btn" style="width:100%; border-radius: var(--radius-lg);flex:0 0 auto;">✦ Generate My Itinerary</button>
+                    ${tripIsEditable
+                        ? `<button id="generateBtn" class="ai-generate-btn" style="width:100%; border-radius: var(--radius-lg);flex:0 0 auto;">✦ Generate My Itinerary</button>`
+                        : `<div class="card glass" style="padding:16px; border-radius: var(--radius-lg); text-align:center; color: var(--text-secondary); font-size: 0.85rem; flex:0 0 auto;">
+                            👁 You're a Relaxer on this trip — generating a new plan is up to the Planners.
+                          </div>`}
                 </div>
 
                 <!-- Right: Google Map (sticky) -->
@@ -214,7 +224,7 @@ export function renderAI() {
                     <div style="font-size:0.78rem;color:var(--text-secondary);background:var(--glass-bg);border:1px solid var(--glass-border);padding:5px 14px;border-radius:980px;">✦ AI-Generated</div>
                 </div>
                 <div id="itineraryDays" style="display:flex;flex-direction:column;gap:16px;"></div>
-                <div style="display:flex;gap:12px;margin-top:24px;"><button id="acceptPlanBtn" class="btn" style="flex:2;background:var(--accent-blue);color:white;padding:16px;font-size:1.1rem;border-radius:16px;font-weight:700;box-shadow:0 10px 20px rgba(0,122,255,0.2);cursor:pointer;">Accept Plan & Add to Trip</button></div>`;
+                ${tripIsEditable ? `<div style="display:flex;gap:12px;margin-top:24px;"><button id="acceptPlanBtn" class="btn" style="flex:2;background:var(--accent-blue);color:white;padding:16px;font-size:1.1rem;border-radius:16px;font-weight:700;box-shadow:0 10px 20px rgba(0,122,255,0.2);cursor:pointer;">Accept Plan & Add to Trip</button></div>` : ''}`;
 
             const daysContainer = q(outputEl, '#itineraryDays');
             const dayDivs = [];
@@ -361,7 +371,11 @@ export function renderAI() {
             try {
                 const r = await fetch(apiUrl('/api/generate_itinerary'), {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ destination: tripCountry, numDays, dateFrom, dateTo, context })
+                    body: JSON.stringify({
+                        destination: tripCountry,
+                        numDays, dateFrom, dateTo, context,
+                        user_id: STATE.user?.id,
+                    })
                 });
                 const d = await r.json();
                 if (d.error) throw new Error(d.error);

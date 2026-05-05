@@ -1,7 +1,7 @@
 // @ts-check
 import { STATE, loadState, emit, subscribe } from './state.js';
 import { syncWithServer, pullFromServer, fetchNotifications, markNotificationsRead, deleteTrip, archiveTripOnServer, apiUrl } from './api.js';
-import { showConfirmModal } from './utils.js';
+import { showConfirmModal, esc } from './utils.js';
 import { navigate } from './router.js';
 import { PAGES } from './constants.js';
 import { addCompanion } from './companions.js';
@@ -83,13 +83,16 @@ function renderNotificationDropdown() {
         return;
     }
 
+    // Escape title + message — both are server-composed but include
+    // user-controlled strings (trip names, user.name from OAuth, companion
+    // names) that could carry markup if a malicious user supplied them.
     list.innerHTML = notes.map((n, i) => `
         <div class="notification-item ${n.is_read ? '' : 'unread'}" data-notification-index="${i}" role="button" tabindex="0">
             <div class="notification-item__title" style="--accent: ${notificationAccent(n.type)};">
                 <span class="notification-item__dot"></span>
-                ${n.title || notificationDefaultTitle(n.type)}
+                ${esc(n.title || notificationDefaultTitle(n.type))}
             </div>
-            <div class="notification-item__message">${n.message}</div>
+            <div class="notification-item__message">${esc(n.message)}</div>
             <div class="notification-item__time">${new Date(n.created_at).toLocaleDateString()}</div>
         </div>
     `).join('');
@@ -160,7 +163,7 @@ function updateTripSelector() {
     }
 
     selector.innerHTML = STATE.trips.map(t => `
-        <option value="${t.id}" ${t.id === STATE.activeTripId ? 'selected' : ''}>${t.name}</option>
+        <option value="${esc(t.id)}" ${t.id === STATE.activeTripId ? 'selected' : ''}>${esc(t.name)}</option>
     `).join('');
 
     // Show/hide management buttons if a trip is selected

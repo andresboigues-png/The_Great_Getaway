@@ -3,7 +3,7 @@
 
 import { STATE, emit } from '../state.js';
 import { INSPIRATIONAL_PAIRS } from '../constants.js';
-import { getMediaForTrip, showLiquidAlert, formatDayDate, q, showConfirmModal, generateId, cleanPlaceName } from '../utils.js';
+import { getMediaForTrip, showLiquidAlert, formatDayDate, q, showConfirmModal, generateId, cleanPlaceName, esc } from '../utils.js';
 import { upsertDay, uploadMedia, deleteDayOnServer, upsertTrip } from '../api.js';
 import { navigate } from '../router.js';
 import { showPersTab } from './settings.js';
@@ -652,10 +652,10 @@ export function renderHome() {
             <div style="display: flex; align-items: center; gap: 12px;">
                 ${activeTrip ? `
                     <button id="resetMapViewBtn" title="Reset the map view to show the whole trip">
-                        <h2 style="font-size: var(--font-3xl); letter-spacing: -0.03em; margin: 0; font-weight: 800; color: #002d5b;">${tripTitle}</h2>
+                        <h2 style="font-size: var(--font-3xl); letter-spacing: -0.03em; margin: 0; font-weight: 800; color: #002d5b;">${esc(tripTitle)}</h2>
                     </button>
                 ` : `
-                    <h2 style="font-size: 1.8rem; letter-spacing: -0.03em; margin: 0; font-weight: 800; color: #002d5b;">${tripTitle}</h2>
+                    <h2 style="font-size: 1.8rem; letter-spacing: -0.03em; margin: 0; font-weight: 800; color: #002d5b;">${esc(tripTitle)}</h2>
                 `}
                 ${activeTrip ? `
                     ${tripIsManageable ? `
@@ -749,7 +749,7 @@ export function renderHome() {
                                     </div>
                                 `}
                                 <div style="display: flex; flex-direction: column;">
-                                    <h3 style="margin: 0; font-size: 1.3rem; font-weight: 800; color: #002d5b; letter-spacing: -0.02em;">${isStartingPoint ? 'Trip Genesis' : day.name}</h3>
+                                    <h3 style="margin: 0; font-size: 1.3rem; font-weight: 800; color: #002d5b; letter-spacing: -0.02em;">${isStartingPoint ? 'Trip Genesis' : esc(day.name)}</h3>
                                     <div style="font-size: 0.9rem; color: var(--text-secondary); font-weight: 600; margin-top: 4px; display: flex; align-items: center; gap: 8px;">
                                         ${isStartingPoint
                                             ? `<span>${activeTrip && activeTrip.country ? cleanPlaceName(activeTrip.country) : 'Where the trip begins'}</span>`
@@ -773,7 +773,7 @@ export function renderHome() {
                         ${isOpen && day.notes ? `
                             <div style="margin-top: 20px; padding: 16px; background: rgba(0,0,0,0.02); border-radius: 16px; border-left: 4px solid var(--accent-blue);">
                                 <div style="font-size: 0.75rem; font-weight: 800; text-transform: uppercase; color: var(--accent-blue); margin-bottom: 8px;">Journaling Preview</div>
-                                <p style="margin: 0; font-size: 0.95rem; line-height: 1.5; color: #002d5b; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${day.notes}</p>
+                                <p style="margin: 0; font-size: 0.95rem; line-height: 1.5; color: #002d5b; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${esc(day.notes)}</p>
                             </div>
                         ` : ''}
                     </div>
@@ -1005,8 +1005,8 @@ const openJournalingModal = (dayId) => {
     modal.innerHTML = `
         <div class="card-glass-modal-light" style="width: 580px;">
             <h2 style="font-size: var(--font-3xl); margin-bottom: var(--space-2); color: #002d5b; font-weight: 800; letter-spacing: -0.04em;">Day ${day.dayNumber} Journaling</h2>
-            <p class="text-subtitle">Capture your memories and stories from ${day.name}</p>
-            <textarea id="journalText" class="glass-input-light" style="height: 260px; font-size: 1.05rem; line-height: 1.6; margin-bottom: var(--space-5); resize: vertical; display: block;" placeholder="What happened today? How did you feel?">${day.notes || ''}</textarea>
+            <p class="text-subtitle">Capture your memories and stories from ${esc(day.name)}</p>
+            <textarea id="journalText" class="glass-input-light" style="height: 260px; font-size: 1.05rem; line-height: 1.6; margin-bottom: var(--space-5); resize: vertical; display: block;" placeholder="What happened today? How did you feel?">${esc(day.notes || '')}</textarea>
             <div style="display: flex; gap: var(--space-3);">
                 <button id="saveJournalBtn" class="btn-primary" style="flex: 2; padding: var(--space-4); border-radius: var(--radius-lg); font-size: var(--font-lg);">Save Story</button>
                 <button id="closeJournalBtn" class="btn-neutral" style="flex: 1; border-radius: var(--radius-lg);">Close</button>
@@ -1227,7 +1227,7 @@ const openDayDetail = (dayId) => {
                         <div style="background: var(--accent-blue); color: white; padding: var(--space-1) var(--space-3); border-radius: var(--radius-sm); font-weight: 800; font-size: var(--font-xs); text-transform: uppercase;">Day ${day.dayNumber}</div>
                         <div style="color: var(--text-secondary); font-weight: 600; font-size: var(--font-base);">${formatDayDate(day.date)}</div>
                     </div>
-                    <h2 style="font-size: 2.5rem; color: #002d5b; font-weight: 800; letter-spacing: -0.04em; margin: 0;">${day.name}</h2>
+                    <h2 style="font-size: 2.5rem; color: #002d5b; font-weight: 800; letter-spacing: -0.04em; margin: 0;">${esc(day.name)}</h2>
                 </div>
                 <button id="closeDetailBtn" class="close-x-btn">✕</button>
             </div>
@@ -1249,11 +1249,11 @@ const openDayDetail = (dayId) => {
                 <div style="display: flex; flex-direction: column; gap: var(--space-6);">
                     <div style="flex: 1; background: rgba(0,113,227,0.05); padding: var(--space-6); border-radius: 24px; border: 1px solid rgba(0,113,227,0.1);">
                         <h4 class="text-tag">Personal Notes</h4>
-                        <textarea id="detailNotes" class="plain-textarea plain-textarea--no-resize" style="height: 200px;" placeholder="Private thoughts about this day...">${day.notes || ''}</textarea>
+                        <textarea id="detailNotes" class="plain-textarea plain-textarea--no-resize" style="height: 200px;" placeholder="Private thoughts about this day...">${esc(day.notes || '')}</textarea>
                     </div>
                     <div style="background: #000; padding: var(--space-6); border-radius: 24px; color: white;">
                         <h4 class="text-tag" style="--accent: 52,199,89;">Expert Tip</h4>
-                        <p style="margin: 0; font-size: var(--font-md); line-height: 1.5; opacity: 0.9;">${day.tip || "Always keep a portable charger and a small bottle of water in your bag for long exploration days."}</p>
+                        <p style="margin: 0; font-size: var(--font-md); line-height: 1.5; opacity: 0.9;">${esc(day.tip || "Always keep a portable charger and a small bottle of water in your bag for long exploration days.")}</p>
                     </div>
                     <button id="saveDetailBtn" class="btn-primary" style="width: 100%; padding: var(--space-5); border-radius: var(--radius-xl); font-size: var(--font-xl);">Save All Changes</button>
                 </div>

@@ -2,8 +2,9 @@
 // pages/settlement.js
 
 import { STATE, emit } from '../state.js';
-import { generateId, showConfirmModal, q, formatHome, getHomeCurrency, convertCurrency } from '../utils.js';
+import { generateId, showConfirmModal, q, formatHome, getHomeCurrency, convertCurrency, esc } from '../utils.js';
 import { getCompanionNames } from '../companions.js';
+import { canEdit } from '../permissions.js';
 
 export function renderSettlement() {
     const div = document.createElement('div');
@@ -32,6 +33,10 @@ export function renderSettlement() {
 
     function buildSettlementUI(tripId) {
         const trip = STATE.trips.find(t => t.id === tripId);
+        // Phase 4 — Settle / Manual Settlement / Edit / Unsettle are all
+        // writes against the trip's expense list. Relaxers see balances
+        // and Past Settlements (read-only) but can't trigger any of those.
+        const tripIsEditable = canEdit(trip);
 
         const tripsGridHtml = `
             <div style="margin-bottom: 32px;">
@@ -46,7 +51,7 @@ export function renderSettlement() {
             return `
                             <div class="card glass settlement-trip-card${isActive ? ' is-active card-glow-blue' : ''}" data-trip-id="${t.id}">
                                 <div class="settlement-trip-card__label">Adventure</div>
-                                <div class="settlement-trip-card__name">${t.name}</div>
+                                <div class="settlement-trip-card__name">${esc(t.name)}</div>
                                 <div style="display: flex; align-items: center; justify-content: space-between;">
                                     <div class="settlement-trip-card__amount">${formatHome(total, 'EUR')}</div>
                                     ${isActive ? '<div class="settlement-trip-card__active-dot"></div>' : ''}
@@ -189,7 +194,7 @@ export function renderSettlement() {
                                 const isPos = bal >= 0;
                                 return `
                                     <div style="display: grid; grid-template-columns: 100px ${hasBalances ? '1fr' : ''} 80px; align-items: center; gap: var(--space-4);">
-                                        <div style="font-weight: 700; font-size: var(--font-base);">${person}</div>
+                                        <div style="font-weight: 700; font-size: var(--font-base);">${esc(person)}</div>
                                         ${hasBalances ? `
                                             <div class="balance-bar">
                                                 <div class="balance-bar__fill balance-bar__fill--${isPos ? 'positive' : 'negative'}" style="width: ${pct}%;"></div>
@@ -208,7 +213,7 @@ export function renderSettlement() {
 
             <div style="margin-bottom: var(--space-6);">
                 <div class="active-view-pill">
-                    Active View: ${trip.name}
+                    Active View: ${esc(trip.name)}
                 </div>
             </div>
 
@@ -222,7 +227,7 @@ export function renderSettlement() {
                         <tbody>
                             ${Object.entries(balances).map(([person, bal]) => `
                                 <tr>
-                                    <td style="font-weight: 500;">${person}</td>
+                                    <td style="font-weight: 500;">${esc(person)}</td>
                                     <td style="text-align: right; color: ${bal >= 0 ? '#34c759' : '#ff3b30'}; font-weight: 700;">
                                         ${bal >= 0 ? '+' : ''}${formatHome(bal, 'EUR')}
                                     </td>
@@ -239,12 +244,12 @@ export function renderSettlement() {
                             <div class="debt-row">
                                 <div style="display: flex; align-items: center; gap: var(--space-4);">
                                     <div>
-                                        <span class="debt-row__from-label">${d.from} pays</span>
-                                        <div class="debt-row__to-name">${d.to}</div>
+                                        <span class="debt-row__from-label">${esc(d.from)} pays</span>
+                                        <div class="debt-row__to-name">${esc(d.to)}</div>
                                     </div>
                                     <div class="debt-row__amount">${formatHome(d.amount, 'EUR')}</div>
                                 </div>
-                                <button class="btn-primary settle-debt-btn" data-trip-id="${tripId}" data-from="${d.from}" data-to="${d.to}" data-amount="${d.amount}" style="padding: var(--space-2) var(--space-4); font-size: var(--font-sm);">Settle</button>
+                                ${tripIsEditable ? `<button class="btn-primary settle-debt-btn" data-trip-id="${tripId}" data-from="${d.from}" data-to="${d.to}" data-amount="${d.amount}" style="padding: var(--space-2) var(--space-4); font-size: var(--font-sm);">Settle</button>` : ''}
                             </div>
                         `).join('') : '<p class="text-muted" style="text-align: center; padding: var(--space-5); font-weight: 600;">All settled for this trip! 🥂</p>'}
                     </div>
@@ -252,9 +257,11 @@ export function renderSettlement() {
             </div>
 
             <div style="display: flex; gap: var(--space-4); margin-top: var(--space-8); justify-content: center; flex-wrap: wrap;">
-                <button class="btn-ghost open-manual-settle-btn" data-trip-id="${tripId}" style="color: var(--text-primary); padding: var(--space-4) var(--space-8); display: flex; align-items: center; gap: var(--space-2);">
-                    <span>➕</span> Manual Settlement
-                </button>
+                ${tripIsEditable ? `
+                    <button class="btn-ghost open-manual-settle-btn" data-trip-id="${tripId}" style="color: var(--text-primary); padding: var(--space-4) var(--space-8); display: flex; align-items: center; gap: var(--space-2);">
+                        <span>➕</span> Manual Settlement
+                    </button>
+                ` : ''}
                 <button class="btn-ghost open-past-settle-btn" data-trip-id="${tripId}" style="color: var(--text-primary); padding: var(--space-4) var(--space-8); display: flex; align-items: center; gap: var(--space-2);">
                     <span>📜</span> Past Settlements
                 </button>
@@ -363,22 +370,27 @@ export function renderSettlement() {
         modal.style.display = 'flex';
         modal.style.backdropFilter = 'blur(25px)';
 
+        const trip = STATE.trips.find(t => t.id === tripId);
+        const tripIsEditable = canEdit(trip);
+
         const pastSettlements = STATE.expenses.filter(e => e.tripId === tripId && e.isSettlement).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-        
-        const listHtml = pastSettlements.length === 0 
+
+        const listHtml = pastSettlements.length === 0
             ? '<p style="color: var(--text-secondary); text-align: center; padding: 20px;">No past settlements recorded for this trip.</p>'
             : pastSettlements.map(s => `
                 <div style="display: flex; align-items: center; justify-content: space-between; padding: 16px; background: rgba(255,255,255,0.05); border-radius: 16px; border: 1px solid rgba(255,255,255,0.1); margin-bottom: 12px;">
                     <div>
-                        <div style="font-weight: 700; font-size: 1.1rem; color: white;">${s.label}</div>
+                        <div style="font-weight: 700; font-size: 1.1rem; color: white;">${esc(s.label)}</div>
                         <div style="font-size: 0.8rem; color: rgba(255,255,255,0.7); margin-top: 4px;">${s.date}</div>
                     </div>
                     <div style="display: flex; align-items: center; gap: 16px;">
                         <div style="font-size: 1.2rem; font-weight: 800; color: #34c759;">${formatHome(s.euroValue, 'EUR')}</div>
+                        ${tripIsEditable ? `
                         <div style="display: flex; gap: 8px;">
                             <button class="themed-block-btn themed-block-btn--sm edit-settlement-btn" data-settlement-id="${s.id}" style="--accent: 255,255,255; color: white;">Edit</button>
                             <button class="themed-block-btn themed-block-btn--sm unsettle-settlement-btn" data-settlement-id="${s.id}" data-trip-id="${tripId}" style="--accent: 255,59,48;">Unsettle</button>
                         </div>
+                        ` : ''}
                     </div>
                 </div>
             `).join('');

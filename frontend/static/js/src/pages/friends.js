@@ -7,6 +7,30 @@ import { apiUrl } from '../api.js';
 export function renderFriends() {
     const div = document.createElement('div');
 
+    // Login-gated page — friends, requests, and search are all per-account
+    // and have no meaning without a signed-in user. Render a clear empty
+    // state instead of the loading spinner that would otherwise spin
+    // forever (the fetch helpers bail silently when STATE.user is null).
+    if (!STATE.user) {
+        div.innerHTML = `
+            <div class="ai-page-header">
+                <h1 class="gradient-text" style="--g-from: #1a6b3c; --g-to: #34c759;">Friends</h1>
+                <p>Connect with other travelers and share your itineraries.</p>
+            </div>
+            <div style="text-align: center; padding: 60px 20px; background: rgba(255,255,255,0.02); border-radius: 16px; border: 1px solid var(--glass-border); max-width: 500px; margin: 40px auto;">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 20px; opacity: 0.8;">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+                <h3 style="margin-bottom: 12px; font-weight: 600;">Login Required</h3>
+                <p style="color: var(--text-secondary); line-height: 1.5; font-size: 0.95rem;">
+                    Friend connections are tied to your account. Please sign in using the Google button in the menu to connect with other travelers.
+                </p>
+            </div>
+        `;
+        return div;
+    }
+
     const updateFriendsList = async () => {
         if (!STATE.user) return;
         try {

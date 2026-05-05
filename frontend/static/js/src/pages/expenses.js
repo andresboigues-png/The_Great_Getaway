@@ -9,7 +9,7 @@
 
 import { STATE, emit } from '../state.js';
 import { COUNTRIES, CONVERSION_RATES } from '../constants.js';
-import { generateId, showConfirmModal, q, formatHome, getHomeCurrency } from '../utils.js';
+import { generateId, showConfirmModal, q, formatHome, getHomeCurrency, esc } from '../utils.js';
 import { upsertExpense, deleteExpenseOnServer } from '../api.js';
 import { navigate } from '../router.js';
 import { showPersTab } from './settings.js';
@@ -681,20 +681,20 @@ export function renderTripExpenses(container, filters = {}) {
                         ${cat ? cat.icon : '💰'}
                     </div>
                     <div>
-                        <strong class="expense-row__title">${e.label}</strong>
+                        <strong class="expense-row__title">${esc(e.label)}</strong>
                         <div class="expense-row__meta">
                             <span>${formatAppleDate(e.date)}</span>
                             <span class="expense-row__meta-dot"></span>
-                            <span>${e.country || 'Global'}</span>
+                            <span>${esc(e.country || 'Global')}</span>
                             <span class="expense-row__meta-dot"></span>
-                            <span>${e.who}</span>
+                            <span>${esc(e.who)}</span>
                         </div>
                     </div>
                 </div>
 
                 <div style="display: flex; align-items: center; gap: var(--space-3);">
                     <div style="text-align: right;">
-                        <div class="expense-row__amount">${e.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span class="expense-row__currency">${e.currency}</span></div>
+                        <div class="expense-row__amount">${e.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span class="expense-row__currency">${esc(e.currency)}</span></div>
                         ${convertedDisplay ? `<div class="expense-row__converted">${convertedDisplay}</div>` : ''}
                     </div>
 

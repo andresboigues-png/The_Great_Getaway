@@ -5,7 +5,7 @@
 // otherwise form via router.js.
 
 import { STATE, emit } from './state.js';
-import { generateId, showLiquidAlert, q } from './utils.js';
+import { generateId, showLiquidAlert, q, esc } from './utils.js';
 import {
     upsertTrip,
     upsertDay,
@@ -518,7 +518,7 @@ export const openCompanionPickerModal = (tripId) => {
         <div class="card-glass-modal-light" style="width: 480px; max-height: 80vh; display: flex; flex-direction: column;">
             <h2 style="margin: 0 0 var(--space-2); font-size: var(--font-2xl); color: #002d5b; font-weight: 800; letter-spacing: -0.03em;">Trip Companions</h2>
             <p style="margin: 0 0 var(--space-5); font-size: var(--font-base); color: rgba(0,0,0,0.55);">
-                Pick who's coming on <strong>${trip.name}</strong>. Linked companions will receive a trip invitation — pick their role at the moment of invite.
+                Pick who's coming on <strong>${esc(trip.name)}</strong>. Linked companions will receive a trip invitation — pick their role at the moment of invite.
             </p>
 
             <div id="companionPickerList" style="display: flex; flex-direction: column; gap: var(--space-2); overflow-y: auto; padding: var(--space-1); margin-bottom: var(--space-5); flex: 1; min-height: 0;">
@@ -644,11 +644,11 @@ export const openCompanionLinkPickerModal = (companionName) => {
             return;
         }
         list.innerHTML = candidates.map(f => `
-            <label class="companion-row friend-pick-row" data-friend-id="${f.id}">
-                <input type="radio" name="linkPickFriend" class="companion-row__cb" value="${f.id}">
-                <img src="${f.picture}" alt="" style="width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;">
-                <span class="companion-row__name">${f.name}</span>
-                <span style="font-size: var(--font-xs); color: rgba(0,0,0,0.45);">${f.email}</span>
+            <label class="companion-row friend-pick-row" data-friend-id="${esc(f.id)}">
+                <input type="radio" name="linkPickFriend" class="companion-row__cb" value="${esc(f.id)}">
+                <img src="${esc(f.picture)}" alt="" style="width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;">
+                <span class="companion-row__name">${esc(f.name)}</span>
+                <span style="font-size: var(--font-xs); color: rgba(0,0,0,0.45);">${esc(f.email)}</span>
             </label>
         `).join('');
 
@@ -694,12 +694,12 @@ export const openCompanionLinkResponseModal = (notification) => {
         <div class="card-glass-modal-light" style="width: 440px;">
             <h2 style="margin: 0 0 var(--space-2); font-size: var(--font-2xl); color: #002d5b; font-weight: 800; letter-spacing: -0.03em;">Companion link request</h2>
             <p style="margin: 0 0 var(--space-5); font-size: var(--font-base); color: rgba(0,0,0,0.6); line-height: 1.5;">
-                <strong>${inviterName}</strong> wants to link you as a companion. Accept and they'll appear in your companion list — you can rename them however you like.
+                <strong>${esc(inviterName)}</strong> wants to link you as a companion. Accept and they'll appear in your companion list — you can rename them however you like.
             </p>
 
             <div style="margin-bottom: var(--space-5);">
                 <label class="form-label-light" style="display:block; margin-bottom: var(--space-2);">Save them as</label>
-                <input type="text" id="linkResponseName" class="glass-input-light" value="${inviterName}" placeholder="Companion name">
+                <input type="text" id="linkResponseName" class="glass-input-light" value="${esc(inviterName)}" placeholder="Companion name">
             </div>
 
             <div style="display: flex; gap: var(--space-3);">
@@ -714,23 +714,34 @@ export const openCompanionLinkResponseModal = (notification) => {
 
     /** @type {HTMLButtonElement} */ (q(modal, '#linkResponseAcceptBtn')).onclick = async () => {
         const chosen = nameInput.value.trim() || inviterName;
-        // Optimistic local update — create the companion record on this side
-        // pre-marked accepted; the server will confirm and reciprocate.
+        // Hit the server FIRST — if the invite is stale (cancelled by the
+        // inviter, deleted user, etc.), we want to know before mutating
+        // local state. Optimistic-then-rollback is more confusing than
+        // a brief delay.
+        const result = await respondCompanionLink(inviterUserId, true, chosen);
+        if (!result || !result.ok) {
+            showLiquidAlert("This invitation is no longer valid");
+            modal.remove();
+            return;
+        }
         const companion = addCompanion(chosen);
         if (companion) {
             companion.linkedUserId = inviterUserId;
             companion.linkStatus = 'accepted';
         }
         emit('state:changed');
-        await respondCompanionLink(inviterUserId, true, chosen);
         showLiquidAlert("Companion linked");
         modal.remove();
         navigate('personalization', null, true);
     };
 
     /** @type {HTMLButtonElement} */ (q(modal, '#linkResponseDeclineBtn')).onclick = async () => {
-        await respondCompanionLink(inviterUserId, false, '');
-        showLiquidAlert("Declined");
+        const result = await respondCompanionLink(inviterUserId, false, '');
+        if (!result || !result.ok) {
+            showLiquidAlert("This invitation is no longer active");
+        } else {
+            showLiquidAlert("Declined");
+        }
         modal.remove();
     };
 };
@@ -755,10 +766,10 @@ export const openTripMembersModal = (tripId) => {
 
     const memberRow = (/** @type {import('./types').TripMember} */ m, isOwnerRow) => `
         <div class="companion-row" style="cursor: default;">
-            ${m.picture ? `<img src="${m.picture}" alt="" style="width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;">` : ''}
-            <span class="companion-row__name">${m.name || m.userId}</span>
+            ${m.picture ? `<img src="${esc(m.picture)}" alt="" style="width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;">` : ''}
+            <span class="companion-row__name">${esc(m.name || m.userId)}</span>
             <span class="companion-link-pill ${isOwnerRow ? 'companion-link-pill--linked' : 'companion-link-pill--pending'}">
-                ${isOwnerRow ? '👑 Owner' : roleLabel(m.role)}
+                ${isOwnerRow ? '👑 Owner' : esc(roleLabel(m.role))}
             </span>
         </div>
     `;
@@ -772,7 +783,7 @@ export const openTripMembersModal = (tripId) => {
         <div class="card-glass-modal-light" style="width: 460px; max-height: 80vh; display: flex; flex-direction: column;">
             <h2 style="margin: 0 0 var(--space-2); font-size: var(--font-2xl); color: #002d5b; font-weight: 800; letter-spacing: -0.03em;">Trip members</h2>
             <p style="margin: 0 0 var(--space-5); font-size: var(--font-base); color: rgba(0,0,0,0.55);">
-                You're on <strong>${trip.name}</strong> as a <strong>${roleLabel(trip.myRole || ROLE_RELAXER)}</strong>. Roster is managed by the trip owner.
+                You're on <strong>${esc(trip.name)}</strong> as a <strong>${esc(roleLabel(trip.myRole || ROLE_RELAXER))}</strong>. Roster is managed by the trip owner.
             </p>
 
             <div style="display: flex; flex-direction: column; gap: var(--space-2); overflow-y: auto; padding: var(--space-1); margin-bottom: var(--space-5); flex: 1; min-height: 0;">
@@ -813,7 +824,7 @@ export const openTripInviteResponseModal = (notification) => {
         <div class="card-glass-modal-light" style="width: 440px;">
             <h2 style="margin: 0 0 var(--space-2); font-size: var(--font-2xl); color: #002d5b; font-weight: 800; letter-spacing: -0.03em;">Trip invitation</h2>
             <p style="margin: 0 0 var(--space-5); font-size: var(--font-base); color: rgba(0,0,0,0.6); line-height: 1.5;">
-                ${notification.message || `You've been invited to ${tripName} as a ${roleName}.`}
+                ${esc(notification.message || `You've been invited to ${tripName} as a ${roleName}.`)}
             </p>
             <p style="margin: 0 0 var(--space-5); font-size: var(--font-sm); color: rgba(0,0,0,0.5);">
                 Accept and the trip appears in your active list. Planners can edit; Relaxers can only watch.
@@ -828,7 +839,12 @@ export const openTripInviteResponseModal = (notification) => {
     document.body.appendChild(modal);
 
     /** @type {HTMLButtonElement} */ (q(modal, '#tripInviteAcceptBtn')).onclick = async () => {
-        await respondTripInvite(tripId, true);
+        const result = await respondTripInvite(tripId, true);
+        if (!result || !result.ok) {
+            showLiquidAlert("This trip invitation is no longer valid");
+            modal.remove();
+            return;
+        }
         showLiquidAlert("Joined the trip");
         modal.remove();
         // The trip will appear on the next /api/data poll. We don't try to
@@ -836,8 +852,12 @@ export const openTripInviteResponseModal = (notification) => {
         // list, and racing against that creates inconsistency bugs.
     };
     /** @type {HTMLButtonElement} */ (q(modal, '#tripInviteDeclineBtn')).onclick = async () => {
-        await respondTripInvite(tripId, false);
-        showLiquidAlert("Declined");
+        const result = await respondTripInvite(tripId, false);
+        if (!result || !result.ok) {
+            showLiquidAlert("This invitation is no longer active");
+        } else {
+            showLiquidAlert("Declined");
+        }
         modal.remove();
     };
 };

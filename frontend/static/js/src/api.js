@@ -98,6 +98,27 @@ const _delete = (url, body) => fetch(apiUrl(url), {
     body: JSON.stringify(body)
 }).catch(e => console.error(`DELETE ${url} failed:`, e));
 
+/** Like `_post` but returns `{ ok, status, body }` so callers can branch
+ *  on the result. Used by the invite-response flows where a stale
+ *  invitation (already cancelled, already accepted, deleted trip) should
+ *  surface an error message rather than silently optimistically-update
+ *  the UI. */
+const _postJson = async (url, body) => {
+    try {
+        const res = await fetch(apiUrl(url), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        let payload = null;
+        try { payload = await res.json(); } catch { /* not JSON, ignore */ }
+        return { ok: res.ok, status: res.status, body: payload };
+    } catch (e) {
+        console.error(`POST ${url} failed:`, e);
+        return { ok: false, status: 0, body: null };
+    }
+};
+
 /** Upsert a single trip to the server. */
 export function upsertTrip(trip) {
     if (!STATE.user) return;
@@ -131,10 +152,12 @@ export function inviteTripMember(tripId, targetUserId, role) {
     });
 }
 
-/** Accept or decline a pending trip invitation. */
+/** Accept or decline a pending trip invitation. Returns `{ok, status, body}`
+ *  so the response modal can show a useful error if the invitation went
+ *  stale (e.g. the trip was deleted or the user was already removed). */
 export function respondTripInvite(tripId, accept) {
-    if (!STATE.user) return;
-    return _post('/api/trips/invite/respond', {
+    if (!STATE.user) return Promise.resolve({ ok: false, status: 0, body: null });
+    return _postJson('/api/trips/invite/respond', {
         user_id: STATE.user.id,
         trip_id: tripId,
         accept,
@@ -191,10 +214,11 @@ export function inviteCompanionLink(companionName, friendUserId) {
 
 /** Accept or decline a pending companion-link invitation. On accept the
  *  responder picks a `companionName` for the inviter (defaults to the
- *  inviter's display name). */
+ *  inviter's display name). Returns `{ok, status, body}` so callers can
+ *  detect stale invites (404 when the inviter cancelled in between). */
 export function respondCompanionLink(inviterUserId, accept, companionName) {
-    if (!STATE.user) return;
-    return _post('/api/companions/link/respond', {
+    if (!STATE.user) return Promise.resolve({ ok: false, status: 0, body: null });
+    return _postJson('/api/companions/link/respond', {
         user_id: STATE.user.id,
         inviter_user_id: inviterUserId,
         accept,
@@ -255,10 +279,15 @@ export function deleteDayOnServer(dayId) {
     return _delete(`/api/days/${dayId}`, { user_id: STATE.user.id });
 }
 
-/** POST a file to /api/upload. Returns the parsed JSON response, or null on failure. */
+/** POST a file to /api/upload. Returns the parsed JSON response, or null on failure.
+ *  Includes the caller's user_id so the server can reject anonymous uploads
+ *  (the endpoint used to accept any POST, which let unauthenticated traffic
+ *  dump arbitrary files into /static/uploads). */
 export async function uploadMedia(file) {
+    if (!STATE.user) return null;
     const formData = new FormData();
     formData.append('file', file);
+    formData.append('user_id', STATE.user.id);
     try {
         const res = await fetch(apiUrl('/api/upload'), { method: 'POST', body: formData });
         return await res.json();
