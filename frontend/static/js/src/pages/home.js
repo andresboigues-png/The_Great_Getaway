@@ -709,7 +709,12 @@ export function renderHome() {
         if (chips.length === 0) return '';
 
         const renderChip = (/** @type {{name: string, role: string|null, picture?: string|null, isOwner: boolean, isMember: boolean, isPending?: boolean}} */ chip) => {
-            const initial = chip.name.charAt(0).toUpperCase() || '·';
+            // Defensive — historical snapshots could carry malformed entries
+            // (e.g. legacy `string[]` companions where `chip.name` would be
+            // undefined). Falls back to a neutral glyph rather than crashing
+            // the whole page; loadState now normalises on boot too.
+            const safeName = chip.name || '·';
+            const initial = safeName.charAt(0).toUpperCase() || '·';
             const avatar = chip.picture
                 ? `<img class="member-chip__avatar" src="${esc(chip.picture)}" alt="">`
                 : `<span class="member-chip__initial">${esc(initial)}</span>`;
@@ -730,7 +735,7 @@ export function renderHome() {
                 // tautological "Companion" tag.
                 badge = `<span class="member-chip__role member-chip__role--relaxer">Relaxer</span>`;
             }
-            return `<div class="member-chip ${chip.isOwner ? 'member-chip--owner' : ''}">${avatar}<span class="member-chip__name">${esc(chip.name)}</span>${badge}</div>`;
+            return `<div class="member-chip ${chip.isOwner ? 'member-chip--owner' : ''}">${avatar}<span class="member-chip__name">${esc(safeName)}</span>${badge}</div>`;
         };
 
         return `<div id="tripMembersPanel" class="trip-members-panel" title="${tripIsManageable ? 'Manage trip companions' : 'See who\'s on this trip'}">${chips.map(renderChip).join('')}</div>`;

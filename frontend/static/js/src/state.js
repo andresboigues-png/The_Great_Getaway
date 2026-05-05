@@ -3,6 +3,7 @@
 
 import { EVENTS } from './constants.js';
 import { validateLoadedState } from './schemas.js';
+import { normalizeTripCompanions } from './companions.js';
 
 // api.js helpers are imported at call-site, not here.
 
@@ -78,6 +79,19 @@ export function loadState() {
     if (!STATE.savedFormats) STATE.savedFormats = [];
     if (!STATE.tripDays) STATE.tripDays = [];
     if (!STATE.archivedTrips) STATE.archivedTrips = [];
+
+    // Per-trip companions used to be `string[]` of names. Promote any
+    // legacy snapshot in localStorage to the `Companion[]` shape so the
+    // home chip builder, picker, settlement balance, etc. can all assume
+    // objects with `.name`. Without this an older browser session would
+    // crash on `chip.name.charAt(...)` because `chip.name` was undefined
+    // (the iterator was reading a bare string instead of an object).
+    for (const trip of STATE.trips || []) {
+        trip.companions = normalizeTripCompanions(trip.companions);
+    }
+    for (const trip of STATE.archivedTrips || []) {
+        trip.companions = normalizeTripCompanions(trip.companions);
+    }
     STATE.tripDays.forEach(d => {
         if (!d.tickets) d.tickets = [];
         if (d.notes === undefined) d.notes = '';
