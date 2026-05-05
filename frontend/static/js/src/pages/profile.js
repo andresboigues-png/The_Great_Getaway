@@ -89,11 +89,19 @@ export function renderLoginWall() {
 
     // Google's button renderer needs a real DOM target, so do it after the
     // wall is mounted. Retries briefly if the GIS script hasn't loaded yet.
+    // We also (re-)call initialize here to wire the callback in case
+    // main.js's initGoogleLogin hadn't reached its own retry yet — calling
+    // initialize multiple times is safe (it's a configuration call) and
+    // guarantees the button has a working callback the moment it renders.
     const renderButton = () => {
         const target = div.querySelector('#loginWallBtnContainer');
         if (!target) return;
         if (window.google && window.google.accounts && window.globalGoogleClientId) {
             target.innerHTML = '';
+            window.google.accounts.id.initialize({
+                client_id: window.globalGoogleClientId,
+                callback: window.handleGoogleLogin || (() => {}),
+            });
             window.google.accounts.id.renderButton(
                 target,
                 { theme: 'outline', size: 'large', width: 280, shape: 'pill' }

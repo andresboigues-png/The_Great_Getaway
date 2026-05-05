@@ -278,17 +278,41 @@ async function handleGoogleLogin(response) {
     }
 }
 
+// Expose on window so profile.js's renderButton can wire it as the
+// callback when it (re-)initializes the GIS SDK. Both files calling
+// initialize is OK — it's just configuration; whichever fires later
+// wins, and they pass the same callback.
+// @ts-ignore
+window.handleGoogleLogin = handleGoogleLogin;
+
 function initGoogleLogin() {
-    if (typeof google !== 'undefined' && google.accounts) {
-        google.accounts.id.initialize({
-            client_id: window.globalGoogleClientId,
-            callback: handleGoogleLogin
-        });
-        const container = document.getElementById("googleBtnContainer");
-        if (container) {
-            google.accounts.id.renderButton(container, { theme: "outline", size: "large", shape: "pill" });
+    // The GIS script is loaded `async defer`, so on a cold page-load
+    // `google.accounts` often isn't defined yet by the time init() runs.
+    // The previous version silently bailed in that case, leaving
+    // initialize() never called — when the login wall later rendered the
+    // button via renderButton, clicking it did nothing because the
+    // callback wasn't wired. After a refresh the SDK was cached and ready
+    // immediately, which is why "refresh and it works" was the symptom.
+    //
+    // Now we poll briefly until the SDK loads, then call initialize once.
+    // 250ms x 40 = 10s upper bound — plenty for any realistic load time
+    // without spinning forever if the script never arrives.
+    let attempts = 0;
+    const tryInit = () => {
+        if (typeof google !== 'undefined' && google.accounts && google.accounts.id) {
+            google.accounts.id.initialize({
+                client_id: window.globalGoogleClientId,
+                callback: handleGoogleLogin
+            });
+            const container = document.getElementById("googleBtnContainer");
+            if (container) {
+                google.accounts.id.renderButton(container, { theme: "outline", size: "large", shape: "pill" });
+            }
+            return;
         }
-    }
+        if (++attempts < 40) setTimeout(tryInit, 250);
+    };
+    tryInit();
 }
 
 // ── INITIALIZATION ──
