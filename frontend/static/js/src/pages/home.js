@@ -8,7 +8,8 @@ import { upsertDay, uploadMedia, deleteDayOnServer, upsertTrip } from '../api.js
 import { navigate } from '../router.js';
 import { showPersTab } from './settings.js';
 import { openNewTripModal, openAddDayModal, openEditTripModal, openCompanionPickerModal, openTripMembersModal } from '../modals.js';
-import { canEdit, canManageRoster } from '../permissions.js';
+import { canEdit, canManageRoster, ROLE_PLANNER } from '../permissions.js';
+import { findCompanion, findCompanionByLinkedUser } from '../companions.js';
 
 // Empty-state slideshow timer. Lives in this module; router.js calls
 // stopHomeSlideshow() on every navigate so the timer doesn't leak past home.
@@ -647,6 +648,74 @@ export function renderHome() {
     const tripIsManageable = canManageRoster(activeTrip);
     const tripIsEditable = canEdit(activeTrip);
 
+    /** Inline panel below the trip header — a horizontal chip per
+     *  participant with their role badge. Source order:
+     *    1) Owner first (👑 Owner)
+     *    2) Other accepted members (Planner / Relaxer pill)
+     *    3) Unlinked companions still in trip.companions (Companion pill)
+     *  Click anywhere on the panel routes through the same dispatcher
+     *  the pill button uses, so behaviour is one source-of-truth. */
+    const buildMemberChipsHtml = () => {
+        if (!activeTrip) return '';
+        const members = activeTrip.members || [];
+        const companions = activeTrip.companions || [];
+
+        /** @type {Array<{name: string, role: string|null, picture?: string|null, isOwner: boolean, isMember: boolean}>} */
+        const chips = [];
+        const seenMemberIds = new Set();
+
+        const owner = members.find(m => m.userId === activeTrip.ownerId);
+        if (owner) {
+            chips.push({
+                name: findCompanionByLinkedUser(owner.userId)?.name || owner.name || 'Owner',
+                role: owner.role,
+                picture: owner.picture,
+                isOwner: true,
+                isMember: true,
+            });
+            seenMemberIds.add(owner.userId);
+        }
+        for (const m of members) {
+            if (seenMemberIds.has(m.userId)) continue;
+            seenMemberIds.add(m.userId);
+            chips.push({
+                name: findCompanionByLinkedUser(m.userId)?.name || m.name || m.userId,
+                role: m.role,
+                picture: m.picture,
+                isOwner: false,
+                isMember: true,
+            });
+        }
+        for (const name of companions) {
+            const c = findCompanion(name);
+            if (c?.linkedUserId && seenMemberIds.has(c.linkedUserId)) continue;
+            chips.push({ name, role: null, isOwner: false, isMember: false });
+        }
+
+        if (chips.length === 0) return '';
+
+        const renderChip = (/** @type {{name: string, role: string|null, picture?: string|null, isOwner: boolean, isMember: boolean}} */ chip) => {
+            const initial = chip.name.charAt(0).toUpperCase() || '·';
+            const avatar = chip.picture
+                ? `<img class="member-chip__avatar" src="${esc(chip.picture)}" alt="">`
+                : `<span class="member-chip__initial">${esc(initial)}</span>`;
+            let badge;
+            if (chip.isOwner) {
+                badge = `<span class="member-chip__role member-chip__role--owner">👑 Owner</span>`;
+            } else if (chip.isMember) {
+                const label = chip.role === ROLE_PLANNER ? 'Planner' : 'Relaxer';
+                const variant = chip.role === ROLE_PLANNER ? 'planner' : 'relaxer';
+                badge = `<span class="member-chip__role member-chip__role--${variant}">${label}</span>`;
+            } else {
+                badge = `<span class="member-chip__role member-chip__role--companion">Companion</span>`;
+            }
+            return `<div class="member-chip ${chip.isOwner ? 'member-chip--owner' : ''}">${avatar}<span class="member-chip__name">${esc(chip.name)}</span>${badge}</div>`;
+        };
+
+        return `<div id="tripMembersPanel" class="trip-members-panel" title="${tripIsManageable ? 'Manage trip companions' : 'See who\'s on this trip'}">${chips.map(renderChip).join('')}</div>`;
+    };
+    const memberChipsHtml = buildMemberChipsHtml();
+
     daysContainer.innerHTML = `
         <div style="display: flex; flex-direction: column; margin-bottom: 24px;">
             <div style="display: flex; align-items: center; gap: 12px;">
@@ -679,6 +748,7 @@ export function renderHome() {
                 ` : ''}
             </div>
             <p style="font-size: 0.95rem; color: var(--text-secondary); margin: 6px 0 0; font-weight: 500;">${tripDays.length} Day${tripDays.length !== 1 ? 's' : ''} of adventure</p>
+            ${memberChipsHtml}
         </div>
 
         <div style="display: flex; flex-direction: column; gap: 32px; position: relative; padding-left: 20px;">
@@ -841,9 +911,10 @@ export function renderHome() {
             // Edit-trip pencil — owner-only, hidden when !manageable.
             if (target.closest('#editTripBtn')) { openEditTripModal(activeTrip); return; }
 
-            // Companions / Members button — owner picks roster, others see
-            // a read-only members list (the helper handles the dispatch).
-            if (target.closest('#tripCompanionsBtn')) {
+            // Companions / Members button OR the inline member-chip panel —
+            // both route through the same dispatcher: owner picks roster,
+            // others see a read-only members list.
+            if (target.closest('#tripCompanionsBtn') || target.closest('#tripMembersPanel')) {
                 if (canManageRoster(activeTrip)) {
                     openCompanionPickerModal(activeTrip.id);
                 } else {

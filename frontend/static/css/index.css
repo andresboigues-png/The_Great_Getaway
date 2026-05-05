@@ -2906,6 +2906,102 @@ h1 {
     outline-offset: 2px;
 }
 
+/* Inline member chips on the trip header — at-a-glance roster with role
+   badges. Click anywhere on the panel routes to the same modal as the
+   pill button (picker for owners, read-only members for others). */
+.trip-members-panel {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
+    padding: 0;
+    cursor: pointer;
+}
+.member-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: 4px 10px 4px 4px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.55);
+    border: 1px solid rgba(0, 113, 227, 0.14);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
+    transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+    font-size: 0.82rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: #002d5b;
+}
+.member-chip:hover {
+    background: rgba(255, 255, 255, 0.75);
+    border-color: rgba(0, 113, 227, 0.32);
+    transform: translateY(-1px);
+}
+.member-chip--owner {
+    background: linear-gradient(135deg, rgba(255, 214, 10, 0.22), rgba(255, 159, 10, 0.18));
+    border-color: rgba(255, 159, 10, 0.35);
+}
+.member-chip__avatar {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+    background: #fff;
+}
+.member-chip__initial {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, var(--accent-blue), #9b59b6);
+    color: #fff;
+    font-weight: 800;
+    font-size: 0.78rem;
+    flex-shrink: 0;
+}
+.member-chip__name {
+    color: #002d5b;
+    white-space: nowrap;
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.member-chip__role {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    line-height: 1.5;
+    text-transform: uppercase;
+}
+.member-chip__role--owner {
+    background: rgba(255, 159, 10, 0.18);
+    color: #b06b00;
+    border: 1px solid rgba(255, 159, 10, 0.32);
+}
+.member-chip__role--planner {
+    background: rgba(0, 113, 227, 0.12);
+    color: var(--accent-blue);
+    border: 1px solid rgba(0, 113, 227, 0.28);
+}
+.member-chip__role--relaxer {
+    background: rgba(142, 142, 147, 0.16);
+    color: #5b5b62;
+    border: 1px solid rgba(142, 142, 147, 0.28);
+}
+.member-chip__role--companion {
+    background: rgba(155, 89, 182, 0.12);
+    color: #6d3d8d;
+    border: 1px solid rgba(155, 89, 182, 0.28);
+}
+
 /* Small pill button that warns on hover (grey → red). Used for the
    "Hide" quick-access dismissal — destructive but not catastrophic. */
 .pill-btn-warn-hover {
