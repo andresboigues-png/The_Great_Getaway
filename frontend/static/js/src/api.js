@@ -13,22 +13,64 @@ import { normalizeTripCompanions } from './companions.js';
 // Exported so page-level files can use it for their direct fetches too.
 export const apiUrl = (path) => `${API_BASE_URL}${path}`;
 
+// ── Auth token storage ──────────────────────────────────────────────────────
+// Phase G: server issues a JWT after Google verification; we store it in
+// localStorage and attach it to every API request. Replaces the old
+// trust-the-client-user_id pattern where the server believed whatever
+// user_id was in the request body.
+
+const TOKEN_KEY = 'gg_auth_token';
+
+export const getAuthToken = () => localStorage.getItem(TOKEN_KEY);
+export const setAuthToken = (token) => {
+    if (token) localStorage.setItem(TOKEN_KEY, token);
+};
+export const clearAuthToken = () => localStorage.removeItem(TOKEN_KEY);
+
+/** Merge Authorization: Bearer <token> into an options object's headers,
+ *  preserving anything the caller already set. */
+function _withAuth(options = {}) {
+    const token = getAuthToken();
+    if (!token) return options;
+    return {
+        ...options,
+        headers: { ...(options.headers || {}), 'Authorization': `Bearer ${token}` },
+    };
+}
+
+/** Centralized fetch wrapper that:
+ *  1. Prepends API_BASE_URL when called with a relative path
+ *  2. Attaches Authorization: Bearer <token> if a token is stored
+ *  3. On 401 (token rejected — expired, invalid, deleted user), clears
+ *     the stored token + STATE.user and triggers a re-render so the
+ *     login wall comes back into view.
+ *  Returns the raw Response so callers can branch on .ok / .status. */
+export async function apiFetch(path, options = {}) {
+    const url = path.startsWith('http') ? path : apiUrl(path);
+    const res = await fetch(url, _withAuth(options));
+    if (res.status === 401 && getAuthToken()) {
+        clearAuthToken();
+        STATE.user = null;
+        emit(EVENTS.STATE_CHANGED);
+    }
+    return res;
+}
+
 export async function syncWithServer() {
     if (!STATE.user) return;
     try {
-        await fetch(apiUrl('/api/sync'), {
+        await apiFetch('/api/sync', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                user_id: STATE.user.id,
+                // Phase G: caller's user_id is now derived from the JWT;
+                // server ignores any user_id in the body. Kept off the
+                // payload entirely so it's clear who the source of truth is.
                 trips: STATE.trips,
                 archived_trips: STATE.archivedTrips || [],
                 expenses: STATE.expenses,
                 activities: STATE.activities,
                 photos: STATE.photos,
-                // groups (account-level companions) was removed — companions
-                // are now per-trip. Server-side endpoint already drops the
-                // field if present, but we don't send it at all.
                 categories: STATE.categories || [],
                 budgets: STATE.budgets || []
             })
@@ -41,7 +83,7 @@ export async function syncWithServer() {
 export async function pullFromServer() {
     if (!STATE.user) return;
     try {
-        const res = await fetch(apiUrl(`/api/data?user_id=${encodeURIComponent(STATE.user.id)}`));
+        const res = await apiFetch('/api/data');
         const raw = await res.json();
         // Schema gate: a malformed response (HTML error page, partial outage,
         // schema drift) used to silently overwrite STATE with junk. Now we
@@ -103,13 +145,13 @@ export async function pullFromServer() {
 // ── DELTA SYNC HELPERS ────────────────────────────────────────────────────────
 // These make targeted calls instead of sending the entire STATE each time.
 
-const _post = (url, body) => fetch(apiUrl(url), {
+const _post = (url, body) => apiFetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
 }).catch(e => console.error(`POST ${url} failed:`, e));
 
-const _delete = (url, body) => fetch(apiUrl(url), {
+const _delete = (url, body) => apiFetch(url, {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
@@ -122,7 +164,7 @@ const _delete = (url, body) => fetch(apiUrl(url), {
  *  the UI. */
 const _postJson = async (url, body) => {
     try {
-        const res = await fetch(apiUrl(url), {
+        const res = await apiFetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body),
@@ -136,16 +178,20 @@ const _postJson = async (url, body) => {
     }
 };
 
+// All the helpers below: caller's user_id is now derived from the JWT
+// server-side (see /src/auth.py current_user_id()). We no longer pass
+// user_id in the body — the server ignores it anyway.
+
 /** Upsert a single trip to the server. */
 export function upsertTrip(trip) {
     if (!STATE.user) return;
-    return _post('/api/trips', { user_id: STATE.user.id, trip });
+    return _post('/api/trips', { trip });
 }
 
 /** Permanently delete a trip and its expenses from the server. */
 export function deleteTrip(tripId) {
     if (!STATE.user) return;
-    return _delete(`/api/trips/${tripId}`, { user_id: STATE.user.id });
+    return _delete(`/api/trips/${tripId}`, {});
 }
 
 /** Mark a trip as archived on the server. Phase 3: archive is PER-USER —
@@ -154,7 +200,7 @@ export function deleteTrip(tripId) {
  *  so collections / public-trips rendering keeps working. */
 export function archiveTripOnServer(tripId) {
     if (!STATE.user) return;
-    return _post(`/api/trips/${tripId}/archive`, { user_id: STATE.user.id });
+    return _post(`/api/trips/${tripId}/archive`, {});
 }
 
 /** Phase 3 — invite a friend (linked-companion's user_id) to a trip with a role.
@@ -162,7 +208,6 @@ export function archiveTripOnServer(tripId) {
 export function inviteTripMember(tripId, targetUserId, role) {
     if (!STATE.user) return;
     return _post('/api/trips/invite', {
-        user_id: STATE.user.id,
         trip_id: tripId,
         target_user_id: targetUserId,
         role,
@@ -175,7 +220,6 @@ export function inviteTripMember(tripId, targetUserId, role) {
 export function respondTripInvite(tripId, accept) {
     if (!STATE.user) return Promise.resolve({ ok: false, status: 0, body: null });
     return _postJson('/api/trips/invite/respond', {
-        user_id: STATE.user.id,
         trip_id: tripId,
         accept,
     });
@@ -187,7 +231,6 @@ export function respondTripInvite(tripId, accept) {
 export function removeTripMember(tripId, targetUserId) {
     if (!STATE.user) return;
     return _post('/api/trips/members/remove', {
-        user_id: STATE.user.id,
         trip_id: tripId,
         target_user_id: targetUserId,
     });
@@ -196,13 +239,13 @@ export function removeTripMember(tripId, targetUserId) {
 /** Upsert a single expense to the server. */
 export function upsertExpense(expense) {
     if (!STATE.user) return;
-    return _post('/api/expenses', { user_id: STATE.user.id, expense });
+    return _post('/api/expenses', { expense });
 }
 
 /** Delete a single expense from the server. */
 export function deleteExpenseOnServer(expenseId) {
     if (!STATE.user) return;
-    return _delete(`/api/expenses/${expenseId}`, { user_id: STATE.user.id });
+    return _delete(`/api/expenses/${expenseId}`, {});
 }
 
 /** Fetch the user's accepted friends. Used by the trip companions
@@ -210,7 +253,7 @@ export function deleteExpenseOnServer(expenseId) {
 export async function fetchAcceptedFriends() {
     if (!STATE.user) return [];
     try {
-        const res = await fetch(apiUrl(`/api/friends/list?user_id=${encodeURIComponent(STATE.user.id)}`));
+        const res = await apiFetch('/api/friends/list');
         const friends = await res.json();
         return Array.isArray(friends) ? friends : [];
     } catch (e) {
@@ -222,44 +265,41 @@ export async function fetchAcceptedFriends() {
 /** Replace the full category list on the server. */
 export function syncCategories() {
     if (!STATE.user) return;
-    return _post('/api/categories', { user_id: STATE.user.id, categories: STATE.categories });
+    return _post('/api/categories', { categories: STATE.categories });
 }
 
 /** Upsert a single budget to the server. */
 export function upsertBudget(budget) {
     if (!STATE.user) return;
-    return _post('/api/budgets', { user_id: STATE.user.id, budget });
+    return _post('/api/budgets', { budget });
 }
 
 /** Delete a single budget from the server. */
 export function deleteBudgetOnServer(budgetId) {
     if (!STATE.user) return;
-    return _delete(`/api/budgets/${budgetId}`, { user_id: STATE.user.id });
+    return _delete(`/api/budgets/${budgetId}`, {});
 }
 
 /** Upsert a single trip day to the server. */
 export function upsertDay(day) {
     if (!STATE.user) return;
-    return _post('/api/days', { user_id: STATE.user.id, day });
+    return _post('/api/days', { day });
 }
 
 /** Delete a single trip day from the server. */
 export function deleteDayOnServer(dayId) {
     if (!STATE.user) return;
-    return _delete(`/api/days/${dayId}`, { user_id: STATE.user.id });
+    return _delete(`/api/days/${dayId}`, {});
 }
 
 /** POST a file to /api/upload. Returns the parsed JSON response, or null on failure.
- *  Includes the caller's user_id so the server can reject anonymous uploads
- *  (the endpoint used to accept any POST, which let unauthenticated traffic
- *  dump arbitrary files into /static/uploads). */
+ *  Auth is JWT-gated server-side; apiFetch attaches the bearer header. */
 export async function uploadMedia(file) {
     if (!STATE.user) return null;
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('user_id', STATE.user.id);
     try {
-        const res = await fetch(apiUrl('/api/upload'), { method: 'POST', body: formData });
+        const res = await apiFetch('/api/upload', { method: 'POST', body: formData });
         return await res.json();
     } catch (e) {
         console.error("Upload failed", e);
@@ -271,7 +311,7 @@ export async function uploadMedia(file) {
 export async function fetchNotifications() {
     if (!STATE.user) return;
     try {
-        const res = await fetch(apiUrl(`/api/notifications/list?user_id=${encodeURIComponent(STATE.user.id)}`));
+        const res = await apiFetch('/api/notifications/list');
         const notifications = await res.json();
         STATE.notifications = notifications;
         emit(EVENTS.NOTIFICATIONS_CHANGED);
@@ -283,10 +323,10 @@ export async function fetchNotifications() {
 export async function markNotificationsRead() {
     if (!STATE.user) return;
     try {
-        await fetch(apiUrl('/api/notifications/read'), {
+        await apiFetch('/api/notifications/read', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ user_id: STATE.user.id })
+            body: JSON.stringify({})
         });
         STATE.notifications.forEach(n => n.is_read = 1);
         emit(EVENTS.NOTIFICATIONS_CHANGED);

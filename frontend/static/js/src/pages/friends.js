@@ -2,7 +2,7 @@
 import { STATE } from '../state.js';
 import { showLiquidAlert, q } from '../utils.js';
 import { navigate } from '../router.js';
-import { apiUrl } from '../api.js';
+import { apiFetch } from '../api.js';
 import { friendRow } from '../components/Rows.js';
 import { wireRoleButtonKeys } from '../components/Keyboard.js';
 
@@ -14,12 +14,11 @@ export function renderFriends() {
     const updateFriendsList = async () => {
         if (!STATE.user) return;
         try {
-            // Fetch Friends
-            const resFriends = await fetch(apiUrl(`/api/friends/list?user_id=${STATE.user.id}`));
+            // Phase G: caller derived from JWT server-side; no user_id in URL.
+            const resFriends = await apiFetch('/api/friends/list');
             const friends = await resFriends.json();
-            
-            // Fetch Pending Requests
-            const resPending = await fetch(apiUrl(`/api/friends/pending?user_id=${STATE.user.id}`));
+
+            const resPending = await apiFetch('/api/friends/pending');
             const pending = await resPending.json();
             
             const friendsContainer = div.querySelector('#friendsList');
@@ -62,7 +61,7 @@ export function renderFriends() {
         resultsContainer.innerHTML = `<p style="text-align:center; padding:10px; font-size:0.8rem; color:var(--text-secondary);">Searching...</p>`;
 
         try {
-            const res = await fetch(apiUrl(`/api/friends/search?q=${encodeURIComponent(query)}`));
+            const res = await apiFetch(`/api/friends/search?q=${encodeURIComponent(query)}`);
             const allUsers = await res.json();
             const users = allUsers.filter((/** @type {{id: string}} */ u) => u.id !== STATE.user?.id);
 
@@ -85,10 +84,10 @@ export function renderFriends() {
             return;
         }
         try {
-            const res = await fetch(apiUrl('/api/friends/add'), {
+            const res = await apiFetch('/api/friends/add', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ user_id: STATE.user.id, friend_id: friendId })
+                body: JSON.stringify({ friend_id: friendId })
             });
             const data = await res.json();
             if (data.status === 'success') {
@@ -104,10 +103,10 @@ export function renderFriends() {
     const acceptFriendRequest = async (friendId) => {
         if (!STATE.user) return;
         try {
-            const res = await fetch(apiUrl('/api/friends/accept'), {
+            const res = await apiFetch('/api/friends/accept', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ user_id: STATE.user.id, friend_id: friendId })
+                body: JSON.stringify({ friend_id: friendId })
             });
             const data = await res.json();
             if (data.status === 'success') {

@@ -2,7 +2,7 @@
 import { STATE, emit } from '../state.js';
 import { q } from '../utils.js';
 import { openNewTripModal } from '../modals.js';
-import { apiUrl } from '../api.js';
+import { apiFetch } from '../api.js';
 import { canEdit } from '../permissions.js';
 
 /** @type {any} */
@@ -369,12 +369,11 @@ export function renderAI() {
             outputEl.innerHTML = `<div style="text-align:center;padding:60px;"><div class="spinner-ring" style="width:40px;height:40px;border:3px solid rgba(255,255,255,0.1);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 20px;"></div><div style="color:white;font-weight:600;">Consulting Gemini AI...</div></div>`;
             outputEl.scrollIntoView({ behavior: 'smooth' });
             try {
-                const r = await fetch(apiUrl('/api/generate_itinerary'), {
+                const r = await apiFetch('/api/generate_itinerary', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         destination: tripCountry,
                         numDays, dateFrom, dateTo, context,
-                        user_id: STATE.user?.id,
                     })
                 });
                 const d = await r.json();

@@ -1,6 +1,6 @@
 // @ts-check
 import { STATE, loadState, emit, subscribe } from './state.js';
-import { syncWithServer, pullFromServer, fetchNotifications, markNotificationsRead, deleteTrip, archiveTripOnServer, apiUrl } from './api.js';
+import { syncWithServer, pullFromServer, fetchNotifications, markNotificationsRead, deleteTrip, archiveTripOnServer, apiUrl, apiFetch, setAuthToken, clearAuthToken } from './api.js';
 import { showConfirmModal, esc } from './utils.js';
 import { navigate } from './router.js';
 import { PAGES } from './constants.js';
@@ -251,6 +251,11 @@ async function handleGoogleLogin(response) {
         });
         const data = await res.json();
         if (data.status === 'success') {
+            // Phase G: store the JWT first so subsequent fetches (sync /
+            // pull / notifications below) carry the Authorization header.
+            // Without this, those calls would 401 against require_auth and
+            // the UI would render as logged-out despite the login succeeding.
+            if (data.token) setAuthToken(data.token);
             STATE.user = data.user;
             STATE.hasLoggedInBefore = true;
             // No more auto-self-companion creation — companions are per-trip
@@ -291,15 +296,24 @@ function initGoogleLogin() {
 async function init() {
     loadState();
     
-    // Check session
+    // Check session: apiFetch attaches the stored JWT (if any). The
+    // server returns logged_in:true with the user payload when the token
+    // is still valid, so we restore STATE.user and pull data; otherwise
+    // STATE.user stays null and the router renders the login wall.
     try {
-        const res = await fetch(apiUrl('/api/user-status'));
+        const res = await apiFetch('/api/user-status');
         const data = await res.json();
         if (data.logged_in) {
             STATE.user = data.user;
             await syncWithServer();
             await pullFromServer();
             fetchNotifications();
+        } else {
+            // No valid token — make sure we don't show stale STATE.user
+            // (cached in localStorage from a previous session whose JWT
+            // has now expired or been invalidated).
+            STATE.user = null;
+            clearAuthToken();
         }
     } catch (e) {}
 

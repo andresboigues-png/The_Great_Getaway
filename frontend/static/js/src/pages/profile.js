@@ -1,6 +1,6 @@
 // @ts-check
 import { STATE, emit } from '../state.js';
-import { syncWithServer, apiUrl } from '../api.js';
+import { syncWithServer, apiUrl, apiFetch, clearAuthToken } from '../api.js';
 import { showLiquidAlert, getHomeCurrency } from '../utils.js';
 import { CONVERSION_RATES, CURRENCY_SYMBOLS } from '../constants.js';
 import { navigate } from '../router.js';
@@ -14,7 +14,11 @@ export const logout = async () => {
         try { await syncWithServer(); }
         catch (e) { console.error('Final sync before logout failed:', e); }
 
-        await fetch(apiUrl('/api/logout'), { method: 'POST' });
+        // The server has no /api/logout endpoint anymore — JWTs are
+        // self-contained, so dropping the local token is enough to
+        // invalidate the client side. (A real revocation list could
+        // come later; not needed for single-user usage.)
+        clearAuthToken();
 
         // Clear everything tied to the logged-out user. Server still holds
         // the authoritative copy — re-login will pull it back via pullFromServer.
@@ -265,11 +269,10 @@ export function renderProfile(targetUserId = null) {
                         const newBio = bioEl.value;
                         const newHomeCurrency = homeCurrencyEl ? homeCurrencyEl.value : (STATE.user.homeCurrency || null);
                         try {
-                            const res = await fetch(apiUrl('/api/profile/update'), {
+                            const res = await apiFetch('/api/profile/update', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({
-                                    user_id: STATE.user.id,
                                     bio: newBio,
                                     status: newStatus,
                                     homeCurrency: newHomeCurrency,

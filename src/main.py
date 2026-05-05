@@ -10,6 +10,7 @@ from google.auth.transport import requests as google_requests
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from database import get_db, init_db
+from auth import issue_token, current_user_id, require_auth
 
 # Load environment variables
 load_dotenv()
@@ -111,8 +112,35 @@ def manifest():
 
 @app.route("/api/user-status")
 def user_status():
-    """Check if the user is logged in (currently always returns not logged in as sessions aren't implemented)."""
-    return jsonify({"logged_in": False})
+    """Probe endpoint for the frontend to check whether the stored
+    JWT is still valid on app boot. Returns the user info if so, or
+    {logged_in: false} otherwise. Doesn't 401 — the frontend uses
+    this to decide whether to render the login wall, not as a gate."""
+    user_id = current_user_id()
+    if not user_id:
+        return jsonify({"logged_in": False})
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, email, name, picture, bio, status, home_currency FROM users WHERE id = ?",
+            (user_id,),
+        )
+        row = cursor.fetchone()
+    if not row:
+        # Token is valid but user was deleted — treat as logged out.
+        return jsonify({"logged_in": False})
+    return jsonify({
+        "logged_in": True,
+        "user": {
+            "id": row["id"],
+            "email": row["email"],
+            "name": row["name"],
+            "picture": row["picture"],
+            "bio": row["bio"] or "",
+            "status": row["status"] or "",
+            "homeCurrency": row["home_currency"],
+        },
+    })
 
 @app.route("/api/auth/google", methods=["POST"])
 @limiter.limit("10 per minute")
@@ -157,6 +185,10 @@ def google_auth():
 
         return jsonify({
             "status": "success",
+            # Signed JWT the frontend stores in localStorage and replays
+            # on every subsequent request as Authorization: Bearer ...
+            # Replaces the old "trust the client's user_id" pattern.
+            "token": issue_token(user_id),
             "user": {
                 "id": user_id,
                 "name": name,
@@ -175,17 +207,15 @@ def google_auth():
 
 @app.route("/api/sync", methods=["POST"])
 @limiter.limit("30 per minute")
+@require_auth
 def sync_data():
     """Sync client-side STATE to the database for a logged-in user."""
-    data = request.json
-    user_id = data.get("user_id")
+    data = request.json or {}
+    user_id = current_user_id()
     trips = data.get("trips", [])
     expenses = data.get("expenses", [])
     # Account-level companions removed — companions are per-trip and travel
     # inside the trip's companions_json column.
-
-    if not user_id:
-        return jsonify({"error": "Unauthorized"}), 401
 
     with get_db() as conn:
         cursor = conn.cursor()
@@ -430,13 +460,14 @@ def _is_trip_owner(cursor, trip_id, user_id):
 
 
 @app.route("/api/trips", methods=["POST"])
+@require_auth
 def upsert_trip():
     """Create or update a single trip. Auto-creates the owner's membership
     row on insert; rejects edits from non-planners on existing trips."""
-    data = request.json
-    user_id = data.get("user_id")
+    data = request.json or {}
+    user_id = current_user_id()
     t = data.get("trip")
-    if not user_id or not t:
+    if not t:
         return jsonify({"error": "Missing data"}), 400
     with get_db() as conn:
         cursor = conn.cursor()
@@ -481,13 +512,12 @@ def upsert_trip():
 
 
 @app.route("/api/trips/<trip_id>", methods=["DELETE"])
+@require_auth
 def delete_trip(trip_id):
     """Delete a trip and all its expenses. Owner-only; non-owners can only
     leave the trip via the members/remove flow (they don't get to nuke
     everyone's data)."""
-    user_id = request.json.get("user_id")
-    if not user_id:
-        return jsonify({"error": "Unauthorized"}), 401
+    user_id = current_user_id()
     with get_db() as conn:
         cursor = conn.cursor()
         if not _is_trip_owner(cursor, trip_id, user_id):
@@ -500,14 +530,13 @@ def delete_trip(trip_id):
 
 
 @app.route("/api/trips/<trip_id>/archive", methods=["POST"])
+@require_auth
 def archive_trip(trip_id):
     """Per-user archive toggle — flips THIS caller's `trip_members.is_archived`
     only. Other members keep their own state. Any role (incl. relaxer) can
     archive their own copy; relaxers just hide the trip from their active
     list while planners keep editing."""
-    user_id = request.json.get("user_id")
-    if not user_id:
-        return jsonify({"error": "Unauthorized"}), 401
+    user_id = current_user_id()
     with get_db() as conn:
         cursor = conn.cursor()
         if _trip_member_role(cursor, trip_id, user_id) is None:
@@ -532,21 +561,22 @@ def archive_trip(trip_id):
 
 @app.route("/api/trips/invite", methods=["POST"])
 @limiter.limit("30 per minute")
+@require_auth
 def invite_trip_member():
     """Planner invites a linked-companion's friend to a trip with a role.
     Creates a `pending` member row + fires a `trip_invite` notification at
     the friend. Only planners (incl. owner) of the trip can invite.
 
-    Request body: { user_id (inviter), trip_id, target_user_id, role }
+    Request body: { trip_id, target_user_id, role }  (inviter from JWT)
     """
     data = request.json or {}
-    inviter = data.get("user_id")
+    inviter = current_user_id()
     trip_id = data.get("trip_id")
     target = data.get("target_user_id")
     role = (data.get("role") or "relaxer").strip()
     if role not in ("planner", "relaxer"):
         return jsonify({"error": "Unknown role"}), 400
-    if not inviter or not trip_id or not target:
+    if not trip_id or not target:
         return jsonify({"error": "Missing data"}), 400
     if inviter == target:
         return jsonify({"error": "Cannot invite yourself"}), 400
@@ -600,6 +630,7 @@ def invite_trip_member():
 
 
 @app.route("/api/trips/invite/respond", methods=["POST"])
+@require_auth
 def respond_trip_invite():
     """Accept or decline a pending trip invite. On accept the member row
     flips to `accepted` and the trip starts appearing in /api/data; on
@@ -607,13 +638,13 @@ def respond_trip_invite():
     relaxers don't keep an archived shell). Inviter gets a notification
     either way.
 
-    Request body: { user_id (responder), trip_id, accept }
+    Request body: { trip_id, accept }  (responder from JWT)
     """
     data = request.json or {}
-    user_id = data.get("user_id")
+    user_id = current_user_id()
     trip_id = data.get("trip_id")
     accept = bool(data.get("accept"))
-    if not user_id or not trip_id:
+    if not trip_id:
         return jsonify({"error": "Missing data"}), 400
 
     with get_db() as conn:
@@ -660,19 +691,20 @@ def respond_trip_invite():
 
 
 @app.route("/api/trips/members/remove", methods=["POST"])
+@require_auth
 def remove_trip_member():
     """Planner kicks a member from a trip. Hard remove (the row is gone),
     so the kicked user's account stops seeing the trip on its next
     /api/data poll — per the user's spec ("if a planner removes a user it
     means he wasn't supposed to be on that trip"). Owner can't be removed.
 
-    Request body: { user_id (actor), trip_id, target_user_id }
+    Request body: { trip_id, target_user_id }  (actor from JWT)
     """
     data = request.json or {}
-    actor = data.get("user_id")
+    actor = current_user_id()
     trip_id = data.get("trip_id")
     target = data.get("target_user_id")
-    if not actor or not trip_id or not target:
+    if not trip_id or not target:
         return jsonify({"error": "Missing data"}), 400
 
     with get_db() as conn:
@@ -703,13 +735,14 @@ def remove_trip_member():
 
 
 @app.route("/api/expenses", methods=["POST"])
+@require_auth
 def upsert_expense():
     """Create or update a single expense. Planner-role gate: only members
     with role=planner (incl. trip owner) can write expenses on shared trips."""
-    data = request.json
-    user_id = data.get("user_id")
+    data = request.json or {}
+    user_id = current_user_id()
     e = data.get("expense")
-    if not user_id or not e:
+    if not e:
         return jsonify({"error": "Missing data"}), 400
     with get_db() as conn:
         cursor = conn.cursor()
@@ -735,13 +768,11 @@ def upsert_expense():
 
 
 @app.route("/api/expenses/<expense_id>", methods=["DELETE"])
+@require_auth
 def delete_expense(expense_id):
-    """Delete a single expense by ID. Planner-role gate. Caller passes
-    user_id in the body so we can verify they're a planner on the
-    expense's trip."""
-    user_id = (request.json or {}).get("user_id")
-    if not user_id:
-        return jsonify({"error": "Unauthorized"}), 401
+    """Delete a single expense by ID. Planner-role gate; caller comes
+    from the JWT, not the body."""
+    user_id = current_user_id()
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT trip_id FROM expenses WHERE id = ?", (expense_id,))
@@ -768,13 +799,12 @@ def _ensure_user_exists(cursor, user_id):
 
 
 @app.route("/api/categories", methods=["POST"])
+@require_auth
 def sync_categories():
     """Replace the category list for a user."""
-    data = request.json
-    user_id = data.get("user_id")
+    data = request.json or {}
+    user_id = current_user_id()
     categories = data.get("categories", [])
-    if not user_id:
-        return jsonify({"error": "Unauthorized"}), 401
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("DELETE FROM categories WHERE user_id = ?", (user_id,))
@@ -788,12 +818,13 @@ def sync_categories():
 
 
 @app.route("/api/budgets", methods=["POST"])
+@require_auth
 def upsert_budget():
     """Create or update a single budget."""
-    data = request.json
-    user_id = data.get("user_id")
+    data = request.json or {}
+    user_id = current_user_id()
     b = data.get("budget")
-    if not user_id or not b:
+    if not b:
         return jsonify({"error": "Missing data"}), 400
     with get_db() as conn:
         cursor = conn.cursor()
@@ -812,13 +843,12 @@ def upsert_budget():
 
 
 @app.route("/api/budgets/<budget_id>", methods=["DELETE"])
+@require_auth
 def delete_budget(budget_id):
     """Delete a single budget. Owner-of-budget only — budgets are personal,
     each user has their own. The endpoint used to delete by id alone, which
     let any caller wipe anyone's budget if they could guess an id."""
-    user_id = (request.json or {}).get("user_id")
-    if not user_id:
-        return jsonify({"error": "Unauthorized"}), 401
+    user_id = current_user_id()
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute(
@@ -830,12 +860,13 @@ def delete_budget(budget_id):
 
 
 @app.route("/api/days", methods=["POST"])
+@require_auth
 def upsert_day():
     """Create or update a single trip day. Planner-role gate."""
-    data = request.json
-    user_id = data.get("user_id")
+    data = request.json or {}
+    user_id = current_user_id()
     d = data.get("day")
-    if not user_id or not d:
+    if not d:
         return jsonify({"error": "Missing data"}), 400
     with get_db() as conn:
         cursor = conn.cursor()
@@ -866,11 +897,10 @@ def upsert_day():
 
 
 @app.route("/api/days/<day_id>", methods=["DELETE"])
+@require_auth
 def delete_day(day_id):
     """Delete a single trip day. Planner-role gate."""
-    user_id = (request.json or {}).get("user_id")
-    if not user_id:
-        return jsonify({"error": "Unauthorized"}), 401
+    user_id = current_user_id()
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT trip_id FROM trip_days WHERE id = ?", (day_id,))
@@ -896,26 +926,17 @@ def get_config():
     })
 
 @app.route("/api/generate_itinerary", methods=["POST"])
+@require_auth
 def generate_itinerary():
-    """Call Gemini API to generate a structured JSON itinerary."""
-    data = request.json
+    """Call Gemini API to generate a structured JSON itinerary.
+    Auth gate (and the JWT origin requirement) prevents anonymous
+    traffic from burning paid LLM quota."""
+    data = request.json or {}
     destination = data.get("destination", "Unknown")
     num_days = data.get("numDays", 3)
     date_from = data.get("dateFrom", "")
     date_to = data.get("dateTo", "")
     context = data.get("context", "")
-    user_id = data.get("user_id")
-
-    # Audit gate: require an authenticated user. The endpoint calls a paid
-    # LLM (Gemini), so a missing user_id check would let anonymous traffic
-    # burn API quota by hitting the URL directly.
-    if not user_id:
-        return jsonify({"error": "Unauthorized"}), 401
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT 1 FROM users WHERE id = ?", (user_id,))
-        if not cursor.fetchone():
-            return jsonify({"error": "Unauthorized"}), 401
 
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
@@ -1006,6 +1027,7 @@ def generate_itinerary():
 # --- Social Features ---
 
 @app.route("/api/friends/search", methods=["GET"])
+@require_auth
 def search_friends():
     """Search for users by email."""
     query = request.args.get("q", "").strip()
@@ -1020,11 +1042,13 @@ def search_friends():
 
 @app.route("/api/friends/add", methods=["POST"])
 @limiter.limit("30 per minute")
+@require_auth
 def add_friend():
-    """Send a friend request."""
-    user_id = request.json.get("user_id")
-    friend_id = request.json.get("friend_id")
-    if not user_id or not friend_id:
+    """Send a friend request. Sender's user_id comes from JWT; friend_id
+    is in the body."""
+    user_id = current_user_id()
+    friend_id = (request.json or {}).get("friend_id")
+    if not friend_id:
         return jsonify({"status": "error", "message": "Missing data"}), 400
     if user_id == friend_id:
         return jsonify({"status": "error", "message": "Can't friend yourself"}), 400
@@ -1032,11 +1056,9 @@ def add_friend():
     with get_db() as conn:
         cursor = conn.cursor()
 
-        # Both ids must be real users — without this the endpoint accepts
-        # any pair of strings and inserts them, polluting the friends
+        # friend_id must point at a real user — without this check the
+        # endpoint accepts arbitrary strings and pollutes the friends
         # table with rows that point at nothing.
-        if not _ensure_user_exists(cursor, user_id):
-            return jsonify({"status": "error", "message": "Unauthorized"}), 401
         if not _ensure_user_exists(cursor, friend_id):
             return jsonify({"status": "error", "message": "Friend not found"}), 404
 
@@ -1063,20 +1085,20 @@ def add_friend():
 
 @app.route("/api/friends/accept", methods=["POST"])
 @limiter.limit("30 per minute")
+@require_auth
 def accept_friend():
     """Accept a friend request. Verifies an actual pending invitation
     exists FROM `friend_id` TO `user_id` before flipping it to accepted —
     without that check, any caller could fabricate friendships by POSTing
-    to this endpoint with arbitrary id pairs."""
-    user_id = request.json.get("user_id")  # The person accepting
-    friend_id = request.json.get("friend_id")  # The person who sent it
-    if not user_id or not friend_id:
+    to this endpoint with arbitrary id pairs.
+    Acceptor comes from JWT; sender (friend_id) in body."""
+    user_id = current_user_id()  # The person accepting
+    friend_id = (request.json or {}).get("friend_id")  # The person who sent it
+    if not friend_id:
         return jsonify({"status": "error", "message": "Missing data"}), 400
 
     with get_db() as conn:
         cursor = conn.cursor()
-        if not _ensure_user_exists(cursor, user_id):
-            return jsonify({"status": "error", "message": "Unauthorized"}), 401
 
         # Verify a pending request was actually sent to user_id by friend_id.
         cursor.execute(
@@ -1105,9 +1127,10 @@ def accept_friend():
     return jsonify({"status": "success"})
 
 @app.route("/api/friends/pending", methods=["GET"])
+@require_auth
 def pending_friends():
     """Get pending incoming friend requests for a user."""
-    user_id = request.args.get("user_id")
+    user_id = current_user_id()
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute('''
@@ -1120,9 +1143,10 @@ def pending_friends():
     return jsonify(requests)
 
 @app.route("/api/notifications/list", methods=["GET"])
+@require_auth
 def list_notifications():
     """Get notifications for a user."""
-    user_id = request.args.get("user_id")
+    user_id = current_user_id()
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute('''
@@ -1135,9 +1159,10 @@ def list_notifications():
     return jsonify(notifications)
 
 @app.route("/api/notifications/read", methods=["POST"])
+@require_auth
 def read_notifications():
     """Mark all notifications as read for a user."""
-    user_id = request.json.get("user_id")
+    user_id = current_user_id()
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("UPDATE notifications SET is_read = 1 WHERE user_id = ?", (user_id,))
@@ -1145,10 +1170,11 @@ def read_notifications():
     return jsonify({"status": "success"})
 
 @app.route("/api/notifications/trip_public", methods=["POST"])
+@require_auth
 def notify_trip_public():
     """Notify friends that a user made a trip public."""
-    user_id = request.json.get("user_id")
-    trip_name = request.json.get("trip_name")
+    user_id = current_user_id()
+    trip_name = (request.json or {}).get("trip_name")
     
     with get_db() as conn:
         cursor = conn.cursor()
@@ -1174,9 +1200,10 @@ def notify_trip_public():
     return jsonify({"status": "success"})
 
 @app.route("/api/friends/list", methods=["GET"])
+@require_auth
 def list_friends():
     """Get the user's friend list."""
-    user_id = request.args.get("user_id")
+    user_id = current_user_id()
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute('''
@@ -1189,10 +1216,11 @@ def list_friends():
     return jsonify(friends)
 
 @app.route("/api/trips/share", methods=["POST"])
+@require_auth
 def share_trip():
     """Share a trip with a friend."""
-    trip_id = request.json.get("trip_id")
-    friend_id = request.json.get("friend_id")
+    trip_id = (request.json or {}).get("trip_id")
+    friend_id = (request.json or {}).get("friend_id")
     
     with get_db() as conn:
         cursor = conn.cursor()
@@ -1201,11 +1229,10 @@ def share_trip():
     return jsonify({"status": "shared"})
 
 @app.route("/api/data", methods=["GET"])
+@require_auth
 def get_data():
     """Fetch all data for a user, including shared trips."""
-    user_id = request.args.get("user_id")
-    if not user_id:
-        return jsonify({"trips": [], "expenses": []})
+    user_id = current_user_id()
 
     with get_db() as conn:
         cursor = conn.cursor()
@@ -1389,13 +1416,12 @@ def get_public_profile(user_id):
         })
 
 @app.route("/api/profile/update", methods=["POST"])
+@require_auth
 def update_profile():
     """Update user bio, status, and/or home currency. Any field omitted in
     the payload is left unchanged so callers can patch a single field."""
     payload = request.json or {}
-    user_id = payload.get("user_id")
-    if not user_id:
-        return jsonify({"error": "Unauthorized"}), 401
+    user_id = current_user_id()
 
     fields = []
     values = []
@@ -1415,10 +1441,10 @@ def update_profile():
 
 @app.route("/api/upload", methods=["POST"])
 @limiter.limit("30 per minute")
+@require_auth
 def upload_file():
     """Handle file uploads (photos, documents). Hardened in three ways:
-    1. Auth — anonymous traffic gets 401 (otherwise the endpoint would
-       happily fill /static/uploads).
+    1. Auth — JWT-gated; anonymous traffic gets 401.
     2. Extension allowlist — only image / PDF extensions are saved.
        secure_filename strips path traversal but does NOT validate the
        extension, so `bomb.exe` would have been accepted before.
@@ -1426,14 +1452,7 @@ def upload_file():
        magic numbers, so renaming `bomb.exe` to `bomb.jpg` still fails.
     Size is bounded by app.config['MAX_CONTENT_LENGTH'] (10 MB); Flask
     refuses bigger uploads with 413 before they hit this handler."""
-    user_id = request.form.get("user_id")
-    if not user_id:
-        return jsonify({"error": "Unauthorized"}), 401
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT 1 FROM users WHERE id = ?", (user_id,))
-        if not cursor.fetchone():
-            return jsonify({"error": "Unauthorized"}), 401
+    user_id = current_user_id()
 
     if 'file' not in request.files:
         return jsonify({"error": "No file part"}), 400
@@ -1467,6 +1486,7 @@ def upload_file():
     })
 
 @app.route("/api/user-data", methods=["DELETE"])
+@require_auth
 def delete_user_data():
     """Wipe all data for a user (factory reset).
 
@@ -1475,9 +1495,7 @@ def delete_user_data():
     could nuke the entire database with one request — same threat
     surface as `DROP DATABASE`. Now each statement targets only the
     caller's own rows (or rows that hang off trips they own)."""
-    user_id = request.json.get("user_id")
-    if not user_id:
-        return jsonify({"error": "Unauthorized"}), 401
+    user_id = current_user_id()
     with get_db() as conn:
         cursor = conn.cursor()
 

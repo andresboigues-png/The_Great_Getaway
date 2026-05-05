@@ -58,10 +58,21 @@ def client(temp_db):
         yield client
 
 
+def _ensure_schema():
+    """Run init_db() if it hasn't run for the current temp DB.
+    seed_user / seed_other_user can be called in tests that don't depend
+    on the `client` fixture (e.g. rate-limit), so we init the schema
+    inline here too."""
+    from database import init_db
+    init_db()
+
+
 @pytest.fixture
 def seed_user(temp_db):
-    """Insert a baseline user row so endpoints that gate on user existence
-    don't reject the test request. Returns the user_id."""
+    """Insert a baseline user row + return the user_id. Use `auth_headers`
+    if the request needs Authorization. Use `seed_user` directly when you
+    just need the id (e.g. as a friend_id to add)."""
+    _ensure_schema()
     from database import get_db
     user_id = "test-user-1"
     with get_db() as conn:
@@ -76,6 +87,7 @@ def seed_user(temp_db):
 @pytest.fixture
 def seed_other_user(temp_db):
     """Second user, useful for friend / sharing tests."""
+    _ensure_schema()
     from database import get_db
     user_id = "test-user-2"
     with get_db() as conn:
@@ -85,3 +97,19 @@ def seed_other_user(temp_db):
         )
         conn.commit()
     return user_id
+
+
+@pytest.fixture
+def auth_headers(seed_user):
+    """Authorization header for seed_user — every gated endpoint test
+    passes these so the @require_auth decorator lets the request through."""
+    from auth import issue_token
+    return {"Authorization": f"Bearer {issue_token(seed_user)}"}
+
+
+@pytest.fixture
+def other_auth_headers(seed_other_user):
+    """Authorization header for seed_other_user — used by tests that
+    verify per-user gates (e.g. non-planner can't edit someone else's trip)."""
+    from auth import issue_token
+    return {"Authorization": f"Bearer {issue_token(seed_other_user)}"}
