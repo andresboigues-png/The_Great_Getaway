@@ -2,7 +2,7 @@
 import { STATE, emit } from '../state.js';
 import { q } from '../utils.js';
 import { openNewTripModal } from '../modals.js';
-import { apiFetch } from '../api.js';
+import { apiFetch, upsertDay, deleteDayOnServer } from '../api.js';
 import { canEdit } from '../permissions.js';
 
 /** @type {any} */
@@ -336,17 +336,36 @@ export function renderAI() {
             const acceptBtn = /** @type {HTMLButtonElement | null} */ (document.getElementById('acceptPlanBtn'));
             if (acceptBtn) acceptBtn.onclick = () => {
                 if (!itinerary) return;
+                // Replace existing numbered days (dayNumber > 0) for this
+                // trip rather than appending. Without this, the AI plan
+                // would stack on top of any auto-scaffolded days the user
+                // got from entering dates on New Trip — dayNumbers 1,2,3
+                // would all be duplicated. The trip-genesis day (dayNumber=0)
+                // is preserved because it's the trip's location anchor.
+                const existingNumbered = STATE.tripDays.filter(
+                    d => d.tripId === activeTrip.id && d.dayNumber > 0
+                );
+                STATE.tripDays = STATE.tripDays.filter(
+                    d => !(d.tripId === activeTrip.id && d.dayNumber > 0)
+                );
+                existingNumbered.forEach(d => deleteDayOnServer(d.id));
+
                 itinerary.forEach((/** @type {any} */ dayInfo, /** @type {number} */ idx) => {
                     const dayDate = dayInfo.date || (new Date().toISOString().split('T')[0]);
                     const dayId = 'day_' + Date.now() + '_' + idx;
-                    STATE.tripDays.push({
-                        id: dayId, tripId: activeTrip.id, date: dayDate, name: dayInfo.title || `Day ${idx + 1}`, dayNumber: idx + 1, lat: dayInfo.lat, lon: dayInfo.lon,
+                    /** @type {import('../types').TripDay} */
+                    const newDay = {
+                        id: dayId, tripId: activeTrip.id, date: dayDate,
+                        name: dayInfo.title || `Day ${idx + 1}`, dayNumber: idx + 1,
+                        lat: dayInfo.lat, lng: dayInfo.lon,
                         photos: [], tickets: [], notes: '', plan: {
                             morning: dayInfo.morning ? `${dayInfo.morning.activity}: ${dayInfo.morning.description}` : '',
                             afternoon: dayInfo.afternoon ? `${dayInfo.afternoon.activity}: ${dayInfo.afternoon.description}` : '',
                             evening: dayInfo.evening ? `${dayInfo.evening.activity}: ${dayInfo.evening.description}` : ''
                         }
-                    });
+                    };
+                    STATE.tripDays.push(newDay);
+                    upsertDay(newDay);
                 });
                 emit('state:changed');
                 acceptBtn.innerHTML = '✓ Plan Accepted! (View in Home)';
