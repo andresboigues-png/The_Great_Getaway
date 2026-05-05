@@ -3,6 +3,7 @@ import { STATE, emit } from '../state.js';
 import { showConfirmModal, formatHome } from '../utils.js';
 import { navigate } from '../router.js';
 import { apiUrl } from '../api.js';
+import { wireRoleButtonKeys } from '../components/Keyboard.js';
 
 export function renderCollections() {
     const div = document.createElement('div');
@@ -23,7 +24,7 @@ export function renderCollections() {
             <div class="grid-2" style="margin-top: 16px;">
                 ${archived.length > 0 ? archived.map(t => `
                     <div class="card glass card-glow-blue" style="display: flex; flex-direction: row; align-items: center; justify-content: space-between; padding: 20px;">
-                        <div class="archived-trip-card" data-trip-id="${t.id}" style="cursor: pointer; flex: 1;">
+                        <div class="archived-trip-card" data-trip-id="${t.id}" role="button" tabindex="0" aria-label="Open ${t.name} details" style="cursor: pointer; flex: 1;">
                             <div style="display: flex; align-items: center; gap: 10px;">
                                 <h3 style="margin: 0;">${t.name}</h3>
                             </div>
@@ -78,6 +79,7 @@ export function renderCollections() {
         );
         if (toggle?.dataset.tripId) toggleTripPrivacy(toggle.dataset.tripId, toggle.checked);
     });
+    wireRoleButtonKeys(div);
 
     return div;
 }

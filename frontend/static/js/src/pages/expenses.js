@@ -252,7 +252,7 @@ function renderManualTab() {
                     <div style="display: flex; align-items: center; gap: var(--space-2);">
                         <input type="number" class="glass-input split-input splitter-row__pct" data-person="${p}" value="${defaultPct}" step="0.1" required>
                         <span style="color: var(--text-secondary); font-size: var(--font-base);">%</span>
-                        <button type="button" class="btn-x-bare remove-splitter" data-person="${p}" style="font-weight:700; margin-left: var(--space-2);">&times;</button>
+                        <button type="button" class="btn-x-bare remove-splitter" data-person="${p}" aria-label="Remove ${esc(p)}" style="font-weight:700; margin-left: var(--space-2);">&times;</button>
                     </div>
                 </div>
             `).join('');
@@ -323,15 +323,63 @@ function renderManualTab() {
             countryList.style.display = 'block';
         };
 
+        const selectCountry = (/** @type {HTMLElement} */ item) => {
+            countryInput.value = item.getAttribute('data-value') ?? '';
+            countryList.style.display = 'none';
+            STATE.draftExpense.country = countryInput.value;
+            emit('state:changed');
+        };
+
         countryItems.forEach(item => {
             item.onclick = (e) => {
-                countryInput.value = item.getAttribute('data-value') ?? '';
-                countryList.style.display = 'none';
+                selectCountry(item);
                 e.stopPropagation();
-                STATE.draftExpense.country = countryInput.value;
-                emit('state:changed');
             };
         });
+
+        // Keyboard navigation: ↓ ↑ to move the active highlight, Enter to
+        // select, Escape to close. Skips items hidden by the search filter.
+        let activeIdx = -1;
+        const visibleItems = () => /** @type {HTMLElement[]} */ (
+            Array.from(countryItems).filter(it => it.style.display !== 'none')
+        );
+        const clearActive = () => {
+            countryItems.forEach(it => it.classList.remove('is-active'));
+            activeIdx = -1;
+        };
+        const setActive = (idx) => {
+            const items = visibleItems();
+            if (items.length === 0) { clearActive(); return; }
+            countryItems.forEach(it => it.classList.remove('is-active'));
+            activeIdx = ((idx % items.length) + items.length) % items.length;
+            items[activeIdx].classList.add('is-active');
+            items[activeIdx].scrollIntoView({ block: 'nearest' });
+        };
+        countryInput.addEventListener('keydown', (e) => {
+            if (countryList.style.display === 'none') {
+                if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                    countryList.style.display = 'block';
+                }
+            }
+            if (e.key === 'ArrowDown') { e.preventDefault(); setActive(activeIdx + 1); return; }
+            if (e.key === 'ArrowUp') { e.preventDefault(); setActive(activeIdx - 1); return; }
+            if (e.key === 'Enter') {
+                const items = visibleItems();
+                if (activeIdx >= 0 && items[activeIdx]) {
+                    e.preventDefault();
+                    selectCountry(items[activeIdx]);
+                    clearActive();
+                }
+                return;
+            }
+            if (e.key === 'Escape') {
+                countryList.style.display = 'none';
+                clearActive();
+                return;
+            }
+        });
+        // Reset highlight when the user types — the visible-items set changes.
+        countryInput.addEventListener('input', clearActive);
 
         // Click outside to close
         document.addEventListener('click', (e) => {
@@ -697,11 +745,11 @@ export function renderTripExpenses(container, filters = {}) {
 
                     ${showRowActions ? `
                     <div style="display: flex; gap: var(--space-2);">
-                        <button class="icon-action-btn expense-edit-btn" data-expense-id="${e.id}" style="--accent: 0,113,227;">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4L18.5 2.5z"></path></svg>
+                        <button class="icon-action-btn expense-edit-btn" data-expense-id="${e.id}" aria-label="Edit expense" style="--accent: 0,113,227;">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4L18.5 2.5z"></path></svg>
                         </button>
-                        <button class="icon-action-btn expense-delete-btn" data-expense-id="${e.id}" style="--accent: 255,59,48;">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                        <button class="icon-action-btn expense-delete-btn" data-expense-id="${e.id}" aria-label="Delete expense" style="--accent: 255,59,48;">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                         </button>
                     </div>
                     ` : ''}

@@ -31,14 +31,14 @@ export function renderSettlement() {
             const total = STATE.expenses.filter(e => e.tripId === t.id && e.isSettlement).reduce((sum, e) => sum + (e.euroValue || 0), 0);
             const isActive = t.id === tripId;
             return `
-                            <div class="card glass settlement-trip-card${isActive ? ' is-active card-glow-blue' : ''}" data-trip-id="${t.id}">
+                            <button type="button" class="card-button-reset card glass settlement-trip-card${isActive ? ' is-active card-glow-blue' : ''}" data-trip-id="${t.id}">
                                 <div class="settlement-trip-card__label">Adventure</div>
                                 <div class="settlement-trip-card__name">${esc(t.name)}</div>
                                 <div style="display: flex; align-items: center; justify-content: space-between;">
                                     <div class="settlement-trip-card__amount">${formatHome(total, 'EUR')}</div>
                                     ${isActive ? '<div class="settlement-trip-card__active-dot"></div>' : ''}
                                 </div>
-                            </div>
+                            </button>
                         `;
         }).join('')}
                 </div>

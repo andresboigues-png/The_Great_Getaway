@@ -291,6 +291,32 @@ body {
     filter: grayscale(1);
 }
 
+/* Reset for clickable cards rendered as <button> instead of <div>.
+   Keeps the card's own background/border/padding, but nukes the
+   browser's button defaults (system font, center text, gray bg). */
+.card-button-reset {
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+    background: transparent;
+    border: none;
+    padding: 0;
+    margin: 0;
+    width: 100%;
+    display: block;
+}
+
+/* Focus ring for div-based clickable rows (role="button" tabindex="0").
+   Real <button>s with `.btn-primary` etc. have their own focus-visible
+   styles; this catches the cards-with-internal-buttons pattern that
+   has to use role="button" because nesting buttons is invalid HTML. */
+[role="button"]:focus-visible,
+.card-button-reset:focus-visible {
+    outline: 2px solid var(--accent-blue);
+    outline-offset: 2px;
+}
+
 /* Card Glow Utilities */
 .card-glow-blue {
     border-color: rgba(0, 113, 227, 0.3) !important;
@@ -2584,7 +2610,8 @@ h1 {
     font-weight: 600;
     transition: background-color 0.2s ease;
 }
-.dropdown-item:hover { background: rgba(0, 122, 255, 0.1); }
+.dropdown-item:hover,
+.dropdown-item.is-active { background: rgba(0, 122, 255, 0.1); }
 
 /* Filter row helpers — used by the Expense History filter grid where 6
    inputs and 6 labels were duplicated with identical styles. The filter

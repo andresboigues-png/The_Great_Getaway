@@ -165,18 +165,18 @@ export function renderSettings() {
 
             ${isMenu ? `
                 <div class="settings-grid">
-                    <div class="card glass management-card settings-tab-card" data-tab="format" style="cursor: pointer;">
+                    <button type="button" class="card-button-reset card glass management-card settings-tab-card" data-tab="format">
                         <h2 class="card-title" style="color: #ff9500; margin: 0;">Format Options</h2>
                         <p style="color: var(--text-secondary); margin: 8px 0 0;">Configure Excel import mappings and global data formats.</p>
                         <div style="margin-top: 20px; color: #ff9500; font-weight: 700; font-size: 0.85rem;">Configure &rarr;</div>
-                    </div>
+                    </button>
 
-                    <div class="card glass management-card danger-card settings-tab-card" data-tab="reset" style="cursor: pointer;">
+                    <button type="button" class="card-button-reset card glass management-card danger-card settings-tab-card" data-tab="reset">
                         <div class="danger-glow pulse-red"></div>
                         <h2 class="card-title" style="color: #ff3b30; margin: 0;">Data Management</h2>
                         <p style="color: var(--text-secondary); margin: 8px 0 0;">Wipe specific data categories or perform a factory reset.</p>
                         <div style="margin-top: 20px; color: #ff3b30; font-weight: 700; font-size: 0.85rem;">Manage Data &rarr;</div>
-                    </div>
+                    </button>
                 </div>
             ` : `
                 <button class="btn btn-small btn-liquid-glass settings-tab-card" data-tab="menu" style="margin-bottom: 24px; padding: 10px 20px; border-radius: 14px;">&larr; Back to Control Center</button>
@@ -384,7 +384,7 @@ export function renderPersonalization() {
             <td>${c.icon} ${c.name}</td>
             <td class="is-right"><span class="color-swatch" style="background: ${c.color}"></span></td>
             <td class="is-right">
-                <button class="btn-x-bare delete-category-btn" data-category-id="${c.id}">✕</button>
+                <button class="btn-x-bare delete-category-btn" data-category-id="${c.id}" aria-label="Delete category">✕</button>
             </td>
         </tr>
     `).join('');
@@ -396,10 +396,10 @@ export function renderPersonalization() {
         </div>
 
         <div id="persMenu" class="grid-2">
-            <div class="card glass card-glow-blue pers-tab-card" data-tab="categories" style="cursor: pointer;">
+            <button type="button" class="card-button-reset card glass card-glow-blue pers-tab-card" data-tab="categories">
                 <h2 class="card-title" style="color: var(--accent-blue);">Manage Categories</h2>
                 <p class="text-muted">Customize expense categories, icons, and colors.</p>
-            </div>
+            </button>
         </div>
 
         <div id="persContent" style="display: none;">

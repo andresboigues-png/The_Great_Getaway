@@ -4,6 +4,7 @@ import { showLiquidAlert, q } from '../utils.js';
 import { navigate } from '../router.js';
 import { apiUrl } from '../api.js';
 import { friendRow } from '../components/Rows.js';
+import { wireRoleButtonKeys } from '../components/Keyboard.js';
 
 export function renderFriends() {
     const div = document.createElement('div');
@@ -32,7 +33,8 @@ export function renderFriends() {
                         user: f,
                         variant: 'neutral',
                         extraClass: 'friend-row',
-                        rightSide: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>`,
+                        clickable: true,
+                        rightSide: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>`,
                     })).join('');
                 }
             }
@@ -167,6 +169,7 @@ export function renderFriends() {
         const friendRow = /** @type {HTMLElement | null} */ (target.closest('.friend-row'));
         if (friendRow) { navigate('profile', { userId: friendRow.dataset.userId }); return; }
     });
+    wireRoleButtonKeys(div);
 
     setTimeout(updateFriendsList, 0);
     return div;

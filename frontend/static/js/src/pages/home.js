@@ -11,6 +11,7 @@ import { openNewTripModal, openAddDayModal, openEditTripModal, openCompanionPick
 import { canEdit, canManageRoster, ROLE_PLANNER } from '../permissions.js';
 import { findTripCompanionByLinkedUser } from '../companions.js';
 import { showModal } from '../components/Modal.js';
+import { wireRoleButtonKeys } from '../components/Keyboard.js';
 
 // Empty-state slideshow timer. Lives in this module; router.js calls
 // stopHomeSlideshow() on every navigate so the timer doesn't leak past home.
@@ -234,7 +235,7 @@ export function renderHome() {
             </div>
             
             <div class="card glass cover-card cover-card--lg">
-                <img id="homeHeroImg" src="${displayImages[0] || ''}" style="width: 100%; height: 100%; object-fit: cover; transition: opacity 0.8s ease-in-out;">
+                <img id="homeHeroImg" src="${displayImages[0] || ''}" alt="" style="width: 100%; height: 100%; object-fit: cover; transition: opacity 0.8s ease-in-out;">
                 <div class="cover-card__gradient"></div>
                 <div class="cover-card__content" style="display: flex; align-items: flex-end; justify-content: space-between;">
                     <p id="homeQuote" class="cover-card__quote" style="max-width: 60%;">
@@ -853,6 +854,8 @@ export function renderHome() {
                     <!-- MAIN CARD -->
                     <div class="day-card card glass${isOpen ? ' is-open' : ''}"
                          data-day-id="${day.id}"
+                         role="button" tabindex="0"
+                         aria-label="${esc(day.name || `Day ${day.dayNumber}`)} — ${isOpen ? 'collapse' : 'expand'}"
                          style="flex: 1; padding: 20px 28px; border-radius: 28px; border: 1.5px solid ${isOpen ? 'var(--accent-blue)' : 'rgba(0,0,0,0.05)'}; background: ${isOpen ? 'rgba(255,255,255,0.95)' : 'white'}; cursor: pointer; box-shadow: ${isOpen ? '0 20px 40px rgba(0,0,0,0.1)' : 'none'};">
                         
                         <div style="display: flex; align-items: center; justify-content: space-between;">
@@ -1068,7 +1071,7 @@ export function renderHome() {
                     ${steps.map((step, i) => {
             const showTick = !allDone && step.done;
             return `
-                        <div class="guide-step-card" data-index="${i}" style="display: flex; align-items: center; gap: var(--space-4); padding: var(--space-4) var(--space-5); background: ${showTick ? 'rgba(52, 199, 89, 0.08)' : 'white'}; border-radius: var(--radius-xl); border: 1px solid ${showTick ? 'rgba(52, 199, 89, 0.2)' : 'rgba(0,0,0,0.05)'}; cursor: pointer; position: relative; overflow: hidden;">
+                        <button type="button" class="card-button-reset guide-step-card" data-index="${i}" style="display: flex; align-items: center; gap: var(--space-4); padding: var(--space-4) var(--space-5); background: ${showTick ? 'rgba(52, 199, 89, 0.08)' : 'white'}; border-radius: var(--radius-xl); border: 1px solid ${showTick ? 'rgba(52, 199, 89, 0.2)' : 'rgba(0,0,0,0.05)'}; cursor: pointer; position: relative; overflow: hidden;">
                             ${allDone ? `
                             <div style="font-size: 1.4rem; flex-shrink: 0; line-height: 1;">${step.icon}</div>
                             ` : `
@@ -1082,7 +1085,7 @@ export function renderHome() {
                                     ${step.text}
                                 </div>
                             </div>
-                        </div>
+                        </button>
                     `}).join('')}
                 </div>
             </div>
@@ -1128,6 +1131,7 @@ export function renderHome() {
         div.appendChild(guideContainer);
     }
 
+    wireRoleButtonKeys(div);
     return div;
 }
 
@@ -1174,8 +1178,8 @@ const openPhotosModal = (dayId) => {
                 ${day.photos.length === 0 ? '<p style="grid-column: 1/-1; text-align: center; color: var(--text-secondary); padding: var(--space-10);">No photos added yet.</p>' :
                     day.photos.map((p, idx) => `
                         <div style="position: relative; aspect-ratio: 1; border-radius: var(--radius-lg); overflow: hidden; border: 1px solid rgba(0,0,0,0.05);">
-                            <img src="${p}" style="width: 100%; height: 100%; object-fit: cover;">
-                            <button class="remove-photo-btn" data-day-id="${dayId}" data-photo-idx="${idx}" style="position: absolute; top: 4px; right: 4px; width: 24px; height: 24px; border-radius: 50%; background: rgba(255,59,48,0.8); color: white; border: none; font-size: var(--font-2xs); font-weight: 800; cursor: pointer;">✕</button>
+                            <img src="${p}" alt="Trip photo" style="width: 100%; height: 100%; object-fit: cover;">
+                            <button class="remove-photo-btn" data-day-id="${dayId}" data-photo-idx="${idx}" aria-label="Remove photo" style="position: absolute; top: 4px; right: 4px; width: 24px; height: 24px; border-radius: 50%; background: rgba(255,59,48,0.8); color: white; border: none; font-size: var(--font-2xs); font-weight: 800; cursor: pointer;">✕</button>
                         </div>
                     `).join('')
                 }
@@ -1266,7 +1270,7 @@ const openDocumentsModal = (dayId) => {
                                 <span style="font-size: 1.2rem;">📄</span>
                                 <a href="${d.url}" target="_blank" style="color: var(--accent-blue); text-decoration: none; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${d.name}</a>
                             </div>
-                            <button class="remove-doc-btn" data-day-id="${dayId}" data-doc-idx="${idx}" style="background: none; border: none; color: #ff3b30; font-weight: 800; cursor: pointer;">✕</button>
+                            <button class="remove-doc-btn" data-day-id="${dayId}" data-doc-idx="${idx}" aria-label="Remove document" style="background: none; border: none; color: #ff3b30; font-weight: 800; cursor: pointer;">✕</button>
                         </div>
                     `).join('')
                 }
@@ -1356,7 +1360,7 @@ const openDayDetail = (dayId) => {
                     </div>
                     <h2 style="font-size: 2.5rem; color: #002d5b; font-weight: 800; letter-spacing: -0.04em; margin: 0;">${esc(day.name)}</h2>
                 </div>
-                <button id="closeDetailBtn" class="close-x-btn">✕</button>
+                <button id="closeDetailBtn" class="close-x-btn" aria-label="Close">✕</button>
             </div>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-10);">
                 <div style="display: flex; flex-direction: column; gap: var(--space-6);">
