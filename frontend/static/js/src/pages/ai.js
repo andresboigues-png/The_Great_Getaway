@@ -75,15 +75,17 @@ export function renderAI() {
             <!-- Top 2-col: Controls | Map -->
             <div style="display:grid;grid-template-columns:380px 1fr;gap:24px;margin-bottom:32px;">
 
-                <!-- Left: Controls -->
-                <div id="aiControlsPanel" style="display:flex;flex-direction:column;gap:16px;">
+                <!-- Left: Controls. min-height matches the sticky map (700px) so
+                     the Requirements card can flex-grow into the spare space and
+                     the Generate button bottom lines up with the map's bottom. -->
+                <div id="aiControlsPanel" style="display:flex;flex-direction:column;gap:16px;min-height:700px;">
                     <!-- AI Engine badge -->
-                    <div class="card glass" style="padding:18px;border-color:rgba(155,89,182,0.3);">
+                    <div class="card glass" style="padding:18px;border-color:rgba(155,89,182,0.3);flex:0 0 auto;">
                         <h2 class="card-title" style="font-size:0.85rem;text-transform:uppercase;letter-spacing:0.07em;color:#9b59b6;margin-bottom:8px;">✦ AI Engine</h2>
                         <p style="color:var(--text-secondary);font-size:0.82rem;margin:0;">Secure server-side Gemini integration.</p>
                     </div>
                     <!-- Dates -->
-                    <div class="card glass" style="padding:20px;">
+                    <div class="card glass" style="padding:20px;flex:0 0 auto;">
                         <h2 class="card-title" style="font-size:0.85rem;text-transform:uppercase;letter-spacing:0.07em;color:var(--accent-blue);margin-bottom:14px;">📅 Travel Dates</h2>
                         <div style="display:flex; flex-direction:column; gap:12px;">
                             <div>
@@ -97,12 +99,12 @@ export function renderAI() {
                         </div>
                     </div>
 
-                    <div class="card glass" style="padding:20px;">
+                    <div class="card glass" style="padding:20px;flex:1 1 auto;display:flex;flex-direction:column;min-height:0;">
                         <h2 class="card-title" style="font-size:0.85rem;text-transform:uppercase;color:var(--accent-blue);margin-bottom:10px;letter-spacing:0.05em;">📝 Requirements</h2>
-                        <textarea id="aiExtraContext" class="glass-input" rows="3" style="width:100%; resize:none; font-size:0.9rem; box-sizing: border-box;" placeholder="e.g. Vegetarian friendly, no walking more than 2km...">${savedContext}</textarea>
+                        <textarea id="aiExtraContext" class="glass-input" style="width:100%; resize:none; font-size:0.9rem; box-sizing: border-box; flex:1 1 auto; min-height:120px;" placeholder="e.g. Vegetarian friendly, no walking more than 2km...">${savedContext}</textarea>
                     </div>
                     <!-- Generate -->
-                    <button id="generateBtn" class="ai-generate-btn" style="width:100%; border-radius: var(--radius-lg);">✦ Generate My Itinerary</button>
+                    <button id="generateBtn" class="ai-generate-btn" style="width:100%; border-radius: var(--radius-lg);flex:0 0 auto;">✦ Generate My Itinerary</button>
                 </div>
 
                 <!-- Right: Google Map (sticky) -->

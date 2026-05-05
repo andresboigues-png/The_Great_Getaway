@@ -79,7 +79,11 @@ export function renderSettings() {
         // formats use 'categoryId' as the variable name; the upload reader
         // accepts both for back-compat.
         const MANDATORY = ['label', 'date', 'value', 'who', 'category'];
-        const OPTIONAL = ['country', 'currency'];
+        // 'splits' takes a free-text cell like "Alice:50,Bob:50" (percentages).
+        // Empty/unmapped → 100% paid by `who` (no debt). 'isSettlement' takes
+        // Y/N to flag a row as a transfer rather than a real expense — when Y,
+        // the receiver is read from the splits cell.
+        const OPTIONAL = ['country', 'currency', 'splits', 'isSettlement'];
         const used = new Set((STATE.customFormat || []).map(m => m.variable));
         const sf = STATE.savedFormats || [];
 

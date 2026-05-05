@@ -9,6 +9,122 @@ import { showSettingsTab } from './settings.js';
 // Pad number to 2 digits.
 const _pad2 = (n) => String(n).padStart(2, '0');
 
+// Substring keyword → {icon, color} for auto-styling categories created during
+// import. Match is case-insensitive on the category name (so "Restaurant Food"
+// hits "food"). Order is roughly most-specific-first so "groceries" beats
+// "food" when both could match.
+const CATEGORY_KEYWORD_DEFAULTS = [
+    { key: 'grocer',      icon: '🛒',   color: '#34c759' },
+    { key: 'supermarket', icon: '🛒',   color: '#34c759' },
+    { key: 'coffee',      icon: '☕',   color: '#8b4513' },
+    { key: 'cafe',        icon: '☕',   color: '#8b4513' },
+    { key: 'restaurant',  icon: '🍽️', color: '#ff3b30' },
+    { key: 'breakfast',   icon: '🥐',   color: '#ff9f0a' },
+    { key: 'lunch',       icon: '🥗',   color: '#34c759' },
+    { key: 'dinner',      icon: '🍽️', color: '#ff3b30' },
+    { key: 'food',        icon: '🍔',   color: '#ff3b30' },
+    { key: 'snack',       icon: '🍪',   color: '#ff9f0a' },
+    { key: 'dessert',     icon: '🍦',   color: '#ff2d55' },
+    { key: 'drink',       icon: '🍻',   color: '#ff9500' },
+    { key: 'bar',         icon: '🍹',   color: '#ff9500' },
+    { key: 'alcohol',     icon: '🍷',   color: '#9b1c2c' },
+    { key: 'flight',      icon: '✈️', color: '#007aff' },
+    { key: 'plane',       icon: '✈️', color: '#007aff' },
+    { key: 'airport',     icon: '🛬',   color: '#007aff' },
+    { key: 'taxi',        icon: '🚕',   color: '#ffd60a' },
+    { key: 'uber',        icon: '🚕',   color: '#ffd60a' },
+    { key: 'train',       icon: '🚆',   color: '#5ac8fa' },
+    { key: 'metro',       icon: '🚇',   color: '#5ac8fa' },
+    { key: 'bus',         icon: '🚌',   color: '#5ac8fa' },
+    { key: 'fuel',        icon: '⛽',   color: '#8e8e93' },
+    { key: 'gas',         icon: '⛽',   color: '#8e8e93' },
+    { key: 'parking',     icon: '🅿️', color: '#8e8e93' },
+    { key: 'rental',      icon: '🚗',   color: '#007aff' },
+    { key: 'car',         icon: '🚗',   color: '#007aff' },
+    { key: 'transport',   icon: '🚌',   color: '#007aff' },
+    { key: 'hotel',       icon: '🏨',   color: '#5856d6' },
+    { key: 'hostel',      icon: '🛏️', color: '#5856d6' },
+    { key: 'airbnb',      icon: '🏠',   color: '#5856d6' },
+    { key: 'accommod',    icon: '🏨',   color: '#5856d6' },
+    { key: 'lodging',     icon: '🏨',   color: '#5856d6' },
+    { key: 'ticket',      icon: '🎟️', color: '#af52de' },
+    { key: 'museum',      icon: '🏛️', color: '#af52de' },
+    { key: 'tour',        icon: '🗺️', color: '#af52de' },
+    { key: 'activity',    icon: '🎫',   color: '#af52de' },
+    { key: 'entertain',   icon: '🎭',   color: '#af52de' },
+    { key: 'shop',        icon: '🛍️', color: '#ff2d55' },
+    { key: 'cloth',       icon: '👕',   color: '#ff2d55' },
+    { key: 'gift',        icon: '🎁',   color: '#ff2d55' },
+    { key: 'health',      icon: '💊',   color: '#34c759' },
+    { key: 'pharmac',     icon: '💊',   color: '#34c759' },
+    { key: 'medic',       icon: '🩺',   color: '#34c759' },
+    { key: 'phone',       icon: '📱',   color: '#5ac8fa' },
+    { key: 'internet',    icon: '🌐',   color: '#5ac8fa' },
+    { key: 'fee',         icon: '💸',   color: '#8e8e93' },
+    { key: 'tip',         icon: '💵',   color: '#34c759' },
+];
+
+// Used when no keyword matches. Hash the name so the same category always
+// gets the same look (no flicker on re-import).
+const CATEGORY_FALLBACK_PALETTE = [
+    { icon: '🌍', color: '#0071e3' },
+    { icon: '🎒', color: '#9b59b6' },
+    { icon: '📸', color: '#ff9500' },
+    { icon: '🗺️', color: '#34c759' },
+    { icon: '🎨', color: '#ff2d55' },
+    { icon: '🔥', color: '#ff3b30' },
+    { icon: '⭐', color: '#ffd60a' },
+    { icon: '🌊', color: '#5ac8fa' },
+];
+
+/**
+ * Parse a splits cell like "Alice:50,Bob:50" → { Alice: 50, Bob: 50 }.
+ * Permissive — bad tokens are dropped silently (spreadsheets leak weird
+ * formatting and we'd rather import 9 good rows than fail the whole file
+ * on one stray semicolon). Accepts "," or ";" as token separator and
+ * ":" or "=" as the name/percentage delimiter. Returns null on empty
+ * input so the caller can apply its own default (100% paid by `who`).
+ *
+ * @param {string} raw
+ * @returns {Record<string, number> | null}
+ */
+function parseSplitsCell(raw) {
+    if (!raw || !String(raw).trim()) return null;
+    const out = /** @type {Record<string, number>} */ ({});
+    for (const tok of String(raw).split(/[,;]/)) {
+        const m = tok.match(/^\s*(.+?)\s*[:=]\s*(-?\d+(?:\.\d+)?)\s*$/);
+        if (!m) continue;
+        const name = m[1].trim();
+        const pct = parseFloat(m[2]);
+        if (!name || isNaN(pct)) continue;
+        out[name] = (out[name] || 0) + pct;
+    }
+    return Object.keys(out).length > 0 ? out : null;
+}
+
+/** Y/N-ish cell → boolean. Truthy: y/yes/true/1 (case-insensitive). */
+function parseFlagCell(raw) {
+    if (!raw) return false;
+    const s = String(raw).trim().toLowerCase();
+    return s === 'y' || s === 'yes' || s === 'true' || s === '1';
+}
+
+/**
+ * @param {string} name
+ * @returns {{icon: string, color: string}}
+ */
+function inferCategoryStyle(name) {
+    const lc = (name || '').toLowerCase();
+    for (const entry of CATEGORY_KEYWORD_DEFAULTS) {
+        if (lc.includes(entry.key)) return { icon: entry.icon, color: entry.color };
+    }
+    let hash = 0;
+    for (let i = 0; i < lc.length; i++) {
+        hash = ((hash << 5) - hash + lc.charCodeAt(i)) | 0;
+    }
+    return CATEGORY_FALLBACK_PALETTE[Math.abs(hash) % CATEGORY_FALLBACK_PALETTE.length];
+}
+
 /**
  * Robust cell-date → "YYYY-MM-DD" string. Handles every format we've seen
  * leak in via spreadsheet uploads:
@@ -144,6 +260,18 @@ export function renderUpload() {
             <div class="callout-tinted" style="margin-bottom: 15px; --accent: 0,113,227;">
                 <p class="callout-tinted__label">📅 Date format</p>
                 <p class="callout-tinted__body">Use <strong>DD-MM-YYYY</strong> (e.g. <code class="code-inline">15-03-2024</code>) or <strong>YYYY-MM-DD</strong>. Excel-typed date cells are recognised automatically.</p>
+            </div>
+
+            <div class="callout-tinted" style="margin-bottom: 15px; --accent: 52,199,89;">
+                <p class="callout-tinted__label">⚖️ Splits &amp; settlements</p>
+                <p class="callout-tinted__body">
+                    <strong>Tricount / Splitwise</strong> rows are imported as equal-split shared expenses.
+                    <strong>Revolut</strong> rows are imported as personal (no debt).
+                    <strong>Custom formats</strong> can map two optional variables:
+                    <code class="code-inline">splits</code> (e.g. <code class="code-inline">Alice:50,Bob:50</code>) to define percentages, and
+                    <code class="code-inline">isSettlement</code> (Y/N) to mark a row as a transfer — receiver goes in the splits cell, e.g. <code class="code-inline">Bob:100</code>.
+                    <br>By default, custom rows are <strong>regular expenses, never settlements</strong>: a row only counts as a settlement when <code class="code-inline">isSettlement</code> is mapped <em>and</em> its cell is Y/Yes/True/1. Without <code class="code-inline">splits</code>, the row is recorded as 100% paid by the payer (no debt created).
+                </p>
             </div>
 
             <input type="file" id="excelFile" accept=".xlsx, .xls, .csv" class="glass-input" style="margin-bottom: 15px; width: 100%;">
@@ -326,6 +454,11 @@ export function renderUpload() {
                 parsedRows.forEach((/** @type {any[]} */ row) => {
                     let who = '', catName = '', label = '', date = '', country = '';
                     let value = 0, currency = 'EUR';
+                    // Splits + settlement flag. Custom formats can map the new
+                    // 'splits' / 'isSettlement' variables; popular formats use
+                    // hard-coded conventions filled in below.
+                    let splits = /** @type {Record<string, number> | null} */ (null);
+                    let isSettlement = false;
 
                     if (isPopular) {
                         if (popularFormat === 'tricount') {
@@ -371,15 +504,40 @@ export function renderUpload() {
                         country = get('country') || 'Unknown';
                         value = parseFloat(get('value')) || 0;
                         currency = get('currency').toUpperCase() || 'EUR';
+                        splits = parseSplitsCell(get('splits'));
+                        isSettlement = parseFlagCell(get('isSettlement'));
                     }
 
                     if (who && !STATE.groups.includes(who)) {
                         STATE.groups.push(who);
                     }
+                    if (splits) {
+                        // Register companions named in the splits cell so the
+                        // balance math in settlement.js can find them.
+                        for (const name of Object.keys(splits)) {
+                            if (name && !STATE.groups.includes(name)) STATE.groups.push(name);
+                        }
+                    }
+
+                    if (!splits) {
+                        // Tricount/Splitwise are sharing apps — equal split across
+                        // currently-known companions matches user intent. Revolut
+                        // is a bank export (personal); custom formats with no
+                        // splits column also default to "no debt" so untagged
+                        // imports don't spawn settlements out of nowhere.
+                        if (isPopular && (popularFormat === 'tricount' || popularFormat === 'splitwise') && STATE.groups.length > 0) {
+                            const pct = 100 / STATE.groups.length;
+                            splits = {};
+                            STATE.groups.forEach(g => { /** @type {Record<string, number>} */ (splits)[g] = pct; });
+                        } else {
+                            splits = who ? { [who]: 100 } : {};
+                        }
+                    }
 
                     let category = STATE.categories.find(c => c.name.toLowerCase() === catName.toLowerCase());
                     if (!category && catName) {
-                        category = { id: generateId(), name: catName, icon: '📌', color: '#8e8e93' };
+                        const style = inferCategoryStyle(catName);
+                        category = { id: generateId(), name: catName, icon: style.icon, color: style.color };
                         STATE.categories.push(category);
                     }
                     const categoryId = category ? category.id : STATE.categories[0].id;
@@ -390,13 +548,15 @@ export function renderUpload() {
                         tripId: activeTripId,
                         who,
                         categoryId,
-                        label,
+                        label: isSettlement && !label ? `Settlement: ${who} → ${Object.keys(splits)[0] || ''}` : label,
                         date,
                         country,
                         value,
                         currency,
-                        euroValue: value * (CONVERSION_RATES[currency] || 1)
+                        euroValue: value * (CONVERSION_RATES[currency] || 1),
+                        splits,
                     };
+                    if (isSettlement) expense.isSettlement = true;
                     STATE.expenses.push(expense);
                     added++;
                 });

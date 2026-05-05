@@ -309,9 +309,12 @@ export function renderHome() {
                     center: savedMapView ? { lat: savedMapView.lat, lng: savedMapView.lng } : { lat: 20, lng: 0 },
                     zoom: savedMapView ? savedMapView.zoom : 2,
                     minZoom: 2,
-                    // roadmap (not hybrid) so our `styles` array actually
-                    // takes effect — satellite/hybrid ignores most styles.
-                    mapTypeId: 'roadmap',
+                    // hybrid = satellite imagery + roads/labels overlay. The
+                    // POI-hiding `styles` below are ignored on satellite/hybrid
+                    // (Google bakes them into the imagery), but the few labels
+                    // hybrid does show stay readable, which is why hybrid > pure
+                    // satellite for this trip-map use case.
+                    mapTypeId: 'hybrid',
                     disableDefaultUI: true,
                     keyboardShortcuts: false,
                     gestureHandling: 'greedy',
@@ -320,15 +323,6 @@ export function renderHome() {
                         latLngBounds: { north: 85, south: -85, west: -180, east: 180 },
                         strictBounds: true,
                     },
-                    // Hide Google's POI icons (supermarkets, restaurants, etc.) —
-                    // they clutter the trip map and compete visually with our
-                    // own day markers. Keep transit/road labels for context.
-                    styles: [
-                        { featureType: 'poi', elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
-                        { featureType: 'poi', elementType: 'labels.text', stylers: [{ visibility: 'off' }] },
-                        { featureType: 'poi.park', elementType: 'labels.text', stylers: [{ visibility: 'simplified' }] },
-                        { featureType: 'transit.station', elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
-                    ],
                 };
 
                 const map = new google.maps.Map(mapContainer, mapOptions);
