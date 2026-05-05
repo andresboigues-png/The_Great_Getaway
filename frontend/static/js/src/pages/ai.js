@@ -52,10 +52,19 @@ export function renderAI() {
 
     // ── ACTIVE TRIP STATE ────────────────────────────────────
     const tripCountry = activeTrip.country || '';
+    // Prefer the trip's Path days as the source of dates — those reflect
+    // the user's intent for "when this trip happens" (entered when
+    // creating / editing the trip). Falls back to the date range of
+    // logged expenses for older trips that pre-date the dates field, so
+    // the inputs auto-fill there too. Final fallback: empty, user picks.
+    const tripDays = (STATE.tripDays || [])
+        .filter(d => d.tripId === STATE.activeTripId && d.dayNumber > 0 && d.date)
+        .map(d => d.date)
+        .sort();
     const tripExps = STATE.expenses.filter(e => e.tripId === STATE.activeTripId && e.date).sort((a, b) => a.date.localeCompare(b.date));
-    const dates = tripExps.map(e => e.date);
-    const minDate = dates[0] || '';
-    const maxDate = dates[dates.length - 1] || '';
+    const expenseDates = tripExps.map(e => e.date);
+    const minDate = tripDays[0] || expenseDates[0] || '';
+    const maxDate = tripDays[tripDays.length - 1] || expenseDates[expenseDates.length - 1] || '';
 
     const savedPlan = activeTrip.aiPlan || null;
     const savedContext = activeTrip.aiContext || '';
