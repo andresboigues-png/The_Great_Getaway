@@ -5,6 +5,7 @@ import { showConfirmModal, esc } from './utils.js';
 import { navigate } from './router.js';
 import { PAGES } from './constants.js';
 import { addCompanion } from './companions.js';
+import { canDelete } from './permissions.js';
 
 /**
  * Narrow an arbitrary string (from the URL hash or a `data-page` attribute)
@@ -166,10 +167,15 @@ function updateTripSelector() {
         <option value="${esc(t.id)}" ${t.id === STATE.activeTripId ? 'selected' : ''}>${esc(t.name)}</option>
     `).join('');
 
-    // Show/hide management buttons if a trip is selected
+    // Show/hide management buttons. Archive (Complete) is per-user — any
+    // member, including Relaxers, can hide their own copy. Delete is the
+    // destructive op that wipes everyone's data, so only the trip owner
+    // sees the button. Backend already 403s for non-owners; this just
+    // keeps the UI honest.
     const hasActive = !!STATE.activeTripId;
+    const activeTrip = STATE.trips.find(t => t.id === STATE.activeTripId);
     if (completeBtn) completeBtn.style.display = hasActive ? 'flex' : 'none';
-    if (deleteBtn) deleteBtn.style.display = hasActive ? 'flex' : 'none';
+    if (deleteBtn) deleteBtn.style.display = hasActive && canDelete(activeTrip) ? 'flex' : 'none';
 
     selector.onchange = (e) => {
         STATE.activeTripId = /** @type {HTMLSelectElement} */ (e.target).value;
@@ -229,6 +235,19 @@ function archiveActiveTrip() {
 const deleteActiveTrip = () => {
     const trip = STATE.trips.find(t => t.id === STATE.activeTripId);
     if (!trip) return;
+    // Belt-and-braces gate — the button is hidden for non-owners in
+    // updateTripSelector, but keep this here so even a stray handler
+    // call (devtools, browser back-forward cache, future code path)
+    // can't trigger a forbidden delete.
+    if (!canDelete(trip)) {
+        showConfirmModal({
+            title: "Owner only",
+            message: "Only the trip's owner can delete it. You can archive your own copy from the navbar instead.",
+            confirmText: "OK",
+            onConfirm: () => {},
+        });
+        return;
+    }
 
     showConfirmModal({
         title: "Delete Trip?",
