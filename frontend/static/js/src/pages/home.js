@@ -651,8 +651,8 @@ export function renderHome() {
         <div style="display: flex; flex-direction: column; margin-bottom: 24px;">
             <div style="display: flex; align-items: center; gap: 12px;">
                 ${activeTrip ? `
-                    <button id="resetMapViewBtn" title="Reset the map view to show the whole trip" style="background: none; border: none; padding: 0; margin: 0; cursor: pointer; text-align: left;" onmouseover="this.querySelector('h2').style.color='var(--accent-blue)';" onmouseout="this.querySelector('h2').style.color='#002d5b';">
-                        <h2 style="font-size: 1.8rem; letter-spacing: -0.03em; margin: 0; font-weight: 800; color: #002d5b; transition: color 0.2s;">${tripTitle}</h2>
+                    <button id="resetMapViewBtn" class="title-link-btn" title="Reset the map view to show the whole trip">
+                        <h2 style="font-size: var(--font-3xl); letter-spacing: -0.03em; margin: 0; font-weight: 800; color: #002d5b;">${tripTitle}</h2>
                     </button>
                 ` : `
                     <h2 style="font-size: 1.8rem; letter-spacing: -0.03em; margin: 0; font-weight: 800; color: #002d5b;">${tripTitle}</h2>
@@ -764,9 +764,9 @@ export function renderHome() {
             `}).join('')}
             
             <!-- ADD DAY BUTTON (Vertical Timeline Style) -->
-            <div id="addDayBtn" style="margin-top: 8px; display: flex; align-items: center; gap: 24px; cursor: pointer; group" onmouseover="this.querySelector('.add-dot').style.transform='scale(1.3)'; this.querySelector('.add-text').style.color='var(--accent-blue)';" onmouseout="this.querySelector('.add-dot').style.transform='none'; this.querySelector('.add-text').style.color='var(--text-secondary)';">
-                <div class="add-dot" style="width: 14px; height: 14px; border-radius: 50%; border: 2px dashed var(--accent-blue); background: transparent; transition: all 0.3s; margin-left: -2px;"></div>
-                <div class="add-text" style="font-weight: 700; color: var(--text-secondary); font-size: 1rem; transition: all 0.3s; letter-spacing: -0.01em;">+ Add a new day to your journey</div>
+            <div id="addDayBtn" class="add-day-btn">
+                <div class="add-dot" style="width: 14px; height: 14px; border-radius: 50%; border: 2px dashed var(--accent-blue); background: transparent; margin-left: -2px;"></div>
+                <div class="add-text" style="font-weight: 700; color: var(--text-secondary); font-size: var(--font-lg); letter-spacing: -0.01em;">+ Add a new day to your journey</div>
             </div>
         </div>
     `;
@@ -870,7 +870,7 @@ export function renderHome() {
         showBtnContainer.style.textAlign = 'center';
         showBtnContainer.style.marginTop = '40px';
         showBtnContainer.innerHTML = `
-            <button class="btn btn-liquid-glass" style="padding: 10px 24px; border-radius: 980px; font-size: 0.85rem; font-weight: 700; color: #002d5b; border: 1px solid rgba(0,0,0,0.05); background: rgba(255,255,255,0.4);" onmouseover="this.style.background='rgba(255,255,255,0.7)';" onmouseout="this.style.background='rgba(255,255,255,0.4)';">
+            <button class="btn-glass-light">
                 🧭 Show Quick Access
             </button>
         `;
@@ -899,7 +899,7 @@ export function renderHome() {
                     ${steps.map((step, i) => {
             const showTick = !allDone && step.done;
             return `
-                        <div class="guide-step-card" data-index="${i}" style="display: flex; align-items: center; gap: 16px; padding: 16px 20px; background: ${showTick ? 'rgba(52, 199, 89, 0.08)' : 'white'}; border-radius: 20px; border: 1px solid ${showTick ? 'rgba(52, 199, 89, 0.2)' : 'rgba(0,0,0,0.05)'}; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer; position: relative; overflow: hidden;" onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 12px 24px rgba(0,0,0,0.08)';" onmouseout="this.style.transform='none'; this.style.boxShadow='none';">
+                        <div class="guide-step-card" data-index="${i}" style="display: flex; align-items: center; gap: var(--space-4); padding: var(--space-4) var(--space-5); background: ${showTick ? 'rgba(52, 199, 89, 0.08)' : 'white'}; border-radius: var(--radius-xl); border: 1px solid ${showTick ? 'rgba(52, 199, 89, 0.2)' : 'rgba(0,0,0,0.05)'}; cursor: pointer; position: relative; overflow: hidden;">
                             ${allDone ? `
                             <div style="font-size: 1.4rem; flex-shrink: 0; line-height: 1;">${step.icon}</div>
                             ` : `

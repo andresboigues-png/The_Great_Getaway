@@ -333,8 +333,8 @@
         <div style="display: flex; flex-direction: column; margin-bottom: 24px;">
             <div style="display: flex; align-items: center; gap: 12px;">
                 ${t?`
-                    <button id="resetMapViewBtn" title="Reset the map view to show the whole trip" style="background: none; border: none; padding: 0; margin: 0; cursor: pointer; text-align: left;" onmouseover="this.querySelector('h2').style.color='var(--accent-blue)';" onmouseout="this.querySelector('h2').style.color='#002d5b';">
-                        <h2 style="font-size: 1.8rem; letter-spacing: -0.03em; margin: 0; font-weight: 800; color: #002d5b; transition: color 0.2s;">${T}</h2>
+                    <button id="resetMapViewBtn" class="title-link-btn" title="Reset the map view to show the whole trip">
+                        <h2 style="font-size: var(--font-3xl); letter-spacing: -0.03em; margin: 0; font-weight: 800; color: #002d5b;">${T}</h2>
                     </button>
                 `:`
                     <h2 style="font-size: 1.8rem; letter-spacing: -0.03em; margin: 0; font-weight: 800; color: #002d5b;">${T}</h2>
@@ -441,13 +441,13 @@
             `}).join(``)}
             
             <!-- ADD DAY BUTTON (Vertical Timeline Style) -->
-            <div id="addDayBtn" style="margin-top: 8px; display: flex; align-items: center; gap: 24px; cursor: pointer; group" onmouseover="this.querySelector('.add-dot').style.transform='scale(1.3)'; this.querySelector('.add-text').style.color='var(--accent-blue)';" onmouseout="this.querySelector('.add-dot').style.transform='none'; this.querySelector('.add-text').style.color='var(--text-secondary)';">
-                <div class="add-dot" style="width: 14px; height: 14px; border-radius: 50%; border: 2px dashed var(--accent-blue); background: transparent; transition: all 0.3s; margin-left: -2px;"></div>
-                <div class="add-text" style="font-weight: 700; color: var(--text-secondary); font-size: 1rem; transition: all 0.3s; letter-spacing: -0.01em;">+ Add a new day to your journey</div>
+            <div id="addDayBtn" class="add-day-btn">
+                <div class="add-dot" style="width: 14px; height: 14px; border-radius: 50%; border: 2px dashed var(--accent-blue); background: transparent; margin-left: -2px;"></div>
+                <div class="add-text" style="font-weight: 700; color: var(--text-secondary); font-size: var(--font-lg); letter-spacing: -0.01em;">+ Add a new day to your journey</div>
             </div>
         </div>
     `,t&&(e.appendChild(w),w.addEventListener(`click`,e=>{let n=e.target;if(!n)return;if(n.closest(`#resetMapViewBtn`)){let e=window.activeMap;if(!e||!t)return;let n=google,r=new n.maps.LatLngBounds;typeof t.lat==`number`&&typeof t.lng==`number`&&r.extend({lat:t.lat,lng:t.lng});let i=(m.tripDays||[]).filter(e=>e.tripId===t.id);for(let e of i)typeof e.lat==`number`&&r.extend({lat:e.lat,lng:e.lon||e.lng});if(!r.isEmpty())e.fitBounds(r,80);else if(t.viewport){let r=t.viewport;e.fitBounds(new n.maps.LatLngBounds({lat:r.south,lng:r.west},{lat:r.north,lng:r.east}))}return}if(n.closest(`#editTripBtn`)){de(t);return}let r=n.closest(`.day-pin-save-btn`);if(r?.dataset.dayId){ve(r.dataset.dayId);return}let i=n.closest(`.day-pin-delete-btn`);if(i?.dataset.dayId){ye(i.dataset.dayId);return}let a=n.closest(`.day-pin-toggle-btn`);if(a?.dataset.dayId){let e=a.dataset.dayId;m.tripDays.find(t=>t.id===e)?.lat?_e(e):ge(e);return}let o=n.closest(`.day-journaling-btn`);if(o?.dataset.dayId){Se(o.dataset.dayId);return}let s=n.closest(`.day-photos-btn`);if(s?.dataset.dayId){z(s.dataset.dayId);return}let c=n.closest(`.day-documents-btn`);if(c?.dataset.dayId){B(c.dataset.dayId);return}let l=n.closest(`.day-delete-btn`);if(l?.dataset.dayId){be(l.dataset.dayId);return}let u=n.closest(`.day-detail-btn`);if(u?.dataset.dayId){Ce(u.dataset.dayId);return}let d=n.closest(`.day-card`);if(d?.dataset.dayId){he(d.dataset.dayId);return}}),setTimeout(()=>{let t=e.querySelector(`#addDayBtn`);t&&(t.onclick=()=>fe())},0)),m.hideQuickAccess===!0){let t=document.createElement(`div`);t.style.textAlign=`center`,t.style.marginTop=`40px`,t.innerHTML=`
-            <button class="btn btn-liquid-glass" style="padding: 10px 24px; border-radius: 980px; font-size: 0.85rem; font-weight: 700; color: #002d5b; border: 1px solid rgba(0,0,0,0.05); background: rgba(255,255,255,0.4);" onmouseover="this.style.background='rgba(255,255,255,0.7)';" onmouseout="this.style.background='rgba(255,255,255,0.4)';">
+            <button class="btn-glass-light">
                 🧭 Show Quick Access
             </button>
         `;let n=t.querySelector(`button`);n&&(n.onclick=()=>{m.hideQuickAccess=!1,y(`state:changed`),q(`home`)}),e.appendChild(t)}else u.innerHTML=`
@@ -465,7 +465,7 @@
                 
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px;">
                     ${S.map((e,t)=>{let n=!C&&e.done;return`
-                        <div class="guide-step-card" data-index="${t}" style="display: flex; align-items: center; gap: 16px; padding: 16px 20px; background: ${n?`rgba(52, 199, 89, 0.08)`:`white`}; border-radius: 20px; border: 1px solid ${n?`rgba(52, 199, 89, 0.2)`:`rgba(0,0,0,0.05)`}; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer; position: relative; overflow: hidden;" onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 12px 24px rgba(0,0,0,0.08)';" onmouseout="this.style.transform='none'; this.style.boxShadow='none';">
+                        <div class="guide-step-card" data-index="${t}" style="display: flex; align-items: center; gap: var(--space-4); padding: var(--space-4) var(--space-5); background: ${n?`rgba(52, 199, 89, 0.08)`:`white`}; border-radius: var(--radius-xl); border: 1px solid ${n?`rgba(52, 199, 89, 0.2)`:`rgba(0,0,0,0.05)`}; cursor: pointer; position: relative; overflow: hidden;">
                             ${C?`
                             <div style="font-size: 1.4rem; flex-shrink: 0; line-height: 1;">${e.icon}</div>
                             `:`
@@ -679,7 +679,7 @@
                         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px;">
                             <h2 style="font-size: 1.8rem; font-weight: 800; letter-spacing: -0.04em; margin: 0;">Expense History</h2>
                             <div style="display: flex; gap: 8px;">
-                                <button id="clearFiltersBtn" style="font-size: 0.7rem; font-weight: 700; color: #ff3b30; background: rgba(255,59,48,0.08); border: 1px solid rgba(255,59,48,0.1); padding: 6px 14px; border-radius: 100px; text-transform: uppercase; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='rgba(255,59,48,0.15)';" onmouseout="this.style.background='rgba(255,59,48,0.08)';">Clear Filters</button>
+                                <button id="clearFiltersBtn" class="btn-chip-danger">Clear Filters</button>
                                 <span style="font-size: 0.75rem; font-weight: 700; color: var(--accent-blue); background: rgba(0,113,227,0.1); padding: 6px 14px; border-radius: 100px; text-transform: uppercase;">Smart Filters</span>
                             </div>
                         </div>
@@ -747,7 +747,7 @@
                 <p style="color: rgba(255,255,255,0.5); font-weight: 500; font-size: 1rem;">No expenses found for this trip.</p>
             </div>
         `;return}let l=x();e.innerHTML=n.map(e=>{let t=m.categories.find(t=>t.id===e.categoryId),n=e.currency===l?``:`≈ ${C(e.value,e.currency)}`;return`
-            <div class="card glass" style="padding: 14px 22px; border-radius: 24px; border: 1px solid rgba(255,255,255,0.4); background: rgba(255,255,255,0.15); backdrop-filter: blur(25px); display: flex; justify-content: space-between; align-items: center; transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); box-shadow: 0 10px 30px rgba(0,0,0,0.1);" onmouseover="this.style.transform='scale(1.012)'; this.style.boxShadow='0 20px 50px rgba(0,0,0,0.2)'; this.style.background='rgba(255,255,255,0.2)';" onmouseout="this.style.transform='none'; this.style.boxShadow='0 10px 30px rgba(0,0,0,0.1)'; this.style.background='rgba(255,255,255,0.15)';">
+            <div class="card glass expense-row" style="padding: 14px 22px; border-radius: 24px; border: 1px solid rgba(255,255,255,0.4); background: rgba(255,255,255,0.15); backdrop-filter: blur(25px); display: flex; justify-content: space-between; align-items: center; box-shadow: 0 10px 30px rgba(0,0,0,0.1);">
                 <div style="display: flex; align-items: center; gap: 16px;">
                     <div style="width: 48px; height: 48px; background: rgba(0,0,0,0.04); border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; border: 1px solid rgba(0,0,0,0.04);">
                         ${t?t.icon:`💰`}
@@ -771,10 +771,10 @@
                     </div>
                     
                     <div style="display: flex; gap: 8px;">
-                        <button class="expense-edit-btn" data-expense-id="${e.id}" style="background: rgba(0,113,227,0.08); border: 1px solid rgba(0,113,227,0.1); color: #0071e3; width: 36px; height: 36px; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" onmouseover="this.style.background='rgba(0,113,227,0.15)';" onmouseout="this.style.background='rgba(0,113,227,0.08)';">
+                        <button class="icon-action-btn expense-edit-btn" data-expense-id="${e.id}" style="--accent: 0,113,227;">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4L18.5 2.5z"></path></svg>
                         </button>
-                        <button class="expense-delete-btn" data-expense-id="${e.id}" style="background: rgba(255,59,48,0.08); border: 1px solid rgba(255,59,48,0.1); color: #ff3b30; width: 36px; height: 36px; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" onmouseover="this.style.background='rgba(255,59,48,0.15)';" onmouseout="this.style.background='rgba(255,59,48,0.08)';">
+                        <button class="icon-action-btn expense-delete-btn" data-expense-id="${e.id}" style="--accent: 255,59,48;">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                         </button>
                     </div>
@@ -1135,11 +1135,11 @@
             <div style="position: relative; width: 100%; height: calc(100vh - 200px); min-height: 480px; border-radius: 20px; overflow: hidden; box-shadow: 0 40px 100px rgba(0,0,0,0.15);">
                 <div id="emptyMap" style="width:100%; height:100%;"></div>
                 <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(255,255,255,0.05);backdrop-filter:blur(25px) saturate(180%);-webkit-backdrop-filter:blur(25px) saturate(180%);z-index:1000;">
-                    <div class="premium-glass-card" style="text-align:center;color:#002d5b;padding:48px;max-width:500px;background:rgba(255,255,255,0.6);border-radius:36px;border:1px solid rgba(255,255,255,0.8);box-shadow: 0 30px 60px rgba(0,0,0,0.1), 0 10px 20px rgba(0,0,0,0.05); transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1);" onmouseover="this.style.transform='translateY(-5px)'; this.style.boxShadow='0 40px 80px rgba(0,0,0,0.15), 0 15px 30px rgba(0,113,227,0.15)';" onmouseout="this.style.transform='none'; this.style.boxShadow='0 30px 60px rgba(0,0,0,0.1), 0 10px 20px rgba(0,0,0,0.05)';">
+                    <div class="premium-glass-card" style="text-align:center;color:#002d5b;padding:48px;max-width:500px;background:rgba(255,255,255,0.6);border-radius:36px;border:1px solid rgba(255,255,255,0.8);box-shadow: 0 30px 60px rgba(0,0,0,0.1), 0 10px 20px rgba(0,0,0,0.05);">
                         <div style="font-size:4.5rem;margin-bottom:24px;filter:drop-shadow(0 10px 15px rgba(0,0,0,0.1));">🧭</div>
                         <h2 style="font-size:2rem;font-weight:800;margin-bottom:16px;letter-spacing:-0.03em;">Ready for a new adventure?</h2>
                         <p style="font-size:1.15rem;opacity:0.85;line-height:1.6;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',sans-serif;margin-bottom:32px;">To generate a personalized AI itinerary, you'll need to create a trip first.</p>
-                        <button id="aiStartJourneyBtn" class="btn btn-liquid-glass" style="padding:16px 36px;font-size:1.15rem;font-weight:800;background:var(--accent-blue);color:white;border:none;box-shadow:0 15px 30px rgba(0,113,227,0.3); transition: transform 0.2s, box-shadow 0.2s;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 20px 40px rgba(0,113,227,0.4)';" onmouseout="this.style.transform='none'; this.style.boxShadow='0 15px 30px rgba(0,113,227,0.3)';">+ Start Your Journey</button>
+                        <button id="aiStartJourneyBtn" class="btn-primary btn-primary--lg" style="max-width: none; width: auto; padding: 16px 36px; font-size: 1.15rem;">+ Start Your Journey</button>
                     </div>
                 </div>
             </div>`,setTimeout(()=>{e.querySelector(`#aiStartJourneyBtn`)?.addEventListener(`click`,()=>P()),typeof google<`u`&&google.maps&&new google.maps.Map(document.getElementById(`emptyMap`),{center:{lat:20,lng:0},zoom:2,minZoom:2,restriction:{latLngBounds:{north:85,south:-85,west:-180,east:180},strictBounds:!0},styles:[]})},100),e;let n=t.country||``,r=m.expenses.filter(e=>e.tripId===m.activeTripId&&e.date).sort((e,t)=>e.date.localeCompare(t.date)).map(e=>e.date),i=r[0]||``,a=r[r.length-1]||``,o=t.aiPlan||null,s=t.aiContext||``,c=t.aiNumDays||1,l=`font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text',sans-serif;`;return e.innerHTML=`
@@ -1189,7 +1189,7 @@
                 <div style="position:sticky;top:80px;height:700px;">
                     <div class="card glass" style="padding:0;overflow:hidden;height:100%;border-radius:18px;position:relative;">
                         <div id="aiGoogleMap" style="width:100%;height:100%;"></div>
-                        <div id="aiZoomBadge" style="position:absolute;bottom:14px;left:14px;background:var(--glass-bg);backdrop-filter:blur(12px);padding:6px 14px;border-radius:980px;border:1px solid var(--glass-border);font-size:0.82rem;font-weight:600;z-index:1000;color:#001a33;cursor:pointer;display:flex;align-items:center;gap:6px;transition:all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.2)'" onmouseout="this.style.background='var(--glass-bg)'">
+                        <div id="aiZoomBadge" class="zoom-badge" style="position:absolute;bottom:14px;left:14px;z-index:1000;">
                             <span>📍</span> <span>${n}</span>
                         </div>
                     </div>
@@ -1361,35 +1361,35 @@
                 </div>
             </div>
 
-            <div style="display: flex; gap: 16px; margin-top: 32px; justify-content: center; flex-wrap: wrap;">
-                <button class="btn open-manual-settle-btn" data-trip-id="${e}" style="background: rgba(255,255,255,0.1); color: var(--text-primary); border: 1px solid rgba(255,255,255,0.2); padding: 16px 32px; border-radius: 16px; font-weight: 700; display: flex; align-items: center; gap: 8px;">
+            <div style="display: flex; gap: var(--space-4); margin-top: var(--space-8); justify-content: center; flex-wrap: wrap;">
+                <button class="btn-ghost open-manual-settle-btn" data-trip-id="${e}" style="color: var(--text-primary); padding: var(--space-4) var(--space-8); display: flex; align-items: center; gap: var(--space-2);">
                     <span>➕</span> Manual Settlement
                 </button>
-                <button class="btn open-past-settle-btn" data-trip-id="${e}" style="background: rgba(255,255,255,0.1); color: var(--text-primary); border: 1px solid rgba(255,255,255,0.2); padding: 16px 32px; border-radius: 16px; font-weight: 700; display: flex; align-items: center; gap: 8px;">
+                <button class="btn-ghost open-past-settle-btn" data-trip-id="${e}" style="color: var(--text-primary); padding: var(--space-4) var(--space-8); display: flex; align-items: center; gap: var(--space-2);">
                     <span>📜</span> Past Settlements
                 </button>
             </div>
         `}let r=r=>{t=r,e.innerHTML=n(r)},i=(t,r,i,a,o=`EUR`)=>{let s=S(a,o,`EUR`),c={id:j(),tripId:t,label:`Settlement: ${r} → ${i}`,value:a,euroValue:s,currency:o,who:r,categoryId:m.categories[0]?.id??``,country:`Settlement`,date:new Date().toISOString().split(`T`)[0],splits:{[i]:100},isSettlement:!0};m.expenses.push(c),y(`state:changed`),e.innerHTML=n(t)},a=e=>{let t=document.createElement(`div`);t.className=`modal-overlay`,t.style.display=`flex`,t.style.backdropFilter=`blur(25px)`;let n=m.groups.map(e=>`<option value="${e}">${e}</option>`).join(``);t.innerHTML=`
-            <div class="card glass" style="width: 400px; padding: 32px; border-radius: 32px; animation: modalPop 0.4s cubic-bezier(0.16, 1, 0.3, 1); border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.15); box-shadow: 0 40px 100px rgba(0,0,0,0.4);">
-                <h2 style="margin: 0 0 20px; font-size: 1.5rem; text-align: center; color: white;">Manual Settlement</h2>
-                
-                <form id="manualSettleForm" style="display: flex; flex-direction: column; gap: 16px;">
+            <div class="card-glass-modal" style="width: 400px;">
+                <h2 style="margin: 0 0 var(--space-5); font-size: var(--font-2xl); text-align: center; color: white;">Manual Settlement</h2>
+
+                <form id="manualSettleForm" style="display: flex; flex-direction: column; gap: var(--space-4);">
                     <div>
-                        <label style="display: block; margin-bottom: 6px; font-size: 0.75rem; font-weight: 700; color: rgba(255,255,255,0.7); text-transform: uppercase;">From</label>
-                        <select id="manualSettleFrom" class="glass-input" style="width: 100%; padding: 12px; border-radius: 12px; background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2);">${n}</select>
+                        <label class="form-label">From</label>
+                        <select id="manualSettleFrom" class="glass-input-modal">${n}</select>
                     </div>
                     <div>
-                        <label style="display: block; margin-bottom: 6px; font-size: 0.75rem; font-weight: 700; color: rgba(255,255,255,0.7); text-transform: uppercase;">To</label>
-                        <select id="manualSettleTo" class="glass-input" style="width: 100%; padding: 12px; border-radius: 12px; background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2);">${n}</select>
+                        <label class="form-label">To</label>
+                        <select id="manualSettleTo" class="glass-input-modal">${n}</select>
                     </div>
                     <div>
-                        <label style="display: block; margin-bottom: 6px; font-size: 0.75rem; font-weight: 700; color: rgba(255,255,255,0.7); text-transform: uppercase;">Amount (${x()})</label>
-                        <input type="number" step="0.01" min="0.01" id="manualSettleAmount" class="glass-input" style="width: 100%; padding: 12px; border-radius: 12px; background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2);" placeholder="0.00" required>
+                        <label class="form-label">Amount (${x()})</label>
+                        <input type="number" step="0.01" min="0.01" id="manualSettleAmount" class="glass-input-modal" placeholder="0.00" required>
                     </div>
 
-                    <div style="margin-top: 12px; display: flex; gap: 10px;">
-                        <button type="submit" class="btn" style="flex: 1; background: var(--accent-blue); padding: 14px; border-radius: 12px;">Record Payment</button>
-                        <button type="button" id="cancelManualSettleBtn" class="btn" style="padding: 14px; background: rgba(255,255,255,0.1); border-radius: 12px; border: 1px solid rgba(255,255,255,0.2); color: white;">Cancel</button>
+                    <div style="margin-top: var(--space-3); display: flex; gap: var(--space-2);">
+                        <button type="submit" class="btn-primary" style="flex: 1;">Record Payment</button>
+                        <button type="button" id="cancelManualSettleBtn" class="btn-ghost">Cancel</button>
                     </div>
                 </form>
             </div>
@@ -1402,47 +1402,47 @@
                     <div style="display: flex; align-items: center; gap: 16px;">
                         <div style="font-size: 1.2rem; font-weight: 800; color: #34c759;">${C(t.euroValue,`EUR`)}</div>
                         <div style="display: flex; gap: 8px;">
-                            <button class="btn btn-small edit-settlement-btn" data-settlement-id="${t.id}" style="background: rgba(255,255,255,0.1); padding: 8px 12px; border-radius: 8px; color: white; border: 1px solid rgba(255,255,255,0.2);">Edit</button>
-                            <button class="btn btn-small unsettle-settlement-btn" data-settlement-id="${t.id}" data-trip-id="${e}" style="background: rgba(255,59,48,0.1); padding: 8px 12px; border-radius: 8px; color: #ff3b30; border: 1px solid rgba(255,59,48,0.2);">Unsettle</button>
+                            <button class="themed-block-btn themed-block-btn--sm edit-settlement-btn" data-settlement-id="${t.id}" style="--accent: 255,255,255; color: white;">Edit</button>
+                            <button class="themed-block-btn themed-block-btn--sm unsettle-settlement-btn" data-settlement-id="${t.id}" data-trip-id="${e}" style="--accent: 255,59,48;">Unsettle</button>
                         </div>
                     </div>
                 </div>
             `).join(``);t.id=`pastSettlementsModal`,t.innerHTML=`
-            <div class="card glass" style="width: 500px; max-height: 80vh; overflow-y: auto; padding: 32px; border-radius: 32px; animation: modalPop 0.4s cubic-bezier(0.16, 1, 0.3, 1); border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.15); box-shadow: 0 40px 100px rgba(0,0,0,0.4);">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
-                    <h2 style="margin: 0; font-size: 1.5rem; color: white;">Past Settlements</h2>
-                    <button class="btn btn-small" id="closePastSettleBtn" style="background: rgba(255,255,255,0.1); padding: 8px 16px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.2); color: white;">Close</button>
+            <div class="card-glass-modal" style="width: 500px; max-height: 80vh; overflow-y: auto;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-6);">
+                    <h2 style="margin: 0; font-size: var(--font-2xl); color: white;">Past Settlements</h2>
+                    <button id="closePastSettleBtn" class="btn-ghost" style="padding: var(--space-2) var(--space-4); min-height: 0;">Close</button>
                 </div>
-                
+
                 <div style="display: flex; flex-direction: column;">
                     ${r}
                 </div>
             </div>
         `,document.body.appendChild(t),M(t,`#closePastSettleBtn`).onclick=()=>t.remove(),t.addEventListener(`click`,e=>{let n=e.target;if(!n)return;let r=n.closest(`.edit-settlement-btn`);if(r?.dataset.settlementId){c(r.dataset.settlementId),t.remove();return}let i=n.closest(`.unsettle-settlement-btn`);if(i?.dataset.settlementId&&i.dataset.tripId){s(i.dataset.settlementId,i.dataset.tripId),t.remove();return}})},s=(t,r)=>{A({title:`Unsettle Payment?`,message:`This will remove the settlement and revert the balances. Are you sure?`,confirmText:`Unsettle`,onConfirm:()=>{m.expenses=m.expenses.filter(e=>e.id!==t),y(`state:changed`),e.innerHTML=n(r)}})},c=r=>{let i=m.expenses.find(e=>e.id===r);if(!i)return;let a=document.createElement(`div`);a.className=`modal-overlay`,a.style.display=`flex`,a.style.backdropFilter=`blur(25px)`;let o=m.groups.map(e=>`<option value="${e}" ${i.who===e?`selected`:``}>${e}</option>`).join(``),s=Object.keys(i.splits||{})[0];a.innerHTML=`
-            <div class="card glass" style="width: 400px; padding: 32px; border-radius: 32px; animation: modalPop 0.4s cubic-bezier(0.16, 1, 0.3, 1); border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.15); box-shadow: 0 40px 100px rgba(0,0,0,0.4);">
-                <h2 style="margin: 0 0 20px; font-size: 1.5rem; text-align: center; color: white;">Edit Settlement</h2>
-                
-                <form id="editSettlementForm" style="display: flex; flex-direction: column; gap: 16px;">
+            <div class="card-glass-modal" style="width: 400px;">
+                <h2 style="margin: 0 0 var(--space-5); font-size: var(--font-2xl); text-align: center; color: white;">Edit Settlement</h2>
+
+                <form id="editSettlementForm" style="display: flex; flex-direction: column; gap: var(--space-4);">
                     <div>
-                        <label style="display: block; margin-bottom: 6px; font-size: 0.75rem; font-weight: 700; color: rgba(255,255,255,0.7); text-transform: uppercase;">From</label>
-                        <select id="editSettleFrom" class="glass-input" style="width: 100%; padding: 12px; border-radius: 12px; background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2);">${o}</select>
+                        <label class="form-label">From</label>
+                        <select id="editSettleFrom" class="glass-input-modal">${o}</select>
                     </div>
                     <div>
-                        <label style="display: block; margin-bottom: 6px; font-size: 0.75rem; font-weight: 700; color: rgba(255,255,255,0.7); text-transform: uppercase;">To</label>
-                        <select id="editSettleTo" class="glass-input" style="width: 100%; padding: 12px; border-radius: 12px; background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2);">${m.groups.map(e=>`<option value="${e}" ${s===e?`selected`:``}>${e}</option>`).join(``)}</select>
+                        <label class="form-label">To</label>
+                        <select id="editSettleTo" class="glass-input-modal">${m.groups.map(e=>`<option value="${e}" ${s===e?`selected`:``}>${e}</option>`).join(``)}</select>
                     </div>
                     <div>
-                        <label style="display: block; margin-bottom: 6px; font-size: 0.75rem; font-weight: 700; color: rgba(255,255,255,0.7); text-transform: uppercase;">Amount (${x()})</label>
-                        <input type="number" step="0.01" min="0.01" id="editSettleAmount" value="${S(i.euroValue,`EUR`,x()).toFixed(2)}" class="glass-input" style="width: 100%; padding: 12px; border-radius: 12px; background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2);" required>
+                        <label class="form-label">Amount (${x()})</label>
+                        <input type="number" step="0.01" min="0.01" id="editSettleAmount" value="${S(i.euroValue,`EUR`,x()).toFixed(2)}" class="glass-input-modal" required>
                     </div>
                     <div>
-                        <label style="display: block; margin-bottom: 6px; font-size: 0.75rem; font-weight: 700; color: rgba(255,255,255,0.7); text-transform: uppercase;">Date</label>
-                        <input type="date" id="editSettleDate" value="${i.date}" class="glass-input" style="width: 100%; padding: 12px; border-radius: 12px; background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2);" required>
+                        <label class="form-label">Date</label>
+                        <input type="date" id="editSettleDate" value="${i.date}" class="glass-input-modal" required>
                     </div>
 
-                    <div style="margin-top: 12px; display: flex; gap: 10px;">
-                        <button type="submit" class="btn" style="flex: 1; background: var(--accent-blue); padding: 14px; border-radius: 12px;">Update</button>
-                        <button type="button" id="cancelEditSettleBtn" class="btn" style="padding: 14px; background: rgba(255,255,255,0.1); border-radius: 12px; border: 1px solid rgba(255,255,255,0.2);">Cancel</button>
+                    <div style="margin-top: var(--space-3); display: flex; gap: var(--space-2);">
+                        <button type="submit" class="btn-primary" style="flex: 1;">Update</button>
+                        <button type="button" id="cancelEditSettleBtn" class="btn-ghost">Cancel</button>
                     </div>
                 </form>
             </div>
@@ -1553,7 +1553,7 @@
                         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px;">
                             <h2 style="margin: 0; font-size: 1.6rem; font-weight: 700; color: var(--text-primary); letter-spacing: -0.02em;">${e.name}</h2>
                             ${n?`
-                                <button id="profileLogoutBtn" style="background: transparent; color: var(--text-secondary); font-weight: 600; border: 1px solid var(--glass-border); border-radius: 8px; padding: 6px 14px; cursor: pointer; font-size: 0.85rem; transition: background 0.2s;" onmouseover="this.style.background='rgba(255,59,48,0.1)'; this.style.color='#ff3b30'; this.style.borderColor='rgba(255,59,48,0.2)';" onmouseout="this.style.background='transparent'; this.style.color='var(--text-secondary)'; this.style.borderColor='var(--glass-border)';">Log Out</button>
+                                <button id="profileLogoutBtn" class="btn-logout">Log Out</button>
                             `:``}
                         </div>
                         

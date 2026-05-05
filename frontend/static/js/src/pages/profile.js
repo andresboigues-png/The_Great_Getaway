@@ -116,7 +116,7 @@ export function renderProfile(targetUserId = null) {
                         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px;">
                             <h2 style="margin: 0; font-size: 1.6rem; font-weight: 700; color: var(--text-primary); letter-spacing: -0.02em;">${user.name}</h2>
                             ${isOwnProfile ? `
-                                <button id="profileLogoutBtn" style="background: transparent; color: var(--text-secondary); font-weight: 600; border: 1px solid var(--glass-border); border-radius: 8px; padding: 6px 14px; cursor: pointer; font-size: 0.85rem; transition: background 0.2s;" onmouseover="this.style.background='rgba(255,59,48,0.1)'; this.style.color='#ff3b30'; this.style.borderColor='rgba(255,59,48,0.2)';" onmouseout="this.style.background='transparent'; this.style.color='var(--text-secondary)'; this.style.borderColor='var(--glass-border)';">Log Out</button>
+                                <button id="profileLogoutBtn" class="btn-logout">Log Out</button>
                             ` : ''}
                         </div>
                         

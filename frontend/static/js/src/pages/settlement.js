@@ -223,11 +223,11 @@ export function renderSettlement() {
                 </div>
             </div>
 
-            <div style="display: flex; gap: 16px; margin-top: 32px; justify-content: center; flex-wrap: wrap;">
-                <button class="btn open-manual-settle-btn" data-trip-id="${tripId}" style="background: rgba(255,255,255,0.1); color: var(--text-primary); border: 1px solid rgba(255,255,255,0.2); padding: 16px 32px; border-radius: 16px; font-weight: 700; display: flex; align-items: center; gap: 8px;">
+            <div style="display: flex; gap: var(--space-4); margin-top: var(--space-8); justify-content: center; flex-wrap: wrap;">
+                <button class="btn-ghost open-manual-settle-btn" data-trip-id="${tripId}" style="color: var(--text-primary); padding: var(--space-4) var(--space-8); display: flex; align-items: center; gap: var(--space-2);">
                     <span>➕</span> Manual Settlement
                 </button>
-                <button class="btn open-past-settle-btn" data-trip-id="${tripId}" style="background: rgba(255,255,255,0.1); color: var(--text-primary); border: 1px solid rgba(255,255,255,0.2); padding: 16px 32px; border-radius: 16px; font-weight: 700; display: flex; align-items: center; gap: 8px;">
+                <button class="btn-ghost open-past-settle-btn" data-trip-id="${tripId}" style="color: var(--text-primary); padding: var(--space-4) var(--space-8); display: flex; align-items: center; gap: var(--space-2);">
                     <span>📜</span> Past Settlements
                 </button>
             </div>
@@ -278,26 +278,26 @@ export function renderSettlement() {
         const peopleOptions = STATE.groups.map(p => `<option value="${p}">${p}</option>`).join('');
 
         modal.innerHTML = `
-            <div class="card glass" style="width: 400px; padding: 32px; border-radius: 32px; animation: modalPop 0.4s cubic-bezier(0.16, 1, 0.3, 1); border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.15); box-shadow: 0 40px 100px rgba(0,0,0,0.4);">
-                <h2 style="margin: 0 0 20px; font-size: 1.5rem; text-align: center; color: white;">Manual Settlement</h2>
-                
-                <form id="manualSettleForm" style="display: flex; flex-direction: column; gap: 16px;">
+            <div class="card-glass-modal" style="width: 400px;">
+                <h2 style="margin: 0 0 var(--space-5); font-size: var(--font-2xl); text-align: center; color: white;">Manual Settlement</h2>
+
+                <form id="manualSettleForm" style="display: flex; flex-direction: column; gap: var(--space-4);">
                     <div>
-                        <label style="display: block; margin-bottom: 6px; font-size: 0.75rem; font-weight: 700; color: rgba(255,255,255,0.7); text-transform: uppercase;">From</label>
-                        <select id="manualSettleFrom" class="glass-input" style="width: 100%; padding: 12px; border-radius: 12px; background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2);">${peopleOptions}</select>
+                        <label class="form-label">From</label>
+                        <select id="manualSettleFrom" class="glass-input-modal">${peopleOptions}</select>
                     </div>
                     <div>
-                        <label style="display: block; margin-bottom: 6px; font-size: 0.75rem; font-weight: 700; color: rgba(255,255,255,0.7); text-transform: uppercase;">To</label>
-                        <select id="manualSettleTo" class="glass-input" style="width: 100%; padding: 12px; border-radius: 12px; background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2);">${peopleOptions}</select>
+                        <label class="form-label">To</label>
+                        <select id="manualSettleTo" class="glass-input-modal">${peopleOptions}</select>
                     </div>
                     <div>
-                        <label style="display: block; margin-bottom: 6px; font-size: 0.75rem; font-weight: 700; color: rgba(255,255,255,0.7); text-transform: uppercase;">Amount (${getHomeCurrency()})</label>
-                        <input type="number" step="0.01" min="0.01" id="manualSettleAmount" class="glass-input" style="width: 100%; padding: 12px; border-radius: 12px; background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2);" placeholder="0.00" required>
+                        <label class="form-label">Amount (${getHomeCurrency()})</label>
+                        <input type="number" step="0.01" min="0.01" id="manualSettleAmount" class="glass-input-modal" placeholder="0.00" required>
                     </div>
 
-                    <div style="margin-top: 12px; display: flex; gap: 10px;">
-                        <button type="submit" class="btn" style="flex: 1; background: var(--accent-blue); padding: 14px; border-radius: 12px;">Record Payment</button>
-                        <button type="button" id="cancelManualSettleBtn" class="btn" style="padding: 14px; background: rgba(255,255,255,0.1); border-radius: 12px; border: 1px solid rgba(255,255,255,0.2); color: white;">Cancel</button>
+                    <div style="margin-top: var(--space-3); display: flex; gap: var(--space-2);">
+                        <button type="submit" class="btn-primary" style="flex: 1;">Record Payment</button>
+                        <button type="button" id="cancelManualSettleBtn" class="btn-ghost">Cancel</button>
                     </div>
                 </form>
             </div>
@@ -341,8 +341,8 @@ export function renderSettlement() {
                     <div style="display: flex; align-items: center; gap: 16px;">
                         <div style="font-size: 1.2rem; font-weight: 800; color: #34c759;">${formatHome(s.euroValue, 'EUR')}</div>
                         <div style="display: flex; gap: 8px;">
-                            <button class="btn btn-small edit-settlement-btn" data-settlement-id="${s.id}" style="background: rgba(255,255,255,0.1); padding: 8px 12px; border-radius: 8px; color: white; border: 1px solid rgba(255,255,255,0.2);">Edit</button>
-                            <button class="btn btn-small unsettle-settlement-btn" data-settlement-id="${s.id}" data-trip-id="${tripId}" style="background: rgba(255,59,48,0.1); padding: 8px 12px; border-radius: 8px; color: #ff3b30; border: 1px solid rgba(255,59,48,0.2);">Unsettle</button>
+                            <button class="themed-block-btn themed-block-btn--sm edit-settlement-btn" data-settlement-id="${s.id}" style="--accent: 255,255,255; color: white;">Edit</button>
+                            <button class="themed-block-btn themed-block-btn--sm unsettle-settlement-btn" data-settlement-id="${s.id}" data-trip-id="${tripId}" style="--accent: 255,59,48;">Unsettle</button>
                         </div>
                     </div>
                 </div>
@@ -350,12 +350,12 @@ export function renderSettlement() {
 
         modal.id = 'pastSettlementsModal';
         modal.innerHTML = `
-            <div class="card glass" style="width: 500px; max-height: 80vh; overflow-y: auto; padding: 32px; border-radius: 32px; animation: modalPop 0.4s cubic-bezier(0.16, 1, 0.3, 1); border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.15); box-shadow: 0 40px 100px rgba(0,0,0,0.4);">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
-                    <h2 style="margin: 0; font-size: 1.5rem; color: white;">Past Settlements</h2>
-                    <button class="btn btn-small" id="closePastSettleBtn" style="background: rgba(255,255,255,0.1); padding: 8px 16px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.2); color: white;">Close</button>
+            <div class="card-glass-modal" style="width: 500px; max-height: 80vh; overflow-y: auto;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-6);">
+                    <h2 style="margin: 0; font-size: var(--font-2xl); color: white;">Past Settlements</h2>
+                    <button id="closePastSettleBtn" class="btn-ghost" style="padding: var(--space-2) var(--space-4); min-height: 0;">Close</button>
                 </div>
-                
+
                 <div style="display: flex; flex-direction: column;">
                     ${listHtml}
                 </div>
@@ -411,30 +411,30 @@ export function renderSettlement() {
         const peopleOptionsTo = STATE.groups.map(p => `<option value="${p}" ${toPerson === p ? 'selected' : ''}>${p}</option>`).join('');
 
         modal.innerHTML = `
-            <div class="card glass" style="width: 400px; padding: 32px; border-radius: 32px; animation: modalPop 0.4s cubic-bezier(0.16, 1, 0.3, 1); border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.15); box-shadow: 0 40px 100px rgba(0,0,0,0.4);">
-                <h2 style="margin: 0 0 20px; font-size: 1.5rem; text-align: center; color: white;">Edit Settlement</h2>
-                
-                <form id="editSettlementForm" style="display: flex; flex-direction: column; gap: 16px;">
+            <div class="card-glass-modal" style="width: 400px;">
+                <h2 style="margin: 0 0 var(--space-5); font-size: var(--font-2xl); text-align: center; color: white;">Edit Settlement</h2>
+
+                <form id="editSettlementForm" style="display: flex; flex-direction: column; gap: var(--space-4);">
                     <div>
-                        <label style="display: block; margin-bottom: 6px; font-size: 0.75rem; font-weight: 700; color: rgba(255,255,255,0.7); text-transform: uppercase;">From</label>
-                        <select id="editSettleFrom" class="glass-input" style="width: 100%; padding: 12px; border-radius: 12px; background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2);">${peopleOptionsFrom}</select>
+                        <label class="form-label">From</label>
+                        <select id="editSettleFrom" class="glass-input-modal">${peopleOptionsFrom}</select>
                     </div>
                     <div>
-                        <label style="display: block; margin-bottom: 6px; font-size: 0.75rem; font-weight: 700; color: rgba(255,255,255,0.7); text-transform: uppercase;">To</label>
-                        <select id="editSettleTo" class="glass-input" style="width: 100%; padding: 12px; border-radius: 12px; background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2);">${peopleOptionsTo}</select>
+                        <label class="form-label">To</label>
+                        <select id="editSettleTo" class="glass-input-modal">${peopleOptionsTo}</select>
                     </div>
                     <div>
-                        <label style="display: block; margin-bottom: 6px; font-size: 0.75rem; font-weight: 700; color: rgba(255,255,255,0.7); text-transform: uppercase;">Amount (${getHomeCurrency()})</label>
-                        <input type="number" step="0.01" min="0.01" id="editSettleAmount" value="${convertCurrency(s.euroValue, 'EUR', getHomeCurrency()).toFixed(2)}" class="glass-input" style="width: 100%; padding: 12px; border-radius: 12px; background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2);" required>
+                        <label class="form-label">Amount (${getHomeCurrency()})</label>
+                        <input type="number" step="0.01" min="0.01" id="editSettleAmount" value="${convertCurrency(s.euroValue, 'EUR', getHomeCurrency()).toFixed(2)}" class="glass-input-modal" required>
                     </div>
                     <div>
-                        <label style="display: block; margin-bottom: 6px; font-size: 0.75rem; font-weight: 700; color: rgba(255,255,255,0.7); text-transform: uppercase;">Date</label>
-                        <input type="date" id="editSettleDate" value="${s.date}" class="glass-input" style="width: 100%; padding: 12px; border-radius: 12px; background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2);" required>
+                        <label class="form-label">Date</label>
+                        <input type="date" id="editSettleDate" value="${s.date}" class="glass-input-modal" required>
                     </div>
 
-                    <div style="margin-top: 12px; display: flex; gap: 10px;">
-                        <button type="submit" class="btn" style="flex: 1; background: var(--accent-blue); padding: 14px; border-radius: 12px;">Update</button>
-                        <button type="button" id="cancelEditSettleBtn" class="btn" style="padding: 14px; background: rgba(255,255,255,0.1); border-radius: 12px; border: 1px solid rgba(255,255,255,0.2);">Cancel</button>
+                    <div style="margin-top: var(--space-3); display: flex; gap: var(--space-2);">
+                        <button type="submit" class="btn-primary" style="flex: 1;">Update</button>
+                        <button type="button" id="cancelEditSettleBtn" class="btn-ghost">Cancel</button>
                     </div>
                 </form>
             </div>
