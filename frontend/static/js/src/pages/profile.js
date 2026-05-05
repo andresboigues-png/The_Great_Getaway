@@ -249,14 +249,9 @@ export function renderProfile(targetUserId = null) {
 
                 const input = /** @type {HTMLInputElement | null} */ (div.querySelector('#profilePhotoInput'));
                 const wrapper = /** @type {HTMLElement | null} */ (div.querySelector('#profilePicWrapper'));
-                const overlay = /** @type {HTMLElement | null} */ (div.querySelector('#profilePicOverlay'));
-                if (wrapper) {
-                    wrapper.onclick = () => input && input.click();
-                    if (overlay) {
-                        wrapper.onmouseenter = () => overlay.style.opacity = '1';
-                        wrapper.onmouseleave = () => overlay.style.opacity = '0';
-                    }
-                }
+                // Hover-reveal of #profilePicOverlay is pure CSS now —
+                // the JS attachment was the same opacity toggle.
+                if (wrapper) wrapper.onclick = () => input && input.click();
                 if (input) input.onchange = (e) => {
                     const file = /** @type {HTMLInputElement} */ (e.target).files?.[0]; if (!file) return;
                     const reader = new FileReader();

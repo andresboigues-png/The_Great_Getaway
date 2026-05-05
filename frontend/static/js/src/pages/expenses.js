@@ -222,12 +222,12 @@ export function renderExpenses() {
 
             const defaultPct = (100 / activeSplitters.length).toFixed(1);
             splitContainer.innerHTML = activeSplitters.map(p => `
-                <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); padding: 8px 12px; border-radius: 8px; border: 1px solid var(--glass-border);">
+                <div class="splitter-row">
                     <span style="font-weight: 500;">${p}</span>
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <input type="number" class="glass-input split-input" data-person="${p}" value="${defaultPct}" step="0.1" style="width: 70px; padding: 4px 8px; text-align: center;" required>
-                        <span style="color: var(--text-secondary); font-size: 0.9rem;">%</span>
-                        <button type="button" class="remove-splitter" data-person="${p}" style="background:none; border:none; color:#ff3b30; cursor:pointer; font-weight:700; margin-left:8px;">&times;</button>
+                    <div style="display: flex; align-items: center; gap: var(--space-2);">
+                        <input type="number" class="glass-input split-input splitter-row__pct" data-person="${p}" value="${defaultPct}" step="0.1" required>
+                        <span style="color: var(--text-secondary); font-size: var(--font-base);">%</span>
+                        <button type="button" class="btn-x-bare remove-splitter" data-person="${p}" style="font-weight:700; margin-left: var(--space-2);">&times;</button>
                     </div>
                 </div>
             `).join('');

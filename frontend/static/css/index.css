@@ -1353,6 +1353,46 @@ h1 {
 .liquid-alert.show { transform: translateX(-50%) translateY(0); }
 .liquid-alert.dismiss { transform: translateX(-50%) translateY(100px); opacity: 0; }
 
+/* Home hero card — full-bleed image / map background with rounded
+   corners and dark gradient overlay. Two height variants used: 450px
+   (no-trip empty state) and 400px (active trip). */
+.hero-card {
+    padding: 0;
+    overflow: hidden;
+    position: relative;
+    margin-top: var(--space-6);
+    border-radius: var(--radius-2xl);
+    border: 1px solid var(--glass-border);
+}
+.hero-card--lg { height: 450px; }
+.hero-card--md { height: 400px; }
+.hero-gradient {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 60%);
+}
+.hero-content {
+    position: absolute;
+    bottom: var(--space-10);
+    left: var(--space-10);
+    right: var(--space-10);
+}
+.hero-quote {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: white;
+    margin: 0;
+    text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+    font-style: italic;
+    transition: opacity 0.8s ease-in-out;
+}
+
+/* Profile picture wrapper — hovering reveals the "change photo" overlay
+   (camera icon on a dark scrim). Replaces JS-imperative onmouseenter/
+   onmouseleave that toggled `style.opacity` on the overlay. */
+#profilePicOverlay { transition: opacity 0.2s ease; }
+#profilePicWrapper:hover #profilePicOverlay { opacity: 1; }
+
 /* Modal headline + subtitle — used by the home journaling/photos/
    documents modals (light-bg cards). Heading is dark navy, subtitle
    is muted. */
@@ -1378,6 +1418,23 @@ h1 {
     font-weight: 800;
     text-transform: uppercase;
     color: rgb(var(--accent, 0,113,227));
+}
+
+/* Splitter row — used in the Add-Expense form's "Split Between" section
+   to show one person + their % allocation. */
+.splitter-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(255,255,255,0.03);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--glass-border);
+}
+.splitter-row__pct {
+    width: 70px;
+    padding: var(--space-1) var(--space-2);
+    text-align: center;
 }
 
 /* Settlement trip card — horizontally scrollable trip selector at the
