@@ -549,10 +549,16 @@ export function renderHome() {
     const steps = [
         { text: "Log in to your account", done: STATE.guideProgress.login, icon: "🔐", action: () => navigate('profile') },
         { text: "Create your first trip", done: STATE.guideProgress.trip, icon: "✈️", action: () => openNewTripModal() },
-        // Personalization page DOM (#persMenu/#persContent/#persCategories/
-        // #persCompanions) only exists once the page has rendered, so navigate
-        // first and switch the tab on the next tick.
-        { text: "Add your travel companions", done: STATE.guideProgress.companions, icon: "👥", action: () => { navigate('personalization'); setTimeout(() => showPersTab('companions'), 50); } },
+        // Companions are per-trip now — the action opens the trip-companion
+        // picker on Home (or just navigates Home if there's no active trip
+        // yet, since the picker is reachable from the trip header there).
+        { text: "Add your travel companions", done: STATE.guideProgress.companions, icon: "👥", action: () => {
+            if (activeTrip) openCompanionPickerModal(activeTrip.id);
+            else navigate('home');
+        } },
+        // Personalization page DOM (#persMenu/#persContent/#persCategories)
+        // only exists once the page has rendered, so navigate first and
+        // switch the tab on the next tick.
         { text: "Set your own categories", done: STATE.guideProgress.categories, icon: "🏷️", action: () => { navigate('personalization'); setTimeout(() => showPersTab('categories'), 50); } },
         { text: 'Generate your AI travel plan<br><span style="font-size: 0.85rem; opacity: 0.8; font-weight: 500;">(or <span data-guide-action="open-add-day" class="link-underline">create it manually</span>)</span>', done: STATE.guideProgress.plan, icon: "✦", action: () => navigate('ai') },
         { text: 'Input your expenses<br><span style="font-size: 0.85rem; opacity: 0.8; font-weight: 500;">(<span data-guide-action="navigate-expenses" class="link-underline">Manually</span> or <span data-guide-action="navigate-upload" class="link-underline">in a batch</span>)</span>', done: STATE.guideProgress.expenses, icon: "💰", action: () => navigate('expenses') },

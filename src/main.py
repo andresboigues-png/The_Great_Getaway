@@ -150,9 +150,28 @@ def sync_data():
 
     with get_db() as conn:
         cursor = conn.cursor()
-        
-        # Sync Trips
+
+        # Caller must be a real user. Without this any client could
+        # POST /api/sync with a forged user_id and orphan trip rows
+        # under that id.
+        if not _ensure_user_exists(cursor, user_id):
+            return jsonify({"error": "Unauthorized"}), 401
+
+        # Sync Trips. Each upsert verifies the caller owns the existing
+        # row before mutating — otherwise this endpoint would let any
+        # caller take over any trip by re-syncing it under their own
+        # user_id, since the ON CONFLICT clause re-writes user_id to
+        # the parameter we pass in. Owners-only on existing rows; new
+        # rows just create as caller.
         for t in trips:
+            cursor.execute("SELECT user_id FROM trips WHERE id = ?", (t["id"],))
+            existing = cursor.fetchone()
+            if existing and existing["user_id"] != user_id:
+                # Trip exists and belongs to someone else — skip silently
+                # rather than 403 the whole batch (preserves partial sync
+                # of legitimately-owned rows).
+                continue
+
             cursor.execute('''
                 INSERT INTO trips (id, user_id, name, country, is_archived, is_public,
                                    place_id, lat, lng, viewport_json, place_types, country_code,
@@ -180,10 +199,16 @@ def sync_data():
                   json.dumps(t['placeTypes']) if t.get('placeTypes') else None,
                   t.get('countryCode'),
                   json.dumps(t['companions']) if isinstance(t.get('companions'), list) else None))
+            _ensure_owner_member_row(cursor, t['id'], user_id)
 
-        # Sync Archived Trips
+        # Sync Archived Trips — same ownership gate.
         archived_trips = data.get("archived_trips", [])
         for t in archived_trips:
+            cursor.execute("SELECT user_id FROM trips WHERE id = ?", (t["id"],))
+            existing = cursor.fetchone()
+            if existing and existing["user_id"] != user_id:
+                continue
+
             cursor.execute('''
                 INSERT INTO trips (id, user_id, name, country, is_archived, is_public,
                                    place_id, lat, lng, viewport_json, place_types, country_code,
@@ -210,10 +235,14 @@ def sync_data():
                   json.dumps(t['placeTypes']) if t.get('placeTypes') else None,
                   t.get('countryCode'),
                   json.dumps(t['companions']) if isinstance(t.get('companions'), list) else None))
-            
-            # Also sync expenses inside archived trips if they exist
+            _ensure_owner_member_row(cursor, t['id'], user_id)
+
+            # Expenses inside archived trips — gate per-row by role on the
+            # trip (which exists by now since we just upserted it).
             if 'expenses' in t:
                 for e in t['expenses']:
+                    if not _can_edit_trip(cursor, t['id'], user_id):
+                        continue
                     cursor.execute('''
                         INSERT INTO expenses (id, trip_id, who, category_id, label, date, country, value, currency, euro_value)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -223,9 +252,13 @@ def sync_data():
                             value=excluded.value,
                             euro_value=excluded.euro_value
                     ''', (e['id'], t['id'], e['who'], e['categoryId'], e['label'], e['date'], e['country'], e['value'], e['currency'], e['euroValue']))
-        
-        # Sync Expenses
+
+        # Sync Expenses — gate per-row. A relaxer on a shared trip can't
+        # write expenses (only Planners can); without this check the bulk
+        # endpoint would let them bypass the per-expense delta gate.
         for e in expenses:
+            if not _can_edit_trip(cursor, e.get('tripId'), user_id):
+                continue
             cursor.execute('''
                 INSERT INTO expenses (id, trip_id, who, category_id, label, date, country, value, currency, euro_value)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -289,11 +322,15 @@ def sync_data():
                   json.dumps(d.get('afternoon', d.get('plan', {}).get('afternoon', ''))),
                   json.dumps(d.get('evening', d.get('plan', {}).get('evening', ''))),
                   d.get('tip', d.get('notes', '')),
-                  d.get('lat') or d.get('lon'), # Support both lat/lng and lat/lon
-                  d.get('lng')))
+                  d.get('lat'),
+                  # The frontend writes `lon` and `lng` interchangeably for
+                  # longitude (legacy naming); the lat column was previously
+                  # being filled with `lon` as a fallback when `lat` was
+                  # missing, which silently corrupted the latitude value.
+                  d.get('lng') or d.get('lon')))
 
         conn.commit()
-    
+
     return jsonify({"status": "synced"})
 
 # ── DELTA SYNC ENDPOINTS ──────────────────────────────────────────────────────
@@ -782,8 +819,8 @@ def upsert_day():
               json.dumps(d.get('afternoon', d.get('plan', {}).get('afternoon', ''))),
               json.dumps(d.get('evening', d.get('plan', {}).get('evening', ''))),
               d.get('tip', d.get('notes', '')),
-              d.get('lat') or d.get('lon'),
-              d.get('lng')))
+              d.get('lat'),
+              d.get('lng') or d.get('lon')))
         conn.commit()
     return jsonify({"status": "ok"})
 
@@ -946,10 +983,22 @@ def add_friend():
     """Send a friend request."""
     user_id = request.json.get("user_id")
     friend_id = request.json.get("friend_id")
-    
+    if not user_id or not friend_id:
+        return jsonify({"status": "error", "message": "Missing data"}), 400
+    if user_id == friend_id:
+        return jsonify({"status": "error", "message": "Can't friend yourself"}), 400
+
     with get_db() as conn:
         cursor = conn.cursor()
-        
+
+        # Both ids must be real users — without this the endpoint accepts
+        # any pair of strings and inserts them, polluting the friends
+        # table with rows that point at nothing.
+        if not _ensure_user_exists(cursor, user_id):
+            return jsonify({"status": "error", "message": "Unauthorized"}), 401
+        if not _ensure_user_exists(cursor, friend_id):
+            return jsonify({"status": "error", "message": "Friend not found"}), 404
+
         # Check if they are already friends or have a pending request
         cursor.execute("SELECT status FROM friends WHERE user_id = ? AND friend_id = ?", (user_id, friend_id))
         row = cursor.fetchone()
@@ -973,16 +1022,31 @@ def add_friend():
 
 @app.route("/api/friends/accept", methods=["POST"])
 def accept_friend():
-    """Accept a friend request."""
-    user_id = request.json.get("user_id") # The person accepting
-    friend_id = request.json.get("friend_id") # The person who sent it
-    
+    """Accept a friend request. Verifies an actual pending invitation
+    exists FROM `friend_id` TO `user_id` before flipping it to accepted —
+    without that check, any caller could fabricate friendships by POSTing
+    to this endpoint with arbitrary id pairs."""
+    user_id = request.json.get("user_id")  # The person accepting
+    friend_id = request.json.get("friend_id")  # The person who sent it
+    if not user_id or not friend_id:
+        return jsonify({"status": "error", "message": "Missing data"}), 400
+
     with get_db() as conn:
         cursor = conn.cursor()
-        
+        if not _ensure_user_exists(cursor, user_id):
+            return jsonify({"status": "error", "message": "Unauthorized"}), 401
+
+        # Verify a pending request was actually sent to user_id by friend_id.
+        cursor.execute(
+            "SELECT 1 FROM friends WHERE user_id = ? AND friend_id = ? AND status = 'pending'",
+            (friend_id, user_id),
+        )
+        if not cursor.fetchone():
+            return jsonify({"status": "error", "message": "No pending request"}), 404
+
         # Update original request
         cursor.execute("UPDATE friends SET status = 'accepted' WHERE user_id = ? AND friend_id = ?", (friend_id, user_id))
-        
+
         # Insert reciprocal friendship
         cursor.execute("INSERT OR IGNORE INTO friends (user_id, friend_id, status) VALUES (?, ?, 'accepted')", (user_id, friend_id))
         
@@ -1343,25 +1407,49 @@ def upload_file():
 
 @app.route("/api/user-data", methods=["DELETE"])
 def delete_user_data():
-    """Wipe all data for a user (factory reset)."""
+    """Wipe all data for a user (factory reset).
+
+    CRITICAL: every DELETE must be scoped to `user_id`. The previous
+    implementation ran un-scoped DELETEs, so any authenticated caller
+    could nuke the entire database with one request — same threat
+    surface as `DROP DATABASE`. Now each statement targets only the
+    caller's own rows (or rows that hang off trips they own)."""
     user_id = request.json.get("user_id")
     if not user_id:
         return jsonify({"error": "Unauthorized"}), 401
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM expenses")
-        cursor.execute("DELETE FROM trip_members")
-        cursor.execute("DELETE FROM trips")
-        cursor.execute("DELETE FROM trip_collaborators")
-        # `companions` table is legacy (companions are per-trip now), but
-        # truncate it on factory-reset for hygiene.
-        cursor.execute("DELETE FROM companions")
-        cursor.execute("DELETE FROM categories")
-        cursor.execute("DELETE FROM budgets")
-        cursor.execute("DELETE FROM trip_days")
-        cursor.execute("DELETE FROM notifications")
-        cursor.execute("DELETE FROM friends")
-        cursor.execute("DELETE FROM users")
+
+        # Snapshot the caller's owned trip_ids so we can clean the
+        # tables that don't carry user_id directly (expenses, trip_days
+        # are scoped by trip_id).
+        cursor.execute("SELECT id FROM trips WHERE user_id = ?", (user_id,))
+        owned_trip_ids = [row["id"] for row in cursor.fetchall()]
+
+        if owned_trip_ids:
+            placeholders = ",".join(["?"] * len(owned_trip_ids))
+            cursor.execute(f"DELETE FROM expenses WHERE trip_id IN ({placeholders})", owned_trip_ids)
+            cursor.execute(f"DELETE FROM trip_days WHERE trip_id IN ({placeholders})", owned_trip_ids)
+            cursor.execute(f"DELETE FROM trip_members WHERE trip_id IN ({placeholders})", owned_trip_ids)
+            cursor.execute(f"DELETE FROM trip_collaborators WHERE trip_id IN ({placeholders})", owned_trip_ids)
+
+        # Tables scoped directly by user_id.
+        cursor.execute("DELETE FROM trips WHERE user_id = ?", (user_id,))
+        cursor.execute("DELETE FROM trip_members WHERE user_id = ?", (user_id,))
+        cursor.execute("DELETE FROM trip_collaborators WHERE user_id = ?", (user_id,))
+        # `companions` table is legacy (companions are per-trip now);
+        # clean only the caller's rows for hygiene.
+        cursor.execute("DELETE FROM companions WHERE user_id = ?", (user_id,))
+        cursor.execute("DELETE FROM categories WHERE user_id = ?", (user_id,))
+        cursor.execute("DELETE FROM budgets WHERE user_id = ?", (user_id,))
+        cursor.execute("DELETE FROM notifications WHERE user_id = ?", (user_id,))
+        # Friends table is symmetric — drop both sides of every relation
+        # involving the caller.
+        cursor.execute(
+            "DELETE FROM friends WHERE user_id = ? OR friend_id = ?",
+            (user_id, user_id),
+        )
+        cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
         conn.commit()
     return jsonify({"status": "wiped"})
 
