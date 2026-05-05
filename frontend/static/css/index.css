@@ -1353,6 +1353,177 @@ h1 {
 .liquid-alert.show { transform: translateX(-50%) translateY(0); }
 .liquid-alert.dismiss { transform: translateX(-50%) translateY(100px); opacity: 0; }
 
+/* Modal headline + subtitle — used by the home journaling/photos/
+   documents modals (light-bg cards). Heading is dark navy, subtitle
+   is muted. */
+.modal-h2 {
+    font-size: var(--font-3xl);
+    margin-bottom: var(--space-2);
+    color: #002d5b;
+    font-weight: 800;
+}
+.modal-subtitle {
+    color: var(--text-secondary);
+    font-weight: 600;
+    margin-bottom: var(--space-5);
+    font-size: var(--font-md);
+}
+
+/* Section tag — small uppercase accent label that introduces a
+   subsection (e.g. "Morning"/"Afternoon"/"Evening" headers in the
+   day-detail modal). Color comes from `--accent` per call site. */
+.section-tag {
+    margin: 0 0 var(--space-4);
+    font-size: var(--font-base);
+    font-weight: 800;
+    text-transform: uppercase;
+    color: rgb(var(--accent, 0,113,227));
+}
+
+/* Settlement trip card — horizontally scrollable trip selector at the
+   top of the settlements page. The `.is-active` modifier scales it
+   slightly and brightens the border. */
+.settlement-trip-card {
+    min-width: 200px;
+    padding: var(--space-5);
+    cursor: pointer;
+    border: 2px solid transparent;
+    opacity: 0.8;
+    transition: transform 0.3s var(--easing-smooth), border-color 0.3s var(--easing-smooth), opacity 0.3s var(--easing-smooth);
+}
+.settlement-trip-card:hover { opacity: 1; }
+.settlement-trip-card.is-active {
+    border-color: var(--accent-blue);
+    transform: scale(1.02);
+    opacity: 1;
+}
+.settlement-trip-card__label {
+    font-size: var(--font-xs);
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    font-weight: 800;
+    margin-bottom: 6px;
+    letter-spacing: 0.05em;
+}
+.settlement-trip-card__name {
+    font-weight: 700;
+    font-size: 1.2rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: var(--space-3);
+}
+.settlement-trip-card__amount {
+    font-size: 1.3rem;
+    font-weight: 800;
+    color: white;
+}
+.settlement-trip-card.is-active .settlement-trip-card__amount {
+    color: var(--accent-blue);
+}
+.settlement-trip-card__active-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent-blue);
+}
+
+/* Tinted info callout — soft fill + tinted border + accent label.
+   Each call site sets `--accent: R,G,B`. Used by upload.js for the
+   format-preview, custom-format-active, and date-format hints. */
+.callout-tinted {
+    padding: var(--space-3) var(--space-4);
+    background: rgba(var(--accent), 0.05);
+    border: 1px solid rgba(var(--accent), 0.15);
+    border-radius: var(--radius-md);
+}
+.callout-tinted--lg {
+    padding: var(--space-4);
+}
+.callout-tinted__label {
+    font-size: var(--font-base);
+    font-weight: 700;
+    color: rgb(var(--accent));
+}
+.callout-tinted__body {
+    margin: var(--space-1) 0 0;
+    font-size: var(--font-base);
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
+/* Inline code tag — used for example values in copy. */
+.code-inline {
+    background: rgba(0,0,0,0.04);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-family: monospace;
+}
+
+/* Expense-row sub-elements — used by every row in the trip expense
+   list. The 48x48 icon block, the 3x3 dot separator between meta
+   tokens, and the right-aligned amount block. */
+.expense-row__icon {
+    width: 48px;
+    height: 48px;
+    background: rgba(0,0,0,0.04);
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    border: 1px solid rgba(0,0,0,0.04);
+}
+.expense-row__title {
+    display: block;
+    font-size: var(--font-xl);
+    letter-spacing: -0.02em;
+    color: #000;
+    margin-bottom: 1px;
+}
+.expense-row__meta {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-xs);
+    color: rgba(0,0,0,0.5);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+.expense-row__meta-dot {
+    width: 3px;
+    height: 3px;
+    background: rgba(0,0,0,0.1);
+    border-radius: 50%;
+}
+.expense-row__amount {
+    font-weight: 800;
+    font-size: 1.2rem;
+    color: #000;
+    letter-spacing: -0.03em;
+}
+.expense-row__currency {
+    font-size: var(--font-xs);
+    opacity: 0.5;
+    font-weight: 600;
+}
+.expense-row__converted {
+    font-size: var(--font-sm);
+    color: var(--accent-blue);
+    font-weight: 700;
+    margin-top: 1px;
+}
+.expense-row__empty {
+    padding: 50px;
+    text-align: center;
+    border-radius: 32px;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(255,255,255,0.03);
+    backdrop-filter: blur(25px);
+    -webkit-backdrop-filter: blur(25px);
+}
+
 /* Notification dropdown items — title, message, timestamp. The title's
    color comes from a `--accent` variable per row (alert vs default). */
 .notification-empty {

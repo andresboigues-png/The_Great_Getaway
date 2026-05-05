@@ -492,9 +492,9 @@ export function renderTripExpenses(container, filters = {}) {
 
     if (tripExpenses.length === 0) {
         container.innerHTML = `
-            <div class="card glass" style="padding: 50px; text-align: center; border-radius: 32px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.03); backdrop-filter: blur(25px);">
+            <div class="card glass expense-row__empty">
                 <div style="font-size: 2.5rem; margin-bottom: 15px; opacity: 0.5;">💸</div>
-                <p style="color: rgba(255,255,255,0.5); font-weight: 500; font-size: 1rem;">No expenses found for this trip.</p>
+                <p style="color: rgba(255,255,255,0.5); font-weight: 500; font-size: var(--font-lg);">No expenses found for this trip.</p>
             </div>
         `;
         return;
@@ -511,29 +511,29 @@ export function renderTripExpenses(container, filters = {}) {
 
         return `
             <div class="card glass expense-row" style="padding: 14px 22px; border-radius: 24px; border: 1px solid rgba(255,255,255,0.4); background: rgba(255,255,255,0.15); backdrop-filter: blur(25px); display: flex; justify-content: space-between; align-items: center; box-shadow: 0 10px 30px rgba(0,0,0,0.1);">
-                <div style="display: flex; align-items: center; gap: 16px;">
-                    <div style="width: 48px; height: 48px; background: rgba(0,0,0,0.04); border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; border: 1px solid rgba(0,0,0,0.04);">
+                <div style="display: flex; align-items: center; gap: var(--space-4);">
+                    <div class="expense-row__icon">
                         ${cat ? cat.icon : '💰'}
                     </div>
                     <div>
-                        <strong style="display: block; font-size: 1.1rem; letter-spacing: -0.02em; color: #000000; margin-bottom: 1px;">${e.label}</strong>
-                        <div style="display: flex; align-items: center; gap: 8px; font-size: 0.75rem; color: rgba(0,0,0,0.5); font-weight: 600; text-transform: uppercase; letter-spacing: 0.02em;">
+                        <strong class="expense-row__title">${e.label}</strong>
+                        <div class="expense-row__meta">
                             <span>${formatAppleDate(e.date)}</span>
-                            <span style="width: 3px; height: 3px; background: rgba(0,0,0,0.1); border-radius: 50%;"></span>
+                            <span class="expense-row__meta-dot"></span>
                             <span>${e.country || 'Global'}</span>
-                            <span style="width: 3px; height: 3px; background: rgba(0,0,0,0.1); border-radius: 50%;"></span>
+                            <span class="expense-row__meta-dot"></span>
                             <span>${e.who}</span>
                         </div>
                     </div>
                 </div>
-                
-                <div style="display: flex; align-items: center; gap: 12px;">
+
+                <div style="display: flex; align-items: center; gap: var(--space-3);">
                     <div style="text-align: right;">
-                        <div style="font-weight: 800; font-size: 1.2rem; color: #000000; letter-spacing: -0.03em;">${e.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span style="font-size: 0.75rem; opacity: 0.5; font-weight: 600;">${e.currency}</span></div>
-                        ${convertedDisplay ? `<div style="font-size: 0.85rem; color: #0071e3; font-weight: 700; margin-top: 1px;">${convertedDisplay}</div>` : ''}
+                        <div class="expense-row__amount">${e.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span class="expense-row__currency">${e.currency}</span></div>
+                        ${convertedDisplay ? `<div class="expense-row__converted">${convertedDisplay}</div>` : ''}
                     </div>
-                    
-                    <div style="display: flex; gap: 8px;">
+
+                    <div style="display: flex; gap: var(--space-2);">
                         <button class="icon-action-btn expense-edit-btn" data-expense-id="${e.id}" style="--accent: 0,113,227;">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4L18.5 2.5z"></path></svg>
                         </button>

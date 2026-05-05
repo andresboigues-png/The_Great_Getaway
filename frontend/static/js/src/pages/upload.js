@@ -129,21 +129,21 @@ export function renderUpload() {
             </div>
 
             <!-- Column reference for custom formats -->
-            <div id="customFormatPreview" style="display:none; margin-bottom:16px; padding:12px 16px; background:rgba(255,149,0,0.07); border:1px solid rgba(255,149,0,0.2); border-radius:10px;">
-                <p style="font-size:0.82rem; font-weight:600; margin-bottom:8px; color:#ff9500;">Active Format Mapping</p>
+            <div id="customFormatPreview" class="callout-tinted" style="display:none; margin-bottom: var(--space-4); --accent: 255,149,0;">
+                <p class="callout-tinted__label">Active Format Mapping</p>
                 <div id="customFormatTable"></div>
             </div>
 
             <!-- Popular format note -->
-            <div id="popularNote" style="padding: 16px; background: rgba(0,113,227,0.05); border-radius: 12px; border: 1px solid rgba(0,113,227,0.1); margin-bottom: 20px;">
-                <span style="font-size: 0.8rem; font-weight: 700; color: var(--accent-blue);">💡 FORMAT PREVIEW</span>
-                <p style="margin: 5px 0 0; font-size: 0.85rem; color: var(--text-secondary);">Ensure your file contains these columns. We will try to auto-detect categories.</p>
-                <div id="popularFormatTableContainer" style="margin-top: 16px; overflow-x: auto; background: white; border-radius: 8px; border: 1px solid rgba(0,0,0,0.05);"></div>
+            <div id="popularNote" class="callout-tinted callout-tinted--lg" style="margin-bottom: var(--space-5); --accent: 0,113,227;">
+                <span class="callout-tinted__label">💡 FORMAT PREVIEW</span>
+                <p class="callout-tinted__body">Ensure your file contains these columns. We will try to auto-detect categories.</p>
+                <div id="popularFormatTableContainer" style="margin-top: var(--space-4); overflow-x: auto; background: white; border-radius: var(--radius-sm); border: 1px solid rgba(0,0,0,0.05);"></div>
             </div>
 
-            <div style="padding: 12px 16px; background: rgba(0,113,227,0.05); border: 1px solid rgba(0,113,227,0.15); border-radius: 12px; margin-bottom: 15px;">
-                <p style="margin: 0; font-size: 0.82rem; color: var(--accent-blue); font-weight: 600;">📅 Date format</p>
-                <p style="margin: 4px 0 0; font-size: 0.8rem; color: var(--text-secondary); line-height: 1.5;">Use <strong>DD-MM-YYYY</strong> (e.g. <code style="background: rgba(0,0,0,0.04); padding: 1px 6px; border-radius: 4px;">15-03-2024</code>) or <strong>YYYY-MM-DD</strong>. Excel-typed date cells are recognised automatically.</p>
+            <div class="callout-tinted" style="margin-bottom: 15px; --accent: 0,113,227;">
+                <p class="callout-tinted__label">📅 Date format</p>
+                <p class="callout-tinted__body">Use <strong>DD-MM-YYYY</strong> (e.g. <code class="code-inline">15-03-2024</code>) or <strong>YYYY-MM-DD</strong>. Excel-typed date cells are recognised automatically.</p>
             </div>
 
             <input type="file" id="excelFile" accept=".xlsx, .xls, .csv" class="glass-input" style="margin-bottom: 15px; width: 100%;">

@@ -43,14 +43,12 @@ export function renderSettlement() {
             const total = STATE.expenses.filter(e => e.tripId === t.id && e.isSettlement).reduce((sum, e) => sum + (e.euroValue || 0), 0);
             const isActive = t.id === tripId;
             return `
-                            <div class="card glass settlement-trip-card ${isActive ? 'card-glow-blue' : ''}"
-                                 data-trip-id="${t.id}"
-                                 style="min-width: 200px; padding: 20px; cursor: pointer; transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); border: 2px solid ${isActive ? 'var(--accent-blue)' : 'transparent'}; transform: ${isActive ? 'scale(1.02)' : 'scale(1)'}; opacity: ${isActive ? '1' : '0.8'};">
-                                <div style="font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 800; margin-bottom: 6px; letter-spacing: 0.05em;">Adventure</div>
-                                <div style="font-weight: 700; font-size: 1.2rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 12px;">${t.name}</div>
+                            <div class="card glass settlement-trip-card${isActive ? ' is-active card-glow-blue' : ''}" data-trip-id="${t.id}">
+                                <div class="settlement-trip-card__label">Adventure</div>
+                                <div class="settlement-trip-card__name">${t.name}</div>
                                 <div style="display: flex; align-items: center; justify-content: space-between;">
-                                    <div style="font-size: 1.3rem; font-weight: 800; color: ${isActive ? 'var(--accent-blue)' : 'white'};">${formatHome(total, 'EUR')}</div>
-                                    ${isActive ? '<div style="width: 8px; height: 8px; border-radius: 50%; background: var(--accent-blue);"></div>' : ''}
+                                    <div class="settlement-trip-card__amount">${formatHome(total, 'EUR')}</div>
+                                    ${isActive ? '<div class="settlement-trip-card__active-dot"></div>' : ''}
                                 </div>
                             </div>
                         `;

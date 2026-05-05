@@ -972,7 +972,7 @@ const openJournalingModal = (dayId) => {
     modal.innerHTML = `
         <div class="card-glass-modal-light" style="width: 580px;">
             <h2 style="font-size: var(--font-3xl); margin-bottom: var(--space-2); color: #002d5b; font-weight: 800; letter-spacing: -0.04em;">Day ${day.dayNumber} Journaling</h2>
-            <p style="color: var(--text-secondary); font-weight: 600; margin-bottom: var(--space-5); font-size: var(--font-md);">Capture your memories and stories from ${day.name}</p>
+            <p class="modal-subtitle">Capture your memories and stories from ${day.name}</p>
             <textarea id="journalText" class="glass-input" style="width: 100%; height: 240px; padding: var(--space-5); border-radius: var(--radius-xl); font-size: 1.05rem; line-height: 1.6; margin-bottom: var(--space-5); border: 1px solid rgba(0,0,0,0.05);" placeholder="What happened today? How did you feel?">${day.notes || ''}</textarea>
             <div style="display: flex; gap: var(--space-3);">
                 <button id="saveJournalBtn" class="btn-primary" style="flex: 2; padding: var(--space-4); border-radius: var(--radius-lg); font-size: var(--font-lg);">Save Story</button>
@@ -1002,8 +1002,8 @@ const openPhotosModal = (dayId) => {
     modal.style.backdropFilter = 'blur(25px)';
     modal.innerHTML = `
         <div class="card-glass-modal-light" style="width: 500px;">
-            <h2 style="font-size: var(--font-3xl); margin-bottom: var(--space-2); color: #002d5b; font-weight: 800;">Photo Gallery</h2>
-            <p style="color: var(--text-secondary); font-weight: 600; margin-bottom: var(--space-5); font-size: var(--font-md);">Add images that define your Day ${day.dayNumber}</p>
+            <h2 class="modal-h2">Photo Gallery</h2>
+            <p class="modal-subtitle">Add images that define your Day ${day.dayNumber}</p>
             <div id="photoList" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-3); margin-bottom: var(--space-6); max-height: 300px; overflow-y: auto; padding: var(--space-1);">
                 ${day.photos.length === 0 ? '<p style="grid-column: 1/-1; text-align: center; color: var(--text-secondary); padding: var(--space-10);">No photos added yet.</p>' :
                     day.photos.map((p, idx) => `
@@ -1093,8 +1093,8 @@ const openDocumentsModal = (dayId) => {
     modal.style.backdropFilter = 'blur(25px)';
     modal.innerHTML = `
         <div class="card-glass-modal-light" style="width: 460px;">
-            <h2 style="font-size: var(--font-3xl); margin-bottom: var(--space-2); color: #002d5b; font-weight: 800;">Documents</h2>
-            <p style="color: var(--text-secondary); font-weight: 600; margin-bottom: var(--space-5); font-size: var(--font-md);">Tickets, bookings, and important info</p>
+            <h2 class="modal-h2">Documents</h2>
+            <p class="modal-subtitle">Tickets, bookings, and important info</p>
             <div id="docList" style="display: flex; flex-direction: column; gap: var(--space-2); margin-bottom: var(--space-6); max-height: 250px; overflow-y: auto;">
                 ${day.documents.length === 0 ? '<p style="text-align: center; color: var(--text-secondary); padding: var(--space-8);">No documents linked.</p>' :
                     day.documents.map((d, idx) => `
@@ -1201,25 +1201,25 @@ const openDayDetail = (dayId) => {
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-10);">
                 <div style="display: flex; flex-direction: column; gap: var(--space-6);">
                     <div class="subcard-soft">
-                        <h4 style="margin: 0 0 var(--space-4); font-size: var(--font-base); font-weight: 800; text-transform: uppercase; color: var(--accent-blue);">Morning</h4>
+                        <h4 class="section-tag">Morning</h4>
                         <textarea class="plain-textarea plan-input" data-time="morning" placeholder="Morning plans...">${day.plan?.morning || ''}</textarea>
                     </div>
                     <div class="subcard-soft">
-                        <h4 style="margin: 0 0 var(--space-4); font-size: var(--font-base); font-weight: 800; text-transform: uppercase; color: #ff9500;">Afternoon</h4>
+                        <h4 class="section-tag" style="--accent: 255,149,0;">Afternoon</h4>
                         <textarea class="plain-textarea plan-input" data-time="afternoon" placeholder="Afternoon plans...">${day.plan?.afternoon || ''}</textarea>
                     </div>
                     <div class="subcard-soft">
-                        <h4 style="margin: 0 0 var(--space-4); font-size: var(--font-base); font-weight: 800; text-transform: uppercase; color: #5856d6;">Evening</h4>
+                        <h4 class="section-tag" style="--accent: 88,86,214;">Evening</h4>
                         <textarea class="plain-textarea plan-input" data-time="evening" placeholder="Evening plans...">${day.plan?.evening || ''}</textarea>
                     </div>
                 </div>
                 <div style="display: flex; flex-direction: column; gap: var(--space-6);">
                     <div style="flex: 1; background: rgba(0,113,227,0.05); padding: var(--space-6); border-radius: 24px; border: 1px solid rgba(0,113,227,0.1);">
-                        <h4 style="margin: 0 0 var(--space-4); font-size: var(--font-base); font-weight: 800; text-transform: uppercase; color: var(--accent-blue);">Personal Notes</h4>
+                        <h4 class="section-tag">Personal Notes</h4>
                         <textarea id="detailNotes" class="plain-textarea plain-textarea--no-resize" style="height: 200px;" placeholder="Private thoughts about this day...">${day.notes || ''}</textarea>
                     </div>
                     <div style="background: #000; padding: var(--space-6); border-radius: 24px; color: white;">
-                        <h4 style="margin: 0 0 var(--space-4); font-size: var(--font-base); font-weight: 800; text-transform: uppercase; color: #34c759;">Expert Tip</h4>
+                        <h4 class="section-tag" style="--accent: 52,199,89;">Expert Tip</h4>
                         <p style="margin: 0; font-size: var(--font-md); line-height: 1.5; opacity: 0.9;">${day.tip || "Always keep a portable charger and a small bottle of water in your bag for long exploration days."}</p>
                     </div>
                     <button id="saveDetailBtn" class="btn-primary" style="width: 100%; padding: var(--space-5); border-radius: var(--radius-xl); font-size: var(--font-xl);">Save All Changes</button>

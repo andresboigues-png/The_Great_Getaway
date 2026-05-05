@@ -484,7 +484,7 @@
         `,setTimeout(()=>{u.addEventListener(`click`,e=>{let t=e.target;if(!t)return;let n=t.closest(`[data-guide-action]`);if(n){let e=n.dataset.guideAction;e===`open-add-day`?fe():e===`navigate-expenses`?q(`expenses`):e===`navigate-upload`&&q(`upload`);return}let r=t.closest(`.guide-step-card`);r?.dataset.index&&S[Number(r.dataset.index)]?.action()});let e=u.querySelector(`#hideQuickAccessBtn`);e&&(e.onclick=e=>{e.stopPropagation(),m.hideQuickAccess=!0,y(`state:changed`),q(`home`)})},0),e.appendChild(u);return e}var Se=e=>{let t=m.tripDays.find(t=>t.id===e);if(!t)return;let n=document.createElement(`div`);n.className=`modal-overlay`,n.style.display=`flex`,n.style.backdropFilter=`blur(25px)`,n.innerHTML=`
         <div class="card-glass-modal-light" style="width: 580px;">
             <h2 style="font-size: var(--font-3xl); margin-bottom: var(--space-2); color: #002d5b; font-weight: 800; letter-spacing: -0.04em;">Day ${t.dayNumber} Journaling</h2>
-            <p style="color: var(--text-secondary); font-weight: 600; margin-bottom: var(--space-5); font-size: var(--font-md);">Capture your memories and stories from ${t.name}</p>
+            <p class="modal-subtitle">Capture your memories and stories from ${t.name}</p>
             <textarea id="journalText" class="glass-input" style="width: 100%; height: 240px; padding: var(--space-5); border-radius: var(--radius-xl); font-size: 1.05rem; line-height: 1.6; margin-bottom: var(--space-5); border: 1px solid rgba(0,0,0,0.05);" placeholder="What happened today? How did you feel?">${t.notes||``}</textarea>
             <div style="display: flex; gap: var(--space-3);">
                 <button id="saveJournalBtn" class="btn-primary" style="flex: 2; padding: var(--space-4); border-radius: var(--radius-lg); font-size: var(--font-lg);">Save Story</button>
@@ -493,8 +493,8 @@
         </div>
     `,document.body.appendChild(n),M(n,`#closeJournalBtn`).onclick=()=>n.remove(),M(n,`#saveJournalBtn`).onclick=async()=>{t.notes=M(n,`#journalText`).value,y(`state:changed`),await $(t),k(`Memories saved!`),n.remove(),q(`home`,null,!0)}},z=e=>{let t=m.tripDays.find(t=>t.id===e);if(!t)return;t.photos||=[];let n=document.createElement(`div`);n.className=`modal-overlay`,n.style.display=`flex`,n.style.backdropFilter=`blur(25px)`,n.innerHTML=`
         <div class="card-glass-modal-light" style="width: 500px;">
-            <h2 style="font-size: var(--font-3xl); margin-bottom: var(--space-2); color: #002d5b; font-weight: 800;">Photo Gallery</h2>
-            <p style="color: var(--text-secondary); font-weight: 600; margin-bottom: var(--space-5); font-size: var(--font-md);">Add images that define your Day ${t.dayNumber}</p>
+            <h2 class="modal-h2">Photo Gallery</h2>
+            <p class="modal-subtitle">Add images that define your Day ${t.dayNumber}</p>
             <div id="photoList" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-3); margin-bottom: var(--space-6); max-height: 300px; overflow-y: auto; padding: var(--space-1);">
                 ${t.photos.length===0?`<p style="grid-column: 1/-1; text-align: center; color: var(--text-secondary); padding: var(--space-10);">No photos added yet.</p>`:t.photos.map((t,n)=>`
                         <div style="position: relative; aspect-ratio: 1; border-radius: var(--radius-lg); overflow: hidden; border: 1px solid rgba(0,0,0,0.05);">
@@ -522,8 +522,8 @@
         </div>
     `,document.body.appendChild(n);let r=M(n,`#photoUpload`);r.onchange=async r=>{let i=r.target.files?.[0];if(!i)return;let a=M(n,`#uploadStatusText`);a.textContent=`⌛ Uploading...`;let o=await $e(i);o&&o.url?(t.photos.push(o.url),y(`state:changed`),await $(t),n.remove(),z(e)):a.textContent=`❌ Failed. Try again.`};let i=async(e,r)=>{t.photos.splice(r,1),y(`state:changed`),await $(t),n.remove(),z(e)};n.addEventListener(`click`,e=>{let t=e.target?.closest(`.remove-photo-btn`);t?.dataset.dayId&&t.dataset.photoIdx&&i(t.dataset.dayId,parseInt(t.dataset.photoIdx,10))}),M(n,`#addPhotoBtn`).onclick=async()=>{let r=M(n,`#photoUrl`).value;r&&(t.photos.push(r),y(`state:changed`),await $(t),n.remove(),z(e))},M(n,`#closePhotosBtn`).onclick=()=>{n.remove(),q(`home`,null,!0)}},B=e=>{let t=m.tripDays.find(t=>t.id===e);if(!t)return;t.documents||=[];let n=document.createElement(`div`);n.className=`modal-overlay`,n.style.display=`flex`,n.style.backdropFilter=`blur(25px)`,n.innerHTML=`
         <div class="card-glass-modal-light" style="width: 460px;">
-            <h2 style="font-size: var(--font-3xl); margin-bottom: var(--space-2); color: #002d5b; font-weight: 800;">Documents</h2>
-            <p style="color: var(--text-secondary); font-weight: 600; margin-bottom: var(--space-5); font-size: var(--font-md);">Tickets, bookings, and important info</p>
+            <h2 class="modal-h2">Documents</h2>
+            <p class="modal-subtitle">Tickets, bookings, and important info</p>
             <div id="docList" style="display: flex; flex-direction: column; gap: var(--space-2); margin-bottom: var(--space-6); max-height: 250px; overflow-y: auto;">
                 ${t.documents.length===0?`<p style="text-align: center; color: var(--text-secondary); padding: var(--space-8);">No documents linked.</p>`:t.documents.map((t,n)=>`
                         <div style="display: flex; align-items: center; justify-content: space-between; padding: var(--space-3) var(--space-4); background: white; border-radius: var(--radius-md); border: 1px solid rgba(0,0,0,0.05);">
@@ -568,25 +568,25 @@
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-10);">
                 <div style="display: flex; flex-direction: column; gap: var(--space-6);">
                     <div class="subcard-soft">
-                        <h4 style="margin: 0 0 var(--space-4); font-size: var(--font-base); font-weight: 800; text-transform: uppercase; color: var(--accent-blue);">Morning</h4>
+                        <h4 class="section-tag">Morning</h4>
                         <textarea class="plain-textarea plan-input" data-time="morning" placeholder="Morning plans...">${t.plan?.morning||``}</textarea>
                     </div>
                     <div class="subcard-soft">
-                        <h4 style="margin: 0 0 var(--space-4); font-size: var(--font-base); font-weight: 800; text-transform: uppercase; color: #ff9500;">Afternoon</h4>
+                        <h4 class="section-tag" style="--accent: 255,149,0;">Afternoon</h4>
                         <textarea class="plain-textarea plan-input" data-time="afternoon" placeholder="Afternoon plans...">${t.plan?.afternoon||``}</textarea>
                     </div>
                     <div class="subcard-soft">
-                        <h4 style="margin: 0 0 var(--space-4); font-size: var(--font-base); font-weight: 800; text-transform: uppercase; color: #5856d6;">Evening</h4>
+                        <h4 class="section-tag" style="--accent: 88,86,214;">Evening</h4>
                         <textarea class="plain-textarea plan-input" data-time="evening" placeholder="Evening plans...">${t.plan?.evening||``}</textarea>
                     </div>
                 </div>
                 <div style="display: flex; flex-direction: column; gap: var(--space-6);">
                     <div style="flex: 1; background: rgba(0,113,227,0.05); padding: var(--space-6); border-radius: 24px; border: 1px solid rgba(0,113,227,0.1);">
-                        <h4 style="margin: 0 0 var(--space-4); font-size: var(--font-base); font-weight: 800; text-transform: uppercase; color: var(--accent-blue);">Personal Notes</h4>
+                        <h4 class="section-tag">Personal Notes</h4>
                         <textarea id="detailNotes" class="plain-textarea plain-textarea--no-resize" style="height: 200px;" placeholder="Private thoughts about this day...">${t.notes||``}</textarea>
                     </div>
                     <div style="background: #000; padding: var(--space-6); border-radius: 24px; color: white;">
-                        <h4 style="margin: 0 0 var(--space-4); font-size: var(--font-base); font-weight: 800; text-transform: uppercase; color: #34c759;">Expert Tip</h4>
+                        <h4 class="section-tag" style="--accent: 52,199,89;">Expert Tip</h4>
                         <p style="margin: 0; font-size: var(--font-md); line-height: 1.5; opacity: 0.9;">${t.tip||`Always keep a portable charger and a small bottle of water in your bag for long exploration days.`}</p>
                     </div>
                     <button id="saveDetailBtn" class="btn-primary" style="width: 100%; padding: var(--space-5); border-radius: var(--radius-xl); font-size: var(--font-xl);">Save All Changes</button>
@@ -740,35 +740,35 @@
                     </div>
                 </div>
             `).join(``),n.querySelectorAll(`.remove-splitter`).forEach(e=>{e.onclick=()=>{let t=e.getAttribute(`data-person`);a=a.filter(e=>e!==t),s()}})}if(i.onclick=()=>{let e=r.value;e&&!a.includes(e)&&(a.push(e),s())},m.draftExpense){let t=m.draftExpense;t.who&&(M(e,`#expWho`).value=t.who),t.categoryId&&(M(e,`#expCategory`).value=t.categoryId),t.label&&(M(e,`#expLabel`).value=t.label),t.date&&(M(e,`#expDate`).value=t.date),t.country&&(M(e,`#expCountry`).value=t.country),t.value&&(M(e,`#expValue`).value=String(t.value)),t.currency&&(M(e,`#expCurrency`).value=t.currency)}t.querySelectorAll(`input, select`).forEach(e=>{e.addEventListener(`input`,e=>{let t=e.target,n=t.id;if(!n)return;let r=t.value;n===`expWho`&&(m.draftExpense.who=r),n===`expCategory`&&(m.draftExpense.categoryId=r),n===`expLabel`&&(m.draftExpense.label=r),n===`expDate`&&(m.draftExpense.date=r),n===`expCountry`&&(m.draftExpense.country=r),n===`expValue`&&(m.draftExpense.value=r),n===`expCurrency`&&(m.draftExpense.currency=r),y(`state:changed`)})});let c=M(e,`#expCountry`),l=M(e,`#countryDropdownList`),u=l.querySelectorAll(`.dropdown-item`);c.onfocus=()=>{l.style.display=`block`},c.oninput=e=>{let t=e.target.value.toLowerCase();u.forEach(e=>{let n=(e.textContent??``).toLowerCase();e.style.display=n.includes(t)?`block`:`none`}),l.style.display=`block`},u.forEach(e=>{e.onclick=t=>{c.value=e.getAttribute(`data-value`)??``,l.style.display=`none`,t.stopPropagation(),m.draftExpense.country=c.value,y(`state:changed`)}}),document.addEventListener(`click`,t=>{let n=t.target,r=M(e,`#countrySearchContainer`);(!n||!r.contains(n))&&(l.style.display=`none`)}),t.addEventListener(`submit`,n=>{if(n.preventDefault(),!m.activeTripId)return;let r=m.activeTripId,i=M(e,`#expWho`).value,c={},l=0,u=e.querySelectorAll(`.split-input`);if(u.length>0){if(u.forEach(e=>{let t=parseFloat(e.value)||0,n=e.getAttribute(`data-person`);n&&(c[n]=t),l+=t}),Math.abs(l-100)>.5){alert(`Percentages must add up to exactly 100%`);return}}else c[i]=100;let d=parseFloat(M(e,`#expValue`).value),f=M(e,`#expCurrency`).value.toUpperCase();if(isNaN(d)||d<=0){alert(`Please enter a valid expense value.`);return}if(!f){alert(`Please select a currency.`);return}let p=m.trips.find(e=>e.id===r),h=M(e,`#expCountry`).value||(p?p.country:``),g=!!m.draftExpense?.id,_={id:g&&m.draftExpense.id?m.draftExpense.id:j(),tripId:r,who:i,categoryId:M(e,`#expCategory`).value,label:M(e,`#expLabel`).value,date:M(e,`#expDate`).value,country:h,value:d,currency:f,euroValue:d*(o[f]||1),splits:c};if(g){let e=m.expenses.findIndex(e=>e.id===_.id);e===-1?m.expenses.push(_):m.expenses[e]=_}else m.expenses.push(_);m.draftExpense={who:``,categoryId:``,label:``,date:``,country:``,value:``,currency:`EUR`,euroValue:``},y(`state:changed`),Ke(_),V(M(e,`#tripExpensesList`)),t.reset(),a=[],s()});let d=()=>{let t=M(e,`#filterSearch`).value.toLowerCase(),n=M(e,`#filterCategory`).value,r=M(e,`#filterWho`).value,i=M(e,`#filterDateFrom`).value,a=M(e,`#filterDateTo`).value,o=parseFloat(M(e,`#filterMinVal`).value)||0,s=parseFloat(M(e,`#filterMaxVal`).value)||1/0;V(M(e,`#tripExpensesList`),{search:t,catId:n,who:r,dateFrom:i,dateTo:a,minVal:o,maxVal:s})};M(e,`#filterSearch`).oninput=d,M(e,`#filterCategory`).onchange=d,M(e,`#filterWho`).onchange=d,M(e,`#filterDateFrom`).onchange=d,M(e,`#filterDateTo`).onchange=d,M(e,`#filterMinVal`).oninput=d,M(e,`#filterMaxVal`).oninput=d,M(e,`#clearFiltersBtn`).onclick=()=>{M(e,`#filterSearch`).value=``,M(e,`#filterCategory`).value=`all`,M(e,`#filterWho`).value=`all`,M(e,`#filterDateFrom`).value=``,M(e,`#filterDateTo`).value=``,M(e,`#filterMinVal`).value=``,M(e,`#filterMaxVal`).value=``,V(M(e,`#tripExpensesList`))},V(M(e,`#tripExpensesList`)),s()},0),e}function V(e,t={}){if(!e)return;let n=m.expenses.filter(e=>e.tripId===m.activeTripId),r=t.search;r&&(n=n.filter(e=>e.label.toLowerCase().includes(r))),n=t.catId&&t.catId!==`all`?t.catId===`settlement`?n.filter(e=>e.isSettlement):n.filter(e=>e.categoryId===t.catId&&!e.isSettlement):n.filter(e=>!e.isSettlement),t.who&&t.who!==`all`&&(n=n.filter(e=>e.who===t.who));let{dateFrom:i,dateTo:a,minVal:o,maxVal:s}=t;i&&(n=n.filter(e=>e.date>=i)),a&&(n=n.filter(e=>e.date<=a)),o!==void 0&&(n=n.filter(e=>(e.euroValue||0)>=o)),s!==void 0&&s!==1/0&&(n=n.filter(e=>(e.euroValue||0)<=s)),n.sort((e,t)=>new Date(t.date).getTime()-new Date(e.date).getTime());function c(e){if(!e)return`Global`;let t=new Date(e+`T00:00:00Z`);return isNaN(t.getTime())?`Global`:`${String(t.getUTCDate()).padStart(2,`0`)}-${String(t.getUTCMonth()+1).padStart(2,`0`)}-${t.getUTCFullYear()}`}if(n.length===0){e.innerHTML=`
-            <div class="card glass" style="padding: 50px; text-align: center; border-radius: 32px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.03); backdrop-filter: blur(25px);">
+            <div class="card glass expense-row__empty">
                 <div style="font-size: 2.5rem; margin-bottom: 15px; opacity: 0.5;">💸</div>
-                <p style="color: rgba(255,255,255,0.5); font-weight: 500; font-size: 1rem;">No expenses found for this trip.</p>
+                <p style="color: rgba(255,255,255,0.5); font-weight: 500; font-size: var(--font-lg);">No expenses found for this trip.</p>
             </div>
         `;return}let l=x();e.innerHTML=n.map(e=>{let t=m.categories.find(t=>t.id===e.categoryId),n=e.currency===l?``:`≈ ${C(e.value,e.currency)}`;return`
             <div class="card glass expense-row" style="padding: 14px 22px; border-radius: 24px; border: 1px solid rgba(255,255,255,0.4); background: rgba(255,255,255,0.15); backdrop-filter: blur(25px); display: flex; justify-content: space-between; align-items: center; box-shadow: 0 10px 30px rgba(0,0,0,0.1);">
-                <div style="display: flex; align-items: center; gap: 16px;">
-                    <div style="width: 48px; height: 48px; background: rgba(0,0,0,0.04); border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; border: 1px solid rgba(0,0,0,0.04);">
+                <div style="display: flex; align-items: center; gap: var(--space-4);">
+                    <div class="expense-row__icon">
                         ${t?t.icon:`💰`}
                     </div>
                     <div>
-                        <strong style="display: block; font-size: 1.1rem; letter-spacing: -0.02em; color: #000000; margin-bottom: 1px;">${e.label}</strong>
-                        <div style="display: flex; align-items: center; gap: 8px; font-size: 0.75rem; color: rgba(0,0,0,0.5); font-weight: 600; text-transform: uppercase; letter-spacing: 0.02em;">
+                        <strong class="expense-row__title">${e.label}</strong>
+                        <div class="expense-row__meta">
                             <span>${c(e.date)}</span>
-                            <span style="width: 3px; height: 3px; background: rgba(0,0,0,0.1); border-radius: 50%;"></span>
+                            <span class="expense-row__meta-dot"></span>
                             <span>${e.country||`Global`}</span>
-                            <span style="width: 3px; height: 3px; background: rgba(0,0,0,0.1); border-radius: 50%;"></span>
+                            <span class="expense-row__meta-dot"></span>
                             <span>${e.who}</span>
                         </div>
                     </div>
                 </div>
-                
-                <div style="display: flex; align-items: center; gap: 12px;">
+
+                <div style="display: flex; align-items: center; gap: var(--space-3);">
                     <div style="text-align: right;">
-                        <div style="font-weight: 800; font-size: 1.2rem; color: #000000; letter-spacing: -0.03em;">${e.value.toLocaleString(void 0,{minimumFractionDigits:2,maximumFractionDigits:2})} <span style="font-size: 0.75rem; opacity: 0.5; font-weight: 600;">${e.currency}</span></div>
-                        ${n?`<div style="font-size: 0.85rem; color: #0071e3; font-weight: 700; margin-top: 1px;">${n}</div>`:``}
+                        <div class="expense-row__amount">${e.value.toLocaleString(void 0,{minimumFractionDigits:2,maximumFractionDigits:2})} <span class="expense-row__currency">${e.currency}</span></div>
+                        ${n?`<div class="expense-row__converted">${n}</div>`:``}
                     </div>
-                    
-                    <div style="display: flex; gap: 8px;">
+
+                    <div style="display: flex; gap: var(--space-2);">
                         <button class="icon-action-btn expense-edit-btn" data-expense-id="${e.id}" style="--accent: 0,113,227;">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4L18.5 2.5z"></path></svg>
                         </button>
@@ -801,21 +801,21 @@
             </div>
 
             <!-- Column reference for custom formats -->
-            <div id="customFormatPreview" style="display:none; margin-bottom:16px; padding:12px 16px; background:rgba(255,149,0,0.07); border:1px solid rgba(255,149,0,0.2); border-radius:10px;">
-                <p style="font-size:0.82rem; font-weight:600; margin-bottom:8px; color:#ff9500;">Active Format Mapping</p>
+            <div id="customFormatPreview" class="callout-tinted" style="display:none; margin-bottom: var(--space-4); --accent: 255,149,0;">
+                <p class="callout-tinted__label">Active Format Mapping</p>
                 <div id="customFormatTable"></div>
             </div>
 
             <!-- Popular format note -->
-            <div id="popularNote" style="padding: 16px; background: rgba(0,113,227,0.05); border-radius: 12px; border: 1px solid rgba(0,113,227,0.1); margin-bottom: 20px;">
-                <span style="font-size: 0.8rem; font-weight: 700; color: var(--accent-blue);">💡 FORMAT PREVIEW</span>
-                <p style="margin: 5px 0 0; font-size: 0.85rem; color: var(--text-secondary);">Ensure your file contains these columns. We will try to auto-detect categories.</p>
-                <div id="popularFormatTableContainer" style="margin-top: 16px; overflow-x: auto; background: white; border-radius: 8px; border: 1px solid rgba(0,0,0,0.05);"></div>
+            <div id="popularNote" class="callout-tinted callout-tinted--lg" style="margin-bottom: var(--space-5); --accent: 0,113,227;">
+                <span class="callout-tinted__label">💡 FORMAT PREVIEW</span>
+                <p class="callout-tinted__body">Ensure your file contains these columns. We will try to auto-detect categories.</p>
+                <div id="popularFormatTableContainer" style="margin-top: var(--space-4); overflow-x: auto; background: white; border-radius: var(--radius-sm); border: 1px solid rgba(0,0,0,0.05);"></div>
             </div>
 
-            <div style="padding: 12px 16px; background: rgba(0,113,227,0.05); border: 1px solid rgba(0,113,227,0.15); border-radius: 12px; margin-bottom: 15px;">
-                <p style="margin: 0; font-size: 0.82rem; color: var(--accent-blue); font-weight: 600;">📅 Date format</p>
-                <p style="margin: 4px 0 0; font-size: 0.8rem; color: var(--text-secondary); line-height: 1.5;">Use <strong>DD-MM-YYYY</strong> (e.g. <code style="background: rgba(0,0,0,0.04); padding: 1px 6px; border-radius: 4px;">15-03-2024</code>) or <strong>YYYY-MM-DD</strong>. Excel-typed date cells are recognised automatically.</p>
+            <div class="callout-tinted" style="margin-bottom: 15px; --accent: 0,113,227;">
+                <p class="callout-tinted__label">📅 Date format</p>
+                <p class="callout-tinted__body">Use <strong>DD-MM-YYYY</strong> (e.g. <code class="code-inline">15-03-2024</code>) or <strong>YYYY-MM-DD</strong>. Excel-typed date cells are recognised automatically.</p>
             </div>
 
             <input type="file" id="excelFile" accept=".xlsx, .xls, .csv" class="glass-input" style="margin-bottom: 15px; width: 100%;">
@@ -1259,14 +1259,12 @@
                 </div>
                 <div style="display: flex; gap: 16px; overflow-x: auto; padding-bottom: 12px; scroll-behavior: smooth; -webkit-overflow-scrolling: touch;">
                     ${m.trips.map(t=>{let n=m.expenses.filter(e=>e.tripId===t.id&&e.isSettlement).reduce((e,t)=>e+(t.euroValue||0),0),r=t.id===e;return`
-                            <div class="card glass settlement-trip-card ${r?`card-glow-blue`:``}"
-                                 data-trip-id="${t.id}"
-                                 style="min-width: 200px; padding: 20px; cursor: pointer; transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); border: 2px solid ${r?`var(--accent-blue)`:`transparent`}; transform: ${r?`scale(1.02)`:`scale(1)`}; opacity: ${r?`1`:`0.8`};">
-                                <div style="font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 800; margin-bottom: 6px; letter-spacing: 0.05em;">Adventure</div>
-                                <div style="font-weight: 700; font-size: 1.2rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 12px;">${t.name}</div>
+                            <div class="card glass settlement-trip-card${r?` is-active card-glow-blue`:``}" data-trip-id="${t.id}">
+                                <div class="settlement-trip-card__label">Adventure</div>
+                                <div class="settlement-trip-card__name">${t.name}</div>
                                 <div style="display: flex; align-items: center; justify-content: space-between;">
-                                    <div style="font-size: 1.3rem; font-weight: 800; color: ${r?`var(--accent-blue)`:`white`};">${C(n,`EUR`)}</div>
-                                    ${r?`<div style="width: 8px; height: 8px; border-radius: 50%; background: var(--accent-blue);"></div>`:``}
+                                    <div class="settlement-trip-card__amount">${C(n,`EUR`)}</div>
+                                    ${r?`<div class="settlement-trip-card__active-dot"></div>`:``}
                                 </div>
                             </div>
                         `}).join(``)}
