@@ -713,11 +713,9 @@ export function renderHome() {
                     </div>
 
                     <!-- MAIN CARD -->
-                    <div class="day-card card glass"
+                    <div class="day-card card glass${isOpen ? ' is-open' : ''}"
                          data-day-id="${day.id}"
-                         style="flex: 1; padding: 20px 28px; border-radius: 28px; border: 1.5px solid ${isOpen ? 'var(--accent-blue)' : 'rgba(0,0,0,0.05)'}; background: ${isOpen ? 'rgba(255,255,255,0.95)' : 'white'}; cursor: pointer; transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); box-shadow: ${isOpen ? '0 20px 40px rgba(0,0,0,0.1)' : 'none'};"
-                         onmouseover="${!isOpen ? "this.style.transform='translateX(8px)'; this.style.borderColor='rgba(0,113,227,0.2)';" : ""}"
-                         onmouseout="${!isOpen ? "this.style.transform='none'; this.style.borderColor='rgba(0,0,0,0.05)';" : ""}">
+                         style="flex: 1; padding: 20px 28px; border-radius: 28px; border: 1.5px solid ${isOpen ? 'var(--accent-blue)' : 'rgba(0,0,0,0.05)'}; background: ${isOpen ? 'rgba(255,255,255,0.95)' : 'white'}; cursor: pointer; box-shadow: ${isOpen ? '0 20px 40px rgba(0,0,0,0.1)' : 'none'};">
                         
                         <div style="display: flex; align-items: center; justify-content: space-between;">
                             <div style="display: flex; align-items: center; gap: 20px;">
@@ -1022,9 +1020,9 @@ const openPhotosModal = (dayId) => {
                     <input type="file" id="photoUpload" accept="image/*" style="display: none;">
                 </label>
                 <div style="display: flex; gap: var(--space-2); align-items: center;">
-                    <div style="flex: 1; height: 1px; background: rgba(0,0,0,0.05);"></div>
+                    <div class="divider-h"></div>
                     <span style="font-size: var(--font-2xs); color: var(--text-secondary); font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;">OR</span>
-                    <div style="flex: 1; height: 1px; background: rgba(0,0,0,0.05);"></div>
+                    <div class="divider-h"></div>
                 </div>
                 <div style="display: flex; gap: var(--space-2);">
                     <input type="text" id="photoUrl" class="glass-input" placeholder="Paste image URL here..." style="flex: 1; padding: var(--space-3); border-radius: 14px; font-size: var(--font-base);">
@@ -1116,9 +1114,9 @@ const openDocumentsModal = (dayId) => {
                     <input type="file" id="docUpload" style="display: none;">
                 </label>
                 <div style="display: flex; gap: var(--space-2); align-items: center;">
-                    <div style="flex: 1; height: 1px; background: rgba(0,0,0,0.05);"></div>
+                    <div class="divider-h"></div>
                     <span style="font-size: var(--font-xs); color: var(--text-secondary); font-weight: 800;">OR</span>
-                    <div style="flex: 1; height: 1px; background: rgba(0,0,0,0.05);"></div>
+                    <div class="divider-h"></div>
                 </div>
                 <input type="text" id="docName" class="glass-input" placeholder="Document Name (e.g. Flight Ticket)" style="padding: var(--space-3); border-radius: var(--radius-md);">
                 <div style="display: flex; gap: var(--space-2);">
@@ -1189,42 +1187,42 @@ const openDayDetail = (dayId) => {
     modal.style.display = 'flex';
     modal.style.backdropFilter = 'blur(25px)';
     modal.innerHTML = `
-        <div class="card glass" style="width: 800px; max-height: 90vh; overflow-y: auto; padding: 48px; border-radius: 48px; background: white; border: 1px solid rgba(0,0,0,0.1);">
-            <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 40px;">
+        <div class="card glass" style="width: 800px; max-height: 90vh; overflow-y: auto; padding: var(--space-12); border-radius: 48px; background: white; border: 1px solid rgba(0,0,0,0.1);">
+            <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: var(--space-10);">
                 <div>
-                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
-                        <div style="background: var(--accent-blue); color: white; padding: 4px 12px; border-radius: 8px; font-weight: 800; font-size: 0.75rem; text-transform: uppercase;">Day ${day.dayNumber}</div>
-                        <div style="color: var(--text-secondary); font-weight: 600; font-size: 0.9rem;">${formatDayDate(day.date)}</div>
+                    <div style="display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-2);">
+                        <div style="background: var(--accent-blue); color: white; padding: var(--space-1) var(--space-3); border-radius: var(--radius-sm); font-weight: 800; font-size: var(--font-xs); text-transform: uppercase;">Day ${day.dayNumber}</div>
+                        <div style="color: var(--text-secondary); font-weight: 600; font-size: var(--font-base);">${formatDayDate(day.date)}</div>
                     </div>
                     <h2 style="font-size: 2.5rem; color: #002d5b; font-weight: 800; letter-spacing: -0.04em; margin: 0;">${day.name}</h2>
                 </div>
-                <button id="closeDetailBtn" style="background: rgba(0,0,0,0.05); border: none; width: 44px; height: 44px; border-radius: 50%; font-size: 1.5rem; cursor: pointer;">✕</button>
+                <button id="closeDetailBtn" class="close-x-btn">✕</button>
             </div>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px;">
-                <div style="display: flex; flex-direction: column; gap: 24px;">
-                    <div style="background: rgba(0,0,0,0.02); padding: 24px; border-radius: 24px; border: 1px solid rgba(0,0,0,0.05);">
-                        <h4 style="margin: 0 0 16px; font-size: 0.8rem; font-weight: 800; text-transform: uppercase; color: var(--accent-blue);">Morning</h4>
-                        <textarea class="glass-input plan-input" data-time="morning" style="width: 100%; min-height: 80px; background: transparent; border: none; font-size: 1rem; color: #002d5b;" placeholder="Morning plans...">${day.plan?.morning || ''}</textarea>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-10);">
+                <div style="display: flex; flex-direction: column; gap: var(--space-6);">
+                    <div class="subcard-soft">
+                        <h4 style="margin: 0 0 var(--space-4); font-size: var(--font-base); font-weight: 800; text-transform: uppercase; color: var(--accent-blue);">Morning</h4>
+                        <textarea class="plain-textarea plan-input" data-time="morning" placeholder="Morning plans...">${day.plan?.morning || ''}</textarea>
                     </div>
-                    <div style="background: rgba(0,0,0,0.02); padding: 24px; border-radius: 24px; border: 1px solid rgba(0,0,0,0.05);">
-                        <h4 style="margin: 0 0 16px; font-size: 0.8rem; font-weight: 800; text-transform: uppercase; color: #ff9500;">Afternoon</h4>
-                        <textarea class="glass-input plan-input" data-time="afternoon" style="width: 100%; min-height: 80px; background: transparent; border: none; font-size: 1rem; color: #002d5b;" placeholder="Afternoon plans...">${day.plan?.afternoon || ''}</textarea>
+                    <div class="subcard-soft">
+                        <h4 style="margin: 0 0 var(--space-4); font-size: var(--font-base); font-weight: 800; text-transform: uppercase; color: #ff9500;">Afternoon</h4>
+                        <textarea class="plain-textarea plan-input" data-time="afternoon" placeholder="Afternoon plans...">${day.plan?.afternoon || ''}</textarea>
                     </div>
-                    <div style="background: rgba(0,0,0,0.02); padding: 24px; border-radius: 24px; border: 1px solid rgba(0,0,0,0.05);">
-                        <h4 style="margin: 0 0 16px; font-size: 0.8rem; font-weight: 800; text-transform: uppercase; color: #5856d6;">Evening</h4>
-                        <textarea class="glass-input plan-input" data-time="evening" style="width: 100%; min-height: 80px; background: transparent; border: none; font-size: 1rem; color: #002d5b;" placeholder="Evening plans...">${day.plan?.evening || ''}</textarea>
+                    <div class="subcard-soft">
+                        <h4 style="margin: 0 0 var(--space-4); font-size: var(--font-base); font-weight: 800; text-transform: uppercase; color: #5856d6;">Evening</h4>
+                        <textarea class="plain-textarea plan-input" data-time="evening" placeholder="Evening plans...">${day.plan?.evening || ''}</textarea>
                     </div>
                 </div>
-                <div style="display: flex; flex-direction: column; gap: 24px;">
-                    <div style="flex: 1; background: rgba(0,113,227,0.05); padding: 24px; border-radius: 24px; border: 1px solid rgba(0,113,227,0.1);">
-                        <h4 style="margin: 0 0 16px; font-size: 0.8rem; font-weight: 800; text-transform: uppercase; color: var(--accent-blue);">Personal Notes</h4>
-                        <textarea id="detailNotes" style="width: 100%; height: 200px; background: transparent; border: none; font-size: 1rem; color: #002d5b; resize: none;" placeholder="Private thoughts about this day...">${day.notes || ''}</textarea>
+                <div style="display: flex; flex-direction: column; gap: var(--space-6);">
+                    <div style="flex: 1; background: rgba(0,113,227,0.05); padding: var(--space-6); border-radius: 24px; border: 1px solid rgba(0,113,227,0.1);">
+                        <h4 style="margin: 0 0 var(--space-4); font-size: var(--font-base); font-weight: 800; text-transform: uppercase; color: var(--accent-blue);">Personal Notes</h4>
+                        <textarea id="detailNotes" class="plain-textarea plain-textarea--no-resize" style="height: 200px;" placeholder="Private thoughts about this day...">${day.notes || ''}</textarea>
                     </div>
-                    <div style="background: #000000; padding: 24px; border-radius: 24px; color: white;">
-                        <h4 style="margin: 0 0 16px; font-size: 0.8rem; font-weight: 800; text-transform: uppercase; color: #34c759;">Expert Tip</h4>
-                        <p style="margin: 0; font-size: 0.95rem; line-height: 1.5; opacity: 0.9;">${day.tip || "Always keep a portable charger and a small bottle of water in your bag for long exploration days."}</p>
+                    <div style="background: #000; padding: var(--space-6); border-radius: 24px; color: white;">
+                        <h4 style="margin: 0 0 var(--space-4); font-size: var(--font-base); font-weight: 800; text-transform: uppercase; color: #34c759;">Expert Tip</h4>
+                        <p style="margin: 0; font-size: var(--font-md); line-height: 1.5; opacity: 0.9;">${day.tip || "Always keep a portable charger and a small bottle of water in your bag for long exploration days."}</p>
                     </div>
-                    <button id="saveDetailBtn" class="btn" style="width: 100%; padding: 20px; border-radius: 20px; background: var(--accent-blue); color: white; font-weight: 800; font-size: 1.1rem; border: none; box-shadow: 0 15px 30px rgba(0,113,227,0.2);">Save All Changes</button>
+                    <button id="saveDetailBtn" class="btn-primary" style="width: 100%; padding: var(--space-5); border-radius: var(--radius-xl); font-size: var(--font-xl);">Save All Changes</button>
                 </div>
             </div>
         </div>
