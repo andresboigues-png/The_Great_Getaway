@@ -94,18 +94,31 @@ export function loadState() {
     }
 
     // Backfill: every trip the current user owns should have a self-linked
-    // companion entry so the Who-Paid dropdown lists them out of the box.
-    // openNewTripModal stamps this for new trips going forward; this loop
-    // covers trips that were created before the auto-stamp landed.
+    // companion entry so the Who-Paid dropdown lists them out of the box,
+    // AND a matching owner row in `members` so the picker / chip panel
+    // recognise that self-link as accepted (otherwise it shows as ⏳ Pending
+    // until the next /api/data poll). openNewTripModal stamps both for
+    // new trips going forward; this loop covers older snapshots.
     if (STATE.user?.id) {
         const me = STATE.user;
         const myFirstName = me.name?.split(' ')[0] || 'Me';
         for (const trip of STATE.trips || []) {
             if (trip.ownerId !== me.id) continue;
-            const hasSelf = (trip.companions || []).some(c => c.linkedUserId === me.id);
-            if (!hasSelf) {
-                if (!trip.companions) trip.companions = [];
+            if (!trip.companions) trip.companions = [];
+            const hasSelfCompanion = trip.companions.some(c => c.linkedUserId === me.id);
+            if (!hasSelfCompanion) {
                 trip.companions.unshift({ name: myFirstName, linkedUserId: me.id });
+            }
+            if (!trip.members) trip.members = [];
+            const hasSelfMember = trip.members.some(m => m.userId === me.id);
+            if (!hasSelfMember) {
+                trip.members.unshift({
+                    userId: me.id,
+                    role: 'planner',
+                    archived: false,
+                    name: me.name ?? null,
+                    picture: me.picture ?? null,
+                });
             }
         }
     }

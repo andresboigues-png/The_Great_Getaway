@@ -203,10 +203,26 @@ export const openNewTripModal = () => {
         // (no duplicate row). Without this stamp, fresh trips would have an
         // empty companions array and the user couldn't log an expense
         // against themselves until they opened the picker.
+        //
+        // Mirror the server's owner row into `members` too. /api/data fills
+        // this in once we re-pull, but until then the picker / chip panel
+        // need it to recognise the self-companion as an accepted Owner
+        // (otherwise the badge falls back to "⏳ Pending" because the
+        // linked-companion-but-no-member-match branch fires).
         const userFirstName = STATE.user?.name?.split(' ')[0] || 'Me';
         /** @type {import('./types').Companion[]} */
         const initialCompanions = STATE.user?.id
             ? [{ name: userFirstName, linkedUserId: STATE.user.id }]
+            : [];
+        /** @type {import('./types').TripMember[]} */
+        const initialMembers = STATE.user?.id
+            ? [{
+                userId: STATE.user.id,
+                role: ROLE_PLANNER,
+                archived: false,
+                name: STATE.user.name ?? null,
+                picture: STATE.user.picture ?? null,
+            }]
             : [];
         const newTrip = {
             id, name,
@@ -223,6 +239,7 @@ export const openNewTripModal = () => {
             myRole: ROLE_PLANNER,
             myArchived: false,
             companions: initialCompanions,
+            members: initialMembers,
         };
 
         STATE.trips.push(newTrip);
