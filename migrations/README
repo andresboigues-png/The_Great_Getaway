@@ -1,0 +1,22 @@
+Alembic migrations for the SQLite DB at ./travel_planner.db.
+
+The first migration (0c7a67724fda_baseline.py) captures the schema as it
+stood at the start of Phase G. From now on, every schema change should be
+a new migration file generated via:
+
+    alembic revision -m "describe change"
+
+…and applied with:
+
+    alembic upgrade head
+
+Existing dev/prod DBs that already had the schema (created by
+database.init_db running at startup) need a one-time:
+
+    alembic stamp head
+
+…to mark them as up-to-date without re-running the baseline CREATEs.
+The repo's dev DB (src/travel_planner.db) was stamped on 2026-05-05.
+
+init_db() still runs at Flask startup as a safety net for fresh dev setups.
+It will be retired once all schema management goes through migrations.
