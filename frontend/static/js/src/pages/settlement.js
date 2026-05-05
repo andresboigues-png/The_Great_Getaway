@@ -156,16 +156,15 @@ export function renderSettlement() {
                             return Object.entries(globalBalances).map(([person, bal]) => {
                                 const pct = hasBalances ? (Math.abs(bal) / maxGlobalBalance) * 100 : 0;
                                 const isPos = bal >= 0;
-                                const color = isPos ? 'linear-gradient(90deg, #34c759, #4cd964)' : 'linear-gradient(90deg, #ff3b30, #ff453a)';
                                 return `
-                                    <div style="display: grid; grid-template-columns: 100px ${hasBalances ? '1fr' : ''} 80px; align-items: center; gap: 16px;">
-                                        <div style="font-weight: 700; font-size: 0.9rem;">${person}</div>
+                                    <div style="display: grid; grid-template-columns: 100px ${hasBalances ? '1fr' : ''} 80px; align-items: center; gap: var(--space-4);">
+                                        <div style="font-weight: 700; font-size: var(--font-base);">${person}</div>
                                         ${hasBalances ? `
-                                            <div style="height: 12px; background: rgba(255,255,255,0.05); border-radius: 6px; overflow: hidden; position: relative;">
-                                                <div style="position: absolute; height: 100%; width: ${pct}%; background: ${color}; border-radius: 6px; transition: width 0.8s cubic-bezier(0.16, 1, 0.3, 1);"></div>
+                                            <div class="balance-bar">
+                                                <div class="balance-bar__fill balance-bar__fill--${isPos ? 'positive' : 'negative'}" style="width: ${pct}%;"></div>
                                             </div>
                                         ` : ''}
-                                        <div style="text-align: right; font-weight: 800; font-size: 1rem; color: ${bal > 0.01 ? '#34c759' : (bal < -0.01 ? '#ff3b30' : 'var(--text-secondary)')};">
+                                        <div style="text-align: right; font-weight: 800; font-size: var(--font-lg); color: ${bal > 0.01 ? '#34c759' : (bal < -0.01 ? '#ff3b30' : 'var(--text-secondary)')};">
                                             ${bal > 0.01 ? '+' : ''}${formatHome(bal, 'EUR')}
                                         </div>
                                     </div>
@@ -176,8 +175,8 @@ export function renderSettlement() {
                 </div>
             </div>
 
-            <div style="margin-bottom: 24px;">
-                <div style="display: inline-block; padding: 8px 16px; background: rgba(0, 113, 227, 0.1); border-radius: 100px; border: 1px solid var(--accent-blue); font-size: 0.8rem; font-weight: 700; color: var(--accent-blue); margin-bottom: 12px;">
+            <div style="margin-bottom: var(--space-6);">
+                <div class="active-view-pill">
                     Active View: ${trip.name}
                 </div>
             </div>
@@ -204,19 +203,19 @@ export function renderSettlement() {
 
                 <div class="card glass card-glow-blue">
                     <h2 class="card-title">Suggested Payments</h2>
-                    <div style="display: flex; flex-direction: column; gap: 12px;">
+                    <div style="display: flex; flex-direction: column; gap: var(--space-3);">
                         ${debts.length > 0 ? debts.map(d => `
-                            <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px; background: rgba(0, 113, 227, 0.05); border-radius: 12px; border: 1px solid rgba(0, 113, 227, 0.1);">
-                                <div style="display: flex; align-items: center; gap: 16px;">
+                            <div class="debt-row">
+                                <div style="display: flex; align-items: center; gap: var(--space-4);">
                                     <div>
-                                        <span style="font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 700;">${d.from} pays</span>
-                                        <div style="font-weight: 700; font-size: 1.1rem;">${d.to}</div>
+                                        <span class="debt-row__from-label">${d.from} pays</span>
+                                        <div class="debt-row__to-name">${d.to}</div>
                                     </div>
-                                    <div style="font-size: 1.1rem; font-weight: 700; color: var(--accent-blue);">${formatHome(d.amount, 'EUR')}</div>
+                                    <div class="debt-row__amount">${formatHome(d.amount, 'EUR')}</div>
                                 </div>
-                                <button class="btn btn-small settle-debt-btn" data-trip-id="${tripId}" data-from="${d.from}" data-to="${d.to}" data-amount="${d.amount}" style="background: var(--accent-blue); padding: 8px 16px; border-radius: 12px;">Settle</button>
+                                <button class="btn-primary settle-debt-btn" data-trip-id="${tripId}" data-from="${d.from}" data-to="${d.to}" data-amount="${d.amount}" style="padding: var(--space-2) var(--space-4); font-size: var(--font-sm);">Settle</button>
                             </div>
-                        `).join('') : '<p style="color: var(--text-secondary); text-align: center; padding: 20px; font-weight: 600;">All settled for this trip! 🥂</p>'}
+                        `).join('') : '<p class="text-muted" style="text-align: center; padding: var(--space-5); font-weight: 600;">All settled for this trip! 🥂</p>'}
                     </div>
                 </div>
             </div>

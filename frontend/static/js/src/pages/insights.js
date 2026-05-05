@@ -176,28 +176,28 @@ export function renderInsights() {
         </div>
 
         <!-- Hero Row: Totals -->
-        <div style="margin-bottom: 32px;">
-            <div class="card glass" style="background: linear-gradient(135deg, var(--glass-bg), rgba(0,113,227,0.03)); border-left: 4px solid var(--accent-blue);">
-                <h2 class="card-title" style="font-size: 1rem; color: var(--accent-blue); text-transform: uppercase; letter-spacing: 0.1em;">Total Spent on your trip</h2>
-                <div style="display: flex; align-items: baseline; gap: 10px;">
-                    <h1 style="margin: 0; font-size: 4.5rem; font-weight: 800; letter-spacing: -0.05em;">${targetSym}${totalDisplay.toFixed(2)}</h1>
-                    <span style="font-size: 1.5rem; color: var(--text-secondary); font-weight: 400;">${targetCurr}</span>
+        <div style="margin-bottom: var(--space-8);">
+            <div class="card glass hero-stat-card">
+                <h2 class="card-title hero-stat-card__title">Total Spent on your trip</h2>
+                <div style="display: flex; align-items: baseline; gap: var(--space-3);">
+                    <h1 class="hero-stat-card__value">${targetSym}${totalDisplay.toFixed(2)}</h1>
+                    <span class="hero-stat-card__currency">${targetCurr}</span>
                 </div>
-                <p style="color: var(--text-secondary); margin-top: 10px; font-size: 1.1rem;">Spent across <strong>${totalCount}</strong> transactions during your travels.</p>
+                <p class="hero-stat-card__sub">Spent across <strong>${totalCount}</strong> transactions during your travels.</p>
             </div>
         </div>
 
         <!-- Summary Grid -->
-        <div class="grid-2" style="grid-template-columns: 1fr 1fr; margin-bottom: 32px;">
+        <div class="grid-2" style="grid-template-columns: 1fr 1fr; margin-bottom: var(--space-8);">
             <div class="card glass">
-                <h2 class="card-title" style="font-size: 0.9rem; color: var(--text-secondary);">Avg. Daily Spend</h2>
-                <h1 style="margin: 0; font-size: 2.5rem;">${targetSym}${(totalDisplay / (Object.keys(dateTotals).length || 1)).toFixed(2)}<small style="font-size: 1rem; font-weight: 400; color: var(--text-secondary); margin-left: 8px;">/ day</small></h1>
+                <h2 class="card-title metric-label">Avg. Daily Spend</h2>
+                <h1 class="metric-value">${targetSym}${(totalDisplay / (Object.keys(dateTotals).length || 1)).toFixed(2)}<small style="font-size: var(--font-lg); font-weight: 400; color: var(--text-secondary); margin-left: var(--space-2);">/ day</small></h1>
             </div>
             ${highestExpense ? `
             <div class="card glass">
-                <h2 class="card-title" style="font-size: 0.9rem; color: var(--text-secondary);">Single Peak</h2>
-                <h1 style="margin: 0; font-size: 2.5rem; color: #ff3b30;">${targetSym}${highestExpense.displayValue.toFixed(2)}</h1>
-                <p style="margin: 4px 0 0 0; font-size: 0.9rem; color: var(--text-secondary);">${highestExpense.label} • ${highestExpense.who}</p>
+                <h2 class="card-title metric-label">Single Peak</h2>
+                <h1 class="metric-value" style="color: #ff3b30;">${targetSym}${highestExpense.displayValue.toFixed(2)}</h1>
+                <p class="metric-label" style="margin: var(--space-1) 0 0 0;">${highestExpense.label} • ${highestExpense.who}</p>
             </div>
             ` : ''}
         </div>

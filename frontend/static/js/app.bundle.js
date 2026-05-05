@@ -889,28 +889,28 @@
         </div>
 
         <!-- Hero Row: Totals -->
-        <div style="margin-bottom: 32px;">
-            <div class="card glass" style="background: linear-gradient(135deg, var(--glass-bg), rgba(0,113,227,0.03)); border-left: 4px solid var(--accent-blue);">
-                <h2 class="card-title" style="font-size: 1rem; color: var(--accent-blue); text-transform: uppercase; letter-spacing: 0.1em;">Total Spent on your trip</h2>
-                <div style="display: flex; align-items: baseline; gap: 10px;">
-                    <h1 style="margin: 0; font-size: 4.5rem; font-weight: 800; letter-spacing: -0.05em;">${r}${s.toFixed(2)}</h1>
-                    <span style="font-size: 1.5rem; color: var(--text-secondary); font-weight: 400;">${n}</span>
+        <div style="margin-bottom: var(--space-8);">
+            <div class="card glass hero-stat-card">
+                <h2 class="card-title hero-stat-card__title">Total Spent on your trip</h2>
+                <div style="display: flex; align-items: baseline; gap: var(--space-3);">
+                    <h1 class="hero-stat-card__value">${r}${s.toFixed(2)}</h1>
+                    <span class="hero-stat-card__currency">${n}</span>
                 </div>
-                <p style="color: var(--text-secondary); margin-top: 10px; font-size: 1.1rem;">Spent across <strong>${c}</strong> transactions during your travels.</p>
+                <p class="hero-stat-card__sub">Spent across <strong>${c}</strong> transactions during your travels.</p>
             </div>
         </div>
 
         <!-- Summary Grid -->
-        <div class="grid-2" style="grid-template-columns: 1fr 1fr; margin-bottom: 32px;">
+        <div class="grid-2" style="grid-template-columns: 1fr 1fr; margin-bottom: var(--space-8);">
             <div class="card glass">
-                <h2 class="card-title" style="font-size: 0.9rem; color: var(--text-secondary);">Avg. Daily Spend</h2>
-                <h1 style="margin: 0; font-size: 2.5rem;">${r}${(s/(Object.keys(f).length||1)).toFixed(2)}<small style="font-size: 1rem; font-weight: 400; color: var(--text-secondary); margin-left: 8px;">/ day</small></h1>
+                <h2 class="card-title metric-label">Avg. Daily Spend</h2>
+                <h1 class="metric-value">${r}${(s/(Object.keys(f).length||1)).toFixed(2)}<small style="font-size: var(--font-lg); font-weight: 400; color: var(--text-secondary); margin-left: var(--space-2);">/ day</small></h1>
             </div>
             ${l?`
             <div class="card glass">
-                <h2 class="card-title" style="font-size: 0.9rem; color: var(--text-secondary);">Single Peak</h2>
-                <h1 style="margin: 0; font-size: 2.5rem; color: #ff3b30;">${r}${l.displayValue.toFixed(2)}</h1>
-                <p style="margin: 4px 0 0 0; font-size: 0.9rem; color: var(--text-secondary);">${l.label} • ${l.who}</p>
+                <h2 class="card-title metric-label">Single Peak</h2>
+                <h1 class="metric-value" style="color: #ff3b30;">${r}${l.displayValue.toFixed(2)}</h1>
+                <p class="metric-label" style="margin: var(--space-1) 0 0 0;">${l.label} • ${l.who}</p>
             </div>
             `:``}
         </div>
@@ -1296,14 +1296,14 @@
                 <div id="globalBalancesContainer" style="display: none; margin-top: 20px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.1);">
                     <div style="display: flex; flex-direction: column; gap: 16px;">
                         ${(()=>{let e=Object.values(f).map(Math.abs).some(e=>e>.01);return Object.entries(f).map(([t,n])=>{let r=e?Math.abs(n)/h*100:0;return`
-                                    <div style="display: grid; grid-template-columns: 100px ${e?`1fr`:``} 80px; align-items: center; gap: 16px;">
-                                        <div style="font-weight: 700; font-size: 0.9rem;">${t}</div>
+                                    <div style="display: grid; grid-template-columns: 100px ${e?`1fr`:``} 80px; align-items: center; gap: var(--space-4);">
+                                        <div style="font-weight: 700; font-size: var(--font-base);">${t}</div>
                                         ${e?`
-                                            <div style="height: 12px; background: rgba(255,255,255,0.05); border-radius: 6px; overflow: hidden; position: relative;">
-                                                <div style="position: absolute; height: 100%; width: ${r}%; background: ${n>=0?`linear-gradient(90deg, #34c759, #4cd964)`:`linear-gradient(90deg, #ff3b30, #ff453a)`}; border-radius: 6px; transition: width 0.8s cubic-bezier(0.16, 1, 0.3, 1);"></div>
+                                            <div class="balance-bar">
+                                                <div class="balance-bar__fill balance-bar__fill--${n>=0?`positive`:`negative`}" style="width: ${r}%;"></div>
                                             </div>
                                         `:``}
-                                        <div style="text-align: right; font-weight: 800; font-size: 1rem; color: ${n>.01?`#34c759`:n<-.01?`#ff3b30`:`var(--text-secondary)`};">
+                                        <div style="text-align: right; font-weight: 800; font-size: var(--font-lg); color: ${n>.01?`#34c759`:n<-.01?`#ff3b30`:`var(--text-secondary)`};">
                                             ${n>.01?`+`:``}${C(n,`EUR`)}
                                         </div>
                                     </div>
@@ -1312,8 +1312,8 @@
                 </div>
             </div>
 
-            <div style="margin-bottom: 24px;">
-                <div style="display: inline-block; padding: 8px 16px; background: rgba(0, 113, 227, 0.1); border-radius: 100px; border: 1px solid var(--accent-blue); font-size: 0.8rem; font-weight: 700; color: var(--accent-blue); margin-bottom: 12px;">
+            <div style="margin-bottom: var(--space-6);">
+                <div class="active-view-pill">
                     Active View: ${t.name}
                 </div>
             </div>
@@ -1340,19 +1340,19 @@
 
                 <div class="card glass card-glow-blue">
                     <h2 class="card-title">Suggested Payments</h2>
-                    <div style="display: flex; flex-direction: column; gap: 12px;">
+                    <div style="display: flex; flex-direction: column; gap: var(--space-3);">
                         ${a.length>0?a.map(t=>`
-                            <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px; background: rgba(0, 113, 227, 0.05); border-radius: 12px; border: 1px solid rgba(0, 113, 227, 0.1);">
-                                <div style="display: flex; align-items: center; gap: 16px;">
+                            <div class="debt-row">
+                                <div style="display: flex; align-items: center; gap: var(--space-4);">
                                     <div>
-                                        <span style="font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 700;">${t.from} pays</span>
-                                        <div style="font-weight: 700; font-size: 1.1rem;">${t.to}</div>
+                                        <span class="debt-row__from-label">${t.from} pays</span>
+                                        <div class="debt-row__to-name">${t.to}</div>
                                     </div>
-                                    <div style="font-size: 1.1rem; font-weight: 700; color: var(--accent-blue);">${C(t.amount,`EUR`)}</div>
+                                    <div class="debt-row__amount">${C(t.amount,`EUR`)}</div>
                                 </div>
-                                <button class="btn btn-small settle-debt-btn" data-trip-id="${e}" data-from="${t.from}" data-to="${t.to}" data-amount="${t.amount}" style="background: var(--accent-blue); padding: 8px 16px; border-radius: 12px;">Settle</button>
+                                <button class="btn-primary settle-debt-btn" data-trip-id="${e}" data-from="${t.from}" data-to="${t.to}" data-amount="${t.amount}" style="padding: var(--space-2) var(--space-4); font-size: var(--font-sm);">Settle</button>
                             </div>
-                        `).join(``):`<p style="color: var(--text-secondary); text-align: center; padding: 20px; font-weight: 600;">All settled for this trip! 🥂</p>`}
+                        `).join(``):`<p class="text-muted" style="text-align: center; padding: var(--space-5); font-weight: 600;">All settled for this trip! 🥂</p>`}
                     </div>
                 </div>
             </div>

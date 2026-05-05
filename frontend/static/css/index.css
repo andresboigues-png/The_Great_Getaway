@@ -1515,6 +1515,111 @@ h1 {
     text-align: center;
 }
 
+/* Insights metric card — title (small muted uppercase) + big numeric
+   value. Used by "Avg. Daily Spend" / "Single Peak" / "Top Spenders"
+   etc. on the insights page. */
+.metric-label {
+    font-size: var(--font-base);
+    color: var(--text-secondary);
+}
+.metric-value {
+    margin: 0;
+    font-size: 2.5rem;
+}
+
+/* Insights hero — total-spent card. Linear-gradient background +
+   accent left border + uppercase tracked title + huge value. */
+.hero-stat-card {
+    background: linear-gradient(135deg, var(--glass-bg), rgba(0,113,227,0.03));
+    border-left: 4px solid var(--accent-blue);
+}
+.hero-stat-card__title {
+    font-size: var(--font-lg);
+    color: var(--accent-blue);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+.hero-stat-card__value {
+    margin: 0;
+    font-size: 4.5rem;
+    font-weight: 800;
+    letter-spacing: -0.05em;
+}
+.hero-stat-card__currency {
+    font-size: 1.5rem;
+    color: var(--text-secondary);
+    font-weight: 400;
+}
+.hero-stat-card__sub {
+    color: var(--text-secondary);
+    margin-top: var(--space-3);
+    font-size: var(--font-xl);
+}
+
+/* Global balances row — used in the Settlements page Global Net
+   Balances panel. Grid layout: name | progress bar (when any
+   balance exists) | amount. */
+.balance-bar {
+    height: 12px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 6px;
+    overflow: hidden;
+    position: relative;
+}
+.balance-bar__fill {
+    position: absolute;
+    height: 100%;
+    border-radius: 6px;
+    transition: width 0.8s var(--easing-smooth);
+}
+.balance-bar__fill--positive {
+    background: linear-gradient(90deg, #34c759, #4cd964);
+}
+.balance-bar__fill--negative {
+    background: linear-gradient(90deg, #ff3b30, #ff453a);
+}
+
+/* Active-view pill — small accent label showing which trip is in
+   focus on the settlements page. */
+.active-view-pill {
+    display: inline-block;
+    padding: var(--space-2) var(--space-4);
+    background: rgba(0, 113, 227, 0.1);
+    border-radius: 100px;
+    border: 1px solid var(--accent-blue);
+    font-size: var(--font-base);
+    font-weight: 700;
+    color: var(--accent-blue);
+    margin-bottom: var(--space-3);
+}
+
+/* Debt row — used in the Suggested Payments list. Soft blue tint
+   panel showing "X pays Y" + amount + Settle button. */
+.debt-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-3);
+    background: rgba(0, 113, 227, 0.05);
+    border-radius: var(--radius-md);
+    border: 1px solid rgba(0, 113, 227, 0.1);
+}
+.debt-row__from-label {
+    font-size: var(--font-xs);
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    font-weight: 700;
+}
+.debt-row__to-name {
+    font-weight: 700;
+    font-size: var(--font-xl);
+}
+.debt-row__amount {
+    font-size: var(--font-xl);
+    font-weight: 700;
+    color: var(--accent-blue);
+}
+
 /* Settlement trip card — horizontally scrollable trip selector at the
    top of the settlements page. The `.is-active` modifier scales it
    slightly and brightens the border. */
