@@ -164,7 +164,7 @@ export function renderSettings() {
 
         return `
             <div class="ai-page-header">
-                <h1 style="background: linear-gradient(135deg, #5856d6, #ff2d55); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">System Control</h1>
+                <h1 class="gradient-text" style="--g-from: #5856d6; --g-to: #ff2d55;">System Control</h1>
                 <p>Manage your travel data, custom formats, and core preferences.</p>
             </div>
 
@@ -190,22 +190,22 @@ export function renderSettings() {
                     <div class="settings-grid">
                         <div class="card glass" style="padding: var(--space-6);">
                             <h3 style="color: #007aff; margin-top: 0;">Companions</h3>
-                            <p style="font-size: var(--font-sm); color: var(--text-secondary);">Delete your travel companions and groups.</p>
+                            <p class="muted-meta">Delete your travel companions and groups.</p>
                             <button class="themed-block-btn confirm-reset-btn" data-reset-type="groups" style="--accent: 0,113,227;">Clear Groups</button>
                         </div>
                         <div class="card glass" style="padding: var(--space-6);">
                             <h3 style="color: #ff9500; margin-top: 0;">Trips & Days</h3>
-                            <p style="font-size: var(--font-sm); color: var(--text-secondary);">Remove all trips, itineraries, and daily logs.</p>
+                            <p class="muted-meta">Remove all trips, itineraries, and daily logs.</p>
                             <button class="themed-block-btn confirm-reset-btn" data-reset-type="trips" style="--accent: 255,149,0;">Delete All Trips</button>
                         </div>
                         <div class="card glass" style="padding: var(--space-6);">
                             <h3 style="color: #5856d6; margin-top: 0;">Categories</h3>
-                            <p style="font-size: var(--font-sm); color: var(--text-secondary);">Reset custom expense categories to defaults.</p>
+                            <p class="muted-meta">Reset custom expense categories to defaults.</p>
                             <button class="themed-block-btn confirm-reset-btn" data-reset-type="categories" style="--accent: 88,86,214;">Restore Defaults</button>
                         </div>
                         <div class="card glass danger-card" style="padding: var(--space-6); border-color: rgba(255, 59, 48, 0.3);">
                             <h3 style="color: #ff3b30; margin-top: 0;">Factory Reset</h3>
-                            <p style="font-size: var(--font-sm); color: var(--text-secondary);">Permanently wipe every trace of data from the app.</p>
+                            <p class="muted-meta">Permanently wipe every trace of data from the app.</p>
                             <button class="btn-confirm-danger confirm-reset-btn" data-reset-type="app" style="font-size: var(--font-sm); padding: var(--space-3);">Erase Everything</button>
                         </div>
                     </div>
@@ -416,18 +416,18 @@ export function renderPersonalization() {
 
     div.innerHTML = `
         <div class="ai-page-header">
-            <h1 style="background: linear-gradient(135deg, #5856d6, #ff2d55); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Personalization</h1>
+            <h1 class="gradient-text" style="--g-from: #5856d6; --g-to: #ff2d55;">Personalization</h1>
             <p>Customize your experience, categories, and travel companions.</p>
         </div>
 
         <div id="persMenu" class="grid-2">
             <div class="card glass card-glow-blue pers-tab-card" data-tab="categories" style="cursor: pointer;">
                 <h2 class="card-title" style="color: var(--accent-blue);">Manage Categories</h2>
-                <p style="color: var(--text-secondary);">Customize expense categories, icons, and colors.</p>
+                <p class="text-muted">Customize expense categories, icons, and colors.</p>
             </div>
             <div class="card glass card-glow-purple pers-tab-card" data-tab="companions" style="cursor: pointer;">
                 <h2 class="card-title" style="color: #5856d6;">Manage Companions</h2>
-                <p style="color: var(--text-secondary);">Add the people who usually travel and split expenses with you.</p>
+                <p class="text-muted">Add the people who usually travel and split expenses with you.</p>
             </div>
         </div>
 
@@ -479,7 +479,7 @@ export function renderPersonalization() {
                             </tr>
                         </thead>
                         <tbody>
-                            ${groupsHtml || `<tr><td class="is-center" colspan="2" style="color: var(--text-secondary);">No companions added yet.</td></tr>`}
+                            ${groupsHtml || `<tr><td class="is-center" colspan="2" class="text-muted">No companions added yet.</td></tr>`}
                         </tbody>
                     </table>
 

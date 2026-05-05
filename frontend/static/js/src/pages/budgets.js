@@ -17,7 +17,7 @@ export function renderBudgets() {
     if (!STATE.user) {
         div.innerHTML = `
             <div class="ai-page-header">
-                <h1 style="background: linear-gradient(135deg, #ffd60a, #ff9f0a); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Budgets</h1>
+                <h1 class="gradient-text" style="--g-from: #ffd60a; --g-to: #ff9f0a;">Budgets</h1>
                 <p>Set limits and track spending across trips, categories, and travelers</p>
             </div>
             <div style="text-align: center; padding: 60px 20px; background: rgba(255,255,255,0.02); border-radius: 16px; border: 1px solid var(--glass-border); max-width: 500px; margin: 40px auto;">
@@ -106,7 +106,7 @@ export function renderBudgets() {
 
     div.innerHTML = `
         <div class="ai-page-header">
-            <h1 style="background: linear-gradient(135deg, #ffd60a, #ff9f0a); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Budgets</h1>
+            <h1 class="gradient-text" style="--g-from: #ffd60a; --g-to: #ff9f0a;">Budgets</h1>
             <p>Set spending limits and track them across trips.</p>
         </div>
         

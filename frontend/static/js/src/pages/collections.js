@@ -10,7 +10,7 @@ export function renderCollections() {
     if (!STATE.user) {
         div.innerHTML = `
             <div class="ai-page-header">
-                <h1 style="background: linear-gradient(135deg, #1a6b3c, #34c759); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Collections</h1>
+                <h1 class="gradient-text" style="--g-from: #1a6b3c; --g-to: #34c759;">Collections</h1>
                 <p>Log in to view and manage your completed trips.</p>
             </div>
             <div class="card glass" style="text-align: center; padding: 60px; margin-top: 24px;">
@@ -27,7 +27,7 @@ export function renderCollections() {
 
     div.innerHTML = `
         <div class="ai-page-header">
-            <h1 style="background: linear-gradient(135deg, #1a6b3c, #34c759); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Collections</h1>
+            <h1 class="gradient-text" style="--g-from: #1a6b3c; --g-to: #34c759;">Collections</h1>
             <p>Your completed travel memories and trip photos.</p>
         </div>
         
@@ -68,7 +68,7 @@ export function renderCollections() {
                     <div class="card glass" style="grid-column: 1 / -1; text-align: center; padding: 60px;">
                         <div style="font-size: 4rem; margin-bottom: 20px;">📚</div>
                         <h2>No completed trips</h2>
-                        <p style="color: var(--text-secondary);">Your travel history will appear here once you complete a trip.</p>
+                        <p class="text-muted">Your travel history will appear here once you complete a trip.</p>
                     </div>
                 `}
             </div>

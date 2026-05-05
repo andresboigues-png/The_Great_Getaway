@@ -136,7 +136,7 @@ export function renderFriends() {
 
     div.innerHTML = `
         <div class="ai-page-header">
-            <h1 style="background: linear-gradient(135deg, #1a6b3c, #34c759); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Friends</h1>
+            <h1 class="gradient-text" style="--g-from: #1a6b3c; --g-to: #34c759;">Friends</h1>
             <p>Connect with other travelers and share your itineraries</p>
         </div>
         <div class="grid-2" style="margin-top: 24px;">

@@ -87,7 +87,7 @@
             </div>
         `}let n=(e=`menu`)=>`
             <div class="ai-page-header">
-                <h1 style="background: linear-gradient(135deg, #5856d6, #ff2d55); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">System Control</h1>
+                <h1 class="gradient-text" style="--g-from: #5856d6; --g-to: #ff2d55;">System Control</h1>
                 <p>Manage your travel data, custom formats, and core preferences.</p>
             </div>
 
@@ -113,22 +113,22 @@
                     <div class="settings-grid">
                         <div class="card glass" style="padding: var(--space-6);">
                             <h3 style="color: #007aff; margin-top: 0;">Companions</h3>
-                            <p style="font-size: var(--font-sm); color: var(--text-secondary);">Delete your travel companions and groups.</p>
+                            <p class="muted-meta">Delete your travel companions and groups.</p>
                             <button class="themed-block-btn confirm-reset-btn" data-reset-type="groups" style="--accent: 0,113,227;">Clear Groups</button>
                         </div>
                         <div class="card glass" style="padding: var(--space-6);">
                             <h3 style="color: #ff9500; margin-top: 0;">Trips & Days</h3>
-                            <p style="font-size: var(--font-sm); color: var(--text-secondary);">Remove all trips, itineraries, and daily logs.</p>
+                            <p class="muted-meta">Remove all trips, itineraries, and daily logs.</p>
                             <button class="themed-block-btn confirm-reset-btn" data-reset-type="trips" style="--accent: 255,149,0;">Delete All Trips</button>
                         </div>
                         <div class="card glass" style="padding: var(--space-6);">
                             <h3 style="color: #5856d6; margin-top: 0;">Categories</h3>
-                            <p style="font-size: var(--font-sm); color: var(--text-secondary);">Reset custom expense categories to defaults.</p>
+                            <p class="muted-meta">Reset custom expense categories to defaults.</p>
                             <button class="themed-block-btn confirm-reset-btn" data-reset-type="categories" style="--accent: 88,86,214;">Restore Defaults</button>
                         </div>
                         <div class="card glass danger-card" style="padding: var(--space-6); border-color: rgba(255, 59, 48, 0.3);">
                             <h3 style="color: #ff3b30; margin-top: 0;">Factory Reset</h3>
-                            <p style="font-size: var(--font-sm); color: var(--text-secondary);">Permanently wipe every trace of data from the app.</p>
+                            <p class="muted-meta">Permanently wipe every trace of data from the app.</p>
                             <button class="btn-confirm-danger confirm-reset-btn" data-reset-type="app" style="font-size: var(--font-sm); padding: var(--space-3);">Erase Everything</button>
                         </div>
                     </div>
@@ -147,18 +147,18 @@
             `}
         `,r=t=>{e.innerHTML=n(t)},i=e=>{A({groups:{title:`Clear Companions?`,message:`This will remove all travel companions and group lists.`,confirmText:`Clear All`,onConfirm:()=>{m.groups=[],y(`state:changed`),r(`reset`)}},trips:{title:`Wipe All Trips?`,message:`This permanently deletes every trip, day log, and itinerary.`,confirmText:`Delete Trips`,onConfirm:async()=>{if(m.trips=[],m.archivedTrips=[],m.tripDays=[],m.expenses=[],m.budgets=[],m.activeTripId=null,y(`state:changed`),m.user)try{await fetch(J(`/api/user-data`),{method:`DELETE`,headers:{"Content-Type":`application/json`},body:JSON.stringify({user_id:m.user.id})})}catch(e){console.error(`Server wipe failed`,e)}r(`reset`)}},categories:{title:`Reset Categories?`,message:`Reverts all expense categories to the system defaults.`,confirmText:`Restore Defaults`,onConfirm:()=>{m.categories=[{id:`c1`,name:`Food`,icon:`🍔`,color:`#ff3b30`},{id:`c2`,name:`Transport`,icon:`✈️`,color:`#007aff`},{id:`c3`,name:`Accommodation`,icon:`🏨`,color:`#5856d6`}],y(`state:changed`),Ye(),r(`reset`)}},app:{title:`Factory Reset`,message:`Absolute destruction. This wipes EVERY bit of data from the application.`,confirmText:`ERASE EVERYTHING`,onConfirm:async()=>{if(m.user)try{await fetch(J(`/api/user-data`),{method:`DELETE`,headers:{"Content-Type":`application/json`},body:JSON.stringify({user_id:m.user.id})})}catch(e){console.error(`Server wipe failed`,e)}m.trips=[],m.archivedTrips=[],m.tripDays=[],m.expenses=[],m.groups=[],m.budgets=[],m.categories=[],m.activeTripId=null,m.user=null,m.notifications=[],m.hasLoggedInBefore=!1,y(`state:changed`),localStorage.clear(),location.reload()}}}[e])},a=()=>{let e=document.getElementById(`mapVarSelect`)?.value,t=document.getElementById(`mapColSelect`)?.value;!e||!t||(m.customFormat=m.customFormat||[],!m.customFormat.some(t=>t.variable===e)&&(m.customFormat.push({variable:e,column:t}),y(`state:changed`),r(`format`)))},o=e=>{m.customFormat=(m.customFormat||[]).filter(t=>t.variable!==e),y(`state:changed`),r(`format`)},s=()=>{let e=[`label`,`date`,`value`,`who`,`category`],t=m.customFormat||[],n=new Set(t.map(e=>e.variable===`categoryId`?`category`:e.variable)),i=e.filter(e=>!n.has(e));if(i.length>0)return alert(`Missing required fields: ${i.join(`, `)}`);let a=(document.getElementById(`formatNameInput`)?.value||``).trim();a&&(m.savedFormats=m.savedFormats||[],m.savedFormats.push({id:j(),name:a,mappings:[...t]}),m.customFormat=[],y(`state:changed`),r(`format`))},c=e=>{A({title:`Delete Format?`,message:`This mapping will no longer be available for imports.`,confirmText:`Delete`,onConfirm:()=>{m.savedFormats=(m.savedFormats||[]).filter(t=>t.id!==e),y(`state:changed`),r(`format`)}})},l=e=>{let t=(m.savedFormats||[]).find(t=>t.id===e);t&&(m.customFormat=[...t.mappings],m.savedFormats=(m.savedFormats||[]).filter(t=>t.id!==e),y(`state:changed`),r(`format`),setTimeout(()=>{let e=document.getElementById(`formatNameInput`);e&&(e.value=t.name)},50))};return e.innerHTML=n(`menu`),e.addEventListener(`click`,e=>{let t=e.target;if(!t)return;let n=t.closest(`.settings-tab-card`);if(n?.dataset.tab){r(n.dataset.tab);return}let u=t.closest(`.confirm-reset-btn`);if(u?.dataset.resetType){i(u.dataset.resetType);return}let d=t.closest(`.remove-mapping-btn`);if(d?.dataset.variable){o(d.dataset.variable);return}let f=t.closest(`.edit-saved-format-btn`);if(f?.dataset.formatId){l(f.dataset.formatId);return}let p=t.closest(`.delete-saved-format-btn`);if(p?.dataset.formatId){c(p.dataset.formatId);return}if(t.closest(`#addFormatMappingBtn`)){a();return}if(t.closest(`#saveCustomFormatBtn`)){s();return}}),e}function le(){let e=document.createElement(`div`);return e.innerHTML=`
         <div class="ai-page-header">
-            <h1 style="background: linear-gradient(135deg, #5856d6, #ff2d55); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Personalization</h1>
+            <h1 class="gradient-text" style="--g-from: #5856d6; --g-to: #ff2d55;">Personalization</h1>
             <p>Customize your experience, categories, and travel companions.</p>
         </div>
 
         <div id="persMenu" class="grid-2">
             <div class="card glass card-glow-blue pers-tab-card" data-tab="categories" style="cursor: pointer;">
                 <h2 class="card-title" style="color: var(--accent-blue);">Manage Categories</h2>
-                <p style="color: var(--text-secondary);">Customize expense categories, icons, and colors.</p>
+                <p class="text-muted">Customize expense categories, icons, and colors.</p>
             </div>
             <div class="card glass card-glow-purple pers-tab-card" data-tab="companions" style="cursor: pointer;">
                 <h2 class="card-title" style="color: #5856d6;">Manage Companions</h2>
-                <p style="color: var(--text-secondary);">Add the people who usually travel and split expenses with you.</p>
+                <p class="text-muted">Add the people who usually travel and split expenses with you.</p>
             </div>
         </div>
 
@@ -225,7 +225,7 @@
                 <button class="btn-x-bare delete-companion-btn" data-companion="${e}">✕</button>
             </td>
         </tr>
-    `).join(``)||`<tr><td class="is-center" colspan="2" style="color: var(--text-secondary);">No companions added yet.</td></tr>`}
+    `).join(``)||`<tr><td class="is-center" colspan="2" class="text-muted">No companions added yet.</td></tr>`}
                         </tbody>
                     </table>
 
@@ -300,7 +300,7 @@
         </div>
     `,document.body.appendChild(i);let a=m.activeTripId;M(i,`#cancelDayBtn`).onclick=()=>i.remove(),M(i,`#addDayForm`).onsubmit=async e=>{e.preventDefault();let t={id:j(),tripId:a,name:M(i,`#dayName`).value,date:M(i,`#dayDate`).value,dayNumber:n,photos:[],notes:``,plan:{morning:``,afternoon:``,evening:``}};m.tripDays.push(t),y(`state:changed`),await $(t),i.remove(),q(`home`)}},pe=null;function F(){pe&&=(clearInterval(pe),null)}var me={},I=null,L=null,R=null,he=e=>{R=R===e?null:e,q(`home`,null,!0)},ge=e=>{let t=m.tripDays.find(t=>t.id===e);t&&(I=e,k(`Click on the map to set the location for this day!`),L=e=>{t.lat=e.latlng.lat,t.lon=e.latlng.lng,t.lng=e.latlng.lng,L=null,q(`home`,null,!0)},q(`home`,null,!0))},_e=e=>{I=e,q(`home`,null,!0)},ve=async e=>{let t=m.tripDays.find(t=>t.id===e);t&&(I=null,L=null,y(`state:changed`),await $(t),k(`Location saved!`),q(`home`,null,!0))},ye=async e=>{let t=m.tripDays.find(t=>t.id===e);t&&(t.lat=null,t.lon=null,t.lng=null,I=null,L=null,y(`state:changed`),await $(t),q(`home`,null,!0))},be=e=>{let t=m.tripDays.find(t=>t.id===e);if(!t)return;let n=Number(t.dayNumber)===0;A({title:n?`Remove Trip Genesis?`:`Delete Day ${t.dayNumber}?`,message:`This removes the day and all its journaling, photos, and documents. This can't be undone.`,confirmText:n?`Remove`:`Delete Day`,onConfirm:async()=>{let r=t.tripId;if(m.tripDays=m.tripDays.filter(t=>t.id!==e),m.tripDays.filter(e=>e.tripId===r&&Number(e.dayNumber)>0).sort((e,t)=>e.dayNumber-t.dayNumber).forEach((e,t)=>{e.dayNumber=t+1}),R===e&&(R=null),I===e&&(I=null,L=null),n)try{sessionStorage.removeItem(`tggDay0Created:${r}`)}catch{}y(`state:changed`),await Qe(e),await Promise.all(m.tripDays.filter(e=>e.tripId===r).map(e=>$(e))),k(n?`Trip Genesis removed`:`Day deleted`),q(`home`,null,!0)}})};function xe(){let e=document.createElement(`div`),t=m.trips&&m.activeTripId?m.trips.find(e=>e.id===m.activeTripId):null,n=0,r=[],a=[],o=()=>{};if(t){let e=localStorage.getItem(`home_media_toggle`)!==`fact`;localStorage.setItem(`home_media_toggle`,e?`fact`:`quote`);let i=new Set;t.countryCode&&i.add(t.countryCode);let s=(m.tripDays||[]).filter(e=>e.tripId===t.id);for(let e of s){let t=e.lat,n=e.lon||e.lng;if(!(typeof t!=`number`||typeof n!=`number`))try{let e=sessionStorage.getItem(`tggDayCountry:${t.toFixed(4)},${n.toFixed(4)}`);e&&i.add(e)}catch{}}(()=>{let o=re(t,[...i]),s=e?o.quotes:o.facts,c=s.length>0?Math.floor(Math.random()*s.length):0;a=[s[c]||``],r=o.images.length>c?[o.images[c]]:o.images[0]?[o.images[0]]:[],n>=r.length&&(n=0)})(),o=e=>{if(!e)return;let t=e.toUpperCase();i.add(t)}}else{r=i.map(e=>e.i),a=i.map(e=>e.q);let e=Array.from({length:r.length},(e,t)=>t);e.sort(()=>Math.random()-.5),r=e.map(e=>r[e]),a=e.map(e=>a[e])}let s=()=>{if(r.length<=1)return;n=(n+1)%r.length;let t=e.querySelector(`#homeHeroImg`),i=e.querySelector(`#homeQuote`);t&&(t.style.opacity=`0`,setTimeout(()=>{t.src=r[n],t.style.opacity=`1`},800)),i&&(i.style.opacity=`0`,setTimeout(()=>{i.innerText=a[n%a.length]||``,i.style.opacity=`1`},800))};if(!t)e.innerHTML=`
             <div class="ai-page-header" style="padding: 40px; text-align: center; border-radius: 28px;">
-                <h1 style="background: linear-gradient(135deg, #007aff, #5856d6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 0; font-size: 3.5rem;">Let's travel.</h1>
+                <h1 class="gradient-text" style="--g-from: #007aff; --g-to: #5856d6; margin: 0; font-size: 3.5rem;">Let's travel.</h1>
                 <p style="color: var(--text-secondary); max-width: 440px; margin: 10px auto 0; font-size: 1.1rem;">Your next big adventure is waiting. Create a trip to start tracking expenses and planning days.</p>
             </div>
             
@@ -316,7 +316,7 @@
             </div>
         `,F(),pe=setInterval(s,6e3),e.querySelector(`#homeCreateFirstTripBtn`)?.addEventListener(`click`,()=>P());else{let n=(m.expenses||[]).filter(e=>e&&e.tripId===t.id),r=(m.tripDays||[]).filter(e=>e.tripId===t.id),i=n.length===0&&r.length===0,s=`Welcome back, traveler`;if(i&&t.country){let e=ee(t.country.includes(` - `)?t.country.split(` - `)[1]:t.country),n=[`Welcome back, ${m.user&&m.user.firstName?m.user.firstName:`traveler`}!`,`Ready for your ${t.name} adventure?`,`Your ${e} adventure starts here.`,`Time to write your ${e} story.`];s=n[Math.floor(Math.random()*n.length)]}e.innerHTML=`
             <div class="ai-page-header" style="text-align: center;">
-                <h1 style="background: linear-gradient(135deg, #007aff, #5856d6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">${s}</h1>
+                <h1 class="gradient-text" style="--g-from: #007aff; --g-to: #5856d6;">${s}</h1>
                 ${t?`<p>You have <strong>${n.length}</strong> expenses recorded for ${t.name}.</p>`:`<p>Welcome! Start by creating your first trip.</p>`}
             </div>
             
@@ -353,15 +353,15 @@
             <div style="position: absolute; left: 10px; top: 10px; bottom: 10px; width: 2px; background: linear-gradient(180deg, var(--accent-blue) 0%, rgba(0,113,227,0.05) 100%); border-radius: 1px; opacity: 0.3;"></div>
 
             ${l.map(e=>{let n=R===e.id,r=e.dayNumber===0;return`
-                <div style="display: flex; align-items: flex-start; gap: ${n?`24px`:`0`}; position: relative; transition: gap 0.4s cubic-bezier(0.16, 1, 0.3, 1);">
+                <div class="day-row${n?` is-open`:``}">
                     <!-- Timeline Dot — Starting Point uses a green dot to distinguish from numbered days -->
                     <div style="position: absolute; left: -14px; top: 22px; width: 10px; height: 10px; border-radius: 50%; background: ${n?r?`#34c759`:`var(--accent-blue)`:`white`}; border: 2px solid ${r?`#34c759`:`var(--accent-blue)`}; z-index: 2; box-shadow: 0 0 0 4px white;"></div>
 
                     <!-- LEFT SPACE MENU — collapses both width AND height to 0 when closed.
                          (Width alone isn't enough: flex column children still stack to their
                          natural height, which would inflate the row and leave a vertical gap.) -->
-                    <div style="width: ${n?`200px`:`0`}; min-width: ${n?`200px`:`0`}; max-height: ${n?`500px`:`0`}; opacity: ${+!!n}; transform: translateX(${n?`0`:`-20px`}); transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1), min-width 0.4s cubic-bezier(0.16, 1, 0.3, 1), max-height 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1), transform 0.4s cubic-bezier(0.16, 1, 0.3, 1); pointer-events: ${n?`auto`:`none`}; overflow: hidden; display: flex; flex-direction: column; gap: 8px; padding-top: ${n?`4px`:`0`};">
-                        <div style="font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent-blue); margin-bottom: 4px; padding-left: 12px;">Actions</div>
+                    <div class="day-actions-panel${n?` is-open`:``}">
+                        <div class="day-actions-label">Actions</div>
                         
                         ${I===e.id?`
                             <div style="display: flex; gap: var(--space-1);">
@@ -951,7 +951,7 @@
         </div>
     `,setTimeout(()=>{e.querySelectorAll(`.rate-mode-btn`).forEach(e=>{let t=e;t.addEventListener(`click`,()=>{let e=t.dataset.mode;(e===`at_trip`||e===`today`)&&(m.rateMode=e),y(`state:changed`),q(`insights`)})}),e.querySelector(`#insightCurrencySelector`)?.addEventListener(`change`,e=>{m.insightCurrency=e.target.value,y(`state:changed`),q(`insights`)});let i=e.querySelector(`#categoryChart`);i&&D.length>0&&new Chart(i,{type:`doughnut`,data:{labels:E,datasets:[{data:D,backgroundColor:O,borderWidth:0}]},options:{responsive:!0,maintainAspectRatio:!1,plugins:{legend:{position:`right`}}}});let a=e.querySelector(`#timelineChart`);if(a&&t.length>0){let e=Object.keys(f).sort(),t=e.map(e=>f[e]),i=e.map(e=>{try{return new Date(e).toLocaleDateString(`en-US`,{month:`short`,day:`numeric`})}catch{return e}});new Chart(a,{type:`line`,data:{labels:i,datasets:[{label:n+` Spent`,data:t,borderColor:`#0071e3`,backgroundColor:`rgba(0, 113, 227, 0.1)`,fill:!0,tension:.4,pointRadius:4,pointBackgroundColor:`#0071e3`,borderWidth:3}]},options:{responsive:!0,maintainAspectRatio:!1,plugins:{legend:{display:!1}},scales:{x:{grid:{display:!1},ticks:{maxRotation:0,autoSkip:!0,maxTicksLimit:7}},y:{beginAtZero:!0,grid:{color:`rgba(255,255,255,0.05)`},ticks:{maxTicksLimit:5,callback:e=>r+e}}}}})}},0),e}var ke=e=>{m.budgets=m.budgets.filter(t=>t.id!==e),y(`state:changed`),Ze(e),q(`budgets`)};function Ae(){let e=document.createElement(`div`);if(!m.user)return e.innerHTML=`
             <div class="ai-page-header">
-                <h1 style="background: linear-gradient(135deg, #ffd60a, #ff9f0a); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Budgets</h1>
+                <h1 class="gradient-text" style="--g-from: #ffd60a; --g-to: #ff9f0a;">Budgets</h1>
                 <p>Set limits and track spending across trips, categories, and travelers</p>
             </div>
             <div style="text-align: center; padding: 60px 20px; background: rgba(255,255,255,0.02); border-radius: 16px; border: 1px solid var(--glass-border); max-width: 500px; margin: 40px auto;">
@@ -992,7 +992,7 @@
         </div>
     `;return e.innerHTML=`
         <div class="ai-page-header">
-            <h1 style="background: linear-gradient(135deg, #ffd60a, #ff9f0a); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Budgets</h1>
+            <h1 class="gradient-text" style="--g-from: #ffd60a; --g-to: #ff9f0a;">Budgets</h1>
             <p>Set spending limits and track them across trips.</p>
         </div>
         
@@ -1035,7 +1035,7 @@
         </div>
     `,setTimeout(()=>{e.addEventListener(`click`,e=>{let t=e.target?.closest(`.delete-budget-btn`);t?.dataset.budgetId&&ke(t.dataset.budgetId)});let t=e.querySelector(`#saveBudgetBtn`);t&&t.addEventListener(`click`,()=>{let t=parseFloat(M(e,`#budAmt`).value),n=M(e,`#budCurr`).value;if(!t||t<=0)return alert(`Enter a valid amount.`);let r=t;n!==`EUR`&&(r=t*(o[n]||1));let i={id:j(),tripId:M(e,`#budTrip`).value,categoryId:M(e,`#budCat`).value,user:M(e,`#budUser`).value,amount:r,originalAmount:t,originalCurrency:n};m.budgets.push(i),y(`state:changed`),Xe(i),q(`budgets`)})},0),e}function je(){let e=document.createElement(`div`);if(!m.user)return e.innerHTML=`
             <div class="ai-page-header">
-                <h1 style="background: linear-gradient(135deg, #1a6b3c, #34c759); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Collections</h1>
+                <h1 class="gradient-text" style="--g-from: #1a6b3c; --g-to: #34c759;">Collections</h1>
                 <p>Log in to view and manage your completed trips.</p>
             </div>
             <div class="card glass" style="text-align: center; padding: 60px; margin-top: 24px;">
@@ -1045,7 +1045,7 @@
             </div>
         `,e.querySelector(`#collectionsLoginBtn`)?.addEventListener(`click`,()=>q(`profile`)),e;let t=m.archivedTrips||[];return e.innerHTML=`
         <div class="ai-page-header">
-            <h1 style="background: linear-gradient(135deg, #1a6b3c, #34c759); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Collections</h1>
+            <h1 class="gradient-text" style="--g-from: #1a6b3c; --g-to: #34c759;">Collections</h1>
             <p>Your completed travel memories and trip photos.</p>
         </div>
         
@@ -1086,7 +1086,7 @@
                     <div class="card glass" style="grid-column: 1 / -1; text-align: center; padding: 60px;">
                         <div style="font-size: 4rem; margin-bottom: 20px;">📚</div>
                         <h2>No completed trips</h2>
-                        <p style="color: var(--text-secondary);">Your travel history will appear here once you complete a trip.</p>
+                        <p class="text-muted">Your travel history will appear here once you complete a trip.</p>
                     </div>
                 `}
             </div>
@@ -1237,7 +1237,7 @@
                         </div>
                     </div>`,o.appendChild(n),s.push(n)}),W){G.forEach(e=>e.setMap(null)),G=[];let e=new google.maps.LatLngBounds,t=new google.maps.Geocoder,r=(n,r)=>{let a=n.mainLocation||n.title||i;!n.mainLocation&&n.title&&(a=n.title.replace(/Exploring |Day Trip to |Visit |Touring |Arrival in |Departure from |Day \d+:? /gi,``).trim()),t.geocode({address:a+`, `+i},(t,i)=>{if(i===`OK`&&t[0]){let i=t[0].geometry.location;n.lat=i.lat(),n.lon=i.lng();let a=new google.maps.Marker({position:i,map:W,label:{text:String(n.day),color:`white`,fontWeight:`800`},icon:{path:google.maps.SymbolPath.CIRCLE,scale:16,fillColor:`#0071e3`,fillOpacity:1,strokeWeight:2,strokeColor:`white`}});a.addListener(`click`,()=>{s.forEach(e=>{e.style.boxShadow=``,e.style.borderColor=``});let e=s[r];e&&(e.style.boxShadow=`0 0 0 3px var(--accent-blue), 0 8px 32px rgba(0,113,227,0.25)`,e.style.borderColor=`var(--accent-blue)`,e.scrollIntoView({behavior:`smooth`,block:`center`}))}),G.push(a),e.extend(i),G.length>0&&W.fitBounds(e)}})};n.forEach((e,t)=>setTimeout(()=>r(e,t),t*500))}let c=document.getElementById(`acceptPlanBtn`);c&&(c.onclick=()=>{n&&(n.forEach((e,n)=>{let r=e.date||new Date().toISOString().split(`T`)[0],i=`day_`+Date.now()+`_`+n;m.tripDays.push({id:i,tripId:t.id,date:r,name:e.title||`Day ${n+1}`,dayNumber:n+1,lat:e.lat,lon:e.lon,photos:[],tickets:[],notes:``,plan:{morning:e.morning?`${e.morning.activity}: ${e.morning.description}`:``,afternoon:e.afternoon?`${e.afternoon.activity}: ${e.afternoon.description}`:``,evening:e.evening?`${e.evening.activity}: ${e.evening.description}`:``}})}),y(`state:changed`),c.innerHTML=`✓ Plan Accepted! (View in Home)`,c.style.background=`#34c759`,c.disabled=!0)})};i&&a(i,c,n);let s=e.querySelector(`#aiExtraContext`);s&&(s.oninput=e=>{t.aiContext=e.target.value,y(`state:changed`)}),e.querySelector(`#generateBtn`)?.addEventListener(`click`,async()=>{let r=M(e,`#itineraryOutput`),o=M(e,`#aiDateFrom`).value,s=M(e,`#aiDateTo`).value,c=document.getElementById(`aiExtraContext`)?.value??``;if(!o||!s){alert(`Please select your travel dates.`);return}let l=new Date(o),u=new Date(s),d=Math.max(1,Math.round((u.getTime()-l.getTime())/864e5)+1);t.aiContext=c,t.aiNumDays=d,y(`state:changed`),r.innerHTML=`<div style="text-align:center;padding:60px;"><div class="spinner-ring" style="width:40px;height:40px;border:3px solid rgba(255,255,255,0.1);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 20px;"></div><div style="color:white;font-weight:600;">Consulting Gemini AI...</div></div>`,r.scrollIntoView({behavior:`smooth`});try{let e=await(await fetch(J(`/api/generate_itinerary`),{method:`POST`,headers:{"Content-Type":`application/json`},body:JSON.stringify({destination:n,numDays:d,dateFrom:o,dateTo:s,context:c})})).json();if(e.error)throw Error(e.error);i=e.itinerary,t.aiPlan=i??void 0,y(`state:changed`),a(i,d,n),r.scrollIntoView({behavior:`smooth`})}catch(e){r.innerHTML=`<div class="card glass" style="text-align:center;padding:40px;"><h2 style="color:#ff3b30;">Generation Failed</h2><p>${e.message}</p></div>`}})},0),e}function Re(){let e=document.createElement(`div`);if(!m.user)return e.innerHTML=`
             <div class="ai-page-header">
-                <h1 style="background: linear-gradient(135deg, #ffd60a, #ff9f0a); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Settlements</h1>
+                <h1 class="gradient-text" style="--g-from: #ffd60a; --g-to: #ff9f0a;">Settlements</h1>
                 <p>Track who owes who and keep your travel groups balanced</p>
             </div>
             <div style="text-align: center; padding: 60px 20px; background: rgba(255,255,255,0.02); border-radius: 16px; border: 1px solid var(--glass-border); max-width: 500px; margin: 40px auto;">
@@ -1272,17 +1272,17 @@
             </div>
         `;if(!t)return`
                 <div class="ai-page-header">
-                    <h1 style="background: linear-gradient(135deg, #ffd60a, #ff9f0a); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Settlements</h1>
+                    <h1 class="gradient-text" style="--g-from: #ffd60a; --g-to: #ff9f0a;">Settlements</h1>
                     <p>Calculate who owes what across your adventures.</p>
                 </div>
                 <div class="card glass card-glow-teal" style="text-align: center; padding: 60px; margin-top: 24px;">
                     <div style="font-size: 4rem; margin-bottom: 20px;">⚖️</div>
                     <h2>No trips found</h2>
-                    <p style="color: var(--text-secondary);">Create a trip and add expenses to see settlement calculations.</p>
+                    <p class="text-muted">Create a trip and add expenses to see settlement calculations.</p>
                 </div>
             `;let r=m.expenses.filter(t=>t.tripId===e),i={};m.groups.forEach(e=>i[e]=0),r.forEach(e=>{let t=e.euroValue||e.value||0,n=e.who;if(i[n]!==void 0&&(i[n]+=t),e.splits&&Object.keys(e.splits).length>0)for(let[n,r]of Object.entries(e.splits))i[n]!==void 0&&(i[n]-=t*(Number(r)/100));else{let e=t/Math.max(m.groups.length,1);m.groups.forEach(t=>i[t]-=e)}});let a=[],o=[],s=[];for(let[e,t]of Object.entries(i))t>.01?o.push({person:e,amount:t}):t<-.01&&s.push({person:e,amount:Math.abs(t)});let c=o.map(e=>({...e})),l=s.map(e=>({...e}));c.sort((e,t)=>t.amount-e.amount),l.sort((e,t)=>t.amount-e.amount);let u=0,d=0;for(;u<l.length&&d<c.length;){let e=Math.min(l[u].amount,c[d].amount);a.push({from:l[u].person,to:c[d].person,amount:e}),l[u].amount-=e,c[d].amount-=e,l[u].amount<.01&&u++,c[d].amount<.01&&d++}let f={};m.groups.forEach(e=>f[e]=0);let p=(m.archivedTrips||[]).flatMap(e=>e.expenses||[]);[...m.expenses,...p].forEach(e=>{let t=e.euroValue||e.euro_value||e.value||0,n=e.who;if(f[n]!==void 0&&(f[n]+=t),e.splits&&Object.keys(e.splits).length>0)for(let[n,r]of Object.entries(e.splits))f[n]!==void 0&&(f[n]-=t*(Number(r)/100));else{let e=t/Math.max(m.groups.length,1);m.groups.forEach(t=>f[t]-=e)}});let h=Math.max(...Object.values(f).map(Math.abs),1);return`
             <div class="ai-page-header">
-                <h1 style="background: linear-gradient(135deg, #ffd60a, #ff9f0a); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Settlements</h1>
+                <h1 class="gradient-text" style="--g-from: #ffd60a; --g-to: #ff9f0a;">Settlements</h1>
                 <p>Calculate who owes what and settle up fairly.</p>
             </div>
 
@@ -1477,7 +1477,7 @@
                     </div>
                 `).join(``)}catch{n.innerHTML=`<p style="color:red;">Error searching.</p>`}}},r=async n=>{if(!m.user){alert(`Please login first`);return}if(n===m.user.id){k(`You can't send a friend request to yourself!`);return}try{let r=await(await fetch(J(`/api/friends/add`),{method:`POST`,headers:{"Content-Type":`application/json`},body:JSON.stringify({user_id:m.user.id,friend_id:n})})).json();r.status===`success`?(M(e,`#searchResults`).innerHTML=`<p style="text-align:center; padding:10px; font-size:0.8rem; color:#34c759;">Request sent!</p>`,M(e,`#friendSearchInput`).value=``,t()):r.status===`error`&&alert(r.message)}catch{alert(`Failed to send request`)}},i=async e=>{if(m.user)try{let n=await(await fetch(J(`/api/friends/accept`),{method:`POST`,headers:{"Content-Type":`application/json`},body:JSON.stringify({user_id:m.user.id,friend_id:e})})).json();n.status===`success`?(k(`Friend request accepted!`),t()):alert(n.message||`Failed to accept request`)}catch(e){console.error(`Error accepting friend:`,e)}};return e.innerHTML=`
         <div class="ai-page-header">
-            <h1 style="background: linear-gradient(135deg, #1a6b3c, #34c759); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Friends</h1>
+            <h1 class="gradient-text" style="--g-from: #1a6b3c; --g-to: #34c759;">Friends</h1>
             <p>Connect with other travelers and share your itineraries</p>
         </div>
         <div class="grid-2" style="margin-top: 24px;">
@@ -1508,7 +1508,7 @@
         </div>
     `,e.querySelector(`#friendSearchBtn`)?.addEventListener(`click`,n),e.querySelector(`#friendSearchInput`)?.addEventListener(`keyup`,e=>{e.key===`Enter`&&n()}),e.addEventListener(`click`,e=>{let t=e.target;if(!t)return;let n=t.closest(`.accept-friend-btn`);if(n){i(n.dataset.userId);return}let a=t.closest(`.send-friend-btn`);if(a){r(a.dataset.userId);return}let o=t.closest(`.friend-row`);if(o){q(`profile`,{userId:o.dataset.userId});return}}),setTimeout(t,0),e}var Be=async()=>{try{try{await Y()}catch(e){console.error(`Final sync before logout failed:`,e)}await fetch(J(`/api/logout`),{method:`POST`}),m.user=null,m.activeTripId=null,m.trips=[],m.archivedTrips=[],m.expenses=[],m.tripDays=[],m.groups=[],m.budgets=[],m.activities=[],m.photos=[],m.notifications=[],m.savedFormats=[],m.profilePhoto=null,m.draftExpense={who:``,categoryId:``,label:``,date:``,country:``,value:``,currency:`EUR`,euroValue:``},y(`state:changed`),He(),q(`profile`)}catch{}};function Ve(e=null){let t=document.createElement(`div`),n=!e||m.user&&e===m.user.id;if(!m.user&&n){let e=m.hasLoggedInBefore;return t.innerHTML=`
             <div class="ai-page-header">
-                <h1 style="background: linear-gradient(135deg, #007aff, #34c759); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Log In</h1>
+                <h1 class="gradient-text" style="--g-from: #007aff; --g-to: #34c759;">Log In</h1>
                 <p>${e?`Sign in to your account to securely save and sync your trips across all your devices.`:`Sign in with Google to start syncing your trips and travel memories across all your devices.`}</p>
             </div>
             <div style="display: flex; justify-content: center; align-items: center; min-height: 50vh;">

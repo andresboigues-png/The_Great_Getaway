@@ -57,7 +57,7 @@ export function renderProfile(targetUserId = null) {
         const isReturning = STATE.hasLoggedInBefore;
         div.innerHTML = `
             <div class="ai-page-header">
-                <h1 style="background: linear-gradient(135deg, #007aff, #34c759); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Log In</h1>
+                <h1 class="gradient-text" style="--g-from: #007aff; --g-to: #34c759;">Log In</h1>
                 <p>${isReturning ? 'Sign in to your account to securely save and sync your trips across all your devices.' : 'Sign in with Google to start syncing your trips and travel memories across all your devices.'}</p>
             </div>
             <div style="display: flex; justify-content: center; align-items: center; min-height: 50vh;">

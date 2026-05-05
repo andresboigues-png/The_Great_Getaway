@@ -9,7 +9,7 @@ export function renderSettlement() {
     if (!STATE.user) {
         div.innerHTML = `
             <div class="ai-page-header">
-                <h1 style="background: linear-gradient(135deg, #ffd60a, #ff9f0a); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Settlements</h1>
+                <h1 class="gradient-text" style="--g-from: #ffd60a; --g-to: #ff9f0a;">Settlements</h1>
                 <p>Track who owes who and keep your travel groups balanced</p>
             </div>
             <div style="text-align: center; padding: 60px 20px; background: rgba(255,255,255,0.02); border-radius: 16px; border: 1px solid var(--glass-border); max-width: 500px; margin: 40px auto;">
@@ -60,13 +60,13 @@ export function renderSettlement() {
         if (!trip) {
             return `
                 <div class="ai-page-header">
-                    <h1 style="background: linear-gradient(135deg, #ffd60a, #ff9f0a); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Settlements</h1>
+                    <h1 class="gradient-text" style="--g-from: #ffd60a; --g-to: #ff9f0a;">Settlements</h1>
                     <p>Calculate who owes what across your adventures.</p>
                 </div>
                 <div class="card glass card-glow-teal" style="text-align: center; padding: 60px; margin-top: 24px;">
                     <div style="font-size: 4rem; margin-bottom: 20px;">⚖️</div>
                     <h2>No trips found</h2>
-                    <p style="color: var(--text-secondary);">Create a trip and add expenses to see settlement calculations.</p>
+                    <p class="text-muted">Create a trip and add expenses to see settlement calculations.</p>
                 </div>
             `;
         }
@@ -137,7 +137,7 @@ export function renderSettlement() {
 
         return `
             <div class="ai-page-header">
-                <h1 style="background: linear-gradient(135deg, #ffd60a, #ff9f0a); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Settlements</h1>
+                <h1 class="gradient-text" style="--g-from: #ffd60a; --g-to: #ff9f0a;">Settlements</h1>
                 <p>Calculate who owes what and settle up fairly.</p>
             </div>
 

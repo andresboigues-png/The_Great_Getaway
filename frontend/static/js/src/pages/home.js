@@ -224,7 +224,7 @@ export function renderHome() {
     if (!activeTrip) {
         div.innerHTML = `
             <div class="ai-page-header" style="padding: 40px; text-align: center; border-radius: 28px;">
-                <h1 style="background: linear-gradient(135deg, #007aff, #5856d6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 0; font-size: 3.5rem;">Let's travel.</h1>
+                <h1 class="gradient-text" style="--g-from: #007aff; --g-to: #5856d6; margin: 0; font-size: 3.5rem;">Let's travel.</h1>
                 <p style="color: var(--text-secondary); max-width: 440px; margin: 10px auto 0; font-size: 1.1rem;">Your next big adventure is waiting. Create a trip to start tracking expenses and planning days.</p>
             </div>
             
@@ -269,7 +269,7 @@ export function renderHome() {
 
         div.innerHTML = `
             <div class="ai-page-header" style="text-align: center;">
-                <h1 style="background: linear-gradient(135deg, #007aff, #5856d6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">${greeting}</h1>
+                <h1 class="gradient-text" style="--g-from: #007aff; --g-to: #5856d6;">${greeting}</h1>
                 ${activeTrip ? `<p>You have <strong>${tripExpenses.length}</strong> expenses recorded for ${activeTrip.name}.</p>` : `<p>Welcome! Start by creating your first trip.</p>`}
             </div>
             
@@ -674,15 +674,15 @@ export function renderHome() {
                 const isOpen = openMenuDayId === day.id;
                 const isStartingPoint = day.dayNumber === 0;
                 return `
-                <div style="display: flex; align-items: flex-start; gap: ${isOpen ? '24px' : '0'}; position: relative; transition: gap 0.4s cubic-bezier(0.16, 1, 0.3, 1);">
+                <div class="day-row${isOpen ? ' is-open' : ''}">
                     <!-- Timeline Dot — Starting Point uses a green dot to distinguish from numbered days -->
                     <div style="position: absolute; left: -14px; top: 22px; width: 10px; height: 10px; border-radius: 50%; background: ${isOpen ? (isStartingPoint ? '#34c759' : 'var(--accent-blue)') : 'white'}; border: 2px solid ${isStartingPoint ? '#34c759' : 'var(--accent-blue)'}; z-index: 2; box-shadow: 0 0 0 4px white;"></div>
 
                     <!-- LEFT SPACE MENU — collapses both width AND height to 0 when closed.
                          (Width alone isn't enough: flex column children still stack to their
                          natural height, which would inflate the row and leave a vertical gap.) -->
-                    <div style="width: ${isOpen ? '200px' : '0'}; min-width: ${isOpen ? '200px' : '0'}; max-height: ${isOpen ? '500px' : '0'}; opacity: ${isOpen ? 1 : 0}; transform: translateX(${isOpen ? '0' : '-20px'}); transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1), min-width 0.4s cubic-bezier(0.16, 1, 0.3, 1), max-height 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1), transform 0.4s cubic-bezier(0.16, 1, 0.3, 1); pointer-events: ${isOpen ? 'auto' : 'none'}; overflow: hidden; display: flex; flex-direction: column; gap: 8px; padding-top: ${isOpen ? '4px' : '0'};">
-                        <div style="font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent-blue); margin-bottom: 4px; padding-left: 12px;">Actions</div>
+                    <div class="day-actions-panel${isOpen ? ' is-open' : ''}">
+                        <div class="day-actions-label">Actions</div>
                         
                         ${editingDayId === day.id ? `
                             <div style="display: flex; gap: var(--space-1);">

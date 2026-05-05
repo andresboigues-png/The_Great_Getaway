@@ -1353,6 +1353,84 @@ h1 {
 .liquid-alert.show { transform: translateX(-50%) translateY(0); }
 .liquid-alert.dismiss { transform: translateX(-50%) translateY(100px); opacity: 0; }
 
+/* Gradient page-header headline — used by the AI/Settlements/Budgets/
+   Insights/Personalization/Collections page titles. Each call site sets
+   `--g-from` and `--g-to` for the diagonal gradient endpoints. */
+.gradient-text {
+    background: linear-gradient(135deg, var(--g-from, var(--accent-blue)), var(--g-to, #9b59b6));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* Color utilities — replace one-line inline color overrides with
+   semantic classes that make intent legible at the call site. */
+.text-muted { color: var(--text-secondary); }
+.text-brand { color: var(--accent-blue); }
+
+/* Muted small text — used as helper copy under buttons / cards. */
+.muted-meta {
+    font-size: var(--font-sm);
+    color: var(--text-secondary);
+}
+
+/* Day-card actions panel — slides in from the left when the day card
+   is expanded. Width *and* max-height collapse to 0 when closed (just
+   width isn't enough — flex column children still stack to their
+   natural height, which would inflate the row and leave a vertical
+   gap). The `.is-open` modifier is set by JS in lockstep with the
+   parent day-card's open state. */
+.day-actions-panel {
+    width: 0;
+    min-width: 0;
+    max-height: 0;
+    opacity: 0;
+    transform: translateX(-20px);
+    pointer-events: none;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding-top: 0;
+    transition: width 0.4s var(--easing-smooth),
+                min-width 0.4s var(--easing-smooth),
+                max-height 0.4s var(--easing-smooth),
+                opacity 0.4s var(--easing-smooth),
+                transform 0.4s var(--easing-smooth);
+}
+.day-actions-panel.is-open {
+    width: 200px;
+    min-width: 200px;
+    max-height: 500px;
+    opacity: 1;
+    transform: translateX(0);
+    pointer-events: auto;
+    padding-top: var(--space-1);
+}
+
+/* Section label inside the day-card actions panel ("Actions"). */
+.day-actions-label {
+    font-size: var(--font-2xs);
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--accent-blue);
+    margin-bottom: var(--space-1);
+    padding-left: var(--space-3);
+}
+
+/* Day timeline row — outer container that lays out the actions panel +
+   main day card side-by-side. The gap collapses to 0 when the actions
+   panel is closed so the card sits flush against the timeline dot. */
+.day-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0;
+    position: relative;
+    transition: gap 0.4s var(--easing-smooth);
+}
+.day-row.is-open { gap: var(--space-6); }
+
 /* Home hero card — full-bleed image / map background with rounded
    corners and dark gradient overlay. Two height variants used: 450px
    (no-trip empty state) and 400px (active trip). */
