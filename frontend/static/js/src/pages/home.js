@@ -744,7 +744,7 @@ export function renderHome() {
 
         ${activeTrip ? `
             <nav class="home-tabnav" role="tablist">
-                <button class="home-tabnav__tab${activeHomeTab === 'days' ? ' is-active' : ''}" data-home-tab="days" role="tab">Days</button>
+                <button class="home-tabnav__tab${activeHomeTab === 'days' ? ' is-active' : ''}" data-home-tab="days" role="tab">Path</button>
                 <button class="home-tabnav__tab${activeHomeTab === 'companions' ? ' is-active' : ''}" data-home-tab="companions" role="tab">Companions</button>
             </nav>
         ` : ''}

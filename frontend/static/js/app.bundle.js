@@ -486,7 +486,7 @@
 
         ${t?`
             <nav class="home-tabnav" role="tablist">
-                <button class="home-tabnav__tab${H===`days`?` is-active`:``}" data-home-tab="days" role="tab">Days</button>
+                <button class="home-tabnav__tab${H===`days`?` is-active`:``}" data-home-tab="days" role="tab">Path</button>
                 <button class="home-tabnav__tab${H===`companions`?` is-active`:``}" data-home-tab="companions" role="tab">Companions</button>
             </nav>
         `:``}
