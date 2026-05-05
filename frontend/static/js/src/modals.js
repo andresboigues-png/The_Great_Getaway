@@ -191,6 +191,13 @@ export const openNewTripModal = () => {
         // every legacy display site (collections card, expense default, AI
         // header, etc.) keeps working without changes. New code reads
         // placeId / lat / lng / viewport / placeTypes for map work.
+        //
+        // `ownerId` + `myRole` are stamped on the local object so `canEdit()`
+        // returns the right answer the instant the trip lands in STATE.
+        // Server-side, /api/trips upsert creates the matching Planner
+        // member row via `_ensure_owner_member_row`; without these client
+        // fields the UI would treat the creator as a Relaxer until the
+        // next /api/data poll.
         const newTrip = {
             id, name,
             country: pickedPlace.name,
@@ -202,6 +209,9 @@ export const openNewTripModal = () => {
             countryCode: pickedPlace.countryCode,
             budget: 0,
             isArchived: false,
+            ownerId: STATE.user?.id,
+            myRole: ROLE_PLANNER,
+            myArchived: false,
             // Trip starts with no companions — the user picks them via the
             // companions modal on the Home page (see openCompanionPickerModal).
             companions: /** @type {string[]} */ ([]),
