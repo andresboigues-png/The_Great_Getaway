@@ -113,31 +113,31 @@ export function renderBudgets() {
         <div class="grid-2" style="margin-top: 24px;">
             <div class="card glass card-glow-blue">
                 <h2 class="card-title" style="color: var(--accent-blue);">Create New Budget</h2>
-                <div style="margin-bottom:12px;">
-                    <label style="display:block; font-size:0.8rem; margin-bottom:4px; font-weight:600;">Trip</label>
+                <div class="compact-form-row">
+                    <label class="compact-form-label">Trip</label>
                     <select id="budTrip" class="glass-input" style="width:100%;"><option value="all">All Trips</option>${tripOpts}</select>
                 </div>
-                <div style="margin-bottom:12px;">
-                    <label style="display:block; font-size:0.8rem; margin-bottom:4px; font-weight:600;">Category</label>
+                <div class="compact-form-row">
+                    <label class="compact-form-label">Category</label>
                     <select id="budCat" class="glass-input" style="width:100%;"><option value="all">All Categories</option>${catOpts}</select>
                 </div>
-                <div style="margin-bottom:12px;">
-                    <label style="display:block; font-size:0.8rem; margin-bottom:4px; font-weight:600;">Person</label>
+                <div class="compact-form-row">
+                    <label class="compact-form-label">Person</label>
                     <select id="budUser" class="glass-input" style="width:100%;"><option value="all">Everyone</option>${userOpts}</select>
                 </div>
-                <div style="display: grid; grid-template-columns: 1fr 100px; gap: 12px; margin-bottom: 16px;">
+                <div style="display: grid; grid-template-columns: 1fr 100px; gap: var(--space-3); margin-bottom: var(--space-4);">
                     <div>
-                        <label style="display:block; font-size:0.8rem; margin-bottom:4px; font-weight:600;">Target Amount</label>
+                        <label class="compact-form-label">Target Amount</label>
                         <input type="number" id="budAmt" class="glass-input" style="width:100%;" placeholder="e.g. 1000">
                     </div>
                     <div>
-                        <label style="display:block; font-size:0.8rem; margin-bottom:4px; font-weight:600;">Currency</label>
+                        <label class="compact-form-label">Currency</label>
                         <select id="budCurr" class="glass-input" style="width:100%;">
                             ${Object.keys(CONVERSION_RATES).map(c => `<option value="${c}" ${getHomeCurrency() === c ? 'selected' : ''}>${c}</option>`).join('')}
                         </select>
                     </div>
                 </div>
-                <button id="saveBudgetBtn" class="btn" style="width:100%; background: var(--accent-blue);">Save Budget</button>
+                <button id="saveBudgetBtn" class="btn-primary" style="width:100%;">Save Budget</button>
             </div>
             
             <div class="card glass card-glow-blue">

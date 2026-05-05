@@ -1353,6 +1353,49 @@ h1 {
 .liquid-alert.show { transform: translateX(-50%) translateY(0); }
 .liquid-alert.dismiss { transform: translateX(-50%) translateY(100px); opacity: 0; }
 
+/* Compact form helpers — sentence-case label + tighter spacing. Used
+   by surfaces with multiple short fields (budgets create form, friends
+   search, etc.) where the more prominent `.form-label[-light]` would
+   feel oversized. */
+.compact-form-row { margin-bottom: var(--space-3); }
+.compact-form-label {
+    display: block;
+    font-size: var(--font-base);
+    margin-bottom: var(--space-1);
+    font-weight: 600;
+}
+
+/* Light variant of `.card-glass-modal` — used by the journaling /
+   photos / documents modals on home, where the content is intended
+   to read on a near-white panel rather than a dark frosted one. */
+.card-glass-modal-light {
+    padding: var(--space-8);
+    border-radius: var(--radius-3xl);
+    background: rgba(255,255,255,0.95);
+    border: 1px solid rgba(255,255,255,0.4);
+    box-shadow: 0 40px 100px rgba(0,0,0,0.2);
+    animation: modalPop 0.4s var(--easing-smooth);
+}
+
+/* Neutral "Close" / "Done" button — used as the secondary action in
+   light-themed modals where `.btn-ghost` (white-on-glass) would be
+   wrong. Matches the look of the existing inline grey buttons. */
+.btn-neutral {
+    min-height: var(--tap-min);
+    padding: var(--space-4);
+    border-radius: var(--radius-md);
+    background: rgba(0,0,0,0.05);
+    color: #002d5b;
+    font-weight: 700;
+    font-size: var(--font-base);
+    border: none;
+    cursor: pointer;
+    transition: background-color 0.15s ease, transform 0.1s ease;
+}
+.btn-neutral:hover { background: rgba(0,0,0,0.08); }
+.btn-neutral:active { transform: scale(0.98); }
+.btn-neutral:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 2px; }
+
 /* AI page zoom badge — pill anchored to bottom-left of the AI map. Glass
    bg darkens slightly on hover. */
 .zoom-badge {

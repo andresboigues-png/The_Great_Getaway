@@ -484,52 +484,52 @@
                 </div>
             </div>
         `,setTimeout(()=>{u.addEventListener(`click`,e=>{let t=e.target;if(!t)return;let n=t.closest(`[data-guide-action]`);if(n){let e=n.dataset.guideAction;e===`open-add-day`?fe():e===`navigate-expenses`?q(`expenses`):e===`navigate-upload`&&q(`upload`);return}let r=t.closest(`.guide-step-card`);r?.dataset.index&&S[Number(r.dataset.index)]?.action()});let e=u.querySelector(`#hideQuickAccessBtn`);e&&(e.onclick=e=>{e.stopPropagation(),m.hideQuickAccess=!0,y(`state:changed`),q(`home`)})},0),e.appendChild(u);return e}var Se=e=>{let t=m.tripDays.find(t=>t.id===e);if(!t)return;let n=document.createElement(`div`);n.className=`modal-overlay`,n.style.display=`flex`,n.style.backdropFilter=`blur(25px)`,n.innerHTML=`
-        <div class="card glass" style="width: 580px; padding: 32px; border-radius: 40px; animation: modalPop 0.4s cubic-bezier(0.16, 1, 0.3, 1); border: 1px solid rgba(255,255,255,0.4); background: rgba(255,255,255,0.9); box-shadow: 0 40px 100px rgba(0,0,0,0.2);">
-            <h2 style="font-size: 1.8rem; margin-bottom: 8px; color: #002d5b; font-weight: 800; letter-spacing: -0.04em;">Day ${t.dayNumber} Journaling</h2>
-            <p style="color: var(--text-secondary); font-weight: 600; margin-bottom: 20px; font-size: 0.95rem;">Capture your memories and stories from ${t.name}</p>
-            <textarea id="journalText" class="glass-input" style="width: 100%; height: 240px; padding: 20px; border-radius: 20px; font-size: 1.05rem; line-height: 1.6; margin-bottom: 20px; border: 1px solid rgba(0,0,0,0.05);" placeholder="What happened today? How did you feel?">${t.notes||``}</textarea>
-            <div style="display: flex; gap: 12px;">
-                <button id="saveJournalBtn" class="btn" style="flex: 2; padding: 16px; border-radius: 16px; background: var(--accent-blue); color: white; font-weight: 800; font-size: 1rem; border: none;">Save Story</button>
-                <button id="closeJournalBtn" class="btn" style="flex: 1; padding: 16px; border-radius: 16px; background: rgba(0,0,0,0.05); color: #002d5b; font-weight: 700; border: none; font-size: 0.9rem;">Close</button>
+        <div class="card-glass-modal-light" style="width: 580px;">
+            <h2 style="font-size: var(--font-3xl); margin-bottom: var(--space-2); color: #002d5b; font-weight: 800; letter-spacing: -0.04em;">Day ${t.dayNumber} Journaling</h2>
+            <p style="color: var(--text-secondary); font-weight: 600; margin-bottom: var(--space-5); font-size: var(--font-md);">Capture your memories and stories from ${t.name}</p>
+            <textarea id="journalText" class="glass-input" style="width: 100%; height: 240px; padding: var(--space-5); border-radius: var(--radius-xl); font-size: 1.05rem; line-height: 1.6; margin-bottom: var(--space-5); border: 1px solid rgba(0,0,0,0.05);" placeholder="What happened today? How did you feel?">${t.notes||``}</textarea>
+            <div style="display: flex; gap: var(--space-3);">
+                <button id="saveJournalBtn" class="btn-primary" style="flex: 2; padding: var(--space-4); border-radius: var(--radius-lg); font-size: var(--font-lg);">Save Story</button>
+                <button id="closeJournalBtn" class="btn-neutral" style="flex: 1; border-radius: var(--radius-lg);">Close</button>
             </div>
         </div>
     `,document.body.appendChild(n),M(n,`#closeJournalBtn`).onclick=()=>n.remove(),M(n,`#saveJournalBtn`).onclick=async()=>{t.notes=M(n,`#journalText`).value,y(`state:changed`),await $(t),k(`Memories saved!`),n.remove(),q(`home`,null,!0)}},z=e=>{let t=m.tripDays.find(t=>t.id===e);if(!t)return;t.photos||=[];let n=document.createElement(`div`);n.className=`modal-overlay`,n.style.display=`flex`,n.style.backdropFilter=`blur(25px)`,n.innerHTML=`
-        <div class="card glass" style="width: 500px; padding: 32px; border-radius: 40px; border: 1px solid rgba(255,255,255,0.4); background: rgba(255,255,255,0.95);">
-            <h2 style="font-size: 1.8rem; margin-bottom: 8px; color: #002d5b; font-weight: 800;">Photo Gallery</h2>
-            <p style="color: var(--text-secondary); font-weight: 600; margin-bottom: 20px; font-size: 0.95rem;">Add images that define your Day ${t.dayNumber}</p>
-            <div id="photoList" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 24px; max-height: 300px; overflow-y: auto; padding: 4px;">
-                ${t.photos.length===0?`<p style="grid-column: 1/-1; text-align: center; color: var(--text-secondary); padding: 40px;">No photos added yet.</p>`:t.photos.map((t,n)=>`
-                        <div style="position: relative; aspect-ratio: 1; border-radius: 16px; overflow: hidden; border: 1px solid rgba(0,0,0,0.05);">
+        <div class="card-glass-modal-light" style="width: 500px;">
+            <h2 style="font-size: var(--font-3xl); margin-bottom: var(--space-2); color: #002d5b; font-weight: 800;">Photo Gallery</h2>
+            <p style="color: var(--text-secondary); font-weight: 600; margin-bottom: var(--space-5); font-size: var(--font-md);">Add images that define your Day ${t.dayNumber}</p>
+            <div id="photoList" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-3); margin-bottom: var(--space-6); max-height: 300px; overflow-y: auto; padding: var(--space-1);">
+                ${t.photos.length===0?`<p style="grid-column: 1/-1; text-align: center; color: var(--text-secondary); padding: var(--space-10);">No photos added yet.</p>`:t.photos.map((t,n)=>`
+                        <div style="position: relative; aspect-ratio: 1; border-radius: var(--radius-lg); overflow: hidden; border: 1px solid rgba(0,0,0,0.05);">
                             <img src="${t}" style="width: 100%; height: 100%; object-fit: cover;">
-                            <button class="remove-photo-btn" data-day-id="${e}" data-photo-idx="${n}" style="position: absolute; top: 4px; right: 4px; width: 24px; height: 24px; border-radius: 50%; background: rgba(255,59,48,0.8); color: white; border: none; font-size: 0.7rem; font-weight: 800; cursor: pointer;">✕</button>
+                            <button class="remove-photo-btn" data-day-id="${e}" data-photo-idx="${n}" style="position: absolute; top: 4px; right: 4px; width: 24px; height: 24px; border-radius: 50%; background: rgba(255,59,48,0.8); color: white; border: none; font-size: var(--font-2xs); font-weight: 800; cursor: pointer;">✕</button>
                         </div>
                     `).join(``)}
             </div>
-            <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px;">
+            <div style="display: flex; flex-direction: column; gap: var(--space-3); margin-bottom: var(--space-6);">
                 <label class="upload-dropzone" id="uploadLabel">
                     <span id="uploadStatusText">📤 Upload Photo</span>
                     <input type="file" id="photoUpload" accept="image/*" style="display: none;">
                 </label>
-                <div style="display: flex; gap: 8px; align-items: center;">
+                <div style="display: flex; gap: var(--space-2); align-items: center;">
                     <div style="flex: 1; height: 1px; background: rgba(0,0,0,0.05);"></div>
-                    <span style="font-size: 0.7rem; color: var(--text-secondary); font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;">OR</span>
+                    <span style="font-size: var(--font-2xs); color: var(--text-secondary); font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;">OR</span>
                     <div style="flex: 1; height: 1px; background: rgba(0,0,0,0.05);"></div>
                 </div>
-                <div style="display: flex; gap: 8px;">
-                    <input type="text" id="photoUrl" class="glass-input" placeholder="Paste image URL here..." style="flex: 1; padding: 14px; border-radius: 14px; font-size: 0.9rem;">
-                    <button id="addPhotoBtn" class="btn" style="padding: 14px 20px; border-radius: 14px; background: var(--accent-blue); color: white; font-weight: 700;">Add</button>
+                <div style="display: flex; gap: var(--space-2);">
+                    <input type="text" id="photoUrl" class="glass-input" placeholder="Paste image URL here..." style="flex: 1; padding: var(--space-3); border-radius: 14px; font-size: var(--font-base);">
+                    <button id="addPhotoBtn" class="btn-primary" style="padding: var(--space-3) var(--space-5);">Add</button>
                 </div>
             </div>
-            <button id="closePhotosBtn" class="btn" style="width: 100%; padding: 16px; border-radius: 16px; background: rgba(0,0,0,0.05); color: #002d5b; font-weight: 700; border: none; font-size: 0.9rem;">Done</button>
+            <button id="closePhotosBtn" class="btn-neutral" style="width: 100%; border-radius: var(--radius-lg);">Done</button>
         </div>
     `,document.body.appendChild(n);let r=M(n,`#photoUpload`);r.onchange=async r=>{let i=r.target.files?.[0];if(!i)return;let a=M(n,`#uploadStatusText`);a.textContent=`⌛ Uploading...`;let o=await $e(i);o&&o.url?(t.photos.push(o.url),y(`state:changed`),await $(t),n.remove(),z(e)):a.textContent=`❌ Failed. Try again.`};let i=async(e,r)=>{t.photos.splice(r,1),y(`state:changed`),await $(t),n.remove(),z(e)};n.addEventListener(`click`,e=>{let t=e.target?.closest(`.remove-photo-btn`);t?.dataset.dayId&&t.dataset.photoIdx&&i(t.dataset.dayId,parseInt(t.dataset.photoIdx,10))}),M(n,`#addPhotoBtn`).onclick=async()=>{let r=M(n,`#photoUrl`).value;r&&(t.photos.push(r),y(`state:changed`),await $(t),n.remove(),z(e))},M(n,`#closePhotosBtn`).onclick=()=>{n.remove(),q(`home`,null,!0)}},B=e=>{let t=m.tripDays.find(t=>t.id===e);if(!t)return;t.documents||=[];let n=document.createElement(`div`);n.className=`modal-overlay`,n.style.display=`flex`,n.style.backdropFilter=`blur(25px)`,n.innerHTML=`
-        <div class="card glass" style="width: 460px; padding: 32px; border-radius: 40px; background: rgba(255,255,255,0.95);">
-            <h2 style="font-size: 1.8rem; margin-bottom: 8px; color: #002d5b; font-weight: 800;">Documents</h2>
-            <p style="color: var(--text-secondary); font-weight: 600; margin-bottom: 20px; font-size: 0.95rem;">Tickets, bookings, and important info</p>
-            <div id="docList" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 24px; max-height: 250px; overflow-y: auto;">
-                ${t.documents.length===0?`<p style="text-align: center; color: var(--text-secondary); padding: 32px;">No documents linked.</p>`:t.documents.map((t,n)=>`
-                        <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: white; border-radius: 12px; border: 1px solid rgba(0,0,0,0.05);">
-                            <div style="display: flex; align-items: center; gap: 10px; overflow: hidden;">
+        <div class="card-glass-modal-light" style="width: 460px;">
+            <h2 style="font-size: var(--font-3xl); margin-bottom: var(--space-2); color: #002d5b; font-weight: 800;">Documents</h2>
+            <p style="color: var(--text-secondary); font-weight: 600; margin-bottom: var(--space-5); font-size: var(--font-md);">Tickets, bookings, and important info</p>
+            <div id="docList" style="display: flex; flex-direction: column; gap: var(--space-2); margin-bottom: var(--space-6); max-height: 250px; overflow-y: auto;">
+                ${t.documents.length===0?`<p style="text-align: center; color: var(--text-secondary); padding: var(--space-8);">No documents linked.</p>`:t.documents.map((t,n)=>`
+                        <div style="display: flex; align-items: center; justify-content: space-between; padding: var(--space-3) var(--space-4); background: white; border-radius: var(--radius-md); border: 1px solid rgba(0,0,0,0.05);">
+                            <div style="display: flex; align-items: center; gap: var(--space-2); overflow: hidden;">
                                 <span style="font-size: 1.2rem;">📄</span>
                                 <a href="${t.url}" target="_blank" style="color: var(--accent-blue); text-decoration: none; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${t.name}</a>
                             </div>
@@ -537,23 +537,23 @@
                         </div>
                     `).join(``)}
             </div>
-            <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px;">
+            <div style="display: flex; flex-direction: column; gap: var(--space-3); margin-bottom: var(--space-6);">
                 <label class="upload-dropzone" id="uploadDocLabel">
                     <span id="uploadDocStatusText">📤 Upload Document</span>
                     <input type="file" id="docUpload" style="display: none;">
                 </label>
-                <div style="display: flex; gap: 8px; align-items: center;">
+                <div style="display: flex; gap: var(--space-2); align-items: center;">
                     <div style="flex: 1; height: 1px; background: rgba(0,0,0,0.05);"></div>
-                    <span style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 800;">OR</span>
+                    <span style="font-size: var(--font-xs); color: var(--text-secondary); font-weight: 800;">OR</span>
                     <div style="flex: 1; height: 1px; background: rgba(0,0,0,0.05);"></div>
                 </div>
-                <input type="text" id="docName" class="glass-input" placeholder="Document Name (e.g. Flight Ticket)" style="padding: 12px; border-radius: 12px;">
-                <div style="display: flex; gap: 8px;">
-                    <input type="text" id="docUrl" class="glass-input" placeholder="Link to document (Google Drive, URL...)" style="flex: 1; padding: 12px; border-radius: 12px;">
-                    <button id="addDocBtn" class="btn" style="padding: 12px 20px; border-radius: 12px; background: var(--accent-blue); color: white; font-weight: 700;">Add</button>
+                <input type="text" id="docName" class="glass-input" placeholder="Document Name (e.g. Flight Ticket)" style="padding: var(--space-3); border-radius: var(--radius-md);">
+                <div style="display: flex; gap: var(--space-2);">
+                    <input type="text" id="docUrl" class="glass-input" placeholder="Link to document (Google Drive, URL...)" style="flex: 1; padding: var(--space-3); border-radius: var(--radius-md);">
+                    <button id="addDocBtn" class="btn-primary" style="padding: var(--space-3) var(--space-5);">Add</button>
                 </div>
             </div>
-            <button id="closeDocsBtn" class="btn" style="width: 100%; padding: 16px; border-radius: 16px; background: rgba(0,0,0,0.05); color: #002d5b; font-weight: 700; border: none; font-size: 0.9rem;">Close</button>
+            <button id="closeDocsBtn" class="btn-neutral" style="width: 100%; border-radius: var(--radius-lg);">Close</button>
         </div>
     `,document.body.appendChild(n);let r=t.documents,i=M(n,`#docUpload`);i.onchange=async i=>{let a=i.target.files?.[0];if(!a)return;let o=M(n,`#uploadDocStatusText`);o.textContent=`⌛ Uploading...`;let s=await $e(a);s&&s.url?(r.push({name:s.name||a.name,url:s.url}),y(`state:changed`),await $(t),n.remove(),B(e)):o.textContent=`❌ Failed. Try again.`};let a=async(e,i)=>{r.splice(i,1),y(`state:changed`),await $(t),n.remove(),B(e)};n.addEventListener(`click`,e=>{let t=e.target?.closest(`.remove-doc-btn`);t?.dataset.dayId&&t.dataset.docIdx&&a(t.dataset.dayId,parseInt(t.dataset.docIdx,10))}),M(n,`#addDocBtn`).onclick=async()=>{let i=M(n,`#docName`).value,a=M(n,`#docUrl`).value;i&&a&&(r.push({name:i,url:a}),y(`state:changed`),await $(t),n.remove(),B(e))},M(n,`#closeDocsBtn`).onclick=()=>n.remove()},Ce=e=>{let t=m.tripDays.find(t=>t.id===e);if(!t)return;let n=document.createElement(`div`);n.className=`modal-overlay`,n.style.display=`flex`,n.style.backdropFilter=`blur(25px)`,n.innerHTML=`
         <div class="card glass" style="width: 800px; max-height: 90vh; overflow-y: auto; padding: 48px; border-radius: 48px; background: white; border: 1px solid rgba(0,0,0,0.1);">
@@ -1001,31 +1001,31 @@
         <div class="grid-2" style="margin-top: 24px;">
             <div class="card glass card-glow-blue">
                 <h2 class="card-title" style="color: var(--accent-blue);">Create New Budget</h2>
-                <div style="margin-bottom:12px;">
-                    <label style="display:block; font-size:0.8rem; margin-bottom:4px; font-weight:600;">Trip</label>
+                <div class="compact-form-row">
+                    <label class="compact-form-label">Trip</label>
                     <select id="budTrip" class="glass-input" style="width:100%;"><option value="all">All Trips</option>${t}</select>
                 </div>
-                <div style="margin-bottom:12px;">
-                    <label style="display:block; font-size:0.8rem; margin-bottom:4px; font-weight:600;">Category</label>
+                <div class="compact-form-row">
+                    <label class="compact-form-label">Category</label>
                     <select id="budCat" class="glass-input" style="width:100%;"><option value="all">All Categories</option>${n}</select>
                 </div>
-                <div style="margin-bottom:12px;">
-                    <label style="display:block; font-size:0.8rem; margin-bottom:4px; font-weight:600;">Person</label>
+                <div class="compact-form-row">
+                    <label class="compact-form-label">Person</label>
                     <select id="budUser" class="glass-input" style="width:100%;"><option value="all">Everyone</option>${r}</select>
                 </div>
-                <div style="display: grid; grid-template-columns: 1fr 100px; gap: 12px; margin-bottom: 16px;">
+                <div style="display: grid; grid-template-columns: 1fr 100px; gap: var(--space-3); margin-bottom: var(--space-4);">
                     <div>
-                        <label style="display:block; font-size:0.8rem; margin-bottom:4px; font-weight:600;">Target Amount</label>
+                        <label class="compact-form-label">Target Amount</label>
                         <input type="number" id="budAmt" class="glass-input" style="width:100%;" placeholder="e.g. 1000">
                     </div>
                     <div>
-                        <label style="display:block; font-size:0.8rem; margin-bottom:4px; font-weight:600;">Currency</label>
+                        <label class="compact-form-label">Currency</label>
                         <select id="budCurr" class="glass-input" style="width:100%;">
                             ${Object.keys(o).map(e=>`<option value="${e}" ${x()===e?`selected`:``}>${e}</option>`).join(``)}
                         </select>
                     </div>
                 </div>
-                <button id="saveBudgetBtn" class="btn" style="width:100%; background: var(--accent-blue);">Save Budget</button>
+                <button id="saveBudgetBtn" class="btn-primary" style="width:100%;">Save Budget</button>
             </div>
             
             <div class="card glass card-glow-blue">
