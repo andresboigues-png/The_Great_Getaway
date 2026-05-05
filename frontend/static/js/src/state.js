@@ -92,6 +92,23 @@ export function loadState() {
     for (const trip of STATE.archivedTrips || []) {
         trip.companions = normalizeTripCompanions(trip.companions);
     }
+
+    // Backfill: every trip the current user owns should have a self-linked
+    // companion entry so the Who-Paid dropdown lists them out of the box.
+    // openNewTripModal stamps this for new trips going forward; this loop
+    // covers trips that were created before the auto-stamp landed.
+    if (STATE.user?.id) {
+        const me = STATE.user;
+        const myFirstName = me.name?.split(' ')[0] || 'Me';
+        for (const trip of STATE.trips || []) {
+            if (trip.ownerId !== me.id) continue;
+            const hasSelf = (trip.companions || []).some(c => c.linkedUserId === me.id);
+            if (!hasSelf) {
+                if (!trip.companions) trip.companions = [];
+                trip.companions.unshift({ name: myFirstName, linkedUserId: me.id });
+            }
+        }
+    }
     STATE.tripDays.forEach(d => {
         if (!d.tickets) d.tickets = [];
         if (d.notes === undefined) d.notes = '';

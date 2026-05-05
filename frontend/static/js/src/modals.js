@@ -194,6 +194,19 @@ export const openNewTripModal = () => {
         // member row via `_ensure_owner_member_row`; without these client
         // fields the UI would treat the creator as a Relaxer until the
         // next /api/data poll.
+        // Auto-add the trip creator as a linked companion so they appear
+        // in the Who-Paid dropdown, the settlement balance roster, and the
+        // chip panel out of the box. Linked-to-self matches the trip_members
+        // entry the server creates via _ensure_owner_member_row, which means
+        // the home chip dedup collapses this companion into the Owner chip
+        // (no duplicate row). Without this stamp, fresh trips would have an
+        // empty companions array and the user couldn't log an expense
+        // against themselves until they opened the picker.
+        const userFirstName = STATE.user?.name?.split(' ')[0] || 'Me';
+        /** @type {import('./types').Companion[]} */
+        const initialCompanions = STATE.user?.id
+            ? [{ name: userFirstName, linkedUserId: STATE.user.id }]
+            : [];
         const newTrip = {
             id, name,
             country: pickedPlace.name,
@@ -208,9 +221,7 @@ export const openNewTripModal = () => {
             ownerId: STATE.user?.id,
             myRole: ROLE_PLANNER,
             myArchived: false,
-            // Trip starts with no companions — the user adds them via the
-            // companions modal on the Home page (see openCompanionPickerModal).
-            companions: /** @type {import('./types').Companion[]} */ ([]),
+            companions: initialCompanions,
         };
 
         STATE.trips.push(newTrip);

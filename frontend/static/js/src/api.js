@@ -61,6 +61,19 @@ export async function pullFromServer() {
             ...t,
             companions: normalizeTripCompanions(t.companions),
         }));
+        // Backfill: every trip the current user OWNS should carry a
+        // self-linked companion entry so they appear in the Who-Paid
+        // dropdown / settlement balance / chip panel without an extra
+        // step. Matches the stamp openNewTripModal applies for new trips.
+        const me = STATE.user;
+        const myFirstName = me?.name?.split(' ')[0] || 'Me';
+        for (const trip of allTrips) {
+            if (!me || trip.ownerId !== me.id) continue;
+            const hasSelf = trip.companions.some(c => c.linkedUserId === me.id);
+            if (!hasSelf) {
+                trip.companions.unshift({ name: myFirstName, linkedUserId: me.id });
+            }
+        }
         STATE.trips = allTrips.filter(t => !t.isArchived);
         STATE.archivedTrips = allTrips.filter(t => t.isArchived);
 
