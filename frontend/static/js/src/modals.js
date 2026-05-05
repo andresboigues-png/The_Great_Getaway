@@ -31,6 +31,51 @@ import { showModal } from './components/Modal.js';
  *             countryCode: string|null }} PickedPlace
  */
 
+/** Generate one trip-day per date in [startDate, endDate] inclusive,
+ *  starting from `startDayNumber`. Each generated day has lat/lng=null
+ *  (no pin yet) so the home Path renders them with the dashed
+ *  "needs a pin" hint. The user can fill in pins/plans later — these
+ *  are scaffolding rows.
+ *
+ *  Returns the IDs of the inserted days (so the caller can sync them).
+ *  No-ops if dates are invalid or end < start.
+ *
+ *  @param {string} tripId
+ *  @param {string} startDate - 'YYYY-MM-DD'
+ *  @param {string} endDate   - 'YYYY-MM-DD'
+ *  @param {number} startDayNumber
+ *  @returns {import('./types').TripDay[]}
+ */
+function _scaffoldTripDays(tripId, startDate, endDate, startDayNumber) {
+    /** @type {import('./types').TripDay[]} */
+    const created = [];
+    if (!startDate || !endDate) return created;
+    const start = new Date(startDate + 'T00:00:00');
+    const end = new Date(endDate + 'T00:00:00');
+    if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) return created;
+
+    let dayNumber = startDayNumber;
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        const iso = d.toISOString().split('T')[0];
+        /** @type {import('./types').TripDay} */
+        const day = {
+            id: generateId(),
+            tripId,
+            name: `Day ${dayNumber}`,
+            date: iso,
+            dayNumber,
+            photos: [],
+            notes: '',
+            plan: { morning: '', afternoon: '', evening: '' },
+            lat: null,
+            lng: null,
+        };
+        created.push(day);
+        dayNumber += 1;
+    }
+    return created;
+}
+
 /**
  * Wires Google Places Autocomplete on a text input. Returns a getter the
  * caller invokes on submit. Shared between create-trip + edit-trip modals so
@@ -150,11 +195,22 @@ export const openNewTripModal = () => {
                     <label class="form-label">Adventure Name</label>
                     <input type="text" id="tripName" class="glass-input-modal" placeholder="e.g. Summer in Tuscany" required>
                 </div>
-                <div style="margin-bottom: var(--space-2); width: 100%; position: relative;">
+                <div style="margin-bottom: var(--space-4); width: 100%; position: relative;">
                     <label class="form-label">Destination</label>
                     <input type="text" id="tripPlaceInput" class="glass-input-modal" placeholder="Search a country, city, or address..." autocomplete="off">
                     <p id="tripPlaceHint" class="form-hint">Pick a suggestion to confirm the location.</p>
                 </div>
+                <div style="display: flex; gap: var(--space-3); width: 100%; margin-bottom: var(--space-2);">
+                    <div style="flex: 1;">
+                        <label class="form-label">Start date <span style="opacity: 0.5; font-weight: 500;">(optional)</span></label>
+                        <input type="date" id="tripStartDate" class="glass-input-modal">
+                    </div>
+                    <div style="flex: 1;">
+                        <label class="form-label">End date <span style="opacity: 0.5; font-weight: 500;">(optional)</span></label>
+                        <input type="date" id="tripEndDate" class="glass-input-modal">
+                    </div>
+                </div>
+                <p class="form-hint" style="margin-bottom: var(--space-4); width: 100%;">If you fill these in, we'll create one empty Path day per date — you can pin places later.</p>
                 <div style="display: flex; gap: var(--space-3); width: 100%; margin-top: var(--space-4);">
                     <button type="submit" id="newTripSubmitBtn" class="btn-primary" style="flex: 2;" disabled>Create Trip</button>
                     <button type="button" id="cancelTripBtn" class="btn-ghost" style="flex: 1;">Cancel</button>
@@ -241,8 +297,22 @@ export const openNewTripModal = () => {
         STATE.trips.push(newTrip);
         STATE.activeTripId = id;
 
+        // Optional: auto-create one empty Path day per date in the
+        // user-supplied range. Each scaffolded day has no pin yet
+        // (lat/lng=null) so the home Path renders them with the dashed
+        // "needs a pin" hint. The user fills in places + plans later.
+        // Day numbering starts at 1 since the trip-genesis day (day 0)
+        // is created elsewhere as the trip's location anchor.
+        const startDate = /** @type {HTMLInputElement} */ (q(root, '#tripStartDate')).value;
+        const endDate = /** @type {HTMLInputElement} */ (q(root, '#tripEndDate')).value;
+        const scaffolded = _scaffoldTripDays(id, startDate, endDate, 1);
+        if (scaffolded.length > 0) {
+            STATE.tripDays.push(...scaffolded);
+        }
+
         emit('state:changed');               // saveState + updateTripSelector via subscriber
         upsertTrip(newTrip);                 // server delta still explicit
+        scaffolded.forEach(d => upsertDay(d));
 
         close();
         navigate('home');
@@ -270,11 +340,22 @@ export const openEditTripModal = (trip) => {
                     <label class="form-label">Adventure Name</label>
                     <input type="text" id="editTripName" class="glass-input-modal" required>
                 </div>
-                <div style="margin-bottom: var(--space-2); width: 100%; position: relative;">
+                <div style="margin-bottom: var(--space-4); width: 100%; position: relative;">
                     <label class="form-label">Destination</label>
                     <input type="text" id="editTripPlaceInput" class="glass-input-modal" placeholder="Search a country, city, or address..." autocomplete="off">
                     <p id="editTripPlaceHint" class="form-hint">Pick a new suggestion to change the location, or just rename.</p>
                 </div>
+                <div style="display: flex; gap: var(--space-3); width: 100%; margin-bottom: var(--space-2);">
+                    <div style="flex: 1;">
+                        <label class="form-label">Start date <span style="opacity: 0.5; font-weight: 500;">(optional)</span></label>
+                        <input type="date" id="editTripStartDate" class="glass-input-modal">
+                    </div>
+                    <div style="flex: 1;">
+                        <label class="form-label">End date <span style="opacity: 0.5; font-weight: 500;">(optional)</span></label>
+                        <input type="date" id="editTripEndDate" class="glass-input-modal">
+                    </div>
+                </div>
+                <p id="editTripDateHint" class="form-hint" style="margin-bottom: var(--space-4); width: 100%;"></p>
                 <div style="display: flex; gap: var(--space-3); width: 100%; margin-top: var(--space-4);">
                     <button type="submit" id="editTripSubmitBtn" class="btn-primary" style="flex: 2;">Save Changes</button>
                     <button type="button" id="cancelEditTripBtn" class="btn-ghost" style="flex: 1;">Cancel</button>
@@ -285,6 +366,24 @@ export const openEditTripModal = (trip) => {
 
     const nameInput = /** @type {HTMLInputElement} */ (q(root, '#editTripName'));
     nameInput.value = trip.name || '';
+
+    // Pre-fill date inputs from existing days when the trip already has
+    // numbered ones; otherwise leave blank so a fresh date range can be
+    // entered. Auto-generation only fires when the trip has zero numbered
+    // days, so the dates are read-only-with-feedback when days exist.
+    const numberedDays = (STATE.tripDays || [])
+        .filter(d => d.tripId === trip.id && d.dayNumber > 0)
+        .sort((a, b) => a.dayNumber - b.dayNumber);
+    const startInput = /** @type {HTMLInputElement} */ (q(root, '#editTripStartDate'));
+    const endInput = /** @type {HTMLInputElement} */ (q(root, '#editTripEndDate'));
+    const dateHint = q(root, '#editTripDateHint');
+    if (numberedDays.length > 0) {
+        startInput.value = numberedDays[0].date || '';
+        endInput.value = numberedDays[numberedDays.length - 1].date || '';
+        dateHint.textContent = "This trip already has Path days — edit each day individually to change dates.";
+    } else {
+        dateHint.textContent = "If you fill these in, we'll create one empty Path day per date — you can pin places later.";
+    }
 
     const placeInput = /** @type {HTMLInputElement} */ (q(root, '#editTripPlaceInput'));
     const hint = q(root, '#editTripPlaceHint');
@@ -352,8 +451,18 @@ export const openEditTripModal = (trip) => {
             }
         }
 
+        // Auto-scaffold Path days from the date range — only when the trip
+        // has no numbered days yet. With existing days we leave them
+        // alone (the hint above explains the constraint to the user).
+        let scaffolded = /** @type {import('./types').TripDay[]} */ ([]);
+        if (numberedDays.length === 0) {
+            scaffolded = _scaffoldTripDays(trip.id, startInput.value, endInput.value, 1);
+            if (scaffolded.length > 0) STATE.tripDays.push(...scaffolded);
+        }
+
         emit('state:changed');
         upsertTrip(trip);
+        scaffolded.forEach(d => upsertDay(d));
 
         close();
         navigate('home', null, true);

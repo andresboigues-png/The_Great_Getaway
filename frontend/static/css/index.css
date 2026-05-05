@@ -2259,6 +2259,24 @@ h1 {
     border-color: rgba(0,113,227,0.2);
 }
 
+/* Unpinned-day hint — subtle dashed border with a faint blue tint so
+   the user notices days that still need a place pinned without it
+   being loud or distracting. Inline `border: 1.5px solid ...` on the
+   day-card sets style + color in one shot, so this needs !important
+   to override style+color while keeping width. The is-open state keeps
+   the strong accent-blue border (just dashed) so the active card still
+   reads as selected. */
+.day-card--unpinned {
+    border-style: dashed !important;
+    border-color: rgba(0, 113, 227, 0.18) !important;
+}
+.day-card--unpinned.is-open {
+    border-color: var(--accent-blue) !important;
+}
+.day-card:not(.is-open).day-card--unpinned:hover {
+    border-color: rgba(0, 113, 227, 0.35) !important;
+}
+
 /* Soft sub-card — used inside light modals for morning/afternoon/evening
    plan blocks, etc. Subtle dark fill with thin border, distinct from
    the parent card. */

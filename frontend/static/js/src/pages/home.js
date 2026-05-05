@@ -856,7 +856,12 @@ export function renderHome() {
                     ` : ''}
 
                     <!-- MAIN CARD -->
-                    <div class="day-card card glass${isOpen ? ' is-open' : ''}"
+                    <!-- Days without a pin (lat/lng both null/zero) get
+                         the .day-card--unpinned modifier — a subtle
+                         dashed border so the user notices but isn't
+                         distracted. Genesis day always has the trip's
+                         location, so it's never marked unpinned. -->
+                    <div class="day-card card glass${isOpen ? ' is-open' : ''}${(!isStartingPoint && !day.lat && !day.lng) ? ' day-card--unpinned' : ''}"
                          data-day-id="${day.id}"
                          role="button" tabindex="0"
                          aria-label="${esc(day.name || `Day ${day.dayNumber}`)} — ${isOpen ? 'collapse' : 'expand'}"
@@ -1038,8 +1043,11 @@ export function renderHome() {
         }, 0);
     }
 
-    // Toggle state for Quick Access (Moved to bottom)
-    const isHidden = STATE.hideQuickAccess === true;
+    // Toggle state for Quick Access — hidden by default. Anyone who
+    // explicitly opens it (which sets STATE.hideQuickAccess = false)
+    // keeps seeing it until they hit Hide; everyone else (undefined or
+    // true) sees only the small "Show Quick Access" button.
+    const isHidden = STATE.hideQuickAccess !== false;
 
     if (isHidden) {
         const showBtnContainer = document.createElement('div');
