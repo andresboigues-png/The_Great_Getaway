@@ -2450,6 +2450,38 @@ h1 {
     box-shadow: 0 20px 50px rgba(0,0,0,0.2);
 }
 
+/* Expenses page sub-tab bar — title + thin accent-blue baseline + tab row.
+   Active tab sits on the baseline via a 2px bottom border that overlaps
+   the parent's 1px border (`margin-bottom: -1px`). */
+.expenses-tabnav {
+    display: flex;
+    gap: 36px;
+    border-bottom: 1px solid rgba(0, 113, 227, 0.25);
+    margin: 0 0 32px;
+    padding: 0 4px;
+}
+.expenses-tabnav__tab {
+    background: none;
+    border: 0;
+    padding: 14px 0 12px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: color 0.2s, border-color 0.2s;
+    letter-spacing: -0.01em;
+}
+.expenses-tabnav__tab:hover {
+    color: var(--accent-blue);
+}
+.expenses-tabnav__tab.is-active {
+    color: var(--accent-blue);
+    border-bottom-color: var(--accent-blue);
+    font-weight: 800;
+}
+
 /* Small clear-filters chip — already-red pill that darkens on hover. */
 .btn-chip-danger {
     font-size: var(--font-2xs);

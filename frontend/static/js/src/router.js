@@ -1,8 +1,7 @@
 // @ts-check
 import { PAGES } from './constants.js';
 import { renderHome, stopHomeSlideshow } from './pages/home.js';
-import { renderExpenses } from './pages/expenses.js';
-import { renderUpload } from './pages/upload.js';
+import { renderExpenses, setExpensesTab } from './pages/expenses.js';
 import { renderInsights } from './pages/insights.js';
 import { renderSettings, renderPersonalization } from './pages/settings.js';
 import { renderBudgets } from './pages/budgets.js';
@@ -38,7 +37,12 @@ export function navigate(page, params = null, preserveScroll = false) {
     switch (page) {
         case PAGES.HOME: pageEl = renderHome(); break;
         case PAGES.EXPENSES: pageEl = renderExpenses(); break;
-        case PAGES.UPLOAD: pageEl = renderUpload(); break;
+        // /upload was merged into /expenses (Batch tab). Recurse to expenses
+        // so the URL hash + nav-item highlight reflect the canonical route
+        // — old bookmarks to #upload still land on the right tab.
+        case PAGES.UPLOAD:
+            setExpensesTab('batch');
+            return navigate(PAGES.EXPENSES, params, preserveScroll);
         case PAGES.INSIGHTS: pageEl = renderInsights(); break;
         case PAGES.SETTINGS: pageEl = renderSettings(); break;
         case PAGES.PERSONALIZATION: pageEl = renderPersonalization(); break;

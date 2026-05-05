@@ -1,5 +1,11 @@
 // @ts-check
 // pages/expenses.js
+//
+// Expenses page is a tabbed UI: Manual Upload (the per-row form), Batch
+// Upload (the spreadsheet importer, lifted from the old /upload page), and
+// History (filterable + sortable list). The active tab persists across
+// navigations via the module-level `activeExpensesTab` so editing an expense
+// and coming back lands the user on the right tab.
 
 import { STATE, emit } from '../state.js';
 import { COUNTRIES, CONVERSION_RATES } from '../constants.js';
@@ -7,13 +13,23 @@ import { generateId, showConfirmModal, q, formatHome, getHomeCurrency } from '..
 import { upsertExpense, deleteExpenseOnServer } from '../api.js';
 import { navigate } from '../router.js';
 import { showPersTab } from './settings.js';
+import { renderUpload } from './upload.js';
+
+/** @type {'manual' | 'batch' | 'history'} */
+let activeExpensesTab = 'manual';
+
+/** Set the active tab before rendering — used by the /upload route to land
+ *  users on the Batch tab without breaking deep links from before the merge. */
+export function setExpensesTab(/** @type {'manual' | 'batch' | 'history'} */ tab) {
+    activeExpensesTab = tab;
+}
 
 export const openEditExpenseModal = (id) => {
     const e = STATE.expenses.find(exp => exp.id === id);
     if (!e) return;
     STATE.draftExpense = { ...e };
     STATE.activeTripId = e.tripId;
-
+    activeExpensesTab = 'manual';
     emit('state:changed');               // saveState via subscriber
     navigate('expenses');
 };
@@ -28,6 +44,7 @@ export const deleteExpense = (id) => {
 
             emit('state:changed');               // saveState via subscriber
             deleteExpenseOnServer(id);           // server delta still explicit
+            activeExpensesTab = 'history';
             navigate('expenses');
         }
     });
@@ -41,6 +58,57 @@ export function renderExpenses() {
         return div;
     }
 
+    div.innerHTML = `
+        <h1 style="margin-bottom: 12px;">Expenses</h1>
+        <nav class="expenses-tabnav" role="tablist">
+            <button class="expenses-tabnav__tab" data-tab="manual" role="tab">Manual Upload</button>
+            <button class="expenses-tabnav__tab" data-tab="batch" role="tab">Batch Upload</button>
+            <button class="expenses-tabnav__tab" data-tab="history" role="tab">History</button>
+        </nav>
+        <div id="expensesTabContent"></div>
+    `;
+
+    const mountTab = () => {
+        const content = q(div, '#expensesTabContent');
+        content.innerHTML = '';
+
+        div.querySelectorAll('.expenses-tabnav__tab').forEach(t => {
+            const el = /** @type {HTMLElement} */ (t);
+            el.classList.toggle('is-active', el.dataset.tab === activeExpensesTab);
+        });
+
+        if (activeExpensesTab === 'manual') {
+            content.appendChild(renderManualTab());
+        } else if (activeExpensesTab === 'batch') {
+            content.appendChild(renderUpload());
+        } else {
+            content.appendChild(renderHistoryTab());
+        }
+    };
+
+    div.querySelectorAll('.expenses-tabnav__tab').forEach(t => {
+        const el = /** @type {HTMLElement} */ (t);
+        el.addEventListener('click', () => {
+            const tab = el.dataset.tab;
+            if (tab === 'manual' || tab === 'batch' || tab === 'history') {
+                activeExpensesTab = tab;
+                mountTab();
+            }
+        });
+    });
+
+    setTimeout(mountTab, 0);
+
+    return div;
+}
+
+// ── Manual Upload tab ───────────────────────────────────────────────────────
+// The per-row expense form, with split editor, country search, and live
+// draft persistence to STATE.draftExpense.
+
+function renderManualTab() {
+    const wrapper = document.createElement('div');
+
     // Build People Options
     let peopleOptions = STATE.groups.map(p => `<option value="${p}">${p}</option>`).join('');
     if (!peopleOptions) peopleOptions = `<option value="">Add companions in the personalisation section</option>`;
@@ -48,171 +116,96 @@ export function renderExpenses() {
     // Build Category Options
     const categoryOptions = STATE.categories.map(c => `<option value="${c.id}">${c.icon} ${c.name}</option>`).join('');
 
-    div.innerHTML = `
-        <h1 style="margin-bottom: 32px;">Expenses</h1>
-        <div style="display: flex; flex-direction: column; gap: 60px;">
-            <!-- Add Expense Section -->
-            <div class="card glass" style="max-width: 600px; margin: 0 auto; width: 100%; border-radius: 44px; border: 1px solid rgba(255,255,255,0.4); background: rgba(255,255,255,0.15); backdrop-filter: blur(25px); padding: 48px; box-shadow: 0 40px 100px rgba(0,0,0,0.25);">
-                <h2 class="card-title" style="font-size: 2.2rem; margin-bottom: 32px; color: #000000; letter-spacing: -0.06em; font-weight: 800; text-align: center;">Add Expense</h2>
-                <form id="expenseForm" style="display: flex; flex-direction: column; align-items: center; width: 100%;">
-                    
-                    <div class="form-row">
-                        <label class="form-label-light">Who Paid</label>
-                        <select id="expWho" class="glass-input-light" required>
-                            ${peopleOptions}
-                        </select>
-                        ${!STATE.groups || STATE.groups.length === 0 ? `
-                        <div id="addCompanionsHelper" style="margin-top: var(--space-3); font-size: var(--font-sm); color: var(--accent-blue); font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px;">
-                            <span>➕</span> <span style="text-decoration: underline;">Add companions in the personalization section</span>
-                        </div>` : ''}
-                    </div>
+    wrapper.innerHTML = `
+        <div class="card glass" style="max-width: 600px; margin: 0 auto; width: 100%; border-radius: 44px; border: 1px solid rgba(255,255,255,0.4); background: rgba(255,255,255,0.15); backdrop-filter: blur(25px); padding: 48px; box-shadow: 0 40px 100px rgba(0,0,0,0.25);">
+            <h2 class="card-title" style="font-size: 2.2rem; margin-bottom: 32px; color: #000000; letter-spacing: -0.06em; font-weight: 800; text-align: center;">Add Expense</h2>
+            <form id="expenseForm" style="display: flex; flex-direction: column; align-items: center; width: 100%;">
 
-                    <div class="form-row">
-                        <label class="form-label-light">Category</label>
-                        <select id="expCategory" class="glass-input-light" required>
-                            ${categoryOptions}
-                        </select>
-                    </div>
+                <div class="form-row">
+                    <label class="form-label-light">Who Paid</label>
+                    <select id="expWho" class="glass-input-light" required>
+                        ${peopleOptions}
+                    </select>
+                    ${!STATE.groups || STATE.groups.length === 0 ? `
+                    <div id="addCompanionsHelper" style="margin-top: var(--space-3); font-size: var(--font-sm); color: var(--accent-blue); font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                        <span>➕</span> <span style="text-decoration: underline;">Add companions in the personalization section</span>
+                    </div>` : ''}
+                </div>
 
-                    <div class="form-row">
-                        <label class="form-label-light">Label</label>
-                        <input type="text" id="expLabel" class="glass-input-light" placeholder="e.g. Dinner at Mario's" required>
-                    </div>
+                <div class="form-row">
+                    <label class="form-label-light">Category</label>
+                    <select id="expCategory" class="glass-input-light" required>
+                        ${categoryOptions}
+                    </select>
+                </div>
 
-                    <div class="form-row">
-                        <label class="form-label-light">Date</label>
-                        <input type="date" id="expDate" class="glass-input-light" required>
-                    </div>
+                <div class="form-row">
+                    <label class="form-label-light">Label</label>
+                    <input type="text" id="expLabel" class="glass-input-light" placeholder="e.g. Dinner at Mario's" required>
+                </div>
 
-                    <div class="form-row" style="position: relative;" id="countrySearchContainer">
-                        <label class="form-label-light">Country</label>
-                        <div class="custom-select-wrapper">
-                            <input type="text" id="expCountry" class="glass-input-light" placeholder="Search country..." autocomplete="off">
-                            <div id="countryDropdownList" class="custom-select-dropdown glass shadow-xl" style="display: none; position: absolute; top: 100%; left: 0; right: 0; z-index: 1000; max-height: 250px; overflow-y: auto; margin-top: var(--space-2); border-radius: var(--radius-xl); border: 1px solid rgba(0,0,0,0.1); background: rgba(255,255,255,0.95); backdrop-filter: blur(20px);">
-                                ${COUNTRIES.sort().map(c => `<div class="dropdown-item" data-value="${c}">${c}</div>`).join('')}
-                                <div class="dropdown-item" data-value="Other">Other</div>
-                            </div>
-                        </div>
-                    </div>
+                <div class="form-row">
+                    <label class="form-label-light">Date</label>
+                    <input type="date" id="expDate" class="glass-input-light" required>
+                </div>
 
-                    <div class="form-row">
-                        <label class="form-label-light">Value</label>
-                        <input type="number" step="0.01" id="expValue" class="glass-input-light" style="font-weight: 700;" required>
-                    </div>
-
-                    <div class="form-row" style="margin-bottom: var(--space-8);">
-                        <label class="form-label-light">Currency</label>
-                        <select id="expCurrency" class="glass-input-light" required>
-                            <option value="">Select Currency...</option>
-                            ${Object.keys(CONVERSION_RATES).map(c => `<option value="${c}">${c}</option>`).join('')}
-                        </select>
-                    </div>
-                    
-                    <div style="margin-bottom: 40px; background: rgba(0,0,0,0.03); padding: 32px; border-radius: 32px; border: 1px solid rgba(0,0,0,0.05); width: 100%; max-width: 440px; box-sizing: border-box;">
-                        <label style="display: block; margin-bottom: 16px; font-size: 0.9rem; font-weight: 800; color: #000000; letter-spacing: -0.02em;">Split Between</label>
-                        <div style="display: flex; gap: 14px; margin-bottom: 20px;">
-                            <select id="addSplitSelect" class="glass-input" style="flex: 1; padding: 14px; border-radius: 16px; background: rgba(255,255,255,0.4); color: #000000; font-weight: 600; border: 1px solid rgba(0,0,0,0.05); box-sizing: border-box;">
-                                <option value="">Add person to split...</option>
-                                ${STATE.groups.map(p => `<option value="${p}">${p}</option>`).join('')}
-                            </select>
-                            <button type="button" id="addSplitBtn" class="btn btn-small" style="padding: 0 24px; height: 50px; border-radius: 16px; background: #0071e3; color: #ffffff; font-weight: 700;">+ Add</button>
-                        </div>
-                        <div id="splitContainer" style="display: flex; flex-direction: column; gap: 12px;">
-                            <!-- Dynamic splitters appear here -->
-                        </div>
-                    </div>
-                    <button type="submit" class="btn-primary btn-primary--lg">Save Expense</button>
-                </form>
-            </div>
-
-            <!-- All Expenses Section -->
-            <div id="expensesContainer" style="max-width: 1000px; margin: 0 auto; width: 100%; margin-bottom: 60px;">
-                <div style="margin-bottom: 40px; padding: 0 10px;">
-                    <div class="card glass" style="padding: 32px; border-radius: 32px; background: linear-gradient(135deg, rgba(255,255,255,0.4), rgba(255,255,255,0.1)); border: 1px solid rgba(255,255,255,0.5); box-shadow: 0 20px 50px rgba(0,0,0,0.05);">
-                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px;">
-                            <h2 style="font-size: 1.8rem; font-weight: 800; letter-spacing: -0.04em; margin: 0;">Expense History</h2>
-                            <div style="display: flex; gap: 8px;">
-                                <button id="clearFiltersBtn" class="btn-chip-danger">Clear Filters</button>
-                                <span style="font-size: 0.75rem; font-weight: 700; color: var(--accent-blue); background: rgba(0,113,227,0.1); padding: 6px 14px; border-radius: 100px; text-transform: uppercase;">Smart Filters</span>
-                            </div>
-                        </div>
-
-                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--space-3);">
-                            <!-- Row 1: Search (full width) -->
-                            <div style="grid-column: 1 / -1;">
-                                <label class="filter-label">Search</label>
-                                <input type="text" id="filterSearch" class="filter-input" placeholder="Search labels or items...">
-                            </div>
-
-                            <!-- Row 2: Category | Payer | (empty) -->
-                            <div>
-                                <label class="filter-label">Category</label>
-                                <select id="filterCategory" class="filter-input">
-                                    <option value="all">All Categories</option>
-                                    ${STATE.categories.map(c => `<option value="${c.id}">${c.icon} ${c.name}</option>`).join('')}
-                                    <option value="settlement">🤝 Settlement</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="filter-label">Payer</label>
-                                <select id="filterWho" class="filter-input">
-                                    <option value="all">Everyone</option>
-                                    ${STATE.groups.map(p => `<option value="${p}">${p}</option>`).join('')}
-                                </select>
-                            </div>
-                            <div></div>
-
-                            <!-- Row 3: From Date | To Date | Min–Max Value -->
-                            <div>
-                                <label class="filter-label">From Date</label>
-                                <input type="date" id="filterDateFrom" class="filter-input">
-                            </div>
-                            <div>
-                                <label class="filter-label">To Date</label>
-                                <input type="date" id="filterDateTo" class="filter-input">
-                            </div>
-                            <div>
-                                <label class="filter-label">Value Range (€)</label>
-                                <div style="display: flex; gap: var(--space-2); align-items: center;">
-                                    <input type="number" id="filterMinVal" class="filter-input" placeholder="Min" style="flex: 1; padding: var(--space-3);">
-                                    <span style="color: rgba(0,0,0,0.3); font-weight: 700; flex-shrink: 0;">–</span>
-                                    <input type="number" id="filterMaxVal" class="filter-input" placeholder="Max" style="flex: 1; padding: var(--space-3);">
-                                </div>
-                            </div>
+                <div class="form-row" style="position: relative;" id="countrySearchContainer">
+                    <label class="form-label-light">Country</label>
+                    <div class="custom-select-wrapper">
+                        <input type="text" id="expCountry" class="glass-input-light" placeholder="Search country..." autocomplete="off">
+                        <div id="countryDropdownList" class="custom-select-dropdown glass shadow-xl" style="display: none; position: absolute; top: 100%; left: 0; right: 0; z-index: 1000; max-height: 250px; overflow-y: auto; margin-top: var(--space-2); border-radius: var(--radius-xl); border: 1px solid rgba(0,0,0,0.1); background: rgba(255,255,255,0.95); backdrop-filter: blur(20px);">
+                            ${COUNTRIES.sort().map(c => `<div class="dropdown-item" data-value="${c}">${c}</div>`).join('')}
+                            <div class="dropdown-item" data-value="Other">Other</div>
                         </div>
                     </div>
                 </div>
-                <div id="tripExpensesList" style="display: flex; flex-direction: column; gap: 20px;"></div>
-            </div>
+
+                <div class="form-row">
+                    <label class="form-label-light">Value</label>
+                    <input type="number" step="0.01" id="expValue" class="glass-input-light" style="font-weight: 700;" required>
+                </div>
+
+                <div class="form-row" style="margin-bottom: var(--space-8);">
+                    <label class="form-label-light">Currency</label>
+                    <select id="expCurrency" class="glass-input-light" required>
+                        <option value="">Select Currency...</option>
+                        ${Object.keys(CONVERSION_RATES).map(c => `<option value="${c}">${c}</option>`).join('')}
+                    </select>
+                </div>
+
+                <div style="margin-bottom: 40px; background: rgba(0,0,0,0.03); padding: 32px; border-radius: 32px; border: 1px solid rgba(0,0,0,0.05); width: 100%; max-width: 440px; box-sizing: border-box;">
+                    <label style="display: block; margin-bottom: 16px; font-size: 0.9rem; font-weight: 800; color: #000000; letter-spacing: -0.02em;">Split Between</label>
+                    <div style="display: flex; gap: 14px; margin-bottom: 20px;">
+                        <select id="addSplitSelect" class="glass-input" style="flex: 1; padding: 14px; border-radius: 16px; background: rgba(255,255,255,0.4); color: #000000; font-weight: 600; border: 1px solid rgba(0,0,0,0.05); box-sizing: border-box;">
+                            <option value="">Add person to split...</option>
+                            ${STATE.groups.map(p => `<option value="${p}">${p}</option>`).join('')}
+                        </select>
+                        <button type="button" id="addSplitBtn" class="btn btn-small" style="padding: 0 24px; height: 50px; border-radius: 16px; background: #0071e3; color: #ffffff; font-weight: 700;">+ Add</button>
+                    </div>
+                    <div id="splitContainer" style="display: flex; flex-direction: column; gap: 12px;">
+                        <!-- Dynamic splitters appear here -->
+                    </div>
+                </div>
+                <button type="submit" class="btn-primary btn-primary--lg">Save Expense</button>
+                <div id="manualSaveStatus" style="margin-top: 16px; font-weight: 700; text-align: center;"></div>
+            </form>
         </div>
     `;
 
-    // Handle Form Submit & Draft Saving
     setTimeout(() => {
-        div.querySelector('#addCompanionsHelper')?.addEventListener('click', () => {
+        wrapper.querySelector('#addCompanionsHelper')?.addEventListener('click', () => {
             navigate('personalization');
             // Settings DOM doesn't exist until navigate renders it.
             setTimeout(() => showPersTab('companions'), 50);
         });
 
-        // Delegated handler for per-row edit/delete in #tripExpensesList — listener
-        // attached on div once; rows are re-rendered by renderTripExpenses().
-        div.addEventListener('click', (e) => {
-            const target = /** @type {HTMLElement | null} */ (e.target);
-            if (!target) return;
-            const editBtn = /** @type {HTMLElement | null} */ (target.closest('.expense-edit-btn'));
-            if (editBtn?.dataset.expenseId) { openEditExpenseModal(editBtn.dataset.expenseId); return; }
-            const delBtn = /** @type {HTMLElement | null} */ (target.closest('.expense-delete-btn'));
-            if (delBtn?.dataset.expenseId) { deleteExpense(delBtn.dataset.expenseId); return; }
-        });
-
-        const form = /** @type {HTMLFormElement} */ (q(div, '#expenseForm'));
-        const splitContainer = q(div, '#splitContainer');
-        const addSplitSelect = /** @type {HTMLSelectElement} */ (q(div, '#addSplitSelect'));
-        const addSplitBtn = /** @type {HTMLButtonElement} */ (q(div, '#addSplitBtn'));
+        const form = /** @type {HTMLFormElement} */ (q(wrapper, '#expenseForm'));
+        const splitContainer = q(wrapper, '#splitContainer');
+        const addSplitSelect = /** @type {HTMLSelectElement} */ (q(wrapper, '#addSplitSelect'));
+        const addSplitBtn = /** @type {HTMLButtonElement} */ (q(wrapper, '#addSplitBtn'));
 
         /** @type {string[]} */
-        let activeSplitters = []; // Array of names currently in the split
+        let activeSplitters = [];
 
         function updateSplitUI() {
             if (activeSplitters.length === 0) {
@@ -232,7 +225,6 @@ export function renderExpenses() {
                 </div>
             `).join('');
 
-            // Attach remove listeners
             splitContainer.querySelectorAll('.remove-splitter').forEach(btn => {
                 /** @type {HTMLButtonElement} */ (btn).onclick = () => {
                     const person = btn.getAttribute('data-person');
@@ -253,13 +245,13 @@ export function renderExpenses() {
         // Populate from draft
         if (STATE.draftExpense) {
             const d = STATE.draftExpense;
-            if (d.who) /** @type {HTMLSelectElement} */ (q(div, '#expWho')).value = d.who;
-            if (d.categoryId) /** @type {HTMLSelectElement} */ (q(div, '#expCategory')).value = d.categoryId;
-            if (d.label) /** @type {HTMLInputElement} */ (q(div, '#expLabel')).value = d.label;
-            if (d.date) /** @type {HTMLInputElement} */ (q(div, '#expDate')).value = d.date;
-            if (d.country) /** @type {HTMLInputElement} */ (q(div, '#expCountry')).value = d.country;
-            if (d.value) /** @type {HTMLInputElement} */ (q(div, '#expValue')).value = String(d.value);
-            if (d.currency) /** @type {HTMLSelectElement} */ (q(div, '#expCurrency')).value = d.currency;
+            if (d.who) /** @type {HTMLSelectElement} */ (q(wrapper, '#expWho')).value = d.who;
+            if (d.categoryId) /** @type {HTMLSelectElement} */ (q(wrapper, '#expCategory')).value = d.categoryId;
+            if (d.label) /** @type {HTMLInputElement} */ (q(wrapper, '#expLabel')).value = d.label;
+            if (d.date) /** @type {HTMLInputElement} */ (q(wrapper, '#expDate')).value = d.date;
+            if (d.country) /** @type {HTMLInputElement} */ (q(wrapper, '#expCountry')).value = d.country;
+            if (d.value) /** @type {HTMLInputElement} */ (q(wrapper, '#expValue')).value = String(d.value);
+            if (d.currency) /** @type {HTMLSelectElement} */ (q(wrapper, '#expCurrency')).value = d.currency;
         }
 
         // Live Save Draft
@@ -277,13 +269,13 @@ export function renderExpenses() {
                 if (id === 'expValue') STATE.draftExpense.value = val;
                 if (id === 'expCurrency') STATE.draftExpense.currency = val;
 
-                emit('state:changed'); // Persist draft too
+                emit('state:changed');
             });
         });
 
         // Custom Searchable Dropdown Logic
-        const countryInput = /** @type {HTMLInputElement} */ (q(div, '#expCountry'));
-        const countryList = q(div, '#countryDropdownList');
+        const countryInput = /** @type {HTMLInputElement} */ (q(wrapper, '#expCountry'));
+        const countryList = q(wrapper, '#countryDropdownList');
         const countryItems = /** @type {NodeListOf<HTMLElement>} */ (countryList.querySelectorAll('.dropdown-item'));
 
         countryInput.onfocus = () => {
@@ -304,19 +296,16 @@ export function renderExpenses() {
                 countryInput.value = item.getAttribute('data-value') ?? '';
                 countryList.style.display = 'none';
                 e.stopPropagation();
-
-                // Trigger draft save manually since we set value programmatically
                 STATE.draftExpense.country = countryInput.value;
                 emit('state:changed');
             };
-            // Hover handled by CSS `.dropdown-item:hover` — no JS needed.
         });
 
         // Click outside to close
         document.addEventListener('click', (e) => {
             const target = /** @type {Node | null} */ (e.target);
-            const container = q(div, '#countrySearchContainer');
-            if (!target || !container.contains(target)) {
+            const container = wrapper.querySelector('#countrySearchContainer');
+            if (!target || !container || !container.contains(target)) {
                 countryList.style.display = 'none';
             }
         });
@@ -326,12 +315,12 @@ export function renderExpenses() {
             if (!STATE.activeTripId) return;
             const tripId = STATE.activeTripId;
 
-            const payer = /** @type {HTMLSelectElement} */ (q(div, '#expWho')).value;
+            const payer = /** @type {HTMLSelectElement} */ (q(wrapper, '#expWho')).value;
             /** @type {Record<string, number>} */
             const splits = {};
             let totalSplit = 0;
 
-            const splitInputs = /** @type {NodeListOf<HTMLInputElement>} */ (div.querySelectorAll('.split-input'));
+            const splitInputs = /** @type {NodeListOf<HTMLInputElement>} */ (wrapper.querySelectorAll('.split-input'));
             if (splitInputs.length > 0) {
                 splitInputs.forEach(input => {
                     const val = parseFloat(input.value) || 0;
@@ -345,12 +334,11 @@ export function renderExpenses() {
                     return;
                 }
             } else {
-                // Default: 100% to payer
                 splits[payer] = 100;
             }
 
-            const val = parseFloat(/** @type {HTMLInputElement} */ (q(div, '#expValue')).value);
-            const curr = /** @type {HTMLSelectElement} */ (q(div, '#expCurrency')).value.toUpperCase();
+            const val = parseFloat(/** @type {HTMLInputElement} */ (q(wrapper, '#expValue')).value);
+            const curr = /** @type {HTMLSelectElement} */ (q(wrapper, '#expCurrency')).value.toUpperCase();
 
             if (isNaN(val) || val <= 0) {
                 alert("Please enter a valid expense value.");
@@ -362,7 +350,7 @@ export function renderExpenses() {
             }
 
             const activeTrip = STATE.trips.find(t => t.id === tripId);
-            const countryVal = /** @type {HTMLInputElement} */ (q(div, '#expCountry')).value || (activeTrip ? activeTrip.country : '');
+            const countryVal = /** @type {HTMLInputElement} */ (q(wrapper, '#expCountry')).value || (activeTrip ? activeTrip.country : '');
 
             const isEdit = !!STATE.draftExpense?.id;
             /** @type {import('../types').Expense} */
@@ -370,9 +358,9 @@ export function renderExpenses() {
                 id: isEdit && STATE.draftExpense.id ? STATE.draftExpense.id : generateId(),
                 tripId,
                 who: payer,
-                categoryId: /** @type {HTMLSelectElement} */ (q(div, '#expCategory')).value,
-                label: /** @type {HTMLInputElement} */ (q(div, '#expLabel')).value,
-                date: /** @type {HTMLInputElement} */ (q(div, '#expDate')).value,
+                categoryId: /** @type {HTMLSelectElement} */ (q(wrapper, '#expCategory')).value,
+                label: /** @type {HTMLInputElement} */ (q(wrapper, '#expLabel')).value,
+                date: /** @type {HTMLInputElement} */ (q(wrapper, '#expDate')).value,
                 country: countryVal,
                 value: val,
                 currency: curr,
@@ -388,62 +376,161 @@ export function renderExpenses() {
                 STATE.expenses.push(expense);
             }
 
-            // Clear draft
             STATE.draftExpense = { who: '', categoryId: '', label: '', date: '', country: '', value: '', currency: 'EUR', euroValue: '' };
 
             emit('state:changed');
-            upsertExpense(expense); // Delta: persist expense to server
-            const list = q(div, '#tripExpensesList');
-            renderTripExpenses(list);
+            upsertExpense(expense);
+
+            const status = q(wrapper, '#manualSaveStatus');
+            status.textContent = isEdit ? '✓ Expense updated — view in History' : '✓ Expense saved — view in History';
+            status.style.color = '#34c759';
+            setTimeout(() => { status.textContent = ''; }, 4000);
+
             form.reset();
             activeSplitters = [];
             updateSplitUI();
         });
 
-        // Filter Logic
-        const filterExps = () => {
-            const search = /** @type {HTMLInputElement} */ (q(div, '#filterSearch')).value.toLowerCase();
-            const catId = /** @type {HTMLSelectElement} */ (q(div, '#filterCategory')).value;
-            const who = /** @type {HTMLSelectElement} */ (q(div, '#filterWho')).value;
-            const dateFrom = /** @type {HTMLInputElement} */ (q(div, '#filterDateFrom')).value;
-            const dateTo = /** @type {HTMLInputElement} */ (q(div, '#filterDateTo')).value;
-            const minVal = parseFloat(/** @type {HTMLInputElement} */ (q(div, '#filterMinVal')).value) || 0;
-            const maxVal = parseFloat(/** @type {HTMLInputElement} */ (q(div, '#filterMaxVal')).value) || Infinity;
-
-            renderTripExpenses(q(div, '#tripExpensesList'), {
-                search, catId, who, dateFrom, dateTo, minVal, maxVal
-            });
-        };
-
-        /** @type {HTMLInputElement} */ (q(div, '#filterSearch')).oninput = filterExps;
-        /** @type {HTMLSelectElement} */ (q(div, '#filterCategory')).onchange = filterExps;
-        /** @type {HTMLSelectElement} */ (q(div, '#filterWho')).onchange = filterExps;
-        /** @type {HTMLInputElement} */ (q(div, '#filterDateFrom')).onchange = filterExps;
-        /** @type {HTMLInputElement} */ (q(div, '#filterDateTo')).onchange = filterExps;
-        /** @type {HTMLInputElement} */ (q(div, '#filterMinVal')).oninput = filterExps;
-        /** @type {HTMLInputElement} */ (q(div, '#filterMaxVal')).oninput = filterExps;
-
-        /** @type {HTMLButtonElement} */ (q(div, '#clearFiltersBtn')).onclick = () => {
-            /** @type {HTMLInputElement} */ (q(div, '#filterSearch')).value = '';
-            /** @type {HTMLSelectElement} */ (q(div, '#filterCategory')).value = 'all';
-            /** @type {HTMLSelectElement} */ (q(div, '#filterWho')).value = 'all';
-            /** @type {HTMLInputElement} */ (q(div, '#filterDateFrom')).value = '';
-            /** @type {HTMLInputElement} */ (q(div, '#filterDateTo')).value = '';
-            /** @type {HTMLInputElement} */ (q(div, '#filterMinVal')).value = '';
-            /** @type {HTMLInputElement} */ (q(div, '#filterMaxVal')).value = '';
-            renderTripExpenses(q(div, '#tripExpensesList'));
-        };
-
-        renderTripExpenses(q(div, '#tripExpensesList'));
         updateSplitUI();
     }, 0);
 
-    return div;
+    return wrapper;
+}
+
+// ── History tab ─────────────────────────────────────────────────────────────
+// Filterable + sortable list of all expenses for the active trip.
+
+function renderHistoryTab() {
+    const wrapper = document.createElement('div');
+
+    wrapper.innerHTML = `
+        <div id="expensesContainer" style="max-width: 1000px; margin: 0 auto; width: 100%; margin-bottom: 60px;">
+            <div style="margin-bottom: 40px; padding: 0 10px;">
+                <div class="card glass" style="padding: 32px; border-radius: 32px; background: linear-gradient(135deg, rgba(255,255,255,0.4), rgba(255,255,255,0.1)); border: 1px solid rgba(255,255,255,0.5); box-shadow: 0 20px 50px rgba(0,0,0,0.05);">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px;">
+                        <h2 style="font-size: 1.8rem; font-weight: 800; letter-spacing: -0.04em; margin: 0;">Expense History</h2>
+                        <div style="display: flex; gap: 8px;">
+                            <button id="clearFiltersBtn" class="btn-chip-danger">Clear Filters</button>
+                            <span style="font-size: 0.75rem; font-weight: 700; color: var(--accent-blue); background: rgba(0,113,227,0.1); padding: 6px 14px; border-radius: 100px; text-transform: uppercase;">Smart Filters</span>
+                        </div>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--space-3);">
+                        <!-- Row 1: Search (full width) -->
+                        <div style="grid-column: 1 / -1;">
+                            <label class="filter-label">Search</label>
+                            <input type="text" id="filterSearch" class="filter-input" placeholder="Search labels or items...">
+                        </div>
+
+                        <!-- Row 2: Category | Payer | Sort -->
+                        <div>
+                            <label class="filter-label">Category</label>
+                            <select id="filterCategory" class="filter-input">
+                                <option value="all">All Categories</option>
+                                ${STATE.categories.map(c => `<option value="${c.id}">${c.icon} ${c.name}</option>`).join('')}
+                                <option value="settlement">🤝 Settlement</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="filter-label">Payer</label>
+                            <select id="filterWho" class="filter-input">
+                                <option value="all">Everyone</option>
+                                ${STATE.groups.map(p => `<option value="${p}">${p}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="filter-label">Sort By</label>
+                            <select id="filterSort" class="filter-input">
+                                <option value="date_desc">Newest first</option>
+                                <option value="date_asc">Oldest first</option>
+                                <option value="value_desc">Highest amount</option>
+                                <option value="value_asc">Lowest amount</option>
+                                <option value="label_asc">Label (A–Z)</option>
+                                <option value="who_asc">Payer (A–Z)</option>
+                            </select>
+                        </div>
+
+                        <!-- Row 3: From Date | To Date | Min–Max Value -->
+                        <div>
+                            <label class="filter-label">From Date</label>
+                            <input type="date" id="filterDateFrom" class="filter-input">
+                        </div>
+                        <div>
+                            <label class="filter-label">To Date</label>
+                            <input type="date" id="filterDateTo" class="filter-input">
+                        </div>
+                        <div>
+                            <label class="filter-label">Value Range (€)</label>
+                            <div style="display: flex; gap: var(--space-2); align-items: center;">
+                                <input type="number" id="filterMinVal" class="filter-input" placeholder="Min" style="flex: 1; padding: var(--space-3);">
+                                <span style="color: rgba(0,0,0,0.3); font-weight: 700; flex-shrink: 0;">–</span>
+                                <input type="number" id="filterMaxVal" class="filter-input" placeholder="Max" style="flex: 1; padding: var(--space-3);">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div id="tripExpensesList" style="display: flex; flex-direction: column; gap: 20px;"></div>
+        </div>
+    `;
+
+    // Delegated handler for per-row edit/delete in #tripExpensesList — listener
+    // attached on wrapper once; rows are re-rendered by renderTripExpenses().
+    wrapper.addEventListener('click', (e) => {
+        const target = /** @type {HTMLElement | null} */ (e.target);
+        if (!target) return;
+        const editBtn = /** @type {HTMLElement | null} */ (target.closest('.expense-edit-btn'));
+        if (editBtn?.dataset.expenseId) { openEditExpenseModal(editBtn.dataset.expenseId); return; }
+        const delBtn = /** @type {HTMLElement | null} */ (target.closest('.expense-delete-btn'));
+        if (delBtn?.dataset.expenseId) { deleteExpense(delBtn.dataset.expenseId); return; }
+    });
+
+    setTimeout(() => {
+        const filterExps = () => {
+            const search = /** @type {HTMLInputElement} */ (q(wrapper, '#filterSearch')).value.toLowerCase();
+            const catId = /** @type {HTMLSelectElement} */ (q(wrapper, '#filterCategory')).value;
+            const who = /** @type {HTMLSelectElement} */ (q(wrapper, '#filterWho')).value;
+            const dateFrom = /** @type {HTMLInputElement} */ (q(wrapper, '#filterDateFrom')).value;
+            const dateTo = /** @type {HTMLInputElement} */ (q(wrapper, '#filterDateTo')).value;
+            const minVal = parseFloat(/** @type {HTMLInputElement} */ (q(wrapper, '#filterMinVal')).value) || 0;
+            const maxVal = parseFloat(/** @type {HTMLInputElement} */ (q(wrapper, '#filterMaxVal')).value) || Infinity;
+            const sort = /** @type {HTMLSelectElement} */ (q(wrapper, '#filterSort')).value;
+
+            renderTripExpenses(q(wrapper, '#tripExpensesList'), {
+                search, catId, who, dateFrom, dateTo, minVal, maxVal, sort
+            });
+        };
+
+        /** @type {HTMLInputElement} */ (q(wrapper, '#filterSearch')).oninput = filterExps;
+        /** @type {HTMLSelectElement} */ (q(wrapper, '#filterCategory')).onchange = filterExps;
+        /** @type {HTMLSelectElement} */ (q(wrapper, '#filterWho')).onchange = filterExps;
+        /** @type {HTMLSelectElement} */ (q(wrapper, '#filterSort')).onchange = filterExps;
+        /** @type {HTMLInputElement} */ (q(wrapper, '#filterDateFrom')).onchange = filterExps;
+        /** @type {HTMLInputElement} */ (q(wrapper, '#filterDateTo')).onchange = filterExps;
+        /** @type {HTMLInputElement} */ (q(wrapper, '#filterMinVal')).oninput = filterExps;
+        /** @type {HTMLInputElement} */ (q(wrapper, '#filterMaxVal')).oninput = filterExps;
+
+        /** @type {HTMLButtonElement} */ (q(wrapper, '#clearFiltersBtn')).onclick = () => {
+            /** @type {HTMLInputElement} */ (q(wrapper, '#filterSearch')).value = '';
+            /** @type {HTMLSelectElement} */ (q(wrapper, '#filterCategory')).value = 'all';
+            /** @type {HTMLSelectElement} */ (q(wrapper, '#filterWho')).value = 'all';
+            /** @type {HTMLSelectElement} */ (q(wrapper, '#filterSort')).value = 'date_desc';
+            /** @type {HTMLInputElement} */ (q(wrapper, '#filterDateFrom')).value = '';
+            /** @type {HTMLInputElement} */ (q(wrapper, '#filterDateTo')).value = '';
+            /** @type {HTMLInputElement} */ (q(wrapper, '#filterMinVal')).value = '';
+            /** @type {HTMLInputElement} */ (q(wrapper, '#filterMaxVal')).value = '';
+            renderTripExpenses(q(wrapper, '#tripExpensesList'));
+        };
+
+        renderTripExpenses(q(wrapper, '#tripExpensesList'));
+    }, 0);
+
+    return wrapper;
 }
 
 /**
  * @param {HTMLElement} container
- * @param {{ search?: string; catId?: string; who?: string; dateFrom?: string; dateTo?: string; minVal?: number; maxVal?: number }} [filters]
+ * @param {{ search?: string; catId?: string; who?: string; dateFrom?: string; dateTo?: string; minVal?: number; maxVal?: number; sort?: string }} [filters]
  */
 export function renderTripExpenses(container, filters = {}) {
     if (!container) return;
@@ -476,7 +563,28 @@ export function renderTripExpenses(container, filters = {}) {
         tripExpenses = tripExpenses.filter(e => (e.euroValue || 0) <= maxVal);
     }
 
-    tripExpenses.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const sort = filters.sort || 'date_desc';
+    switch (sort) {
+        case 'date_asc':
+            tripExpenses.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+            break;
+        case 'value_desc':
+            tripExpenses.sort((a, b) => (b.euroValue || 0) - (a.euroValue || 0));
+            break;
+        case 'value_asc':
+            tripExpenses.sort((a, b) => (a.euroValue || 0) - (b.euroValue || 0));
+            break;
+        case 'label_asc':
+            tripExpenses.sort((a, b) => (a.label || '').localeCompare(b.label || ''));
+            break;
+        case 'who_asc':
+            tripExpenses.sort((a, b) => (a.who || '').localeCompare(b.who || ''));
+            break;
+        case 'date_desc':
+        default:
+            tripExpenses.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            break;
+    }
 
     function formatAppleDate(dateStr) {
         if (!dateStr) return 'Global';
@@ -546,4 +654,3 @@ export function renderTripExpenses(container, filters = {}) {
         `;
     }).join('');
 }
-
