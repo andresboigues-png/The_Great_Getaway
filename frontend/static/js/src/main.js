@@ -4,6 +4,7 @@ import { syncWithServer, pullFromServer, fetchNotifications, markNotificationsRe
 import { showConfirmModal } from './utils.js';
 import { navigate } from './router.js';
 import { PAGES } from './constants.js';
+import { addCompanion } from './companions.js';
 
 /**
  * Narrow an arbitrary string (from the URL hash or a `data-page` attribute)
@@ -223,9 +224,7 @@ async function handleGoogleLogin(response) {
             // Auto-create a companion for the user on first login
             if (isFirstLogin && data.user?.name) {
                 const firstName = data.user.name.split(' ')[0];
-                if (!STATE.groups.includes(firstName)) {
-                    STATE.groups.push(firstName);
-                }
+                addCompanion(firstName);
             }
 
             await syncWithServer();

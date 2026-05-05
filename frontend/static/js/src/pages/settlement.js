@@ -3,6 +3,7 @@
 
 import { STATE, emit } from '../state.js';
 import { generateId, showConfirmModal, q, formatHome, getHomeCurrency, convertCurrency } from '../utils.js';
+import { getCompanionNames } from '../companions.js';
 
 export function renderSettlement() {
     const div = document.createElement('div');
@@ -132,7 +133,7 @@ export function renderSettlement() {
         // that trip.
         /** @type {Record<string, number>} */
         const globalBalances = {};
-        STATE.groups.forEach(p => globalBalances[p] = 0);
+        getCompanionNames().forEach(p => globalBalances[p] = 0);
         const archivedExps = (STATE.archivedTrips || []).flatMap(t => t.expenses || []);
         const allExpenses = [...STATE.expenses, ...archivedExps];
 
@@ -308,7 +309,7 @@ export function renderSettlement() {
         const trip = STATE.trips.find(t => t.id === tripId);
         const peopleSource = (trip?.companions && trip.companions.length > 0)
             ? trip.companions
-            : STATE.groups;
+            : getCompanionNames();
         const peopleOptions = peopleSource.map(p => `<option value="${p}">${p}</option>`).join('');
 
         modal.innerHTML = `
@@ -442,7 +443,7 @@ export function renderSettlement() {
         const editTrip = STATE.trips.find(t => t.id === s.tripId);
         const editPeopleSource = (editTrip?.companions && editTrip.companions.length > 0)
             ? editTrip.companions
-            : STATE.groups;
+            : getCompanionNames();
         const peopleOptionsFrom = editPeopleSource.map(p => `<option value="${p}" ${s.who === p ? 'selected' : ''}>${p}</option>`).join('');
         // To find the "to" person, we look at splits
         const toPerson = Object.keys(s.splits || {})[0];

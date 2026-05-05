@@ -149,6 +149,17 @@ export interface Budget {
     originalCurrency: string;
 }
 
+/** Account-level travel companion. Phase 1 starts as `{ name }`-only; the
+ *  optional fields come online when companions can be linked to a real
+ *  friend account (Phase 2) and used to drive shared trips (Phase 3). */
+export interface Companion {
+    name: string;
+    /** Friend user id, set after a link invitation is accepted. */
+    linkedUserId?: string;
+    /** Link-invitation lifecycle. Absent = not linked. */
+    linkStatus?: 'pending' | 'accepted';
+}
+
 export interface DraftExpense {
     id?: string;
     who: string;
@@ -188,8 +199,11 @@ export interface AppState {
     activeTripId: string | null;
     categories: Category[];
     expenses: Expense[];
-    /** Names of travel companions / payers. */
-    groups: string[];
+    /** Account-level companion roster. Each Companion is `{name}` today and
+     *  gains link metadata in later phases. Trip rosters (`Trip.companions`)
+     *  still reference companions by name only — the link/role data lives
+     *  here on the master roster. */
+    groups: Companion[];
     draftExpense: DraftExpense;
     insightCurrency: string;
     rateMode: 'at_trip' | 'today';

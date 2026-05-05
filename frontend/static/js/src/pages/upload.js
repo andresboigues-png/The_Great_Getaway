@@ -5,6 +5,7 @@ import { generateId, q } from '../utils.js';
 import { syncWithServer } from '../api.js';
 import { navigate } from '../router.js';
 import { showSettingsTab } from './settings.js';
+import { addCompanion } from '../companions.js';
 
 // Pad number to 2 digits.
 const _pad2 = (n) => String(n).padStart(2, '0');
@@ -519,13 +520,13 @@ export function renderUpload() {
                     // dropdown, settlement balance — anywhere that scopes to
                     // the trip).
                     if (who) {
-                        if (!STATE.groups.includes(who)) STATE.groups.push(who);
+                        addCompanion(who);
                         if (tripCompanions && !tripCompanions.includes(who)) tripCompanions.push(who);
                     }
                     if (splits) {
                         for (const name of Object.keys(splits)) {
                             if (!name) continue;
-                            if (!STATE.groups.includes(name)) STATE.groups.push(name);
+                            addCompanion(name);
                             if (tripCompanions && !tripCompanions.includes(name)) tripCompanions.push(name);
                         }
                     }

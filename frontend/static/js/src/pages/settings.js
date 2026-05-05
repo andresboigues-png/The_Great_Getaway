@@ -3,6 +3,7 @@ import { STATE, emit } from '../state.js';
 import { generateId, showConfirmModal, q } from '../utils.js';
 import { syncCategories, syncCompanions, upsertTrip, apiUrl } from '../api.js';
 import { navigate } from '../router.js';
+import { addCompanion, removeCompanion, hasCompanion } from '../companions.js';
 
 export const showSettingsTab = (tab) => {
     const tabs = /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll('.settings-tab-btn'));
@@ -58,7 +59,7 @@ const deleteCompanion = (name) => {
         message: `Remove "${name}" from your travel companions? They'll be removed from any trips they're on too.`,
         confirmText: "Remove",
         onConfirm: () => {
-            STATE.groups = STATE.groups.filter(g => g !== name);
+            removeCompanion(name);
             // Cascade: strip the name from each trip's roster too. Without
             // this, the trip-scoped expense form would still offer the name
             // (since it reads trip.companions), and the settlement balance
@@ -421,11 +422,13 @@ export function renderPersonalization() {
         </tr>
     `).join('');
 
-    const groupsHtml = STATE.groups.map(g => `
+    // Companion roster row — Phase 2 will add a `Link to friend` action
+     // here; for now it's just the name + delete affordance.
+    const groupsHtml = STATE.groups.map(c => `
         <tr>
-            <td>${g}</td>
+            <td>${c.name}</td>
             <td class="is-right">
-                <button class="btn-x-bare delete-companion-btn" data-companion="${g}">✕</button>
+                <button class="btn-x-bare delete-companion-btn" data-companion="${c.name}">✕</button>
             </td>
         </tr>
     `).join('');
@@ -544,8 +547,8 @@ export function renderPersonalization() {
         const addPersonBtn = div.querySelector('#addPersonBtn');
         if (addPersonBtn) addPersonBtn.addEventListener('click', () => {
             const name = /** @type {HTMLInputElement} */ (q(div, '#newPerson')).value.trim();
-            if (name && !STATE.groups.includes(name)) {
-                STATE.groups.push(name);
+            if (name && !hasCompanion(name)) {
+                addCompanion(name);
                 emit('state:changed');
                 syncCompanions(); // Delta: sync new companion
                 navigate('personalization');

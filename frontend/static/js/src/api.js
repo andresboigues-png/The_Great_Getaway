@@ -5,6 +5,7 @@ import { STATE, emit } from './state.js';
 import { navigate } from './router.js';
 import { API_BASE_URL, EVENTS, PAGES } from './constants.js';
 import { validateServerData } from './schemas.js';
+import { normalizeCompanionRoster } from './companions.js';
 
 // All fetch URLs are built via apiUrl() so the API_BASE_URL constant is the
 // single point that needs to change when the backend isn't co-located with
@@ -25,7 +26,10 @@ export async function syncWithServer() {
                 expenses: STATE.expenses,
                 activities: STATE.activities,
                 photos: STATE.photos,
-                groups: STATE.groups,
+                // Wire format stays as `string[]` of names — server's
+                // `companions` table only stores names. Link metadata
+                // (Phase 2) will travel via dedicated endpoints.
+                groups: STATE.groups.map(c => c.name),
                 categories: STATE.categories || [],
                 budgets: STATE.budgets || []
             })
@@ -56,7 +60,9 @@ export async function pullFromServer() {
         STATE.archivedTrips = allTrips.filter(t => t.isArchived);
 
         STATE.expenses = data.expenses || [];
-        STATE.groups = data.companions || [];
+        // Server returns `companions: string[]`; promote into the
+        // `Companion[]` shape that all client code reads.
+        STATE.groups = normalizeCompanionRoster(data.companions);
         STATE.categories = data.categories || [];
         STATE.budgets = data.budgets || [];
         STATE.tripDays = data.tripDays || [];
@@ -122,10 +128,15 @@ export function deleteExpenseOnServer(expenseId) {
     return _delete(`/api/expenses/${expenseId}`, { user_id: STATE.user.id });
 }
 
-/** Replace the full companion list on the server. */
+/** Replace the full companion list on the server. Wire format is `string[]`
+ *  of names — server table only stores names today; link metadata moves
+ *  through a dedicated Phase 2 endpoint. */
 export function syncCompanions() {
     if (!STATE.user) return;
-    return _post('/api/companions', { user_id: STATE.user.id, companions: STATE.groups });
+    return _post('/api/companions', {
+        user_id: STATE.user.id,
+        companions: STATE.groups.map(c => c.name),
+    });
 }
 
 /** Replace the full category list on the server. */

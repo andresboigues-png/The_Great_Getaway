@@ -3,6 +3,7 @@
 
 import { EVENTS } from './constants.js';
 import { validateLoadedState } from './schemas.js';
+import { normalizeCompanionRoster } from './companions.js';
 
 // api.js helpers are imported at call-site, not here.
 
@@ -16,7 +17,8 @@ export const STATE = {
         { id: 'c3', name: 'Accommodation', icon: '🏨', color: '#5856d6' }
     ],
     expenses: [],
-    groups: [], // List of people names
+    /** @type {import('./types').Companion[]} */
+    groups: [],
     draftExpense: {
         who: '',
         categoryId: '',
@@ -79,6 +81,10 @@ export function loadState() {
     if (!STATE.savedFormats) STATE.savedFormats = [];
     if (!STATE.tripDays) STATE.tripDays = [];
     if (!STATE.archivedTrips) STATE.archivedTrips = [];
+    // Companion roster shape upgrade: legacy snapshots stored plain string
+    // names. Promote into the `Companion[]` shape so all read-sites can
+    // assume objects with `.name`.
+    STATE.groups = normalizeCompanionRoster(STATE.groups);
     STATE.tripDays.forEach(d => {
         if (!d.tickets) d.tickets = [];
         if (d.notes === undefined) d.notes = '';

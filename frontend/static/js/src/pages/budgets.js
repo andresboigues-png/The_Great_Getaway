@@ -4,6 +4,7 @@ import { CONVERSION_RATES } from '../constants.js';
 import { generateId, q, formatHome, getHomeCurrency } from '../utils.js';
 import { upsertBudget, deleteBudgetOnServer } from '../api.js';
 import { navigate } from '../router.js';
+import { getCompanionNames } from '../companions.js';
 
 const deleteBudget = (id) => {
     STATE.budgets = STATE.budgets.filter(b => b.id !== id);
@@ -39,7 +40,7 @@ export function renderBudgets() {
 
     const tripOpts = STATE.trips.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
     const catOpts = STATE.categories.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
-    const userOpts = STATE.groups.map(g => `<option value="${g}">${g}</option>`).join('');
+    const userOpts = getCompanionNames().map(g => `<option value="${g}">${g}</option>`).join('');
 
     const activeBudgetsHtml = STATE.budgets.length > 0 ? STATE.budgets.map(b => {
         let spent = 0;

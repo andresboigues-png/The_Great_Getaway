@@ -8,6 +8,7 @@ import { STATE, emit } from './state.js';
 import { generateId, showLiquidAlert, q } from './utils.js';
 import { upsertTrip, upsertDay } from './api.js';
 import { navigate } from './router.js';
+import { getCompanionNames } from './companions.js';
 
 /**
  * @typedef {{ placeId: string, name: string, lat: number, lng: number,
@@ -433,14 +434,14 @@ export const openCompanionPickerModal = (tripId) => {
 
     /** @returns {string} */
     const renderRows = () => {
-        const all = STATE.groups || [];
-        if (all.length === 0) {
+        const allNames = getCompanionNames();
+        if (allNames.length === 0) {
             return `<p style="text-align:center; color: rgba(0,0,0,0.55); padding: var(--space-6); margin: 0;">
                 No companions yet. Add some in
                 <a href="#" class="link-underline" id="companionPickerGotoSettings">personalization</a>.
             </p>`;
         }
-        return all.map(name => {
+        return allNames.map(name => {
             const isChecked = trip.companions?.includes(name) ?? false;
             const isLocked = referenced.has(name);
             return `
@@ -490,7 +491,7 @@ export const openCompanionPickerModal = (tripId) => {
             modal.querySelectorAll('.companion-row__cb:checked')
         );
         // Preserve roster order (matches STATE.groups for consistent UI).
-        const picked = (STATE.groups || []).filter(n =>
+        const picked = getCompanionNames().filter(n =>
             Array.from(checked).some(cb => cb.dataset.name === n)
         );
         trip.companions = picked;
