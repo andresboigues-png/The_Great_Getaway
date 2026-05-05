@@ -226,11 +226,14 @@ async function init() {
         const trips = [...new Set(STATE.tripDays.map(d => d.tripId))];
         trips.forEach(tId => {
             const days = STATE.tripDays.filter(d => d.tripId === tId).sort((a, b) => {
-                if (a.dayNumber && b.dayNumber) return a.dayNumber - b.dayNumber;
+                // `!= null` (not `&&`) so Day 0 / Trip Genesis isn't treated
+                // as "missing" — its dayNumber is legitimately 0, which is
+                // falsy, and the falsy form would silently rewrite it.
+                if (a.dayNumber != null && b.dayNumber != null) return a.dayNumber - b.dayNumber;
                 return new Date(a.date).getTime() - new Date(b.date).getTime();
             });
             days.forEach((d, idx) => {
-                if (!d.dayNumber) d.dayNumber = idx + 1;
+                if (d.dayNumber == null) d.dayNumber = idx + 1;
             });
         });
     }
