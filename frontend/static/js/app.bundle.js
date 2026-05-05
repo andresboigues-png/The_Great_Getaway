@@ -512,18 +512,17 @@
                     </div>
                     `:``}
 
-                    <!-- MAIN CARD -->
-                    <!-- Days without a pin (lat/lng both null/zero) get
-                         the .day-card--unpinned modifier — a subtle
-                         dashed border so the user notices but isn't
-                         distracted. Genesis day always has the trip's
-                         location, so it's never marked unpinned. -->
-                    <div class="day-card card glass${n?` is-open`:``}${!r&&!e.lat&&!e.lng?` day-card--unpinned`:``}"
+                    <!-- MAIN CARD: state-driven border via CSS class.
+                         genesis -> thin green; pinned -> thin blue;
+                         unpinned -> dashed amber plus a Pin this day pill.
+                         Class rules use !important to win over the inline
+                         border shorthand (see .day-card--* in index.css). -->
+                    <div class="day-card card glass${n?` is-open`:``} ${r?`day-card--genesis`:e.lat||e.lng?`day-card--pinned`:`day-card--unpinned`}"
                          data-day-id="${e.id}"
                          role="button" tabindex="0"
                          aria-label="${F(e.name||`Day ${e.dayNumber}`)} — ${n?`collapse`:`expand`}"
                          style="flex: 1; padding: 20px 28px; border-radius: 28px; border: 1.5px solid ${n?`var(--accent-blue)`:`rgba(0,0,0,0.05)`}; background: ${n?`rgba(255,255,255,0.95)`:`white`}; cursor: pointer; box-shadow: ${n?`0 20px 40px rgba(0,0,0,0.1)`:`none`};">
-                        
+
                         <div style="display: flex; align-items: center; justify-content: space-between;">
                             <div style="display: flex; align-items: center; gap: 20px;">
                                 ${r?`
@@ -543,6 +542,7 @@
                                     <div style="font-size: 0.9rem; color: var(--text-secondary); font-weight: 600; margin-top: 4px; display: flex; align-items: center; gap: 8px;">
                                         ${r?`<span>${t&&t.country?se(t.country):`Where the trip begins`}</span>`:`<span>📅 ${de(e.date)||`Set date`}</span>`}
                                         ${e.lat&&!r?`<span style="color: var(--accent-blue); opacity: 0.6;">•</span> <span style="color: var(--accent-blue);">📍 Location Set</span>`:``}
+                                        ${!r&&!e.lat&&!e.lng?`<span style="color: rgba(0,0,0,0.25);">•</span> <span class="day-card__pin-hint">📌 Pin this day</span>`:``}
                                     </div>
                                 </div>
                             </div>

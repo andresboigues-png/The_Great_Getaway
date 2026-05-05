@@ -2299,22 +2299,53 @@ h1 {
     border-color: rgba(0,113,227,0.2);
 }
 
-/* Unpinned-day hint — subtle dashed border with a faint blue tint so
-   the user notices days that still need a place pinned without it
-   being loud or distracting. Inline `border: 1.5px solid ...` on the
-   day-card sets style + color in one shot, so this needs !important
-   to override style+color while keeping width. The is-open state keeps
-   the strong accent-blue border (just dashed) so the active card still
+/* Day-card border states — each is a thin solid (or dashed) accent so
+   the user can scan the Path at a glance and see which days are anchored
+   vs. still needing attention. Inline `border: 1.5px solid ...` on the
+   day-card sets style + color in one shot, so each rule uses !important
+   to win over the inline default while keeping width. is-open keeps the
+   strong accent-blue border across the board so the active card still
    reads as selected. */
+
+/* Genesis — the trip's location anchor. Green to mirror the green
+   star avatar on the same card. */
+.day-card--genesis {
+    border-color: rgba(52, 199, 89, 0.5) !important;
+}
+.day-card--genesis.is-open {
+    border-color: var(--accent-blue) !important;
+}
+
+/* Pinned — numbered day with a place set. Thin blue echoes the
+   day-number badge and "📍 Location Set" tag in the row. */
+.day-card--pinned {
+    border-color: rgba(0, 113, 227, 0.45) !important;
+}
+.day-card--pinned.is-open {
+    border-color: var(--accent-blue) !important;
+}
+
+/* Unpinned — numbered day without a place. Amber dashed so it stands
+   out enough to notice without being a red alert. Companion message
+   ".day-card__pin-hint" prints "📌 Pin this day" in the date row. */
 .day-card--unpinned {
     border-style: dashed !important;
-    border-color: rgba(0, 113, 227, 0.18) !important;
+    border-color: rgba(255, 159, 10, 0.55) !important;
 }
 .day-card--unpinned.is-open {
     border-color: var(--accent-blue) !important;
 }
 .day-card:not(.is-open).day-card--unpinned:hover {
-    border-color: rgba(0, 113, 227, 0.35) !important;
+    border-color: rgba(255, 159, 10, 0.85) !important;
+}
+.day-card__pin-hint {
+    color: #b06b00;
+    font-weight: 700;
+    background: rgba(255, 159, 10, 0.12);
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    letter-spacing: 0.01em;
 }
 
 /* Soft sub-card — used inside light modals for morning/afternoon/evening
