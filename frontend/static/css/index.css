@@ -772,7 +772,13 @@ h1 {
     font-size: 3.5rem;
     font-weight: 800;
     letter-spacing: -0.04em;
-    background: linear-gradient(135deg, var(--accent-blue), #9b59b6);
+    /* Read --g-from/--g-to from the inline style (set per-page) so each
+       title can pick its own gradient — yellow for Settlements/Budgets,
+       green for Settings/Personalization, etc. Falls back to blue→purple
+       when the inline vars aren't set, matching the original look. The
+       previous hardcoded `var(--accent-blue), #9b59b6` was overriding
+       every page's intended colors due to selector specificity. */
+    background: linear-gradient(135deg, var(--g-from, var(--accent-blue)), var(--g-to, #9b59b6));
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -3186,6 +3192,13 @@ h1 {
     background: rgba(142, 142, 147, 0.16);
     color: #5b5b62;
     border: 1px solid rgba(142, 142, 147, 0.28);
+}
+/* Budgeteer — green tint to signal "money-handler" between Planner blue
+   and Relaxer grey. */
+.member-chip__role--budgeteer {
+    background: rgba(52, 199, 89, 0.14);
+    color: #1a6b3c;
+    border: 1px solid rgba(52, 199, 89, 0.32);
 }
 .member-chip__role--companion {
     background: rgba(155, 89, 182, 0.12);

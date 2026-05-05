@@ -4,7 +4,7 @@
 import { STATE, emit } from '../state.js';
 import { generateId, showConfirmModal, q, formatHome, getHomeCurrency, convertCurrency, esc } from '../utils.js';
 import { getTripCompanionNames } from '../companions.js';
-import { canEdit } from '../permissions.js';
+import { canEditExpenses } from '../permissions.js';
 import { showModal } from '../components/Modal.js';
 
 export function renderSettlement() {
@@ -18,7 +18,7 @@ export function renderSettlement() {
         // Phase 4 — Settle / Manual Settlement / Edit / Unsettle are all
         // writes against the trip's expense list. Relaxers see balances
         // and Past Settlements (read-only) but can't trigger any of those.
-        const tripIsEditable = canEdit(trip);
+        const tripIsEditable = canEditExpenses(trip);
 
         const tripsGridHtml = `
             <div style="margin-bottom: 32px;">
@@ -350,7 +350,7 @@ export function renderSettlement() {
 
     const openPastSettlementsModal = (tripId) => {
         const trip = STATE.trips.find(t => t.id === tripId);
-        const tripIsEditable = canEdit(trip);
+        const tripIsEditable = canEditExpenses(trip);
 
         const pastSettlements = STATE.expenses.filter(e => e.tripId === tripId && e.isSettlement).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 

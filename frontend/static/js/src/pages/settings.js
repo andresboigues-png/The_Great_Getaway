@@ -1,8 +1,9 @@
 // @ts-check
 import { STATE, emit } from '../state.js';
-import { generateId, showConfirmModal, q } from '../utils.js';
+import { generateId, showConfirmModal, q, esc } from '../utils.js';
 import { syncCategories, apiFetch } from '../api.js';
 import { navigate } from '../router.js';
+import { showModal } from '../components/Modal.js';
 
 export const showSettingsTab = (tab) => {
     const tabs = /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll('.settings-tab-btn'));
@@ -376,14 +377,62 @@ export function renderSettings() {
     return div;
 }
 
+/** Open a modal to edit an existing category's name / icon / color.
+ *  Saves directly into STATE.categories, syncs to the server, and
+ *  re-renders the personalization page so the row reflects the change. */
+function openEditCategoryModal(categoryId) {
+    const cat = STATE.categories.find(c => c.id === categoryId);
+    if (!cat) return;
+
+    const iconOptions = ['🍷','🏨','✈️','🚕','🍕','🎟️','🛍️','🍦','🥐','🏛️','🏖️','🎢','🚠','🚌','🚆','🌍','🗺️','🎒','📸','☕','🍔','🛒','🎨','💊','🎭','🚗']
+        .map(i => `<option value="${i}" ${i === cat.icon ? 'selected' : ''}>${i}</option>`).join('');
+
+    const { root, close } = showModal({
+        variant: 'glass-light',
+        cardStyle: 'width: 420px;',
+        innerHTML: `
+            <h2 style="margin: 0 0 var(--space-5); font-size: var(--font-2xl); color: #002d5b; font-weight: 800; letter-spacing: -0.03em;">Edit Category</h2>
+            <form id="editCategoryForm" style="display: flex; flex-direction: column; gap: var(--space-4);">
+                <div style="display: flex; gap: var(--space-3); align-items: center;">
+                    <select id="editCatIcon" class="glass-input" style="width: 80px;">${iconOptions}</select>
+                    <input type="text" id="editCatName" class="glass-input" value="${esc(cat.name)}" placeholder="Category name" required style="flex: 1;">
+                    <input type="color" id="editCatColor" class="glass-input" value="${esc(cat.color)}" style="width: 50px; padding: 2px;">
+                </div>
+                <div style="display: flex; gap: var(--space-3); margin-top: var(--space-2);">
+                    <button type="submit" class="btn-primary" style="flex: 2;">Save Changes</button>
+                    <button type="button" id="cancelEditCatBtn" class="btn-neutral" style="flex: 1; border-radius: var(--radius-lg);">Cancel</button>
+                </div>
+            </form>
+        `,
+    });
+
+    /** @type {HTMLButtonElement} */ (q(root, '#cancelEditCatBtn')).onclick = () => close();
+    /** @type {HTMLFormElement} */ (q(root, '#editCategoryForm')).onsubmit = (e) => {
+        e.preventDefault();
+        const icon = /** @type {HTMLSelectElement} */ (q(root, '#editCatIcon')).value;
+        const name = /** @type {HTMLInputElement} */ (q(root, '#editCatName')).value.trim();
+        const color = /** @type {HTMLInputElement} */ (q(root, '#editCatColor')).value;
+        if (!name) return;
+        cat.icon = icon;
+        cat.name = name;
+        cat.color = color;
+        emit('state:changed');
+        syncCategories();
+        close();
+        navigate('personalization');
+        setTimeout(() => showPersTab('categories'), 50);
+    };
+}
+
 export function renderPersonalization() {
     const div = document.createElement('div');
 
     const catsHtml = STATE.categories.map(c => `
         <tr>
-            <td>${c.icon} ${c.name}</td>
+            <td>${c.icon} ${esc(c.name)}</td>
             <td class="is-right"><span class="color-swatch" style="background: ${c.color}"></span></td>
             <td class="is-right">
+                <button class="btn-x-bare edit-category-btn" data-category-id="${c.id}" aria-label="Edit category" style="margin-right: var(--space-2);">✏️</button>
                 <button class="btn-x-bare delete-category-btn" data-category-id="${c.id}" aria-label="Delete category">✕</button>
             </td>
         </tr>
@@ -447,6 +496,9 @@ export function renderPersonalization() {
 
         const persTabCard = /** @type {HTMLElement | null} */ (target.closest('.pers-tab-card'));
         if (persTabCard?.dataset.tab) { showPersTab(persTabCard.dataset.tab); return; }
+
+        const editCatBtn = /** @type {HTMLElement | null} */ (target.closest('.edit-category-btn'));
+        if (editCatBtn?.dataset.categoryId) { openEditCategoryModal(editCatBtn.dataset.categoryId); return; }
 
         const delCatBtn = /** @type {HTMLElement | null} */ (target.closest('.delete-category-btn'));
         if (delCatBtn?.dataset.categoryId) { deleteCategory(delCatBtn.dataset.categoryId); return; }

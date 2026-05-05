@@ -21,7 +21,7 @@ import {
     addTripCompanion,
     removeTripCompanion,
 } from './companions.js';
-import { ROLE_PLANNER, ROLE_RELAXER, canManageRoster } from './permissions.js';
+import { ROLE_PLANNER, ROLE_BUDGETEER, ROLE_RELAXER, canManageRoster } from './permissions.js';
 import { showModal } from './components/Modal.js';
 
 /**
@@ -494,7 +494,10 @@ export const openCompanionPickerModal = (tripId) => {
 
     /** Pretty role label. */
     const roleLabel = (/** @type {string} */ r) =>
-        r === ROLE_PLANNER ? 'Planner' : r === ROLE_RELAXER ? 'Relaxer' : r;
+        r === ROLE_PLANNER ? 'Planner'
+        : r === ROLE_BUDGETEER ? 'Budgeteer'
+        : r === ROLE_RELAXER ? 'Relaxer'
+        : r;
 
     /** Build a row for one companion currently on the trip. */
     const buildRow = (/** @type {import('./types').Companion} */ c) => {
@@ -615,6 +618,7 @@ export const openCompanionPickerModal = (tripId) => {
                 <span style="flex:1; font-size: var(--font-xs); color: rgba(0,0,0,0.45);">${esc(f.email)}</span>
                 <select class="companion-row__role-select picker-friend-role-select">
                     <option value="${ROLE_RELAXER}" selected>Relaxer</option>
+                    <option value="${ROLE_BUDGETEER}">Budgeteer</option>
                     <option value="${ROLE_PLANNER}">Planner</option>
                 </select>
                 <button type="button" class="btn-link-action picker-friend-add-btn">+ Add</button>
@@ -716,7 +720,7 @@ export const openCompanionPickerModal = (tripId) => {
             await inviteTripMember(trip.id, friendId, role);
             friendSheet.hidden = true;
             refreshList();
-            showLiquidAlert(`${friendName} invited as ${role === ROLE_PLANNER ? 'Planner' : 'Relaxer'}`);
+            showLiquidAlert(`${friendName} invited as ${roleLabel(role)}`);
         }
     });
 };
@@ -737,7 +741,10 @@ export const openTripMembersModal = (tripId) => {
     const others = members.filter(m => m.userId !== trip.ownerId);
 
     const roleLabel = (/** @type {string} */ role) =>
-        role === ROLE_PLANNER ? 'Planner' : role === ROLE_RELAXER ? 'Relaxer' : role;
+        role === ROLE_PLANNER ? 'Planner'
+        : role === ROLE_BUDGETEER ? 'Budgeteer'
+        : role === ROLE_RELAXER ? 'Relaxer'
+        : role;
 
     const memberRow = (/** @type {import('./types').TripMember} */ m, isOwnerRow) => `
         <div class="companion-row" style="cursor: default;">

@@ -1,11 +1,14 @@
 // @ts-check
 // permissions.js — Single boundary for role-based UI decisions.
 //
-// Phase 3 introduces shared trips with two roles (Planner / Relaxer). Future
-// phases may add Editor, Observer, Treasurer, etc.; the surface area for
-// adding a role is this module + maybe the dropdown in the companion picker
-// — every page that hides or shows an edit affordance goes through these
-// helpers, not the role string directly.
+// Roles:
+//   planner   — full edit (trip details, days, expenses, can archive own copy)
+//   budgeteer — relaxer + can add/edit expenses (no trip details, no days, no roster)
+//   relaxer   — read-only (can archive own copy, otherwise just observes)
+//
+// Adding a role is a one-file edit here + the dropdown in the companion picker.
+// Every page that hides or shows an edit affordance goes through these helpers,
+// not the role string directly.
 //
 // Source-of-truth flow:
 //   server (trip_members.role) → /api/data → trip.myRole → these helpers
@@ -13,6 +16,7 @@
 import { STATE } from './state.js';
 
 export const ROLE_PLANNER = 'planner';
+export const ROLE_BUDGETEER = 'budgeteer';
 export const ROLE_RELAXER = 'relaxer';
 
 /** True when the current user created the trip. Owners have implicit
@@ -34,10 +38,19 @@ export function getMyRole(trip) {
     return trip.myRole ?? null;
 }
 
-/** Can the current user edit the trip's contents (expenses, days, plan)?
- *  Phase 3: planner-only. Adding 'editor' later means one new branch. */
+/** Can the current user edit trip-level content (rename, days, plan)?
+ *  Planner-only. Budgeteers are *NOT* allowed here — they only edit
+ *  expenses (see canEditExpenses). */
 export function canEdit(trip) {
     return getMyRole(trip) === ROLE_PLANNER;
+}
+
+/** Can the current user add/edit/delete expenses on this trip?
+ *  Planners and Budgeteers; Relaxers cannot. Use this on the expense
+ *  form, settlement page, and the History tab's edit/delete buttons. */
+export function canEditExpenses(trip) {
+    const role = getMyRole(trip);
+    return role === ROLE_PLANNER || role === ROLE_BUDGETEER;
 }
 
 /** Can the current user manage the trip's roster (companions / members /

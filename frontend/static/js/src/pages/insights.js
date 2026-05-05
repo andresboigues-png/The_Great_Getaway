@@ -154,7 +154,7 @@ export function renderInsights() {
         <!-- Header Section -->
         <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 20px; margin-bottom: 40px; padding-bottom: 20px; border-bottom: 1px solid var(--glass-border);">
             <div>
-                <h1 style="margin: 0; font-size: 3.5rem; letter-spacing: -0.04em;">Insights</h1>
+                <h1 class="gradient-text" style="--g-from: #007aff; --g-to: #5856d6; margin: 0; font-size: 3.5rem; letter-spacing: -0.04em;">Insights</h1>
                 <p style="color: var(--text-secondary); margin: 8px 0 0 0; font-size: 1.1rem;">Your travel spending at a glance.</p>
             </div>
             <div style="display: flex; align-items: center; gap: 24px;">

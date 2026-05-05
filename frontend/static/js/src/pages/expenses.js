@@ -16,7 +16,7 @@ import { navigate } from '../router.js';
 // "no companions" helper just bounces the user to Home where the picker
 // lives. Personalization no longer has a companions sub-tab.
 import { renderUpload } from './upload.js';
-import { canEdit } from '../permissions.js';
+import { canEditExpenses } from '../permissions.js';
 
 /** @type {'manual' | 'batch' | 'history'} */
 let activeExpensesTab = 'manual';
@@ -81,7 +81,7 @@ export function renderExpenses() {
         });
 
         const activeTrip = STATE.trips.find(t => t.id === STATE.activeTripId);
-        const isReadOnly = !canEdit(activeTrip);
+        const isReadOnly = !canEditExpenses(activeTrip);
 
         if (activeExpensesTab === 'manual') {
             content.appendChild(isReadOnly ? renderReadOnlyNotice('Manual Upload', 'log new expenses') : renderManualTab());
@@ -499,6 +499,15 @@ function renderHistoryTab() {
                 .filter(Boolean)
         ));
 
+    // Show "Undo last batch" only when the most recent bulk import is
+    // for the trip currently being viewed. Single-batch undo is enough
+    // — multi-step undo would require schema work for cross-device persistence.
+    const undoBatch = STATE.lastImportBatch;
+    const canUndoBatch = !!(undoBatch
+        && undoBatch.tripId === STATE.activeTripId
+        && Array.isArray(undoBatch.expenseIds)
+        && undoBatch.expenseIds.length > 0);
+
     wrapper.innerHTML = `
         <div id="expensesContainer" style="max-width: 1000px; margin: 0 auto; width: 100%; margin-bottom: 60px;">
             <div style="margin-bottom: 40px; padding: 0 10px;">
@@ -506,6 +515,7 @@ function renderHistoryTab() {
                     <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px;">
                         <h2 style="font-size: 1.8rem; font-weight: 800; letter-spacing: -0.04em; margin: 0;">Expense History</h2>
                         <div style="display: flex; gap: 8px;">
+                            ${canUndoBatch ? `<button id="undoLastBatchBtn" class="btn-chip-danger" title="Remove the ${undoBatch.expenseIds.length} expenses just imported">↶ Undo last batch (${undoBatch.expenseIds.length})</button>` : ''}
                             <button id="clearFiltersBtn" class="btn-chip-danger">Clear Filters</button>
                             <span style="font-size: 0.75rem; font-weight: 700; color: var(--accent-blue); background: rgba(0,113,227,0.1); padding: 6px 14px; border-radius: 100px; text-transform: uppercase;">Smart Filters</span>
                         </div>
@@ -618,6 +628,30 @@ function renderHistoryTab() {
             renderTripExpenses(q(wrapper, '#tripExpensesList'));
         };
 
+        const undoBtn = wrapper.querySelector('#undoLastBatchBtn');
+        if (undoBtn) {
+            /** @type {HTMLButtonElement} */ (undoBtn).onclick = () => {
+                const batch = STATE.lastImportBatch;
+                if (!batch || !Array.isArray(batch.expenseIds) || batch.expenseIds.length === 0) return;
+                showConfirmModal({
+                    title: 'Undo last batch?',
+                    message: `Removes the ${batch.expenseIds.length} expenses imported in your most recent upload. This cannot be undone.`,
+                    confirmText: 'Undo batch',
+                    onConfirm: () => {
+                        const ids = new Set(batch.expenseIds);
+                        STATE.expenses = STATE.expenses.filter(e => !ids.has(e.id));
+                        STATE.lastImportBatch = null;
+                        emit('state:changed');
+                        // Server delta: each expense gets its own DELETE.
+                        // Fire-and-forget; the local state already reflects
+                        // the removal so a slow server doesn't block the UI.
+                        ids.forEach(id => deleteExpenseOnServer(id));
+                        navigate('expenses');
+                    },
+                });
+            };
+        }
+
         renderTripExpenses(q(wrapper, '#tripExpensesList'));
     }, 0);
 
@@ -710,7 +744,7 @@ export function renderTripExpenses(container, filters = {}) {
     // edit rights. Backend already 403s on the underlying endpoints; this
     // is just to keep the UI honest.
     const activeTrip = STATE.trips.find(t => t.id === STATE.activeTripId);
-    const showRowActions = canEdit(activeTrip);
+    const showRowActions = canEditExpenses(activeTrip);
     container.innerHTML = tripExpenses.map(e => {
         const cat = STATE.categories.find(c => c.id === e.categoryId);
         // Convert from the original currency to the user's home currency for

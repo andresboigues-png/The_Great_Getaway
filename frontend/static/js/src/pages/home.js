@@ -8,7 +8,7 @@ import { upsertDay, uploadMedia, deleteDayOnServer, upsertTrip } from '../api.js
 import { navigate } from '../router.js';
 import { showPersTab } from './settings.js';
 import { openNewTripModal, openAddDayModal, openEditTripModal, openCompanionPickerModal, openTripMembersModal } from '../modals.js';
-import { canEdit, canManageRoster, ROLE_PLANNER } from '../permissions.js';
+import { canEdit, canManageRoster, ROLE_PLANNER, ROLE_BUDGETEER } from '../permissions.js';
 import { findTripCompanionByLinkedUser } from '../companions.js';
 import { showModal } from '../components/Modal.js';
 import { wireRoleButtonKeys } from '../components/Keyboard.js';
@@ -731,8 +731,12 @@ export function renderHome() {
                 badge = `<span class="member-chip__role member-chip__role--owner">👑 Owner</span>`;
             } else if (chip.isMember) {
                 // Real accepted member — badge reflects their actual role.
-                const label = chip.role === ROLE_PLANNER ? 'Planner' : 'Relaxer';
-                const variant = chip.role === ROLE_PLANNER ? 'planner' : 'relaxer';
+                const label = chip.role === ROLE_PLANNER ? 'Planner'
+                    : chip.role === ROLE_BUDGETEER ? 'Budgeteer'
+                    : 'Relaxer';
+                const variant = chip.role === ROLE_PLANNER ? 'planner'
+                    : chip.role === ROLE_BUDGETEER ? 'budgeteer'
+                    : 'relaxer';
                 badge = `<span class="member-chip__role member-chip__role--${variant}">${label}</span>`;
             } else if (chip.isPending) {
                 badge = `<span class="member-chip__role member-chip__role--companion">⏳ Pending</span>`;

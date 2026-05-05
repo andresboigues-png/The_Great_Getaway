@@ -446,6 +446,9 @@ export function renderUpload() {
             try {
                 let added = 0;
                 let mappings = [];
+                /** Collected so the user can hit "Undo last batch" on
+                 *  the expenses page and revert this import in one shot. */
+                const importedIds = /** @type {string[]} */ ([]);
 
                 if (!isPopular) {
                     const formatId = formatVal.split(':')[1];
@@ -567,8 +570,21 @@ export function renderUpload() {
                     };
                     if (isSettlement) expense.isSettlement = true;
                     STATE.expenses.push(expense);
+                    importedIds.push(expense.id);
                     added++;
                 });
+
+                // Capture the batch so the user can undo it from the
+                // expenses History tab. Replaces any previous batch (only
+                // the most recent import is undoable — keeping a stack
+                // would require schema work for cross-device persistence).
+                if (importedIds.length > 0) {
+                    STATE.lastImportBatch = {
+                        tripId: activeTripId,
+                        expenseIds: importedIds,
+                        importedAt: new Date().toISOString(),
+                    };
+                }
 
                 emit('state:changed');
                 syncWithServer(); // Bulk: sync all newly imported data to server

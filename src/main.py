@@ -322,11 +322,11 @@ def sync_data():
                             euro_value=excluded.euro_value
                     ''', (e['id'], t['id'], e['who'], e['categoryId'], e['label'], e['date'], e['country'], e['value'], e['currency'], e['euroValue']))
 
-        # Sync Expenses — gate per-row. A relaxer on a shared trip can't
-        # write expenses (only Planners can); without this check the bulk
-        # endpoint would let them bypass the per-expense delta gate.
+        # Sync Expenses — gate per-row. Planners and Budgeteers may write;
+        # Relaxers blocked. Without this check the bulk sync endpoint
+        # would bypass the per-expense delta gate.
         for e in expenses:
-            if not _can_edit_trip(cursor, e.get('tripId'), user_id):
+            if not _can_edit_expenses(cursor, e.get('tripId'), user_id):
                 continue
             cursor.execute('''
                 INSERT INTO expenses (id, trip_id, who, category_id, label, date, country, value, currency, euro_value)
@@ -446,11 +446,20 @@ def _trip_member_role(cursor, trip_id, user_id):
 
 
 def _can_edit_trip(cursor, trip_id, user_id):
-    """Permission gate for write endpoints (expenses, days, trip metadata).
-    The role-name check stays here — adding 'editor' or 'co-planner' later
-    is one line in this function."""
+    """Permission gate for trip-level write endpoints (rename trip, edit
+    days, edit metadata). Planner-only; Budgeteers are NOT allowed to
+    write here — they only handle expenses."""
     role = _trip_member_role(cursor, trip_id, user_id)
     return role == "planner"
+
+
+def _can_edit_expenses(cursor, trip_id, user_id):
+    """Permission gate for expense-level write endpoints.
+    Planners and Budgeteers both allowed; Relaxers blocked.
+    The Budgeteer role exists for trips where one person handles money
+    but the rest of the planning is locked down."""
+    role = _trip_member_role(cursor, trip_id, user_id)
+    return role in ("planner", "budgeteer")
 
 
 def _is_trip_owner(cursor, trip_id, user_id):
@@ -574,7 +583,7 @@ def invite_trip_member():
     trip_id = data.get("trip_id")
     target = data.get("target_user_id")
     role = (data.get("role") or "relaxer").strip()
-    if role not in ("planner", "relaxer"):
+    if role not in ("planner", "budgeteer", "relaxer"):
         return jsonify({"error": "Unknown role"}), 400
     if not trip_id or not target:
         return jsonify({"error": "Missing data"}), 400
@@ -737,8 +746,10 @@ def remove_trip_member():
 @app.route("/api/expenses", methods=["POST"])
 @require_auth
 def upsert_expense():
-    """Create or update a single expense. Planner-role gate: only members
-    with role=planner (incl. trip owner) can write expenses on shared trips."""
+    """Create or update a single expense. Planner OR Budgeteer can write
+    (Relaxers blocked). The Budgeteer role exists so one person can
+    handle the trip's money without also being able to rename the trip
+    or change the itinerary."""
     data = request.json or {}
     user_id = current_user_id()
     e = data.get("expense")
@@ -746,7 +757,7 @@ def upsert_expense():
         return jsonify({"error": "Missing data"}), 400
     with get_db() as conn:
         cursor = conn.cursor()
-        if not _can_edit_trip(cursor, e["tripId"], user_id):
+        if not _can_edit_expenses(cursor, e["tripId"], user_id):
             return jsonify({"error": "Forbidden"}), 403
         cursor.execute('''
             INSERT INTO expenses (id, trip_id, who, category_id, label, date, country, value, currency, euro_value)
@@ -770,8 +781,8 @@ def upsert_expense():
 @app.route("/api/expenses/<expense_id>", methods=["DELETE"])
 @require_auth
 def delete_expense(expense_id):
-    """Delete a single expense by ID. Planner-role gate; caller comes
-    from the JWT, not the body."""
+    """Delete a single expense by ID. Planner OR Budgeteer can delete;
+    Relaxers blocked. Caller comes from the JWT, not the body."""
     user_id = current_user_id()
     with get_db() as conn:
         cursor = conn.cursor()
@@ -779,7 +790,7 @@ def delete_expense(expense_id):
         row = cursor.fetchone()
         if not row:
             return jsonify({"status": "deleted"})  # idempotent
-        if not _can_edit_trip(cursor, row["trip_id"], user_id):
+        if not _can_edit_expenses(cursor, row["trip_id"], user_id):
             return jsonify({"error": "Forbidden"}), 403
         cursor.execute("DELETE FROM expenses WHERE id = ?", (expense_id,))
         conn.commit()
