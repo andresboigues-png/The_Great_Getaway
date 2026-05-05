@@ -2806,6 +2806,55 @@ h1 {
     opacity: 0.7;
 }
 
+/* Inline "Add new companion" form inside the trip-companion picker
+   modal — sits between the checkbox list and the Save / Cancel
+   buttons. Submits via Enter on the input or click on the button. */
+.companion-picker-add-form {
+    display: flex;
+    gap: var(--space-2);
+    margin-bottom: var(--space-5);
+    flex-shrink: 0;
+}
+.companion-picker-add-form__input {
+    flex: 1;
+    min-width: 0;
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-md);
+    background: rgba(0, 0, 0, 0.04);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    color: #002d5b;
+    font-weight: 600;
+    font-family: inherit;
+    font-size: var(--font-base);
+    outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    box-sizing: border-box;
+}
+.companion-picker-add-form__input:focus-visible {
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.18);
+}
+.companion-picker-add-form__input::placeholder {
+    color: rgba(0, 0, 0, 0.45);
+    font-weight: 600;
+}
+.companion-picker-add-form__btn {
+    padding: 0 var(--space-5);
+    border-radius: var(--radius-md);
+    border: 1px solid rgba(0, 113, 227, 0.32);
+    background: rgba(0, 113, 227, 0.08);
+    color: var(--accent-blue);
+    font-weight: 800;
+    font-size: var(--font-sm);
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+.companion-picker-add-form__btn:hover {
+    background: rgba(0, 113, 227, 0.16);
+    border-color: rgba(0, 113, 227, 0.48);
+}
+.companion-picker-add-form__btn:active { transform: scale(0.97); }
+
 /* Friend-pick variant of `.companion-row` — same shell, but uses a radio
    input instead of a checkbox and adds room for the avatar + email.
    Bumps gap so the avatar doesn't crowd the name. */
@@ -2837,6 +2886,11 @@ h1 {
     background: rgba(52, 199, 89, 0.14);
     color: #157a36;
     border: 1px solid rgba(52, 199, 89, 0.3);
+}
+.companion-link-pill--self {
+    background: rgba(0, 113, 227, 0.12);
+    color: var(--accent-blue);
+    border: 1px solid rgba(0, 113, 227, 0.28);
 }
 
 /* Tiny row-inline action button — used for "Link to friend", "Cancel",
@@ -2906,6 +2960,17 @@ h1 {
     outline-offset: 2px;
 }
 
+/* The companions section sits below the "X Days of adventure" subtitle
+   on the home trip header. Holds the pill (rename/count) on top of the
+   member-chips panel. */
+.trip-companions-section {
+    margin-top: var(--space-5);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    align-items: flex-start;
+}
+
 /* Inline member chips on the trip header — at-a-glance roster with role
    badges. Click anywhere on the panel routes to the same modal as the
    pill button (picker for owners, read-only members for others). */
@@ -2913,7 +2978,7 @@ h1 {
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-2);
-    margin-top: var(--space-3);
+    margin-top: 0;
     padding: 0;
     cursor: pointer;
 }

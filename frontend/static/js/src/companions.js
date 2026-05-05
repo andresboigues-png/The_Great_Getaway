@@ -108,6 +108,20 @@ export function isFriendLinked(friendUserId) {
     return findCompanionByLinkedUser(friendUserId) !== undefined;
 }
 
+/** True if this companion record represents the currently-logged-in user
+ *  (the auto-created "That's you" entry from first login). Detection is by
+ *  name match against the user's first name — robust enough for the common
+ *  case (auto-created on first login) and self-correcting if the user
+ *  renames their own companion (the "That's you" badge just goes away).
+ *  Returns false when there's no logged-in user.
+ *  @param {string} name */
+export function isSelfCompanion(name) {
+    const myName = STATE.user?.name;
+    if (!myName) return false;
+    const myFirstName = myName.split(' ')[0];
+    return !!myFirstName && name === myFirstName;
+}
+
 /** Promote a legacy string-roster snapshot into the modern Companion[] shape.
  *  Idempotent — passing a roster that's already objects returns it unchanged.
  *  Used by state.js loadState (in case localStorage holds an older shape) and

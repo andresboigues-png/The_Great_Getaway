@@ -3,7 +3,7 @@ import { STATE, emit } from '../state.js';
 import { generateId, showConfirmModal, q } from '../utils.js';
 import { syncCategories, syncCompanions, upsertTrip, apiUrl } from '../api.js';
 import { navigate } from '../router.js';
-import { addCompanion, removeCompanion, hasCompanion, clearCompanionLink, findCompanion } from '../companions.js';
+import { addCompanion, removeCompanion, hasCompanion, clearCompanionLink, findCompanion, isSelfCompanion } from '../companions.js';
 import { unlinkCompanion as apiUnlinkCompanion } from '../api.js';
 import { openCompanionLinkPickerModal } from '../modals.js';
 
@@ -465,11 +465,15 @@ export function renderPersonalization() {
     `).join('');
 
     // Companion roster row — left column is the name + a link-status pill
-    // (unlinked / pending / linked). Right column carries the action button:
-    // unlinked → "Link to friend", pending → "Cancel link", linked → "Unlink".
+    // (unlinked / pending / linked / self). Right column carries the action
+    // button: unlinked → "Link to friend", pending → "Cancel link",
+    // linked → "Unlink", self → none (you can't link yourself).
     // Delete (✕) is always available, and the cascade in `deleteCompanion`
     // also nulls the friend's reciprocal link so dangling rows can't form.
     const linkPill = (/** @type {import('../types').Companion} */ c) => {
+        if (isSelfCompanion(c.name)) {
+            return `<span class="companion-link-pill companion-link-pill--self">👤 That's you</span>`;
+        }
         if (c.linkStatus === 'pending') {
             return `<span class="companion-link-pill companion-link-pill--pending">⏳ Pending</span>`;
         }
@@ -479,6 +483,9 @@ export function renderPersonalization() {
         return '';
     };
     const linkAction = (/** @type {import('../types').Companion} */ c) => {
+        if (isSelfCompanion(c.name)) {
+            return ''; // self-companion can't be linked to a friend
+        }
         if (c.linkStatus === 'pending') {
             return `<button class="btn-link-action companion-cancel-link-btn" data-companion="${c.name}">Cancel</button>`;
         }

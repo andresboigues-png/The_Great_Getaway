@@ -15,6 +15,7 @@ import {
     inviteTripMember,
     respondTripInvite,
     removeTripMember,
+    syncCompanions,
 } from './api.js';
 import { navigate } from './router.js';
 import {
@@ -531,9 +532,18 @@ export const openCompanionPickerModal = (tripId) => {
                 Pick who's coming on <strong>${esc(trip.name)}</strong>. Linked companions will receive a trip invitation — pick their role at the moment of invite.
             </p>
 
-            <div id="companionPickerList" style="display: flex; flex-direction: column; gap: var(--space-2); overflow-y: auto; padding: var(--space-1); margin-bottom: var(--space-5); flex: 1; min-height: 0;">
+            <div id="companionPickerList" style="display: flex; flex-direction: column; gap: var(--space-2); overflow-y: auto; padding: var(--space-1); margin-bottom: var(--space-4); flex: 1; min-height: 0;">
                 ${renderRows()}
             </div>
+
+            <!-- Inline create — dual-purpose: skips the trip back to
+                 personalization to add a companion AND pre-checks the
+                 newly-created entry so it's already on the trip when
+                 the user hits Save. -->
+            <form id="companionPickerAddForm" class="companion-picker-add-form">
+                <input type="text" id="companionPickerAddInput" class="companion-picker-add-form__input" placeholder="+ Add new companion" autocomplete="off">
+                <button type="submit" class="companion-picker-add-form__btn">Add</button>
+            </form>
 
             <div style="display: flex; gap: var(--space-3); flex-shrink: 0;">
                 <button id="companionPickerSaveBtn" class="btn-primary" style="flex: 2; padding: var(--space-4); border-radius: var(--radius-lg); font-size: var(--font-lg);">Save</button>
@@ -553,6 +563,41 @@ export const openCompanionPickerModal = (tripId) => {
             navigate('personalization');
         };
     }
+
+    // Inline add — type a name, hit Enter or click Add → creates the
+    // companion in the account roster, pre-checks it for this trip, and
+    // re-renders the list so the new row shows immediately.
+    const addInput = /** @type {HTMLInputElement} */ (q(modal, '#companionPickerAddInput'));
+    /** @type {HTMLFormElement} */ (q(modal, '#companionPickerAddForm')).onsubmit = (ev) => {
+        ev.preventDefault();
+        const newName = addInput.value.trim();
+        if (!newName) return;
+        if (findCompanion(newName)) {
+            // Name already exists — surface the existing row by checking it
+            // and clearing the input rather than silently swallowing the click.
+            const cb = /** @type {HTMLInputElement | null} */ (
+                modal.querySelector(`.companion-row__cb[data-name="${CSS.escape(newName)}"]`)
+            );
+            if (cb) cb.checked = true;
+            addInput.value = '';
+            return;
+        }
+        addCompanion(newName);
+        // Persist the new name to the server so it shows up in personalization
+        // even before this trip is saved. Companions sync is bulk + idempotent.
+        emit('state:changed');
+        syncCompanions();
+        // Re-render the list and pre-check the new row so it lands on the
+        // trip the moment the user hits Save.
+        const list = /** @type {HTMLElement} */ (q(modal, '#companionPickerList'));
+        list.innerHTML = renderRows();
+        const cb = /** @type {HTMLInputElement | null} */ (
+            list.querySelector(`.companion-row__cb[data-name="${CSS.escape(newName)}"]`)
+        );
+        if (cb) cb.checked = true;
+        addInput.value = '';
+        addInput.focus();
+    };
 
     /** @type {HTMLButtonElement} */ (q(modal, '#companionPickerSaveBtn')).onclick = async () => {
         const checked = /** @type {NodeListOf<HTMLInputElement>} */ (
