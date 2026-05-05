@@ -129,14 +129,63 @@ export function deleteExpenseOnServer(expenseId) {
 }
 
 /** Replace the full companion list on the server. Wire format is `string[]`
- *  of names — server table only stores names today; link metadata moves
- *  through a dedicated Phase 2 endpoint. */
+ *  of names — link metadata (`linked_user_id`/`link_status`) lives on the
+ *  server's `companions` row and is preserved by the upsert/set-diff path
+ *  on /api/companions, so re-syncing the list never wipes a link. */
 export function syncCompanions() {
     if (!STATE.user) return;
     return _post('/api/companions', {
         user_id: STATE.user.id,
         companions: STATE.groups.map(c => c.name),
     });
+}
+
+/** Phase 2 — invite a friend to link as a companion. The local companion
+ *  row must already exist; this just promotes its server-side row to
+ *  `pending` and fires a notification at the friend. */
+export function inviteCompanionLink(companionName, friendUserId) {
+    if (!STATE.user) return;
+    return _post('/api/companions/link', {
+        user_id: STATE.user.id,
+        companion_name: companionName,
+        friend_user_id: friendUserId,
+    });
+}
+
+/** Accept or decline a pending companion-link invitation. On accept the
+ *  responder picks a `companionName` for the inviter (defaults to the
+ *  inviter's display name). */
+export function respondCompanionLink(inviterUserId, accept, companionName) {
+    if (!STATE.user) return;
+    return _post('/api/companions/link/respond', {
+        user_id: STATE.user.id,
+        inviter_user_id: inviterUserId,
+        accept,
+        companion_name: companionName ?? '',
+    });
+}
+
+/** Mutual unlink — both sides' rows revert to plain (unlinked) companions. */
+export function unlinkCompanion(friendUserId) {
+    if (!STATE.user) return;
+    return _post('/api/companions/unlink', {
+        user_id: STATE.user.id,
+        friend_user_id: friendUserId,
+    });
+}
+
+/** Fetch the user's accepted friends. Used by the link picker modal in
+ *  settings to show only candidates that aren't already linked. */
+export async function fetchAcceptedFriends() {
+    if (!STATE.user) return [];
+    try {
+        const res = await fetch(apiUrl(`/api/friends/list?user_id=${encodeURIComponent(STATE.user.id)}`));
+        const friends = await res.json();
+        return Array.isArray(friends) ? friends : [];
+    } catch (e) {
+        console.error('fetchAcceptedFriends failed:', e);
+        return [];
+    }
 }
 
 /** Replace the full category list on the server. */

@@ -131,15 +131,31 @@ def init_db():
             )
         ''')
 
-        # Companions Table
+        # Companions Table — Phase 2 added link columns. A companion can
+        # optionally point to a friend's user account. The link is symmetric:
+        # when A invites B, A's row gets `linked_user_id=B, link_status='pending'`;
+        # on accept B creates their own row pointing back to A and both rows
+        # flip to `accepted`. Removing a row symmetrically nulls the
+        # corresponding row on the friend's side.
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS companions (
                 user_id TEXT,
                 name TEXT,
+                linked_user_id TEXT,
+                link_status TEXT,
                 PRIMARY KEY(user_id, name),
-                FOREIGN KEY(user_id) REFERENCES users(id)
+                FOREIGN KEY(user_id) REFERENCES users(id),
+                FOREIGN KEY(linked_user_id) REFERENCES users(id)
             )
         ''')
+        for col, ddl in [
+            ("linked_user_id", "ALTER TABLE companions ADD COLUMN linked_user_id TEXT"),
+            ("link_status", "ALTER TABLE companions ADD COLUMN link_status TEXT"),
+        ]:
+            try:
+                cursor.execute(ddl)
+            except Exception:
+                pass
 
         # Categories Table (user-scoped custom categories)
         cursor.execute('''

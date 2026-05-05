@@ -3,7 +3,9 @@ import { STATE, emit } from '../state.js';
 import { generateId, showConfirmModal, q } from '../utils.js';
 import { syncCategories, syncCompanions, upsertTrip, apiUrl } from '../api.js';
 import { navigate } from '../router.js';
-import { addCompanion, removeCompanion, hasCompanion } from '../companions.js';
+import { addCompanion, removeCompanion, hasCompanion, clearCompanionLink, findCompanion } from '../companions.js';
+import { unlinkCompanion as apiUnlinkCompanion } from '../api.js';
+import { openCompanionLinkPickerModal } from '../modals.js';
 
 export const showSettingsTab = (tab) => {
     const tabs = /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll('.settings-tab-btn'));
@@ -50,6 +52,46 @@ const deleteCategory = (id) => {
             navigate('personalization');
             setTimeout(() => showPersTab('categories'), 50);
         }
+    });
+};
+
+/** Cancel a pending outbound link invitation. The /api/companions/unlink
+ *  endpoint is symmetric — calling it with a friend_user_id while the
+ *  status is still 'pending' clears the inviter's row and is a no-op on
+ *  the friend's side (they have no row yet). Sends a "declined" notification
+ *  to the friend? No — the friend never accepted, so no follow-up; the
+ *  open invite notification on their side just becomes stale. */
+const cancelCompanionLink = (name) => {
+    const c = findCompanion(name);
+    if (!c || !c.linkedUserId) return;
+    const friendId = c.linkedUserId;
+    showConfirmModal({
+        title: "Cancel invitation?",
+        message: `Cancel the link request to "${name}"?`,
+        confirmText: "Cancel link",
+        onConfirm: () => {
+            clearCompanionLink(name);
+            emit('state:changed');
+            apiUnlinkCompanion(friendId);
+            navigate('personalization');
+            setTimeout(() => showPersTab('companions'), 50);
+        },
+    });
+};
+
+/** Mutual unlink — both sides revert to plain unlinked companions; names stay. */
+const confirmUnlinkCompanion = (name, friendUserId) => {
+    showConfirmModal({
+        title: "Unlink companion?",
+        message: `Unlink "${name}" from their friend account? Both sides keep the companion record but the link is broken.`,
+        confirmText: "Unlink",
+        onConfirm: () => {
+            clearCompanionLink(name);
+            emit('state:changed');
+            apiUnlinkCompanion(friendUserId);
+            navigate('personalization');
+            setTimeout(() => showPersTab('companions'), 50);
+        },
     });
 };
 
@@ -422,13 +464,42 @@ export function renderPersonalization() {
         </tr>
     `).join('');
 
-    // Companion roster row — Phase 2 will add a `Link to friend` action
-     // here; for now it's just the name + delete affordance.
+    // Companion roster row — left column is the name + a link-status pill
+    // (unlinked / pending / linked). Right column carries the action button:
+    // unlinked → "Link to friend", pending → "Cancel link", linked → "Unlink".
+    // Delete (✕) is always available, and the cascade in `deleteCompanion`
+    // also nulls the friend's reciprocal link so dangling rows can't form.
+    const linkPill = (/** @type {import('../types').Companion} */ c) => {
+        if (c.linkStatus === 'pending') {
+            return `<span class="companion-link-pill companion-link-pill--pending">⏳ Pending</span>`;
+        }
+        if (c.linkStatus === 'accepted' && c.linkedUserId) {
+            return `<span class="companion-link-pill companion-link-pill--linked">🟢 Linked</span>`;
+        }
+        return '';
+    };
+    const linkAction = (/** @type {import('../types').Companion} */ c) => {
+        if (c.linkStatus === 'pending') {
+            return `<button class="btn-link-action companion-cancel-link-btn" data-companion="${c.name}">Cancel</button>`;
+        }
+        if (c.linkStatus === 'accepted' && c.linkedUserId) {
+            return `<button class="btn-link-action companion-unlink-btn" data-companion="${c.name}" data-friend-id="${c.linkedUserId}">Unlink</button>`;
+        }
+        return `<button class="btn-link-action companion-link-btn" data-companion="${c.name}">🔗 Link to friend</button>`;
+    };
     const groupsHtml = STATE.groups.map(c => `
         <tr>
-            <td>${c.name}</td>
+            <td>
+                <div style="display:flex; align-items:center; gap: var(--space-2); flex-wrap: wrap;">
+                    <span style="font-weight:600;">${c.name}</span>
+                    ${linkPill(c)}
+                </div>
+            </td>
             <td class="is-right">
-                <button class="btn-x-bare delete-companion-btn" data-companion="${c.name}">✕</button>
+                <div style="display:inline-flex; align-items:center; gap: var(--space-2);">
+                    ${linkAction(c)}
+                    <button class="btn-x-bare delete-companion-btn" data-companion="${c.name}">✕</button>
+                </div>
             </td>
         </tr>
     `).join('');
@@ -527,6 +598,18 @@ export function renderPersonalization() {
 
         const delCompBtn = /** @type {HTMLElement | null} */ (target.closest('.delete-companion-btn'));
         if (delCompBtn?.dataset.companion) { deleteCompanion(delCompBtn.dataset.companion); return; }
+
+        const linkBtn = /** @type {HTMLElement | null} */ (target.closest('.companion-link-btn'));
+        if (linkBtn?.dataset.companion) { openCompanionLinkPickerModal(linkBtn.dataset.companion); return; }
+
+        const cancelLinkBtn = /** @type {HTMLElement | null} */ (target.closest('.companion-cancel-link-btn'));
+        if (cancelLinkBtn?.dataset.companion) { cancelCompanionLink(cancelLinkBtn.dataset.companion); return; }
+
+        const unlinkBtn = /** @type {HTMLElement | null} */ (target.closest('.companion-unlink-btn'));
+        if (unlinkBtn?.dataset.companion && unlinkBtn.dataset.friendId) {
+            confirmUnlinkCompanion(unlinkBtn.dataset.companion, unlinkBtn.dataset.friendId);
+            return;
+        }
     });
 
     setTimeout(() => {

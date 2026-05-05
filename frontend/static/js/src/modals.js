@@ -6,9 +6,15 @@
 
 import { STATE, emit } from './state.js';
 import { generateId, showLiquidAlert, q } from './utils.js';
-import { upsertTrip, upsertDay } from './api.js';
+import { upsertTrip, upsertDay, fetchAcceptedFriends, inviteCompanionLink, respondCompanionLink } from './api.js';
 import { navigate } from './router.js';
-import { getCompanionNames } from './companions.js';
+import {
+    getCompanionNames,
+    findCompanion,
+    findCompanionByLinkedUser,
+    markCompanionLinkPending,
+    addCompanion,
+} from './companions.js';
 
 /**
  * @typedef {{ placeId: string, name: string, lat: number, lng: number,
@@ -500,6 +506,151 @@ export const openCompanionPickerModal = (tripId) => {
         showLiquidAlert(`${picked.length} companion${picked.length === 1 ? '' : 's'} on this trip`);
         modal.remove();
         navigate('home', null, true);
+    };
+};
+
+// ── Phase 2: companion ↔ friend linking ─────────────────────────────────────
+// Two modals:
+//   - openCompanionLinkPickerModal  — inviter picks a friend to invite
+//   - openCompanionLinkResponseModal — invitee accepts/declines + names them
+// Both use the existing `.card-glass-modal-light` shell so they match the
+// other home/personalization modals visually. Server-side wiring lives in
+// /api/companions/link* endpoints.
+
+/** @param {string} companionName */
+export const openCompanionLinkPickerModal = (companionName) => {
+    const companion = findCompanion(companionName);
+    if (!companion) return;
+
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.style.display = 'flex';
+    modal.style.backdropFilter = 'blur(25px)';
+
+    modal.innerHTML = `
+        <div class="card-glass-modal-light" style="width: 460px; max-height: 80vh; display: flex; flex-direction: column;">
+            <h2 style="margin: 0 0 var(--space-2); font-size: var(--font-2xl); color: #002d5b; font-weight: 800; letter-spacing: -0.03em;">Link to a friend</h2>
+            <p style="margin: 0 0 var(--space-5); font-size: var(--font-base); color: rgba(0,0,0,0.55);">
+                Choose which friend to link as <strong>${companionName}</strong>. They'll get a notification and can accept or decline. Linked companions can later be invited to shared trips.
+            </p>
+
+            <div id="linkPickerList" style="display:flex; flex-direction:column; gap: var(--space-2); overflow-y: auto; padding: var(--space-1); margin-bottom: var(--space-5); flex: 1; min-height: 0;">
+                <p style="text-align:center; color: rgba(0,0,0,0.45); padding: var(--space-5); margin: 0;">Loading friends…</p>
+            </div>
+
+            <div style="display: flex; gap: var(--space-3); flex-shrink: 0;">
+                <button id="linkPickerInviteBtn" class="btn-primary" style="flex: 2; padding: var(--space-4); border-radius: var(--radius-lg); font-size: var(--font-lg);" disabled>Send invitation</button>
+                <button id="linkPickerCloseBtn" class="btn-neutral" style="flex: 1; border-radius: var(--radius-lg);">Cancel</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    /** @type {HTMLButtonElement} */ (q(modal, '#linkPickerCloseBtn')).onclick = () => modal.remove();
+
+    /** @type {string | null} */
+    let pickedFriendId = null;
+    const inviteBtn = /** @type {HTMLButtonElement} */ (q(modal, '#linkPickerInviteBtn'));
+
+    fetchAcceptedFriends().then(friends => {
+        const list = q(modal, '#linkPickerList');
+        // Hide friends already linked to ANY companion (1:1 link rule).
+        const candidates = friends.filter(f => !findCompanionByLinkedUser(f.id));
+        if (candidates.length === 0) {
+            list.innerHTML = `<p style="text-align:center; color: rgba(0,0,0,0.55); padding: var(--space-5); margin: 0;">
+                No friends available — every accepted friend is already linked to a companion, or you haven't added any friends yet.
+            </p>`;
+            return;
+        }
+        list.innerHTML = candidates.map(f => `
+            <label class="companion-row friend-pick-row" data-friend-id="${f.id}">
+                <input type="radio" name="linkPickFriend" class="companion-row__cb" value="${f.id}">
+                <img src="${f.picture}" alt="" style="width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;">
+                <span class="companion-row__name">${f.name}</span>
+                <span style="font-size: var(--font-xs); color: rgba(0,0,0,0.45);">${f.email}</span>
+            </label>
+        `).join('');
+
+        list.querySelectorAll('input[name="linkPickFriend"]').forEach(input => {
+            /** @type {HTMLInputElement} */ (input).onchange = (ev) => {
+                pickedFriendId = /** @type {HTMLInputElement} */ (ev.target).value || null;
+                inviteBtn.disabled = !pickedFriendId;
+            };
+        });
+    });
+
+    inviteBtn.onclick = async () => {
+        if (!pickedFriendId) return;
+        inviteBtn.disabled = true;
+        // Optimistic local update so the row flips to "Pending" immediately.
+        markCompanionLinkPending(companionName, pickedFriendId);
+        emit('state:changed');
+        await inviteCompanionLink(companionName, pickedFriendId);
+        showLiquidAlert("Invitation sent");
+        modal.remove();
+        navigate('personalization', null, true);
+    };
+};
+
+/** Open the accept/decline screen for an incoming companion-link invitation.
+ *  Shown when the user clicks a `companion_link_invite` notification.
+ *  @param {{ related_id?: string | number; message?: string }} notification */
+export const openCompanionLinkResponseModal = (notification) => {
+    const inviterUserId = notification.related_id ? String(notification.related_id) : '';
+    if (!inviterUserId) return;
+
+    // Pull the inviter's display name out of the notification message
+    // ("X wants to link you as a companion."). Falls back to "this person".
+    const m = (notification.message || '').match(/^(.*?)\s+wants/);
+    const inviterName = m ? m[1] : 'this person';
+
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.style.display = 'flex';
+    modal.style.backdropFilter = 'blur(25px)';
+
+    modal.innerHTML = `
+        <div class="card-glass-modal-light" style="width: 440px;">
+            <h2 style="margin: 0 0 var(--space-2); font-size: var(--font-2xl); color: #002d5b; font-weight: 800; letter-spacing: -0.03em;">Companion link request</h2>
+            <p style="margin: 0 0 var(--space-5); font-size: var(--font-base); color: rgba(0,0,0,0.6); line-height: 1.5;">
+                <strong>${inviterName}</strong> wants to link you as a companion. Accept and they'll appear in your companion list — you can rename them however you like.
+            </p>
+
+            <div style="margin-bottom: var(--space-5);">
+                <label class="form-label-light" style="display:block; margin-bottom: var(--space-2);">Save them as</label>
+                <input type="text" id="linkResponseName" class="glass-input-light" value="${inviterName}" placeholder="Companion name">
+            </div>
+
+            <div style="display: flex; gap: var(--space-3);">
+                <button id="linkResponseAcceptBtn" class="btn-primary" style="flex: 2; padding: var(--space-4); border-radius: var(--radius-lg); font-size: var(--font-lg);">Accept link</button>
+                <button id="linkResponseDeclineBtn" class="btn-neutral" style="flex: 1; border-radius: var(--radius-lg);">Decline</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    const nameInput = /** @type {HTMLInputElement} */ (q(modal, '#linkResponseName'));
+
+    /** @type {HTMLButtonElement} */ (q(modal, '#linkResponseAcceptBtn')).onclick = async () => {
+        const chosen = nameInput.value.trim() || inviterName;
+        // Optimistic local update — create the companion record on this side
+        // pre-marked accepted; the server will confirm and reciprocate.
+        const companion = addCompanion(chosen);
+        if (companion) {
+            companion.linkedUserId = inviterUserId;
+            companion.linkStatus = 'accepted';
+        }
+        emit('state:changed');
+        await respondCompanionLink(inviterUserId, true, chosen);
+        showLiquidAlert("Companion linked");
+        modal.remove();
+        navigate('personalization', null, true);
+    };
+
+    /** @type {HTMLButtonElement} */ (q(modal, '#linkResponseDeclineBtn')).onclick = async () => {
+        await respondCompanionLink(inviterUserId, false, '');
+        showLiquidAlert("Declined");
+        modal.remove();
     };
 };
 

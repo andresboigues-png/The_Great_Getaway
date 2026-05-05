@@ -21,7 +21,7 @@ function resolvePage(raw) {
     );
 }
 import { updateUserUI, logout } from './pages/profile.js';
-import { openNewTripModal } from './modals.js';
+import { openNewTripModal, openCompanionLinkResponseModal } from './modals.js';
 
 // Global Google Client ID is now provided via index.html template from environment variables
 
@@ -42,6 +42,9 @@ function notificationAccent(type) {
     switch (type) {
         case 'alert': return '255,59,48';
         case 'trip_public': return '52,199,89';
+        case 'companion_link_invite': return '175,82,222';   // purple — invite
+        case 'companion_link_accepted': return '52,199,89';  // green — accepted
+        case 'companion_link_declined': return '142,142,147'; // grey — neutral close
         case 'friend_request':
         case 'accepted_request':
         default: return '0,113,227';
@@ -54,6 +57,9 @@ function notificationDefaultTitle(type) {
         case 'friend_request': return 'Friend Request';
         case 'accepted_request': return 'Request Accepted';
         case 'trip_public': return 'Trip Completed';
+        case 'companion_link_invite': return 'Companion link request';
+        case 'companion_link_accepted': return 'Companion linked';
+        case 'companion_link_declined': return 'Companion link declined';
         case 'alert': return 'Alert';
         default: return 'Notification';
     }
@@ -82,8 +88,8 @@ function renderNotificationDropdown() {
 }
 
 /** Route a clicked notification to the page that lets the user act on it.
- *  `related_id` is a user_id for friend_* and trip_public; for everything
- *  else we fall back to the home page. */
+ *  `related_id` is a user_id for friend_* / trip_public / companion_link_*;
+ *  for everything else we fall back to the home page. */
 function handleNotificationClick(notification) {
     const dropdown = document.getElementById('notificationDropdown');
     if (dropdown) dropdown.style.display = 'none';
@@ -101,6 +107,18 @@ function handleNotificationClick(notification) {
             } else {
                 navigate(PAGES.FRIENDS);
             }
+            break;
+        case 'companion_link_invite':
+            // Open the accept/decline modal directly from wherever the user
+            // happens to be — the response is a one-tap decision and doesn't
+            // need a full page navigation.
+            openCompanionLinkResponseModal(notification);
+            break;
+        case 'companion_link_accepted':
+        case 'companion_link_declined':
+            // Outcome notifications — just route to the personalization
+            // companions tab so the user sees the updated state.
+            navigate(PAGES.PERSONALIZATION);
             break;
         default:
             navigate(PAGES.HOME);

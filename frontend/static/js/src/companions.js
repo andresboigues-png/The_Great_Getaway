@@ -64,6 +64,50 @@ export function removeCompanion(name) {
     return STATE.groups.length < before;
 }
 
+// ── Link helpers (Phase 2) ─────────────────────────────────────────────────
+// Local mirrors of the server-side mutations. Each helper just adjusts the
+// local Companion record so the UI updates without waiting for the next
+// /api/data poll; the actual durable change is the corresponding
+// /api/companions/link* call in api.js.
+
+/** Mark a companion as having a pending link to a friend. @param {string} name @param {string} friendUserId */
+export function markCompanionLinkPending(name, friendUserId) {
+    const c = findCompanion(name);
+    if (!c) return;
+    c.linkedUserId = friendUserId;
+    c.linkStatus = 'pending';
+}
+
+/** Promote a pending link to accepted on the local roster. @param {string} name */
+export function markCompanionLinkAccepted(name) {
+    const c = findCompanion(name);
+    if (!c) return;
+    c.linkStatus = 'accepted';
+}
+
+/** Strip link metadata from a companion (kept as a plain unlinked row).
+ *  @param {string} name */
+export function clearCompanionLink(name) {
+    const c = findCompanion(name);
+    if (!c) return;
+    delete c.linkedUserId;
+    delete c.linkStatus;
+}
+
+/** Find a companion by the friend's user id (only one match — links are 1:1).
+ *  Used to look up "what local name am I using for this friend?" when
+ *  responding to incoming notifications.
+ *  @param {string} friendUserId @returns {Companion | undefined} */
+export function findCompanionByLinkedUser(friendUserId) {
+    if (!friendUserId) return undefined;
+    return (STATE.groups || []).find(c => c.linkedUserId === friendUserId);
+}
+
+/** True if any companion is linked to this friend. */
+export function isFriendLinked(friendUserId) {
+    return findCompanionByLinkedUser(friendUserId) !== undefined;
+}
+
 /** Promote a legacy string-roster snapshot into the modern Companion[] shape.
  *  Idempotent — passing a roster that's already objects returns it unchanged.
  *  Used by state.js loadState (in case localStorage holds an older shape) and
