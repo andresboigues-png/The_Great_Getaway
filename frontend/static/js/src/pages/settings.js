@@ -84,31 +84,31 @@ export function renderSettings() {
         const sf = STATE.savedFormats || [];
 
         return `
-            <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:24px;">
+            <div style="display:flex; flex-wrap:wrap; gap:var(--space-2); margin-bottom:var(--space-6);">
                 ${MANDATORY.map(v => {
             const done = used.has(v);
-            return `<span style="padding:6px 14px; border-radius:20px; font-size:0.75rem; font-weight:700; border:1px solid ${done ? 'rgba(52,199,89,0.3)' : 'rgba(255,59,48,0.3)'}; background:${done ? 'rgba(52,199,89,0.05)' : 'rgba(255,59,48,0.05)'}; color:${done ? '#34c759' : '#ff3b30'};">
+            return `<span class="status-chip${done ? ' is-done' : ''}">
                         ${done ? '✓' : '★'} ${v.toUpperCase()}
                     </span>`;
         }).join('')}
             </div>
 
-            <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--glass-border); border-radius: 20px; overflow: hidden; margin-bottom: 24px;">
-                <table style="width: 100%; border-collapse: collapse;">
-                    <thead style="background: rgba(255,149,0,0.05);">
+            <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--glass-border); border-radius: var(--radius-xl); overflow: hidden; margin-bottom: var(--space-6);">
+                <table class="mapping-table">
+                    <thead>
                         <tr>
-                            <th style="text-align:left; padding:16px; font-size:0.7rem; text-transform:uppercase; color:var(--text-secondary);">Variable</th>
-                            <th style="text-align:left; padding:16px; font-size:0.7rem; text-transform:uppercase; color:var(--text-secondary);">Excel Column</th>
-                            <th style="text-align:center; padding:16px; font-size:0.7rem; text-transform:uppercase; color:var(--text-secondary);">Action</th>
+                            <th class="is-left">Variable</th>
+                            <th class="is-left">Excel Column</th>
+                            <th class="is-center">Action</th>
                         </tr>
                     </thead>
                     <tbody>
-                        ${(STATE.customFormat || []).length === 0 ? '<tr><td colspan="3" style="padding:32px; text-align:center; color:var(--text-secondary); font-style:italic;">No mappings yet.</td></tr>' : (STATE.customFormat || []).map(m => `
-                            <tr style="border-bottom: 1px solid var(--glass-border);">
-                                <td style="padding:16px; font-weight:700;">${m.variable}</td>
-                                <td style="padding:16px;"><span style="background:#ff9500; color:white; padding:4px 10px; border-radius:8px; font-weight:800; font-size:0.8rem;">${m.column}</span></td>
-                                <td style="padding:16px; text-align:center;">
-                                    <button class="remove-mapping-btn" data-variable="${m.variable}" style="background:rgba(255,59,48,0.1); border:none; color:#ff3b30; width:32px; height:32px; border-radius:50%; cursor:pointer;">&times;</button>
+                        ${(STATE.customFormat || []).length === 0 ? '<tr><td class="empty-cell" colspan="3">No mappings yet.</td></tr>' : (STATE.customFormat || []).map(m => `
+                            <tr>
+                                <td style="font-weight:700;">${m.variable}</td>
+                                <td><span class="col-tag">${m.column}</span></td>
+                                <td class="is-center">
+                                    <button class="icon-x-btn remove-mapping-btn" data-variable="${m.variable}">&times;</button>
                                 </td>
                             </tr>
                         `).join('')}
@@ -116,40 +116,40 @@ export function renderSettings() {
                 </table>
             </div>
 
-            <div style="display:flex; gap:16px; align-items:flex-end; flex-wrap:wrap; margin-bottom:32px;">
+            <div style="display:flex; gap:var(--space-4); align-items:flex-end; flex-wrap:wrap; margin-bottom:var(--space-8);">
                 <div style="flex:1; min-width:150px;">
-                    <label style="display:block; font-size:0.75rem; font-weight:800; margin-bottom:8px; color:var(--text-secondary);">VARIABLE</label>
+                    <label class="compact-form-label" style="font-size:var(--font-xs); font-weight:800; color:var(--text-secondary);">VARIABLE</label>
                     <select id="mapVarSelect" class="glass-input" style="width:100%;">
                         <option value="">Select...</option>
                         ${MANDATORY.concat(OPTIONAL).filter(v => !used.has(v)).map(v => `<option value="${v}">${MANDATORY.includes(v) ? '★ ' : ''}${v}</option>`).join('')}
                     </select>
                 </div>
                 <div style="flex:1; min-width:120px;">
-                    <label style="display:block; font-size:0.75rem; font-weight:800; margin-bottom:8px; color:var(--text-secondary);">COLUMN</label>
+                    <label class="compact-form-label" style="font-size:var(--font-xs); font-weight:800; color:var(--text-secondary);">COLUMN</label>
                     <select id="mapColSelect" class="glass-input" style="width:100%;">
                         <option value="">Col...</option>
                         ${'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map(c => `<option value="${c}">${c}</option>`).join('')}
                     </select>
                 </div>
-                <button class="btn btn-liquid-glass" id="addFormatMappingBtn" style="padding: 12px 24px;">Map Field</button>
+                <button class="btn btn-liquid-glass" id="addFormatMappingBtn" style="padding: var(--space-3) var(--space-6);">Map Field</button>
             </div>
 
-            <div style="border-top: 1px solid var(--glass-border); padding-top: 32px;">
+            <div style="border-top: 1px solid var(--glass-border); padding-top: var(--space-8);">
                 <h3 style="margin-top:0;">Saved Formats (${sf.length}/5)</h3>
-                <div style="display:grid; gap:12px;">
+                <div style="display:grid; gap:var(--space-3);">
                     ${sf.map(f => `
-                        <div style="display:flex; align-items:center; justify-content:space-between; background:rgba(255,255,255,0.03); padding:16px; border-radius:16px; border:1px solid var(--glass-border);">
+                        <div class="saved-format-row">
                             <div style="font-weight:700;">${f.name}</div>
-                            <div style="display:flex; gap:8px;">
+                            <div style="display:flex; gap:var(--space-2);">
                                 <button class="themed-block-btn themed-block-btn--sm edit-saved-format-btn" data-format-id="${f.id}" style="--accent: 0,113,227;">Edit</button>
                                 <button class="themed-block-btn themed-block-btn--sm delete-saved-format-btn" data-format-id="${f.id}" style="--accent: 255,59,48;">Delete</button>
                             </div>
                         </div>
                     `).join('')}
                     ${sf.length < 5 ? `
-                        <div style="display:flex; gap:12px; margin-top:12px;">
+                        <div style="display:flex; gap:var(--space-3); margin-top:var(--space-3);">
                             <input type="text" id="formatNameInput" class="glass-input" placeholder="Name this format..." style="flex:1;">
-                            <button class="btn" id="saveCustomFormatBtn" style="background:var(--accent-blue);">Save Format</button>
+                            <button class="btn-primary" id="saveCustomFormatBtn">Save Format</button>
                         </div>
                     ` : ''}
                 </div>
@@ -396,20 +396,20 @@ export function renderPersonalization() {
     const div = document.createElement('div');
 
     const catsHtml = STATE.categories.map(c => `
-        <tr style="border-bottom: 1px solid var(--glass-border)">
-            <td style="padding: 12px; font-weight: 500;">${c.icon} ${c.name}</td>
-            <td style="padding: 12px; text-align: right;"><span style="display:inline-block; width:12px; height:12px; border-radius:50%; background: ${c.color}"></span></td>
-            <td style="padding: 12px; text-align: right;">
-                <button class="btn-small delete-category-btn" data-category-id="${c.id}" style="background:none; color:#ff3b30; border:none; cursor:pointer;">✕</button>
+        <tr>
+            <td>${c.icon} ${c.name}</td>
+            <td class="is-right"><span class="color-swatch" style="background: ${c.color}"></span></td>
+            <td class="is-right">
+                <button class="btn-x-bare delete-category-btn" data-category-id="${c.id}">✕</button>
             </td>
         </tr>
     `).join('');
 
     const groupsHtml = STATE.groups.map(g => `
-        <tr style="border-bottom: 1px solid var(--glass-border)">
-            <td style="padding: 12px; font-weight: 500;">${g}</td>
-            <td style="padding: 12px; text-align: right;">
-                <button class="btn-small delete-companion-btn" data-companion="${g}" style="background:none; color:#ff3b30; border:none; cursor:pointer;">✕</button>
+        <tr>
+            <td>${g}</td>
+            <td class="is-right">
+                <button class="btn-x-bare delete-companion-btn" data-companion="${g}">✕</button>
             </td>
         </tr>
     `).join('');
@@ -437,22 +437,22 @@ export function renderPersonalization() {
             <div id="persCategories" style="display: none;">
                 <div class="card glass card-glow-blue">
                     <h2 class="card-title" style="color: var(--accent-blue);">Categories</h2>
-                    <table class="liquid-table" style="width: 100%; margin-bottom: 20px;">
+                    <table class="compact-table" style="margin-bottom: var(--space-5);">
                         <thead>
                             <tr>
-                                <th style="text-align: left;">Name</th>
-                                <th style="text-align: right;">Color</th>
-                                <th style="text-align: right;">Action</th>
+                                <th class="is-left">Name</th>
+                                <th class="is-right">Color</th>
+                                <th class="is-right">Action</th>
                             </tr>
                         </thead>
                         <tbody>
                             ${catsHtml}
                         </tbody>
                     </table>
-                    
-                    <div style="margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--glass-border);">
-                        <h3 style="margin-bottom: 12px; font-size: 1rem;">Add New Category</h3>
-                        <div style="display:flex; gap: 12px; flex-wrap: wrap;">
+
+                    <div class="section-divider">
+                        <h3 style="margin-bottom: var(--space-3); font-size: var(--font-lg);">Add New Category</h3>
+                        <div style="display:flex; gap: var(--space-3); flex-wrap: wrap;">
                             <select id="catIcon" class="glass-input" style="width: 80px;">
                                 <option value="🍷">🍷</option><option value="🏨">🏨</option><option value="✈️">✈️</option><option value="🚕">🚕</option><option value="🍕">🍕</option>
                                 <option value="🎟️">🎟️</option><option value="🛍️">🛍️</option><option value="🍦">🍦</option><option value="🥐">🥐</option><option value="🏛️">🏛️</option>
@@ -461,7 +461,7 @@ export function renderPersonalization() {
                             </select>
                             <input type="text" id="catName" class="glass-input" placeholder="Category Name" style="flex:1; min-width: 150px;">
                             <input type="color" id="catColor" class="glass-input" value="#ff3b30" style="width: 50px; padding: 2px;">
-                            <button id="addCatBtn" class="btn">Add</button>
+                            <button id="addCatBtn" class="btn-primary" style="padding: var(--space-3) var(--space-5);">Add</button>
                         </div>
                     </div>
                 </div>
@@ -470,24 +470,24 @@ export function renderPersonalization() {
             <div id="persCompanions" style="display: none;">
                 <div class="card glass card-glow-purple">
                     <h2 class="card-title" style="color: #5856d6;">Travel Companions</h2>
-                    <p style="color: var(--text-secondary); margin-bottom: 16px;">The people who usually pay for or share expenses with you.</p>
-                    <table class="liquid-table" style="width: 100%; margin-bottom: 20px;">
+                    <p style="color: var(--text-secondary); margin-bottom: var(--space-4);">The people who usually pay for or share expenses with you.</p>
+                    <table class="compact-table" style="margin-bottom: var(--space-5);">
                         <thead>
                             <tr>
-                                <th style="text-align: left;">Name</th>
-                                <th style="text-align: right;">Action</th>
+                                <th class="is-left">Name</th>
+                                <th class="is-right">Action</th>
                             </tr>
                         </thead>
                         <tbody>
-                            ${groupsHtml || '<tr><td colspan="2" style="text-align:center; padding: 20px; color: var(--text-secondary);">No companions added yet.</td></tr>'}
+                            ${groupsHtml || `<tr><td class="is-center" colspan="2" style="color: var(--text-secondary);">No companions added yet.</td></tr>`}
                         </tbody>
                     </table>
-                    
-                    <div style="margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--glass-border);">
-                        <h3 style="margin-bottom: 12px; font-size: 1rem;">Add Companion</h3>
-                        <div style="display: flex; gap: 12px;">
+
+                    <div class="section-divider">
+                        <h3 style="margin-bottom: var(--space-3); font-size: var(--font-lg);">Add Companion</h3>
+                        <div style="display: flex; gap: var(--space-3);">
                             <input type="text" id="newPerson" class="glass-input" style="flex: 1;" placeholder="Enter name...">
-                            <button id="addPersonBtn" class="btn" style="background: #5856d6;">Add Person</button>
+                            <button id="addPersonBtn" class="btn-primary" style="background: #5856d6; padding: var(--space-3) var(--space-5);">Add Person</button>
                         </div>
                     </div>
                 </div>

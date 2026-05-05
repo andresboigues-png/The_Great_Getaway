@@ -139,7 +139,7 @@ export function renderProfile(targetUserId = null) {
                             <!-- Inline Status -->
                             <div style="position: relative; display: inline-block; margin-bottom: 8px;">
                                 ${isOwnProfile ? `
-                                    <select id="profileStatus" style="appearance: none; background: rgba(0, 113, 227, 0.08); color: var(--accent-blue); border: 1px solid rgba(0, 113, 227, 0.15); border-radius: 12px; padding: 2px 24px 2px 10px; font-size: 0.8rem; font-weight: 700; cursor: pointer; outline: none; transition: all 0.2s;">
+                                    <select id="profileStatus" class="brand-select" style="padding: 2px 24px 2px 10px; font-size: var(--font-base);">
                                         <option value="" disabled ${!user.status ? 'selected' : ''}>Set status...</option>
                                         <option value="Deliberating next trip" ${user.status === 'Deliberating next trip' ? 'selected' : ''}>🤔 Deliberating next trip</option>
                                         <option value="Preparing a trip right now" ${user.status === 'Preparing a trip right now' ? 'selected' : ''}>🎒 Preparing a trip right now</option>
@@ -147,9 +147,9 @@ export function renderProfile(targetUserId = null) {
                                         <option value="Resting at home base" ${user.status === 'Resting at home base' ? 'selected' : ''}>🏠 Resting at home base</option>
                                         <option value="Hunting for flight deals" ${user.status === 'Hunting for flight deals' ? 'selected' : ''}>✈️ Hunting for flight deals</option>
                                     </select>
-                                    <div style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); pointer-events: none; color: var(--accent-blue); font-size: 0.6rem;">▼</div>
+                                    <div class="brand-select-chevron" style="right: 8px;">▼</div>
                                 ` : `
-                                    <div style="background: rgba(0, 113, 227, 0.05); color: var(--accent-blue); border-radius: 12px; padding: 4px 12px; font-size: 0.8rem; font-weight: 700; display: inline-block;">
+                                    <div style="background: rgba(0, 113, 227, 0.05); color: var(--accent-blue); border-radius: var(--radius-md); padding: var(--space-1) var(--space-3); font-size: var(--font-base); font-weight: 700; display: inline-block;">
                                         ${user.status || 'Active Traveler'}
                                     </div>
                                 `}
@@ -157,7 +157,7 @@ export function renderProfile(targetUserId = null) {
 
                             <!-- Bio -->
                             ${isOwnProfile ? `
-                                <textarea id="profileBio" placeholder="Add a bio..." style="width: 100%; max-width: 500px; min-height: 40px; background: transparent; border: 1px solid transparent; border-radius: 8px; color: var(--text-primary); font-size: 0.95rem; font-family: inherit; line-height: 1.5; resize: none; outline: none; padding: 6px; margin-left: -6px; transition: all 0.2s;" onfocus="this.style.background='rgba(0,0,0,0.03)'; this.style.borderColor='var(--glass-border)';" onblur="this.style.background='transparent'; this.style.borderColor='transparent';">${user.bio || ''}</textarea>
+                                <textarea id="profileBio" class="bio-input" placeholder="Add a bio...">${user.bio || ''}</textarea>
 
                                 <!-- Home currency picker — the currency totals
                                      and insights will be displayed in. -->
@@ -166,12 +166,12 @@ export function renderProfile(targetUserId = null) {
                                         Home currency — what you'll see totals and insights in
                                     </label>
                                     <div style="position: relative; display: inline-block;">
-                                        <select id="profileHomeCurrency" style="appearance: none; background: rgba(0, 113, 227, 0.08); color: var(--accent-blue); border: 1px solid rgba(0, 113, 227, 0.15); border-radius: 12px; padding: 6px 28px 6px 12px; font-size: 0.85rem; font-weight: 700; cursor: pointer; outline: none; transition: all 0.2s;">
+                                        <select id="profileHomeCurrency" class="brand-select" style="padding: 6px 28px 6px 12px; font-size: var(--font-sm);">
                                             ${Object.keys(CONVERSION_RATES).map(code => `
                                                 <option value="${code}" ${getHomeCurrency() === code ? 'selected' : ''}>${CURRENCY_SYMBOLS[code] || code}  ${code}</option>
                                             `).join('')}
                                         </select>
-                                        <div style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); pointer-events: none; color: var(--accent-blue); font-size: 0.6rem;">▼</div>
+                                        <div class="brand-select-chevron" style="right: 10px;">▼</div>
                                     </div>
                                 </div>
 
