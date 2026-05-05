@@ -7,6 +7,8 @@ from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from database import get_db, init_db
 
 # Load environment variables
@@ -27,6 +29,41 @@ app = Flask(__name__,
 UPLOAD_FOLDER = os.path.join(app.static_folder, 'uploads')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+# Upload limits — Flask itself will refuse anything over MAX_CONTENT_LENGTH
+# with a 413 before a single byte hits disk. Per-extension allowlist below
+# narrows the actual saved set.
+MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10 MB
+app.config['MAX_CONTENT_LENGTH'] = MAX_UPLOAD_SIZE
+ALLOWED_UPLOAD_EXTENSIONS = {
+    # images
+    '.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic', '.heif',
+    # documents (trip tickets, bookings)
+    '.pdf',
+}
+# Magic-number prefixes for the formats we accept. Spoofing the extension
+# without spoofing these bytes is much harder, so we sniff the first few
+# bytes as a second-line defense against `bomb.exe` renamed `bomb.jpg`.
+ALLOWED_UPLOAD_SIGNATURES = (
+    b'\xff\xd8\xff',                 # JPEG
+    b'\x89PNG\r\n\x1a\n',            # PNG
+    b'GIF87a', b'GIF89a',            # GIF
+    b'RIFF',                         # WebP (RIFF...WEBP)
+    b'%PDF-',                        # PDF
+    b'\x00\x00\x00',                 # HEIC/HEIF (ftyp box header — coarse but sufficient)
+)
+
+# Rate limiting. Per-IP for now; will switch to per-user once Phase G's
+# auth lands. In-memory storage is fine for single-process dev — production
+# should set RATELIMIT_STORAGE_URI=redis://... so limits survive restarts
+# and apply across worker processes.
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=["200 per minute"],
+    storage_uri=os.getenv("RATELIMIT_STORAGE_URI", "memory://"),
+    headers_enabled=True,
+)
 
 # Ensure DB is initialized
 init_db()
@@ -78,6 +115,7 @@ def user_status():
     return jsonify({"logged_in": False})
 
 @app.route("/api/auth/google", methods=["POST"])
+@limiter.limit("10 per minute")
 def google_auth():
     """Verify Google ID Token and manage user session."""
     # Support both 'token' and 'credential' keys
@@ -136,6 +174,7 @@ def google_auth():
 # --- API Routes for Trips & Expenses ---
 
 @app.route("/api/sync", methods=["POST"])
+@limiter.limit("30 per minute")
 def sync_data():
     """Sync client-side STATE to the database for a logged-in user."""
     data = request.json
@@ -492,6 +531,7 @@ def archive_trip(trip_id):
 # ── Trip member endpoints (Phase 3) ──────────────────────────────────────────
 
 @app.route("/api/trips/invite", methods=["POST"])
+@limiter.limit("30 per minute")
 def invite_trip_member():
     """Planner invites a linked-companion's friend to a trip with a role.
     Creates a `pending` member row + fires a `trip_invite` notification at
@@ -979,6 +1019,7 @@ def search_friends():
     return jsonify(users)
 
 @app.route("/api/friends/add", methods=["POST"])
+@limiter.limit("30 per minute")
 def add_friend():
     """Send a friend request."""
     user_id = request.json.get("user_id")
@@ -1021,6 +1062,7 @@ def add_friend():
     return jsonify({"status": "success"})
 
 @app.route("/api/friends/accept", methods=["POST"])
+@limiter.limit("30 per minute")
 def accept_friend():
     """Accept a friend request. Verifies an actual pending invitation
     exists FROM `friend_id` TO `user_id` before flipping it to accepted —
@@ -1372,10 +1414,18 @@ def update_profile():
     return jsonify({"status": "updated"})
 
 @app.route("/api/upload", methods=["POST"])
+@limiter.limit("30 per minute")
 def upload_file():
-    """Handle file uploads (photos, documents). Requires an authenticated
-    user — without this gate the endpoint accepts any POST and writes the
-    payload to /static/uploads, so anonymous traffic could fill the disk."""
+    """Handle file uploads (photos, documents). Hardened in three ways:
+    1. Auth — anonymous traffic gets 401 (otherwise the endpoint would
+       happily fill /static/uploads).
+    2. Extension allowlist — only image / PDF extensions are saved.
+       secure_filename strips path traversal but does NOT validate the
+       extension, so `bomb.exe` would have been accepted before.
+    3. MIME sniff — the file's first bytes are checked against known
+       magic numbers, so renaming `bomb.exe` to `bomb.jpg` still fails.
+    Size is bounded by app.config['MAX_CONTENT_LENGTH'] (10 MB); Flask
+    refuses bigger uploads with 413 before they hit this handler."""
     user_id = request.form.get("user_id")
     if not user_id:
         return jsonify({"error": "Unauthorized"}), 401
@@ -1392,18 +1442,29 @@ def upload_file():
     if file.filename == '':
         return jsonify({"error": "No selected file"}), 400
 
-    if file:
-        filename = secure_filename(file.filename)
-        # Add timestamp to avoid collisions
-        import time
-        filename = f"{int(time.time())}_{filename}"
-        file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+    # Extension allowlist
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in ALLOWED_UPLOAD_EXTENSIONS:
+        return jsonify({"error": f"Unsupported file type: {ext}"}), 400
 
-        # Return the relative path for frontend
-        return jsonify({
-            "url": f"/static/uploads/{filename}",
-            "name": file.filename
-        })
+    # Magic-number sniff. Read the first 16 bytes, then rewind so .save()
+    # writes the full file from offset 0.
+    head = file.stream.read(16)
+    file.stream.seek(0)
+    if not any(head.startswith(sig) for sig in ALLOWED_UPLOAD_SIGNATURES):
+        return jsonify({"error": "File contents don't match expected format"}), 400
+
+    filename = secure_filename(file.filename)
+    # Add timestamp to avoid collisions
+    import time
+    filename = f"{int(time.time())}_{filename}"
+    file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+
+    # Return the relative path for frontend
+    return jsonify({
+        "url": f"/static/uploads/{filename}",
+        "name": file.filename
+    })
 
 @app.route("/api/user-data", methods=["DELETE"])
 def delete_user_data():

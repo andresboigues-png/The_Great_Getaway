@@ -1,10 +1,13 @@
 import sqlite3
 import os
 
-DB_PATH = "travel_planner.db"
+# DB_PATH is read on every call so tests can point at a temp DB by setting
+# the env var before init_db() runs. Default keeps existing behavior.
+def _db_path():
+    return os.getenv("GG_DB_PATH", "travel_planner.db")
 
 def get_db():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(_db_path())
     conn.row_factory = sqlite3.Row
     return conn
 
