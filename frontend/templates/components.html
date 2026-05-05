@@ -1,0 +1,1348 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>The Great Getaway — Components Preview</title>
+        <link rel="stylesheet" href="{{ url_for('static', filename='css/index.css') }}" />
+        <style>
+            /* Page-only layout. Stages apply to component sections so each
+           component sits on its intended background — modal classes need
+           a dark frosted backdrop, light-bg form classes need white,
+           etc. Without this every "white text" component would vanish
+           on a white page. */
+            body {
+                background: var(--bg-color);
+                color: var(--text-primary);
+                margin: 0;
+                padding: 0;
+            }
+            .preview-container {
+                max-width: 1200px;
+                margin: 0 auto;
+                padding: var(--space-8) var(--space-6);
+            }
+            .preview-header {
+                position: sticky;
+                top: 0;
+                z-index: 100;
+                background: rgba(255, 255, 255, 0.8);
+                backdrop-filter: blur(20px);
+                -webkit-backdrop-filter: blur(20px);
+                padding: var(--space-4) var(--space-6);
+                border-bottom: 1px solid var(--glass-border);
+                margin-bottom: var(--space-8);
+            }
+            .preview-h1 {
+                margin: 0;
+                font-size: 1.6rem;
+                font-weight: 800;
+                letter-spacing: -0.03em;
+            }
+            .preview-h1 small {
+                font-size: 0.85rem;
+                color: var(--text-secondary);
+                font-weight: 500;
+                margin-left: var(--space-3);
+            }
+
+            /* Section containers — visually distinct so the eye doesn't
+           lose place on a long preview page. */
+            .preview-section {
+                margin-bottom: var(--space-12);
+            }
+            .preview-section h2 {
+                font-size: 1.2rem;
+                font-weight: 800;
+                letter-spacing: -0.02em;
+                margin: 0 0 var(--space-2);
+                color: #002d5b;
+            }
+            .preview-section .preview-section-meta {
+                color: var(--text-secondary);
+                font-size: var(--font-base);
+                margin: 0 0 var(--space-5);
+            }
+
+            /* Stages — each component group renders against its intended
+           background. Class names are descriptive, not meaningful to
+           the components themselves. */
+            .stage {
+                padding: var(--space-6);
+                border-radius: var(--radius-xl);
+                margin-bottom: var(--space-4);
+            }
+            .stage-light {
+                background: #ffffff;
+                border: 1px solid var(--glass-border);
+            }
+            .stage-grey {
+                background: #f0f0f5;
+            }
+            .stage-dark {
+                background: linear-gradient(135deg, #1a1a2e, #2d1b4e);
+                border-radius: var(--radius-xl);
+            }
+            .stage-row {
+                display: flex;
+                flex-wrap: wrap;
+                gap: var(--space-4);
+                align-items: flex-start;
+            }
+            .stage-stack {
+                display: flex;
+                flex-direction: column;
+                gap: var(--space-3);
+                max-width: 440px;
+            }
+
+            /* State labels next to each component so it's clear what state
+           is being demonstrated (rest / hover / disabled / etc.). */
+            .preview-token {
+                display: flex;
+                align-items: center;
+                gap: var(--space-3);
+                padding: var(--space-2) 0;
+            }
+            .preview-token__swatch {
+                width: 40px;
+                height: 40px;
+                border-radius: 8px;
+                border: 1px solid rgba(0, 0, 0, 0.08);
+                flex-shrink: 0;
+            }
+            .preview-token__label {
+                font-family: monospace;
+                font-size: 0.85rem;
+                color: var(--text-primary);
+            }
+            .preview-token__value {
+                font-family: monospace;
+                font-size: 0.8rem;
+                color: var(--text-secondary);
+                margin-left: auto;
+            }
+            .token-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+                gap: var(--space-4);
+            }
+
+            /* Spacing / radius scale demos use a pill that grows with the
+           token value so the relative size is visible. */
+            .scale-row {
+                display: flex;
+                align-items: center;
+                gap: var(--space-3);
+                padding: var(--space-1) 0;
+            }
+            .scale-row code {
+                font-size: 0.85rem;
+                color: var(--text-secondary);
+                min-width: 90px;
+            }
+            .scale-bar {
+                background: var(--accent-blue);
+                height: 16px;
+                border-radius: 4px;
+            }
+
+            /* Force-state simulators — :hover is hard to capture in
+           screenshots, so we render duplicate elements that have hover
+           styles applied always (via :hover ~ class trick won't work
+           cross-element). The simplest path is to manually add the
+           hover-equivalent classes for demo. We label these clearly. */
+            .state-label {
+                display: inline-block;
+                font-size: 0.7rem;
+                font-weight: 800;
+                text-transform: uppercase;
+                letter-spacing: 0.08em;
+                color: var(--text-secondary);
+                margin-bottom: var(--space-2);
+            }
+            .demo-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+                gap: var(--space-5);
+            }
+
+            /* Note callout used to flag "this state is JS-driven, hover
+           the live element to see it" or similar caveats. */
+            .preview-note {
+                font-size: var(--font-sm);
+                color: var(--text-secondary);
+                font-style: italic;
+                margin: var(--space-2) 0;
+            }
+        </style>
+    </head>
+    <body>
+        <header class="preview-header">
+            <h1 class="preview-h1">
+                Components Preview
+                <small>The Great Getaway · UI primitives, every state</small>
+            </h1>
+        </header>
+
+        <main class="preview-container">
+            <!-- ─────────────────────────────────────────────────
+             TOKENS
+             ───────────────────────────────────────────────── -->
+            <section class="preview-section">
+                <h2>1. Design Tokens</h2>
+                <p class="preview-section-meta">
+                    Foundation. Every component below is built from these. Flipping a value in
+                    <code>:root</code> propagates everywhere.
+                </p>
+
+                <div class="stage stage-light">
+                    <div class="state-label">Spacing scale (--space-1..12)</div>
+                    <div class="scale-row">
+                        <code>--space-1</code>
+                        <div class="scale-bar" style="width: 4px"></div>
+                    </div>
+                    <div class="scale-row">
+                        <code>--space-2</code>
+                        <div class="scale-bar" style="width: 8px"></div>
+                    </div>
+                    <div class="scale-row">
+                        <code>--space-3</code>
+                        <div class="scale-bar" style="width: 12px"></div>
+                    </div>
+                    <div class="scale-row">
+                        <code>--space-4</code>
+                        <div class="scale-bar" style="width: 16px"></div>
+                    </div>
+                    <div class="scale-row">
+                        <code>--space-5</code>
+                        <div class="scale-bar" style="width: 20px"></div>
+                    </div>
+                    <div class="scale-row">
+                        <code>--space-6</code>
+                        <div class="scale-bar" style="width: 24px"></div>
+                    </div>
+                    <div class="scale-row">
+                        <code>--space-8</code>
+                        <div class="scale-bar" style="width: 32px"></div>
+                    </div>
+                    <div class="scale-row">
+                        <code>--space-10</code>
+                        <div class="scale-bar" style="width: 40px"></div>
+                    </div>
+                    <div class="scale-row">
+                        <code>--space-12</code>
+                        <div class="scale-bar" style="width: 48px"></div>
+                    </div>
+                </div>
+
+                <div class="stage stage-light">
+                    <div class="state-label">Radius scale</div>
+                    <div class="stage-row">
+                        <div
+                            style="
+                                width: 80px;
+                                height: 80px;
+                                background: var(--accent-blue);
+                                border-radius: var(--radius-xs);
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                                color: white;
+                                font-family: monospace;
+                                font-size: 0.7rem;
+                            "
+                        >
+                            xs
+                        </div>
+                        <div
+                            style="
+                                width: 80px;
+                                height: 80px;
+                                background: var(--accent-blue);
+                                border-radius: var(--radius-sm);
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                                color: white;
+                                font-family: monospace;
+                                font-size: 0.7rem;
+                            "
+                        >
+                            sm
+                        </div>
+                        <div
+                            style="
+                                width: 80px;
+                                height: 80px;
+                                background: var(--accent-blue);
+                                border-radius: var(--radius-md);
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                                color: white;
+                                font-family: monospace;
+                                font-size: 0.7rem;
+                            "
+                        >
+                            md
+                        </div>
+                        <div
+                            style="
+                                width: 80px;
+                                height: 80px;
+                                background: var(--accent-blue);
+                                border-radius: var(--radius-lg);
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                                color: white;
+                                font-family: monospace;
+                                font-size: 0.7rem;
+                            "
+                        >
+                            lg
+                        </div>
+                        <div
+                            style="
+                                width: 80px;
+                                height: 80px;
+                                background: var(--accent-blue);
+                                border-radius: var(--radius-xl);
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                                color: white;
+                                font-family: monospace;
+                                font-size: 0.7rem;
+                            "
+                        >
+                            xl
+                        </div>
+                        <div
+                            style="
+                                width: 80px;
+                                height: 80px;
+                                background: var(--accent-blue);
+                                border-radius: var(--radius-2xl);
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                                color: white;
+                                font-family: monospace;
+                                font-size: 0.7rem;
+                            "
+                        >
+                            2xl
+                        </div>
+                        <div
+                            style="
+                                width: 80px;
+                                height: 80px;
+                                background: var(--accent-blue);
+                                border-radius: var(--radius-3xl);
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                                color: white;
+                                font-family: monospace;
+                                font-size: 0.7rem;
+                            "
+                        >
+                            3xl
+                        </div>
+                        <div
+                            style="
+                                width: 80px;
+                                height: 80px;
+                                background: var(--accent-blue);
+                                border-radius: var(--radius-pill);
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                                color: white;
+                                font-family: monospace;
+                                font-size: 0.7rem;
+                            "
+                        >
+                            pill
+                        </div>
+                    </div>
+                </div>
+
+                <div class="stage stage-light">
+                    <div class="state-label">Font scale</div>
+                    <div style="font-size: var(--font-2xs)">--font-2xs · 0.7rem · The quick brown fox</div>
+                    <div style="font-size: var(--font-xs)">--font-xs · 0.75rem · The quick brown fox</div>
+                    <div style="font-size: var(--font-sm)">--font-sm · 0.85rem · The quick brown fox</div>
+                    <div style="font-size: var(--font-base)">--font-base · 0.9rem · The quick brown fox</div>
+                    <div style="font-size: var(--font-md)">--font-md · 0.95rem · The quick brown fox</div>
+                    <div style="font-size: var(--font-lg)">--font-lg · 1rem · The quick brown fox</div>
+                    <div style="font-size: var(--font-xl)">--font-xl · 1.1rem · The quick brown fox</div>
+                    <div style="font-size: var(--font-2xl)">--font-2xl · 1.4rem · Quick brown fox</div>
+                    <div style="font-size: var(--font-3xl)">--font-3xl · 1.8rem · Quick brown fox</div>
+                    <div style="font-size: var(--font-display)">--font-display · 2rem · Quick fox</div>
+                </div>
+
+                <div class="stage stage-light">
+                    <div class="state-label">Shadow scale</div>
+                    <div class="stage-row">
+                        <div
+                            style="
+                                width: 120px;
+                                height: 80px;
+                                background: white;
+                                border-radius: 12px;
+                                box-shadow: var(--shadow-sm);
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                                font-family: monospace;
+                                font-size: 0.7rem;
+                            "
+                        >
+                            --shadow-sm
+                        </div>
+                        <div
+                            style="
+                                width: 120px;
+                                height: 80px;
+                                background: white;
+                                border-radius: 12px;
+                                box-shadow: var(--shadow-md);
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                                font-family: monospace;
+                                font-size: 0.7rem;
+                            "
+                        >
+                            --shadow-md
+                        </div>
+                        <div
+                            style="
+                                width: 120px;
+                                height: 80px;
+                                background: white;
+                                border-radius: 12px;
+                                box-shadow: var(--shadow-lg);
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                                font-family: monospace;
+                                font-size: 0.7rem;
+                            "
+                        >
+                            --shadow-lg
+                        </div>
+                        <div
+                            style="
+                                width: 120px;
+                                height: 80px;
+                                background: white;
+                                border-radius: 12px;
+                                box-shadow: var(--shadow-xl);
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                                font-family: monospace;
+                                font-size: 0.7rem;
+                            "
+                        >
+                            --shadow-xl
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ─────────────────────────────────────────────────
+             BUTTONS
+             ───────────────────────────────────────────────── -->
+            <section class="preview-section">
+                <h2>2. Buttons</h2>
+                <p class="preview-section-meta">
+                    Primary action / ghost / pill / large / specialty. Hover by pointing at any to see hover + active
+                    states.
+                </p>
+
+                <div class="stage stage-dark">
+                    <div class="state-label" style="color: rgba(255, 255, 255, 0.7)">.btn-primary (on dark glass)</div>
+                    <div class="stage-row">
+                        <button class="btn-primary">Default</button>
+                        <button class="btn-primary" disabled>Disabled</button>
+                    </div>
+                    <div class="state-label" style="color: rgba(255, 255, 255, 0.7); margin-top: var(--space-5)">
+                        .btn-ghost
+                    </div>
+                    <div class="stage-row">
+                        <button class="btn-ghost">Cancel</button>
+                    </div>
+                    <div class="state-label" style="color: rgba(255, 255, 255, 0.7); margin-top: var(--space-5)">
+                        .btn-primary + .btn-primary--lg
+                    </div>
+                    <button class="btn-primary btn-primary--lg">Save Expense</button>
+                </div>
+
+                <div class="stage stage-grey">
+                    <div class="state-label">.btn-primary-pill (top-nav)</div>
+                    <div class="stage-row">
+                        <button class="btn-primary-pill">+ New Trip</button>
+                    </div>
+
+                    <div class="state-label" style="margin-top: var(--space-5)">.btn-glass-light</div>
+                    <div class="stage-row">
+                        <button class="btn-glass-light">🧭 Show Quick Access</button>
+                    </div>
+
+                    <div class="state-label" style="margin-top: var(--space-5)">.btn-neutral</div>
+                    <div class="stage-row">
+                        <button class="btn-neutral">Close</button>
+                    </div>
+
+                    <div class="state-label" style="margin-top: var(--space-5)">.btn-logout</div>
+                    <div class="stage-row">
+                        <button class="btn-logout">Log Out</button>
+                    </div>
+
+                    <div class="state-label" style="margin-top: var(--space-5)">.btn-chip-danger</div>
+                    <div class="stage-row">
+                        <button class="btn-chip-danger">Clear Filters</button>
+                    </div>
+
+                    <div class="state-label" style="margin-top: var(--space-5)">
+                        .pill-btn-warn-hover (grey → red on hover)
+                    </div>
+                    <div class="stage-row">
+                        <button class="pill-btn-warn-hover">Hide</button>
+                    </div>
+
+                    <div class="state-label" style="margin-top: var(--space-5)">
+                        .themed-block-btn (--accent driven, full-width by default)
+                    </div>
+                    <div class="stage-stack">
+                        <button class="themed-block-btn" style="--accent: 0, 113, 227">Clear Groups (blue)</button>
+                        <button class="themed-block-btn" style="--accent: 255, 149, 0">
+                            Delete All Trips (orange)
+                        </button>
+                        <button class="themed-block-btn" style="--accent: 88, 86, 214">
+                            Restore Defaults (purple)
+                        </button>
+                    </div>
+
+                    <div class="state-label" style="margin-top: var(--space-5)">
+                        .themed-block-btn--sm (compact inline)
+                    </div>
+                    <div class="stage-row">
+                        <button class="themed-block-btn themed-block-btn--sm" style="--accent: 0, 113, 227">
+                            Edit
+                        </button>
+                        <button class="themed-block-btn themed-block-btn--sm" style="--accent: 255, 59, 48">
+                            Delete
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ─────────────────────────────────────────────────
+             ICON BUTTONS
+             ───────────────────────────────────────────────── -->
+            <section class="preview-section">
+                <h2>3. Icon Buttons</h2>
+                <p class="preview-section-meta">Square / circle / accent-driven action buttons.</p>
+
+                <div class="stage stage-grey">
+                    <div class="state-label">.icon-btn-square (32x32, hover blue)</div>
+                    <div class="stage-row">
+                        <button class="icon-btn-square" title="Edit">
+                            <svg
+                                width="14"
+                                height="14"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2.2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                            >
+                                <path d="M12 20h9"></path>
+                                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+                            </svg>
+                        </button>
+                    </div>
+
+                    <div class="state-label" style="margin-top: var(--space-5)">
+                        .icon-btn-circle (--accent: green / red, scales on hover)
+                    </div>
+                    <div class="stage-row">
+                        <button class="icon-btn-circle" style="--accent: 52, 199, 89" title="Complete">
+                            <svg
+                                width="14"
+                                height="14"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2.5"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                            >
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                        </button>
+                        <button class="icon-btn-circle" style="--accent: 255, 59, 48" title="Delete">
+                            <svg
+                                width="14"
+                                height="14"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2.5"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                            >
+                                <polyline points="3 6 5 6 21 6"></polyline>
+                            </svg>
+                        </button>
+                    </div>
+
+                    <div class="state-label" style="margin-top: var(--space-5)">
+                        .icon-action-btn (--accent driven, 36x36)
+                    </div>
+                    <div class="stage-row">
+                        <button class="icon-action-btn" style="--accent: 0, 113, 227" title="Edit">
+                            <svg
+                                width="16"
+                                height="16"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2.5"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                            >
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4L18.5 2.5z"></path>
+                            </svg>
+                        </button>
+                        <button class="icon-action-btn" style="--accent: 255, 59, 48" title="Delete">
+                            <svg
+                                width="16"
+                                height="16"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2.5"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                            >
+                                <polyline points="3 6 5 6 21 6"></polyline>
+                            </svg>
+                        </button>
+                    </div>
+
+                    <div class="state-label" style="margin-top: var(--space-5)">
+                        .icon-x-btn / .btn-x-bare / .close-x-btn
+                    </div>
+                    <div class="stage-row">
+                        <button class="icon-x-btn">&times;</button>
+                        <button class="btn-x-bare">✕</button>
+                        <button class="close-x-btn">✕</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ─────────────────────────────────────────────────
+             DAY ACTIONS + UPLOAD DROPZONE
+             ───────────────────────────────────────────────── -->
+            <section class="preview-section">
+                <h2>4. Day-action Buttons + Upload Dropzone</h2>
+                <p class="preview-section-meta">Used on the home day-card menu.</p>
+                <div class="stage stage-light">
+                    <div class="state-label">.day-action-btn — 5 tones</div>
+                    <div class="stage-stack">
+                        <button class="day-action-btn day-action-btn--neutral">✍️ Journaling</button>
+                        <button class="day-action-btn day-action-btn--brand">📍 Add Pin to Map</button>
+                        <button class="day-action-btn day-action-btn--success" style="justify-content: center">
+                            Save Pin
+                        </button>
+                        <button class="day-action-btn day-action-btn--danger">🗑️ Delete Day</button>
+                        <button class="day-action-btn day-action-btn--danger-strong" style="justify-content: center">
+                            X
+                        </button>
+                    </div>
+
+                    <div class="state-label" style="margin-top: var(--space-5)">.upload-dropzone</div>
+                    <div class="stage-stack">
+                        <label class="upload-dropzone">
+                            <span>📤 Upload Photo</span>
+                        </label>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ─────────────────────────────────────────────────
+             FORM ELEMENTS
+             ───────────────────────────────────────────────── -->
+            <section class="preview-section">
+                <h2>5. Form Elements</h2>
+                <p class="preview-section-meta">
+                    Two contexts: dark glass modal (white text) and light surface (black text). Plus filter, compact,
+                    and bio variants.
+                </p>
+
+                <div class="stage stage-dark">
+                    <div class="stage-stack" style="max-width: 360px">
+                        <div>
+                            <label class="form-label">Adventure Name</label>
+                            <input type="text" class="glass-input-modal" placeholder="e.g. Summer in Tuscany" />
+                            <p class="form-hint">Give your trip a memorable name.</p>
+                        </div>
+                        <div>
+                            <label class="form-label">Destination</label>
+                            <input
+                                type="text"
+                                class="glass-input-modal"
+                                placeholder="Search a country, city, or address…"
+                            />
+                            <p class="form-hint form-hint--success">📍 Paris, France</p>
+                        </div>
+                        <div>
+                            <label class="form-label">API key</label>
+                            <input type="text" class="glass-input-modal" placeholder="…" />
+                            <p class="form-hint form-hint--warn">⚠ Google Maps failed to load.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="stage stage-light">
+                    <div class="stage-stack">
+                        <div class="form-row">
+                            <label class="form-label-light">Who Paid</label>
+                            <select class="glass-input-light">
+                                <option>Andres</option>
+                                <option>Maria</option>
+                            </select>
+                        </div>
+                        <div class="form-row">
+                            <label class="form-label-light">Label</label>
+                            <input type="text" class="glass-input-light" placeholder="e.g. Dinner at Mario's" />
+                        </div>
+                    </div>
+
+                    <div class="state-label" style="margin-top: var(--space-5)">.compact-form-label + .glass-input</div>
+                    <div class="stage-stack">
+                        <div class="compact-form-row">
+                            <label class="compact-form-label">Trip</label>
+                            <select class="glass-input" style="width: 100%">
+                                <option>All Trips</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="state-label" style="margin-top: var(--space-5)">.filter-label + .filter-input</div>
+                    <div class="stage-stack">
+                        <div>
+                            <label class="filter-label">Search</label>
+                            <input type="text" class="filter-input" placeholder="Search labels or items…" />
+                        </div>
+                    </div>
+
+                    <div class="state-label" style="margin-top: var(--space-5)">
+                        .bio-input (transparent until focused)
+                    </div>
+                    <div class="stage-stack">
+                        <textarea class="bio-input" placeholder="Add a bio…"></textarea>
+                    </div>
+
+                    <div class="state-label" style="margin-top: var(--space-5)">.brand-select (custom chevron)</div>
+                    <div style="position: relative; display: inline-block">
+                        <select class="brand-select" style="padding: 6px 28px 6px 12px">
+                            <option>EUR</option>
+                            <option>USD</option>
+                        </select>
+                        <div class="brand-select-chevron" style="right: 10px">▼</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ─────────────────────────────────────────────────
+             CARDS & SURFACES
+             ───────────────────────────────────────────────── -->
+            <section class="preview-section">
+                <h2>6. Cards & Surfaces</h2>
+                <p class="preview-section-meta">Modal panels (dark glass / light) + sub-cards.</p>
+
+                <div class="stage stage-dark">
+                    <div class="state-label" style="color: rgba(255, 255, 255, 0.7)">.card-glass-modal</div>
+                    <div class="card-glass-modal" style="width: 360px">
+                        <h2
+                            class="card-title"
+                            style="
+                                font-size: var(--font-3xl);
+                                color: #fff;
+                                letter-spacing: -0.06em;
+                                font-weight: 800;
+                                text-align: center;
+                                margin: 0 0 var(--space-6);
+                            "
+                        >
+                            New Trip
+                        </h2>
+                        <p style="color: rgba(255, 255, 255, 0.7); margin: 0 0 var(--space-5)">Modal body content.</p>
+                        <button class="btn-primary" style="width: 100%">Confirm</button>
+                    </div>
+                </div>
+
+                <div class="stage stage-grey">
+                    <div class="state-label">.card-glass-modal-light</div>
+                    <div class="card-glass-modal-light" style="width: 360px">
+                        <h2 class="modal-h2">Photo Gallery</h2>
+                        <p class="modal-subtitle">Add images that define your day.</p>
+                        <button class="btn-primary" style="width: 100%">Add</button>
+                    </div>
+
+                    <div class="state-label" style="margin-top: var(--space-6)">.subcard-soft</div>
+                    <div class="subcard-soft" style="max-width: 360px">
+                        <h4 class="section-tag">Morning</h4>
+                        <textarea class="plain-textarea" placeholder="Morning plans…"></textarea>
+                    </div>
+
+                    <div class="state-label" style="margin-top: var(--space-6)">
+                        .subcard-soft (with --accent: orange section-tag)
+                    </div>
+                    <div class="subcard-soft" style="max-width: 360px">
+                        <h4 class="section-tag" style="--accent: 255, 149, 0">Afternoon</h4>
+                        <textarea class="plain-textarea" placeholder="Afternoon plans…"></textarea>
+                    </div>
+                </div>
+
+                <div class="stage stage-dark">
+                    <div class="state-label" style="color: rgba(255, 255, 255, 0.7)">.card-glass-confirm (danger)</div>
+                    <div class="card-glass-confirm" style="width: 360px; height: auto; padding: var(--space-8)">
+                        <div style="text-align: center">
+                            <h2 style="margin: 0; font-size: 1.6rem; color: #fff">Delete trip?</h2>
+                            <p style="color: rgba(255, 255, 255, 0.7); margin: var(--space-2) 0 0">
+                                This cannot be undone.
+                            </p>
+                        </div>
+                        <button class="btn-primary" style="background: #ff3b30; width: 100%">Delete</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ─────────────────────────────────────────────────
+             LISTS & ROWS
+             ───────────────────────────────────────────────── -->
+            <section class="preview-section">
+                <h2>7. Lists &amp; Rows</h2>
+                <p class="preview-section-meta">User rows, splitter, ranking, debt, settlement card, expense row.</p>
+
+                <div class="stage stage-dark">
+                    <div class="state-label" style="color: rgba(255, 255, 255, 0.7)">.user-row — 3 tones</div>
+                    <div class="stage-stack">
+                        <div class="user-row user-row--neutral">
+                            <div style="display: flex; align-items: center; gap: var(--space-3)">
+                                <div
+                                    style="
+                                        width: 32px;
+                                        height: 32px;
+                                        border-radius: 50%;
+                                        background: rgba(255, 255, 255, 0.2);
+                                    "
+                                ></div>
+                                <div>
+                                    <div style="font-weight: 600; color: white">Andres</div>
+                                    <div class="text-muted" style="font-size: var(--font-xs)">andres@example.com</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="user-row user-row--warn">
+                            <div style="display: flex; align-items: center; gap: var(--space-3)">
+                                <div
+                                    style="
+                                        width: 32px;
+                                        height: 32px;
+                                        border-radius: 50%;
+                                        background: rgba(255, 255, 255, 0.2);
+                                    "
+                                ></div>
+                                <div>
+                                    <div style="font-weight: 600; color: white">Pending</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="user-row user-row--brand">
+                            <div style="display: flex; align-items: center; gap: var(--space-3)">
+                                <div
+                                    style="
+                                        width: 32px;
+                                        height: 32px;
+                                        border-radius: 50%;
+                                        background: rgba(255, 255, 255, 0.2);
+                                    "
+                                ></div>
+                                <div>
+                                    <div style="font-weight: 600; color: white">Search Result</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="state-label" style="color: rgba(255, 255, 255, 0.7); margin-top: var(--space-5)">
+                        .ranking-row
+                    </div>
+                    <div class="stage-stack">
+                        <div class="ranking-row" style="color: white">
+                            <span class="ranking-row__label">2. Maria</span>
+                            <span class="ranking-row__value">€420.50</span>
+                        </div>
+                        <div class="ranking-row" style="color: white">
+                            <span class="ranking-row__label">3. Andres</span>
+                            <span class="ranking-row__value">€312.00</span>
+                        </div>
+                    </div>
+
+                    <div class="state-label" style="color: rgba(255, 255, 255, 0.7); margin-top: var(--space-5)">
+                        .list-empty-state
+                    </div>
+                    <div class="list-empty-state">No friends added yet.</div>
+                </div>
+
+                <div class="stage stage-light">
+                    <div class="state-label">.debt-row (Suggested Payment)</div>
+                    <div class="debt-row">
+                        <div style="display: flex; align-items: center; gap: var(--space-4)">
+                            <div>
+                                <span class="debt-row__from-label">Andres pays</span>
+                                <div class="debt-row__to-name">Maria</div>
+                            </div>
+                            <div class="debt-row__amount">€85.50</div>
+                        </div>
+                        <button
+                            class="btn-primary"
+                            style="padding: var(--space-2) var(--space-4); font-size: var(--font-sm)"
+                        >
+                            Settle
+                        </button>
+                    </div>
+
+                    <div class="state-label" style="margin-top: var(--space-5)">.splitter-row</div>
+                    <div class="splitter-row">
+                        <span style="font-weight: 500">Andres</span>
+                        <div style="display: flex; align-items: center; gap: var(--space-2)">
+                            <input
+                                type="number"
+                                class="glass-input split-input splitter-row__pct"
+                                value="50"
+                                step="0.1"
+                            />
+                            <span class="text-muted">%</span>
+                            <button class="btn-x-bare" style="font-weight: 700">&times;</button>
+                        </div>
+                    </div>
+
+                    <div class="state-label" style="margin-top: var(--space-5)">
+                        .settlement-trip-card (rest + .is-active)
+                    </div>
+                    <div class="stage-row">
+                        <div class="card glass settlement-trip-card">
+                            <div class="settlement-trip-card__label">Adventure</div>
+                            <div class="settlement-trip-card__name">Summer in Tuscany</div>
+                            <div style="display: flex; align-items: center; justify-content: space-between">
+                                <div class="settlement-trip-card__amount">€1,420.50</div>
+                            </div>
+                        </div>
+                        <div class="card glass settlement-trip-card is-active card-glow-blue">
+                            <div class="settlement-trip-card__label">Adventure</div>
+                            <div class="settlement-trip-card__name">Lisbon Weekend</div>
+                            <div style="display: flex; align-items: center; justify-content: space-between">
+                                <div class="settlement-trip-card__amount">€620.00</div>
+                                <div class="settlement-trip-card__active-dot"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ─────────────────────────────────────────────────
+             EXPENSE ROW
+             ───────────────────────────────────────────────── -->
+            <section class="preview-section">
+                <h2>8. Expense Row</h2>
+                <p class="preview-section-meta">From the trip expense list.</p>
+                <div class="stage stage-grey">
+                    <div
+                        class="card glass expense-row"
+                        style="
+                            padding: 14px 22px;
+                            border-radius: 24px;
+                            border: 1px solid rgba(255, 255, 255, 0.4);
+                            background: rgba(255, 255, 255, 0.15);
+                            backdrop-filter: blur(25px);
+                            display: flex;
+                            justify-content: space-between;
+                            align-items: center;
+                            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+                        "
+                    >
+                        <div style="display: flex; align-items: center; gap: var(--space-4)">
+                            <div class="expense-row__icon">🍕</div>
+                            <div>
+                                <strong class="expense-row__title">Dinner at Mario's</strong>
+                                <div class="expense-row__meta">
+                                    <span>15 Mar</span>
+                                    <span class="expense-row__meta-dot"></span>
+                                    <span>Italy</span>
+                                    <span class="expense-row__meta-dot"></span>
+                                    <span>Andres</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: var(--space-3)">
+                            <div style="text-align: right">
+                                <div class="expense-row__amount">
+                                    52.00 <span class="expense-row__currency">EUR</span>
+                                </div>
+                            </div>
+                            <button class="icon-action-btn" style="--accent: 0, 113, 227">
+                                <svg
+                                    width="16"
+                                    height="16"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2.5"
+                                    stroke-linecap="round"
+                                >
+                                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                </svg>
+                            </button>
+                            <button class="icon-action-btn" style="--accent: 255, 59, 48">
+                                <svg
+                                    width="16"
+                                    height="16"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2.5"
+                                    stroke-linecap="round"
+                                >
+                                    <polyline points="3 6 5 6 21 6"></polyline>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ─────────────────────────────────────────────────
+             AI ITINERARY
+             ───────────────────────────────────────────────── -->
+            <section class="preview-section">
+                <h2>9. AI Itinerary Day Card</h2>
+                <p class="preview-section-meta">Day chip + 3 plan blocks (--accent driven) + pro tip.</p>
+                <div class="stage stage-dark">
+                    <div class="card glass" style="border-radius: var(--radius-lg); overflow: hidden">
+                        <div style="display: flex; align-items: stretch">
+                            <div class="ai-day-chip">
+                                <span
+                                    style="
+                                        color: rgba(255, 255, 255, 0.7);
+                                        font-size: 0.65rem;
+                                        font-weight: 700;
+                                        text-transform: uppercase;
+                                        letter-spacing: 0.1em;
+                                    "
+                                    >Day</span
+                                >
+                                <span style="color: white; font-size: 2rem; font-weight: 800; line-height: 1">3</span>
+                            </div>
+                            <div style="flex: 1; padding: var(--space-6) var(--space-8)">
+                                <h3
+                                    style="
+                                        margin: 0 0 var(--space-1);
+                                        font-size: 1.2rem;
+                                        font-weight: 700;
+                                        color: white;
+                                    "
+                                >
+                                    Exploring Florence
+                                </h3>
+                                <span class="text-muted">Mar 17</span>
+                                <div
+                                    style="
+                                        display: grid;
+                                        grid-template-columns: 1fr 1fr 1fr;
+                                        gap: var(--space-4);
+                                        margin-top: var(--space-4);
+                                        margin-bottom: var(--space-5);
+                                    "
+                                >
+                                    <div class="ai-plan-block" style="--accent: 0, 113, 227">
+                                        <div class="ai-plan-block__tag">🌅 Morning</div>
+                                        <div class="ai-plan-block__title">Uffizi Gallery</div>
+                                        <div class="ai-plan-block__desc">Pre-book tickets to skip the line.</div>
+                                    </div>
+                                    <div class="ai-plan-block" style="--accent: 255, 149, 0">
+                                        <div class="ai-plan-block__tag">☀️ Afternoon</div>
+                                        <div class="ai-plan-block__title">Lunch + Duomo</div>
+                                        <div class="ai-plan-block__desc">Climb the dome for sunset views.</div>
+                                    </div>
+                                    <div class="ai-plan-block" style="--accent: 155, 89, 182">
+                                        <div class="ai-plan-block__tag">🌙 Evening</div>
+                                        <div class="ai-plan-block__title">Dinner in Oltrarno</div>
+                                        <div class="ai-plan-block__desc">Try the trippa fiorentina.</div>
+                                    </div>
+                                </div>
+                                <div class="pro-tip">
+                                    <span
+                                        style="
+                                            font-size: 0.72rem;
+                                            font-weight: 700;
+                                            text-transform: uppercase;
+                                            letter-spacing: 0.08em;
+                                            color: var(--accent-blue);
+                                        "
+                                        >💡 Pro Tip</span
+                                    >
+                                    <p class="text-muted" style="margin: 5px 0 0; font-size: var(--font-sm)">
+                                        Buy a Firenzecard for skip-the-line at most museums.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ─────────────────────────────────────────────────
+             METRIC CARDS / HERO STAT
+             ───────────────────────────────────────────────── -->
+            <section class="preview-section">
+                <h2>10. Metric Cards</h2>
+                <p class="preview-section-meta">Insights page hero + summary metrics.</p>
+                <div class="stage stage-grey">
+                    <div class="card glass hero-stat-card" style="margin-bottom: var(--space-5)">
+                        <h2 class="card-title hero-stat-card__title">Total Spent on your trip</h2>
+                        <div style="display: flex; align-items: baseline; gap: var(--space-3)">
+                            <h1 class="hero-stat-card__value">€2,140.50</h1>
+                            <span class="hero-stat-card__currency">EUR</span>
+                        </div>
+                        <p class="hero-stat-card__sub">Spent across <strong>42</strong> transactions.</p>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4)">
+                        <div class="card glass">
+                            <h2 class="card-title metric-label">Avg. Daily Spend</h2>
+                            <h1 class="metric-value">
+                                €152.89<small
+                                    style="
+                                        font-size: var(--font-lg);
+                                        font-weight: 400;
+                                        color: var(--text-secondary);
+                                        margin-left: var(--space-2);
+                                    "
+                                    >/ day</small
+                                >
+                            </h1>
+                        </div>
+                        <div class="card glass">
+                            <h2 class="card-title metric-label">Single Peak</h2>
+                            <h1 class="metric-value" style="color: #ff3b30">€420.00</h1>
+                            <p class="metric-label" style="margin: var(--space-1) 0 0 0">Hotel · Andres</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ─────────────────────────────────────────────────
+             CHIPS / STATUS / TAGS
+             ───────────────────────────────────────────────── -->
+            <section class="preview-section">
+                <h2>11. Chips, Status &amp; Tags</h2>
+                <p class="preview-section-meta">Status indicators, callouts, code tags.</p>
+
+                <div class="stage stage-light">
+                    <div class="state-label">.status-chip</div>
+                    <div class="stage-row">
+                        <span class="status-chip">★ DATE</span>
+                        <span class="status-chip is-done">✓ LABEL</span>
+                    </div>
+
+                    <div class="state-label" style="margin-top: var(--space-5)">.col-tag</div>
+                    <span class="col-tag">A</span>
+
+                    <div class="state-label" style="margin-top: var(--space-5)">.active-view-pill</div>
+                    <div class="active-view-pill">Active View: Tuscany</div>
+
+                    <div class="state-label" style="margin-top: var(--space-5)">.callout-tinted (3 tones)</div>
+                    <div class="stage-stack">
+                        <div class="callout-tinted" style="--accent: 0, 113, 227">
+                            <p class="callout-tinted__label">📅 Date format</p>
+                            <p class="callout-tinted__body">
+                                Use <strong>DD-MM-YYYY</strong> (e.g. <code class="code-inline">15-03-2024</code>).
+                            </p>
+                        </div>
+                        <div class="callout-tinted callout-tinted--lg" style="--accent: 255, 149, 0">
+                            <span class="callout-tinted__label">⚠️ Warning</span>
+                            <p class="callout-tinted__body">Mismatched columns will be skipped.</p>
+                        </div>
+                        <div class="callout-tinted" style="--accent: 52, 199, 89">
+                            <p class="callout-tinted__label">✓ Success</p>
+                            <p class="callout-tinted__body">Format saved.</p>
+                        </div>
+                    </div>
+
+                    <div class="state-label" style="margin-top: var(--space-5)">.balance-bar (positive / negative)</div>
+                    <div class="stage-stack">
+                        <div class="balance-bar">
+                            <div class="balance-bar__fill balance-bar__fill--positive" style="width: 75%"></div>
+                        </div>
+                        <div class="balance-bar">
+                            <div class="balance-bar__fill balance-bar__fill--negative" style="width: 40%"></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ─────────────────────────────────────────────────
+             TABLES
+             ───────────────────────────────────────────────── -->
+            <section class="preview-section">
+                <h2>12. Tables</h2>
+                <p class="preview-section-meta">Mapping table + compact data table.</p>
+                <div class="stage stage-light">
+                    <div class="state-label">.mapping-table</div>
+                    <table class="mapping-table" style="margin-bottom: var(--space-6)">
+                        <thead>
+                            <tr>
+                                <th class="is-left">Variable</th>
+                                <th class="is-left">Excel Column</th>
+                                <th class="is-center">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="font-weight: 700">label</td>
+                                <td><span class="col-tag">A</span></td>
+                                <td class="is-center"><button class="icon-x-btn">&times;</button></td>
+                            </tr>
+                            <tr>
+                                <td style="font-weight: 700">value</td>
+                                <td><span class="col-tag">D</span></td>
+                                <td class="is-center"><button class="icon-x-btn">&times;</button></td>
+                            </tr>
+                            <tr>
+                                <td class="empty-cell" colspan="3">Empty state row</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="state-label" style="margin-top: var(--space-5)">.compact-table</div>
+                    <table class="compact-table">
+                        <thead>
+                            <tr>
+                                <th class="is-left">Name</th>
+                                <th class="is-right">Color</th>
+                                <th class="is-right">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>🍔 Food</td>
+                                <td class="is-right"><span class="color-swatch" style="background: #ff3b30"></span></td>
+                                <td class="is-right"><button class="btn-x-bare">✕</button></td>
+                            </tr>
+                            <tr>
+                                <td>✈️ Transport</td>
+                                <td class="is-right"><span class="color-swatch" style="background: #007aff"></span></td>
+                                <td class="is-right"><button class="btn-x-bare">✕</button></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- ─────────────────────────────────────────────────
+             TOGGLE / NOTIFICATIONS / TOAST
+             ───────────────────────────────────────────────── -->
+            <section class="preview-section">
+                <h2>13. Toggle, Notifications &amp; Toast</h2>
+
+                <div class="stage stage-light">
+                    <div class="state-label">.toggle-btn (segmented)</div>
+                    <div
+                        class="glass"
+                        style="
+                            display: inline-flex;
+                            padding: var(--space-1);
+                            border-radius: 14px;
+                            border: 1px solid var(--glass-border);
+                        "
+                    >
+                        <button class="toggle-btn active">At Trip</button>
+                        <button class="toggle-btn">Today</button>
+                    </div>
+
+                    <div class="state-label" style="margin-top: var(--space-5)">notification dropdown items</div>
+                    <div class="stage-stack">
+                        <div class="notification-item unread">
+                            <div class="notification-title" style="--accent: 0, 113, 227">Friend Request</div>
+                            <div class="notification-message">Maria sent you a friend request.</div>
+                            <div class="notification-time">3/15/2024</div>
+                        </div>
+                        <div class="notification-item">
+                            <div class="notification-title" style="--accent: 255, 59, 48">Alert</div>
+                            <div class="notification-message">You're nearing your Food budget.</div>
+                            <div class="notification-time">3/16/2024</div>
+                        </div>
+                        <div class="notification-empty">No notifications.</div>
+                    </div>
+                </div>
+
+                <div class="stage stage-grey" style="position: relative; min-height: 80px">
+                    <div class="state-label">.liquid-alert (always-on for preview)</div>
+                    <div class="liquid-alert show" style="position: absolute">
+                        <span>⚠️ Liquid alert toast</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ─────────────────────────────────────────────────
+             TYPOGRAPHY HELPERS
+             ───────────────────────────────────────────────── -->
+            <section class="preview-section">
+                <h2>14. Typography &amp; Color Helpers</h2>
+                <div class="stage stage-light">
+                    <h1 class="gradient-text" style="--g-from: #007aff; --g-to: #5856d6; font-size: 3rem; margin: 0">
+                        Gradient Heading
+                    </h1>
+                    <p class="text-muted">.text-muted secondary copy</p>
+                    <p class="text-brand">.text-brand brand-blue copy</p>
+                    <p class="muted-meta">.muted-meta — small helper line</p>
+                    <p>Inline <span class="link-underline">link-underline text</span> in body copy.</p>
+                    <h4 class="section-tag">Default Section Tag</h4>
+                    <h4 class="section-tag" style="--accent: 255, 149, 0">Orange Section Tag</h4>
+                    <h4 class="section-tag" style="--accent: 52, 199, 89">Green Section Tag</h4>
+                    <hr style="border: none; margin: var(--space-5) 0" />
+                    <div>Above the divider.</div>
+                    <div style="display: flex; align-items: center; gap: var(--space-3)">
+                        <div class="divider-h"></div>
+                        <span class="text-muted">OR</span>
+                        <div class="divider-h"></div>
+                    </div>
+                    <div>Below the divider.</div>
+                    <div class="section-divider">
+                        <h3 style="margin: 0">Section after .section-divider</h3>
+                    </div>
+                </div>
+            </section>
+
+            <footer style="margin: var(--space-12) 0 var(--space-8); text-align: center">
+                <p class="text-muted">
+                    Open <a href="/" class="link-underline">/</a> for the main app. Resize the viewport to verify mobile
+                    layout — components are inherently responsive (flex/grid + tokens).
+                </p>
+            </footer>
+        </main>
+    </body>
+</html>

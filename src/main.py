@@ -42,6 +42,15 @@ def home():
                            dev_mode=dev_mode)
 
 
+@app.route("/components")
+def components_preview():
+    """Component-system preview page — renders every UI primitive in every
+    state (rest / hover / focus-visible / disabled where applicable) at
+    both desktop width and iPhone-SE width side by side. Useful for
+    visual regression checks and iterating on the design tokens."""
+    return render_template("components.html")
+
+
 # --- PWA: serve the service worker from root scope ---
 # A service worker can only control URLs under its own path. Putting sw.js
 # at /static/sw.js would limit its scope to /static/, so we expose it at /sw.js
