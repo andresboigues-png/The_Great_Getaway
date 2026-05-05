@@ -3002,6 +3002,117 @@ h1 {
     border: 1px solid rgba(155, 89, 182, 0.28);
 }
 
+/* App-wide login wall — single signed-out surface rendered by the router
+   for every route while STATE.user is null. The chrome hiding rules
+   below kill the nav links, trip selector, notification bell, and
+   sidebar trigger so the only interactive surface is the wall itself. */
+body.is-signed-out .nav-links,
+body.is-signed-out .nav-trips,
+body.is-signed-out #notificationBellBtn,
+body.is-signed-out #sidebar-trigger,
+body.is-signed-out #sidebar,
+body.is-signed-out #sidebarOverlay {
+    display: none !important;
+}
+
+.login-wall {
+    min-height: calc(100vh - 120px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-8) var(--space-4);
+}
+.login-wall__inner {
+    width: 100%;
+    max-width: 720px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: var(--space-6);
+}
+.login-wall__title {
+    margin: 0;
+    font-size: clamp(2.4rem, 6vw, 3.6rem);
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    line-height: 1.05;
+}
+.login-wall__subtitle {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 1.1rem;
+    max-width: 520px;
+    line-height: 1.5;
+}
+.login-wall__features {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-4);
+    width: 100%;
+    margin-top: var(--space-2);
+}
+@media (max-width: 720px) {
+    .login-wall__features { grid-template-columns: 1fr; }
+}
+.login-wall__feature {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    border-radius: var(--radius-xl);
+    background: rgba(255, 255, 255, 0.55);
+    border: 1px solid rgba(0, 113, 227, 0.14);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.04);
+    text-align: left;
+}
+.login-wall__feature-icon {
+    font-size: 1.6rem;
+    line-height: 1;
+    flex-shrink: 0;
+}
+.login-wall__feature strong {
+    display: block;
+    color: #002d5b;
+    font-size: 0.95rem;
+    margin-bottom: 2px;
+    letter-spacing: -0.01em;
+}
+.login-wall__feature span {
+    display: block;
+    color: var(--text-secondary);
+    font-size: 0.82rem;
+    line-height: 1.4;
+}
+.login-wall__card {
+    padding: var(--space-8) var(--space-6);
+    text-align: center;
+    border-radius: 28px;
+    max-width: 440px;
+    width: 100%;
+    margin-top: var(--space-2);
+}
+.login-wall__card-title {
+    margin: 0 0 var(--space-5);
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--accent-blue);
+    letter-spacing: -0.01em;
+}
+.login-wall__btn-container {
+    display: flex;
+    justify-content: center;
+    min-height: 44px;
+    margin-bottom: var(--space-4);
+}
+.login-wall__fineprint {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+    line-height: 1.5;
+    opacity: 0.85;
+}
+
 /* Small pill button that warns on hover (grey → red). Used for the
    "Hide" quick-access dismissal — destructive but not catastrophic. */
 .pill-btn-warn-hover {

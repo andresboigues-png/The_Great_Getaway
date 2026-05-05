@@ -6,23 +6,7 @@ import { apiUrl } from '../api.js';
 
 export function renderCollections() {
     const div = document.createElement('div');
-
-    if (!STATE.user) {
-        div.innerHTML = `
-            <div class="ai-page-header">
-                <h1 class="gradient-text" style="--g-from: #1a6b3c; --g-to: #34c759;">Collections</h1>
-                <p>Log in to view and manage your completed trips.</p>
-            </div>
-            <div class="card glass" style="text-align: center; padding: 60px; margin-top: 24px;">
-                <h2 style="margin-bottom: 20px;">Private Collections</h2>
-                <p style="color: var(--text-secondary); margin-bottom: 30px;">Your completed trips are safely attached to your account. Log in to access your travel history.</p>
-                <button class="btn" id="collectionsLoginBtn" style="background: var(--accent-blue);">Log In Now</button>
-            </div>
-        `;
-        div.querySelector('#collectionsLoginBtn')?.addEventListener('click', () => navigate('profile'));
-        return div;
-    }
-
+    // Login wall handled at the router boundary.
     const archived = STATE.archivedTrips || [];
 
     div.innerHTML = `

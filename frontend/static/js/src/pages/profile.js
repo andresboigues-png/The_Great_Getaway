@@ -46,37 +46,77 @@ export const logout = async () => {
     } catch (e) {}
 };
 
+/** App-wide login wall — rendered by the router for every route while
+ *  `STATE.user` is null. Lifts the previous "Log In" markup out of the
+ *  Profile page so the same surface shows up everywhere a logged-out user
+ *  tries to land, instead of half the pages working anonymously and the
+ *  other half rendering ad-hoc Login-Required cards. */
+export function renderLoginWall() {
+    const div = document.createElement('div');
+    const isReturning = STATE.hasLoggedInBefore;
+    div.innerHTML = `
+        <div class="login-wall">
+            <div class="login-wall__inner">
+                <h1 class="login-wall__title gradient-text" style="--g-from: #007aff; --g-to: #34c759;">The Great Getaway</h1>
+                <p class="login-wall__subtitle">${isReturning ? 'Welcome back. Sign in to pick up where you left off.' : 'Plan trips, split expenses, and bring friends along — all synced across devices.'}</p>
+
+                <div class="login-wall__features">
+                    <div class="login-wall__feature">
+                        <span class="login-wall__feature-icon">🗺️</span>
+                        <div><strong>Trips &amp; days</strong><span>Plan and journal each day of your journey.</span></div>
+                    </div>
+                    <div class="login-wall__feature">
+                        <span class="login-wall__feature-icon">💸</span>
+                        <div><strong>Shared expenses</strong><span>Split costs and settle up cleanly.</span></div>
+                    </div>
+                    <div class="login-wall__feature">
+                        <span class="login-wall__feature-icon">👥</span>
+                        <div><strong>Friends &amp; companions</strong><span>Invite people to plan along with you.</span></div>
+                    </div>
+                </div>
+
+                <div class="card glass login-wall__card">
+                    <h2 class="login-wall__card-title">${isReturning ? 'Sign back in' : 'Create your account with Google'}</h2>
+                    <div id="loginWallBtnContainer" class="login-wall__btn-container"></div>
+                    <p class="login-wall__fineprint">Your data is tied to your Google account and synced server-side; signing out clears the local copy.</p>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // Google's button renderer needs a real DOM target, so do it after the
+    // wall is mounted. Retries briefly if the GIS script hasn't loaded yet.
+    const renderButton = () => {
+        const target = div.querySelector('#loginWallBtnContainer');
+        if (!target) return;
+        if (window.google && window.google.accounts && window.globalGoogleClientId) {
+            target.innerHTML = '';
+            window.google.accounts.id.renderButton(
+                target,
+                { theme: 'outline', size: 'large', width: 280, shape: 'pill' }
+            );
+            return;
+        }
+        // GIS script still loading — try again shortly.
+        setTimeout(renderButton, 250);
+    };
+    setTimeout(renderButton, 0);
+
+    return div;
+}
+
 /** @param {string | null} [targetUserId] */
 export function renderProfile(targetUserId = null) {
     const div = document.createElement('div');
-    
+
     // Helper to determine if we are viewing ourselves
     const isOwnProfile = !targetUserId || (STATE.user && targetUserId === STATE.user.id);
 
+    // Logged-out callers never reach this branch — the router renders the
+    // app-wide login wall instead. Kept defensive in case a stale link
+    // routes here without a session.
     if (!STATE.user && isOwnProfile) {
-        const isReturning = STATE.hasLoggedInBefore;
-        div.innerHTML = `
-            <div class="ai-page-header">
-                <h1 class="gradient-text" style="--g-from: #007aff; --g-to: #34c759;">Log In</h1>
-                <p>${isReturning ? 'Sign in to your account to securely save and sync your trips across all your devices.' : 'Sign in with Google to start syncing your trips and travel memories across all your devices.'}</p>
-            </div>
-            <div style="display: flex; justify-content: center; align-items: center; min-height: 50vh;">
-                <div class="card glass" style="padding: 50px; text-align: center; border-radius: 32px; max-width: 400px; width: 100%;">
-                    <h2 style="margin-bottom: 30px; font-size: 1.5rem; color: var(--accent-blue);">${isReturning ? 'Welcome back' : 'Create your account with Google'}</h2>
-                    <div id="profileLoginBtnContainer" style="display: flex; justify-content: center; min-height: 40px;"></div>
-                </div>
-            </div>
-        `;
-        
-        setTimeout(() => {
-            if (window.google && window.google.accounts && window.globalGoogleClientId) {
-                window.google.accounts.id.renderButton(
-                    div.querySelector("#profileLoginBtnContainer"),
-                    { theme: "outline", size: "large", width: 280 }
-                );
-            }
-        }, 300);
-        return div;
+        return renderLoginWall();
     }
 
     const renderData = (user, trips) => {
@@ -404,6 +444,12 @@ export function updateUserUI() {
     const sub = document.getElementById('sidebarProfileSub');
     const pic = /** @type {HTMLImageElement | null} */ (document.getElementById('sidebarProfilePic'));
     const logoutBtn = document.getElementById('sidebarLogoutBtn');
+
+    // App-wide signed-out body class — drives the CSS that hides the
+    // nav links, trip selector, notification bell, and sidebar trigger
+    // while the login wall is showing. Single switch beats sprinkling
+    // display:none updates across every chrome element.
+    document.body.classList.toggle('is-signed-out', !STATE.user);
 
     if (STATE.user) {
         if (avatar) { avatar.style.display = 'block'; }

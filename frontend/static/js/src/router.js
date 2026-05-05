@@ -1,4 +1,5 @@
 // @ts-check
+import { STATE } from './state.js';
 import { PAGES } from './constants.js';
 import { renderHome, stopHomeSlideshow } from './pages/home.js';
 import { renderExpenses, setExpensesTab } from './pages/expenses.js';
@@ -9,7 +10,7 @@ import { renderCollections } from './pages/collections.js';
 import { renderAI } from './pages/ai.js';
 import { renderSettlement } from './pages/settlement.js';
 import { renderFriends } from './pages/friends.js';
-import { renderProfile } from './pages/profile.js';
+import { renderProfile, renderLoginWall } from './pages/profile.js';
 
 let isInternalNav = false;
 
@@ -33,6 +34,19 @@ export function navigate(page, params = null, preserveScroll = false) {
 
     content.innerHTML = '';
     let pageEl = null;
+
+    // Mandatory login — every route renders the login wall while signed
+    // out. Lifts the dual code paths (anonymous-then-logged-in) out of
+    // every page; logged-out users only ever see this single surface.
+    // The hash still updates so deep links survive a sign-in round trip.
+    if (!STATE.user) {
+        content.appendChild(renderLoginWall());
+        document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+        isInternalNav = true;
+        window.location.hash = page;
+        if (!preserveScroll) window.scrollTo(0, 0);
+        return;
+    }
 
     switch (page) {
         case PAGES.HOME: pageEl = renderHome(); break;

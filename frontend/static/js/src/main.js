@@ -187,25 +187,18 @@ function updateTripSelector() {
 // UI subscribers — kept here (not in state.js) so the data layer doesn't reach
 // into the UI. api.js emits 'notifications:changed' from the fetch helpers.
 subscribe('state:changed', updateTripSelector);
+// Auth-driven chrome (body.is-signed-out class + sidebar profile slot) is
+// re-applied on every state change so login/logout keeps the nav, bell
+// and trip selector in sync without each call site remembering to call
+// updateUserUI by hand.
+subscribe('state:changed', updateUserUI);
 subscribe('notifications:changed', updateNotificationUI);
 
 function archiveActiveTrip() {
     const trip = STATE.trips.find(t => t.id === STATE.activeTripId);
     if (!trip) return;
-
-    // Archived trips live in the user's collections on the server. Without a
-    // logged-in user, the archive would attach to whichever profile signs in
-    // next — silently polluting their collection. Block at the boundary.
-    if (!STATE.user) {
-        showConfirmModal({
-            title: "Log In to Archive",
-            message: "Archived trips live in your profile's collections, so you need to be logged in to archive a trip.",
-            confirmText: "Log In",
-            confirmColor: "#0071e3",
-            onConfirm: () => navigate('profile')
-        });
-        return;
-    }
+    // Login is mandatory at the router boundary, so callers here always
+    // have a user. The previous "Log In to Archive" guard is gone.
 
     showConfirmModal({
         title: "Archive Trip?",

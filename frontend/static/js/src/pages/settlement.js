@@ -8,27 +8,8 @@ import { canEdit } from '../permissions.js';
 
 export function renderSettlement() {
     const div = document.createElement('div');
-    if (!STATE.user) {
-        div.innerHTML = `
-            <div class="ai-page-header">
-                <h1 class="gradient-text" style="--g-from: #ffd60a; --g-to: #ff9f0a;">Settlements</h1>
-                <p>Track who owes who and keep your travel groups balanced</p>
-            </div>
-            <div style="text-align: center; padding: 60px 20px; background: rgba(255,255,255,0.02); border-radius: 16px; border: 1px solid var(--glass-border); max-width: 500px; margin: 40px auto;">
-                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 20px; opacity: 0.8;">
-                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                </svg>
-                <h3 style="margin-bottom: 12px; font-weight: 600;">Login Required</h3>
-                <p style="color: var(--text-secondary); line-height: 1.5; font-size: 0.95rem;">
-                    Settlements involve tracking financial balances across your travel companions. 
-                    Please sign in using the Google button in the menu to access this feature safely.
-                </p>
-            </div>
-        `;
-        return div;
-    }
-
+    // Login wall handled at the router boundary — every render-* page can
+    // assume STATE.user is non-null from here on.
     let currentTripId = STATE.activeTripId || (STATE.trips.length > 0 ? STATE.trips[0].id : null);
 
     function buildSettlementUI(tripId) {
