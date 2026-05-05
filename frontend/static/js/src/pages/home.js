@@ -7,7 +7,7 @@ import { getMediaForTrip, showLiquidAlert, formatDayDate, q, showConfirmModal, g
 import { upsertDay, uploadMedia, deleteDayOnServer, upsertTrip } from '../api.js';
 import { navigate } from '../router.js';
 import { showPersTab } from './settings.js';
-import { openNewTripModal, openAddDayModal, openEditTripModal } from '../modals.js';
+import { openNewTripModal, openAddDayModal, openEditTripModal, openCompanionPickerModal } from '../modals.js';
 
 // Empty-state slideshow timer. Lives in this module; router.js calls
 // stopHomeSlideshow() on every navigate so the timer doesn't leak past home.
@@ -655,6 +655,16 @@ export function renderHome() {
                     <button id="editTripBtn" class="icon-btn-square" title="Edit trip name and location">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
                     </button>
+                    <button id="tripCompanionsBtn" class="trip-companions-pill" title="Pick which account companions are on this trip">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="9" cy="7" r="4"></circle>
+                            <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                        </svg>
+                        <span>Companions</span>
+                        <span class="trip-companions-pill__count">${(activeTrip.companions || []).length}</span>
+                    </button>
                 ` : ''}
             </div>
             <p style="font-size: 0.95rem; color: var(--text-secondary); margin: 6px 0 0; font-weight: 500;">${tripDays.length} Day${tripDays.length !== 1 ? 's' : ''} of adventure</p>
@@ -814,6 +824,9 @@ export function renderHome() {
 
             // Edit-trip pencil — sits at the top of daysContainer, no per-day data.
             if (target.closest('#editTripBtn')) { openEditTripModal(activeTrip); return; }
+
+            // Companions picker — same neighbourhood, scopes who's on this trip.
+            if (target.closest('#tripCompanionsBtn')) { openCompanionPickerModal(activeTrip.id); return; }
 
             const saveBtn = /** @type {HTMLElement | null} */ (target.closest('.day-pin-save-btn'));
             if (saveBtn?.dataset.dayId) { saveDayPin(saveBtn.dataset.dayId); return; }

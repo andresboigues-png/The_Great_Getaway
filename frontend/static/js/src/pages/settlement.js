@@ -72,9 +72,19 @@ export function renderSettlement() {
         }
 
         const tripExps = STATE.expenses.filter(e => e.tripId === tripId);
+        // Trip-scoped balance roster: pick from `trip.companions` (the people
+        // explicitly attached to this trip via the Home picker). If the user
+        // hasn't picked yet, fall back to the union of names referenced by
+        // existing expenses so the balance still computes for legacy data.
+        const tripCompanions = (trip.companions && trip.companions.length > 0)
+            ? trip.companions
+            : Array.from(new Set(
+                tripExps.flatMap(e => [e.who, ...Object.keys(e.splits || {})]).filter(Boolean)
+            ));
+
         /** @type {Record<string, number>} */
         const balances = {};
-        STATE.groups.forEach(person => balances[person] = 0);
+        tripCompanions.forEach(person => balances[person] = 0);
 
         tripExps.forEach(exp => {
             const amount = exp.euroValue || exp.value || 0;
@@ -85,8 +95,9 @@ export function renderSettlement() {
                     if (balances[person] !== undefined) balances[person] -= amount * (Number(pct) / 100);
                 }
             } else {
-                const splitAmt = amount / Math.max(STATE.groups.length, 1);
-                STATE.groups.forEach(person => balances[person] -= splitAmt);
+                // No-splits fallback: equal share across the trip's roster.
+                const splitAmt = amount / Math.max(tripCompanions.length, 1);
+                tripCompanions.forEach(person => balances[person] -= splitAmt);
             }
         });
 
@@ -113,12 +124,24 @@ export function renderSettlement() {
             if (creditorsCopy[j].amount < 0.01) j++;
         }
 
-        // Global balances: include ALL expenses across all trips (active + completed)
+        // Global balances: include ALL expenses across all trips (active + completed).
+        // Per-expense roster comes from the parent trip's `companions` (with
+        // archived-trip snapshots and a names-from-splits fallback for safety),
+        // since each expense belongs to exactly one trip — splitting against
+        // the entire account roster would charge people who weren't even on
+        // that trip.
         /** @type {Record<string, number>} */
         const globalBalances = {};
         STATE.groups.forEach(p => globalBalances[p] = 0);
         const archivedExps = (STATE.archivedTrips || []).flatMap(t => t.expenses || []);
         const allExpenses = [...STATE.expenses, ...archivedExps];
+
+        /** @type {Record<string, string[]>} */
+        const tripCompanionsById = {};
+        for (const t of [...STATE.trips, ...(STATE.archivedTrips || [])]) {
+            tripCompanionsById[t.id] = (t.companions && t.companions.length > 0) ? t.companions : [];
+        }
+
         allExpenses.forEach(exp => {
             const amount = exp.euroValue || exp.euro_value || exp.value || 0;
             const payer = exp.who;
@@ -128,8 +151,15 @@ export function renderSettlement() {
                     if (globalBalances[person] !== undefined) globalBalances[person] -= amount * (Number(pct) / 100);
                 }
             } else {
-                const splitAmt = amount / Math.max(STATE.groups.length, 1);
-                STATE.groups.forEach(person => globalBalances[person] -= splitAmt);
+                const roster = tripCompanionsById[exp.tripId] || [];
+                const splitGroup = roster.length > 0
+                    ? roster
+                    : Array.from(new Set([payer, ...Object.keys(exp.splits || {})].filter(Boolean)));
+                const denom = Math.max(splitGroup.length, 1);
+                const splitAmt = amount / denom;
+                splitGroup.forEach(person => {
+                    if (globalBalances[person] !== undefined) globalBalances[person] -= splitAmt;
+                });
             }
         });
 
@@ -272,7 +302,14 @@ export function renderSettlement() {
         modal.style.display = 'flex';
         modal.style.backdropFilter = 'blur(25px)';
 
-        const peopleOptions = STATE.groups.map(p => `<option value="${p}">${p}</option>`).join('');
+        // Manual-settle From/To draws from THIS trip's companions, not the
+        // account-wide roster — settlements always pay between participants
+        // of the same trip.
+        const trip = STATE.trips.find(t => t.id === tripId);
+        const peopleSource = (trip?.companions && trip.companions.length > 0)
+            ? trip.companions
+            : STATE.groups;
+        const peopleOptions = peopleSource.map(p => `<option value="${p}">${p}</option>`).join('');
 
         modal.innerHTML = `
             <div class="card-glass-modal" style="width: 400px;">
@@ -402,10 +439,14 @@ export function renderSettlement() {
         modal.style.display = 'flex';
         modal.style.backdropFilter = 'blur(25px)';
 
-        const peopleOptionsFrom = STATE.groups.map(p => `<option value="${p}" ${s.who === p ? 'selected' : ''}>${p}</option>`).join('');
+        const editTrip = STATE.trips.find(t => t.id === s.tripId);
+        const editPeopleSource = (editTrip?.companions && editTrip.companions.length > 0)
+            ? editTrip.companions
+            : STATE.groups;
+        const peopleOptionsFrom = editPeopleSource.map(p => `<option value="${p}" ${s.who === p ? 'selected' : ''}>${p}</option>`).join('');
         // To find the "to" person, we look at splits
         const toPerson = Object.keys(s.splits || {})[0];
-        const peopleOptionsTo = STATE.groups.map(p => `<option value="${p}" ${toPerson === p ? 'selected' : ''}>${p}</option>`).join('');
+        const peopleOptionsTo = editPeopleSource.map(p => `<option value="${p}" ${toPerson === p ? 'selected' : ''}>${p}</option>`).join('');
 
         modal.innerHTML = `
             <div class="card-glass-modal" style="width: 400px;">

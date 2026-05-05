@@ -2732,6 +2732,80 @@ h1 {
 }
 .icon-btn-square:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 2px; }
 
+/* Trip-header pill button for the companions picker — same height as the
+   icon-btn-square next to it, but wider for an icon + count. */
+.trip-companions-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: 0 var(--space-3);
+    height: 32px;
+    border-radius: 10px;
+    border: 1px solid rgba(0,113,227,0.18);
+    background: rgba(0,113,227,0.06);
+    color: var(--accent-blue);
+    font-weight: 700;
+    font-size: var(--font-sm);
+    cursor: pointer;
+    transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.1s ease;
+    letter-spacing: -0.01em;
+}
+.trip-companions-pill:hover {
+    background: rgba(0,113,227,0.12);
+    border-color: rgba(0,113,227,0.32);
+}
+.trip-companions-pill:active { transform: scale(0.97); }
+.trip-companions-pill__count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: var(--accent-blue);
+    color: #fff;
+    font-size: var(--font-2xs);
+    font-weight: 800;
+}
+
+/* Companion-picker modal row — checkbox + name, with a locked variant
+   when the companion has historical expenses on the trip and can't be
+   removed without orphaning balance math. */
+.companion-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-md);
+    background: rgba(0,0,0,0.03);
+    border: 1px solid rgba(0,0,0,0.05);
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+.companion-row:hover { background: rgba(0,113,227,0.06); border-color: rgba(0,113,227,0.18); }
+.companion-row.is-locked {
+    cursor: default;
+    background: rgba(52,199,89,0.06);
+    border-color: rgba(52,199,89,0.2);
+}
+.companion-row.is-locked:hover { background: rgba(52,199,89,0.06); border-color: rgba(52,199,89,0.2); }
+.companion-row__cb {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--accent-blue);
+    cursor: inherit;
+}
+.companion-row__name {
+    flex: 1;
+    font-weight: 600;
+    color: #002d5b;
+}
+.companion-row__lock {
+    font-size: var(--font-base);
+    opacity: 0.7;
+}
+
 /* Small pill button that warns on hover (grey → red). Used for the
    "Hide" quick-access dismissal — destructive but not catastrophic. */
 .pill-btn-warn-hover {

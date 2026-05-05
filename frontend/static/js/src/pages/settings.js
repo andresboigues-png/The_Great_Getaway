@@ -1,7 +1,7 @@
 // @ts-check
 import { STATE, emit } from '../state.js';
 import { generateId, showConfirmModal, q } from '../utils.js';
-import { syncCategories, syncCompanions, apiUrl } from '../api.js';
+import { syncCategories, syncCompanions, upsertTrip, apiUrl } from '../api.js';
 import { navigate } from '../router.js';
 
 export const showSettingsTab = (tab) => {
@@ -55,12 +55,24 @@ const deleteCategory = (id) => {
 const deleteCompanion = (name) => {
     showConfirmModal({
         title: "Remove Companion?",
-        message: `Remove "${name}" from your travel companions?`,
+        message: `Remove "${name}" from your travel companions? They'll be removed from any trips they're on too.`,
         confirmText: "Remove",
         onConfirm: () => {
             STATE.groups = STATE.groups.filter(g => g !== name);
+            // Cascade: strip the name from each trip's roster too. Without
+            // this, the trip-scoped expense form would still offer the name
+            // (since it reads trip.companions), and the settlement balance
+            // would still allocate against them.
+            const touchedTrips = [];
+            for (const trip of STATE.trips) {
+                if (Array.isArray(trip.companions) && trip.companions.includes(name)) {
+                    trip.companions = trip.companions.filter(c => c !== name);
+                    touchedTrips.push(trip);
+                }
+            }
             emit('state:changed');
             syncCompanions(); // Delta: sync companions to server
+            touchedTrips.forEach(t => upsertTrip(t));
             navigate('personalization');
             setTimeout(() => showPersTab('companions'), 50);
         }

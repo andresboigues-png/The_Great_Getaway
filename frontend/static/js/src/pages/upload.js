@@ -429,6 +429,11 @@ export function renderUpload() {
                 return;
             }
             const activeTripId = STATE.activeTripId;
+            const activeTrip = STATE.trips.find(t => t.id === activeTripId);
+            if (activeTrip && !Array.isArray(activeTrip.companions)) activeTrip.companions = [];
+            // Local non-null handle for the per-row mutations below — TS
+            // doesn't narrow `activeTrip.companions` through the loop body.
+            const tripCompanions = /** @type {string[] | null} */ (activeTrip ? (activeTrip.companions ?? []) : null);
             const statusDiv = q(div, '#uploadStatus');
             const formatVal = formatSelect.value;
             const isPopular = formatVal.startsWith('popular:');
@@ -508,27 +513,34 @@ export function renderUpload() {
                         isSettlement = parseFlagCell(get('isSettlement'));
                     }
 
-                    if (who && !STATE.groups.includes(who)) {
-                        STATE.groups.push(who);
+                    // Register `who` on both rosters: the account-level master
+                    // list (so it shows in personalization for re-use) AND this
+                    // trip's roster (so they appear in the expense form, splits
+                    // dropdown, settlement balance — anywhere that scopes to
+                    // the trip).
+                    if (who) {
+                        if (!STATE.groups.includes(who)) STATE.groups.push(who);
+                        if (tripCompanions && !tripCompanions.includes(who)) tripCompanions.push(who);
                     }
                     if (splits) {
-                        // Register companions named in the splits cell so the
-                        // balance math in settlement.js can find them.
                         for (const name of Object.keys(splits)) {
-                            if (name && !STATE.groups.includes(name)) STATE.groups.push(name);
+                            if (!name) continue;
+                            if (!STATE.groups.includes(name)) STATE.groups.push(name);
+                            if (tripCompanions && !tripCompanions.includes(name)) tripCompanions.push(name);
                         }
                     }
 
                     if (!splits) {
                         // Tricount/Splitwise are sharing apps — equal split across
-                        // currently-known companions matches user intent. Revolut
-                        // is a bank export (personal); custom formats with no
-                        // splits column also default to "no debt" so untagged
-                        // imports don't spawn settlements out of nowhere.
-                        if (isPopular && (popularFormat === 'tricount' || popularFormat === 'splitwise') && STATE.groups.length > 0) {
-                            const pct = 100 / STATE.groups.length;
+                        // THIS TRIP'S companions matches user intent. Revolut is a
+                        // bank export (personal); custom formats with no splits
+                        // column also default to "no debt" so untagged imports
+                        // don't spawn settlements out of nowhere.
+                        const tripRoster = tripCompanions ?? [];
+                        if (isPopular && (popularFormat === 'tricount' || popularFormat === 'splitwise') && tripRoster.length > 0) {
+                            const pct = 100 / tripRoster.length;
                             splits = {};
-                            STATE.groups.forEach(g => { /** @type {Record<string, number>} */ (splits)[g] = pct; });
+                            tripRoster.forEach(g => { /** @type {Record<string, number>} */ (splits)[g] = pct; });
                         } else {
                             splits = who ? { [who]: 100 } : {};
                         }

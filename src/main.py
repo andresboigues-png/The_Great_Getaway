@@ -154,8 +154,9 @@ def sync_data():
         for t in trips:
             cursor.execute('''
                 INSERT INTO trips (id, user_id, name, country, is_archived, is_public,
-                                   place_id, lat, lng, viewport_json, place_types, country_code)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                   place_id, lat, lng, viewport_json, place_types, country_code,
+                                   companions_json)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     name=excluded.name,
                     country=excluded.country,
@@ -166,7 +167,8 @@ def sync_data():
                     lng=excluded.lng,
                     viewport_json=excluded.viewport_json,
                     place_types=excluded.place_types,
-                    country_code=excluded.country_code
+                    country_code=excluded.country_code,
+                    companions_json=excluded.companions_json
             ''', (t['id'], user_id, t['name'], t['country'],
                   1 if t.get('is_archived') else 0,
                   1 if t.get('isPublic') else 0,
@@ -175,15 +177,17 @@ def sync_data():
                   t.get('lng'),
                   json.dumps(t['viewport']) if t.get('viewport') else None,
                   json.dumps(t['placeTypes']) if t.get('placeTypes') else None,
-                  t.get('countryCode')))
+                  t.get('countryCode'),
+                  json.dumps(t['companions']) if isinstance(t.get('companions'), list) else None))
 
         # Sync Archived Trips
         archived_trips = data.get("archived_trips", [])
         for t in archived_trips:
             cursor.execute('''
                 INSERT INTO trips (id, user_id, name, country, is_archived, is_public,
-                                   place_id, lat, lng, viewport_json, place_types, country_code)
-                VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?)
+                                   place_id, lat, lng, viewport_json, place_types, country_code,
+                                   companions_json)
+                VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     name=excluded.name,
                     country=excluded.country,
@@ -194,7 +198,8 @@ def sync_data():
                     lng=excluded.lng,
                     viewport_json=excluded.viewport_json,
                     place_types=excluded.place_types,
-                    country_code=excluded.country_code
+                    country_code=excluded.country_code,
+                    companions_json=excluded.companions_json
             ''', (t['id'], user_id, t['name'], t['country'],
                   1 if t.get('isPublic') else 0,
                   t.get('placeId'),
@@ -202,7 +207,8 @@ def sync_data():
                   t.get('lng'),
                   json.dumps(t['viewport']) if t.get('viewport') else None,
                   json.dumps(t['placeTypes']) if t.get('placeTypes') else None,
-                  t.get('countryCode')))
+                  t.get('countryCode'),
+                  json.dumps(t['companions']) if isinstance(t.get('companions'), list) else None))
             
             # Also sync expenses inside archived trips if they exist
             if 'expenses' in t:
@@ -309,8 +315,9 @@ def upsert_trip():
         cursor = conn.cursor()
         cursor.execute('''
             INSERT INTO trips (id, user_id, name, country, is_archived, is_public,
-                               place_id, lat, lng, viewport_json, place_types, country_code)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                               place_id, lat, lng, viewport_json, place_types, country_code,
+                               companions_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 name=excluded.name,
                 country=excluded.country,
@@ -321,7 +328,8 @@ def upsert_trip():
                 lng=excluded.lng,
                 viewport_json=excluded.viewport_json,
                 place_types=excluded.place_types,
-                country_code=excluded.country_code
+                country_code=excluded.country_code,
+                companions_json=excluded.companions_json
         ''', (t['id'], user_id, t['name'], t.get('country', ''),
               1 if t.get('isArchived') else 0,
               1 if t.get('isPublic') else 0,
@@ -330,7 +338,8 @@ def upsert_trip():
               t.get('lng'),
               json.dumps(t['viewport']) if t.get('viewport') else None,
               json.dumps(t['placeTypes']) if t.get('placeTypes') else None,
-              t.get('countryCode')))
+              t.get('countryCode'),
+              json.dumps(t['companions']) if isinstance(t.get('companions'), list) else None))
         conn.commit()
     return jsonify({"status": "ok"})
 
@@ -825,6 +834,8 @@ def get_data():
             types_raw = t.pop('place_types', None)
             t['placeTypes'] = json.loads(types_raw) if types_raw else None
             t['countryCode'] = t.pop('country_code', None)
+            companions_raw = t.pop('companions_json', None)
+            t['companions'] = json.loads(companions_raw) if companions_raw else []
             trips.append(t)
         
         # Get all expenses for these trips

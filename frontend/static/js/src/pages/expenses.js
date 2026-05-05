@@ -109,9 +109,22 @@ export function renderExpenses() {
 function renderManualTab() {
     const wrapper = document.createElement('div');
 
+    // Trip-scoped companions list (a subset of STATE.groups). The expense
+    // form only offers people the user has explicitly attached to this trip
+    // — keeps Splits clean and stops cross-trip companions polluting the
+    // dropdown. If the list is empty the form steers the user to the
+    // companion picker on Home, which is the canonical place to manage it.
+    const activeTrip = STATE.trips.find(t => t.id === STATE.activeTripId);
+    const tripCompanions = activeTrip?.companions ?? [];
+    const hasTripCompanions = tripCompanions.length > 0;
+
     // Build People Options
-    let peopleOptions = STATE.groups.map(p => `<option value="${p}">${p}</option>`).join('');
-    if (!peopleOptions) peopleOptions = `<option value="">Add companions in the personalisation section</option>`;
+    let peopleOptions = tripCompanions.map(p => `<option value="${p}">${p}</option>`).join('');
+    if (!peopleOptions) {
+        peopleOptions = STATE.groups.length === 0
+            ? `<option value="">Add companions in the personalisation section</option>`
+            : `<option value="">No companions on this trip — pick some from Home</option>`;
+    }
 
     // Build Category Options
     const categoryOptions = STATE.categories.map(c => `<option value="${c.id}">${c.icon} ${c.name}</option>`).join('');
@@ -176,9 +189,9 @@ function renderManualTab() {
                 <div style="margin-bottom: 40px; background: rgba(0,0,0,0.03); padding: 32px; border-radius: 32px; border: 1px solid rgba(0,0,0,0.05); width: 100%; max-width: 440px; box-sizing: border-box;">
                     <label style="display: block; margin-bottom: 16px; font-size: 0.9rem; font-weight: 800; color: #000000; letter-spacing: -0.02em;">Split Between</label>
                     <div style="display: flex; gap: 14px; margin-bottom: 20px;">
-                        <select id="addSplitSelect" class="glass-input" style="flex: 1; padding: 14px; border-radius: 16px; background: rgba(255,255,255,0.4); color: #000000; font-weight: 600; border: 1px solid rgba(0,0,0,0.05); box-sizing: border-box;">
-                            <option value="">Add person to split...</option>
-                            ${STATE.groups.map(p => `<option value="${p}">${p}</option>`).join('')}
+                        <select id="addSplitSelect" class="glass-input" style="flex: 1; padding: 14px; border-radius: 16px; background: rgba(255,255,255,0.4); color: #000000; font-weight: 600; border: 1px solid rgba(0,0,0,0.05); box-sizing: border-box;" ${!hasTripCompanions ? 'disabled' : ''}>
+                            <option value="">${hasTripCompanions ? 'Add person to split...' : 'No trip companions yet'}</option>
+                            ${tripCompanions.map(p => `<option value="${p}">${p}</option>`).join('')}
                         </select>
                         <button type="button" id="addSplitBtn" class="btn btn-small" style="padding: 0 24px; height: 50px; border-radius: 16px; background: #0071e3; color: #ffffff; font-weight: 700;">+ Add</button>
                     </div>
@@ -403,6 +416,22 @@ function renderManualTab() {
 function renderHistoryTab() {
     const wrapper = document.createElement('div');
 
+    // Payer filter draws from this trip's companions — same scope as the
+    // expense form, so the dropdown only offers people who could have paid
+    // an expense on this trip. Falls back to the union of `who` values
+    // already on file (in case the user is viewing the page before picking
+    // companions but does have historical expenses).
+    const activeTrip = STATE.trips.find(t => t.id === STATE.activeTripId);
+    const tripCompanions = activeTrip?.companions ?? [];
+    const tripPayers = tripCompanions.length > 0
+        ? tripCompanions
+        : Array.from(new Set(
+            STATE.expenses
+                .filter(e => e.tripId === STATE.activeTripId)
+                .map(e => e.who)
+                .filter(Boolean)
+        ));
+
     wrapper.innerHTML = `
         <div id="expensesContainer" style="max-width: 1000px; margin: 0 auto; width: 100%; margin-bottom: 60px;">
             <div style="margin-bottom: 40px; padding: 0 10px;">
@@ -435,7 +464,7 @@ function renderHistoryTab() {
                             <label class="filter-label">Payer</label>
                             <select id="filterWho" class="filter-input">
                                 <option value="all">Everyone</option>
-                                ${STATE.groups.map(p => `<option value="${p}">${p}</option>`).join('')}
+                                ${tripPayers.map(p => `<option value="${p}">${p}</option>`).join('')}
                             </select>
                         </div>
                         <div>

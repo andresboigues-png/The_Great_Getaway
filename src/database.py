@@ -79,6 +79,12 @@ def init_db():
             # the user's locale ("Paris, França") so name-based dataset lookup
             # would miss for non-English users; the ISO code never localizes.
             ("country_code", "ALTER TABLE trips ADD COLUMN country_code TEXT"),
+            # JSON-encoded list of companion names that participate in this
+            # specific trip — a subset of the account-level `companions` table.
+            # Read-sites (expense form, settlement balance, upload default-split)
+            # scope to this list instead of the full account roster, so each
+            # trip computes who-owes-whom against just its real participants.
+            ("companions_json", "ALTER TABLE trips ADD COLUMN companions_json TEXT"),
         ]:
             try:
                 cursor.execute(ddl)

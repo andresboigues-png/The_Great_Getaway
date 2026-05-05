@@ -185,6 +185,9 @@ export const openNewTripModal = () => {
             countryCode: pickedPlace.countryCode,
             budget: 0,
             isArchived: false,
+            // Trip starts with no companions — the user picks them via the
+            // companions modal on the Home page (see openCompanionPickerModal).
+            companions: /** @type {string[]} */ ([]),
         };
 
         STATE.trips.push(newTrip);
@@ -398,3 +401,104 @@ export const openAddDayModal = () => {
         navigate('home');
     };
 };
+
+/**
+ * Pick which account-level companions participate in a given trip. The list
+ * draws from `STATE.groups` (the master roster managed in personalization);
+ * checking/unchecking writes to `trip.companions`. Companions already
+ * referenced by an existing expense on this trip are rendered as locked-on
+ * (you can't strip a participant who still has historical entries — that
+ * would orphan balance math).
+ *
+ * @param {string} tripId
+ */
+export const openCompanionPickerModal = (tripId) => {
+    const trip = STATE.trips.find(t => t.id === tripId);
+    if (!trip) return;
+
+    if (!Array.isArray(trip.companions)) trip.companions = [];
+
+    // Names that have outstanding expenses on this trip — must stay checked.
+    const referenced = new Set(
+        STATE.expenses
+            .filter(e => e.tripId === tripId)
+            .flatMap(e => [e.who, ...Object.keys(e.splits || {})])
+            .filter(Boolean)
+    );
+
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.style.display = 'flex';
+    modal.style.backdropFilter = 'blur(25px)';
+
+    /** @returns {string} */
+    const renderRows = () => {
+        const all = STATE.groups || [];
+        if (all.length === 0) {
+            return `<p style="text-align:center; color: rgba(0,0,0,0.55); padding: var(--space-6); margin: 0;">
+                No companions yet. Add some in
+                <a href="#" class="link-underline" id="companionPickerGotoSettings">personalization</a>.
+            </p>`;
+        }
+        return all.map(name => {
+            const isChecked = trip.companions?.includes(name) ?? false;
+            const isLocked = referenced.has(name);
+            return `
+                <label class="companion-row${isLocked ? ' is-locked' : ''}">
+                    <input type="checkbox" class="companion-row__cb" data-name="${name}"
+                           ${isChecked || isLocked ? 'checked' : ''}
+                           ${isLocked ? 'disabled' : ''}>
+                    <span class="companion-row__name">${name}</span>
+                    ${isLocked ? '<span class="companion-row__lock" title="Has expenses on this trip">🔒</span>' : ''}
+                </label>
+            `;
+        }).join('');
+    };
+
+    modal.innerHTML = `
+        <div class="card-glass-modal-light" style="width: 460px; max-height: 80vh; display: flex; flex-direction: column;">
+            <h2 style="margin: 0 0 var(--space-2); font-size: var(--font-2xl); color: #002d5b; font-weight: 800; letter-spacing: -0.03em;">Trip Companions</h2>
+            <p style="margin: 0 0 var(--space-5); font-size: var(--font-base); color: rgba(0,0,0,0.55);">
+                Pick who's coming on <strong>${trip.name}</strong>. Splits, balances, and the expense form scope to this list.
+            </p>
+
+            <div id="companionPickerList" style="display: flex; flex-direction: column; gap: var(--space-2); overflow-y: auto; padding: var(--space-1); margin-bottom: var(--space-5); flex: 1; min-height: 0;">
+                ${renderRows()}
+            </div>
+
+            <div style="display: flex; gap: var(--space-3); flex-shrink: 0;">
+                <button id="companionPickerSaveBtn" class="btn-primary" style="flex: 2; padding: var(--space-4); border-radius: var(--radius-lg); font-size: var(--font-lg);">Save</button>
+                <button id="companionPickerCloseBtn" class="btn-neutral" style="flex: 1; border-radius: var(--radius-lg);">Cancel</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    /** @type {HTMLButtonElement} */ (q(modal, '#companionPickerCloseBtn')).onclick = () => modal.remove();
+
+    const settingsLink = modal.querySelector('#companionPickerGotoSettings');
+    if (settingsLink) {
+        /** @type {HTMLAnchorElement} */ (settingsLink).onclick = (ev) => {
+            ev.preventDefault();
+            modal.remove();
+            navigate('personalization');
+        };
+    }
+
+    /** @type {HTMLButtonElement} */ (q(modal, '#companionPickerSaveBtn')).onclick = () => {
+        const checked = /** @type {NodeListOf<HTMLInputElement>} */ (
+            modal.querySelectorAll('.companion-row__cb:checked')
+        );
+        // Preserve roster order (matches STATE.groups for consistent UI).
+        const picked = (STATE.groups || []).filter(n =>
+            Array.from(checked).some(cb => cb.dataset.name === n)
+        );
+        trip.companions = picked;
+        emit('state:changed');               // saveState + UI subscribers
+        upsertTrip(trip);                    // server delta
+        showLiquidAlert(`${picked.length} companion${picked.length === 1 ? '' : 's'} on this trip`);
+        modal.remove();
+        navigate('home', null, true);
+    };
+};
+

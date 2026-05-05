@@ -76,6 +76,13 @@ export interface Trip {
      *  on pick. Used by getMediaForTrip to map back to the English-keyed
      *  destination dataset regardless of the user's browser language. */
     countryCode?: string | null;
+    /** Names of companions participating in *this* trip — a subset of the
+     *  account-level `STATE.groups`. The expense form, splits picker,
+     *  settlement balance math, and upload's auto-split fallback all read
+     *  this list rather than `STATE.groups`, so each trip computes
+     *  who-owes-whom against just its own roster. New trips start with
+     *  `[]`; users add companions via the trip-header picker on Home. */
+    companions?: string[];
 }
 
 export interface TripDay {
