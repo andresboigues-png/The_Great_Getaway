@@ -24,7 +24,6 @@ export const logout = async () => {
         STATE.archivedTrips = [];
         STATE.expenses = [];
         STATE.tripDays = [];
-        STATE.groups = [];
         STATE.budgets = [];
         STATE.activities = [];
         STATE.photos = [];

@@ -4,7 +4,6 @@ import { syncWithServer, pullFromServer, fetchNotifications, markNotificationsRe
 import { showConfirmModal, esc } from './utils.js';
 import { navigate } from './router.js';
 import { PAGES } from './constants.js';
-import { addCompanion } from './companions.js';
 import { canDelete } from './permissions.js';
 
 /**
@@ -22,7 +21,7 @@ function resolvePage(raw) {
     );
 }
 import { updateUserUI, logout } from './pages/profile.js';
-import { openNewTripModal, openCompanionLinkResponseModal, openTripInviteResponseModal } from './modals.js';
+import { openNewTripModal, openTripInviteResponseModal } from './modals.js';
 
 // Global Google Client ID is now provided via index.html template from environment variables
 
@@ -43,9 +42,6 @@ function notificationAccent(type) {
     switch (type) {
         case 'alert': return '255,59,48';
         case 'trip_public': return '52,199,89';
-        case 'companion_link_invite': return '175,82,222';   // purple — invite
-        case 'companion_link_accepted': return '52,199,89';  // green — accepted
-        case 'companion_link_declined': return '142,142,147'; // grey — neutral close
         case 'trip_invite': return '175,82,222';
         case 'trip_invite_accepted': return '52,199,89';
         case 'trip_invite_declined': return '142,142,147';
@@ -62,9 +58,6 @@ function notificationDefaultTitle(type) {
         case 'friend_request': return 'Friend Request';
         case 'accepted_request': return 'Request Accepted';
         case 'trip_public': return 'Trip Completed';
-        case 'companion_link_invite': return 'Companion link request';
-        case 'companion_link_accepted': return 'Companion linked';
-        case 'companion_link_declined': return 'Companion link declined';
         case 'trip_invite': return 'Trip invitation';
         case 'trip_invite_accepted': return 'Trip invite update';
         case 'trip_invite_declined': return 'Trip invite update';
@@ -100,8 +93,8 @@ function renderNotificationDropdown() {
 }
 
 /** Route a clicked notification to the page that lets the user act on it.
- *  `related_id` is a user_id for friend_* / trip_public / companion_link_*;
- *  for everything else we fall back to the home page. */
+ *  `related_id` is a user_id for friend_* / trip_public / trip_member_removed
+ *  and a trip_id for trip_invite_*; for everything else we fall back to home. */
 function handleNotificationClick(notification) {
     const dropdown = document.getElementById('notificationDropdown');
     if (dropdown) dropdown.style.display = 'none';
@@ -119,18 +112,6 @@ function handleNotificationClick(notification) {
             } else {
                 navigate(PAGES.FRIENDS);
             }
-            break;
-        case 'companion_link_invite':
-            // Open the accept/decline modal directly from wherever the user
-            // happens to be — the response is a one-tap decision and doesn't
-            // need a full page navigation.
-            openCompanionLinkResponseModal(notification);
-            break;
-        case 'companion_link_accepted':
-        case 'companion_link_declined':
-            // Outcome notifications — just route to the personalization
-            // companions tab so the user sees the updated state.
-            navigate(PAGES.PERSONALIZATION);
             break;
         case 'trip_invite':
             // Same one-tap decision pattern as the companion-link invite.
@@ -270,15 +251,11 @@ async function handleGoogleLogin(response) {
         });
         const data = await res.json();
         if (data.status === 'success') {
-            const isFirstLogin = !STATE.hasLoggedInBefore;
             STATE.user = data.user;
             STATE.hasLoggedInBefore = true;
-
-            // Auto-create a companion for the user on first login
-            if (isFirstLogin && data.user?.name) {
-                const firstName = data.user.name.split(' ')[0];
-                addCompanion(firstName);
-            }
+            // No more auto-self-companion creation — companions are per-trip
+            // and the trip owner is implicitly a member of every trip they
+            // create (via _ensure_owner_member_row on the server).
 
             await syncWithServer();
             await pullFromServer();

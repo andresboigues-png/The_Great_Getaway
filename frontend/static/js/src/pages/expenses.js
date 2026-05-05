@@ -12,7 +12,9 @@ import { COUNTRIES, CONVERSION_RATES } from '../constants.js';
 import { generateId, showConfirmModal, q, formatHome, getHomeCurrency, esc } from '../utils.js';
 import { upsertExpense, deleteExpenseOnServer } from '../api.js';
 import { navigate } from '../router.js';
-import { showPersTab } from './settings.js';
+// `showPersTab` import removed — companions live per-trip now, so the
+// "no companions" helper just bounces the user to Home where the picker
+// lives. Personalization no longer has a companions sub-tab.
 import { renderUpload } from './upload.js';
 import { canEdit } from '../permissions.js';
 
@@ -131,21 +133,18 @@ export function renderExpenses() {
 function renderManualTab() {
     const wrapper = document.createElement('div');
 
-    // Trip-scoped companions list (a subset of STATE.groups). The expense
-    // form only offers people the user has explicitly attached to this trip
-    // — keeps Splits clean and stops cross-trip companions polluting the
-    // dropdown. If the list is empty the form steers the user to the
-    // companion picker on Home, which is the canonical place to manage it.
+    // Trip-scoped companions list (per-trip — companions are no longer
+    // account-level). The form only offers people on this trip; if the
+    // list is empty, steer the user to the companion picker on Home,
+    // which is the canonical place to add companions / friends.
     const activeTrip = STATE.trips.find(t => t.id === STATE.activeTripId);
-    const tripCompanions = activeTrip?.companions ?? [];
-    const hasTripCompanions = tripCompanions.length > 0;
+    const tripCompanionNames = (activeTrip?.companions ?? []).map(c => c.name);
+    const hasTripCompanions = tripCompanionNames.length > 0;
 
     // Build People Options
-    let peopleOptions = tripCompanions.map(p => `<option value="${p}">${p}</option>`).join('');
+    let peopleOptions = tripCompanionNames.map(p => `<option value="${p}">${p}</option>`).join('');
     if (!peopleOptions) {
-        peopleOptions = STATE.groups.length === 0
-            ? `<option value="">Add companions in the personalisation section</option>`
-            : `<option value="">No companions on this trip — pick some from Home</option>`;
+        peopleOptions = `<option value="">No companions on this trip — add some from Home</option>`;
     }
 
     // Build Category Options
@@ -161,9 +160,9 @@ function renderManualTab() {
                     <select id="expWho" class="glass-input-light" required>
                         ${peopleOptions}
                     </select>
-                    ${!STATE.groups || STATE.groups.length === 0 ? `
+                    ${!hasTripCompanions ? `
                     <div id="addCompanionsHelper" style="margin-top: var(--space-3); font-size: var(--font-sm); color: var(--accent-blue); font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px;">
-                        <span>➕</span> <span style="text-decoration: underline;">Add companions in the personalization section</span>
+                        <span>➕</span> <span style="text-decoration: underline;">Add companions to this trip from Home</span>
                     </div>` : ''}
                 </div>
 
@@ -213,7 +212,7 @@ function renderManualTab() {
                     <div style="display: flex; gap: 14px; margin-bottom: 20px;">
                         <select id="addSplitSelect" class="glass-input" style="flex: 1; padding: 14px; border-radius: 16px; background: rgba(255,255,255,0.4); color: #000000; font-weight: 600; border: 1px solid rgba(0,0,0,0.05); box-sizing: border-box;" ${!hasTripCompanions ? 'disabled' : ''}>
                             <option value="">${hasTripCompanions ? 'Add person to split...' : 'No trip companions yet'}</option>
-                            ${tripCompanions.map(p => `<option value="${p}">${p}</option>`).join('')}
+                            ${tripCompanionNames.map(p => `<option value="${p}">${p}</option>`).join('')}
                         </select>
                         <button type="button" id="addSplitBtn" class="btn btn-small" style="padding: 0 24px; height: 50px; border-radius: 16px; background: #0071e3; color: #ffffff; font-weight: 700;">+ Add</button>
                     </div>
@@ -229,9 +228,7 @@ function renderManualTab() {
 
     setTimeout(() => {
         wrapper.querySelector('#addCompanionsHelper')?.addEventListener('click', () => {
-            navigate('personalization');
-            // Settings DOM doesn't exist until navigate renders it.
-            setTimeout(() => showPersTab('companions'), 50);
+            navigate('home');
         });
 
         const form = /** @type {HTMLFormElement} */ (q(wrapper, '#expenseForm'));
@@ -444,9 +441,9 @@ function renderHistoryTab() {
     // already on file (in case the user is viewing the page before picking
     // companions but does have historical expenses).
     const activeTrip = STATE.trips.find(t => t.id === STATE.activeTripId);
-    const tripCompanions = activeTrip?.companions ?? [];
-    const tripPayers = tripCompanions.length > 0
-        ? tripCompanions
+    const tripCompanionNames = (activeTrip?.companions ?? []).map(c => c.name);
+    const tripPayers = tripCompanionNames.length > 0
+        ? tripCompanionNames
         : Array.from(new Set(
             STATE.expenses
                 .filter(e => e.tripId === STATE.activeTripId)

@@ -72,7 +72,7 @@ export function validateLoadedState(raw) {
     }
     // Old saves may not have all the fields — that's fine, defaults kick in.
     // What we *don't* tolerate is a top-level shape that isn't an object.
-    const arrayFields = ['trips', 'expenses', 'groups', 'categories', 'budgets',
+    const arrayFields = ['trips', 'expenses', 'categories', 'budgets',
                          'tripDays', 'archivedTrips', 'savedFormats', 'notifications'];
     for (const key of arrayFields) {
         if (key in raw && !isArray(raw[key])) {

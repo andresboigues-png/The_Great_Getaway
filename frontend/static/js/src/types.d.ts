@@ -94,13 +94,12 @@ export interface Trip {
      *  on pick. Used by getMediaForTrip to map back to the English-keyed
      *  destination dataset regardless of the user's browser language. */
     countryCode?: string | null;
-    /** Names of companions participating in *this* trip — a subset of the
-     *  account-level `STATE.groups`. The expense form, splits picker,
-     *  settlement balance math, and upload's auto-split fallback all read
-     *  this list rather than `STATE.groups`, so each trip computes
-     *  who-owes-whom against just its own roster. New trips start with
-     *  `[]`; users add companions via the trip-header picker on Home. */
-    companions?: string[];
+    /** Companions participating in *this* trip. Source of truth for the
+     *  expense form, splits picker, settlement balance math, and upload's
+     *  auto-split fallback. New trips start with `[]`; users add entries
+     *  via the trip-header picker on Home (Add Friend → linked +
+     *  auto-invite, or Add Companion → unlinked name). */
+    companions?: Companion[];
     /** Trip creator's user_id. Server-set; the client never writes it. */
     ownerId?: string;
     /** The current user's role on this trip. Server-set per /api/data
@@ -178,15 +177,18 @@ export interface Budget {
     originalCurrency: string;
 }
 
-/** Account-level travel companion. Phase 1 starts as `{ name }`-only; the
- *  optional fields come online when companions can be linked to a real
- *  friend account (Phase 2) and used to drive shared trips (Phase 3). */
+/** Trip-scoped travel companion. Companions live ONLY inside `Trip.companions`
+ *  now — there's no account-wide roster. An entry can be either:
+ *   - linked to a friend (`linkedUserId` set) → adding the entry sends a
+ *     trip invitation to that friend (Relaxer by default)
+ *   - unlinked (no `linkedUserId`) → just a name, used for non-app
+ *     companions and the auto-rows that bulk-upload creates from the
+ *     `who` column. Unlinked entries can later be linked to a friend. */
 export interface Companion {
     name: string;
-    /** Friend user id, set after a link invitation is accepted. */
+    /** Friend user id, set when this companion entry represents an
+     *  invited friend. Absence means "unlinked". */
     linkedUserId?: string;
-    /** Link-invitation lifecycle. Absent = not linked. */
-    linkStatus?: 'pending' | 'accepted';
 }
 
 export interface DraftExpense {
@@ -228,11 +230,9 @@ export interface AppState {
     activeTripId: string | null;
     categories: Category[];
     expenses: Expense[];
-    /** Account-level companion roster. Each Companion is `{name}` today and
-     *  gains link metadata in later phases. Trip rosters (`Trip.companions`)
-     *  still reference companions by name only — the link/role data lives
-     *  here on the master roster. */
-    groups: Companion[];
+    // `groups` (the account-level companion roster) was removed. Companions
+    // are now per-trip only — see `Trip.companions`. Friends are the only
+    // account-level "people" concept.
     draftExpense: DraftExpense;
     insightCurrency: string;
     rateMode: 'at_trip' | 'today';

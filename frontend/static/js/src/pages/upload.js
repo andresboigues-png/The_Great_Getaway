@@ -5,7 +5,7 @@ import { generateId, q } from '../utils.js';
 import { syncWithServer } from '../api.js';
 import { navigate } from '../router.js';
 import { showSettingsTab } from './settings.js';
-import { addCompanion } from '../companions.js';
+import { addTripCompanion, getTripCompanionNames } from '../companions.js';
 
 // Pad number to 2 digits.
 const _pad2 = (n) => String(n).padStart(2, '0');
@@ -432,9 +432,6 @@ export function renderUpload() {
             const activeTripId = STATE.activeTripId;
             const activeTrip = STATE.trips.find(t => t.id === activeTripId);
             if (activeTrip && !Array.isArray(activeTrip.companions)) activeTrip.companions = [];
-            // Local non-null handle for the per-row mutations below — TS
-            // doesn't narrow `activeTrip.companions` through the loop body.
-            const tripCompanions = /** @type {string[] | null} */ (activeTrip ? (activeTrip.companions ?? []) : null);
             const statusDiv = q(div, '#uploadStatus');
             const formatVal = formatSelect.value;
             const isPopular = formatVal.startsWith('popular:');
@@ -516,18 +513,17 @@ export function renderUpload() {
 
                     // Register `who` on both rosters: the account-level master
                     // list (so it shows in personalization for re-use) AND this
-                    // trip's roster (so they appear in the expense form, splits
-                    // dropdown, settlement balance — anywhere that scopes to
-                    // the trip).
-                    if (who) {
-                        addCompanion(who);
-                        if (tripCompanions && !tripCompanions.includes(who)) tripCompanions.push(who);
+                    // trip's roster (UNLINKED — `who` is just a string from a
+                    // CSV/XLSX, no friend account behind it; the user can
+                    // promote any of these to a linked-friend later via the
+                    // companion picker on Home).
+                    if (who && activeTrip) {
+                        addTripCompanion(activeTrip, who);
                     }
-                    if (splits) {
+                    if (splits && activeTrip) {
                         for (const name of Object.keys(splits)) {
                             if (!name) continue;
-                            addCompanion(name);
-                            if (tripCompanions && !tripCompanions.includes(name)) tripCompanions.push(name);
+                            addTripCompanion(activeTrip, name);
                         }
                     }
 
@@ -537,7 +533,7 @@ export function renderUpload() {
                         // bank export (personal); custom formats with no splits
                         // column also default to "no debt" so untagged imports
                         // don't spawn settlements out of nowhere.
-                        const tripRoster = tripCompanions ?? [];
+                        const tripRoster = activeTrip ? getTripCompanionNames(activeTrip) : [];
                         if (isPopular && (popularFormat === 'tricount' || popularFormat === 'splitwise') && tripRoster.length > 0) {
                             const pct = 100 / tripRoster.length;
                             splits = {};

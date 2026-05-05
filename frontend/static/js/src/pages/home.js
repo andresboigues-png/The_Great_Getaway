@@ -9,7 +9,7 @@ import { navigate } from '../router.js';
 import { showPersTab } from './settings.js';
 import { openNewTripModal, openAddDayModal, openEditTripModal, openCompanionPickerModal, openTripMembersModal } from '../modals.js';
 import { canEdit, canManageRoster, ROLE_PLANNER } from '../permissions.js';
-import { findCompanion, findCompanionByLinkedUser } from '../companions.js';
+import { findTripCompanionByLinkedUser } from '../companions.js';
 
 // Empty-state slideshow timer. Lives in this module; router.js calls
 // stopHomeSlideshow() on every navigate so the timer doesn't leak past home.
@@ -524,7 +524,9 @@ export function renderHome() {
 
     const hasLogin = !!STATE.user || window.isGoogleAuthenticated === true;
     const hasTrip = STATE.trips.length > 0;
-    const hasCompanions = (STATE.groups || []).length > 0;
+    // Companions are per-trip now — for the getting-started checklist,
+    // count "any trip with any companions" as having companions set up.
+    const hasCompanions = STATE.trips.some(t => (t.companions || []).length > 0);
     const hasPlan = tripDays.length > 0;
     const hasExpenses = tripExpenses.length > 0;
     const hasBudgets = STATE.budgets && STATE.budgets.length > 0;
@@ -654,7 +656,8 @@ export function renderHome() {
      *  participant with their role badge. Source order:
      *    1) Owner first (👑 Owner)
      *    2) Other accepted members (Planner / Relaxer pill)
-     *    3) Unlinked companions still in trip.companions (Companion pill)
+     *    3) Linked-but-pending companions (⏳ Pending)
+     *    4) Unlinked entries (Relaxer — they have no edit rights, like a relaxer)
      *  Click anywhere on the panel routes through the same dispatcher
      *  the pill button uses, so behaviour is one source-of-truth. */
     const buildMemberChipsHtml = () => {
@@ -662,14 +665,15 @@ export function renderHome() {
         const members = activeTrip.members || [];
         const companions = activeTrip.companions || [];
 
-        /** @type {Array<{name: string, role: string|null, picture?: string|null, isOwner: boolean, isMember: boolean}>} */
+        /** @type {Array<{name: string, role: string|null, picture?: string|null, isOwner: boolean, isMember: boolean, isPending?: boolean}>} */
         const chips = [];
         const seenMemberIds = new Set();
 
+        // Owner first.
         const owner = members.find(m => m.userId === activeTrip.ownerId);
         if (owner) {
             chips.push({
-                name: findCompanionByLinkedUser(owner.userId)?.name || owner.name || 'Owner',
+                name: findTripCompanionByLinkedUser(activeTrip, owner.userId)?.name || owner.name || 'Owner',
                 role: owner.role,
                 picture: owner.picture,
                 isOwner: true,
@@ -677,26 +681,34 @@ export function renderHome() {
             });
             seenMemberIds.add(owner.userId);
         }
+        // Other accepted members.
         for (const m of members) {
             if (seenMemberIds.has(m.userId)) continue;
             seenMemberIds.add(m.userId);
             chips.push({
-                name: findCompanionByLinkedUser(m.userId)?.name || m.name || m.userId,
+                name: findTripCompanionByLinkedUser(activeTrip, m.userId)?.name || m.name || m.userId,
                 role: m.role,
                 picture: m.picture,
                 isOwner: false,
                 isMember: true,
             });
         }
-        for (const name of companions) {
-            const c = findCompanion(name);
-            if (c?.linkedUserId && seenMemberIds.has(c.linkedUserId)) continue;
-            chips.push({ name, role: null, isOwner: false, isMember: false });
+        // Companions on the trip — skip the ones we already chip'd above
+        // via the members loop. Pending = linked but not yet accepted.
+        for (const c of companions) {
+            if (c.linkedUserId && seenMemberIds.has(c.linkedUserId)) continue;
+            chips.push({
+                name: c.name,
+                role: null,
+                isOwner: false,
+                isMember: false,
+                isPending: !!c.linkedUserId, // linked but not in trip.members yet
+            });
         }
 
         if (chips.length === 0) return '';
 
-        const renderChip = (/** @type {{name: string, role: string|null, picture?: string|null, isOwner: boolean, isMember: boolean}} */ chip) => {
+        const renderChip = (/** @type {{name: string, role: string|null, picture?: string|null, isOwner: boolean, isMember: boolean, isPending?: boolean}} */ chip) => {
             const initial = chip.name.charAt(0).toUpperCase() || '·';
             const avatar = chip.picture
                 ? `<img class="member-chip__avatar" src="${esc(chip.picture)}" alt="">`
@@ -705,11 +717,18 @@ export function renderHome() {
             if (chip.isOwner) {
                 badge = `<span class="member-chip__role member-chip__role--owner">👑 Owner</span>`;
             } else if (chip.isMember) {
+                // Real accepted member — badge reflects their actual role.
                 const label = chip.role === ROLE_PLANNER ? 'Planner' : 'Relaxer';
                 const variant = chip.role === ROLE_PLANNER ? 'planner' : 'relaxer';
                 badge = `<span class="member-chip__role member-chip__role--${variant}">${label}</span>`;
+            } else if (chip.isPending) {
+                badge = `<span class="member-chip__role member-chip__role--companion">⏳ Pending</span>`;
             } else {
-                badge = `<span class="member-chip__role member-chip__role--companion">Companion</span>`;
+                // Unlinked entry — no real account behind it, so they
+                // can't edit. Render as Relaxer so every chip on the panel
+                // carries a consistent role label rather than the
+                // tautological "Companion" tag.
+                badge = `<span class="member-chip__role member-chip__role--relaxer">Relaxer</span>`;
             }
             return `<div class="member-chip ${chip.isOwner ? 'member-chip--owner' : ''}">${avatar}<span class="member-chip__name">${esc(chip.name)}</span>${badge}</div>`;
         };

@@ -3,7 +3,7 @@
 
 import { STATE, emit } from '../state.js';
 import { generateId, showConfirmModal, q, formatHome, getHomeCurrency, convertCurrency, esc } from '../utils.js';
-import { getCompanionNames } from '../companions.js';
+import { getTripCompanionNames } from '../companions.js';
 import { canEdit } from '../permissions.js';
 
 export function renderSettlement() {
@@ -63,8 +63,9 @@ export function renderSettlement() {
         // explicitly attached to this trip via the Home picker). If the user
         // hasn't picked yet, fall back to the union of names referenced by
         // existing expenses so the balance still computes for legacy data.
-        const tripCompanions = (trip.companions && trip.companions.length > 0)
-            ? trip.companions
+        const tripCompanionNames = getTripCompanionNames(trip);
+        const tripCompanions = tripCompanionNames.length > 0
+            ? tripCompanionNames
             : Array.from(new Set(
                 tripExps.flatMap(e => [e.who, ...Object.keys(e.splits || {})]).filter(Boolean)
             ));
@@ -119,14 +120,22 @@ export function renderSettlement() {
         // that trip.
         /** @type {Record<string, number>} */
         const globalBalances = {};
-        getCompanionNames().forEach(p => globalBalances[p] = 0);
+        // Seed the balance map with every name that appears in ANY trip's
+        // roster. Account-level companions don't exist anymore; this builds
+        // the union of per-trip rosters so every payer has a slot before
+        // the per-expense allocation runs.
+        for (const t of [...STATE.trips, ...(STATE.archivedTrips || [])]) {
+            for (const name of getTripCompanionNames(t)) {
+                if (!(name in globalBalances)) globalBalances[name] = 0;
+            }
+        }
         const archivedExps = (STATE.archivedTrips || []).flatMap(t => t.expenses || []);
         const allExpenses = [...STATE.expenses, ...archivedExps];
 
         /** @type {Record<string, string[]>} */
         const tripCompanionsById = {};
         for (const t of [...STATE.trips, ...(STATE.archivedTrips || [])]) {
-            tripCompanionsById[t.id] = (t.companions && t.companions.length > 0) ? t.companions : [];
+            tripCompanionsById[t.id] = getTripCompanionNames(t);
         }
 
         allExpenses.forEach(exp => {
@@ -291,13 +300,10 @@ export function renderSettlement() {
         modal.style.display = 'flex';
         modal.style.backdropFilter = 'blur(25px)';
 
-        // Manual-settle From/To draws from THIS trip's companions, not the
-        // account-wide roster — settlements always pay between participants
-        // of the same trip.
+        // Manual-settle From/To draws from THIS trip's companions —
+        // settlements always pay between participants of the same trip.
         const trip = STATE.trips.find(t => t.id === tripId);
-        const peopleSource = (trip?.companions && trip.companions.length > 0)
-            ? trip.companions
-            : getCompanionNames();
+        const peopleSource = getTripCompanionNames(trip);
         const peopleOptions = peopleSource.map(p => `<option value="${p}">${p}</option>`).join('');
 
         modal.innerHTML = `
@@ -434,9 +440,7 @@ export function renderSettlement() {
         modal.style.backdropFilter = 'blur(25px)';
 
         const editTrip = STATE.trips.find(t => t.id === s.tripId);
-        const editPeopleSource = (editTrip?.companions && editTrip.companions.length > 0)
-            ? editTrip.companions
-            : getCompanionNames();
+        const editPeopleSource = getTripCompanionNames(editTrip);
         const peopleOptionsFrom = editPeopleSource.map(p => `<option value="${p}" ${s.who === p ? 'selected' : ''}>${p}</option>`).join('');
         // To find the "to" person, we look at splits
         const toPerson = Object.keys(s.splits || {})[0];

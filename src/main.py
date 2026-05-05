@@ -142,7 +142,8 @@ def sync_data():
     user_id = data.get("user_id")
     trips = data.get("trips", [])
     expenses = data.get("expenses", [])
-    companions = data.get("groups", []) # Front-end calls them groups
+    # Account-level companions removed — companions are per-trip and travel
+    # inside the trip's companions_json column.
 
     if not user_id:
         return jsonify({"error": "Unauthorized"}), 401
@@ -235,9 +236,8 @@ def sync_data():
                     euro_value=excluded.euro_value
             ''', (e['id'], e['tripId'], e['who'], e['categoryId'], e['label'], e['date'], e['country'], e['value'], e['currency'], e['euroValue']))
 
-        # Sync Companions — use the link-preserving helper so an unrelated
-        # /api/sync call doesn't wipe pending or accepted friend links.
-        _upsert_companion_list(cursor, user_id, companions)
+        # Account-level companions removed — they're per-trip now and
+        # serialise inside trips.companions_json above.
 
         # Sync Categories
         categories = data.get("categories", [])
@@ -479,16 +479,15 @@ def invite_trip_member():
         if not _can_edit_trip(cursor, trip_id, inviter):
             return jsonify({"error": "Forbidden"}), 403
 
-        # Audit gate: target must be an accepted-linked companion of the
-        # inviter. By design, you can only invite people you've already
-        # connected with via the companion-link flow — prevents random
-        # trip-invitation spam against arbitrary user_ids.
+        # Audit gate: target must be an accepted friend. The companion-link
+        # layer is gone — friends are now the only account-level connection,
+        # so trip invitations gate on the friends table directly.
         cursor.execute(
-            "SELECT 1 FROM companions WHERE user_id = ? AND linked_user_id = ? AND link_status = 'accepted'",
+            "SELECT 1 FROM friends WHERE user_id = ? AND friend_id = ? AND status = 'accepted'",
             (inviter, target),
         )
         if not cursor.fetchone():
-            return jsonify({"error": "Target must be a linked companion"}), 403
+            return jsonify({"error": "Target must be an accepted friend"}), 403
 
         # If the target already has any member row (pending or accepted),
         # update its role/status; otherwise insert a fresh pending row.
@@ -679,255 +678,16 @@ def delete_expense(expense_id):
     return jsonify({"status": "deleted"})
 
 
-def _upsert_companion_list(cursor, user_id, names):
-    """Idempotent set-difference upsert that PRESERVES link metadata on
-    rows that stay. Earlier behaviour was DELETE-then-INSERT which clobbered
-    `linked_user_id` / `link_status` every time the companion list was
-    re-synced. New rule: only delete rows whose names aren't in the incoming
-    list; insert any new names with default-null link fields. Symmetrically
-    breaks reciprocal links on the friend's side when a linked companion is
-    removed (otherwise the friend would still see "linked to X" even after X
-    deleted them).
-    """
-    incoming = list({n for n in (names or []) if n})
-
-    # Snapshot rows that will be deleted (and their reciprocal pointers).
-    if incoming:
-        ph = ",".join(["?"] * len(incoming))
-        cursor.execute(
-            f"SELECT name, linked_user_id FROM companions WHERE user_id = ? AND name NOT IN ({ph})",
-            [user_id, *incoming],
-        )
-    else:
-        cursor.execute(
-            "SELECT name, linked_user_id FROM companions WHERE user_id = ?",
-            (user_id,),
-        )
-    for row in cursor.fetchall():
-        friend_id = row["linked_user_id"]
-        if friend_id:
-            cursor.execute(
-                "UPDATE companions SET linked_user_id = NULL, link_status = NULL "
-                "WHERE user_id = ? AND linked_user_id = ?",
-                (friend_id, user_id),
-            )
-
-    # Now delete the rows that are no longer in the list.
-    if incoming:
-        ph = ",".join(["?"] * len(incoming))
-        cursor.execute(
-            f"DELETE FROM companions WHERE user_id = ? AND name NOT IN ({ph})",
-            [user_id, *incoming],
-        )
-    else:
-        cursor.execute("DELETE FROM companions WHERE user_id = ?", (user_id,))
-
-    # Insert any new names — IGNORE keeps existing rows (and their link
-    # fields) intact.
-    for name in incoming:
-        cursor.execute(
-            "INSERT OR IGNORE INTO companions (user_id, name) VALUES (?, ?)",
-            (user_id, name),
-        )
-
-
-@app.route("/api/companions", methods=["POST"])
-def sync_companions():
-    """Replace the companion list for a user."""
-    data = request.json
-    user_id = data.get("user_id")
-    companions = data.get("companions", [])
-    if not user_id:
-        return jsonify({"error": "Unauthorized"}), 401
-    with get_db() as conn:
-        cursor = conn.cursor()
-        _upsert_companion_list(cursor, user_id, companions)
-        conn.commit()
-    return jsonify({"status": "synced"})
-
-
-# ── Companion ↔ friend linking ──────────────────────────────────────────────
-# Linking a local companion record to a friend's user account is the
-# foundation for shared trips (Phase 3). Each side keeps its own row; the
-# rows reference each other via `linked_user_id`. The link is asymmetric
-# in NAMING (each user can label the other however they like) and symmetric
-# in EXISTENCE (both rows are 'accepted', or neither).
+# Account-level companions and the companion-link flow are gone.
+# Companions live ONLY inside `trip.companions_json` and are added via the
+# trip-companions picker (which fires a /api/trips/invite when the entry
+# is linked to a friend). The previous endpoints — /api/companions,
+# /api/companions/link, /api/companions/link/respond, /api/companions/unlink
+# — used to be the foundation for that flow and are removed.
 
 def _ensure_user_exists(cursor, user_id):
     cursor.execute("SELECT 1 FROM users WHERE id = ?", (user_id,))
     return cursor.fetchone() is not None
-
-
-@app.route("/api/companions/link", methods=["POST"])
-def invite_companion_link():
-    """Invite a friend to link as a companion. Sets the inviter's row to
-    `pending` and fires a `companion_link_invite` notification at the
-    friend; the friend creates their own row on accept (see /respond).
-
-    Audit gate: target MUST be an accepted friend already. Without this
-    check the endpoint would be a way to spam invitations at any user
-    by guessing their id, since user_id is just a body parameter."""
-    data = request.json or {}
-    user_id = data.get("user_id")             # inviter (A)
-    companion_name = data.get("companion_name")
-    friend_user_id = data.get("friend_user_id")
-    if not user_id or not companion_name or not friend_user_id:
-        return jsonify({"error": "Missing data"}), 400
-    if user_id == friend_user_id:
-        return jsonify({"error": "Cannot link yourself"}), 400
-
-    with get_db() as conn:
-        cursor = conn.cursor()
-        if not _ensure_user_exists(cursor, friend_user_id):
-            return jsonify({"error": "Friend not found"}), 404
-        cursor.execute(
-            "SELECT 1 FROM friends WHERE user_id = ? AND friend_id = ? AND status = 'accepted'",
-            (user_id, friend_user_id),
-        )
-        if not cursor.fetchone():
-            return jsonify({"error": "Target is not an accepted friend"}), 403
-        # The companion row must already exist (the user added it locally
-        # before clicking the link button). Reject anything else — we don't
-        # want this endpoint to be a backdoor for creating companions.
-        cursor.execute(
-            "SELECT linked_user_id FROM companions WHERE user_id = ? AND name = ?",
-            (user_id, companion_name),
-        )
-        row = cursor.fetchone()
-        if not row:
-            return jsonify({"error": "Companion not found"}), 404
-        if row["linked_user_id"]:
-            return jsonify({"error": "Companion already linked"}), 409
-
-        cursor.execute(
-            "UPDATE companions SET linked_user_id = ?, link_status = 'pending' "
-            "WHERE user_id = ? AND name = ?",
-            (friend_user_id, user_id, companion_name),
-        )
-
-        # Notification — `related_id` carries the inviter's user_id so the
-        # responder modal knows who to accept.
-        cursor.execute("SELECT name FROM users WHERE id = ?", (user_id,))
-        inviter_row = cursor.fetchone()
-        inviter_name = inviter_row["name"] if inviter_row else "Someone"
-        msg = f"{inviter_name} wants to link you as a companion."
-        cursor.execute(
-            "INSERT INTO notifications (user_id, type, title, related_id, message, is_read) "
-            "VALUES (?, 'companion_link_invite', 'Companion link request', ?, ?, 0)",
-            (friend_user_id, user_id, msg),
-        )
-        conn.commit()
-    return jsonify({"status": "ok"})
-
-
-@app.route("/api/companions/link/respond", methods=["POST"])
-def respond_companion_link():
-    """Accept/decline a pending link from `inviter_user_id`. On accept the
-    responder creates their own companion row pointing back at the inviter
-    (with a name they choose, defaulting to the inviter's display name);
-    both rows flip to `accepted` and a `companion_link_accepted` notification
-    fires at the inviter. On decline the inviter's row reverts to unlinked
-    and a `companion_link_declined` notification fires."""
-    data = request.json or {}
-    user_id = data.get("user_id")                   # responder (B)
-    inviter_user_id = data.get("inviter_user_id")   # A
-    accept = bool(data.get("accept"))
-    chosen_name = (data.get("companion_name") or "").strip()
-    if not user_id or not inviter_user_id:
-        return jsonify({"error": "Missing data"}), 400
-
-    with get_db() as conn:
-        cursor = conn.cursor()
-        # Find the inviter's pending row. There can only be one.
-        cursor.execute(
-            "SELECT name FROM companions WHERE user_id = ? AND linked_user_id = ? AND link_status = 'pending'",
-            (inviter_user_id, user_id),
-        )
-        inviter_row = cursor.fetchone()
-        if not inviter_row:
-            return jsonify({"error": "No pending invitation"}), 404
-
-        cursor.execute("SELECT name FROM users WHERE id = ?", (user_id,))
-        responder_row = cursor.fetchone()
-        responder_name = responder_row["name"] if responder_row else "Someone"
-        cursor.execute("SELECT name FROM users WHERE id = ?", (inviter_user_id,))
-        inviter_user_row = cursor.fetchone()
-        inviter_display_name = inviter_user_row["name"] if inviter_user_row else "Someone"
-
-        if accept:
-            # Inviter's row → accepted.
-            cursor.execute(
-                "UPDATE companions SET link_status = 'accepted' WHERE user_id = ? AND linked_user_id = ?",
-                (inviter_user_id, user_id),
-            )
-            # Responder's row → create (or upgrade if a row with that name
-            # already exists). If the chosen name collides with an existing
-            # linked row, fall back to inviter's display name; if THAT also
-            # collides, suffix with the user_id tail. Avoids 409s on a
-            # one-shot accept-and-link flow.
-            target_name = chosen_name or inviter_display_name
-            cursor.execute(
-                "SELECT linked_user_id FROM companions WHERE user_id = ? AND name = ?",
-                (user_id, target_name),
-            )
-            existing = cursor.fetchone()
-            if existing and existing["linked_user_id"] and existing["linked_user_id"] != inviter_user_id:
-                target_name = f"{target_name} ({str(inviter_user_id)[-4:]})"
-            cursor.execute(
-                "INSERT INTO companions (user_id, name, linked_user_id, link_status) "
-                "VALUES (?, ?, ?, 'accepted') "
-                "ON CONFLICT(user_id, name) DO UPDATE SET "
-                "  linked_user_id = excluded.linked_user_id, "
-                "  link_status = excluded.link_status",
-                (user_id, target_name, inviter_user_id),
-            )
-            msg = f"{responder_name} accepted your companion link."
-            cursor.execute(
-                "INSERT INTO notifications (user_id, type, title, related_id, message, is_read) "
-                "VALUES (?, 'companion_link_accepted', 'Companion linked', ?, ?, 0)",
-                (inviter_user_id, user_id, msg),
-            )
-        else:
-            # Inviter's row reverts to unlinked.
-            cursor.execute(
-                "UPDATE companions SET linked_user_id = NULL, link_status = NULL "
-                "WHERE user_id = ? AND linked_user_id = ?",
-                (inviter_user_id, user_id),
-            )
-            msg = f"{responder_name} declined your companion link."
-            cursor.execute(
-                "INSERT INTO notifications (user_id, type, title, related_id, message, is_read) "
-                "VALUES (?, 'companion_link_declined', 'Companion link declined', ?, ?, 0)",
-                (inviter_user_id, user_id, msg),
-            )
-        conn.commit()
-    return jsonify({"status": "ok"})
-
-
-@app.route("/api/companions/unlink", methods=["POST"])
-def unlink_companion():
-    """Break the link between a companion row and its friend account. Either
-    side can call this; both rows revert to plain unlinked companions
-    (names preserved). Does NOT delete either row — only the link metadata."""
-    data = request.json or {}
-    user_id = data.get("user_id")
-    friend_user_id = data.get("friend_user_id")
-    if not user_id or not friend_user_id:
-        return jsonify({"error": "Missing data"}), 400
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute(
-            "UPDATE companions SET linked_user_id = NULL, link_status = NULL "
-            "WHERE user_id = ? AND linked_user_id = ?",
-            (user_id, friend_user_id),
-        )
-        cursor.execute(
-            "UPDATE companions SET linked_user_id = NULL, link_status = NULL "
-            "WHERE user_id = ? AND linked_user_id = ?",
-            (friend_user_id, user_id),
-        )
-        conn.commit()
-    return jsonify({"status": "ok"})
 
 
 @app.route("/api/categories", methods=["POST"])
@@ -1427,21 +1187,8 @@ def get_data():
             cursor.execute(f"SELECT * FROM expenses WHERE trip_id IN ({placeholders})", trip_ids)
             expenses = [dict(row) for row in cursor.fetchall()]
 
-        # Get companions — return objects so the frontend can read link state.
-        # `linked_user_id`/`link_status` are NULL for un-linked rows; the
-        # client's normalizeCompanionRoster drops the keys when absent.
-        cursor.execute(
-            "SELECT name, linked_user_id, link_status FROM companions WHERE user_id = ?",
-            (user_id,),
-        )
-        companions = []
-        for row in cursor.fetchall():
-            entry = {"name": row["name"]}
-            if row["linked_user_id"]:
-                entry["linkedUserId"] = row["linked_user_id"]
-            if row["link_status"]:
-                entry["linkStatus"] = row["link_status"]
-            companions.append(entry)
+        # Account-level companions removed — they live per-trip on
+        # `trip.companions` (already serialised above via companions_json).
 
         # Get categories
         cursor.execute("SELECT id, name, icon, color FROM categories WHERE user_id = ?", (user_id,))
@@ -1487,12 +1234,11 @@ def get_data():
             trip_days.append(day)
             
         return jsonify({
-            "trips": trips, 
-            "expenses": expenses, 
-            "companions": companions, 
+            "trips": trips,
+            "expenses": expenses,
             "categories": categories,
             "budgets": budgets,
-            "tripDays": trip_days
+            "tripDays": trip_days,
         })
 
 @app.route("/api/public-profile/<user_id>", methods=["GET"])
@@ -1604,8 +1350,11 @@ def delete_user_data():
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("DELETE FROM expenses")
+        cursor.execute("DELETE FROM trip_members")
         cursor.execute("DELETE FROM trips")
         cursor.execute("DELETE FROM trip_collaborators")
+        # `companions` table is legacy (companions are per-trip now), but
+        # truncate it on factory-reset for hygiene.
         cursor.execute("DELETE FROM companions")
         cursor.execute("DELETE FROM categories")
         cursor.execute("DELETE FROM budgets")

@@ -5,7 +5,7 @@ import { STATE, emit } from './state.js';
 import { navigate } from './router.js';
 import { API_BASE_URL, EVENTS, PAGES } from './constants.js';
 import { validateServerData } from './schemas.js';
-import { normalizeCompanionRoster } from './companions.js';
+import { normalizeTripCompanions } from './companions.js';
 
 // All fetch URLs are built via apiUrl() so the API_BASE_URL constant is the
 // single point that needs to change when the backend isn't co-located with
@@ -26,10 +26,9 @@ export async function syncWithServer() {
                 expenses: STATE.expenses,
                 activities: STATE.activities,
                 photos: STATE.photos,
-                // Wire format stays as `string[]` of names — server's
-                // `companions` table only stores names. Link metadata
-                // (Phase 2) will travel via dedicated endpoints.
-                groups: STATE.groups.map(c => c.name),
+                // groups (account-level companions) was removed — companions
+                // are now per-trip. Server-side endpoint already drops the
+                // field if present, but we don't send it at all.
                 categories: STATE.categories || [],
                 budgets: STATE.budgets || []
             })
@@ -54,15 +53,20 @@ export async function pullFromServer() {
         }
         const data = result.value;
 
-        // Split trips into active and archived
-        const allTrips = data.trips || [];
+        // Split trips into active and archived. Each trip's `companions`
+        // field is normalized through the trip-companion shape upgrade so
+        // legacy `string[]` payloads (or partial objects from older clients)
+        // get promoted to the canonical `Companion[]` shape.
+        const allTrips = (data.trips || []).map(t => ({
+            ...t,
+            companions: normalizeTripCompanions(t.companions),
+        }));
         STATE.trips = allTrips.filter(t => !t.isArchived);
         STATE.archivedTrips = allTrips.filter(t => t.isArchived);
 
         STATE.expenses = data.expenses || [];
-        // Server returns `companions: string[]`; promote into the
-        // `Companion[]` shape that all client code reads.
-        STATE.groups = normalizeCompanionRoster(data.companions);
+        // Account-level companions (data.companions) is no longer used —
+        // companions live per-trip on `trip.companions`.
         STATE.categories = data.categories || [];
         STATE.budgets = data.budgets || [];
         STATE.tripDays = data.tripDays || [];
@@ -188,55 +192,8 @@ export function deleteExpenseOnServer(expenseId) {
     return _delete(`/api/expenses/${expenseId}`, { user_id: STATE.user.id });
 }
 
-/** Replace the full companion list on the server. Wire format is `string[]`
- *  of names — link metadata (`linked_user_id`/`link_status`) lives on the
- *  server's `companions` row and is preserved by the upsert/set-diff path
- *  on /api/companions, so re-syncing the list never wipes a link. */
-export function syncCompanions() {
-    if (!STATE.user) return;
-    return _post('/api/companions', {
-        user_id: STATE.user.id,
-        companions: STATE.groups.map(c => c.name),
-    });
-}
-
-/** Phase 2 — invite a friend to link as a companion. The local companion
- *  row must already exist; this just promotes its server-side row to
- *  `pending` and fires a notification at the friend. */
-export function inviteCompanionLink(companionName, friendUserId) {
-    if (!STATE.user) return;
-    return _post('/api/companions/link', {
-        user_id: STATE.user.id,
-        companion_name: companionName,
-        friend_user_id: friendUserId,
-    });
-}
-
-/** Accept or decline a pending companion-link invitation. On accept the
- *  responder picks a `companionName` for the inviter (defaults to the
- *  inviter's display name). Returns `{ok, status, body}` so callers can
- *  detect stale invites (404 when the inviter cancelled in between). */
-export function respondCompanionLink(inviterUserId, accept, companionName) {
-    if (!STATE.user) return Promise.resolve({ ok: false, status: 0, body: null });
-    return _postJson('/api/companions/link/respond', {
-        user_id: STATE.user.id,
-        inviter_user_id: inviterUserId,
-        accept,
-        companion_name: companionName ?? '',
-    });
-}
-
-/** Mutual unlink — both sides' rows revert to plain (unlinked) companions. */
-export function unlinkCompanion(friendUserId) {
-    if (!STATE.user) return;
-    return _post('/api/companions/unlink', {
-        user_id: STATE.user.id,
-        friend_user_id: friendUserId,
-    });
-}
-
-/** Fetch the user's accepted friends. Used by the link picker modal in
- *  settings to show only candidates that aren't already linked. */
+/** Fetch the user's accepted friends. Used by the trip companions
+ *  picker to surface friend candidates that aren't already on the trip. */
 export async function fetchAcceptedFriends() {
     if (!STATE.user) return [];
     try {

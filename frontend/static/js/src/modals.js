@@ -10,20 +10,15 @@ import {
     upsertTrip,
     upsertDay,
     fetchAcceptedFriends,
-    inviteCompanionLink,
-    respondCompanionLink,
     inviteTripMember,
     respondTripInvite,
     removeTripMember,
-    syncCompanions,
 } from './api.js';
 import { navigate } from './router.js';
 import {
-    getCompanionNames,
-    findCompanion,
-    findCompanionByLinkedUser,
-    markCompanionLinkPending,
-    addCompanion,
+    findTripCompanion,
+    addTripCompanion,
+    removeTripCompanion,
 } from './companions.js';
 import { ROLE_PLANNER, ROLE_RELAXER, canManageRoster } from './permissions.js';
 
@@ -213,9 +208,9 @@ export const openNewTripModal = () => {
             ownerId: STATE.user?.id,
             myRole: ROLE_PLANNER,
             myArchived: false,
-            // Trip starts with no companions — the user picks them via the
+            // Trip starts with no companions — the user adds them via the
             // companions modal on the Home page (see openCompanionPickerModal).
-            companions: /** @type {string[]} */ ([]),
+            companions: /** @type {import('./types').Companion[]} */ ([]),
         };
 
         STATE.trips.push(newTrip);
@@ -431,12 +426,21 @@ export const openAddDayModal = () => {
 };
 
 /**
- * Pick which account-level companions participate in a given trip. The list
- * draws from `STATE.groups` (the master roster managed in personalization);
- * checking/unchecking writes to `trip.companions`. Companions already
- * referenced by an existing expense on this trip are rendered as locked-on
- * (you can't strip a participant who still has historical entries — that
- * would orphan balance math).
+ * Trip-companions picker — the single hub for managing who's on a trip.
+ *
+ * Companions are per-trip. Three ways to add an entry:
+ *   - "Add a friend" → friend picker → creates a LINKED companion AND
+ *     fires a /api/trips/invite (Relaxer by default; the inviter can
+ *     override role per pick).
+ *   - "+ Add companion" inline form → creates an UNLINKED companion
+ *     (just a name; for non-app participants and upload auto-rows).
+ *   - Existing unlinked entry → "Link to friend" inline action →
+ *     friend picker → promotes the entry and fires the trip invite.
+ *
+ * Removing a row drops the entry from `trip.companions` and, when the
+ * row is linked, also fires /api/trips/members/remove. Rows whose name
+ * is referenced by an existing expense on the trip are locked (can't
+ * remove without orphaning balance math).
  *
  * @param {string} tripId
  */
@@ -444,361 +448,264 @@ export const openCompanionPickerModal = (tripId) => {
     const trip = STATE.trips.find(t => t.id === tripId);
     if (!trip) return;
 
-    // Roster management is owner-only in Phase 3 — sidesteps "two planners
-    // both named the same companion differently" naming-conflict for now.
-    // Non-owners get a read-only members view via openTripMembersModal.
+    // Roster management is owner-only — sidesteps "two planners both
+    // named the same companion differently" naming-conflict for now.
+    // Non-owners get a read-only members view.
     if (!canManageRoster(trip)) {
         openTripMembersModal(tripId);
         return;
     }
 
     if (!Array.isArray(trip.companions)) trip.companions = [];
-    const previousCompanions = [...trip.companions];
+    const myId = STATE.user?.id;
 
-    // Names that have outstanding expenses on this trip — must stay checked.
-    const referenced = new Set(
+    // Names referenced by an existing expense — can't be removed without
+    // orphaning balance math. Marked with a 🔒 in the UI.
+    const referencedNames = new Set(
         STATE.expenses
             .filter(e => e.tripId === tripId)
             .flatMap(e => [e.who, ...Object.keys(e.splits || {})])
             .filter(Boolean)
     );
 
-    // Snapshot of who's already an accepted member (so we know whether
-    // a check is "newly inviting" vs "already on the trip").
-    const existingMemberIds = new Set((trip.members || []).map(m => m.userId));
-    const myId = STATE.user?.id;
+    // Members on the trip already (accepted invitations). Used to render
+    // role badges on linked rows.
+    const membersByUserId = new Map((trip.members || []).map(m => [m.userId, m]));
+
+    /** @type {{id: string, name: string, email: string, picture: string}[]} */
+    let cachedFriends = [];
 
     const modal = document.createElement('div');
     modal.className = 'modal-overlay';
     modal.style.display = 'flex';
     modal.style.backdropFilter = 'blur(25px)';
 
-    /** Build a row for one companion. Linked companions get a role select
-     *  next to the checkbox so the owner can pick Planner/Relaxer at the
-     *  moment of inviting; the value is read on save. */
-    const buildRow = (/** @type {import('./types').Companion} */ c) => {
-        const name = c.name;
-        const isChecked = trip.companions?.includes(name) ?? false;
-        const isLocked = referenced.has(name);
-        // Linked-and-already-a-member: show the locked role instead of a select.
-        const linkedToFriend = c.linkStatus === 'accepted' && c.linkedUserId;
-        const alreadyMember = linkedToFriend && existingMemberIds.has(c.linkedUserId || '');
-        const memberRole = alreadyMember
-            ? (trip.members || []).find(m => m.userId === c.linkedUserId)?.role
-            : null;
+    /** Pretty role label. */
+    const roleLabel = (/** @type {string} */ r) =>
+        r === ROLE_PLANNER ? 'Planner' : r === ROLE_RELAXER ? 'Relaxer' : r;
 
-        let trailing = '';
-        if (isLocked) {
-            trailing = '<span class="companion-row__lock" title="Has expenses on this trip">🔒</span>';
-        } else if (alreadyMember) {
-            trailing = `<span class="companion-link-pill companion-link-pill--linked">${memberRole === ROLE_PLANNER ? 'Planner' : 'Relaxer'}</span>`;
-        } else if (linkedToFriend) {
-            trailing = `
-                <span class="companion-link-pill companion-link-pill--linked" title="Will receive a trip invitation">🟢 Linked</span>
-                <select class="companion-row__role-select" data-name="${name}" data-friend-id="${c.linkedUserId}">
-                    <option value="${ROLE_RELAXER}" selected>Relaxer</option>
-                    <option value="${ROLE_PLANNER}">Planner</option>
-                </select>
-            `;
+    /** Build a row for one companion currently on the trip. */
+    const buildRow = (/** @type {import('./types').Companion} */ c) => {
+        const isLocked = referencedNames.has(c.name);
+        const linkedUserId = c.linkedUserId;
+        const member = linkedUserId ? membersByUserId.get(linkedUserId) : null;
+
+        let badge = '';
+        if (member) {
+            badge = `<span class="companion-link-pill companion-link-pill--linked" title="Trip invitation accepted">${esc(roleLabel(member.role))}</span>`;
+        } else if (linkedUserId) {
+            badge = `<span class="companion-link-pill companion-link-pill--pending" title="Trip invitation pending">⏳ Pending</span>`;
+        } else {
+            badge = `<span class="companion-link-pill companion-link-pill--companion">Unlinked</span>`;
         }
 
+        const linkAction = !linkedUserId
+            ? `<button type="button" class="btn-link-action picker-link-btn" data-name="${esc(c.name)}">🔗 Link to friend</button>`
+            : '';
+
+        const removeBtn = isLocked
+            ? `<span class="companion-row__lock" title="Has expenses on this trip — can't remove">🔒</span>`
+            : `<button type="button" class="btn-x-bare picker-remove-btn" data-name="${esc(c.name)}" title="Remove from trip">✕</button>`;
+
         return `
-            <label class="companion-row${isLocked ? ' is-locked' : ''}">
-                <input type="checkbox" class="companion-row__cb" data-name="${name}" data-linked-id="${c.linkedUserId || ''}"
-                       ${isChecked || isLocked ? 'checked' : ''}
-                       ${isLocked ? 'disabled' : ''}>
-                <span class="companion-row__name">${name}</span>
-                ${trailing}
-            </label>
+            <div class="companion-row" data-name="${esc(c.name)}">
+                <span class="companion-row__name">${esc(c.name)}</span>
+                ${badge}
+                <span style="flex:1;"></span>
+                ${linkAction}
+                ${removeBtn}
+            </div>
         `;
     };
 
-    /** @returns {string} */
     const renderRows = () => {
-        const all = STATE.groups || [];
-        if (all.length === 0) {
+        const list = trip.companions || [];
+        if (list.length === 0) {
             return `<p style="text-align:center; color: rgba(0,0,0,0.55); padding: var(--space-6); margin: 0;">
-                No companions yet. Add some in
-                <a href="#" class="link-underline" id="companionPickerGotoSettings">personalization</a>.
+                No companions on this trip yet. Add a friend or type a name below.
             </p>`;
         }
-        return all.map(buildRow).join('');
+        return list.map(buildRow).join('');
     };
 
     modal.innerHTML = `
-        <div class="card-glass-modal-light" style="width: 480px; max-height: 80vh; display: flex; flex-direction: column;">
+        <div class="card-glass-modal-light" style="width: 520px; max-height: 80vh; display: flex; flex-direction: column;">
             <h2 style="margin: 0 0 var(--space-2); font-size: var(--font-2xl); color: #002d5b; font-weight: 800; letter-spacing: -0.03em;">Trip Companions</h2>
             <p style="margin: 0 0 var(--space-5); font-size: var(--font-base); color: rgba(0,0,0,0.55);">
-                Pick who's coming on <strong>${esc(trip.name)}</strong>. Linked companions will receive a trip invitation — pick their role at the moment of invite.
+                Add who's coming on <strong>${esc(trip.name)}</strong>. Friends get a trip invitation (Relaxer by default — you can override per pick); plain companions are just labels for non-app travellers.
             </p>
 
             <div id="companionPickerList" style="display: flex; flex-direction: column; gap: var(--space-2); overflow-y: auto; padding: var(--space-1); margin-bottom: var(--space-4); flex: 1; min-height: 0;">
                 ${renderRows()}
             </div>
 
-            <!-- Inline create — dual-purpose: skips the trip back to
-                 personalization to add a companion AND pre-checks the
-                 newly-created entry so it's already on the trip when
-                 the user hits Save. -->
-            <form id="companionPickerAddForm" class="companion-picker-add-form">
-                <input type="text" id="companionPickerAddInput" class="companion-picker-add-form__input" placeholder="+ Add new companion" autocomplete="off">
-                <button type="submit" class="companion-picker-add-form__btn">Add</button>
-            </form>
+            <!-- Add affordances: friend picker + inline plain-name input.
+                 Both write to trip.companions immediately and re-render the
+                 list, so what the user sees IS the saved state. -->
+            <div class="companion-picker-add-section">
+                <button type="button" id="companionPickerAddFriendBtn" class="companion-picker-add-section__friend-btn">
+                    <span style="font-size: 1rem;">👤</span>
+                    <span>Add a friend</span>
+                </button>
+                <form id="companionPickerAddForm" class="companion-picker-add-form" style="margin-bottom: 0;">
+                    <input type="text" id="companionPickerAddInput" class="companion-picker-add-form__input" placeholder="+ Add unlinked companion" autocomplete="off">
+                    <button type="submit" class="companion-picker-add-form__btn">Add</button>
+                </form>
+            </div>
+
+            <!-- Friend picker (hidden by default) — appears when "Add a
+                 friend" is clicked, listing accepted friends not already
+                 on this trip. Pick one + role → adds to trip + invites. -->
+            <div id="companionPickerFriendSheet" class="companion-picker-friend-sheet" hidden>
+                <div class="companion-picker-friend-sheet__header">
+                    <strong>Add a friend</strong>
+                    <button type="button" id="companionPickerFriendCancel" class="btn-x-bare" title="Close">✕</button>
+                </div>
+                <div id="companionPickerFriendList" class="companion-picker-friend-sheet__list">
+                    <p style="text-align:center; color: rgba(0,0,0,0.45); padding: var(--space-4); margin: 0;">Loading friends…</p>
+                </div>
+            </div>
 
             <div style="display: flex; gap: var(--space-3); flex-shrink: 0;">
-                <button id="companionPickerSaveBtn" class="btn-primary" style="flex: 2; padding: var(--space-4); border-radius: var(--radius-lg); font-size: var(--font-lg);">Save</button>
-                <button id="companionPickerCloseBtn" class="btn-neutral" style="flex: 1; border-radius: var(--radius-lg);">Cancel</button>
+                <button id="companionPickerCloseBtn" class="btn-primary" style="flex: 1; padding: var(--space-4); border-radius: var(--radius-lg); font-size: var(--font-lg);">Done</button>
             </div>
         </div>
     `;
     document.body.appendChild(modal);
 
-    /** @type {HTMLButtonElement} */ (q(modal, '#companionPickerCloseBtn')).onclick = () => modal.remove();
-
-    const settingsLink = modal.querySelector('#companionPickerGotoSettings');
-    if (settingsLink) {
-        /** @type {HTMLAnchorElement} */ (settingsLink).onclick = (ev) => {
-            ev.preventDefault();
-            modal.remove();
-            navigate('personalization');
-        };
-    }
-
-    // Inline add — type a name, hit Enter or click Add → creates the
-    // companion in the account roster, pre-checks it for this trip, and
-    // re-renders the list so the new row shows immediately.
+    const listEl = /** @type {HTMLElement} */ (q(modal, '#companionPickerList'));
+    const friendSheet = /** @type {HTMLElement} */ (q(modal, '#companionPickerFriendSheet'));
+    const friendListEl = /** @type {HTMLElement} */ (q(modal, '#companionPickerFriendList'));
     const addInput = /** @type {HTMLInputElement} */ (q(modal, '#companionPickerAddInput'));
+
+    const refreshList = () => { listEl.innerHTML = renderRows(); };
+
+    /** Build the friend candidate rows. Excludes friends who are already
+     *  on the trip via a linked companion entry, plus the user themselves. */
+    const buildFriendList = () => {
+        const onTripUserIds = new Set(
+            (trip.companions || [])
+                .map(c => c.linkedUserId)
+                .filter(Boolean)
+        );
+        const candidates = cachedFriends.filter(f => f.id !== myId && !onTripUserIds.has(f.id));
+        if (candidates.length === 0) {
+            friendListEl.innerHTML = `<p style="text-align:center; color: rgba(0,0,0,0.55); padding: var(--space-4); margin: 0;">
+                No friends available — every accepted friend is already on this trip, or your friends list is empty.
+            </p>`;
+            return;
+        }
+        friendListEl.innerHTML = candidates.map(f => `
+            <div class="companion-row friend-pick-row picker-friend-row" data-friend-id="${esc(f.id)}" data-friend-name="${esc(f.name)}">
+                <img src="${esc(f.picture)}" alt="" style="width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;">
+                <span class="companion-row__name">${esc(f.name)}</span>
+                <span style="flex:1; font-size: var(--font-xs); color: rgba(0,0,0,0.45);">${esc(f.email)}</span>
+                <select class="companion-row__role-select picker-friend-role-select">
+                    <option value="${ROLE_RELAXER}" selected>Relaxer</option>
+                    <option value="${ROLE_PLANNER}">Planner</option>
+                </select>
+                <button type="button" class="btn-link-action picker-friend-add-btn">+ Add</button>
+            </div>
+        `).join('');
+    };
+
+    /** @type {HTMLButtonElement} */ (q(modal, '#companionPickerCloseBtn')).onclick = () => modal.remove();
+    /** @type {HTMLButtonElement} */ (q(modal, '#companionPickerFriendCancel')).onclick = () => {
+        friendSheet.hidden = true;
+    };
+
+    /** @type {HTMLButtonElement} */ (q(modal, '#companionPickerAddFriendBtn')).onclick = async () => {
+        friendSheet.hidden = false;
+        if (cachedFriends.length === 0) cachedFriends = await fetchAcceptedFriends();
+        buildFriendList();
+    };
+
+    // Inline plain-name add — UNLINKED companion (e.g. for non-app travellers,
+    // upload auto-rows). Just types into trip.companions, no server invite.
     /** @type {HTMLFormElement} */ (q(modal, '#companionPickerAddForm')).onsubmit = (ev) => {
         ev.preventDefault();
         const newName = addInput.value.trim();
         if (!newName) return;
-        if (findCompanion(newName)) {
-            // Name already exists — surface the existing row by checking it
-            // and clearing the input rather than silently swallowing the click.
-            const cb = /** @type {HTMLInputElement | null} */ (
-                modal.querySelector(`.companion-row__cb[data-name="${CSS.escape(newName)}"]`)
-            );
-            if (cb) cb.checked = true;
+        if (findTripCompanion(trip, newName)) {
+            // Name collision — silently re-focus the existing row's area.
             addInput.value = '';
+            addInput.focus();
             return;
         }
-        addCompanion(newName);
-        // Persist the new name to the server so it shows up in personalization
-        // even before this trip is saved. Companions sync is bulk + idempotent.
+        addTripCompanion(trip, newName);
         emit('state:changed');
-        syncCompanions();
-        // Re-render the list and pre-check the new row so it lands on the
-        // trip the moment the user hits Save.
-        const list = /** @type {HTMLElement} */ (q(modal, '#companionPickerList'));
-        list.innerHTML = renderRows();
-        const cb = /** @type {HTMLInputElement | null} */ (
-            list.querySelector(`.companion-row__cb[data-name="${CSS.escape(newName)}"]`)
-        );
-        if (cb) cb.checked = true;
+        upsertTrip(trip);
         addInput.value = '';
-        addInput.focus();
+        refreshList();
     };
 
-    /** @type {HTMLButtonElement} */ (q(modal, '#companionPickerSaveBtn')).onclick = async () => {
-        const checked = /** @type {NodeListOf<HTMLInputElement>} */ (
-            modal.querySelectorAll('.companion-row__cb:checked')
-        );
-        // Preserve roster order (matches STATE.groups for consistent UI).
-        const picked = getCompanionNames().filter(n =>
-            Array.from(checked).some(cb => cb.dataset.name === n)
-        );
-        trip.companions = picked;
-        emit('state:changed');               // saveState + UI subscribers
-        upsertTrip(trip);                    // server delta
+    // Delegated clicks inside the modal — handle remove, link, friend add.
+    modal.addEventListener('click', async (ev) => {
+        const target = /** @type {HTMLElement | null} */ (ev.target);
+        if (!target) return;
 
-        // Diff vs. the previous list to fire the right side-effects:
-        //   - newly-checked + linked + not-yet-a-member  → trip invitation
-        //   - newly-unchecked + linked + currently-a-member → member remove
-        // (Self-link case is filtered out — owner is auto-member.)
-        const prev = new Set(previousCompanions);
-        const next = new Set(picked);
-        const added = picked.filter(n => !prev.has(n));
-        const removed = previousCompanions.filter(n => !next.has(n));
+        // Remove a companion (unlinked → just drop; linked → kick member too).
+        const removeBtn = /** @type {HTMLElement | null} */ (target.closest('.picker-remove-btn'));
+        if (removeBtn?.dataset.name) {
+            const name = removeBtn.dataset.name;
+            const companion = findTripCompanion(trip, name);
+            if (!companion) return;
+            removeTripCompanion(trip, name);
+            emit('state:changed');
+            upsertTrip(trip);
+            if (companion.linkedUserId) {
+                await removeTripMember(trip.id, companion.linkedUserId);
+            }
+            refreshList();
+            return;
+        }
 
-        for (const name of added) {
-            const c = findCompanion(name);
-            if (!c || c.linkStatus !== 'accepted' || !c.linkedUserId) continue;
-            if (c.linkedUserId === myId) continue;       // can't invite yourself
-            if (existingMemberIds.has(c.linkedUserId)) continue; // already a member
-            const select = /** @type {HTMLSelectElement | null} */ (
-                modal.querySelector(`.companion-row__role-select[data-name="${name}"]`)
-            );
+        // Promote an unlinked entry → friend picker scoped to "link this name".
+        const linkBtn = /** @type {HTMLElement | null} */ (target.closest('.picker-link-btn'));
+        if (linkBtn?.dataset.name) {
+            friendSheet.hidden = false;
+            friendSheet.dataset.linkTargetName = linkBtn.dataset.name;
+            if (cachedFriends.length === 0) cachedFriends = await fetchAcceptedFriends();
+            buildFriendList();
+            return;
+        }
+
+        // Add-friend → adds a NEW linked companion to the trip + invites.
+        const addBtn = /** @type {HTMLElement | null} */ (target.closest('.picker-friend-add-btn'));
+        if (addBtn) {
+            const row = /** @type {HTMLElement | null} */ (addBtn.closest('.picker-friend-row'));
+            if (!row?.dataset.friendId) return;
+            const friendId = row.dataset.friendId;
+            const friendName = row.dataset.friendName || 'Friend';
+            const select = /** @type {HTMLSelectElement | null} */ (row.querySelector('.picker-friend-role-select'));
             const role = select?.value || ROLE_RELAXER;
-            await inviteTripMember(trip.id, c.linkedUserId, role);
+
+            // Check whether we're "promoting an existing unlinked row" or
+            // "adding a brand-new linked row". The presence of
+            // `friendSheet.dataset.linkTargetName` means promote.
+            const linkTarget = friendSheet.dataset.linkTargetName;
+            if (linkTarget) {
+                const c = findTripCompanion(trip, linkTarget);
+                if (c) c.linkedUserId = friendId;
+                delete friendSheet.dataset.linkTargetName;
+            } else {
+                // Brand-new add. If a row with the friend's name already
+                // exists (unlinked), promote it; otherwise insert a new one.
+                const existingByName = findTripCompanion(trip, friendName);
+                if (existingByName && !existingByName.linkedUserId) {
+                    existingByName.linkedUserId = friendId;
+                } else {
+                    addTripCompanion(trip, friendName, friendId);
+                }
+            }
+            emit('state:changed');
+            upsertTrip(trip);
+            await inviteTripMember(trip.id, friendId, role);
+            friendSheet.hidden = true;
+            refreshList();
+            showLiquidAlert(`${friendName} invited as ${role === ROLE_PLANNER ? 'Planner' : 'Relaxer'}`);
         }
-
-        for (const name of removed) {
-            const c = findCompanion(name);
-            if (!c || !c.linkedUserId) continue;
-            if (!existingMemberIds.has(c.linkedUserId)) continue;
-            await removeTripMember(trip.id, c.linkedUserId);
-        }
-
-        showLiquidAlert(`${picked.length} companion${picked.length === 1 ? '' : 's'} on this trip`);
-        modal.remove();
-        navigate('home', null, true);
-    };
-};
-
-// ── Phase 2: companion ↔ friend linking ─────────────────────────────────────
-// Two modals:
-//   - openCompanionLinkPickerModal  — inviter picks a friend to invite
-//   - openCompanionLinkResponseModal — invitee accepts/declines + names them
-// Both use the existing `.card-glass-modal-light` shell so they match the
-// other home/personalization modals visually. Server-side wiring lives in
-// /api/companions/link* endpoints.
-
-/** @param {string} companionName */
-export const openCompanionLinkPickerModal = (companionName) => {
-    const companion = findCompanion(companionName);
-    if (!companion) return;
-
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    modal.style.display = 'flex';
-    modal.style.backdropFilter = 'blur(25px)';
-
-    modal.innerHTML = `
-        <div class="card-glass-modal-light" style="width: 460px; max-height: 80vh; display: flex; flex-direction: column;">
-            <h2 style="margin: 0 0 var(--space-2); font-size: var(--font-2xl); color: #002d5b; font-weight: 800; letter-spacing: -0.03em;">Link to a friend</h2>
-            <p style="margin: 0 0 var(--space-5); font-size: var(--font-base); color: rgba(0,0,0,0.55);">
-                Choose which friend to link as <strong>${companionName}</strong>. They'll get a notification and can accept or decline. Linked companions can later be invited to shared trips.
-            </p>
-
-            <div id="linkPickerList" style="display:flex; flex-direction:column; gap: var(--space-2); overflow-y: auto; padding: var(--space-1); margin-bottom: var(--space-5); flex: 1; min-height: 0;">
-                <p style="text-align:center; color: rgba(0,0,0,0.45); padding: var(--space-5); margin: 0;">Loading friends…</p>
-            </div>
-
-            <div style="display: flex; gap: var(--space-3); flex-shrink: 0;">
-                <button id="linkPickerInviteBtn" class="btn-primary" style="flex: 2; padding: var(--space-4); border-radius: var(--radius-lg); font-size: var(--font-lg);" disabled>Send invitation</button>
-                <button id="linkPickerCloseBtn" class="btn-neutral" style="flex: 1; border-radius: var(--radius-lg);">Cancel</button>
-            </div>
-        </div>
-    `;
-    document.body.appendChild(modal);
-
-    /** @type {HTMLButtonElement} */ (q(modal, '#linkPickerCloseBtn')).onclick = () => modal.remove();
-
-    /** @type {string | null} */
-    let pickedFriendId = null;
-    const inviteBtn = /** @type {HTMLButtonElement} */ (q(modal, '#linkPickerInviteBtn'));
-
-    fetchAcceptedFriends().then(friends => {
-        const list = q(modal, '#linkPickerList');
-        // Hide friends already linked to ANY companion (1:1 link rule).
-        const candidates = friends.filter(f => !findCompanionByLinkedUser(f.id));
-        if (candidates.length === 0) {
-            list.innerHTML = `<p style="text-align:center; color: rgba(0,0,0,0.55); padding: var(--space-5); margin: 0;">
-                No friends available — every accepted friend is already linked to a companion, or you haven't added any friends yet.
-            </p>`;
-            return;
-        }
-        list.innerHTML = candidates.map(f => `
-            <label class="companion-row friend-pick-row" data-friend-id="${esc(f.id)}">
-                <input type="radio" name="linkPickFriend" class="companion-row__cb" value="${esc(f.id)}">
-                <img src="${esc(f.picture)}" alt="" style="width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;">
-                <span class="companion-row__name">${esc(f.name)}</span>
-                <span style="font-size: var(--font-xs); color: rgba(0,0,0,0.45);">${esc(f.email)}</span>
-            </label>
-        `).join('');
-
-        list.querySelectorAll('input[name="linkPickFriend"]').forEach(input => {
-            /** @type {HTMLInputElement} */ (input).onchange = (ev) => {
-                pickedFriendId = /** @type {HTMLInputElement} */ (ev.target).value || null;
-                inviteBtn.disabled = !pickedFriendId;
-            };
-        });
     });
-
-    inviteBtn.onclick = async () => {
-        if (!pickedFriendId) return;
-        inviteBtn.disabled = true;
-        // Optimistic local update so the row flips to "Pending" immediately.
-        markCompanionLinkPending(companionName, pickedFriendId);
-        emit('state:changed');
-        await inviteCompanionLink(companionName, pickedFriendId);
-        showLiquidAlert("Invitation sent");
-        modal.remove();
-        navigate('personalization', null, true);
-    };
-};
-
-/** Open the accept/decline screen for an incoming companion-link invitation.
- *  Shown when the user clicks a `companion_link_invite` notification.
- *  @param {{ related_id?: string | number; message?: string }} notification */
-export const openCompanionLinkResponseModal = (notification) => {
-    const inviterUserId = notification.related_id ? String(notification.related_id) : '';
-    if (!inviterUserId) return;
-
-    // Pull the inviter's display name out of the notification message
-    // ("X wants to link you as a companion."). Falls back to "this person".
-    const m = (notification.message || '').match(/^(.*?)\s+wants/);
-    const inviterName = m ? m[1] : 'this person';
-
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    modal.style.display = 'flex';
-    modal.style.backdropFilter = 'blur(25px)';
-
-    modal.innerHTML = `
-        <div class="card-glass-modal-light" style="width: 440px;">
-            <h2 style="margin: 0 0 var(--space-2); font-size: var(--font-2xl); color: #002d5b; font-weight: 800; letter-spacing: -0.03em;">Companion link request</h2>
-            <p style="margin: 0 0 var(--space-5); font-size: var(--font-base); color: rgba(0,0,0,0.6); line-height: 1.5;">
-                <strong>${esc(inviterName)}</strong> wants to link you as a companion. Accept and they'll appear in your companion list — you can rename them however you like.
-            </p>
-
-            <div style="margin-bottom: var(--space-5);">
-                <label class="form-label-light" style="display:block; margin-bottom: var(--space-2);">Save them as</label>
-                <input type="text" id="linkResponseName" class="glass-input-light" value="${esc(inviterName)}" placeholder="Companion name">
-            </div>
-
-            <div style="display: flex; gap: var(--space-3);">
-                <button id="linkResponseAcceptBtn" class="btn-primary" style="flex: 2; padding: var(--space-4); border-radius: var(--radius-lg); font-size: var(--font-lg);">Accept link</button>
-                <button id="linkResponseDeclineBtn" class="btn-neutral" style="flex: 1; border-radius: var(--radius-lg);">Decline</button>
-            </div>
-        </div>
-    `;
-    document.body.appendChild(modal);
-
-    const nameInput = /** @type {HTMLInputElement} */ (q(modal, '#linkResponseName'));
-
-    /** @type {HTMLButtonElement} */ (q(modal, '#linkResponseAcceptBtn')).onclick = async () => {
-        const chosen = nameInput.value.trim() || inviterName;
-        // Hit the server FIRST — if the invite is stale (cancelled by the
-        // inviter, deleted user, etc.), we want to know before mutating
-        // local state. Optimistic-then-rollback is more confusing than
-        // a brief delay.
-        const result = await respondCompanionLink(inviterUserId, true, chosen);
-        if (!result || !result.ok) {
-            showLiquidAlert("This invitation is no longer valid");
-            modal.remove();
-            return;
-        }
-        const companion = addCompanion(chosen);
-        if (companion) {
-            companion.linkedUserId = inviterUserId;
-            companion.linkStatus = 'accepted';
-        }
-        emit('state:changed');
-        showLiquidAlert("Companion linked");
-        modal.remove();
-        navigate('personalization', null, true);
-    };
-
-    /** @type {HTMLButtonElement} */ (q(modal, '#linkResponseDeclineBtn')).onclick = async () => {
-        const result = await respondCompanionLink(inviterUserId, false, '');
-        if (!result || !result.ok) {
-            showLiquidAlert("This invitation is no longer active");
-        } else {
-            showLiquidAlert("Declined");
-        }
-        modal.remove();
-    };
 };
 
 // ── Phase 3: trip-member modals ─────────────────────────────────────────────

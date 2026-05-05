@@ -1,11 +1,8 @@
 // @ts-check
 import { STATE, emit } from '../state.js';
 import { generateId, showConfirmModal, q } from '../utils.js';
-import { syncCategories, syncCompanions, upsertTrip, apiUrl } from '../api.js';
+import { syncCategories, apiUrl } from '../api.js';
 import { navigate } from '../router.js';
-import { addCompanion, removeCompanion, hasCompanion, clearCompanionLink, findCompanion, isSelfCompanion } from '../companions.js';
-import { unlinkCompanion as apiUnlinkCompanion } from '../api.js';
-import { openCompanionLinkPickerModal } from '../modals.js';
 
 export const showSettingsTab = (tab) => {
     const tabs = /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll('.settings-tab-btn'));
@@ -23,11 +20,13 @@ export const showSettingsTab = (tab) => {
 
 // Exported because home.js (guide actions) and expenses.js (Add Companions
 // helper) reach in here to switch the personalization tab after navigating.
+// The Companions sub-tab was removed when companions became per-trip;
+// `tab === 'companions'` is treated as 'categories' so legacy callers
+// don't break.
 export const showPersTab = (tab) => {
     const menu = document.getElementById('persMenu');
     const content = document.getElementById('persContent');
     const catSection = document.getElementById('persCategories');
-    const compSection = document.getElementById('persCompanions');
 
     if (tab === 'menu') {
         if (menu) menu.style.display = 'grid';
@@ -35,8 +34,7 @@ export const showPersTab = (tab) => {
     } else {
         if (menu) menu.style.display = 'none';
         if (content) content.style.display = 'block';
-        if (catSection) catSection.style.display = (tab === 'categories' ? 'block' : 'none');
-        if (compSection) compSection.style.display = (tab === 'companions' ? 'block' : 'none');
+        if (catSection) catSection.style.display = 'block';
     }
 };
 
@@ -55,72 +53,10 @@ const deleteCategory = (id) => {
     });
 };
 
-/** Cancel a pending outbound link invitation. The /api/companions/unlink
- *  endpoint is symmetric — calling it with a friend_user_id while the
- *  status is still 'pending' clears the inviter's row and is a no-op on
- *  the friend's side (they have no row yet). Sends a "declined" notification
- *  to the friend? No — the friend never accepted, so no follow-up; the
- *  open invite notification on their side just becomes stale. */
-const cancelCompanionLink = (name) => {
-    const c = findCompanion(name);
-    if (!c || !c.linkedUserId) return;
-    const friendId = c.linkedUserId;
-    showConfirmModal({
-        title: "Cancel invitation?",
-        message: `Cancel the link request to "${name}"?`,
-        confirmText: "Cancel link",
-        onConfirm: () => {
-            clearCompanionLink(name);
-            emit('state:changed');
-            apiUnlinkCompanion(friendId);
-            navigate('personalization');
-            setTimeout(() => showPersTab('companions'), 50);
-        },
-    });
-};
-
-/** Mutual unlink — both sides revert to plain unlinked companions; names stay. */
-const confirmUnlinkCompanion = (name, friendUserId) => {
-    showConfirmModal({
-        title: "Unlink companion?",
-        message: `Unlink "${name}" from their friend account? Both sides keep the companion record but the link is broken.`,
-        confirmText: "Unlink",
-        onConfirm: () => {
-            clearCompanionLink(name);
-            emit('state:changed');
-            apiUnlinkCompanion(friendUserId);
-            navigate('personalization');
-            setTimeout(() => showPersTab('companions'), 50);
-        },
-    });
-};
-
-const deleteCompanion = (name) => {
-    showConfirmModal({
-        title: "Remove Companion?",
-        message: `Remove "${name}" from your travel companions? They'll be removed from any trips they're on too.`,
-        confirmText: "Remove",
-        onConfirm: () => {
-            removeCompanion(name);
-            // Cascade: strip the name from each trip's roster too. Without
-            // this, the trip-scoped expense form would still offer the name
-            // (since it reads trip.companions), and the settlement balance
-            // would still allocate against them.
-            const touchedTrips = [];
-            for (const trip of STATE.trips) {
-                if (Array.isArray(trip.companions) && trip.companions.includes(name)) {
-                    trip.companions = trip.companions.filter(c => c !== name);
-                    touchedTrips.push(trip);
-                }
-            }
-            emit('state:changed');
-            syncCompanions(); // Delta: sync companions to server
-            touchedTrips.forEach(t => upsertTrip(t));
-            navigate('personalization');
-            setTimeout(() => showPersTab('companions'), 50);
-        }
-    });
-};
+// The companion-management helpers (cancelCompanionLink,
+// confirmUnlinkCompanion, deleteCompanion) used to live here when
+// companions were account-level. With the per-trip refactor they're gone
+// — managing companions happens inside the trip's companion picker now.
 
 export function renderSettings() {
     const div = document.createElement('div');
@@ -248,11 +184,6 @@ export function renderSettings() {
                 ${isReset ? `
                     <div class="settings-grid">
                         <div class="card glass" style="padding: var(--space-6);">
-                            <h3 style="color: #007aff; margin-top: 0;">Companions</h3>
-                            <p class="muted-meta">Delete your travel companions and groups.</p>
-                            <button class="themed-block-btn confirm-reset-btn" data-reset-type="groups" style="--accent: 0,113,227;">Clear Groups</button>
-                        </div>
-                        <div class="card glass" style="padding: var(--space-6);">
                             <h3 style="color: #ff9500; margin-top: 0;">Trips & Days</h3>
                             <p class="muted-meta">Remove all trips, itineraries, and daily logs.</p>
                             <button class="themed-block-btn confirm-reset-btn" data-reset-type="trips" style="--accent: 255,149,0;">Delete All Trips</button>
@@ -290,12 +221,6 @@ export function renderSettings() {
 
     const confirmReset = (type) => {
         const configs = {
-            groups: {
-                title: "Clear Companions?",
-                message: "This will remove all travel companions and group lists.",
-                confirmText: "Clear All",
-                onConfirm: () => { STATE.groups = []; emit('state:changed'); switchSettingsTab('reset'); }
-            },
             trips: {
                 title: "Wipe All Trips?",
                 message: "This permanently deletes every trip, day log, and itinerary.",
@@ -346,7 +271,7 @@ export function renderSettings() {
                             });
                         } catch(e) { console.error('Server wipe failed', e); }
                     }
-                    STATE.trips = []; STATE.archivedTrips = []; STATE.tripDays = []; STATE.expenses = []; STATE.groups = []; STATE.budgets = []; STATE.categories = []; STATE.activeTripId = null; STATE.user = null; STATE.notifications = []; STATE.hasLoggedInBefore = false;
+                    STATE.trips = []; STATE.archivedTrips = []; STATE.tripDays = []; STATE.expenses = []; STATE.budgets = []; STATE.categories = []; STATE.activeTripId = null; STATE.user = null; STATE.notifications = []; STATE.hasLoggedInBefore = false;
                     emit('state:changed');
                     localStorage.clear();
                     location.reload();
@@ -464,57 +389,10 @@ export function renderPersonalization() {
         </tr>
     `).join('');
 
-    // Companion roster row — left column is the name + a link-status pill
-    // (unlinked / pending / linked / self). Right column carries the action
-    // button: unlinked → "Link to friend", pending → "Cancel link",
-    // linked → "Unlink", self → none (you can't link yourself).
-    // Delete (✕) is always available, and the cascade in `deleteCompanion`
-    // also nulls the friend's reciprocal link so dangling rows can't form.
-    const linkPill = (/** @type {import('../types').Companion} */ c) => {
-        if (isSelfCompanion(c.name)) {
-            return `<span class="companion-link-pill companion-link-pill--self">👤 That's you</span>`;
-        }
-        if (c.linkStatus === 'pending') {
-            return `<span class="companion-link-pill companion-link-pill--pending">⏳ Pending</span>`;
-        }
-        if (c.linkStatus === 'accepted' && c.linkedUserId) {
-            return `<span class="companion-link-pill companion-link-pill--linked">🟢 Linked</span>`;
-        }
-        return '';
-    };
-    const linkAction = (/** @type {import('../types').Companion} */ c) => {
-        if (isSelfCompanion(c.name)) {
-            return ''; // self-companion can't be linked to a friend
-        }
-        if (c.linkStatus === 'pending') {
-            return `<button class="btn-link-action companion-cancel-link-btn" data-companion="${c.name}">Cancel</button>`;
-        }
-        if (c.linkStatus === 'accepted' && c.linkedUserId) {
-            return `<button class="btn-link-action companion-unlink-btn" data-companion="${c.name}" data-friend-id="${c.linkedUserId}">Unlink</button>`;
-        }
-        return `<button class="btn-link-action companion-link-btn" data-companion="${c.name}">🔗 Link to friend</button>`;
-    };
-    const groupsHtml = STATE.groups.map(c => `
-        <tr>
-            <td>
-                <div style="display:flex; align-items:center; gap: var(--space-2); flex-wrap: wrap;">
-                    <span style="font-weight:600;">${c.name}</span>
-                    ${linkPill(c)}
-                </div>
-            </td>
-            <td class="is-right">
-                <div style="display:inline-flex; align-items:center; gap: var(--space-2);">
-                    ${linkAction(c)}
-                    <button class="btn-x-bare delete-companion-btn" data-companion="${c.name}">✕</button>
-                </div>
-            </td>
-        </tr>
-    `).join('');
-
     div.innerHTML = `
         <div class="ai-page-header">
             <h1 class="gradient-text" style="--g-from: #5856d6; --g-to: #ff2d55;">Personalization</h1>
-            <p>Customize your experience, categories, and travel companions.</p>
+            <p>Customize your experience and categories. Manage friends in the Friends tab; add companions per-trip from the Home page.</p>
         </div>
 
         <div id="persMenu" class="grid-2">
@@ -522,15 +400,11 @@ export function renderPersonalization() {
                 <h2 class="card-title" style="color: var(--accent-blue);">Manage Categories</h2>
                 <p class="text-muted">Customize expense categories, icons, and colors.</p>
             </div>
-            <div class="card glass card-glow-purple pers-tab-card" data-tab="companions" style="cursor: pointer;">
-                <h2 class="card-title" style="color: #5856d6;">Manage Companions</h2>
-                <p class="text-muted">Add the people who usually travel and split expenses with you.</p>
-            </div>
         </div>
 
         <div id="persContent" style="display: none;">
             <button class="btn btn-small btn-liquid-glass pers-tab-card" data-tab="menu" style="margin-bottom: 20px;">&larr; Back to Personalization</button>
-            
+
             <div id="persCategories" style="display: none;">
                 <div class="card glass card-glow-blue">
                     <h2 class="card-title" style="color: var(--accent-blue);">Categories</h2>
@@ -563,36 +437,10 @@ export function renderPersonalization() {
                     </div>
                 </div>
             </div>
-
-            <div id="persCompanions" style="display: none;">
-                <div class="card glass card-glow-purple">
-                    <h2 class="card-title" style="color: #5856d6;">Travel Companions</h2>
-                    <p style="color: var(--text-secondary); margin-bottom: var(--space-4);">The people who usually pay for or share expenses with you.</p>
-                    <table class="compact-table" style="margin-bottom: var(--space-5);">
-                        <thead>
-                            <tr>
-                                <th class="is-left">Name</th>
-                                <th class="is-right">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${groupsHtml || `<tr><td class="is-center" colspan="2" class="text-muted">No companions added yet.</td></tr>`}
-                        </tbody>
-                    </table>
-
-                    <div class="section-divider">
-                        <h3 style="margin-bottom: var(--space-3); font-size: var(--font-lg);">Add Companion</h3>
-                        <div style="display: flex; gap: var(--space-3);">
-                            <input type="text" id="newPerson" class="glass-input" style="flex: 1;" placeholder="Enter name...">
-                            <button id="addPersonBtn" class="btn-primary" style="background: #5856d6; padding: var(--space-3) var(--space-5);">Add Person</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
         </div>
     `;
 
-    // Delegated handler for the per-row delete buttons + the menu/back tab cards.
+    // Delegated handler for category-row delete + the menu/back tab cards.
     div.addEventListener('click', (e) => {
         const target = /** @type {HTMLElement | null} */ (e.target);
         if (!target) return;
@@ -602,21 +450,6 @@ export function renderPersonalization() {
 
         const delCatBtn = /** @type {HTMLElement | null} */ (target.closest('.delete-category-btn'));
         if (delCatBtn?.dataset.categoryId) { deleteCategory(delCatBtn.dataset.categoryId); return; }
-
-        const delCompBtn = /** @type {HTMLElement | null} */ (target.closest('.delete-companion-btn'));
-        if (delCompBtn?.dataset.companion) { deleteCompanion(delCompBtn.dataset.companion); return; }
-
-        const linkBtn = /** @type {HTMLElement | null} */ (target.closest('.companion-link-btn'));
-        if (linkBtn?.dataset.companion) { openCompanionLinkPickerModal(linkBtn.dataset.companion); return; }
-
-        const cancelLinkBtn = /** @type {HTMLElement | null} */ (target.closest('.companion-cancel-link-btn'));
-        if (cancelLinkBtn?.dataset.companion) { cancelCompanionLink(cancelLinkBtn.dataset.companion); return; }
-
-        const unlinkBtn = /** @type {HTMLElement | null} */ (target.closest('.companion-unlink-btn'));
-        if (unlinkBtn?.dataset.companion && unlinkBtn.dataset.friendId) {
-            confirmUnlinkCompanion(unlinkBtn.dataset.companion, unlinkBtn.dataset.friendId);
-            return;
-        }
     });
 
     setTimeout(() => {
@@ -634,17 +467,6 @@ export function renderPersonalization() {
             }
         });
 
-        const addPersonBtn = div.querySelector('#addPersonBtn');
-        if (addPersonBtn) addPersonBtn.addEventListener('click', () => {
-            const name = /** @type {HTMLInputElement} */ (q(div, '#newPerson')).value.trim();
-            if (name && !hasCompanion(name)) {
-                addCompanion(name);
-                emit('state:changed');
-                syncCompanions(); // Delta: sync new companion
-                navigate('personalization');
-                setTimeout(() => showPersTab('companions'), 50);
-            }
-        });
     }, 0);
 
     return div;
