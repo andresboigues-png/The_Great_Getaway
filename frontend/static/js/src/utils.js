@@ -3,6 +3,7 @@
 
 import { TRAVEL_DATA_DEFAULT, DESTINATION_DATA, CONVERSION_RATES, CURRENCY_SYMBOLS, LOCALE_TO_CURRENCY } from './constants.js';
 import { STATE } from './state.js';
+import { showModal } from './components/Modal.js';
 
 // ── Home currency helpers ─────────────────────────────────────────────────
 // Display preference layered on top of the existing EUR-denominated storage.
@@ -285,15 +286,11 @@ export function showConfirmModal(options = {}) {
         onConfirm = () => { }
     } = options;
 
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    modal.style.display = 'flex';
-    modal.style.backdropFilter = 'blur(25px)';
-
     // confirmColor stays inline because callers pass per-instance colors
     // (red for delete, blue for login, etc.). Everything else uses tokens.
-    modal.innerHTML = `
-        <div class="card-glass-confirm">
+    const { root, close } = showModal({
+        variant: 'confirm',
+        innerHTML: `
             <div style="text-align: center;">
                 <h2 style="margin: 0; font-size: 2.2rem; letter-spacing: -0.06em; color: #ffffff;">${title}</h2>
                 <p style="color: rgba(255,255,255,0.7); margin: 6px 0 0; font-size: var(--font-lg); font-weight: 500;">${message}</p>
@@ -302,7 +299,7 @@ export function showConfirmModal(options = {}) {
             ${requireInput ? `
                 <div style="width: 100%; margin-bottom: var(--space-2);">
                     <p style="font-size: var(--font-xs); color: #ff3b30; font-weight: 800; text-transform: uppercase; margin-bottom: var(--space-3); letter-spacing: 0.1em; text-align: center;">Type "${requireInput}" to confirm</p>
-                    <input type="text" id="safetyInput" class="glass-input-modal" placeholder="Type here..." style="text-align: center; background: rgba(255,255,255,0.08); padding: 18px; border-radius: var(--radius-xl); font-size: var(--font-xl);">
+                    <input type="text" id="safetyInput" class="glass-input-modal" placeholder="Type here..." style="text-align: center; background: rgba(255,255,255,0.08); padding: 18px; border-radius: var(--radius-xl); font-size: var(--font-xl);" autofocus>
                 </div>
             ` : ''}
 
@@ -310,17 +307,14 @@ export function showConfirmModal(options = {}) {
                 <button class="btn-primary" id="modalConfirmBtn" style="width: 100%; background: ${confirmColor}; padding: 18px; border-radius: var(--radius-xl); box-shadow: 0 10px 30px ${confirmColor}66; font-size: var(--font-xl);" ${requireInput ? 'disabled' : ''}>${confirmText}</button>
                 <button id="modalCancelBtn" style="width: 100%; padding: var(--space-2); font-weight: 600; background: transparent; border: none; color: rgba(255,255,255,0.4); font-size: var(--font-base); cursor: pointer;">Cancel</button>
             </div>
-        </div>
-    `;
+        `,
+    });
 
-    document.body.appendChild(modal);
-
-    const confirmBtn = /** @type {HTMLButtonElement} */ (modal.querySelector('#modalConfirmBtn'));
-    const cancelBtn = /** @type {HTMLButtonElement} */ (modal.querySelector('#modalCancelBtn'));
-    const input = /** @type {HTMLInputElement | null} */ (modal.querySelector('#safetyInput'));
+    const confirmBtn = /** @type {HTMLButtonElement} */ (root.querySelector('#modalConfirmBtn'));
+    const cancelBtn = /** @type {HTMLButtonElement} */ (root.querySelector('#modalCancelBtn'));
+    const input = /** @type {HTMLInputElement | null} */ (root.querySelector('#safetyInput'));
 
     if (requireInput && input) {
-        input.focus();
         input.oninput = (e) => {
             const target = /** @type {HTMLInputElement} */ (e.target);
             const isMatch = target.value.trim().toUpperCase() === requireInput.toUpperCase();
@@ -336,10 +330,9 @@ export function showConfirmModal(options = {}) {
 
     confirmBtn.onclick = () => {
         onConfirm();
-        modal.remove();
+        close();
     };
-    cancelBtn.onclick = () => modal.remove();
-    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+    cancelBtn.onclick = () => close();
 }
 
 export function generateId() {

@@ -22,6 +22,7 @@ import {
     removeTripCompanion,
 } from './companions.js';
 import { ROLE_PLANNER, ROLE_RELAXER, canManageRoster } from './permissions.js';
+import { showModal } from './components/Modal.js';
 
 /**
  * @typedef {{ placeId: string, name: string, lat: number, lng: number,
@@ -139,13 +140,10 @@ function _wirePlacePicker({ placeInput, hint, submitBtn, initialPlace = null }) 
 }
 
 export const openNewTripModal = () => {
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    modal.style.display = 'flex';
-    modal.style.backdropFilter = 'blur(25px)';
-
-    modal.innerHTML = `
-        <div class="card-glass-modal" style="width: 420px;">
+    const { root, close } = showModal({
+        variant: 'glass',
+        cardStyle: 'width: 420px;',
+        innerHTML: `
             <h2 class="card-title" style="font-size: var(--font-3xl); margin-bottom: var(--space-6); color: #ffffff; letter-spacing: -0.06em; font-weight: 800; text-align: center;">New Trip</h2>
             <form id="newTripForm" style="display: flex; flex-direction: column; align-items: center; width: 100%;">
                 <div style="margin-bottom: var(--space-4); width: 100%;">
@@ -162,19 +160,17 @@ export const openNewTripModal = () => {
                     <button type="button" id="cancelTripBtn" class="btn-ghost" style="flex: 1;">Cancel</button>
                 </div>
             </form>
-        </div>
-    `;
+        `,
+    });
 
-    document.body.appendChild(modal);
-
-    const placeInput = /** @type {HTMLInputElement} */ (q(modal, '#tripPlaceInput'));
-    const hint = q(modal, '#tripPlaceHint');
-    const submitBtn = /** @type {HTMLButtonElement} */ (q(modal, '#newTripSubmitBtn'));
+    const placeInput = /** @type {HTMLInputElement} */ (q(root, '#tripPlaceInput'));
+    const hint = q(root, '#tripPlaceHint');
+    const submitBtn = /** @type {HTMLButtonElement} */ (q(root, '#newTripSubmitBtn'));
 
     const { getPicked } = _wirePlacePicker({ placeInput, hint, submitBtn });
 
-    /** @type {HTMLButtonElement} */ (q(modal, '#cancelTripBtn')).onclick = () => modal.remove();
-    /** @type {HTMLFormElement} */ (q(modal, '#newTripForm')).onsubmit = (e) => {
+    /** @type {HTMLButtonElement} */ (q(root, '#cancelTripBtn')).onclick = () => close();
+    /** @type {HTMLFormElement} */ (q(root, '#newTripForm')).onsubmit = (e) => {
         e.preventDefault();
         const pickedPlace = getPicked();
         if (!pickedPlace) {
@@ -182,7 +178,7 @@ export const openNewTripModal = () => {
             return;
         }
         const id = generateId();
-        const name = /** @type {HTMLInputElement} */ (q(modal, '#tripName')).value;
+        const name = /** @type {HTMLInputElement} */ (q(root, '#tripName')).value;
 
         // `country` is kept populated with the human-readable place name so
         // every legacy display site (collections card, expense default, AI
@@ -248,7 +244,7 @@ export const openNewTripModal = () => {
         emit('state:changed');               // saveState + updateTripSelector via subscriber
         upsertTrip(newTrip);                 // server delta still explicit
 
-        modal.remove();
+        close();
         navigate('home');
     };
 };
@@ -264,13 +260,10 @@ export const openNewTripModal = () => {
 export const openEditTripModal = (trip) => {
     if (!trip) return;
 
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    modal.style.display = 'flex';
-    modal.style.backdropFilter = 'blur(25px)';
-
-    modal.innerHTML = `
-        <div class="card-glass-modal" style="width: 420px;">
+    const { root, close } = showModal({
+        variant: 'glass',
+        cardStyle: 'width: 420px;',
+        innerHTML: `
             <h2 class="card-title" style="font-size: var(--font-3xl); margin-bottom: var(--space-6); color: #ffffff; letter-spacing: -0.06em; font-weight: 800; text-align: center;">Edit Trip</h2>
             <form id="editTripForm" style="display: flex; flex-direction: column; align-items: center; width: 100%;">
                 <div style="margin-bottom: var(--space-4); width: 100%;">
@@ -287,17 +280,15 @@ export const openEditTripModal = (trip) => {
                     <button type="button" id="cancelEditTripBtn" class="btn-ghost" style="flex: 1;">Cancel</button>
                 </div>
             </form>
-        </div>
-    `;
+        `,
+    });
 
-    document.body.appendChild(modal);
-
-    const nameInput = /** @type {HTMLInputElement} */ (q(modal, '#editTripName'));
+    const nameInput = /** @type {HTMLInputElement} */ (q(root, '#editTripName'));
     nameInput.value = trip.name || '';
 
-    const placeInput = /** @type {HTMLInputElement} */ (q(modal, '#editTripPlaceInput'));
-    const hint = q(modal, '#editTripPlaceHint');
-    const submitBtn = /** @type {HTMLButtonElement} */ (q(modal, '#editTripSubmitBtn'));
+    const placeInput = /** @type {HTMLInputElement} */ (q(root, '#editTripPlaceInput'));
+    const hint = q(root, '#editTripPlaceHint');
+    const submitBtn = /** @type {HTMLButtonElement} */ (q(root, '#editTripSubmitBtn'));
 
     /** @type {PickedPlace | null} */
     const initialPlace = trip.placeId || trip.lat
@@ -314,8 +305,8 @@ export const openEditTripModal = (trip) => {
 
     const { getPicked } = _wirePlacePicker({ placeInput, hint, submitBtn, initialPlace });
 
-    /** @type {HTMLButtonElement} */ (q(modal, '#cancelEditTripBtn')).onclick = () => modal.remove();
-    /** @type {HTMLFormElement} */ (q(modal, '#editTripForm')).onsubmit = (e) => {
+    /** @type {HTMLButtonElement} */ (q(root, '#cancelEditTripBtn')).onclick = () => close();
+    /** @type {HTMLFormElement} */ (q(root, '#editTripForm')).onsubmit = (e) => {
         e.preventDefault();
         const newName = nameInput.value.trim();
         if (!newName) {
@@ -364,7 +355,7 @@ export const openEditTripModal = (trip) => {
         emit('state:changed');
         upsertTrip(trip);
 
-        modal.remove();
+        close();
         navigate('home', null, true);
     };
 };
@@ -394,15 +385,13 @@ export const openAddDayModal = () => {
         }
     }
 
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    modal.style.display = 'flex';
-    modal.style.backdropFilter = 'blur(25px)';
     // The Add-Day modal sits on a light background — the labels here use
     // dark text instead of the white-on-glass form-label, and the cancel
     // button is a neutral surface rather than the glass ghost variant.
-    modal.innerHTML = `
-        <div class="card-glass-modal-light" style="width: 400px;">
+    const { root, close } = showModal({
+        variant: 'glass-light',
+        cardStyle: 'width: 400px;',
+        innerHTML: `
             <div style="display: flex; align-items: center; justify-content: center; gap: var(--space-3); margin-bottom: var(--space-5);">
                 <div style="background: var(--accent-blue); color: white; width: 28px; height: 28px; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: var(--font-base);">${nextDayNumber}</div>
                 <h2 class="card-title" style="font-size: var(--font-3xl); margin: 0; color: #000000; letter-spacing: -0.06em; font-weight: 800; text-align: center;">Add Day</h2>
@@ -421,19 +410,18 @@ export const openAddDayModal = () => {
                     <button type="button" id="cancelDayBtn" class="btn-ghost" style="flex: 1; background: rgba(0,0,0,0.05); color: #000; border: none;">Cancel</button>
                 </div>
             </form>
-        </div>
-    `;
-    document.body.appendChild(modal);
+        `,
+    });
     // activeTripId is non-null thanks to the guard at the top of the function;
     // capture it into a local const so the async closure below sees the
     // narrowed type.
     const activeTripId = STATE.activeTripId;
-    /** @type {HTMLButtonElement} */ (q(modal, '#cancelDayBtn')).onclick = () => modal.remove();
-    /** @type {HTMLFormElement} */ (q(modal, '#addDayForm')).onsubmit = async (e) => {
+    /** @type {HTMLButtonElement} */ (q(root, '#cancelDayBtn')).onclick = () => close();
+    /** @type {HTMLFormElement} */ (q(root, '#addDayForm')).onsubmit = async (e) => {
         e.preventDefault();
         const id = generateId();
-        const name = /** @type {HTMLInputElement} */ (q(modal, '#dayName')).value;
-        const date = /** @type {HTMLInputElement} */ (q(modal, '#dayDate')).value;
+        const name = /** @type {HTMLInputElement} */ (q(root, '#dayName')).value;
+        const date = /** @type {HTMLInputElement} */ (q(root, '#dayDate')).value;
         /** @type {import('./types').TripDay} */
         const newDay = {
             id,
@@ -449,7 +437,7 @@ export const openAddDayModal = () => {
 
         emit('state:changed');               // saveState via subscriber
         await upsertDay(newDay);             // server delta still explicit
-        modal.remove();
+        close();
         navigate('home');
     };
 };
@@ -504,11 +492,6 @@ export const openCompanionPickerModal = (tripId) => {
     /** @type {{id: string, name: string, email: string, picture: string}[]} */
     let cachedFriends = [];
 
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    modal.style.display = 'flex';
-    modal.style.backdropFilter = 'blur(25px)';
-
     /** Pretty role label. */
     const roleLabel = (/** @type {string} */ r) =>
         r === ROLE_PLANNER ? 'Planner' : r === ROLE_RELAXER ? 'Relaxer' : r;
@@ -557,8 +540,10 @@ export const openCompanionPickerModal = (tripId) => {
         return list.map(buildRow).join('');
     };
 
-    modal.innerHTML = `
-        <div class="card-glass-modal-light" style="width: 520px; max-height: 80vh; display: flex; flex-direction: column;">
+    const { root, close } = showModal({
+        variant: 'glass-light',
+        cardStyle: 'width: 520px; max-height: 80vh; display: flex; flex-direction: column;',
+        innerHTML: `
             <h2 style="margin: 0 0 var(--space-2); font-size: var(--font-2xl); color: #002d5b; font-weight: 800; letter-spacing: -0.03em;">Trip Companions</h2>
             <p style="margin: 0 0 var(--space-5); font-size: var(--font-base); color: rgba(0,0,0,0.55);">
                 Add who's coming on <strong>${esc(trip.name)}</strong>. Friends get a trip invitation (Relaxer by default — you can override per pick); plain companions are just labels for non-app travellers.
@@ -598,14 +583,13 @@ export const openCompanionPickerModal = (tripId) => {
             <div style="display: flex; gap: var(--space-3); flex-shrink: 0;">
                 <button id="companionPickerCloseBtn" class="btn-primary" style="flex: 1; padding: var(--space-4); border-radius: var(--radius-lg); font-size: var(--font-lg);">Done</button>
             </div>
-        </div>
-    `;
-    document.body.appendChild(modal);
+        `,
+    });
 
-    const listEl = /** @type {HTMLElement} */ (q(modal, '#companionPickerList'));
-    const friendSheet = /** @type {HTMLElement} */ (q(modal, '#companionPickerFriendSheet'));
-    const friendListEl = /** @type {HTMLElement} */ (q(modal, '#companionPickerFriendList'));
-    const addInput = /** @type {HTMLInputElement} */ (q(modal, '#companionPickerAddInput'));
+    const listEl = /** @type {HTMLElement} */ (q(root, '#companionPickerList'));
+    const friendSheet = /** @type {HTMLElement} */ (q(root, '#companionPickerFriendSheet'));
+    const friendListEl = /** @type {HTMLElement} */ (q(root, '#companionPickerFriendList'));
+    const addInput = /** @type {HTMLInputElement} */ (q(root, '#companionPickerAddInput'));
 
     const refreshList = () => { listEl.innerHTML = renderRows(); };
 
@@ -638,12 +622,12 @@ export const openCompanionPickerModal = (tripId) => {
         `).join('');
     };
 
-    /** @type {HTMLButtonElement} */ (q(modal, '#companionPickerCloseBtn')).onclick = () => modal.remove();
-    /** @type {HTMLButtonElement} */ (q(modal, '#companionPickerFriendCancel')).onclick = () => {
+    /** @type {HTMLButtonElement} */ (q(root, '#companionPickerCloseBtn')).onclick = () => close();
+    /** @type {HTMLButtonElement} */ (q(root, '#companionPickerFriendCancel')).onclick = () => {
         friendSheet.hidden = true;
     };
 
-    /** @type {HTMLButtonElement} */ (q(modal, '#companionPickerAddFriendBtn')).onclick = async () => {
+    /** @type {HTMLButtonElement} */ (q(root, '#companionPickerAddFriendBtn')).onclick = async () => {
         friendSheet.hidden = false;
         if (cachedFriends.length === 0) cachedFriends = await fetchAcceptedFriends();
         buildFriendList();
@@ -651,7 +635,7 @@ export const openCompanionPickerModal = (tripId) => {
 
     // Inline plain-name add — UNLINKED companion (e.g. for non-app travellers,
     // upload auto-rows). Just types into trip.companions, no server invite.
-    /** @type {HTMLFormElement} */ (q(modal, '#companionPickerAddForm')).onsubmit = (ev) => {
+    /** @type {HTMLFormElement} */ (q(root, '#companionPickerAddForm')).onsubmit = (ev) => {
         ev.preventDefault();
         const newName = addInput.value.trim();
         if (!newName) return;
@@ -669,7 +653,7 @@ export const openCompanionPickerModal = (tripId) => {
     };
 
     // Delegated clicks inside the modal — handle remove, link, friend add.
-    modal.addEventListener('click', async (ev) => {
+    root.addEventListener('click', async (ev) => {
         const target = /** @type {HTMLElement | null} */ (ev.target);
         if (!target) return;
 
@@ -765,13 +749,10 @@ export const openTripMembersModal = (tripId) => {
         </div>
     `;
 
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    modal.style.display = 'flex';
-    modal.style.backdropFilter = 'blur(25px)';
-
-    modal.innerHTML = `
-        <div class="card-glass-modal-light" style="width: 460px; max-height: 80vh; display: flex; flex-direction: column;">
+    const { root, close } = showModal({
+        variant: 'glass-light',
+        cardStyle: 'width: 460px; max-height: 80vh; display: flex; flex-direction: column;',
+        innerHTML: `
             <h2 style="margin: 0 0 var(--space-2); font-size: var(--font-2xl); color: #002d5b; font-weight: 800; letter-spacing: -0.03em;">Trip members</h2>
             <p style="margin: 0 0 var(--space-5); font-size: var(--font-base); color: rgba(0,0,0,0.55);">
                 You're on <strong>${esc(trip.name)}</strong> as a <strong>${esc(roleLabel(trip.myRole || ROLE_RELAXER))}</strong>. Roster is managed by the trip owner.
@@ -785,10 +766,9 @@ export const openTripMembersModal = (tripId) => {
             <div style="display: flex; gap: var(--space-3); flex-shrink: 0;">
                 <button id="tripMembersCloseBtn" class="btn-neutral" style="flex: 1; border-radius: var(--radius-lg);">Close</button>
             </div>
-        </div>
-    `;
-    document.body.appendChild(modal);
-    /** @type {HTMLButtonElement} */ (q(modal, '#tripMembersCloseBtn')).onclick = () => modal.remove();
+        `,
+    });
+    /** @type {HTMLButtonElement} */ (q(root, '#tripMembersCloseBtn')).onclick = () => close();
 };
 
 /** Accept/decline an incoming trip invitation. Shown when the user clicks
@@ -806,13 +786,10 @@ export const openTripInviteResponseModal = (notification) => {
     const tripName = m ? m[1] : 'a trip';
     const roleName = m ? m[2] : 'member';
 
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    modal.style.display = 'flex';
-    modal.style.backdropFilter = 'blur(25px)';
-
-    modal.innerHTML = `
-        <div class="card-glass-modal-light" style="width: 440px;">
+    const { root, close } = showModal({
+        variant: 'glass-light',
+        cardStyle: 'width: 440px;',
+        innerHTML: `
             <h2 style="margin: 0 0 var(--space-2); font-size: var(--font-2xl); color: #002d5b; font-weight: 800; letter-spacing: -0.03em;">Trip invitation</h2>
             <p style="margin: 0 0 var(--space-5); font-size: var(--font-base); color: rgba(0,0,0,0.6); line-height: 1.5;">
                 ${esc(notification.message || `You've been invited to ${tripName} as a ${roleName}.`)}
@@ -825,18 +802,17 @@ export const openTripInviteResponseModal = (notification) => {
                 <button id="tripInviteAcceptBtn" class="btn-primary" style="flex: 2; padding: var(--space-4); border-radius: var(--radius-lg); font-size: var(--font-lg);">Accept</button>
                 <button id="tripInviteDeclineBtn" class="btn-neutral" style="flex: 1; border-radius: var(--radius-lg);">Decline</button>
             </div>
-        </div>
-    `;
-    document.body.appendChild(modal);
+        `,
+    });
 
-    /** @type {HTMLButtonElement} */ (q(modal, '#tripInviteAcceptBtn')).onclick = async () => {
+    /** @type {HTMLButtonElement} */ (q(root, '#tripInviteAcceptBtn')).onclick = async () => {
         const result = await respondTripInvite(tripId, true);
         if (!result || !result.ok) {
             showLiquidAlert("This trip invitation is no longer valid");
-            modal.remove();
+            close();
             return;
         }
-        modal.remove();
+        close();
         // Pull canonical state so the new trip lands in STATE.trips with
         // its members + myRole + myArchived populated, then switch the
         // active trip to it so the user sees the result of accepting
@@ -852,14 +828,14 @@ export const openTripInviteResponseModal = (notification) => {
         showLiquidAlert("Joined the trip");
         navigate('home');
     };
-    /** @type {HTMLButtonElement} */ (q(modal, '#tripInviteDeclineBtn')).onclick = async () => {
+    /** @type {HTMLButtonElement} */ (q(root, '#tripInviteDeclineBtn')).onclick = async () => {
         const result = await respondTripInvite(tripId, false);
         if (!result || !result.ok) {
             showLiquidAlert("This invitation is no longer active");
         } else {
             showLiquidAlert("Declined");
         }
-        modal.remove();
+        close();
     };
 };
 

@@ -5,6 +5,7 @@ import { STATE, emit } from '../state.js';
 import { generateId, showConfirmModal, q, formatHome, getHomeCurrency, convertCurrency, esc } from '../utils.js';
 import { getTripCompanionNames } from '../companions.js';
 import { canEdit } from '../permissions.js';
+import { showModal } from '../components/Modal.js';
 
 export function renderSettlement() {
     const div = document.createElement('div');
@@ -295,19 +296,16 @@ export function renderSettlement() {
     };
 
     const openManualSettleModal = (tripId) => {
-        const modal = document.createElement('div');
-        modal.className = 'modal-overlay';
-        modal.style.display = 'flex';
-        modal.style.backdropFilter = 'blur(25px)';
-
         // Manual-settle From/To draws from THIS trip's companions —
         // settlements always pay between participants of the same trip.
         const trip = STATE.trips.find(t => t.id === tripId);
         const peopleSource = getTripCompanionNames(trip);
         const peopleOptions = peopleSource.map(p => `<option value="${p}">${p}</option>`).join('');
 
-        modal.innerHTML = `
-            <div class="card-glass-modal" style="width: 400px;">
+        const { root, close } = showModal({
+            variant: 'glass',
+            cardStyle: 'width: 400px;',
+            innerHTML: `
                 <h2 style="margin: 0 0 var(--space-5); font-size: var(--font-2xl); text-align: center; color: white;">Manual Settlement</h2>
 
                 <form id="manualSettleForm" style="display: flex; flex-direction: column; gap: var(--space-4);">
@@ -329,16 +327,15 @@ export function renderSettlement() {
                         <button type="button" id="cancelManualSettleBtn" class="btn-ghost">Cancel</button>
                     </div>
                 </form>
-            </div>
-        `;
-        document.body.appendChild(modal);
+            `,
+        });
 
-        /** @type {HTMLButtonElement} */ (q(modal, '#cancelManualSettleBtn')).onclick = () => modal.remove();
-        /** @type {HTMLFormElement} */ (q(modal, '#manualSettleForm')).onsubmit = (evt) => {
+        /** @type {HTMLButtonElement} */ (q(root, '#cancelManualSettleBtn')).onclick = () => close();
+        /** @type {HTMLFormElement} */ (q(root, '#manualSettleForm')).onsubmit = (evt) => {
             evt.preventDefault();
-            const from = /** @type {HTMLSelectElement} */ (q(modal, '#manualSettleFrom')).value;
-            const to = /** @type {HTMLSelectElement} */ (q(modal, '#manualSettleTo')).value;
-            const amount = parseFloat(/** @type {HTMLInputElement} */ (q(modal, '#manualSettleAmount')).value);
+            const from = /** @type {HTMLSelectElement} */ (q(root, '#manualSettleFrom')).value;
+            const to = /** @type {HTMLSelectElement} */ (q(root, '#manualSettleTo')).value;
+            const amount = parseFloat(/** @type {HTMLInputElement} */ (q(root, '#manualSettleAmount')).value);
 
             if (from === to) {
                 alert('Sender and receiver must be different.');
@@ -347,16 +344,11 @@ export function renderSettlement() {
             // Manual entry is in the user's home currency; settleDebt converts
             // to EUR internally so balance math stays in one canonical unit.
             settleDebt(tripId, from, to, amount, getHomeCurrency());
-            modal.remove();
+            close();
         };
     };
 
     const openPastSettlementsModal = (tripId) => {
-        const modal = document.createElement('div');
-        modal.className = 'modal-overlay';
-        modal.style.display = 'flex';
-        modal.style.backdropFilter = 'blur(25px)';
-
         const trip = STATE.trips.find(t => t.id === tripId);
         const tripIsEditable = canEdit(trip);
 
@@ -382,9 +374,10 @@ export function renderSettlement() {
                 </div>
             `).join('');
 
-        modal.id = 'pastSettlementsModal';
-        modal.innerHTML = `
-            <div class="card-glass-modal" style="width: 500px; max-height: 80vh; overflow-y: auto;">
+        const { root, close } = showModal({
+            variant: 'glass',
+            cardStyle: 'width: 500px; max-height: 80vh; overflow-y: auto;',
+            innerHTML: `
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-6);">
                     <h2 style="margin: 0; font-size: var(--font-2xl); color: white;">Past Settlements</h2>
                     <button id="closePastSettleBtn" class="btn-ghost" style="padding: var(--space-2) var(--space-4); min-height: 0;">Close</button>
@@ -393,25 +386,24 @@ export function renderSettlement() {
                 <div style="display: flex; flex-direction: column;">
                     ${listHtml}
                 </div>
-            </div>
-        `;
-        document.body.appendChild(modal);
-        /** @type {HTMLButtonElement} */ (q(modal, '#closePastSettleBtn')).onclick = () => modal.remove();
+            `,
+        });
+        /** @type {HTMLButtonElement} */ (q(root, '#closePastSettleBtn')).onclick = () => close();
 
         // Delegated handlers for the per-row Edit/Unsettle buttons in this modal.
-        modal.addEventListener('click', (e) => {
+        root.addEventListener('click', (e) => {
             const target = /** @type {HTMLElement | null} */ (e.target);
             if (!target) return;
             const editBtn = /** @type {HTMLElement | null} */ (target.closest('.edit-settlement-btn'));
             if (editBtn?.dataset.settlementId) {
                 openEditSettlementModal(editBtn.dataset.settlementId);
-                modal.remove();
+                close();
                 return;
             }
             const unsettleBtn = /** @type {HTMLElement | null} */ (target.closest('.unsettle-settlement-btn'));
             if (unsettleBtn?.dataset.settlementId && unsettleBtn.dataset.tripId) {
                 deleteSettlement(unsettleBtn.dataset.settlementId, unsettleBtn.dataset.tripId);
-                modal.remove();
+                close();
                 return;
             }
         });
@@ -434,11 +426,6 @@ export function renderSettlement() {
         const s = STATE.expenses.find(e => e.id === id);
         if (!s) return;
 
-        const modal = document.createElement('div');
-        modal.className = 'modal-overlay';
-        modal.style.display = 'flex';
-        modal.style.backdropFilter = 'blur(25px)';
-
         const editTrip = STATE.trips.find(t => t.id === s.tripId);
         const editPeopleSource = getTripCompanionNames(editTrip);
         const peopleOptionsFrom = editPeopleSource.map(p => `<option value="${p}" ${s.who === p ? 'selected' : ''}>${p}</option>`).join('');
@@ -446,8 +433,10 @@ export function renderSettlement() {
         const toPerson = Object.keys(s.splits || {})[0];
         const peopleOptionsTo = editPeopleSource.map(p => `<option value="${p}" ${toPerson === p ? 'selected' : ''}>${p}</option>`).join('');
 
-        modal.innerHTML = `
-            <div class="card-glass-modal" style="width: 400px;">
+        const { root, close } = showModal({
+            variant: 'glass',
+            cardStyle: 'width: 400px;',
+            innerHTML: `
                 <h2 style="margin: 0 0 var(--space-5); font-size: var(--font-2xl); text-align: center; color: white;">Edit Settlement</h2>
 
                 <form id="editSettlementForm" style="display: flex; flex-direction: column; gap: var(--space-4);">
@@ -473,18 +462,17 @@ export function renderSettlement() {
                         <button type="button" id="cancelEditSettleBtn" class="btn-ghost">Cancel</button>
                     </div>
                 </form>
-            </div>
-        `;
-        document.body.appendChild(modal);
+            `,
+        });
 
-        /** @type {HTMLButtonElement} */ (q(modal, '#cancelEditSettleBtn')).onclick = () => modal.remove();
-        /** @type {HTMLFormElement} */ (q(modal, '#editSettlementForm')).onsubmit = (evt) => {
+        /** @type {HTMLButtonElement} */ (q(root, '#cancelEditSettleBtn')).onclick = () => close();
+        /** @type {HTMLFormElement} */ (q(root, '#editSettlementForm')).onsubmit = (evt) => {
             evt.preventDefault();
-            const from = /** @type {HTMLSelectElement} */ (q(modal, '#editSettleFrom')).value;
-            const to = /** @type {HTMLSelectElement} */ (q(modal, '#editSettleTo')).value;
-            const amount = parseFloat(/** @type {HTMLInputElement} */ (q(modal, '#editSettleAmount')).value);
-            const date = /** @type {HTMLInputElement} */ (q(modal, '#editSettleDate')).value;
-            
+            const from = /** @type {HTMLSelectElement} */ (q(root, '#editSettleFrom')).value;
+            const to = /** @type {HTMLSelectElement} */ (q(root, '#editSettleTo')).value;
+            const amount = parseFloat(/** @type {HTMLInputElement} */ (q(root, '#editSettleAmount')).value);
+            const date = /** @type {HTMLInputElement} */ (q(root, '#editSettleDate')).value;
+
             if (from === to) {
                 alert('Sender and receiver must be different.');
                 return;
@@ -501,9 +489,9 @@ export function renderSettlement() {
             s.euroValue = convertCurrency(amount, home, 'EUR');
             s.date = date;
             s.label = `Settlement: ${from} → ${to}`;
-            
+
             emit('state:changed');
-            modal.remove();
+            close();
             div.innerHTML = buildSettlementUI(currentTripId);
         };
     };

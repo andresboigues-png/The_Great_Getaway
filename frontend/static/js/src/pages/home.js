@@ -10,6 +10,7 @@ import { showPersTab } from './settings.js';
 import { openNewTripModal, openAddDayModal, openEditTripModal, openCompanionPickerModal, openTripMembersModal } from '../modals.js';
 import { canEdit, canManageRoster, ROLE_PLANNER } from '../permissions.js';
 import { findTripCompanionByLinkedUser } from '../companions.js';
+import { showModal } from '../components/Modal.js';
 
 // Empty-state slideshow timer. Lives in this module; router.js calls
 // stopHomeSlideshow() on every navigate so the timer doesn't leak past home.
@@ -1135,12 +1136,10 @@ const openJournalingModal = (dayId) => {
     const day = STATE.tripDays.find(d => d.id === dayId);
     if (!day) return;
     
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    modal.style.display = 'flex';
-    modal.style.backdropFilter = 'blur(25px)';
-    modal.innerHTML = `
-        <div class="card-glass-modal-light" style="width: 580px;">
+    const { root, close } = showModal({
+        variant: 'glass-light',
+        cardStyle: 'width: 580px;',
+        innerHTML: `
             <h2 style="font-size: var(--font-3xl); margin-bottom: var(--space-2); color: #002d5b; font-weight: 800; letter-spacing: -0.04em;">Day ${day.dayNumber} Journaling</h2>
             <p class="text-subtitle">Capture your memories and stories from ${esc(day.name)}</p>
             <textarea id="journalText" class="glass-input-light" style="height: 260px; font-size: 1.05rem; line-height: 1.6; margin-bottom: var(--space-5); resize: vertical; display: block;" placeholder="What happened today? How did you feel?">${esc(day.notes || '')}</textarea>
@@ -1148,16 +1147,15 @@ const openJournalingModal = (dayId) => {
                 <button id="saveJournalBtn" class="btn-primary" style="flex: 2; padding: var(--space-4); border-radius: var(--radius-lg); font-size: var(--font-lg);">Save Story</button>
                 <button id="closeJournalBtn" class="btn-neutral" style="flex: 1; border-radius: var(--radius-lg);">Close</button>
             </div>
-        </div>
-    `;
-    document.body.appendChild(modal);
-    /** @type {HTMLButtonElement} */ (q(modal, '#closeJournalBtn')).onclick = () => modal.remove();
-    /** @type {HTMLButtonElement} */ (q(modal, '#saveJournalBtn')).onclick = async () => {
-        day.notes = /** @type {HTMLTextAreaElement} */ (q(modal, '#journalText')).value;
+        `,
+    });
+    /** @type {HTMLButtonElement} */ (q(root, '#closeJournalBtn')).onclick = () => close();
+    /** @type {HTMLButtonElement} */ (q(root, '#saveJournalBtn')).onclick = async () => {
+        day.notes = /** @type {HTMLTextAreaElement} */ (q(root, '#journalText')).value;
         emit('state:changed');
         await upsertDay(day);
         showLiquidAlert("Memories saved!");
-        modal.remove();
+        close();
         navigate('home', null, true);
     };
 };
@@ -1166,12 +1164,10 @@ const openPhotosModal = (dayId) => {
     const day = STATE.tripDays.find(d => d.id === dayId);
     if (!day) return;
     if (!day.photos) day.photos = [];
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    modal.style.display = 'flex';
-    modal.style.backdropFilter = 'blur(25px)';
-    modal.innerHTML = `
-        <div class="card-glass-modal-light" style="width: 500px;">
+    const { root, close } = showModal({
+        variant: 'glass-light',
+        cardStyle: 'width: 500px;',
+        innerHTML: `
             <h2 class="h2-display">Photo Gallery</h2>
             <p class="text-subtitle">Add images that define your Day ${day.dayNumber}</p>
             <div id="photoList" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-3); margin-bottom: var(--space-6); max-height: 300px; overflow-y: auto; padding: var(--space-1);">
@@ -1200,21 +1196,20 @@ const openPhotosModal = (dayId) => {
                 </div>
             </div>
             <button id="closePhotosBtn" class="btn-neutral" style="width: 100%; border-radius: var(--radius-lg);">Done</button>
-        </div>
-    `;
-    document.body.appendChild(modal);
-    const fileInput = /** @type {HTMLInputElement} */ (q(modal, '#photoUpload'));
+        `,
+    });
+    const fileInput = /** @type {HTMLInputElement} */ (q(root, '#photoUpload'));
     fileInput.onchange = async (e) => {
         const file = /** @type {HTMLInputElement} */ (e.target).files?.[0];
         if (!file) return;
-        const status = q(modal, '#uploadStatusText');
+        const status = q(root, '#uploadStatusText');
         status.textContent = "⌛ Uploading...";
         const res = await uploadMedia(file);
         if (res && res.url) {
             day.photos.push(res.url);
             emit('state:changed');
             await upsertDay(day);
-            modal.remove();
+            close();
             openPhotosModal(dayId);
         } else {
             status.textContent = "❌ Failed. Try again.";
@@ -1225,11 +1220,11 @@ const openPhotosModal = (dayId) => {
         day.photos.splice(idx, 1);
         emit('state:changed');
         await upsertDay(day);
-        modal.remove();
+        close();
         openPhotosModal(dId);
     };
     // Delegated handler for the per-photo "✕" buttons in the gallery grid.
-    modal.addEventListener('click', (e) => {
+    root.addEventListener('click', (e) => {
         const removeBtn = /** @type {HTMLElement | null} */ (
             /** @type {HTMLElement | null} */ (e.target)?.closest('.remove-photo-btn')
         );
@@ -1237,18 +1232,18 @@ const openPhotosModal = (dayId) => {
             removePhoto(removeBtn.dataset.dayId, parseInt(removeBtn.dataset.photoIdx, 10));
         }
     });
-    /** @type {HTMLButtonElement} */ (q(modal, '#addPhotoBtn')).onclick = async () => {
-        const url = /** @type {HTMLInputElement} */ (q(modal, '#photoUrl')).value;
+    /** @type {HTMLButtonElement} */ (q(root, '#addPhotoBtn')).onclick = async () => {
+        const url = /** @type {HTMLInputElement} */ (q(root, '#photoUrl')).value;
         if (url) {
             day.photos.push(url);
             emit('state:changed');
             await upsertDay(day);
-            modal.remove();
+            close();
             openPhotosModal(dayId);
         }
     };
-    /** @type {HTMLButtonElement} */ (q(modal, '#closePhotosBtn')).onclick = () => {
-        modal.remove();
+    /** @type {HTMLButtonElement} */ (q(root, '#closePhotosBtn')).onclick = () => {
+        close();
         navigate('home', null, true);
     };
 };
@@ -1257,12 +1252,10 @@ const openDocumentsModal = (dayId) => {
     const day = STATE.tripDays.find(d => d.id === dayId);
     if (!day) return;
     if (!day.documents) day.documents = [];
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    modal.style.display = 'flex';
-    modal.style.backdropFilter = 'blur(25px)';
-    modal.innerHTML = `
-        <div class="card-glass-modal-light" style="width: 460px;">
+    const { root, close } = showModal({
+        variant: 'glass-light',
+        cardStyle: 'width: 460px;',
+        innerHTML: `
             <h2 class="h2-display">Documents</h2>
             <p class="text-subtitle">Tickets, bookings, and important info</p>
             <div id="docList" style="display: flex; flex-direction: column; gap: var(--space-2); margin-bottom: var(--space-6); max-height: 250px; overflow-y: auto;">
@@ -1295,24 +1288,23 @@ const openDocumentsModal = (dayId) => {
                 </div>
             </div>
             <button id="closeDocsBtn" class="btn-neutral" style="width: 100%; border-radius: var(--radius-lg);">Close</button>
-        </div>
-    `;
-    document.body.appendChild(modal);
+        `,
+    });
     // day.documents is initialized to [] above this block; capture into a
     // local non-undefined ref so the closures below see the narrowed type.
     const docs = day.documents;
-    const docInput = /** @type {HTMLInputElement} */ (q(modal, '#docUpload'));
+    const docInput = /** @type {HTMLInputElement} */ (q(root, '#docUpload'));
     docInput.onchange = async (e) => {
         const file = /** @type {HTMLInputElement} */ (e.target).files?.[0];
         if (!file) return;
-        const status = q(modal, '#uploadDocStatusText');
+        const status = q(root, '#uploadDocStatusText');
         status.textContent = "⌛ Uploading...";
         const res = await uploadMedia(file);
         if (res && res.url) {
             docs.push({ name: res.name || file.name, url: res.url });
             emit('state:changed');
             await upsertDay(day);
-            modal.remove();
+            close();
             openDocumentsModal(dayId);
         } else {
             status.textContent = "❌ Failed. Try again.";
@@ -1323,11 +1315,11 @@ const openDocumentsModal = (dayId) => {
         docs.splice(idx, 1);
         emit('state:changed');
         await upsertDay(day);
-        modal.remove();
+        close();
         openDocumentsModal(dId);
     };
     // Delegated handler for the per-doc "✕" buttons.
-    modal.addEventListener('click', (e) => {
+    root.addEventListener('click', (e) => {
         const removeBtn = /** @type {HTMLElement | null} */ (
             /** @type {HTMLElement | null} */ (e.target)?.closest('.remove-doc-btn')
         );
@@ -1335,29 +1327,27 @@ const openDocumentsModal = (dayId) => {
             removeDoc(removeBtn.dataset.dayId, parseInt(removeBtn.dataset.docIdx, 10));
         }
     });
-    /** @type {HTMLButtonElement} */ (q(modal, '#addDocBtn')).onclick = async () => {
-        const name = /** @type {HTMLInputElement} */ (q(modal, '#docName')).value;
-        const url = /** @type {HTMLInputElement} */ (q(modal, '#docUrl')).value;
+    /** @type {HTMLButtonElement} */ (q(root, '#addDocBtn')).onclick = async () => {
+        const name = /** @type {HTMLInputElement} */ (q(root, '#docName')).value;
+        const url = /** @type {HTMLInputElement} */ (q(root, '#docUrl')).value;
         if (name && url) {
             docs.push({ name, url });
             emit('state:changed');
             await upsertDay(day);
-            modal.remove();
+            close();
             openDocumentsModal(dayId);
         }
     };
-    /** @type {HTMLButtonElement} */ (q(modal, '#closeDocsBtn')).onclick = () => modal.remove();
+    /** @type {HTMLButtonElement} */ (q(root, '#closeDocsBtn')).onclick = () => close();
 };
 
 const openDayDetail = (dayId) => {
     const day = STATE.tripDays.find(d => d.id === dayId);
     if (!day) return;
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    modal.style.display = 'flex';
-    modal.style.backdropFilter = 'blur(25px)';
-    modal.innerHTML = `
-        <div class="card glass" style="width: 800px; max-height: 90vh; overflow-y: auto; padding: var(--space-12); border-radius: 48px; background: white; border: 1px solid rgba(0,0,0,0.1);">
+    const { root, close } = showModal({
+        cardClass: 'card glass',
+        cardStyle: 'width: 800px; max-height: 90vh; overflow-y: auto; padding: var(--space-12); border-radius: 48px; background: white; border: 1px solid rgba(0,0,0,0.1);',
+        innerHTML: `
             <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: var(--space-10);">
                 <div>
                     <div style="display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-2);">
@@ -1395,21 +1385,20 @@ const openDayDetail = (dayId) => {
                     <button id="saveDetailBtn" class="btn-primary" style="width: 100%; padding: var(--space-5); border-radius: var(--radius-xl); font-size: var(--font-xl);">Save All Changes</button>
                 </div>
             </div>
-        </div>
-    `;
-    document.body.appendChild(modal);
-    /** @type {HTMLButtonElement} */ (q(modal, '#closeDetailBtn')).onclick = () => modal.remove();
-    /** @type {HTMLButtonElement} */ (q(modal, '#saveDetailBtn')).onclick = async () => {
-        const morning = /** @type {HTMLTextAreaElement} */ (q(modal, '[data-time="morning"]')).value;
-        const afternoon = /** @type {HTMLTextAreaElement} */ (q(modal, '[data-time="afternoon"]')).value;
-        const evening = /** @type {HTMLTextAreaElement} */ (q(modal, '[data-time="evening"]')).value;
-        const notes = /** @type {HTMLTextAreaElement} */ (q(modal, '#detailNotes')).value;
+        `,
+    });
+    /** @type {HTMLButtonElement} */ (q(root, '#closeDetailBtn')).onclick = () => close();
+    /** @type {HTMLButtonElement} */ (q(root, '#saveDetailBtn')).onclick = async () => {
+        const morning = /** @type {HTMLTextAreaElement} */ (q(root, '[data-time="morning"]')).value;
+        const afternoon = /** @type {HTMLTextAreaElement} */ (q(root, '[data-time="afternoon"]')).value;
+        const evening = /** @type {HTMLTextAreaElement} */ (q(root, '[data-time="evening"]')).value;
+        const notes = /** @type {HTMLTextAreaElement} */ (q(root, '#detailNotes')).value;
         day.plan = { morning, afternoon, evening };
         day.notes = notes;
         emit('state:changed');
         await upsertDay(day);
         showLiquidAlert("Itinerary updated!");
-        modal.remove();
+        close();
         navigate('home');
     };
 };
