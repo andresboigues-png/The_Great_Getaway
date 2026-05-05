@@ -1895,9 +1895,9 @@ h1 {
     transition: background-color 0.15s ease;
 }
 .notification-item:last-child { border-bottom: 0; }
-.notification-item:hover { background: var(--glass-fill-strong); }
-.notification-item.unread { background: rgba(0,113,227,0.18); }
-.notification-item.unread:hover { background: rgba(0,113,227,0.28); }
+.notification-item:hover { background: rgba(255,255,255,0.08); }
+.notification-item.unread { background: rgba(0,113,227,0.28); }
+.notification-item.unread:hover { background: rgba(0,113,227,0.4); }
 .notification-item__title {
     font-weight: 700;
     font-size: var(--font-base);
