@@ -350,7 +350,7 @@ export const openAddDayModal = () => {
     // dark text instead of the white-on-glass form-label, and the cancel
     // button is a neutral surface rather than the glass ghost variant.
     modal.innerHTML = `
-        <div class="card-glass-modal" style="width: 400px;">
+        <div class="card-glass-modal-light" style="width: 400px;">
             <div style="display: flex; align-items: center; justify-content: center; gap: var(--space-3); margin-bottom: var(--space-5);">
                 <div style="background: var(--accent-blue); color: white; width: 28px; height: 28px; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: var(--font-base);">${nextDayNumber}</div>
                 <h2 class="card-title" style="font-size: var(--font-3xl); margin: 0; color: #000000; letter-spacing: -0.06em; font-weight: 800; text-align: center;">Add Day</h2>
