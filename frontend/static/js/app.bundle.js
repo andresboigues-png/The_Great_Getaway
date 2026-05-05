@@ -487,7 +487,7 @@
         <div class="card-glass-modal-light" style="width: 580px;">
             <h2 style="font-size: var(--font-3xl); margin-bottom: var(--space-2); color: #002d5b; font-weight: 800; letter-spacing: -0.04em;">Day ${t.dayNumber} Journaling</h2>
             <p class="text-subtitle">Capture your memories and stories from ${t.name}</p>
-            <textarea id="journalText" class="glass-input" style="width: 100%; height: 240px; padding: var(--space-5); border-radius: var(--radius-xl); font-size: 1.05rem; line-height: 1.6; margin-bottom: var(--space-5); border: 1px solid rgba(0,0,0,0.05);" placeholder="What happened today? How did you feel?">${t.notes||``}</textarea>
+            <textarea id="journalText" class="glass-input-light" style="height: 260px; font-size: 1.05rem; line-height: 1.6; margin-bottom: var(--space-5); resize: vertical; display: block;" placeholder="What happened today? How did you feel?">${t.notes||``}</textarea>
             <div style="display: flex; gap: var(--space-3);">
                 <button id="saveJournalBtn" class="btn-primary" style="flex: 2; padding: var(--space-4); border-radius: var(--radius-lg); font-size: var(--font-lg);">Save Story</button>
                 <button id="closeJournalBtn" class="btn-neutral" style="flex: 1; border-radius: var(--radius-lg);">Close</button>
