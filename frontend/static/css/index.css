@@ -2964,12 +2964,52 @@ h1 {
    on the home trip header. Holds the pill (rename/count) on top of the
    member-chips panel. */
 .trip-companions-section {
-    margin-top: var(--space-5);
     display: flex;
     flex-direction: column;
     gap: var(--space-3);
     align-items: flex-start;
 }
+
+/* Home sub-tab nav (Days / Companions) — same thin-blue-baseline pattern
+   as the expenses-tabnav so both pages share a consistent rhythm. The
+   active tab sits ON the baseline via a 2px bottom-border that overlaps
+   the parent's 1px line. */
+.home-tabnav {
+    display: flex;
+    gap: 36px;
+    border-bottom: 1px solid rgba(0, 113, 227, 0.25);
+    margin: var(--space-5) 0 var(--space-6);
+    padding: 0 4px;
+}
+.home-tabnav__tab {
+    background: none;
+    border: 0;
+    padding: 12px 0 10px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: color 0.2s ease, border-color 0.2s ease;
+    letter-spacing: -0.01em;
+}
+.home-tabnav__tab:hover { color: var(--accent-blue); }
+.home-tabnav__tab.is-active {
+    color: var(--accent-blue);
+    border-bottom-color: var(--accent-blue);
+    font-weight: 800;
+}
+
+/* Tab content swap — both blocks stay in the DOM so per-day delegated
+   handlers don't churn on tab change. `display: none` on the inactive
+   block keeps it from taking layout space; `is-active` reveals it. The
+   Days tab keeps its inline `display: flex` styles, so we override
+   only when inactive (the cascade order matters: this rule must come
+   AFTER any inline flex declarations, but inline beats class — so we
+   force `display: none !important` for inactive). */
+.home-tab-content { display: none !important; }
+.home-tab-content.is-active { display: flex !important; }
 
 /* Inline member chips on the trip header — at-a-glance roster with role
    badges. Click anywhere on the panel routes to the same modal as the

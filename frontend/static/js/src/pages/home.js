@@ -24,6 +24,8 @@ let activeMarkers = {}; // Cache of Leaflet markers by day ID
 let editingDayId = null; // ID of the day currently being geolocated/pinned
 let activeMapClickListener = null; // Reference to the active map click handler
 let openMenuDayId = null; // Track which day's sidebar menu is open
+/** @type {'days' | 'companions'} */
+let activeHomeTab = 'days'; // Sub-tab on the home trip view (Days timeline vs Companions panel)
 
 // Per-day card action helpers. The map setTimeout below detects
 // activeMapClickListener and wires it on the map; these helpers just mutate
@@ -738,7 +740,21 @@ export function renderHome() {
                 ` : ''}
             </div>
             <p style="font-size: 0.95rem; color: var(--text-secondary); margin: 6px 0 0; font-weight: 500;">${tripDays.length} Day${tripDays.length !== 1 ? 's' : ''} of adventure</p>
-            ${activeTrip ? `
+        </div>
+
+        ${activeTrip ? `
+            <nav class="home-tabnav" role="tablist">
+                <button class="home-tabnav__tab${activeHomeTab === 'days' ? ' is-active' : ''}" data-home-tab="days" role="tab">Days</button>
+                <button class="home-tabnav__tab${activeHomeTab === 'companions' ? ' is-active' : ''}" data-home-tab="companions" role="tab">Companions</button>
+            </nav>
+        ` : ''}
+
+        <!-- Companions tab content. Render order matters: this sits ABOVE
+             the Days tab in source so the timeline stays the document
+             outline anchor; the active-tab CSS swap hides whichever isn't
+             active without remounting either. -->
+        ${activeTrip ? `
+            <div class="home-tab-content${activeHomeTab === 'companions' ? ' is-active' : ''}" data-home-tab="companions">
                 <div class="trip-companions-section">
                     <button id="tripCompanionsBtn" class="trip-companions-pill" title="${tripIsManageable ? 'Pick which account companions are on this trip' : 'See who is on this trip'}">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -752,10 +768,10 @@ export function renderHome() {
                     </button>
                     ${memberChipsHtml}
                 </div>
-            ` : ''}
-        </div>
+            </div>
+        ` : ''}
 
-        <div style="display: flex; flex-direction: column; gap: 32px; position: relative; padding-left: 20px;">
+        <div class="home-tab-content${activeHomeTab === 'days' ? ' is-active' : ''}" data-home-tab="days" style="display: flex; flex-direction: column; gap: 32px; position: relative; padding-left: 20px;">
             <!-- Subtle Timeline Line -->
             <div style="position: absolute; left: 10px; top: 10px; bottom: 10px; width: 2px; background: linear-gradient(180deg, var(--accent-blue) 0%, rgba(0,113,227,0.05) 100%); border-radius: 1px; opacity: 0.3;"></div>
 
@@ -909,6 +925,22 @@ export function renderHome() {
                     ));
                 }
                 // map's idle listener persists the new view to STATE.mapViews.
+                return;
+            }
+
+            // Home sub-tabs (Days / Companions) — toggle the active block
+            // via class swap; both tabs stay in the DOM so nothing has to
+            // remount on switch (preserves the per-day delegated handlers
+            // and the timeline's animation state).
+            const tabBtn = /** @type {HTMLElement | null} */ (target.closest('.home-tabnav__tab'));
+            if (tabBtn?.dataset.homeTab === 'days' || tabBtn?.dataset.homeTab === 'companions') {
+                activeHomeTab = tabBtn.dataset.homeTab;
+                daysContainer.querySelectorAll('.home-tabnav__tab').forEach(t => {
+                    /** @type {HTMLElement} */ (t).classList.toggle('is-active', /** @type {HTMLElement} */ (t).dataset.homeTab === activeHomeTab);
+                });
+                daysContainer.querySelectorAll('.home-tab-content').forEach(c => {
+                    /** @type {HTMLElement} */ (c).classList.toggle('is-active', /** @type {HTMLElement} */ (c).dataset.homeTab === activeHomeTab);
+                });
                 return;
             }
 
