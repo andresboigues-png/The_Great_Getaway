@@ -110,10 +110,47 @@ export function deleteTrip(tripId) {
     return _delete(`/api/trips/${tripId}`, { user_id: STATE.user.id });
 }
 
-/** Mark a trip as archived (completed) on the server. */
+/** Mark a trip as archived on the server. Phase 3: archive is PER-USER —
+ *  flips the caller's `trip_members.is_archived`, leaving other members'
+ *  state untouched. Owners additionally mirror to legacy `trips.is_archived`
+ *  so collections / public-trips rendering keeps working. */
 export function archiveTripOnServer(tripId) {
     if (!STATE.user) return;
     return _post(`/api/trips/${tripId}/archive`, { user_id: STATE.user.id });
+}
+
+/** Phase 3 — invite a friend (linked-companion's user_id) to a trip with a role.
+ *  Server creates a pending member row + fires `trip_invite` notification. */
+export function inviteTripMember(tripId, targetUserId, role) {
+    if (!STATE.user) return;
+    return _post('/api/trips/invite', {
+        user_id: STATE.user.id,
+        trip_id: tripId,
+        target_user_id: targetUserId,
+        role,
+    });
+}
+
+/** Accept or decline a pending trip invitation. */
+export function respondTripInvite(tripId, accept) {
+    if (!STATE.user) return;
+    return _post('/api/trips/invite/respond', {
+        user_id: STATE.user.id,
+        trip_id: tripId,
+        accept,
+    });
+}
+
+/** Planner-only — hard-remove a member from a trip. Their member row is
+ *  deleted, the trip stops appearing in their /api/data response, and they
+ *  get a `trip_member_removed` notification. */
+export function removeTripMember(tripId, targetUserId) {
+    if (!STATE.user) return;
+    return _post('/api/trips/members/remove', {
+        user_id: STATE.user.id,
+        trip_id: tripId,
+        target_user_id: targetUserId,
+    });
 }
 
 /** Upsert a single expense to the server. */

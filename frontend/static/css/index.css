@@ -2859,6 +2859,53 @@ h1 {
 }
 .btn-link-action:active { transform: scale(0.97); }
 
+/* Trip-role badge — small pill in the trip header that flags Relaxers
+   so the read-only state is obvious at a glance. Same shell as the
+   companion-link-pill but a different colour palette to distinguish
+   "trip role" from "companion link state". */
+.trip-role-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 12px;
+    height: 24px;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    line-height: 1;
+}
+.trip-role-badge--relaxer {
+    background: rgba(142, 142, 147, 0.12);
+    color: #5b5b62;
+    border: 1px solid rgba(142, 142, 147, 0.25);
+}
+.trip-role-badge--planner {
+    background: rgba(0, 113, 227, 0.1);
+    color: var(--accent-blue);
+    border: 1px solid rgba(0, 113, 227, 0.25);
+}
+
+/* Compact role dropdown rendered inline next to a linked-companion row
+   in the trip companion picker. Sized to fit alongside the existing
+   `.companion-link-pill--linked` chip without crowding the row. */
+.companion-row__role-select {
+    flex-shrink: 0;
+    padding: 4px 8px;
+    border-radius: 8px;
+    border: 1px solid rgba(0, 113, 227, 0.25);
+    background: rgba(0, 113, 227, 0.04);
+    color: var(--accent-blue);
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+}
+.companion-row__role-select:focus-visible {
+    outline: 2px solid var(--accent-blue);
+    outline-offset: 2px;
+}
+
 /* Small pill button that warns on hover (grey → red). Used for the
    "Hide" quick-access dismissal — destructive but not catastrophic. */
 .pill-btn-warn-hover {

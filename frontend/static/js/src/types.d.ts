@@ -27,6 +27,24 @@ export interface Category {
     color: string;
 }
 
+/** Phase 3 — `Trip.role` is intentionally a string union with a fallback so
+ *  future role names (editor, observer, treasurer, etc.) can land without
+ *  type churn. The permission helpers in `permissions.js` are the place
+ *  to teach the app what each role can do. */
+export type TripRole = 'planner' | 'relaxer' | string;
+
+/** A user who participates in a trip. Server returns these for every trip
+ *  via /api/data so the home page can show member chips with role badges
+ *  and the expenses/days surfaces can hide edit affordances when needed. */
+export interface TripMember {
+    userId: string;
+    role: TripRole;
+    /** Per-user archive flag — each member archives their own copy. */
+    archived: boolean;
+    name?: string | null;
+    picture?: string | null;
+}
+
 export interface Trip {
     id: string;
     name: string;
@@ -83,6 +101,17 @@ export interface Trip {
      *  who-owes-whom against just its own roster. New trips start with
      *  `[]`; users add companions via the trip-header picker on Home. */
     companions?: string[];
+    /** Trip creator's user_id. Server-set; the client never writes it. */
+    ownerId?: string;
+    /** The current user's role on this trip. Server-set per /api/data
+     *  response (looked up from trip_members). Owners are 'planner'. */
+    myRole?: TripRole;
+    /** Per-user archive flag — true means this user has archived THEIR
+     *  copy of the trip; other members keep their own state. */
+    myArchived?: boolean;
+    /** All accepted members of the trip. Used by the home trip header
+     *  to render the avatar stack + role badges. */
+    members?: TripMember[];
 }
 
 export interface TripDay {

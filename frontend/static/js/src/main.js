@@ -21,7 +21,7 @@ function resolvePage(raw) {
     );
 }
 import { updateUserUI, logout } from './pages/profile.js';
-import { openNewTripModal, openCompanionLinkResponseModal } from './modals.js';
+import { openNewTripModal, openCompanionLinkResponseModal, openTripInviteResponseModal } from './modals.js';
 
 // Global Google Client ID is now provided via index.html template from environment variables
 
@@ -45,6 +45,10 @@ function notificationAccent(type) {
         case 'companion_link_invite': return '175,82,222';   // purple — invite
         case 'companion_link_accepted': return '52,199,89';  // green — accepted
         case 'companion_link_declined': return '142,142,147'; // grey — neutral close
+        case 'trip_invite': return '175,82,222';
+        case 'trip_invite_accepted': return '52,199,89';
+        case 'trip_invite_declined': return '142,142,147';
+        case 'trip_member_removed': return '255,59,48';
         case 'friend_request':
         case 'accepted_request':
         default: return '0,113,227';
@@ -60,6 +64,10 @@ function notificationDefaultTitle(type) {
         case 'companion_link_invite': return 'Companion link request';
         case 'companion_link_accepted': return 'Companion linked';
         case 'companion_link_declined': return 'Companion link declined';
+        case 'trip_invite': return 'Trip invitation';
+        case 'trip_invite_accepted': return 'Trip invite update';
+        case 'trip_invite_declined': return 'Trip invite update';
+        case 'trip_member_removed': return 'Removed from trip';
         case 'alert': return 'Alert';
         default: return 'Notification';
     }
@@ -119,6 +127,18 @@ function handleNotificationClick(notification) {
             // Outcome notifications — just route to the personalization
             // companions tab so the user sees the updated state.
             navigate(PAGES.PERSONALIZATION);
+            break;
+        case 'trip_invite':
+            // Same one-tap decision pattern as the companion-link invite.
+            // The accept path's data shows up via the next /api/data poll.
+            openTripInviteResponseModal(notification);
+            break;
+        case 'trip_invite_accepted':
+        case 'trip_invite_declined':
+        case 'trip_member_removed':
+            // Outcome notifications — land on Home; the trip list will
+            // reflect the new state on the next poll.
+            navigate(PAGES.HOME);
             break;
         default:
             navigate(PAGES.HOME);

@@ -299,9 +299,64 @@ def sync_data():
 # ── DELTA SYNC ENDPOINTS ──────────────────────────────────────────────────────
 # These replace the big /api/sync for targeted, granular writes.
 
+# ── Trip-membership helpers (Phase 3) ────────────────────────────────────────
+# A trip's membership table is the single source of truth for who can see
+# the trip and what they can do. Owners (`trips.user_id == X`) auto-get a
+# row with role='planner' on every trip upsert; invited users start as
+# 'pending' and flip to 'accepted' on respond. `role` is intentionally
+# stringly-typed at this layer so adding new roles later doesn't require
+# a schema migration.
+
+def _ensure_owner_member_row(cursor, trip_id, owner_id):
+    """Idempotent: makes sure the trip's owner has a planner-role member
+    row. Called from /api/trips upsert and from /api/sync's trip loop."""
+    cursor.execute(
+        "INSERT OR IGNORE INTO trip_members "
+        "(trip_id, user_id, role, is_archived, invitation_status, invited_by) "
+        "VALUES (?, ?, 'planner', 0, 'accepted', ?)",
+        (trip_id, owner_id, owner_id),
+    )
+
+
+def _trip_member_role(cursor, trip_id, user_id):
+    """Returns the user's role on the trip ('planner' / 'relaxer' / future
+    extensions) or None if they aren't an accepted member. Owners always
+    return 'planner' even if their member row hasn't been backfilled yet
+    (defensive — a missing owner row is a bug, not a permission boundary)."""
+    cursor.execute(
+        "SELECT role, invitation_status FROM trip_members WHERE trip_id = ? AND user_id = ?",
+        (trip_id, user_id),
+    )
+    row = cursor.fetchone()
+    if row and row["invitation_status"] == "accepted":
+        return row["role"]
+    # Owner fallback — a write to a freshly-created trip might land before
+    # the owner-row backfill; treat owners as planners regardless.
+    cursor.execute("SELECT user_id FROM trips WHERE id = ?", (trip_id,))
+    trip_row = cursor.fetchone()
+    if trip_row and trip_row["user_id"] == user_id:
+        return "planner"
+    return None
+
+
+def _can_edit_trip(cursor, trip_id, user_id):
+    """Permission gate for write endpoints (expenses, days, trip metadata).
+    The role-name check stays here — adding 'editor' or 'co-planner' later
+    is one line in this function."""
+    role = _trip_member_role(cursor, trip_id, user_id)
+    return role == "planner"
+
+
+def _is_trip_owner(cursor, trip_id, user_id):
+    cursor.execute("SELECT user_id FROM trips WHERE id = ?", (trip_id,))
+    row = cursor.fetchone()
+    return bool(row and row["user_id"] == user_id)
+
+
 @app.route("/api/trips", methods=["POST"])
 def upsert_trip():
-    """Create or update a single trip."""
+    """Create or update a single trip. Auto-creates the owner's membership
+    row on insert; rejects edits from non-planners on existing trips."""
     data = request.json
     user_id = data.get("user_id")
     t = data.get("trip")
@@ -309,6 +364,14 @@ def upsert_trip():
         return jsonify({"error": "Missing data"}), 400
     with get_db() as conn:
         cursor = conn.cursor()
+        # Existing trip? Gate on planner role (owner counts as planner).
+        cursor.execute("SELECT user_id FROM trips WHERE id = ?", (t["id"],))
+        existing = cursor.fetchone()
+        if existing and not _can_edit_trip(cursor, t["id"], user_id):
+            return jsonify({"error": "Forbidden"}), 403
+
+        owner_id = existing["user_id"] if existing else user_id
+
         cursor.execute('''
             INSERT INTO trips (id, user_id, name, country, is_archived, is_public,
                                place_id, lat, lng, viewport_json, place_types, country_code,
@@ -326,7 +389,7 @@ def upsert_trip():
                 place_types=excluded.place_types,
                 country_code=excluded.country_code,
                 companions_json=excluded.companions_json
-        ''', (t['id'], user_id, t['name'], t.get('country', ''),
+        ''', (t['id'], owner_id, t['name'], t.get('country', ''),
               1 if t.get('isArchived') else 0,
               1 if t.get('isPublic') else 0,
               t.get('placeId'),
@@ -336,19 +399,25 @@ def upsert_trip():
               json.dumps(t['placeTypes']) if t.get('placeTypes') else None,
               t.get('countryCode'),
               json.dumps(t['companions']) if isinstance(t.get('companions'), list) else None))
+        _ensure_owner_member_row(cursor, t['id'], owner_id)
         conn.commit()
     return jsonify({"status": "ok"})
 
 
 @app.route("/api/trips/<trip_id>", methods=["DELETE"])
 def delete_trip(trip_id):
-    """Delete a trip and all its expenses."""
+    """Delete a trip and all its expenses. Owner-only; non-owners can only
+    leave the trip via the members/remove flow (they don't get to nuke
+    everyone's data)."""
     user_id = request.json.get("user_id")
     if not user_id:
         return jsonify({"error": "Unauthorized"}), 401
     with get_db() as conn:
         cursor = conn.cursor()
+        if not _is_trip_owner(cursor, trip_id, user_id):
+            return jsonify({"error": "Forbidden"}), 403
         cursor.execute("DELETE FROM expenses WHERE trip_id = ?", (trip_id,))
+        cursor.execute("DELETE FROM trip_members WHERE trip_id = ?", (trip_id,))
         cursor.execute("DELETE FROM trips WHERE id = ? AND user_id = ?", (trip_id, user_id))
         conn.commit()
     return jsonify({"status": "deleted"})
@@ -356,23 +425,200 @@ def delete_trip(trip_id):
 
 @app.route("/api/trips/<trip_id>/archive", methods=["POST"])
 def archive_trip(trip_id):
-    """Mark a trip as archived (completed)."""
+    """Per-user archive toggle — flips THIS caller's `trip_members.is_archived`
+    only. Other members keep their own state. Any role (incl. relaxer) can
+    archive their own copy; relaxers just hide the trip from their active
+    list while planners keep editing."""
     user_id = request.json.get("user_id")
     if not user_id:
         return jsonify({"error": "Unauthorized"}), 401
     with get_db() as conn:
         cursor = conn.cursor()
+        if _trip_member_role(cursor, trip_id, user_id) is None:
+            return jsonify({"error": "Forbidden"}), 403
         cursor.execute(
-            "UPDATE trips SET is_archived = 1 WHERE id = ? AND user_id = ?",
-            (trip_id, user_id)
+            "UPDATE trip_members SET is_archived = 1 WHERE trip_id = ? AND user_id = ?",
+            (trip_id, user_id),
         )
+        # Mirror to legacy `trips.is_archived` only when the actor is the
+        # owner — keeps the existing public-trip / collections rendering
+        # working without a parallel sweep.
+        if _is_trip_owner(cursor, trip_id, user_id):
+            cursor.execute(
+                "UPDATE trips SET is_archived = 1 WHERE id = ? AND user_id = ?",
+                (trip_id, user_id),
+            )
         conn.commit()
     return jsonify({"status": "archived"})
 
 
+# ── Trip member endpoints (Phase 3) ──────────────────────────────────────────
+
+@app.route("/api/trips/invite", methods=["POST"])
+def invite_trip_member():
+    """Planner invites a linked-companion's friend to a trip with a role.
+    Creates a `pending` member row + fires a `trip_invite` notification at
+    the friend. Only planners (incl. owner) of the trip can invite.
+
+    Request body: { user_id (inviter), trip_id, target_user_id, role }
+    """
+    data = request.json or {}
+    inviter = data.get("user_id")
+    trip_id = data.get("trip_id")
+    target = data.get("target_user_id")
+    role = (data.get("role") or "relaxer").strip()
+    if role not in ("planner", "relaxer"):
+        return jsonify({"error": "Unknown role"}), 400
+    if not inviter or not trip_id or not target:
+        return jsonify({"error": "Missing data"}), 400
+    if inviter == target:
+        return jsonify({"error": "Cannot invite yourself"}), 400
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        if not _can_edit_trip(cursor, trip_id, inviter):
+            return jsonify({"error": "Forbidden"}), 403
+
+        # If the target already has any member row (pending or accepted),
+        # update its role/status; otherwise insert a fresh pending row.
+        cursor.execute(
+            "INSERT INTO trip_members (trip_id, user_id, role, is_archived, invitation_status, invited_by) "
+            "VALUES (?, ?, ?, 0, 'pending', ?) "
+            "ON CONFLICT(trip_id, user_id) DO UPDATE SET "
+            "  role = excluded.role, "
+            "  invitation_status = CASE WHEN trip_members.invitation_status = 'accepted' "
+            "                           THEN 'accepted' ELSE 'pending' END, "
+            "  invited_by = excluded.invited_by",
+            (trip_id, target, role, inviter),
+        )
+
+        cursor.execute("SELECT name FROM users WHERE id = ?", (inviter,))
+        inviter_row = cursor.fetchone()
+        inviter_name = inviter_row["name"] if inviter_row else "Someone"
+        cursor.execute("SELECT name FROM trips WHERE id = ?", (trip_id,))
+        trip_row = cursor.fetchone()
+        trip_name = trip_row["name"] if trip_row else "their trip"
+
+        msg = f"{inviter_name} invited you to {trip_name} as a {role.title()}."
+        # `related_id` carries the trip_id so the response modal knows
+        # which trip to accept; the inviter id is encoded into the title
+        # via a fallback path the modal also reads.
+        cursor.execute(
+            "INSERT INTO notifications (user_id, type, title, related_id, message, is_read) "
+            "VALUES (?, 'trip_invite', 'Trip invitation', ?, ?, 0)",
+            (target, trip_id, msg),
+        )
+        conn.commit()
+    return jsonify({"status": "ok"})
+
+
+@app.route("/api/trips/invite/respond", methods=["POST"])
+def respond_trip_invite():
+    """Accept or decline a pending trip invite. On accept the member row
+    flips to `accepted` and the trip starts appearing in /api/data; on
+    decline the row is deleted entirely (per the user's spec — removed
+    relaxers don't keep an archived shell). Inviter gets a notification
+    either way.
+
+    Request body: { user_id (responder), trip_id, accept }
+    """
+    data = request.json or {}
+    user_id = data.get("user_id")
+    trip_id = data.get("trip_id")
+    accept = bool(data.get("accept"))
+    if not user_id or not trip_id:
+        return jsonify({"error": "Missing data"}), 400
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT invited_by FROM trip_members WHERE trip_id = ? AND user_id = ? AND invitation_status = 'pending'",
+            (trip_id, user_id),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"error": "No pending invitation"}), 404
+        inviter_id = row["invited_by"]
+
+        cursor.execute("SELECT name FROM users WHERE id = ?", (user_id,))
+        responder_row = cursor.fetchone()
+        responder_name = responder_row["name"] if responder_row else "Someone"
+        cursor.execute("SELECT name FROM trips WHERE id = ?", (trip_id,))
+        trip_row = cursor.fetchone()
+        trip_name = trip_row["name"] if trip_row else "the trip"
+
+        if accept:
+            cursor.execute(
+                "UPDATE trip_members SET invitation_status = 'accepted' WHERE trip_id = ? AND user_id = ?",
+                (trip_id, user_id),
+            )
+            msg = f"{responder_name} joined {trip_name}."
+            note_type = "trip_invite_accepted"
+        else:
+            cursor.execute(
+                "DELETE FROM trip_members WHERE trip_id = ? AND user_id = ?",
+                (trip_id, user_id),
+            )
+            msg = f"{responder_name} declined the invite to {trip_name}."
+            note_type = "trip_invite_declined"
+
+        if inviter_id:
+            cursor.execute(
+                "INSERT INTO notifications (user_id, type, title, related_id, message, is_read) "
+                "VALUES (?, ?, 'Trip invite update', ?, ?, 0)",
+                (inviter_id, note_type, trip_id, msg),
+            )
+        conn.commit()
+    return jsonify({"status": "ok"})
+
+
+@app.route("/api/trips/members/remove", methods=["POST"])
+def remove_trip_member():
+    """Planner kicks a member from a trip. Hard remove (the row is gone),
+    so the kicked user's account stops seeing the trip on its next
+    /api/data poll — per the user's spec ("if a planner removes a user it
+    means he wasn't supposed to be on that trip"). Owner can't be removed.
+
+    Request body: { user_id (actor), trip_id, target_user_id }
+    """
+    data = request.json or {}
+    actor = data.get("user_id")
+    trip_id = data.get("trip_id")
+    target = data.get("target_user_id")
+    if not actor or not trip_id or not target:
+        return jsonify({"error": "Missing data"}), 400
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        if not _can_edit_trip(cursor, trip_id, actor):
+            return jsonify({"error": "Forbidden"}), 403
+        if _is_trip_owner(cursor, trip_id, target):
+            return jsonify({"error": "Cannot remove the trip owner"}), 400
+        cursor.execute(
+            "DELETE FROM trip_members WHERE trip_id = ? AND user_id = ?",
+            (trip_id, target),
+        )
+
+        cursor.execute("SELECT name FROM users WHERE id = ?", (actor,))
+        actor_row = cursor.fetchone()
+        actor_name = actor_row["name"] if actor_row else "A planner"
+        cursor.execute("SELECT name FROM trips WHERE id = ?", (trip_id,))
+        trip_row = cursor.fetchone()
+        trip_name = trip_row["name"] if trip_row else "a trip"
+        msg = f"{actor_name} removed you from {trip_name}."
+        cursor.execute(
+            "INSERT INTO notifications (user_id, type, title, related_id, message, is_read) "
+            "VALUES (?, 'trip_member_removed', 'Removed from trip', ?, ?, 0)",
+            (target, trip_id, msg),
+        )
+        conn.commit()
+    return jsonify({"status": "ok"})
+
+
 @app.route("/api/expenses", methods=["POST"])
 def upsert_expense():
-    """Create or update a single expense."""
+    """Create or update a single expense. Planner-role gate: only members
+    with role=planner (incl. trip owner) can write expenses on shared trips."""
     data = request.json
     user_id = data.get("user_id")
     e = data.get("expense")
@@ -380,6 +626,8 @@ def upsert_expense():
         return jsonify({"error": "Missing data"}), 400
     with get_db() as conn:
         cursor = conn.cursor()
+        if not _can_edit_trip(cursor, e["tripId"], user_id):
+            return jsonify({"error": "Forbidden"}), 403
         cursor.execute('''
             INSERT INTO expenses (id, trip_id, who, category_id, label, date, country, value, currency, euro_value)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -401,9 +649,20 @@ def upsert_expense():
 
 @app.route("/api/expenses/<expense_id>", methods=["DELETE"])
 def delete_expense(expense_id):
-    """Delete a single expense by ID."""
+    """Delete a single expense by ID. Planner-role gate. Caller passes
+    user_id in the body so we can verify they're a planner on the
+    expense's trip."""
+    user_id = (request.json or {}).get("user_id")
+    if not user_id:
+        return jsonify({"error": "Unauthorized"}), 401
     with get_db() as conn:
         cursor = conn.cursor()
+        cursor.execute("SELECT trip_id FROM expenses WHERE id = ?", (expense_id,))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"status": "deleted"})  # idempotent
+        if not _can_edit_trip(cursor, row["trip_id"], user_id):
+            return jsonify({"error": "Forbidden"}), 403
         cursor.execute("DELETE FROM expenses WHERE id = ?", (expense_id,))
         conn.commit()
     return jsonify({"status": "deleted"})
@@ -706,7 +965,7 @@ def delete_budget(budget_id):
 
 @app.route("/api/days", methods=["POST"])
 def upsert_day():
-    """Create or update a single trip day."""
+    """Create or update a single trip day. Planner-role gate."""
     data = request.json
     user_id = data.get("user_id")
     d = data.get("day")
@@ -714,6 +973,8 @@ def upsert_day():
         return jsonify({"error": "Missing data"}), 400
     with get_db() as conn:
         cursor = conn.cursor()
+        if not _can_edit_trip(cursor, d.get("tripId"), user_id):
+            return jsonify({"error": "Forbidden"}), 403
         cursor.execute('''
             INSERT INTO trip_days (id, trip_id, day_number, date, name, morning, afternoon, evening, tip, lat, lng)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -740,9 +1001,18 @@ def upsert_day():
 
 @app.route("/api/days/<day_id>", methods=["DELETE"])
 def delete_day(day_id):
-    """Delete a single trip day."""
+    """Delete a single trip day. Planner-role gate."""
+    user_id = (request.json or {}).get("user_id")
+    if not user_id:
+        return jsonify({"error": "Unauthorized"}), 401
     with get_db() as conn:
         cursor = conn.cursor()
+        cursor.execute("SELECT trip_id FROM trip_days WHERE id = ?", (day_id,))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"status": "deleted"})  # idempotent
+        if not _can_edit_trip(cursor, row["trip_id"], user_id):
+            return jsonify({"error": "Forbidden"}), 403
         cursor.execute("DELETE FROM trip_days WHERE id = ?", (day_id,))
         conn.commit()
     return jsonify({"status": "deleted"})
@@ -1032,18 +1302,31 @@ def get_data():
 
     with get_db() as conn:
         cursor = conn.cursor()
-        
-        # Get owned trips + shared trips
+
+        # Get trips visible to the caller. Phase 3: union of (owned) + (any
+        # accepted member row in trip_members). The legacy
+        # `trip_collaborators` table is unioned in too so existing rows
+        # don't fall off the radar before being migrated.
         cursor.execute('''
-            SELECT * FROM trips WHERE user_id = ? 
+            SELECT t.*
+            FROM trips t
+            WHERE t.user_id = ?
             UNION
-            SELECT t.* FROM trips t JOIN trip_collaborators c ON t.id = c.trip_id WHERE c.user_id = ?
-        ''', (user_id, user_id))
+            SELECT t.*
+            FROM trips t
+            JOIN trip_members m ON m.trip_id = t.id
+            WHERE m.user_id = ? AND m.invitation_status = 'accepted'
+            UNION
+            SELECT t.*
+            FROM trips t
+            JOIN trip_collaborators c ON c.trip_id = t.id
+            WHERE c.user_id = ?
+        ''', (user_id, user_id, user_id))
         trips_rows = cursor.fetchall()
         trips = []
         for r in trips_rows:
             t = dict(r)
-            t['isArchived'] = bool(t.pop('is_archived'))
+            t['ownerId'] = t.get('user_id')
             t['isPublic'] = bool(t.pop('is_public'))
             t['placeId'] = t.pop('place_id', None)
             viewport_raw = t.pop('viewport_json', None)
@@ -1053,14 +1336,53 @@ def get_data():
             t['countryCode'] = t.pop('country_code', None)
             companions_raw = t.pop('companions_json', None)
             t['companions'] = json.loads(companions_raw) if companions_raw else []
+
+            # Per-user archive + role come from THIS user's trip_members row.
+            # Owners may not have a row yet on legacy data — fall back to the
+            # trips-level flag and 'planner' so the UI doesn't break.
+            cursor.execute(
+                "SELECT role, is_archived FROM trip_members WHERE trip_id = ? AND user_id = ?",
+                (t['id'], user_id),
+            )
+            mrow = cursor.fetchone()
+            if mrow:
+                t['myRole'] = mrow['role']
+                t['myArchived'] = bool(mrow['is_archived'])
+                t['isArchived'] = bool(mrow['is_archived'])
+            else:
+                # Legacy path — owner without a member row.
+                t['myRole'] = 'planner' if t['ownerId'] == user_id else 'relaxer'
+                legacy_archived = bool(t.get('is_archived'))
+                t['myArchived'] = legacy_archived
+                t['isArchived'] = legacy_archived
+            t.pop('is_archived', None)
+
+            # Member list (accepted only) for trip-header member chips.
+            cursor.execute('''
+                SELECT m.user_id, m.role, m.is_archived, m.invitation_status,
+                       u.name AS user_name, u.picture AS user_picture
+                FROM trip_members m
+                LEFT JOIN users u ON u.id = m.user_id
+                WHERE m.trip_id = ? AND m.invitation_status = 'accepted'
+            ''', (t['id'],))
+            t['members'] = [
+                {
+                    'userId': mr['user_id'],
+                    'role': mr['role'],
+                    'archived': bool(mr['is_archived']),
+                    'name': mr['user_name'],
+                    'picture': mr['user_picture'],
+                }
+                for mr in cursor.fetchall()
+            ]
             trips.append(t)
-        
+
         # Get all expenses for these trips
         trip_ids = [t['id'] for t in trips]
         expenses = []
         if trip_ids:
             placeholders = ','.join(['?'] * len(trip_ids))
-            
+
             cursor.execute(f"SELECT * FROM expenses WHERE trip_id IN ({placeholders})", trip_ids)
             expenses = [dict(row) for row in cursor.fetchall()]
 
@@ -1089,12 +1411,16 @@ def get_data():
         budgets_rows = cursor.fetchall()
         budgets = [{'id': r['id'], 'tripId': r['trip_id'], 'label': r['label'], 'amount': r['amount'], 'currency': r['currency']} for r in budgets_rows]
 
-        # Get Trip Days
-        cursor.execute('''
-            SELECT d.* FROM trip_days d 
-            JOIN trips t ON d.trip_id = t.id 
-            WHERE t.user_id = ?
-        ''', (user_id,))
+        # Get Trip Days for every trip the caller can see (owned + shared).
+        # The trip_ids list above already encodes that visibility set.
+        if trip_ids:
+            placeholders = ','.join(['?'] * len(trip_ids))
+            cursor.execute(
+                f"SELECT * FROM trip_days WHERE trip_id IN ({placeholders})",
+                trip_ids,
+            )
+        else:
+            cursor.execute("SELECT * FROM trip_days WHERE 1=0")
         days_rows = cursor.fetchall()
         trip_days = []
         for r in days_rows:

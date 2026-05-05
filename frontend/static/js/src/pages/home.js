@@ -7,7 +7,8 @@ import { getMediaForTrip, showLiquidAlert, formatDayDate, q, showConfirmModal, g
 import { upsertDay, uploadMedia, deleteDayOnServer, upsertTrip } from '../api.js';
 import { navigate } from '../router.js';
 import { showPersTab } from './settings.js';
-import { openNewTripModal, openAddDayModal, openEditTripModal, openCompanionPickerModal } from '../modals.js';
+import { openNewTripModal, openAddDayModal, openEditTripModal, openCompanionPickerModal, openTripMembersModal } from '../modals.js';
+import { canEdit, canManageRoster } from '../permissions.js';
 
 // Empty-state slideshow timer. Lives in this module; router.js calls
 // stopHomeSlideshow() on every navigate so the timer doesn't leak past home.
@@ -640,6 +641,11 @@ export function renderHome() {
     tripDays.sort((a, b) => a.dayNumber - b.dayNumber);
 
     const tripTitle = (activeTrip && activeTrip.name) ? activeTrip.name : 'Your Journey';
+    // Phase 3 — role gating. The trip owner gets full edit controls; other
+    // Planners can edit content (expenses/days) but can't reshape the
+    // roster; Relaxers see the trip read-only.
+    const tripIsManageable = canManageRoster(activeTrip);
+    const tripIsEditable = canEdit(activeTrip);
 
     daysContainer.innerHTML = `
         <div style="display: flex; flex-direction: column; margin-bottom: 24px;">
@@ -652,19 +658,24 @@ export function renderHome() {
                     <h2 style="font-size: 1.8rem; letter-spacing: -0.03em; margin: 0; font-weight: 800; color: #002d5b;">${tripTitle}</h2>
                 `}
                 ${activeTrip ? `
-                    <button id="editTripBtn" class="icon-btn-square" title="Edit trip name and location">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
-                    </button>
-                    <button id="tripCompanionsBtn" class="trip-companions-pill" title="Pick which account companions are on this trip">
+                    ${tripIsManageable ? `
+                        <button id="editTripBtn" class="icon-btn-square" title="Edit trip name and location">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                        </button>
+                    ` : ''}
+                    <button id="tripCompanionsBtn" class="trip-companions-pill" title="${tripIsManageable ? 'Pick which account companions are on this trip' : 'See who is on this trip'}">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                             <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
                             <circle cx="9" cy="7" r="4"></circle>
                             <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
                             <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
                         </svg>
-                        <span>Companions</span>
-                        <span class="trip-companions-pill__count">${(activeTrip.companions || []).length}</span>
+                        <span>${tripIsManageable ? 'Companions' : 'Members'}</span>
+                        <span class="trip-companions-pill__count">${tripIsManageable ? (activeTrip.companions || []).length : (activeTrip.members || []).length}</span>
                     </button>
+                    ${!tripIsEditable ? `
+                        <span class="trip-role-badge trip-role-badge--relaxer" title="You're a Relaxer on this trip — view-only">👁 Relaxer</span>
+                    ` : ''}
                 ` : ''}
             </div>
             <p style="font-size: 0.95rem; color: var(--text-secondary); margin: 6px 0 0; font-weight: 500;">${tripDays.length} Day${tripDays.length !== 1 ? 's' : ''} of adventure</p>
@@ -682,12 +693,13 @@ export function renderHome() {
                     <!-- Timeline Dot — Starting Point uses a green dot to distinguish from numbered days -->
                     <div style="position: absolute; left: -14px; top: 22px; width: 10px; height: 10px; border-radius: 50%; background: ${isOpen ? (isStartingPoint ? '#34c759' : 'var(--accent-blue)') : 'white'}; border: 2px solid ${isStartingPoint ? '#34c759' : 'var(--accent-blue)'}; z-index: 2; box-shadow: 0 0 0 4px white;"></div>
 
-                    <!-- LEFT SPACE MENU — collapses both width AND height to 0 when closed.
-                         (Width alone isn't enough: flex column children still stack to their
-                         natural height, which would inflate the row and leave a vertical gap.) -->
+                    <!-- LEFT SPACE MENU — only rendered for users with edit
+                         rights. Relaxers see the day cards as read-only,
+                         no actions panel beside them. -->
+                    ${tripIsEditable ? `
                     <div class="day-actions-panel${isOpen ? ' is-open' : ''}">
                         <div class="day-actions-label">Actions</div>
-                        
+
                         ${editingDayId === day.id ? `
                             <div style="display: flex; gap: var(--space-1);">
                                 <button class="day-action-btn day-action-btn--success day-pin-save-btn" data-day-id="${day.id}" style="flex: 2; justify-content: center;">Save Pin</button>
@@ -715,6 +727,7 @@ export function renderHome() {
                             <span>🗑️ Delete Day</span>
                         </button>
                     </div>
+                    ` : ''}
 
                     <!-- MAIN CARD -->
                     <div class="day-card card glass${isOpen ? ' is-open' : ''}"
@@ -767,11 +780,14 @@ export function renderHome() {
                 </div>
             `}).join('')}
             
-            <!-- ADD DAY BUTTON (Vertical Timeline Style) -->
+            <!-- ADD DAY BUTTON — hidden for non-planners (relaxers can't
+                 mutate the day list). -->
+            ${tripIsEditable ? `
             <div id="addDayBtn">
                 <div class="add-dot" style="width: 14px; height: 14px; border-radius: 50%; border: 2px dashed var(--accent-blue); background: transparent; margin-left: -2px;"></div>
                 <div class="add-text" style="font-weight: 700; color: var(--text-secondary); font-size: var(--font-lg); letter-spacing: -0.01em;">+ Add a new day to your journey</div>
             </div>
+            ` : ''}
         </div>
     `;
 
@@ -822,11 +838,19 @@ export function renderHome() {
                 return;
             }
 
-            // Edit-trip pencil — sits at the top of daysContainer, no per-day data.
+            // Edit-trip pencil — owner-only, hidden when !manageable.
             if (target.closest('#editTripBtn')) { openEditTripModal(activeTrip); return; }
 
-            // Companions picker — same neighbourhood, scopes who's on this trip.
-            if (target.closest('#tripCompanionsBtn')) { openCompanionPickerModal(activeTrip.id); return; }
+            // Companions / Members button — owner picks roster, others see
+            // a read-only members list (the helper handles the dispatch).
+            if (target.closest('#tripCompanionsBtn')) {
+                if (canManageRoster(activeTrip)) {
+                    openCompanionPickerModal(activeTrip.id);
+                } else {
+                    openTripMembersModal(activeTrip.id);
+                }
+                return;
+            }
 
             const saveBtn = /** @type {HTMLElement | null} */ (target.closest('.day-pin-save-btn'));
             if (saveBtn?.dataset.dayId) { saveDayPin(saveBtn.dataset.dayId); return; }

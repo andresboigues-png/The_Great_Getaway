@@ -6,7 +6,16 @@
 
 import { STATE, emit } from './state.js';
 import { generateId, showLiquidAlert, q } from './utils.js';
-import { upsertTrip, upsertDay, fetchAcceptedFriends, inviteCompanionLink, respondCompanionLink } from './api.js';
+import {
+    upsertTrip,
+    upsertDay,
+    fetchAcceptedFriends,
+    inviteCompanionLink,
+    respondCompanionLink,
+    inviteTripMember,
+    respondTripInvite,
+    removeTripMember,
+} from './api.js';
 import { navigate } from './router.js';
 import {
     getCompanionNames,
@@ -15,6 +24,7 @@ import {
     markCompanionLinkPending,
     addCompanion,
 } from './companions.js';
+import { ROLE_PLANNER, ROLE_RELAXER, canManageRoster } from './permissions.js';
 
 /**
  * @typedef {{ placeId: string, name: string, lat: number, lng: number,
@@ -423,7 +433,16 @@ export const openCompanionPickerModal = (tripId) => {
     const trip = STATE.trips.find(t => t.id === tripId);
     if (!trip) return;
 
+    // Roster management is owner-only in Phase 3 — sidesteps "two planners
+    // both named the same companion differently" naming-conflict for now.
+    // Non-owners get a read-only members view via openTripMembersModal.
+    if (!canManageRoster(trip)) {
+        openTripMembersModal(tripId);
+        return;
+    }
+
     if (!Array.isArray(trip.companions)) trip.companions = [];
+    const previousCompanions = [...trip.companions];
 
     // Names that have outstanding expenses on this trip — must stay checked.
     const referenced = new Set(
@@ -433,40 +452,73 @@ export const openCompanionPickerModal = (tripId) => {
             .filter(Boolean)
     );
 
+    // Snapshot of who's already an accepted member (so we know whether
+    // a check is "newly inviting" vs "already on the trip").
+    const existingMemberIds = new Set((trip.members || []).map(m => m.userId));
+    const myId = STATE.user?.id;
+
     const modal = document.createElement('div');
     modal.className = 'modal-overlay';
     modal.style.display = 'flex';
     modal.style.backdropFilter = 'blur(25px)';
 
+    /** Build a row for one companion. Linked companions get a role select
+     *  next to the checkbox so the owner can pick Planner/Relaxer at the
+     *  moment of inviting; the value is read on save. */
+    const buildRow = (/** @type {import('./types').Companion} */ c) => {
+        const name = c.name;
+        const isChecked = trip.companions?.includes(name) ?? false;
+        const isLocked = referenced.has(name);
+        // Linked-and-already-a-member: show the locked role instead of a select.
+        const linkedToFriend = c.linkStatus === 'accepted' && c.linkedUserId;
+        const alreadyMember = linkedToFriend && existingMemberIds.has(c.linkedUserId || '');
+        const memberRole = alreadyMember
+            ? (trip.members || []).find(m => m.userId === c.linkedUserId)?.role
+            : null;
+
+        let trailing = '';
+        if (isLocked) {
+            trailing = '<span class="companion-row__lock" title="Has expenses on this trip">🔒</span>';
+        } else if (alreadyMember) {
+            trailing = `<span class="companion-link-pill companion-link-pill--linked">${memberRole === ROLE_PLANNER ? 'Planner' : 'Relaxer'}</span>`;
+        } else if (linkedToFriend) {
+            trailing = `
+                <span class="companion-link-pill companion-link-pill--linked" title="Will receive a trip invitation">🟢 Linked</span>
+                <select class="companion-row__role-select" data-name="${name}" data-friend-id="${c.linkedUserId}">
+                    <option value="${ROLE_RELAXER}" selected>Relaxer</option>
+                    <option value="${ROLE_PLANNER}">Planner</option>
+                </select>
+            `;
+        }
+
+        return `
+            <label class="companion-row${isLocked ? ' is-locked' : ''}">
+                <input type="checkbox" class="companion-row__cb" data-name="${name}" data-linked-id="${c.linkedUserId || ''}"
+                       ${isChecked || isLocked ? 'checked' : ''}
+                       ${isLocked ? 'disabled' : ''}>
+                <span class="companion-row__name">${name}</span>
+                ${trailing}
+            </label>
+        `;
+    };
+
     /** @returns {string} */
     const renderRows = () => {
-        const allNames = getCompanionNames();
-        if (allNames.length === 0) {
+        const all = STATE.groups || [];
+        if (all.length === 0) {
             return `<p style="text-align:center; color: rgba(0,0,0,0.55); padding: var(--space-6); margin: 0;">
                 No companions yet. Add some in
                 <a href="#" class="link-underline" id="companionPickerGotoSettings">personalization</a>.
             </p>`;
         }
-        return allNames.map(name => {
-            const isChecked = trip.companions?.includes(name) ?? false;
-            const isLocked = referenced.has(name);
-            return `
-                <label class="companion-row${isLocked ? ' is-locked' : ''}">
-                    <input type="checkbox" class="companion-row__cb" data-name="${name}"
-                           ${isChecked || isLocked ? 'checked' : ''}
-                           ${isLocked ? 'disabled' : ''}>
-                    <span class="companion-row__name">${name}</span>
-                    ${isLocked ? '<span class="companion-row__lock" title="Has expenses on this trip">🔒</span>' : ''}
-                </label>
-            `;
-        }).join('');
+        return all.map(buildRow).join('');
     };
 
     modal.innerHTML = `
-        <div class="card-glass-modal-light" style="width: 460px; max-height: 80vh; display: flex; flex-direction: column;">
+        <div class="card-glass-modal-light" style="width: 480px; max-height: 80vh; display: flex; flex-direction: column;">
             <h2 style="margin: 0 0 var(--space-2); font-size: var(--font-2xl); color: #002d5b; font-weight: 800; letter-spacing: -0.03em;">Trip Companions</h2>
             <p style="margin: 0 0 var(--space-5); font-size: var(--font-base); color: rgba(0,0,0,0.55);">
-                Pick who's coming on <strong>${trip.name}</strong>. Splits, balances, and the expense form scope to this list.
+                Pick who's coming on <strong>${trip.name}</strong>. Linked companions will receive a trip invitation — pick their role at the moment of invite.
             </p>
 
             <div id="companionPickerList" style="display: flex; flex-direction: column; gap: var(--space-2); overflow-y: auto; padding: var(--space-1); margin-bottom: var(--space-5); flex: 1; min-height: 0;">
@@ -492,7 +544,7 @@ export const openCompanionPickerModal = (tripId) => {
         };
     }
 
-    /** @type {HTMLButtonElement} */ (q(modal, '#companionPickerSaveBtn')).onclick = () => {
+    /** @type {HTMLButtonElement} */ (q(modal, '#companionPickerSaveBtn')).onclick = async () => {
         const checked = /** @type {NodeListOf<HTMLInputElement>} */ (
             modal.querySelectorAll('.companion-row__cb:checked')
         );
@@ -503,6 +555,35 @@ export const openCompanionPickerModal = (tripId) => {
         trip.companions = picked;
         emit('state:changed');               // saveState + UI subscribers
         upsertTrip(trip);                    // server delta
+
+        // Diff vs. the previous list to fire the right side-effects:
+        //   - newly-checked + linked + not-yet-a-member  → trip invitation
+        //   - newly-unchecked + linked + currently-a-member → member remove
+        // (Self-link case is filtered out — owner is auto-member.)
+        const prev = new Set(previousCompanions);
+        const next = new Set(picked);
+        const added = picked.filter(n => !prev.has(n));
+        const removed = previousCompanions.filter(n => !next.has(n));
+
+        for (const name of added) {
+            const c = findCompanion(name);
+            if (!c || c.linkStatus !== 'accepted' || !c.linkedUserId) continue;
+            if (c.linkedUserId === myId) continue;       // can't invite yourself
+            if (existingMemberIds.has(c.linkedUserId)) continue; // already a member
+            const select = /** @type {HTMLSelectElement | null} */ (
+                modal.querySelector(`.companion-row__role-select[data-name="${name}"]`)
+            );
+            const role = select?.value || ROLE_RELAXER;
+            await inviteTripMember(trip.id, c.linkedUserId, role);
+        }
+
+        for (const name of removed) {
+            const c = findCompanion(name);
+            if (!c || !c.linkedUserId) continue;
+            if (!existingMemberIds.has(c.linkedUserId)) continue;
+            await removeTripMember(trip.id, c.linkedUserId);
+        }
+
         showLiquidAlert(`${picked.length} companion${picked.length === 1 ? '' : 's'} on this trip`);
         modal.remove();
         navigate('home', null, true);
@@ -649,6 +730,113 @@ export const openCompanionLinkResponseModal = (notification) => {
 
     /** @type {HTMLButtonElement} */ (q(modal, '#linkResponseDeclineBtn')).onclick = async () => {
         await respondCompanionLink(inviterUserId, false, '');
+        showLiquidAlert("Declined");
+        modal.remove();
+    };
+};
+
+// ── Phase 3: trip-member modals ─────────────────────────────────────────────
+
+/** Read-only "who's on this trip" view for non-owner members. Shows the
+ *  member list with role badges + the inviter's name. Non-owner planners
+ *  can't reshape the roster (Phase 3 keeps roster ownership owner-only),
+ *  but they get the same visibility into who's involved.
+ *  @param {string} tripId */
+export const openTripMembersModal = (tripId) => {
+    const trip = STATE.trips.find(t => t.id === tripId);
+    if (!trip) return;
+
+    const members = trip.members || [];
+    const owner = members.find(m => m.userId === trip.ownerId);
+    const others = members.filter(m => m.userId !== trip.ownerId);
+
+    const roleLabel = (/** @type {string} */ role) =>
+        role === ROLE_PLANNER ? 'Planner' : role === ROLE_RELAXER ? 'Relaxer' : role;
+
+    const memberRow = (/** @type {import('./types').TripMember} */ m, isOwnerRow) => `
+        <div class="companion-row" style="cursor: default;">
+            ${m.picture ? `<img src="${m.picture}" alt="" style="width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;">` : ''}
+            <span class="companion-row__name">${m.name || m.userId}</span>
+            <span class="companion-link-pill ${isOwnerRow ? 'companion-link-pill--linked' : 'companion-link-pill--pending'}">
+                ${isOwnerRow ? '👑 Owner' : roleLabel(m.role)}
+            </span>
+        </div>
+    `;
+
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.style.display = 'flex';
+    modal.style.backdropFilter = 'blur(25px)';
+
+    modal.innerHTML = `
+        <div class="card-glass-modal-light" style="width: 460px; max-height: 80vh; display: flex; flex-direction: column;">
+            <h2 style="margin: 0 0 var(--space-2); font-size: var(--font-2xl); color: #002d5b; font-weight: 800; letter-spacing: -0.03em;">Trip members</h2>
+            <p style="margin: 0 0 var(--space-5); font-size: var(--font-base); color: rgba(0,0,0,0.55);">
+                You're on <strong>${trip.name}</strong> as a <strong>${roleLabel(trip.myRole || ROLE_RELAXER)}</strong>. Roster is managed by the trip owner.
+            </p>
+
+            <div style="display: flex; flex-direction: column; gap: var(--space-2); overflow-y: auto; padding: var(--space-1); margin-bottom: var(--space-5); flex: 1; min-height: 0;">
+                ${owner ? memberRow(owner, true) : ''}
+                ${others.map(m => memberRow(m, false)).join('')}
+            </div>
+
+            <div style="display: flex; gap: var(--space-3); flex-shrink: 0;">
+                <button id="tripMembersCloseBtn" class="btn-neutral" style="flex: 1; border-radius: var(--radius-lg);">Close</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    /** @type {HTMLButtonElement} */ (q(modal, '#tripMembersCloseBtn')).onclick = () => modal.remove();
+};
+
+/** Accept/decline an incoming trip invitation. Shown when the user clicks
+ *  a `trip_invite` notification. The notification's `related_id` is the
+ *  trip_id; we don't have the trip on STATE yet (that arrives on next
+ *  /api/data poll after acceptance), so the message body is the only
+ *  source of context about which trip / role.
+ *  @param {{ related_id?: string | number; message?: string; title?: string }} notification */
+export const openTripInviteResponseModal = (notification) => {
+    const tripId = notification.related_id ? String(notification.related_id) : '';
+    if (!tripId) return;
+
+    // Pull trip name + role out of the message ("X invited you to <trip> as a <role>.").
+    const m = (notification.message || '').match(/invited you to (.+?) as a (\w+)/i);
+    const tripName = m ? m[1] : 'a trip';
+    const roleName = m ? m[2] : 'member';
+
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.style.display = 'flex';
+    modal.style.backdropFilter = 'blur(25px)';
+
+    modal.innerHTML = `
+        <div class="card-glass-modal-light" style="width: 440px;">
+            <h2 style="margin: 0 0 var(--space-2); font-size: var(--font-2xl); color: #002d5b; font-weight: 800; letter-spacing: -0.03em;">Trip invitation</h2>
+            <p style="margin: 0 0 var(--space-5); font-size: var(--font-base); color: rgba(0,0,0,0.6); line-height: 1.5;">
+                ${notification.message || `You've been invited to ${tripName} as a ${roleName}.`}
+            </p>
+            <p style="margin: 0 0 var(--space-5); font-size: var(--font-sm); color: rgba(0,0,0,0.5);">
+                Accept and the trip appears in your active list. Planners can edit; Relaxers can only watch.
+            </p>
+
+            <div style="display: flex; gap: var(--space-3);">
+                <button id="tripInviteAcceptBtn" class="btn-primary" style="flex: 2; padding: var(--space-4); border-radius: var(--radius-lg); font-size: var(--font-lg);">Accept</button>
+                <button id="tripInviteDeclineBtn" class="btn-neutral" style="flex: 1; border-radius: var(--radius-lg);">Decline</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    /** @type {HTMLButtonElement} */ (q(modal, '#tripInviteAcceptBtn')).onclick = async () => {
+        await respondTripInvite(tripId, true);
+        showLiquidAlert("Joined the trip");
+        modal.remove();
+        // The trip will appear on the next /api/data poll. We don't try to
+        // optimistically inject it — the server has the canonical members
+        // list, and racing against that creates inconsistency bugs.
+    };
+    /** @type {HTMLButtonElement} */ (q(modal, '#tripInviteDeclineBtn')).onclick = async () => {
+        await respondTripInvite(tripId, false);
         showLiquidAlert("Declined");
         modal.remove();
     };

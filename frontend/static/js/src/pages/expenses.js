@@ -14,6 +14,7 @@ import { upsertExpense, deleteExpenseOnServer } from '../api.js';
 import { navigate } from '../router.js';
 import { showPersTab } from './settings.js';
 import { renderUpload } from './upload.js';
+import { canEdit } from '../permissions.js';
 
 /** @type {'manual' | 'batch' | 'history'} */
 let activeExpensesTab = 'manual';
@@ -77,14 +78,35 @@ export function renderExpenses() {
             el.classList.toggle('is-active', el.dataset.tab === activeExpensesTab);
         });
 
+        const activeTrip = STATE.trips.find(t => t.id === STATE.activeTripId);
+        const isReadOnly = !canEdit(activeTrip);
+
         if (activeExpensesTab === 'manual') {
-            content.appendChild(renderManualTab());
+            content.appendChild(isReadOnly ? renderReadOnlyNotice('Manual Upload', 'log new expenses') : renderManualTab());
         } else if (activeExpensesTab === 'batch') {
-            content.appendChild(renderUpload());
+            content.appendChild(isReadOnly ? renderReadOnlyNotice('Batch Upload', 'import expenses') : renderUpload());
         } else {
             content.appendChild(renderHistoryTab());
         }
     };
+
+    /** Friendly "you're a Relaxer here" panel — used in the Manual + Batch
+     *  tabs when the current user can't edit the active trip. Keeps the
+     *  tab structure visible so there's no confusing "tab disappeared" UX,
+     *  but blocks the form / file picker behind a clear explanation. */
+    function renderReadOnlyNotice(/** @type {string} */ tabLabel, /** @type {string} */ verb) {
+        const w = document.createElement('div');
+        w.innerHTML = `
+            <div class="card glass" style="max-width: 520px; margin: 32px auto; padding: 36px; border-radius: 28px; text-align: center; background: rgba(255,255,255,0.6);">
+                <div style="font-size: 2.4rem; margin-bottom: 12px;">👁</div>
+                <h2 style="margin: 0 0 12px; font-size: 1.4rem; font-weight: 800; color: #002d5b; letter-spacing: -0.02em;">Read-only — Relaxer view</h2>
+                <p style="margin: 0; color: rgba(0,0,0,0.55); line-height: 1.5;">
+                    You're a <strong>Relaxer</strong> on this trip, so you can't ${verb} from the <strong>${tabLabel}</strong> tab. Switch to the <strong>History</strong> tab to see what's been added — and ask the trip's planner to promote you if you want to contribute.
+                </p>
+            </div>
+        `;
+        return w;
+    }
 
     div.querySelectorAll('.expenses-tabnav__tab').forEach(t => {
         const el = /** @type {HTMLElement} */ (t);
@@ -638,6 +660,12 @@ export function renderTripExpenses(container, filters = {}) {
     }
 
     const homeCurrency = getHomeCurrency();
+    // Edit/delete row buttons are planner-only — hide for relaxers so the
+    // History tab reads as a clean read-only ledger when they don't have
+    // edit rights. Backend already 403s on the underlying endpoints; this
+    // is just to keep the UI honest.
+    const activeTrip = STATE.trips.find(t => t.id === STATE.activeTripId);
+    const showRowActions = canEdit(activeTrip);
     container.innerHTML = tripExpenses.map(e => {
         const cat = STATE.categories.find(c => c.id === e.categoryId);
         // Convert from the original currency to the user's home currency for
@@ -670,6 +698,7 @@ export function renderTripExpenses(container, filters = {}) {
                         ${convertedDisplay ? `<div class="expense-row__converted">${convertedDisplay}</div>` : ''}
                     </div>
 
+                    ${showRowActions ? `
                     <div style="display: flex; gap: var(--space-2);">
                         <button class="icon-action-btn expense-edit-btn" data-expense-id="${e.id}" style="--accent: 0,113,227;">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4L18.5 2.5z"></path></svg>
@@ -678,6 +707,7 @@ export function renderTripExpenses(container, filters = {}) {
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                         </button>
                     </div>
+                    ` : ''}
                 </div>
             </div>
         `;

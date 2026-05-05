@@ -120,11 +120,35 @@ def init_db():
             )
         ''')
         
-        # Trip Sharing (Collaboration)
+        # Trip Sharing (Collaboration) — legacy, retained so old DBs don't
+        # error on schema upgrade. Phase 3 introduced `trip_members` below
+        # which carries role + per-user archive + invitation lifecycle.
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS trip_collaborators (
                 trip_id TEXT,
                 user_id TEXT,
+                PRIMARY KEY(trip_id, user_id),
+                FOREIGN KEY(trip_id) REFERENCES trips(id),
+                FOREIGN KEY(user_id) REFERENCES users(id)
+            )
+        ''')
+
+        # Trip Members — Phase 3. Source of truth for who participates in a
+        # trip and what they can do. Row exists for the trip's owner (auto-
+        # inserted on /api/trips upsert) and for every invited user; the
+        # latter starts at `invitation_status='pending'` and flips to
+        # `'accepted'` after they respond. `is_archived` is per-user (each
+        # member archives their own copy). `role` is open-ended on purpose:
+        # 'planner' / 'relaxer' today, future roles only need updates to
+        # the permissions module on the client + the gating helpers here.
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS trip_members (
+                trip_id TEXT,
+                user_id TEXT,
+                role TEXT DEFAULT 'planner',
+                is_archived INTEGER DEFAULT 0,
+                invitation_status TEXT DEFAULT 'accepted',
+                invited_by TEXT,
                 PRIMARY KEY(trip_id, user_id),
                 FOREIGN KEY(trip_id) REFERENCES trips(id),
                 FOREIGN KEY(user_id) REFERENCES users(id)
