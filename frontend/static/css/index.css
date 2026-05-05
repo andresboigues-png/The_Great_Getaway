@@ -1353,6 +1353,93 @@ h1 {
 .liquid-alert.show { transform: translateX(-50%) translateY(0); }
 .liquid-alert.dismiss { transform: translateX(-50%) translateY(100px); opacity: 0; }
 
+/* Notification dropdown items — title, message, timestamp. The title's
+   color comes from a `--accent` variable per row (alert vs default). */
+.notification-empty {
+    padding: var(--space-5);
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: var(--font-base);
+}
+.notification-title {
+    font-weight: 700;
+    font-size: var(--font-base);
+    margin-bottom: var(--space-1);
+    color: rgb(var(--accent, 0,113,227));
+}
+.notification-message {
+    font-size: var(--font-sm);
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+.notification-time {
+    font-size: var(--font-2xs);
+    color: rgba(0,0,0,0.3);
+    margin-top: var(--space-2);
+    font-weight: 600;
+}
+
+/* Inline underlined accent link — text styled as a link inside body
+   copy. Used by the home guide-step interstitials. */
+.link-underline {
+    text-decoration: underline;
+    color: var(--accent-blue);
+    cursor: pointer;
+}
+.link-underline:hover { color: var(--accent-blue-hover); }
+
+/* AI itinerary plan block — Morning/Afternoon/Evening sections in the
+   generated itinerary. Each call site sets `--accent: R,G,B` for the
+   tone (blue/orange/purple). The header tag, activity title, and
+   description share the block. */
+.ai-plan-block {
+    padding: var(--space-4);
+    background: rgba(var(--accent), 0.05);
+    border-radius: var(--radius-md);
+    border: 1px solid rgba(var(--accent), 0.1);
+}
+.ai-plan-block__tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: rgb(var(--accent));
+    margin-bottom: var(--space-2);
+}
+.ai-plan-block__title {
+    font-weight: 600;
+    font-size: var(--font-base);
+    margin-bottom: var(--space-1);
+    color: white;
+}
+.ai-plan-block__desc {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
+/* AI itinerary day chip — vertical 72px column on the left of each
+   generated day card with day number + "Day" label on a gradient. */
+.ai-day-chip {
+    width: 72px;
+    min-width: 72px;
+    background: linear-gradient(180deg, var(--accent-blue), #9b59b6);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 28px 0;
+    gap: var(--space-1);
+}
+
+/* Pro-tip callout — used on the AI itinerary cards. */
+.pro-tip {
+    padding: var(--space-3) var(--space-4);
+    background: rgba(0,113,227,0.05);
+    border-left: 3px solid var(--accent-blue);
+    border-radius: 0 10px 10px 0;
+}
+
 /* Profile inline-bio textarea — invisible until focused, then a subtle
    surface appears. Replaces inline `onfocus`/`onblur` handlers. */
 .bio-input {

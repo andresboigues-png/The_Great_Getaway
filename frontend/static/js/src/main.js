@@ -41,15 +41,15 @@ function renderNotificationDropdown() {
 
     const notes = STATE.notifications || [];
     if (notes.length === 0) {
-        list.innerHTML = '<div style="padding:20px; text-align:center; color:var(--text-secondary); font-size:0.9rem;">No notifications.</div>';
+        list.innerHTML = '<div class="notification-empty">No notifications.</div>';
         return;
     }
 
     list.innerHTML = notes.map(n => `
         <div class="notification-item ${n.is_read ? '' : 'unread'}">
-            <div style="font-weight:700; font-size:0.9rem; margin-bottom:4px; color:${n.type === 'alert' ? '#ff3b30' : 'var(--accent-blue)'}">${n.title || (n.type === 'friend_request' ? 'Friend Request' : n.type === 'accepted_request' ? 'Request Accepted' : 'Notification')}</div>
-            <div style="font-size:0.85rem; color:var(--text-secondary); line-height:1.4;">${n.message}</div>
-            <div style="font-size:0.7rem; color:rgba(0,0,0,0.3); margin-top:8px; font-weight:600;">${new Date(n.created_at).toLocaleDateString()}</div>
+            <div class="notification-title" style="--accent: ${n.type === 'alert' ? '255,59,48' : '0,113,227'};">${n.title || (n.type === 'friend_request' ? 'Friend Request' : n.type === 'accepted_request' ? 'Request Accepted' : 'Notification')}</div>
+            <div class="notification-message">${n.message}</div>
+            <div class="notification-time">${new Date(n.created_at).toLocaleDateString()}</div>
         </div>
     `).join('');
 }

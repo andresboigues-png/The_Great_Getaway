@@ -223,33 +223,33 @@ export function renderAI() {
                 dayDiv.style.cssText = `border-radius:18px;overflow:hidden;transition:box-shadow 0.3s,border-color 0.3s;${sf}`;
                 dayDiv.innerHTML = `
                     <div style="display:flex;align-items:stretch;">
-                        <div style="width:72px;min-width:72px;background:linear-gradient(180deg,var(--accent-blue),#9b59b6);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px 0;gap:4px;">
+                        <div class="ai-day-chip">
                             <span style="color:rgba(255,255,255,0.7);font-size:0.65rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;">Day</span>
                             <span style="color:white;font-size:2rem;font-weight:800;line-height:1;">${day.day}</span>
                         </div>
-                        <div style="flex:1;padding:24px 28px;">
-                            <div style="margin-bottom:20px;">
-                                <h3 style="margin:0 0 4px;font-size:1.2rem;font-weight:700;letter-spacing:-0.02em;color:white;">${day.title || 'Day ' + day.day}</h3>
-                                <span style="font-size:0.8rem;color:var(--text-secondary);">${day.date || ''}</span>
+                        <div style="flex:1;padding:var(--space-6) 28px;">
+                            <div style="margin-bottom:var(--space-5);">
+                                <h3 style="margin:0 0 var(--space-1);font-size:1.2rem;font-weight:700;letter-spacing:-0.02em;color:white;">${day.title || 'Day ' + day.day}</h3>
+                                <span style="font-size:var(--font-base);color:var(--text-secondary);">${day.date || ''}</span>
                             </div>
-                            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:${day.tip ? '20px' : '0'};">
-                                <div style="padding:16px;background:rgba(0,113,227,0.05);border-radius:12px;border:1px solid rgba(0,113,227,0.1);">
-                                    <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--accent-blue);margin-bottom:8px;">🌅 Morning</div>
-                                    <div style="font-weight:600;font-size:0.9rem;margin-bottom:4px;color:white;">${day.morning?.activity || ''}</div>
-                                    <div style="font-size:0.82rem;color:var(--text-secondary);line-height:1.5;">${day.morning?.description || ''}</div>
+                            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--space-4);margin-bottom:${day.tip ? 'var(--space-5)' : '0'};">
+                                <div class="ai-plan-block" style="--accent: 0,113,227;">
+                                    <div class="ai-plan-block__tag">🌅 Morning</div>
+                                    <div class="ai-plan-block__title">${day.morning?.activity || ''}</div>
+                                    <div class="ai-plan-block__desc">${day.morning?.description || ''}</div>
                                 </div>
-                                <div style="padding:16px;background:rgba(255,149,0,0.05);border-radius:12px;border:1px solid rgba(255,149,0,0.1);">
-                                    <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#ff9500;margin-bottom:8px;">☀️ Afternoon</div>
-                                    <div style="font-weight:600;font-size:0.9rem;margin-bottom:4px;color:white;">${day.afternoon?.activity || ''}</div>
-                                    <div style="font-size:0.82rem;color:var(--text-secondary);line-height:1.5;">${day.afternoon?.description || ''}</div>
+                                <div class="ai-plan-block" style="--accent: 255,149,0;">
+                                    <div class="ai-plan-block__tag">☀️ Afternoon</div>
+                                    <div class="ai-plan-block__title">${day.afternoon?.activity || ''}</div>
+                                    <div class="ai-plan-block__desc">${day.afternoon?.description || ''}</div>
                                 </div>
-                                <div style="padding:16px;background:rgba(155,89,182,0.05);border-radius:12px;border:1px solid rgba(155,89,182,0.1);">
-                                    <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#9b59b6;margin-bottom:8px;">🌙 Evening</div>
-                                    <div style="font-weight:600;font-size:0.9rem;margin-bottom:4px;color:white;">${day.evening?.activity || ''}</div>
-                                    <div style="font-size:0.82rem;color:var(--text-secondary);line-height:1.5;">${day.evening?.description || ''}</div>
+                                <div class="ai-plan-block" style="--accent: 155,89,182;">
+                                    <div class="ai-plan-block__tag">🌙 Evening</div>
+                                    <div class="ai-plan-block__title">${day.evening?.activity || ''}</div>
+                                    <div class="ai-plan-block__desc">${day.evening?.description || ''}</div>
                                 </div>
                             </div>
-                            ${day.tip ? `<div style="padding:12px 16px;background:rgba(0,113,227,0.05);border-left:3px solid var(--accent-blue);border-radius:0 10px 10px 0;"><span style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--accent-blue);">💡 Pro Tip</span><p style="margin:5px 0 0;font-size:0.85rem;color:var(--text-secondary);">${day.tip}</p></div>` : ''}
+                            ${day.tip ? `<div class="pro-tip"><span style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--accent-blue);">💡 Pro Tip</span><p style="margin:5px 0 0;font-size:var(--font-sm);color:var(--text-secondary);">${day.tip}</p></div>` : ''}
                         </div>
                     </div>`;
                 daysContainer.appendChild(dayDiv);
