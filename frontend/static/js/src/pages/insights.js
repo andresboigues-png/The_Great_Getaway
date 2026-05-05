@@ -9,7 +9,7 @@ export function renderInsights() {
     const div = document.createElement('div');
 
     if (!STATE.activeTripId) {
-        div.innerHTML = `<h1>Insights</h1><div class="card glass"><p>Please select a trip.</p></div>`;
+        div.innerHTML = `<h1 class="gradient-text" style="--g-from: #007aff; --g-to: #5856d6;">Insights</h1><div class="card glass"><p>Please select a trip.</p></div>`;
         return div;
     }
 
@@ -21,7 +21,7 @@ export function renderInsights() {
 
     if (tripExps.length === 0) {
         div.innerHTML = `
-            <h1>Insights</h1>
+            <h1 class="gradient-text" style="--g-from: #007aff; --g-to: #5856d6;">Insights</h1>
             <div style="height: 60vh; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: var(--text-secondary);">
                 <div style="font-size: 5rem; margin-bottom: 20px; opacity: 0.5;">📊</div>
                 <h2 style="color: var(--text-primary); margin-bottom: 10px;">No Data to Analyze Yet</h2>

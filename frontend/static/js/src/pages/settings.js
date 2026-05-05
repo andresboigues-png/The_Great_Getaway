@@ -159,7 +159,7 @@ export function renderSettings() {
 
         return `
             <div class="ai-page-header">
-                <h1 class="gradient-text" style="--g-from: #5856d6; --g-to: #ff2d55;">System Control</h1>
+                <h1 class="gradient-text" style="--g-from: #1a6b3c; --g-to: #34c759;">System Control</h1>
                 <p>Manage your travel data, custom formats, and core preferences.</p>
             </div>
 
@@ -391,7 +391,7 @@ export function renderPersonalization() {
 
     div.innerHTML = `
         <div class="ai-page-header">
-            <h1 class="gradient-text" style="--g-from: #5856d6; --g-to: #ff2d55;">Personalization</h1>
+            <h1 class="gradient-text" style="--g-from: #1a6b3c; --g-to: #34c759;">Personalization</h1>
             <p>Customize your experience and categories. Manage friends in the Friends tab; add companions per-trip from the Home page.</p>
         </div>
 
