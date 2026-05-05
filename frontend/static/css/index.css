@@ -1876,30 +1876,54 @@ h1 {
     -webkit-backdrop-filter: blur(25px);
 }
 
-/* Notification dropdown items — title, message, timestamp. The title's
-   color comes from a `--accent` variable per row (alert vs default).
-   BEM-style sub-element naming to match `.expense-row`, `.debt-row`,
-   `.callout-tinted`, etc. */
+/* Notification dropdown items — clickable rows on a translucent glass
+   panel (matches `.btn-ghost` aesthetic per the design ask). Title is
+   white-bold with a small `--accent`-coloured dot to flag the type
+   (alert / friend_request / trip_public). BEM-style sub-element naming
+   to match `.expense-row`, `.debt-row`, `.callout-tinted`, etc. */
 .notification-empty {
-    padding: var(--space-5);
+    padding: var(--space-6) var(--space-5);
     text-align: center;
-    color: var(--text-secondary);
+    color: rgba(255,255,255,0.6);
     font-size: var(--font-base);
 }
+.notification-item {
+    padding: var(--space-4) var(--space-5);
+    border-bottom: 1px solid rgba(255,255,255,0.12);
+    cursor: pointer;
+    box-sizing: border-box;
+    transition: background-color 0.15s ease;
+}
+.notification-item:last-child { border-bottom: 0; }
+.notification-item:hover { background: var(--glass-fill-strong); }
+.notification-item.unread { background: rgba(0,113,227,0.18); }
+.notification-item.unread:hover { background: rgba(0,113,227,0.28); }
 .notification-item__title {
     font-weight: 700;
     font-size: var(--font-base);
     margin-bottom: var(--space-1);
-    color: rgb(var(--accent, 0,113,227));
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+.notification-item__dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: rgb(var(--accent, 0,113,227));
+    flex-shrink: 0;
+    box-shadow: 0 0 8px rgba(var(--accent, 0,113,227), 0.5);
 }
 .notification-item__message {
     font-size: var(--font-sm);
-    color: var(--text-secondary);
+    color: rgba(255,255,255,0.85);
     line-height: 1.4;
+    word-break: break-word;
 }
 .notification-item__time {
     font-size: var(--font-2xs);
-    color: rgba(0,0,0,0.3);
+    color: rgba(255,255,255,0.5);
     margin-top: var(--space-2);
     font-weight: 600;
 }

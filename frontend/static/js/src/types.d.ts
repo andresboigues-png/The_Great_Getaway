@@ -161,11 +161,19 @@ export interface SavedFormat {
 }
 
 export interface Notification {
+    /** Server-side row id. Optional because client-side synthetic notifications
+     *  (if any are ever added) won't have one. */
+    id?: number | string;
     is_read: 0 | 1 | boolean;
-    type: 'alert' | 'friend_request' | 'accepted_request' | string;
+    type: 'alert' | 'friend_request' | 'accepted_request' | 'trip_public' | string;
     title?: string;
     message: string;
     created_at: string;
+    /** Foreign-key handle to the entity this notification is about — usually
+     *  a user_id (sender for friend_request, acceptor for accepted_request,
+     *  the friend who made a trip public for trip_public). The click handler
+     *  uses this to deep-link the user to the right page. */
+    related_id?: string | number;
 }
 
 export interface AppState {

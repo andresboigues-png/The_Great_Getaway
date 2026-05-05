@@ -35,23 +35,76 @@ export function updateNotificationUI() {
     }
 }
 
+/** Pick the accent colour rgb-triple for a notification type. Drives both
+ *  the title indicator dot and the box-shadow glow on it. */
+function notificationAccent(type) {
+    switch (type) {
+        case 'alert': return '255,59,48';
+        case 'trip_public': return '52,199,89';
+        case 'friend_request':
+        case 'accepted_request':
+        default: return '0,113,227';
+    }
+}
+
+/** Human-readable title fallback when the row didn't ship one. */
+function notificationDefaultTitle(type) {
+    switch (type) {
+        case 'friend_request': return 'Friend Request';
+        case 'accepted_request': return 'Request Accepted';
+        case 'trip_public': return 'Trip Completed';
+        case 'alert': return 'Alert';
+        default: return 'Notification';
+    }
+}
+
 function renderNotificationDropdown() {
     const list = document.getElementById('notificationList');
     if (!list) return;
 
     const notes = STATE.notifications || [];
     if (notes.length === 0) {
-        list.innerHTML = '<div class="notification-empty">No notifications.</div>';
+        list.innerHTML = '<div class="notification-empty">No new notifications</div>';
         return;
     }
 
-    list.innerHTML = notes.map(n => `
-        <div class="notification-item ${n.is_read ? '' : 'unread'}">
-            <div class="notification-item__title" style="--accent: ${n.type === 'alert' ? '255,59,48' : '0,113,227'};">${n.title || (n.type === 'friend_request' ? 'Friend Request' : n.type === 'accepted_request' ? 'Request Accepted' : 'Notification')}</div>
+    list.innerHTML = notes.map((n, i) => `
+        <div class="notification-item ${n.is_read ? '' : 'unread'}" data-notification-index="${i}" role="button" tabindex="0">
+            <div class="notification-item__title" style="--accent: ${notificationAccent(n.type)};">
+                <span class="notification-item__dot"></span>
+                ${n.title || notificationDefaultTitle(n.type)}
+            </div>
             <div class="notification-item__message">${n.message}</div>
             <div class="notification-item__time">${new Date(n.created_at).toLocaleDateString()}</div>
         </div>
     `).join('');
+}
+
+/** Route a clicked notification to the page that lets the user act on it.
+ *  `related_id` is a user_id for friend_* and trip_public; for everything
+ *  else we fall back to the home page. */
+function handleNotificationClick(notification) {
+    const dropdown = document.getElementById('notificationDropdown');
+    if (dropdown) dropdown.style.display = 'none';
+
+    const relatedUserId = notification.related_id ? String(notification.related_id) : null;
+
+    switch (notification.type) {
+        case 'friend_request':
+            navigate(PAGES.FRIENDS);
+            break;
+        case 'accepted_request':
+        case 'trip_public':
+            if (relatedUserId) {
+                navigate(PAGES.PROFILE, { userId: relatedUserId });
+            } else {
+                navigate(PAGES.FRIENDS);
+            }
+            break;
+        default:
+            navigate(PAGES.HOME);
+            break;
+    }
 }
 
 function updateTripSelector() {
@@ -289,6 +342,18 @@ async function init() {
 
     document.addEventListener('click', (e) => {
         const target = /** @type {HTMLElement | null} */ (e.target);
+
+        // Notification item clicked — route to the page that lets the user
+        // act on it. Checked before the outside-click close, since the click
+        // is inside the dropdown and we want to dismiss it ourselves.
+        const notifItem = /** @type {HTMLElement | null} */ (target?.closest('[data-notification-index]'));
+        if (notifItem) {
+            const idx = parseInt(notifItem.getAttribute('data-notification-index') ?? '', 10);
+            const notif = (STATE.notifications || [])[idx];
+            if (notif) handleNotificationClick(notif);
+            return;
+        }
+
         // Close notification dropdown if clicking outside
         if (noteDropdown && noteDropdown.style.display === 'flex' && !noteDropdown.contains(target) && target !== bellBtn) {
             noteDropdown.style.display = 'none';
