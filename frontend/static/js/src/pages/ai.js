@@ -102,7 +102,7 @@ export function renderAI() {
                         <textarea id="aiExtraContext" class="glass-input" rows="3" style="width:100%; resize:none; font-size:0.9rem; box-sizing: border-box;" placeholder="e.g. Vegetarian friendly, no walking more than 2km...">${savedContext}</textarea>
                     </div>
                     <!-- Generate -->
-                    <button id="generateBtn" class="btn ai-generate-btn" style="width:100%; padding: 16px; border-radius: 16px; font-weight: 800; background: linear-gradient(135deg, var(--accent-blue), #9b59b6); color: white; border: none; cursor: pointer;">✦ Generate My Itinerary</button>
+                    <button id="generateBtn" class="ai-generate-btn" style="width:100%; border-radius: var(--radius-lg);">✦ Generate My Itinerary</button>
                 </div>
 
                 <!-- Right: Google Map (sticky) -->

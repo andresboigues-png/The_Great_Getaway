@@ -1353,6 +1353,80 @@ h1 {
 .liquid-alert.show { transform: translateX(-50%) translateY(0); }
 .liquid-alert.dismiss { transform: translateX(-50%) translateY(100px); opacity: 0; }
 
+/* Segmented toggle button — used by the insights rate-mode picker
+   (At Trip / Today). Two buttons inside a glass container, only one
+   .active at a time. */
+.toggle-btn {
+    padding: var(--space-2) 18px;
+    border-radius: 11px;
+    border: none;
+    background: transparent;
+    color: var(--accent-blue);
+    font-size: var(--font-base);
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+.toggle-btn:hover { background: rgba(0,113,227,0.08); }
+.toggle-btn.active {
+    background: var(--accent-blue);
+    color: white;
+}
+.toggle-btn.active:hover { background: var(--accent-blue-hover); }
+
+/* Ranking row — used in the Top Spenders + Category Breakdown lists
+   on the insights page. Number + label on the left, accent value on
+   the right; thin top divider between rows. */
+.ranking-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: var(--font-sm);
+    margin-top: var(--space-3);
+    border-top: 1px solid rgba(255,255,255,0.08);
+    padding-top: var(--space-3);
+}
+.ranking-row__label { font-weight: 500; }
+.ranking-row__value { color: var(--accent-blue); font-weight: 600; }
+
+/* User row — shared shape across friends list, pending requests, and
+   search results. Tone modifier picks the resting tint; --neutral has
+   a hover lift since rows there are clickable. */
+.user-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-lg);
+    margin-bottom: var(--space-2);
+}
+.user-row--neutral {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+.user-row--neutral:hover { background: rgba(255,255,255,0.1); }
+
+.user-row--warn {
+    background: rgba(255,159,10,0.1);
+    border: 1px solid rgba(255,159,10,0.2);
+}
+
+.user-row--brand {
+    background: rgba(0,122,255,0.05);
+    border: 1px solid rgba(0,122,255,0.1);
+}
+
+/* Empty-state placeholder for lists. Used in friends list, search
+   results, etc. */
+.list-empty-state {
+    color: var(--text-secondary);
+    text-align: center;
+    padding: var(--space-5);
+    background: rgba(255,255,255,0.02);
+    border-radius: var(--radius-md);
+}
+
 /* Compact form helpers — sentence-case label + tighter spacing. Used
    by surfaces with multiple short fields (budgets create form, friends
    search, etc.) where the more prominent `.form-label[-light]` would

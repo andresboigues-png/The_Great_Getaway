@@ -23,15 +23,15 @@ export function renderFriends() {
             
             if (friendsContainer) {
                 if (friends.length === 0) {
-                    friendsContainer.innerHTML = `<div style="color: var(--text-secondary); text-align: center; padding: 20px; background: rgba(255,255,255,0.02); border-radius: 12px;">No friends added yet.</div>`;
+                    friendsContainer.innerHTML = `<div class="list-empty-state">No friends added yet.</div>`;
                 } else {
                     friendsContainer.innerHTML = friends.map(f => `
-                        <div class="friend-row" data-user-id="${f.id}" style="display: flex; align-items: center; justify-content: space-between; background: rgba(255,255,255,0.05); padding: 12px 16px; border-radius: 16px; margin-bottom: 8px; border: 1px solid rgba(255,255,255,0.1); cursor: pointer; transition: background 0.2s;" onmouseenter="this.style.background='rgba(255,255,255,0.1)'" onmouseleave="this.style.background='rgba(255,255,255,0.05)'">
-                            <div style="display: flex; align-items: center; gap: 12px;">
+                        <div class="friend-row user-row user-row--neutral" data-user-id="${f.id}">
+                            <div style="display: flex; align-items: center; gap: var(--space-3);">
                                 <img src="${f.picture}" style="width: 32px; height: 32px; border-radius: 50%;">
                                 <div>
-                                    <div style="font-weight: 600; font-size: 0.9rem;">${f.name}</div>
-                                    <div style="font-size: 0.75rem; color: var(--text-secondary);">${f.email}</div>
+                                    <div style="font-weight: 600; font-size: var(--font-base);">${f.name}</div>
+                                    <div style="font-size: var(--font-xs); color: var(--text-secondary);">${f.email}</div>
                                 </div>
                             </div>
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
@@ -39,21 +39,21 @@ export function renderFriends() {
                     `).join('');
                 }
             }
-            
+
             if (pendingContainer) {
                 if (pending.length === 0) {
-                    pendingContainer.innerHTML = `<div style="color: var(--text-secondary); text-align: center; padding: 20px; background: rgba(255,255,255,0.02); border-radius: 12px;">No pending requests.</div>`;
+                    pendingContainer.innerHTML = `<div class="list-empty-state">No pending requests.</div>`;
                 } else {
                     pendingContainer.innerHTML = pending.map(p => `
-                        <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(255,159,10,0.1); padding: 12px 16px; border-radius: 16px; margin-bottom: 8px; border: 1px solid rgba(255,159,10,0.2);">
-                            <div style="display: flex; align-items: center; gap: 12px;">
+                        <div class="user-row user-row--warn">
+                            <div style="display: flex; align-items: center; gap: var(--space-3);">
                                 <img src="${p.picture}" style="width: 32px; height: 32px; border-radius: 50%;">
                                 <div>
-                                    <div style="font-weight: 600; font-size: 0.9rem; color: var(--text-primary);">${p.name}</div>
-                                    <div style="font-size: 0.75rem; color: var(--text-secondary);">${p.email}</div>
+                                    <div style="font-weight: 600; font-size: var(--font-base); color: var(--text-primary);">${p.name}</div>
+                                    <div style="font-size: var(--font-xs); color: var(--text-secondary);">${p.email}</div>
                                 </div>
                             </div>
-                            <button class="btn btn-small accept-friend-btn" data-user-id="${p.id}" style="padding: 6px 12px; font-size: 0.75rem;">Accept</button>
+                            <button class="btn btn-small accept-friend-btn" data-user-id="${p.id}" style="padding: 6px var(--space-3); font-size: var(--font-xs);">Accept</button>
                         </div>
                     `).join('');
                 }
@@ -78,15 +78,15 @@ export function renderFriends() {
                 resultsContainer.innerHTML = `<p style="text-align:center; padding:10px; font-size:0.8rem; color:var(--text-secondary);">No user found. Ask them to login first!</p>`;
             } else {
                 resultsContainer.innerHTML = users.map(u => `
-                    <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(0,122,255,0.05); padding: 12px 16px; border-radius: 16px; margin-bottom: 8px; border: 1px solid rgba(0,122,255,0.1);">
-                        <div style="display: flex; align-items: center; gap: 12px;">
+                    <div class="user-row user-row--brand">
+                        <div style="display: flex; align-items: center; gap: var(--space-3);">
                             <img src="${u.picture}" style="width: 32px; height: 32px; border-radius: 50%;">
                             <div>
-                                <div style="font-weight: 600; font-size: 0.9rem;">${u.name}</div>
-                                <div style="font-size: 0.75rem; color: var(--text-secondary);">${u.email}</div>
+                                <div style="font-weight: 600; font-size: var(--font-base);">${u.name}</div>
+                                <div style="font-size: var(--font-xs); color: var(--text-secondary);">${u.email}</div>
                             </div>
                         </div>
-                        <button class="btn btn-small send-friend-btn" data-user-id="${u.id}" style="padding: 6px 12px; font-size: 0.75rem;">Send Request</button>
+                        <button class="btn btn-small send-friend-btn" data-user-id="${u.id}" style="padding: 6px var(--space-3); font-size: var(--font-xs);">Send Request</button>
                     </div>
                 `).join('');
             }

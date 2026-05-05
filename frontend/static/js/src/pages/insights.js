@@ -106,9 +106,9 @@ export function renderInsights() {
     const topSpenderAmount = sortedSpenders.length > 0 ? sortedSpenders[0][1] : 0;
 
     const spenderRankingHtml = sortedSpenders.slice(1).map(([who, amount], index) => `
-        <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 10px;">
-            <span style="font-weight: 500;">${index + 2}. ${who}</span>
-            <span style="color: var(--accent-blue); font-weight: 600;">${targetSym}${amount.toFixed(2)}</span>
+        <div class="ranking-row">
+            <span class="ranking-row__label">${index + 2}. ${who}</span>
+            <span class="ranking-row__value">${targetSym}${amount.toFixed(2)}</span>
         </div>
     `).join('');
 
@@ -128,9 +128,9 @@ export function renderInsights() {
     const catRankingHtml = sortedCats.slice(1).map(([catId, count], index) => {
         const cat = STATE.categories.find(c => c.id === catId);
         return `
-            <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 10px;">
-                <span style="font-weight: 500;">${index + 2}. ${cat ? cat.icon + ' ' + cat.name : 'Unknown'}</span>
-                <span style="color: var(--accent-blue); font-weight: 600;">${count} trans.</span>
+            <div class="ranking-row">
+                <span class="ranking-row__label">${index + 2}. ${cat ? cat.icon + ' ' + cat.name : 'Unknown'}</span>
+                <span class="ranking-row__value">${count} trans.</span>
             </div>
         `;
     }).join('');
@@ -159,10 +159,10 @@ export function renderInsights() {
             </div>
             <div style="display: flex; align-items: center; gap: 24px;">
                 <div class="glass" style="display: flex; padding: 4px; border-radius: 14px; border: 1px solid var(--glass-border); box-shadow: var(--shadow-sm);">
-                    <button class="rate-mode-btn ${mode === 'at_trip' ? 'active' : ''}" data-mode="at_trip" style="padding: 8px 18px; border-radius: 11px; border: none; background: ${mode === 'at_trip' ? 'var(--accent-blue)' : 'transparent'}; color: ${mode === 'at_trip' ? 'white' : 'var(--accent-blue)'}; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease;">
+                    <button class="toggle-btn rate-mode-btn ${mode === 'at_trip' ? 'active' : ''}" data-mode="at_trip">
                         At Trip
                     </button>
-                    <button class="rate-mode-btn ${mode === 'today' ? 'active' : ''}" data-mode="today" style="padding: 8px 18px; border-radius: 11px; border: none; background: ${mode === 'today' ? 'var(--accent-blue)' : 'transparent'}; color: ${mode === 'today' ? 'white' : 'var(--accent-blue)'}; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease;">
+                    <button class="toggle-btn rate-mode-btn ${mode === 'today' ? 'active' : ''}" data-mode="today">
                         Today
                     </button>
                 </div>

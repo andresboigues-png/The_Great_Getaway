@@ -856,14 +856,14 @@
                 <button id="goToExpensesBtn" class="btn" style="margin-top: 24px;">Add Your First Expense</button>
             </div>
         `,setTimeout(()=>{e.querySelector(`#goToExpensesBtn`)?.addEventListener(`click`,()=>q(`expenses`))},0),e;let n=m.insightCurrency||x(),r=w(n),i=m.rateMode||`at_trip`,a=t.map(e=>{let t=o[e.currency]||1;if(i===`at_trip`){let n=`${e.date}_${e.currency}_EUR`;m.rateCache&&m.rateCache[n]&&(t=m.rateCache[n])}let r=e.euroValue||e.value*t,a=r;if(n!==`EUR`){let t=1/(o[n]||1);if(i===`at_trip`){let r=`${e.date}_${n}_EUR`;m.rateCache&&m.rateCache[r]&&(t=1/m.rateCache[r])}a=r*t}return{...e,displayValue:a}}),s=a.reduce((e,t)=>e+t.displayValue,0),c=a.length,l=null;a.length>0&&(l=a.reduce((e,t)=>t.displayValue>e.displayValue?t:e,a[0]));let u={},d={},f={};a.forEach(e=>{d[e.categoryId]||(d[e.categoryId]=0),d[e.categoryId]+=e.displayValue,u[e.who]||(u[e.who]=0),u[e.who]+=e.displayValue;let t=e.date||`Unknown`;f[t]||(f[t]=0),f[t]+=e.displayValue});let p=Object.entries(u).sort((e,t)=>t[1]-e[1]).slice(0,10),h=p.length>0?p[0][0]:`N/A`,g=p.length>0?p[0][1]:0,_=p.slice(1).map(([e,t],n)=>`
-        <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 10px;">
-            <span style="font-weight: 500;">${n+2}. ${e}</span>
-            <span style="color: var(--accent-blue); font-weight: 600;">${r}${t.toFixed(2)}</span>
+        <div class="ranking-row">
+            <span class="ranking-row__label">${n+2}. ${e}</span>
+            <span class="ranking-row__value">${r}${t.toFixed(2)}</span>
         </div>
     `).join(``),v={};t.forEach(e=>{v[e.categoryId]=(v[e.categoryId]||0)+1});let b=Object.entries(v).sort((e,t)=>t[1]-e[1]).slice(0,10),S=b.length>0?b[0][0]:null,C=S?m.categories.find(e=>e.id===S):null;C&&C.icon+``+C.name;let T=b.slice(1).map(([e,t],n)=>{let r=m.categories.find(t=>t.id===e);return`
-            <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 10px;">
-                <span style="font-weight: 500;">${n+2}. ${r?r.icon+` `+r.name:`Unknown`}</span>
-                <span style="color: var(--accent-blue); font-weight: 600;">${t} trans.</span>
+            <div class="ranking-row">
+                <span class="ranking-row__label">${n+2}. ${r?r.icon+` `+r.name:`Unknown`}</span>
+                <span class="ranking-row__value">${t} trans.</span>
             </div>
         `}).join(``),E=[],D=[],O=[];return Object.keys(d).forEach(e=>{let t=m.categories.find(t=>t.id===e);t?(E.push(t.icon+` `+t.name),O.push(t.color)):(E.push(`Unknown`),O.push(`#ccc`)),D.push(d[e])}),e.innerHTML=`
         <!-- Header Section -->
@@ -874,10 +874,10 @@
             </div>
             <div style="display: flex; align-items: center; gap: 24px;">
                 <div class="glass" style="display: flex; padding: 4px; border-radius: 14px; border: 1px solid var(--glass-border); box-shadow: var(--shadow-sm);">
-                    <button class="rate-mode-btn ${i===`at_trip`?`active`:``}" data-mode="at_trip" style="padding: 8px 18px; border-radius: 11px; border: none; background: ${i===`at_trip`?`var(--accent-blue)`:`transparent`}; color: ${i===`at_trip`?`white`:`var(--accent-blue)`}; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease;">
+                    <button class="toggle-btn rate-mode-btn ${i===`at_trip`?`active`:``}" data-mode="at_trip">
                         At Trip
                     </button>
-                    <button class="rate-mode-btn ${i===`today`?`active`:``}" data-mode="today" style="padding: 8px 18px; border-radius: 11px; border: none; background: ${i===`today`?`var(--accent-blue)`:`transparent`}; color: ${i===`today`?`white`:`var(--accent-blue)`}; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease;">
+                    <button class="toggle-btn rate-mode-btn ${i===`today`?`active`:``}" data-mode="today">
                         Today
                     </button>
                 </div>
@@ -1076,9 +1076,9 @@
                                 </label>
                             </div>
                             <div style="width: 1px; height: 30px; background: var(--glass-border);"></div>
-                            <div style="display: flex; gap: 8px;">
-                                <button class="btn btn-small restore-trip-btn" data-trip-id="${e.id}" style="background: var(--accent-blue); padding: 8px 16px; font-weight: 700;">Restore</button>
-                                <button class="btn btn-small delete-archived-btn" data-trip-id="${e.id}" style="background: rgba(255,59,48,0.1); color: #ff3b30; border: 1px solid rgba(255,59,48,0.3);" title="Delete Permanently">
+                            <div style="display: flex; gap: var(--space-2);">
+                                <button class="btn-primary restore-trip-btn" data-trip-id="${e.id}" style="padding: var(--space-2) var(--space-4); font-size: var(--font-sm);">Restore</button>
+                                <button class="icon-action-btn delete-archived-btn" data-trip-id="${e.id}" style="--accent: 255,59,48;" title="Delete Permanently">
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
                                 </button>
                             </div>
@@ -1182,7 +1182,7 @@
                         <textarea id="aiExtraContext" class="glass-input" rows="3" style="width:100%; resize:none; font-size:0.9rem; box-sizing: border-box;" placeholder="e.g. Vegetarian friendly, no walking more than 2km...">${s}</textarea>
                     </div>
                     <!-- Generate -->
-                    <button id="generateBtn" class="btn ai-generate-btn" style="width:100%; padding: 16px; border-radius: 16px; font-weight: 800; background: linear-gradient(135deg, var(--accent-blue), #9b59b6); color: white; border: none; cursor: pointer;">✦ Generate My Itinerary</button>
+                    <button id="generateBtn" class="ai-generate-btn" style="width:100%; border-radius: var(--radius-lg);">✦ Generate My Itinerary</button>
                 </div>
 
                 <!-- Right: Google Map (sticky) -->
@@ -1446,38 +1446,38 @@
                     </div>
                 </form>
             </div>
-        `,document.body.appendChild(a),M(a,`#cancelEditSettleBtn`).onclick=()=>a.remove(),M(a,`#editSettlementForm`).onsubmit=r=>{r.preventDefault();let o=M(a,`#editSettleFrom`).value,s=M(a,`#editSettleTo`).value,c=parseFloat(M(a,`#editSettleAmount`).value),l=M(a,`#editSettleDate`).value;if(o===s){alert(`Sender and receiver must be different.`);return}let u=x();i.who=o,i.splits={[s]:100},i.value=c,i.currency=u,i.euroValue=S(c,u,`EUR`),i.date=l,i.label=`Settlement: ${o} → ${s}`,y(`state:changed`),a.remove(),e.innerHTML=n(t)}};return e.innerHTML=n(t),e.addEventListener(`click`,t=>{let n=t.target;if(!n)return;let s=n.closest(`.settlement-trip-card`);if(s?.dataset.tripId){r(s.dataset.tripId);return}let c=n.closest(`.settle-debt-btn`);if(c?.dataset.tripId&&c.dataset.from&&c.dataset.to&&c.dataset.amount){i(c.dataset.tripId,c.dataset.from,c.dataset.to,parseFloat(c.dataset.amount));return}let l=n.closest(`.open-manual-settle-btn`);if(l?.dataset.tripId){a(l.dataset.tripId);return}let u=n.closest(`.open-past-settle-btn`);if(u?.dataset.tripId){o(u.dataset.tripId);return}if(n.closest(`#globalBalancesHeader`)){let t=e.querySelector(`#globalBalancesContainer`);t&&(t.style.display=t.style.display===`none`?`block`:`none`);return}}),e}function ze(){let e=document.createElement(`div`),t=async()=>{if(m.user)try{let t=await(await fetch(J(`/api/friends/list?user_id=${m.user.id}`))).json(),n=await(await fetch(J(`/api/friends/pending?user_id=${m.user.id}`))).json(),r=e.querySelector(`#friendsList`),i=e.querySelector(`#pendingList`);r&&(t.length===0?r.innerHTML=`<div style="color: var(--text-secondary); text-align: center; padding: 20px; background: rgba(255,255,255,0.02); border-radius: 12px;">No friends added yet.</div>`:r.innerHTML=t.map(e=>`
-                        <div class="friend-row" data-user-id="${e.id}" style="display: flex; align-items: center; justify-content: space-between; background: rgba(255,255,255,0.05); padding: 12px 16px; border-radius: 16px; margin-bottom: 8px; border: 1px solid rgba(255,255,255,0.1); cursor: pointer; transition: background 0.2s;" onmouseenter="this.style.background='rgba(255,255,255,0.1)'" onmouseleave="this.style.background='rgba(255,255,255,0.05)'">
-                            <div style="display: flex; align-items: center; gap: 12px;">
+        `,document.body.appendChild(a),M(a,`#cancelEditSettleBtn`).onclick=()=>a.remove(),M(a,`#editSettlementForm`).onsubmit=r=>{r.preventDefault();let o=M(a,`#editSettleFrom`).value,s=M(a,`#editSettleTo`).value,c=parseFloat(M(a,`#editSettleAmount`).value),l=M(a,`#editSettleDate`).value;if(o===s){alert(`Sender and receiver must be different.`);return}let u=x();i.who=o,i.splits={[s]:100},i.value=c,i.currency=u,i.euroValue=S(c,u,`EUR`),i.date=l,i.label=`Settlement: ${o} → ${s}`,y(`state:changed`),a.remove(),e.innerHTML=n(t)}};return e.innerHTML=n(t),e.addEventListener(`click`,t=>{let n=t.target;if(!n)return;let s=n.closest(`.settlement-trip-card`);if(s?.dataset.tripId){r(s.dataset.tripId);return}let c=n.closest(`.settle-debt-btn`);if(c?.dataset.tripId&&c.dataset.from&&c.dataset.to&&c.dataset.amount){i(c.dataset.tripId,c.dataset.from,c.dataset.to,parseFloat(c.dataset.amount));return}let l=n.closest(`.open-manual-settle-btn`);if(l?.dataset.tripId){a(l.dataset.tripId);return}let u=n.closest(`.open-past-settle-btn`);if(u?.dataset.tripId){o(u.dataset.tripId);return}if(n.closest(`#globalBalancesHeader`)){let t=e.querySelector(`#globalBalancesContainer`);t&&(t.style.display=t.style.display===`none`?`block`:`none`);return}}),e}function ze(){let e=document.createElement(`div`),t=async()=>{if(m.user)try{let t=await(await fetch(J(`/api/friends/list?user_id=${m.user.id}`))).json(),n=await(await fetch(J(`/api/friends/pending?user_id=${m.user.id}`))).json(),r=e.querySelector(`#friendsList`),i=e.querySelector(`#pendingList`);r&&(t.length===0?r.innerHTML=`<div class="list-empty-state">No friends added yet.</div>`:r.innerHTML=t.map(e=>`
+                        <div class="friend-row user-row user-row--neutral" data-user-id="${e.id}">
+                            <div style="display: flex; align-items: center; gap: var(--space-3);">
                                 <img src="${e.picture}" style="width: 32px; height: 32px; border-radius: 50%;">
                                 <div>
-                                    <div style="font-weight: 600; font-size: 0.9rem;">${e.name}</div>
-                                    <div style="font-size: 0.75rem; color: var(--text-secondary);">${e.email}</div>
+                                    <div style="font-weight: 600; font-size: var(--font-base);">${e.name}</div>
+                                    <div style="font-size: var(--font-xs); color: var(--text-secondary);">${e.email}</div>
                                 </div>
                             </div>
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
                         </div>
-                    `).join(``)),i&&(n.length===0?i.innerHTML=`<div style="color: var(--text-secondary); text-align: center; padding: 20px; background: rgba(255,255,255,0.02); border-radius: 12px;">No pending requests.</div>`:i.innerHTML=n.map(e=>`
-                        <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(255,159,10,0.1); padding: 12px 16px; border-radius: 16px; margin-bottom: 8px; border: 1px solid rgba(255,159,10,0.2);">
-                            <div style="display: flex; align-items: center; gap: 12px;">
+                    `).join(``)),i&&(n.length===0?i.innerHTML=`<div class="list-empty-state">No pending requests.</div>`:i.innerHTML=n.map(e=>`
+                        <div class="user-row user-row--warn">
+                            <div style="display: flex; align-items: center; gap: var(--space-3);">
                                 <img src="${e.picture}" style="width: 32px; height: 32px; border-radius: 50%;">
                                 <div>
-                                    <div style="font-weight: 600; font-size: 0.9rem; color: var(--text-primary);">${e.name}</div>
-                                    <div style="font-size: 0.75rem; color: var(--text-secondary);">${e.email}</div>
+                                    <div style="font-weight: 600; font-size: var(--font-base); color: var(--text-primary);">${e.name}</div>
+                                    <div style="font-size: var(--font-xs); color: var(--text-secondary);">${e.email}</div>
                                 </div>
                             </div>
-                            <button class="btn btn-small accept-friend-btn" data-user-id="${e.id}" style="padding: 6px 12px; font-size: 0.75rem;">Accept</button>
+                            <button class="btn btn-small accept-friend-btn" data-user-id="${e.id}" style="padding: 6px var(--space-3); font-size: var(--font-xs);">Accept</button>
                         </div>
                     `).join(``))}catch(e){console.error(`Error loading friends:`,e)}},n=async()=>{if(!m.user)return;let t=M(e,`#friendSearchInput`).value.trim(),n=M(e,`#searchResults`);if(t){n.innerHTML=`<p style="text-align:center; padding:10px; font-size:0.8rem; color:var(--text-secondary);">Searching...</p>`;try{let e=(await(await fetch(J(`/api/friends/search?q=${encodeURIComponent(t)}`))).json()).filter(e=>e.id!==m.user?.id);e.length===0?n.innerHTML=`<p style="text-align:center; padding:10px; font-size:0.8rem; color:var(--text-secondary);">No user found. Ask them to login first!</p>`:n.innerHTML=e.map(e=>`
-                    <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(0,122,255,0.05); padding: 12px 16px; border-radius: 16px; margin-bottom: 8px; border: 1px solid rgba(0,122,255,0.1);">
-                        <div style="display: flex; align-items: center; gap: 12px;">
+                    <div class="user-row user-row--brand">
+                        <div style="display: flex; align-items: center; gap: var(--space-3);">
                             <img src="${e.picture}" style="width: 32px; height: 32px; border-radius: 50%;">
                             <div>
-                                <div style="font-weight: 600; font-size: 0.9rem;">${e.name}</div>
-                                <div style="font-size: 0.75rem; color: var(--text-secondary);">${e.email}</div>
+                                <div style="font-weight: 600; font-size: var(--font-base);">${e.name}</div>
+                                <div style="font-size: var(--font-xs); color: var(--text-secondary);">${e.email}</div>
                             </div>
                         </div>
-                        <button class="btn btn-small send-friend-btn" data-user-id="${e.id}" style="padding: 6px 12px; font-size: 0.75rem;">Send Request</button>
+                        <button class="btn btn-small send-friend-btn" data-user-id="${e.id}" style="padding: 6px var(--space-3); font-size: var(--font-xs);">Send Request</button>
                     </div>
                 `).join(``)}catch{n.innerHTML=`<p style="color:red;">Error searching.</p>`}}},r=async n=>{if(!m.user){alert(`Please login first`);return}if(n===m.user.id){k(`You can't send a friend request to yourself!`);return}try{let r=await(await fetch(J(`/api/friends/add`),{method:`POST`,headers:{"Content-Type":`application/json`},body:JSON.stringify({user_id:m.user.id,friend_id:n})})).json();r.status===`success`?(M(e,`#searchResults`).innerHTML=`<p style="text-align:center; padding:10px; font-size:0.8rem; color:#34c759;">Request sent!</p>`,M(e,`#friendSearchInput`).value=``,t()):r.status===`error`&&alert(r.message)}catch{alert(`Failed to send request`)}},i=async e=>{if(m.user)try{let n=await(await fetch(J(`/api/friends/accept`),{method:`POST`,headers:{"Content-Type":`application/json`},body:JSON.stringify({user_id:m.user.id,friend_id:e})})).json();n.status===`success`?(k(`Friend request accepted!`),t()):alert(n.message||`Failed to accept request`)}catch(e){console.error(`Error accepting friend:`,e)}};return e.innerHTML=`
         <div class="ai-page-header">
