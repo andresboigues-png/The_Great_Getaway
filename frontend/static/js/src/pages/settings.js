@@ -141,8 +141,8 @@ export function renderSettings() {
                         <div style="display:flex; align-items:center; justify-content:space-between; background:rgba(255,255,255,0.03); padding:16px; border-radius:16px; border:1px solid var(--glass-border);">
                             <div style="font-weight:700;">${f.name}</div>
                             <div style="display:flex; gap:8px;">
-                                <button class="btn btn-small edit-saved-format-btn" data-format-id="${f.id}" style="background:rgba(0,113,227,0.1); color:#007aff; border:none; padding:8px 16px; border-radius:12px;">Edit</button>
-                                <button class="btn btn-small delete-saved-format-btn" data-format-id="${f.id}" style="background:rgba(255,59,48,0.1); color:#ff3b30; border:none; padding:8px 16px; border-radius:12px;">Delete</button>
+                                <button class="themed-block-btn themed-block-btn--sm edit-saved-format-btn" data-format-id="${f.id}" style="--accent: 0,113,227;">Edit</button>
+                                <button class="themed-block-btn themed-block-btn--sm delete-saved-format-btn" data-format-id="${f.id}" style="--accent: 255,59,48;">Delete</button>
                             </div>
                         </div>
                     `).join('')}
@@ -188,25 +188,25 @@ export function renderSettings() {
                 
                 ${isReset ? `
                     <div class="settings-grid">
-                        <div class="card glass" style="padding: 24px;">
+                        <div class="card glass" style="padding: var(--space-6);">
                             <h3 style="color: #007aff; margin-top: 0;">Companions</h3>
-                            <p style="font-size: 0.85rem; color: var(--text-secondary);">Delete your travel companions and groups.</p>
-                            <button class="btn btn-small confirm-reset-btn" data-reset-type="groups" style="background: rgba(0, 113, 227, 0.1); color: #007aff; border: 1px solid rgba(0, 113, 227, 0.2); width: 100%;">Clear Groups</button>
+                            <p style="font-size: var(--font-sm); color: var(--text-secondary);">Delete your travel companions and groups.</p>
+                            <button class="themed-block-btn confirm-reset-btn" data-reset-type="groups" style="--accent: 0,113,227;">Clear Groups</button>
                         </div>
-                        <div class="card glass" style="padding: 24px;">
+                        <div class="card glass" style="padding: var(--space-6);">
                             <h3 style="color: #ff9500; margin-top: 0;">Trips & Days</h3>
-                            <p style="font-size: 0.85rem; color: var(--text-secondary);">Remove all trips, itineraries, and daily logs.</p>
-                            <button class="btn btn-small confirm-reset-btn" data-reset-type="trips" style="background: rgba(255, 149, 0, 0.1); color: #ff9500; border: 1px solid rgba(255, 149, 0, 0.2); width: 100%;">Delete All Trips</button>
+                            <p style="font-size: var(--font-sm); color: var(--text-secondary);">Remove all trips, itineraries, and daily logs.</p>
+                            <button class="themed-block-btn confirm-reset-btn" data-reset-type="trips" style="--accent: 255,149,0;">Delete All Trips</button>
                         </div>
-                        <div class="card glass" style="padding: 24px;">
+                        <div class="card glass" style="padding: var(--space-6);">
                             <h3 style="color: #5856d6; margin-top: 0;">Categories</h3>
-                            <p style="font-size: 0.85rem; color: var(--text-secondary);">Reset custom expense categories to defaults.</p>
-                            <button class="btn btn-small confirm-reset-btn" data-reset-type="categories" style="background: rgba(88, 86, 214, 0.1); color: #5856d6; border: 1px solid rgba(88, 86, 214, 0.2); width: 100%;">Restore Defaults</button>
+                            <p style="font-size: var(--font-sm); color: var(--text-secondary);">Reset custom expense categories to defaults.</p>
+                            <button class="themed-block-btn confirm-reset-btn" data-reset-type="categories" style="--accent: 88,86,214;">Restore Defaults</button>
                         </div>
-                        <div class="card glass danger-card" style="padding: 24px; border-color: rgba(255, 59, 48, 0.3);">
+                        <div class="card glass danger-card" style="padding: var(--space-6); border-color: rgba(255, 59, 48, 0.3);">
                             <h3 style="color: #ff3b30; margin-top: 0;">Factory Reset</h3>
-                            <p style="font-size: 0.85rem; color: var(--text-secondary);">Permanently wipe every trace of data from the app.</p>
-                            <button class="btn-confirm-danger confirm-reset-btn" data-reset-type="app" style="font-size: 0.85rem; padding: 12px;">Erase Everything</button>
+                            <p style="font-size: var(--font-sm); color: var(--text-secondary);">Permanently wipe every trace of data from the app.</p>
+                            <button class="btn-confirm-danger confirm-reset-btn" data-reset-type="app" style="font-size: var(--font-sm); padding: var(--space-3);">Erase Everything</button>
                         </div>
                     </div>
                 ` : ''}

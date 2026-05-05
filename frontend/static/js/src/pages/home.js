@@ -658,7 +658,7 @@ export function renderHome() {
                     <h2 style="font-size: 1.8rem; letter-spacing: -0.03em; margin: 0; font-weight: 800; color: #002d5b;">${tripTitle}</h2>
                 `}
                 ${activeTrip ? `
-                    <button id="editTripBtn" title="Edit trip name and location" style="display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0; border-radius: 10px; border: 1px solid rgba(0,0,0,0.06); background: rgba(0,0,0,0.03); color: #002d5b; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='rgba(0,113,227,0.08)'; this.style.borderColor='rgba(0,113,227,0.2)'; this.style.color='var(--accent-blue)';" onmouseout="this.style.background='rgba(0,0,0,0.03)'; this.style.borderColor='rgba(0,0,0,0.06)'; this.style.color='#002d5b';">
+                    <button id="editTripBtn" class="icon-btn-square" title="Edit trip name and location">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
                     </button>
                 ` : ''}
@@ -685,29 +685,29 @@ export function renderHome() {
                         <div style="font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent-blue); margin-bottom: 4px; padding-left: 12px;">Actions</div>
                         
                         ${editingDayId === day.id ? `
-                            <div style="display: flex; gap: 4px;">
-                                <button class="day-pin-save-btn" data-day-id="${day.id}" style="flex: 2; display: flex; align-items: center; justify-content: center; padding: 10px; border-radius: 12px; border: none; background: #34c759; color: white; font-size: 0.85rem; font-weight: 700; cursor: pointer;">Save Pin</button>
-                                <button class="day-pin-delete-btn" data-day-id="${day.id}" style="flex: 1; display: flex; align-items: center; justify-content: center; padding: 10px; border-radius: 12px; border: none; background: rgba(255,59,48,0.1); color: #ff3b30; font-size: 0.85rem; font-weight: 700; cursor: pointer;">X</button>
+                            <div style="display: flex; gap: var(--space-1);">
+                                <button class="day-action-btn day-action-btn--success day-pin-save-btn" data-day-id="${day.id}" style="flex: 2; justify-content: center;">Save Pin</button>
+                                <button class="day-action-btn day-action-btn--danger-strong day-pin-delete-btn" data-day-id="${day.id}" style="flex: 1; justify-content: center;">X</button>
                             </div>
                         ` : `
-                            <button class="day-pin-toggle-btn" data-day-id="${day.id}" style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 12px; border: none; background: rgba(0,113,227,0.06); color: var(--accent-blue); font-size: 0.85rem; font-weight: 700; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='rgba(0,113,227,0.12)';" onmouseout="this.style.background='rgba(0,113,227,0.06)';">
+                            <button class="day-action-btn day-action-btn--brand day-pin-toggle-btn" data-day-id="${day.id}">
                                 <span>${day.lat ? '📍 Edit Pin Location' : '📍 Add Pin to Map'}</span>
                             </button>
                         `}
 
-                        <button class="day-journaling-btn" data-day-id="${day.id}" style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 12px; border: none; background: rgba(0,0,0,0.03); color: #002d5b; font-size: 0.85rem; font-weight: 700; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='rgba(0,0,0,0.06)';" onmouseout="this.style.background='rgba(0,0,0,0.03)';">
+                        <button class="day-action-btn day-action-btn--neutral day-journaling-btn" data-day-id="${day.id}">
                             <span>✍️ Journaling</span>
                         </button>
 
-                        <button class="day-photos-btn" data-day-id="${day.id}" style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 12px; border: none; background: rgba(0,0,0,0.03); color: #002d5b; font-size: 0.85rem; font-weight: 700; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='rgba(0,0,0,0.06)';" onmouseout="this.style.background='rgba(0,0,0,0.03)';">
+                        <button class="day-action-btn day-action-btn--neutral day-photos-btn" data-day-id="${day.id}">
                             <span>📸 Add Photos</span>
                         </button>
 
-                        <button class="day-documents-btn" data-day-id="${day.id}" style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 12px; border: none; background: rgba(0,0,0,0.03); color: #002d5b; font-size: 0.85rem; font-weight: 700; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='rgba(0,0,0,0.06)';" onmouseout="this.style.background='rgba(0,0,0,0.03)';">
+                        <button class="day-action-btn day-action-btn--neutral day-documents-btn" data-day-id="${day.id}">
                             <span>📄 Documents</span>
                         </button>
 
-                        <button class="day-delete-btn" data-day-id="${day.id}" style="margin-top: 4px; display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 12px; border: none; background: rgba(255,59,48,0.06); color: #ff3b30; font-size: 0.85rem; font-weight: 700; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='rgba(255,59,48,0.12)';" onmouseout="this.style.background='rgba(255,59,48,0.06)';">
+                        <button class="day-action-btn day-action-btn--danger day-delete-btn" data-day-id="${day.id}" style="margin-top: var(--space-1);">
                             <span>🗑️ Delete Day</span>
                         </button>
                     </div>
@@ -891,7 +891,7 @@ export function renderHome() {
                     </div>
                     <div style="display: flex; align-items: center; gap: 12px;">
                         ${allDone ? `<span style="font-size: 0.75rem; font-weight: 800; color: rgba(0,45,91,0.4); text-transform: uppercase; letter-spacing: 0.05em;">Toolbar</span>` : ''}
-                        <button id="hideQuickAccessBtn" style="background: rgba(0,0,0,0.05); border: 1px solid rgba(0,0,0,0.05); padding: 6px 14px; border-radius: 980px; color: rgba(0,0,0,0.5); cursor: pointer; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; transition: all 0.2s;" onmouseover="this.style.background='rgba(255,59,48,0.1)'; this.style.color='#ff3b30'; this.style.borderColor='rgba(255,59,48,0.2)';" onmouseout="this.style.background='rgba(0,0,0,0.05)'; this.style.color='rgba(0,0,0,0.5)'; this.style.borderColor='rgba(0,0,0,0.05)';">Hide</button>
+                        <button id="hideQuickAccessBtn" class="pill-btn-warn-hover">Hide</button>
                     </div>
                 </div>
                 
@@ -1017,7 +1017,7 @@ const openPhotosModal = (dayId) => {
                 }
             </div>
             <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px;">
-                <label class="btn" style="display: flex; align-items: center; justify-content: center; gap: 8px; padding: 14px; border-radius: 14px; background: rgba(0,113,227,0.1); color: var(--accent-blue); cursor: pointer; border: 1px dashed var(--accent-blue); transition: all 0.2s;" onmouseover="this.style.background='rgba(0,113,227,0.15)';" onmouseout="this.style.background='rgba(0,113,227,0.1)';" id="uploadLabel">
+                <label class="upload-dropzone" id="uploadLabel">
                     <span id="uploadStatusText">📤 Upload Photo</span>
                     <input type="file" id="photoUpload" accept="image/*" style="display: none;">
                 </label>
@@ -1111,7 +1111,7 @@ const openDocumentsModal = (dayId) => {
                 }
             </div>
             <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px;">
-                <label class="btn" style="display: flex; align-items: center; justify-content: center; gap: 8px; padding: 14px; border-radius: 14px; background: rgba(0,113,227,0.1); color: var(--accent-blue); cursor: pointer; border: 1px dashed var(--accent-blue); transition: all 0.2s;" onmouseover="this.style.background='rgba(0,113,227,0.15)';" onmouseout="this.style.background='rgba(0,113,227,0.1)';" id="uploadDocLabel">
+                <label class="upload-dropzone" id="uploadDocLabel">
                     <span id="uploadDocStatusText">📤 Upload Document</span>
                     <input type="file" id="docUpload" style="display: none;">
                 </label>

@@ -12,6 +12,66 @@
     --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08);
     --radius-lg: 18px;
     --radius-md: 12px;
+
+    /* ── Phase D design tokens ──────────────────────────────────────────────
+       Added alongside the legacy tokens above (kept for back-compat). New
+       call sites should prefer the scaled tokens below; the audit-derived
+       values match the most-repeated inline-style patterns in the codebase
+       so a sweep can replace them mechanically. */
+
+    /* Spacing — 4px base scale. Numbers map to rem-equivalent steps. */
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 20px;
+    --space-6: 24px;
+    --space-8: 32px;
+    --space-10: 40px;
+    --space-12: 48px;
+
+    /* Radius — extends --radius-md/lg above. */
+    --radius-xs: 6px;
+    --radius-sm: 8px;
+    --radius-xl: 20px;
+    --radius-2xl: 28px;
+    --radius-3xl: 40px;
+    --radius-pill: 999px;
+
+    /* Font size — rem units so Dynamic Type scaling works on iOS. */
+    --font-2xs: 0.7rem;
+    --font-xs: 0.75rem;
+    --font-sm: 0.85rem;
+    --font-base: 0.9rem;
+    --font-md: 0.95rem;
+    --font-lg: 1rem;
+    --font-xl: 1.1rem;
+    --font-2xl: 1.4rem;
+    --font-3xl: 1.8rem;
+    --font-display: 2rem;
+
+    /* Shadow — extends --shadow-sm/md above. */
+    --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.12);
+    --shadow-xl: 0 20px 40px rgba(0, 0, 0, 0.15);
+    --shadow-modal: 0 40px 100px rgba(0, 0, 0, 0.25);
+    --shadow-button-blue: 0 8px 16px rgba(0, 113, 227, 0.2);
+
+    /* Mobile / safe area — Apple HIG min tap target + iOS notch insets. */
+    --tap-min: 44px;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-left: env(safe-area-inset-left, 0px);
+    --safe-right: env(safe-area-inset-right, 0px);
+
+    /* Surface fills — abstract the most-repeated rgba() literals so a
+       brand-tweak (e.g. dark mode glass) is a one-line change. */
+    --glass-fill-soft: rgba(255, 255, 255, 0.1);
+    --glass-fill: rgba(255, 255, 255, 0.15);
+    --glass-fill-strong: rgba(255, 255, 255, 0.25);
+    --surface-subtle: rgba(0, 0, 0, 0.04);
+    --surface-subtle-hover: rgba(0, 0, 0, 0.08);
+
+    --easing-smooth: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* Dark Mode Support */
@@ -1169,4 +1229,397 @@ h1 {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     letter-spacing: -0.01em;
     pointer-events: none;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   Phase D — Component classes
+   ════════════════════════════════════════════════════════════════════════
+   New unified component layer. Older `.btn`, `.btn-liquid-glass`, etc.
+   above are kept for back-compat; new sites should prefer the classes
+   below. Every interactive element here defines :hover, :active, and
+   :focus-visible (touch + keyboard a11y) and meets --tap-min. */
+
+/* Primary action — used for "Create Trip", "Confirm", form submits. */
+.btn-primary {
+    min-height: var(--tap-min);
+    padding: var(--space-3) var(--space-6);
+    border-radius: var(--radius-md);
+    background: var(--accent-blue);
+    color: #ffffff;
+    font-weight: 800;
+    font-size: var(--font-md);
+    border: none;
+    cursor: pointer;
+    box-shadow: var(--shadow-button-blue);
+    transition: background-color 0.15s ease, transform 0.1s ease, opacity 0.15s ease;
+}
+.btn-primary:hover { background: var(--accent-blue-hover); }
+.btn-primary:active { transform: scale(0.98); }
+.btn-primary:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 2px; }
+.btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
+
+/* Ghost / secondary — Cancel buttons inside glass modals (light text). */
+.btn-ghost {
+    min-height: var(--tap-min);
+    padding: var(--space-3) var(--space-5);
+    border-radius: var(--radius-md);
+    background: var(--glass-fill);
+    color: #ffffff;
+    font-weight: 600;
+    font-size: var(--font-sm);
+    border: 1px solid rgba(255,255,255,0.2);
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+.btn-ghost:hover { background: var(--glass-fill-strong); border-color: rgba(255,255,255,0.4); }
+.btn-ghost:active { transform: scale(0.98); }
+.btn-ghost:focus-visible { outline: 2px solid rgba(255,255,255,0.5); outline-offset: 2px; }
+
+/* Pill-shaped variants — for nav-style or chip buttons (existing .btn is
+   already pill-shaped via 980px). Provided here against the radius token. */
+.btn-pill { border-radius: var(--radius-pill); }
+
+/* Glass card — frosted panel used for modal bodies. */
+.card-glass-modal {
+    padding: var(--space-8);
+    border-radius: var(--radius-3xl);
+    background: var(--glass-fill);
+    border: 1px solid rgba(255,255,255,0.4);
+    box-shadow: var(--shadow-modal);
+    animation: modalPop 0.4s var(--easing-smooth);
+}
+
+/* Form helpers — label + hint patterns repeated in every modal. */
+.form-label {
+    display: block;
+    margin-bottom: var(--space-2);
+    font-size: var(--font-xs);
+    font-weight: 800;
+    color: rgba(255,255,255,0.6);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+.form-hint {
+    margin: var(--space-2) var(--space-1) 0;
+    font-size: var(--font-xs);
+    color: rgba(255,255,255,0.5);
+    font-weight: 500;
+}
+.form-hint--success { color: #34c759; }
+.form-hint--warn { color: #ff9500; }
+
+/* Glass input sized for modal forms (light text on dark glass). The
+   existing `.glass-input` is for light backgrounds — this is the inverse. */
+.glass-input-modal {
+    width: 100%;
+    min-height: var(--tap-min);
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-lg);
+    background: var(--glass-fill);
+    color: #ffffff;
+    font-weight: 600;
+    font-family: inherit;
+    border: 1px solid rgba(255,255,255,0.2);
+    box-sizing: border-box;
+    outline: none;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.glass-input-modal:focus-visible {
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.3);
+}
+.glass-input-modal::placeholder { color: rgba(255,255,255,0.5); }
+
+/* Liquid alert toast — anchored to bottom-center, slides in/out. The
+   `.show` modifier triggers the entrance; removing it slides back down. */
+.liquid-alert {
+    position: fixed;
+    bottom: var(--space-10);
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: rgba(255,255,255,0.7);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    padding: var(--space-4) var(--space-8);
+    border-radius: var(--radius-pill);
+    border: 1px solid rgba(255,255,255,0.4);
+    box-shadow: var(--shadow-xl);
+    color: #002d5b;
+    font-weight: 700;
+    z-index: 99999;
+    opacity: 1;
+    transition: transform 0.5s var(--easing-smooth), opacity 0.5s var(--easing-smooth);
+}
+.liquid-alert.show { transform: translateX(-50%) translateY(0); }
+.liquid-alert.dismiss { transform: translateX(-50%) translateY(100px); opacity: 0; }
+
+/* Custom-select dropdown — used by the country picker in expenses.js
+   (and any future searchable dropdown). The hover rule on `.dropdown-item`
+   replaces the JS-driven `item.onmouseover/onmouseout` handlers below
+   the autocomplete in expenses.js. */
+.dropdown-item {
+    padding: var(--space-3) var(--space-4);
+    cursor: pointer;
+    color: #000;
+    font-weight: 600;
+    transition: background-color 0.2s ease;
+}
+.dropdown-item:hover { background: rgba(0, 122, 255, 0.1); }
+
+/* Filter row helpers — used by the Expense History filter grid where 6
+   inputs and 6 labels were duplicated with identical styles. The filter
+   chrome is intentionally smaller (smaller font, denser padding) than
+   the form-row helpers above so it reads as a secondary surface. */
+.filter-label {
+    display: block;
+    font-size: var(--font-2xs);
+    font-weight: 800;
+    color: rgba(0,0,0,0.4);
+    text-transform: uppercase;
+    margin-bottom: 6px;
+    margin-left: var(--space-1);
+}
+.filter-input {
+    width: 100%;
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-md);
+    background: rgba(255,255,255,0.6);
+    border: 1px solid rgba(0,0,0,0.07);
+    box-sizing: border-box;
+    color: inherit;
+    font-family: inherit;
+    font-size: var(--font-base);
+    outline: none;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.filter-input:focus-visible {
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.18);
+}
+
+/* Large primary CTA — the form-submit "Save Expense" / similar buttons
+   that lift on hover. Replaces inline onmouseover/onmouseout transforms. */
+.btn-primary--lg {
+    width: 100%;
+    max-width: 440px;
+    padding: var(--space-5);
+    font-size: 1.2rem;
+    border-radius: 24px;
+    box-shadow: 0 15px 40px rgba(0,113,227,0.3);
+    transition: background-color 0.15s ease, transform 0.2s ease, box-shadow 0.2s ease, opacity 0.15s ease;
+}
+.btn-primary--lg:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 20px 50px rgba(0,113,227,0.4);
+}
+
+/* Light-theme variants of the modal form helpers — used by the expenses
+   form (and any other surface where labels sit on a white card, not a
+   dark glass panel). Keeps `.form-label`/`.glass-input-modal` for the
+   dark contexts and these for the light ones. */
+.form-label-light {
+    display: block;
+    margin-bottom: var(--space-2);
+    font-size: var(--font-base);
+    font-weight: 800;
+    color: rgba(0,0,0,0.5);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+.glass-input-light {
+    width: 100%;
+    min-height: var(--tap-min);
+    padding: 18px;
+    border-radius: var(--radius-xl);
+    background: rgba(0,0,0,0.04);
+    color: #000;
+    font-weight: 600;
+    font-family: inherit;
+    border: 1px solid rgba(0,0,0,0.05);
+    box-sizing: border-box;
+    outline: none;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.glass-input-light:focus-visible {
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.2);
+}
+.glass-input-light::placeholder { color: rgba(0,0,0,0.4); }
+
+/* Form row container — one inline `<div style="margin-bottom: 24px;
+   width: 100%; max-width: 440px;">` becomes `<div class="form-row">`. */
+.form-row {
+    margin-bottom: var(--space-6);
+    width: 100%;
+    max-width: 440px;
+}
+.form-row--snug { margin-bottom: var(--space-5); }
+
+/* Themed block button — accent-color-driven. Each call site provides one
+   `--accent: R,G,B` custom property (raw triple, not `rgb()`); the rules
+   below build the resting + hover backgrounds, foreground, and border
+   from that single value. Replaces the 6+ duplicated themed buttons in
+   settings.js (Clear Groups / Delete Trips / Restore Defaults / Edit /
+   Delete saved-format / etc.) that all had the same shape but different
+   color tints. */
+.themed-block-btn {
+    width: 100%;
+    min-height: var(--tap-min);
+    padding: var(--space-3);
+    border-radius: var(--radius-md);
+    background: rgba(var(--accent, 0,113,227), 0.1);
+    color: rgb(var(--accent, 0,113,227));
+    border: 1px solid rgba(var(--accent, 0,113,227), 0.2);
+    font-weight: 700;
+    font-size: var(--font-sm);
+    cursor: pointer;
+    transition: background-color 0.2s ease, transform 0.1s ease;
+}
+.themed-block-btn:hover { background: rgba(var(--accent, 0,113,227), 0.18); }
+.themed-block-btn:active { transform: scale(0.98); }
+.themed-block-btn:focus-visible { outline: 2px solid rgb(var(--accent)); outline-offset: 2px; }
+
+/* Compact variant for inline rows (saved-formats Edit/Delete). */
+.themed-block-btn--sm {
+    width: auto;
+    min-height: 0;
+    padding: var(--space-2) var(--space-4);
+    border: none;
+    font-size: var(--font-sm);
+}
+
+/* Square icon button — used for the trip-edit pencil and similar 32x32
+   icon-only affordances. Replaces inline onmouseover/onmouseout swaps. */
+.icon-btn-square {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border-radius: 10px;
+    border: 1px solid rgba(0,0,0,0.06);
+    background: rgba(0,0,0,0.03);
+    color: #002d5b;
+    cursor: pointer;
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+.icon-btn-square:hover {
+    background: rgba(0,113,227,0.08);
+    border-color: rgba(0,113,227,0.2);
+    color: var(--accent-blue);
+}
+.icon-btn-square:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 2px; }
+
+/* Small pill button that warns on hover (grey → red). Used for the
+   "Hide" quick-access dismissal — destructive but not catastrophic. */
+.pill-btn-warn-hover {
+    background: rgba(0,0,0,0.05);
+    border: 1px solid rgba(0,0,0,0.05);
+    padding: var(--space-1) 14px;
+    border-radius: var(--radius-pill);
+    color: rgba(0,0,0,0.5);
+    cursor: pointer;
+    font-size: var(--font-xs);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+.pill-btn-warn-hover:hover {
+    background: rgba(255,59,48,0.1);
+    color: #ff3b30;
+    border-color: rgba(255,59,48,0.2);
+}
+
+/* Upload dropzone label — dashed-border button used twice in home.js
+   (photos modal + documents modal). Was duplicated as inline styles +
+   inline onmouseover/onmouseout. Single class now covers both. */
+.upload-dropzone {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    min-height: var(--tap-min);
+    padding: var(--space-3) var(--space-4);
+    border-radius: 14px;
+    background: rgba(0,113,227,0.1);
+    color: var(--accent-blue);
+    cursor: pointer;
+    border: 1px dashed var(--accent-blue);
+    font-weight: 700;
+    transition: background-color 0.2s ease;
+}
+.upload-dropzone:hover { background: rgba(0,113,227,0.15); }
+.upload-dropzone:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 2px; }
+
+/* Day-action button — used by every day-card action row (Pin, Journaling,
+   Photos, Documents, Delete). Tone modifier picks the accent. Replaces the
+   inline onmouseover/onmouseout style swaps that used to live on each. */
+.day-action-btn {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: var(--tap-min);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-md);
+    border: none;
+    font-size: var(--font-sm);
+    font-weight: 700;
+    cursor: pointer;
+    transition: background-color 0.2s ease, transform 0.1s ease;
+}
+.day-action-btn:active { transform: scale(0.98); }
+.day-action-btn:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+
+/* Tones — neutral (default), brand (blue), success (green), danger (red).
+   Each tone defines its own resting + hover backgrounds. */
+.day-action-btn--neutral {
+    background: rgba(0,0,0,0.03);
+    color: #002d5b;
+}
+.day-action-btn--neutral:hover { background: rgba(0,0,0,0.06); }
+
+.day-action-btn--brand {
+    background: rgba(0,113,227,0.06);
+    color: var(--accent-blue);
+}
+.day-action-btn--brand:hover { background: rgba(0,113,227,0.12); }
+
+.day-action-btn--success {
+    background: #34c759;
+    color: white;
+}
+.day-action-btn--success:hover { background: #2eaf4f; }
+
+.day-action-btn--danger {
+    background: rgba(255,59,48,0.06);
+    color: #ff3b30;
+}
+.day-action-btn--danger:hover { background: rgba(255,59,48,0.12); }
+.day-action-btn--danger-strong {
+    background: rgba(255,59,48,0.1);
+    color: #ff3b30;
+}
+.day-action-btn--danger-strong:hover { background: rgba(255,59,48,0.18); }
+
+/* Danger confirmation panel — used by showConfirmModal. The `.card-glass-modal`
+   above is too light for high-stakes confirmations; this variant darkens the
+   surface and stretches to a fixed square so the message lands hard. */
+.card-glass-confirm {
+    width: 420px;
+    height: 420px;
+    padding: var(--space-10);
+    border-radius: 44px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.3);
+    box-shadow: 0 40px 100px rgba(0,0,0,0.6);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-6);
+    box-sizing: border-box;
+    overflow: hidden;
+    animation: modalPop 0.4s var(--easing-smooth);
 }

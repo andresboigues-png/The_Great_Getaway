@@ -260,30 +260,17 @@ export function getMediaForTrip(trip, extraCountryCodes = []) {
 export function showLiquidAlert(msg) {
     const alert = document.createElement('div');
     alert.className = 'liquid-alert';
-    alert.style.position = 'fixed';
-    alert.style.bottom = '40px';
-    alert.style.left = '50%';
-    alert.style.transform = 'translateX(-50%) translateY(100px)';
-    alert.style.background = 'rgba(255,255,255,0.7)';
-    alert.style.backdropFilter = 'blur(20px)';
-    alert.style.padding = '16px 32px';
-    alert.style.borderRadius = '980px';
-    alert.style.border = '1px solid rgba(255,255,255,0.4)';
-    alert.style.boxShadow = '0 20px 40px rgba(0,0,0,0.1)';
-    alert.style.color = '#002d5b';
-    alert.style.fontWeight = '700';
-    alert.style.zIndex = '99999';
-    alert.style.transition = 'all 0.5s cubic-bezier(0.16, 1, 0.3, 1)';
     alert.innerHTML = `<span>⚠️ ${msg}</span>`;
     document.body.appendChild(alert);
-    
+
+    // Two-frame nudge — the element needs to land in the DOM at its
+    // initial off-screen transform before we add `.show`, otherwise the
+    // browser collapses both states into one paint and skips the slide.
+    requestAnimationFrame(() => requestAnimationFrame(() => alert.classList.add('show')));
+
     setTimeout(() => {
-        alert.style.transform = 'translateX(-50%) translateY(0)';
-    }, 10);
-    
-    setTimeout(() => {
-        alert.style.transform = 'translateX(-50%) translateY(100px)';
-        alert.style.opacity = '0';
+        alert.classList.remove('show');
+        alert.classList.add('dismiss');
         setTimeout(() => alert.remove(), 500);
     }, 3000);
 }
@@ -303,23 +290,25 @@ export function showConfirmModal(options = {}) {
     modal.style.display = 'flex';
     modal.style.backdropFilter = 'blur(25px)';
 
+    // confirmColor stays inline because callers pass per-instance colors
+    // (red for delete, blue for login, etc.). Everything else uses tokens.
     modal.innerHTML = `
-        <div class="card glass" style="width: 420px; height: 420px; padding: 40px; border-radius: 44px; animation: modalPop 0.4s cubic-bezier(0.16, 1, 0.3, 1); border: 1px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.05); box-shadow: 0 40px 100px rgba(0,0,0,0.6); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px; box-sizing: border-box; overflow: hidden;">
+        <div class="card-glass-confirm">
             <div style="text-align: center;">
                 <h2 style="margin: 0; font-size: 2.2rem; letter-spacing: -0.06em; color: #ffffff;">${title}</h2>
-                <p style="color: rgba(255,255,255,0.7); margin: 6px 0 0; font-size: 1rem; font-weight: 500;">${message}</p>
+                <p style="color: rgba(255,255,255,0.7); margin: 6px 0 0; font-size: var(--font-lg); font-weight: 500;">${message}</p>
             </div>
-            
+
             ${requireInput ? `
-                <div style="width: 100%; margin-bottom: 8px;">
-                    <p style="font-size: 0.75rem; color: #ff3b30; font-weight: 800; text-transform: uppercase; margin-bottom: 12px; letter-spacing: 0.1em; text-align: center;">Type "${requireInput}" to confirm</p>
-                    <input type="text" id="safetyInput" class="glass-input" placeholder="Type here..." style="width: 100%; text-align: center; background: rgba(255,255,255,0.08); padding: 18px; border-radius: 20px; font-size: 1.1rem; color: #ffffff; border: 1px solid rgba(255,255,255,0.2); box-sizing: border-box;">
+                <div style="width: 100%; margin-bottom: var(--space-2);">
+                    <p style="font-size: var(--font-xs); color: #ff3b30; font-weight: 800; text-transform: uppercase; margin-bottom: var(--space-3); letter-spacing: 0.1em; text-align: center;">Type "${requireInput}" to confirm</p>
+                    <input type="text" id="safetyInput" class="glass-input-modal" placeholder="Type here..." style="text-align: center; background: rgba(255,255,255,0.08); padding: 18px; border-radius: var(--radius-xl); font-size: var(--font-xl);">
                 </div>
             ` : ''}
 
-            <div style="width: 100%; display: flex; flex-direction: column; gap: 10px;">
-                <button class="btn" id="modalConfirmBtn" style="width: 100%; background: ${confirmColor}; color: #ffffff; padding: 18px; font-weight: 800; border-radius: 20px; box-shadow: 0 10px 30px ${confirmColor}66; font-size: 1.1rem; box-sizing: border-box; transition: all 0.3s; ${requireInput ? 'opacity: 0.3; cursor: not-allowed;' : ''}" ${requireInput ? 'disabled' : ''}>${confirmText}</button>
-                <button class="btn" id="modalCancelBtn" style="width: 100%; padding: 8px; font-weight: 600; background: transparent; border: none; color: rgba(255,255,255,0.4); font-size: 0.9rem;">Cancel</button>
+            <div style="width: 100%; display: flex; flex-direction: column; gap: var(--space-2);">
+                <button class="btn-primary" id="modalConfirmBtn" style="width: 100%; background: ${confirmColor}; padding: 18px; border-radius: var(--radius-xl); box-shadow: 0 10px 30px ${confirmColor}66; font-size: var(--font-xl);" ${requireInput ? 'disabled' : ''}>${confirmText}</button>
+                <button id="modalCancelBtn" style="width: 100%; padding: var(--space-2); font-weight: 600; background: transparent; border: none; color: rgba(255,255,255,0.4); font-size: var(--font-base); cursor: pointer;">Cancel</button>
             </div>
         </div>
     `;
@@ -335,16 +324,13 @@ export function showConfirmModal(options = {}) {
         input.oninput = (e) => {
             const target = /** @type {HTMLInputElement} */ (e.target);
             const isMatch = target.value.trim().toUpperCase() === requireInput.toUpperCase();
+            // .btn-primary:disabled handles opacity/cursor — just toggle the
+            // disabled attr. Keep the per-state shadow tweak inline since
+            // confirmColor is dynamic per call.
             confirmBtn.disabled = !isMatch;
-            if (isMatch) {
-                confirmBtn.style.opacity = '1';
-                confirmBtn.style.cursor = 'pointer';
-                confirmBtn.style.boxShadow = '0 15px 35px rgba(255, 59, 48, 0.4)';
-            } else {
-                confirmBtn.style.opacity = '0.3';
-                confirmBtn.style.cursor = 'not-allowed';
-                confirmBtn.style.boxShadow = `0 10px 30px ${confirmColor}66`;
-            }
+            confirmBtn.style.boxShadow = isMatch
+                ? '0 15px 35px rgba(255, 59, 48, 0.4)'
+                : `0 10px 30px ${confirmColor}66`;
         };
     }
 

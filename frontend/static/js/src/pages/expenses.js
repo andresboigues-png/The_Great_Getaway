@@ -56,53 +56,53 @@ export function renderExpenses() {
                 <h2 class="card-title" style="font-size: 2.2rem; margin-bottom: 32px; color: #000000; letter-spacing: -0.06em; font-weight: 800; text-align: center;">Add Expense</h2>
                 <form id="expenseForm" style="display: flex; flex-direction: column; align-items: center; width: 100%;">
                     
-                    <div style="margin-bottom: 24px; width: 100%; max-width: 440px;">
-                        <label style="display: block; margin-bottom: 10px; font-size: 0.8rem; font-weight: 800; color: rgba(0,0,0,0.5); text-transform: uppercase; letter-spacing: 0.1em;">Who Paid</label>
-                        <select id="expWho" class="glass-input" style="width: 100%; padding: 18px; border-radius: 20px; background: rgba(0,0,0,0.04); color: #000000; font-weight: 600; border: 1px solid rgba(0,0,0,0.05); box-sizing: border-box;" required>
+                    <div class="form-row">
+                        <label class="form-label-light">Who Paid</label>
+                        <select id="expWho" class="glass-input-light" required>
                             ${peopleOptions}
                         </select>
                         ${!STATE.groups || STATE.groups.length === 0 ? `
-                        <div id="addCompanionsHelper" style="margin-top: 12px; font-size: 0.85rem; color: #0071e3; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                        <div id="addCompanionsHelper" style="margin-top: var(--space-3); font-size: var(--font-sm); color: var(--accent-blue); font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px;">
                             <span>➕</span> <span style="text-decoration: underline;">Add companions in the personalization section</span>
                         </div>` : ''}
                     </div>
 
-                    <div style="margin-bottom: 24px; width: 100%; max-width: 440px;">
-                        <label style="display: block; margin-bottom: 10px; font-size: 0.8rem; font-weight: 800; color: rgba(0,0,0,0.5); text-transform: uppercase; letter-spacing: 0.1em;">Category</label>
-                        <select id="expCategory" class="glass-input" style="width: 100%; padding: 18px; border-radius: 20px; background: rgba(0,0,0,0.04); color: #000000; font-weight: 600; border: 1px solid rgba(0,0,0,0.05); box-sizing: border-box;" required>
+                    <div class="form-row">
+                        <label class="form-label-light">Category</label>
+                        <select id="expCategory" class="glass-input-light" required>
                             ${categoryOptions}
                         </select>
                     </div>
 
-                    <div style="margin-bottom: 24px; width: 100%; max-width: 440px;">
-                        <label style="display: block; margin-bottom: 10px; font-size: 0.8rem; font-weight: 800; color: rgba(0,0,0,0.5); text-transform: uppercase; letter-spacing: 0.1em;">Label</label>
-                        <input type="text" id="expLabel" class="glass-input" style="width: 100%; padding: 18px; border-radius: 20px; background: rgba(0,0,0,0.04); color: #000000; font-weight: 600; border: 1px solid rgba(0,0,0,0.05); box-sizing: border-box;" placeholder="e.g. Dinner at Mario's" required>
+                    <div class="form-row">
+                        <label class="form-label-light">Label</label>
+                        <input type="text" id="expLabel" class="glass-input-light" placeholder="e.g. Dinner at Mario's" required>
                     </div>
 
-                    <div style="margin-bottom: 24px; width: 100%; max-width: 440px;">
-                        <label style="display: block; margin-bottom: 10px; font-size: 0.8rem; font-weight: 800; color: rgba(0,0,0,0.5); text-transform: uppercase; letter-spacing: 0.1em;">Date</label>
-                        <input type="date" id="expDate" class="glass-input" style="width: 100%; padding: 18px; border-radius: 20px; background: rgba(0,0,0,0.04); color: #000000; font-weight: 600; border: 1px solid rgba(0,0,0,0.05); box-sizing: border-box;" required>
+                    <div class="form-row">
+                        <label class="form-label-light">Date</label>
+                        <input type="date" id="expDate" class="glass-input-light" required>
                     </div>
 
-                    <div style="margin-bottom: 24px; width: 100%; max-width: 440px; position: relative;" id="countrySearchContainer">
-                        <label style="display: block; margin-bottom: 10px; font-size: 0.8rem; font-weight: 800; color: rgba(0,0,0,0.5); text-transform: uppercase; letter-spacing: 0.1em;">Country</label>
+                    <div class="form-row" style="position: relative;" id="countrySearchContainer">
+                        <label class="form-label-light">Country</label>
                         <div class="custom-select-wrapper">
-                            <input type="text" id="expCountry" class="glass-input" style="width: 100%; padding: 18px; border-radius: 20px; background: rgba(0,0,0,0.04); color: #000000; font-weight: 600; border: 1px solid rgba(0,0,0,0.05); box-sizing: border-box;" placeholder="Search country..." autocomplete="off">
-                            <div id="countryDropdownList" class="custom-select-dropdown glass shadow-xl" style="display: none; position: absolute; top: 100%; left: 0; right: 0; z-index: 1000; max-height: 250px; overflow-y: auto; margin-top: 8px; border-radius: 20px; border: 1px solid rgba(0,0,0,0.1); background: rgba(255,255,255,0.95); backdrop-filter: blur(20px);">
-                                ${COUNTRIES.sort().map(c => `<div class="dropdown-item" style="padding: 12px 16px; cursor: pointer; color: #000000; font-weight: 600; transition: background 0.2s;" data-value="${c}">${c}</div>`).join('')}
-                                <div class="dropdown-item" style="padding: 12px 16px; cursor: pointer; color: #000000; font-weight: 600; transition: background 0.2s;" data-value="Other">Other</div>
+                            <input type="text" id="expCountry" class="glass-input-light" placeholder="Search country..." autocomplete="off">
+                            <div id="countryDropdownList" class="custom-select-dropdown glass shadow-xl" style="display: none; position: absolute; top: 100%; left: 0; right: 0; z-index: 1000; max-height: 250px; overflow-y: auto; margin-top: var(--space-2); border-radius: var(--radius-xl); border: 1px solid rgba(0,0,0,0.1); background: rgba(255,255,255,0.95); backdrop-filter: blur(20px);">
+                                ${COUNTRIES.sort().map(c => `<div class="dropdown-item" data-value="${c}">${c}</div>`).join('')}
+                                <div class="dropdown-item" data-value="Other">Other</div>
                             </div>
                         </div>
                     </div>
 
-                    <div style="margin-bottom: 24px; width: 100%; max-width: 440px;">
-                        <label style="display: block; margin-bottom: 10px; font-size: 0.8rem; font-weight: 800; color: rgba(0,0,0,0.5); text-transform: uppercase; letter-spacing: 0.1em;">Value</label>
-                        <input type="number" step="0.01" id="expValue" class="glass-input" style="width: 100%; padding: 18px; border-radius: 20px; background: rgba(0,0,0,0.04); color: #000000; font-weight: 700; border: 1px solid rgba(0,0,0,0.05); box-sizing: border-box;" required>
+                    <div class="form-row">
+                        <label class="form-label-light">Value</label>
+                        <input type="number" step="0.01" id="expValue" class="glass-input-light" style="font-weight: 700;" required>
                     </div>
 
-                    <div style="margin-bottom: 32px; width: 100%; max-width: 440px;">
-                        <label style="display: block; margin-bottom: 10px; font-size: 0.8rem; font-weight: 800; color: rgba(0,0,0,0.5); text-transform: uppercase; letter-spacing: 0.1em;">Currency</label>
-                        <select id="expCurrency" class="glass-input" style="width: 100%; padding: 18px; border-radius: 20px; background: rgba(0,0,0,0.04); color: #000000; font-weight: 600; border: 1px solid rgba(0,0,0,0.05); box-sizing: border-box;" required>
+                    <div class="form-row" style="margin-bottom: var(--space-8);">
+                        <label class="form-label-light">Currency</label>
+                        <select id="expCurrency" class="glass-input-light" required>
                             <option value="">Select Currency...</option>
                             ${Object.keys(CONVERSION_RATES).map(c => `<option value="${c}">${c}</option>`).join('')}
                         </select>
@@ -121,7 +121,7 @@ export function renderExpenses() {
                             <!-- Dynamic splitters appear here -->
                         </div>
                     </div>
-                    <button type="submit" class="btn" style="width: 100%; max-width: 440px; padding: 20px; font-size: 1.2rem; font-weight: 800; border-radius: 24px; background: #0071e3; color: #ffffff; box-shadow: 0 15px 40px rgba(0,113,227,0.3); transition: all 0.3s;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 20px 50px rgba(0,113,227,0.4)';" onmouseout="this.style.transform='none'; this.style.boxShadow='0 15px 40px rgba(0,113,227,0.3)';">Save Expense</button>
+                    <button type="submit" class="btn-primary btn-primary--lg">Save Expense</button>
                 </form>
             </div>
 
@@ -137,25 +137,25 @@ export function renderExpenses() {
                             </div>
                         </div>
 
-                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--space-3);">
                             <!-- Row 1: Search (full width) -->
                             <div style="grid-column: 1 / -1;">
-                                <label style="display: block; font-size: 0.7rem; font-weight: 800; color: rgba(0,0,0,0.4); text-transform: uppercase; margin-bottom: 6px; margin-left: 4px;">Search</label>
-                                <input type="text" id="filterSearch" class="glass-input" placeholder="Search labels or items..." style="width: 100%; padding: 10px 16px; border-radius: 12px; background: rgba(255,255,255,0.6); border: 1px solid rgba(0,0,0,0.07); box-sizing: border-box;">
+                                <label class="filter-label">Search</label>
+                                <input type="text" id="filterSearch" class="filter-input" placeholder="Search labels or items...">
                             </div>
 
                             <!-- Row 2: Category | Payer | (empty) -->
                             <div>
-                                <label style="display: block; font-size: 0.7rem; font-weight: 800; color: rgba(0,0,0,0.4); text-transform: uppercase; margin-bottom: 6px; margin-left: 4px;">Category</label>
-                                <select id="filterCategory" class="glass-input" style="width: 100%; padding: 10px 16px; border-radius: 12px; background: rgba(255,255,255,0.6); border: 1px solid rgba(0,0,0,0.07); box-sizing: border-box;">
+                                <label class="filter-label">Category</label>
+                                <select id="filterCategory" class="filter-input">
                                     <option value="all">All Categories</option>
                                     ${STATE.categories.map(c => `<option value="${c.id}">${c.icon} ${c.name}</option>`).join('')}
                                     <option value="settlement">🤝 Settlement</option>
                                 </select>
                             </div>
                             <div>
-                                <label style="display: block; font-size: 0.7rem; font-weight: 800; color: rgba(0,0,0,0.4); text-transform: uppercase; margin-bottom: 6px; margin-left: 4px;">Payer</label>
-                                <select id="filterWho" class="glass-input" style="width: 100%; padding: 10px 16px; border-radius: 12px; background: rgba(255,255,255,0.6); border: 1px solid rgba(0,0,0,0.07); box-sizing: border-box;">
+                                <label class="filter-label">Payer</label>
+                                <select id="filterWho" class="filter-input">
                                     <option value="all">Everyone</option>
                                     ${STATE.groups.map(p => `<option value="${p}">${p}</option>`).join('')}
                                 </select>
@@ -164,19 +164,19 @@ export function renderExpenses() {
 
                             <!-- Row 3: From Date | To Date | Min–Max Value -->
                             <div>
-                                <label style="display: block; font-size: 0.7rem; font-weight: 800; color: rgba(0,0,0,0.4); text-transform: uppercase; margin-bottom: 6px; margin-left: 4px;">From Date</label>
-                                <input type="date" id="filterDateFrom" class="glass-input" style="width: 100%; padding: 10px 16px; border-radius: 12px; background: rgba(255,255,255,0.6); border: 1px solid rgba(0,0,0,0.07); box-sizing: border-box;">
+                                <label class="filter-label">From Date</label>
+                                <input type="date" id="filterDateFrom" class="filter-input">
                             </div>
                             <div>
-                                <label style="display: block; font-size: 0.7rem; font-weight: 800; color: rgba(0,0,0,0.4); text-transform: uppercase; margin-bottom: 6px; margin-left: 4px;">To Date</label>
-                                <input type="date" id="filterDateTo" class="glass-input" style="width: 100%; padding: 10px 16px; border-radius: 12px; background: rgba(255,255,255,0.6); border: 1px solid rgba(0,0,0,0.07); box-sizing: border-box;">
+                                <label class="filter-label">To Date</label>
+                                <input type="date" id="filterDateTo" class="filter-input">
                             </div>
                             <div>
-                                <label style="display: block; font-size: 0.7rem; font-weight: 800; color: rgba(0,0,0,0.4); text-transform: uppercase; margin-bottom: 6px; margin-left: 4px;">Value Range (€)</label>
-                                <div style="display: flex; gap: 8px; align-items: center;">
-                                    <input type="number" id="filterMinVal" class="glass-input" placeholder="Min" style="flex: 1; padding: 10px 12px; border-radius: 12px; background: rgba(255,255,255,0.6); border: 1px solid rgba(0,0,0,0.07); box-sizing: border-box;">
+                                <label class="filter-label">Value Range (€)</label>
+                                <div style="display: flex; gap: var(--space-2); align-items: center;">
+                                    <input type="number" id="filterMinVal" class="filter-input" placeholder="Min" style="flex: 1; padding: var(--space-3);">
                                     <span style="color: rgba(0,0,0,0.3); font-weight: 700; flex-shrink: 0;">–</span>
-                                    <input type="number" id="filterMaxVal" class="glass-input" placeholder="Max" style="flex: 1; padding: 10px 12px; border-radius: 12px; background: rgba(255,255,255,0.6); border: 1px solid rgba(0,0,0,0.07); box-sizing: border-box;">
+                                    <input type="number" id="filterMaxVal" class="filter-input" placeholder="Max" style="flex: 1; padding: var(--space-3);">
                                 </div>
                             </div>
                         </div>
@@ -309,8 +309,7 @@ export function renderExpenses() {
                 STATE.draftExpense.country = countryInput.value;
                 emit('state:changed');
             };
-            item.onmouseover = () => item.style.background = 'rgba(0, 122, 255, 0.1)';
-            item.onmouseout = () => item.style.background = 'transparent';
+            // Hover handled by CSS `.dropdown-item:hover` — no JS needed.
         });
 
         // Click outside to close

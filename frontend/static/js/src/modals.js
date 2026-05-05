@@ -33,27 +33,25 @@ function _wirePlacePicker({ placeInput, hint, submitBtn, initialPlace = null }) 
     /** @type {PickedPlace | null} */
     let pickedPlace = initialPlace;
 
-    const enableSubmit = () => {
-        submitBtn.disabled = false;
-        submitBtn.style.opacity = '1';
-        submitBtn.style.cursor = 'pointer';
-    };
-    const disableSubmit = () => {
-        submitBtn.disabled = true;
-        submitBtn.style.opacity = '0.4';
-        submitBtn.style.cursor = 'not-allowed';
+    // Visual state lives in CSS — `.btn-primary:disabled` already handles
+    // opacity/cursor, and `.form-hint--success/--warn` modifier classes
+    // express the success / failure tone. Toggling is just `.disabled`
+    // and a class swap; no inline styles to keep in sync.
+    const setHintTone = (tone) => {
+        hint.classList.remove('form-hint--success', 'form-hint--warn');
+        if (tone) hint.classList.add(`form-hint--${tone}`);
     };
 
     const setPicked = (place) => {
         pickedPlace = place;
         if (place) {
-            enableSubmit();
+            submitBtn.disabled = false;
             hint.textContent = `📍 ${place.name}`;
-            hint.style.color = '#34c759';
+            setHintTone('success');
         } else {
-            disableSubmit();
+            submitBtn.disabled = true;
             hint.textContent = 'Pick a suggestion to confirm the location.';
-            hint.style.color = 'rgba(255,255,255,0.5)';
+            setHintTone(null);
         }
     };
 
@@ -62,14 +60,14 @@ function _wirePlacePicker({ placeInput, hint, submitBtn, initialPlace = null }) 
     if (initialPlace) {
         placeInput.value = initialPlace.name;
         hint.textContent = `📍 ${initialPlace.name}`;
-        hint.style.color = 'rgba(255,255,255,0.5)';
-        enableSubmit();
+        setHintTone(null);
+        submitBtn.disabled = false;
     }
 
     // @ts-ignore — google is injected globally
     if (typeof google === 'undefined' || !google.maps || !google.maps.places) {
         hint.textContent = '⚠ Google Maps failed to load. Check your API key + billing.';
-        hint.style.color = '#ff9500';
+        setHintTone('warn');
         // Manual escape hatch — accept whatever they typed.
         placeInput.oninput = () => {
             const val = placeInput.value.trim();
@@ -133,21 +131,21 @@ export const openNewTripModal = () => {
     modal.style.backdropFilter = 'blur(25px)';
 
     modal.innerHTML = `
-        <div class="card glass" style="width: 420px; padding: 32px; border-radius: 40px; animation: modalPop 0.4s cubic-bezier(0.16, 1, 0.3, 1); border: 1px solid rgba(255,255,255,0.4); background: rgba(255,255,255,0.15); box-shadow: 0 40px 100px rgba(0,0,0,0.25);">
-            <h2 class="card-title" style="font-size: 1.8rem; margin-bottom: 24px; color: #ffffff; letter-spacing: -0.06em; font-weight: 800; text-align: center;">New Trip</h2>
+        <div class="card-glass-modal" style="width: 420px;">
+            <h2 class="card-title" style="font-size: var(--font-3xl); margin-bottom: var(--space-6); color: #ffffff; letter-spacing: -0.06em; font-weight: 800; text-align: center;">New Trip</h2>
             <form id="newTripForm" style="display: flex; flex-direction: column; align-items: center; width: 100%;">
-                <div style="margin-bottom: 16px; width: 100%;">
-                    <label style="display: block; margin-bottom: 8px; font-size: 0.75rem; font-weight: 800; color: rgba(255,255,255,0.6); text-transform: uppercase; letter-spacing: 0.1em;">Adventure Name</label>
-                    <input type="text" id="tripName" class="glass-input" style="width: 100%; padding: 14px; border-radius: 16px; background: rgba(255,255,255,0.15); color: #ffffff; font-weight: 600; border: 1px solid rgba(255,255,255,0.2); box-sizing: border-box;" placeholder="e.g. Summer in Tuscany" required>
+                <div style="margin-bottom: var(--space-4); width: 100%;">
+                    <label class="form-label">Adventure Name</label>
+                    <input type="text" id="tripName" class="glass-input-modal" placeholder="e.g. Summer in Tuscany" required>
                 </div>
-                <div style="margin-bottom: 8px; width: 100%; position: relative;">
-                    <label style="display: block; margin-bottom: 8px; font-size: 0.75rem; font-weight: 800; color: rgba(255,255,255,0.6); text-transform: uppercase; letter-spacing: 0.1em;">Destination</label>
-                    <input type="text" id="tripPlaceInput" class="glass-input" style="width: 100%; padding: 14px; border-radius: 16px; background: rgba(255,255,255,0.15); color: #ffffff; font-weight: 600; border: 1px solid rgba(255,255,255,0.2); box-sizing: border-box;" placeholder="Search a country, city, or address..." autocomplete="off">
-                    <p id="tripPlaceHint" style="margin: 8px 4px 0; font-size: 0.75rem; color: rgba(255,255,255,0.5); font-weight: 500;">Pick a suggestion to confirm the location.</p>
+                <div style="margin-bottom: var(--space-2); width: 100%; position: relative;">
+                    <label class="form-label">Destination</label>
+                    <input type="text" id="tripPlaceInput" class="glass-input-modal" placeholder="Search a country, city, or address..." autocomplete="off">
+                    <p id="tripPlaceHint" class="form-hint">Pick a suggestion to confirm the location.</p>
                 </div>
-                <div style="display: flex; gap: 12px; width: 100%; margin-top: 16px;">
-                    <button type="submit" id="newTripSubmitBtn" class="btn" style="flex: 2; padding: 12px; border-radius: 14px; background: #0071e3; color: #ffffff; font-weight: 800; font-size: 0.95rem; box-shadow: 0 8px 16px rgba(0,113,227,0.2); opacity: 0.4; cursor: not-allowed;" disabled>Create Trip</button>
-                    <button type="button" id="cancelTripBtn" class="btn" style="flex: 1; padding: 12px; border-radius: 14px; background: rgba(255,255,255,0.15); color: #ffffff; font-weight: 600; border: 1px solid rgba(255,255,255,0.2); font-size: 0.85rem;">Cancel</button>
+                <div style="display: flex; gap: var(--space-3); width: 100%; margin-top: var(--space-4);">
+                    <button type="submit" id="newTripSubmitBtn" class="btn-primary" style="flex: 2;" disabled>Create Trip</button>
+                    <button type="button" id="cancelTripBtn" class="btn-ghost" style="flex: 1;">Cancel</button>
                 </div>
             </form>
         </div>
@@ -217,21 +215,21 @@ export const openEditTripModal = (trip) => {
     modal.style.backdropFilter = 'blur(25px)';
 
     modal.innerHTML = `
-        <div class="card glass" style="width: 420px; padding: 32px; border-radius: 40px; animation: modalPop 0.4s cubic-bezier(0.16, 1, 0.3, 1); border: 1px solid rgba(255,255,255,0.4); background: rgba(255,255,255,0.15); box-shadow: 0 40px 100px rgba(0,0,0,0.25);">
-            <h2 class="card-title" style="font-size: 1.8rem; margin-bottom: 24px; color: #ffffff; letter-spacing: -0.06em; font-weight: 800; text-align: center;">Edit Trip</h2>
+        <div class="card-glass-modal" style="width: 420px;">
+            <h2 class="card-title" style="font-size: var(--font-3xl); margin-bottom: var(--space-6); color: #ffffff; letter-spacing: -0.06em; font-weight: 800; text-align: center;">Edit Trip</h2>
             <form id="editTripForm" style="display: flex; flex-direction: column; align-items: center; width: 100%;">
-                <div style="margin-bottom: 16px; width: 100%;">
-                    <label style="display: block; margin-bottom: 8px; font-size: 0.75rem; font-weight: 800; color: rgba(255,255,255,0.6); text-transform: uppercase; letter-spacing: 0.1em;">Adventure Name</label>
-                    <input type="text" id="editTripName" class="glass-input" style="width: 100%; padding: 14px; border-radius: 16px; background: rgba(255,255,255,0.15); color: #ffffff; font-weight: 600; border: 1px solid rgba(255,255,255,0.2); box-sizing: border-box;" required>
+                <div style="margin-bottom: var(--space-4); width: 100%;">
+                    <label class="form-label">Adventure Name</label>
+                    <input type="text" id="editTripName" class="glass-input-modal" required>
                 </div>
-                <div style="margin-bottom: 8px; width: 100%; position: relative;">
-                    <label style="display: block; margin-bottom: 8px; font-size: 0.75rem; font-weight: 800; color: rgba(255,255,255,0.6); text-transform: uppercase; letter-spacing: 0.1em;">Destination</label>
-                    <input type="text" id="editTripPlaceInput" class="glass-input" style="width: 100%; padding: 14px; border-radius: 16px; background: rgba(255,255,255,0.15); color: #ffffff; font-weight: 600; border: 1px solid rgba(255,255,255,0.2); box-sizing: border-box;" placeholder="Search a country, city, or address..." autocomplete="off">
-                    <p id="editTripPlaceHint" style="margin: 8px 4px 0; font-size: 0.75rem; color: rgba(255,255,255,0.5); font-weight: 500;">Pick a new suggestion to change the location, or just rename.</p>
+                <div style="margin-bottom: var(--space-2); width: 100%; position: relative;">
+                    <label class="form-label">Destination</label>
+                    <input type="text" id="editTripPlaceInput" class="glass-input-modal" placeholder="Search a country, city, or address..." autocomplete="off">
+                    <p id="editTripPlaceHint" class="form-hint">Pick a new suggestion to change the location, or just rename.</p>
                 </div>
-                <div style="display: flex; gap: 12px; width: 100%; margin-top: 16px;">
-                    <button type="submit" id="editTripSubmitBtn" class="btn" style="flex: 2; padding: 12px; border-radius: 14px; background: #0071e3; color: #ffffff; font-weight: 800; font-size: 0.95rem; box-shadow: 0 8px 16px rgba(0,113,227,0.2);">Save Changes</button>
-                    <button type="button" id="cancelEditTripBtn" class="btn" style="flex: 1; padding: 12px; border-radius: 14px; background: rgba(255,255,255,0.15); color: #ffffff; font-weight: 600; border: 1px solid rgba(255,255,255,0.2); font-size: 0.85rem;">Cancel</button>
+                <div style="display: flex; gap: var(--space-3); width: 100%; margin-top: var(--space-4);">
+                    <button type="submit" id="editTripSubmitBtn" class="btn-primary" style="flex: 2;">Save Changes</button>
+                    <button type="button" id="cancelEditTripBtn" class="btn-ghost" style="flex: 1;">Cancel</button>
                 </div>
             </form>
         </div>
@@ -345,24 +343,27 @@ export const openAddDayModal = () => {
     modal.className = 'modal-overlay';
     modal.style.display = 'flex';
     modal.style.backdropFilter = 'blur(25px)';
+    // The Add-Day modal sits on a light background — the labels here use
+    // dark text instead of the white-on-glass form-label, and the cancel
+    // button is a neutral surface rather than the glass ghost variant.
     modal.innerHTML = `
-        <div class="card glass" style="width: 400px; padding: 32px; border-radius: 40px; animation: modalPop 0.4s cubic-bezier(0.16, 1, 0.3, 1); border: 1px solid rgba(255,255,255,0.4); background: rgba(255,255,255,0.15); box-shadow: 0 40px 100px rgba(0,0,0,0.25);">
-            <div style="display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 20px;">
-                <div style="background: var(--accent-blue); color: white; width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.9rem;">${nextDayNumber}</div>
-                <h2 class="card-title" style="font-size: 1.8rem; margin: 0; color: #000000; letter-spacing: -0.06em; font-weight: 800; text-align: center;">Add Day</h2>
+        <div class="card-glass-modal" style="width: 400px;">
+            <div style="display: flex; align-items: center; justify-content: center; gap: var(--space-3); margin-bottom: var(--space-5);">
+                <div style="background: var(--accent-blue); color: white; width: 28px; height: 28px; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: var(--font-base);">${nextDayNumber}</div>
+                <h2 class="card-title" style="font-size: var(--font-3xl); margin: 0; color: #000000; letter-spacing: -0.06em; font-weight: 800; text-align: center;">Add Day</h2>
             </div>
             <form id="addDayForm" style="display: flex; flex-direction: column; width: 100%;">
-                <div style="margin-bottom: 16px;">
-                    <label style="display: block; margin-bottom: 8px; font-size: 0.75rem; font-weight: 800; color: rgba(0,0,0,0.5); text-transform: uppercase; letter-spacing: 0.1em;">Where are you going?</label>
-                    <input type="text" id="dayName" class="glass-input" value="Day ${nextDayNumber}" placeholder="e.g. Exploring Rome" style="width: 100%; padding: 14px; border-radius: 16px; box-sizing: border-box;" required autofocus>
+                <div style="margin-bottom: var(--space-4);">
+                    <label class="form-label" style="color: rgba(0,0,0,0.5);">Where are you going?</label>
+                    <input type="text" id="dayName" class="glass-input-modal" style="color: #000; background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.1);" value="Day ${nextDayNumber}" placeholder="e.g. Exploring Rome" required autofocus>
                 </div>
-                <div style="margin-bottom: 24px;">
-                    <label style="display: block; margin-bottom: 8px; font-size: 0.75rem; font-weight: 800; color: rgba(0,0,0,0.5); text-transform: uppercase; letter-spacing: 0.1em;">Date ${suggestedDate ? '(Auto)' : ''}</label>
-                    <input type="date" id="dayDate" class="glass-input" value="${suggestedDate}" style="width: 100%; padding: 14px; border-radius: 16px; box-sizing: border-box;" required>
+                <div style="margin-bottom: var(--space-6);">
+                    <label class="form-label" style="color: rgba(0,0,0,0.5);">Date ${suggestedDate ? '(Auto)' : ''}</label>
+                    <input type="date" id="dayDate" class="glass-input-modal" style="color: #000; background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.1);" value="${suggestedDate}" required>
                 </div>
-                <div style="display: flex; gap: 10px; width: 100%;">
-                    <button type="submit" class="btn" style="flex: 2; padding: 12px; border-radius: 14px; background: #0071e3; color: #ffffff; font-weight: 800; font-size: 0.95rem; box-shadow: 0 8px 16px rgba(0,113,227,0.2);">Confirm</button>
-                    <button type="button" id="cancelDayBtn" class="btn" style="flex: 1; padding: 12px; border-radius: 14px; background: rgba(0,0,0,0.05); color: #000000; font-weight: 600; border: none; font-size: 0.85rem;">Cancel</button>
+                <div style="display: flex; gap: var(--space-2); width: 100%;">
+                    <button type="submit" class="btn-primary" style="flex: 2;">Confirm</button>
+                    <button type="button" id="cancelDayBtn" class="btn-ghost" style="flex: 1; background: rgba(0,0,0,0.05); color: #000; border: none;">Cancel</button>
                 </div>
             </form>
         </div>
