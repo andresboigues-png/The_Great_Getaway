@@ -87,7 +87,7 @@ export const POI_CATEGORIES = [
     { key: 'pets',        placesType: 'veterinary_care',    extraPlacesTypes: ['pet_store'], searchStrategy: 'wide', useGenesisAlways: true, icon: '🐾', label: 'Pets',           color: '#a460ed', defaultMinRating: 0, tooltip: 'Vets and pet stores across the wider trip area' },
     { key: 'schools',     placesType: 'school',             searchStrategy: 'wide', useGenesisAlways: true, icon: '🎓', label: 'Schools',         color: '#0071e3', defaultMinRating: 0, tooltip: 'Schools and universities. Always searches the wider trip area.' },
     { key: 'sports',      placesType: 'stadium',            searchStrategy: 'wide', useGenesisAlways: true, icon: '🏟️', label: 'Sports',          color: '#ff2d55', defaultMinRating: 0, tooltip: 'Stadiums and gyms. Always searches the wider trip area — they\'re landmarks, you want them all.' },
-    { key: 'transit',     placesType: 'transit_station',    extraPlacesTypes: ['ferry_terminal', 'bus_station'], searchStrategy: 'wide', useGenesisAlways: true, icon: '🚆', label: 'Public transport', color: '#0a3d6b', defaultMinRating: 0, tooltip: 'Train, metro, light rail, bus terminals + ferry terminals — plus Google\'s dotted transit-route lines (the ferry crossings you see over water by default + subway/bus lines on land). Individual on-street bus stops are filtered out so the map doesn\'t flood.' },
+    { key: 'transit',     placesType: 'transit_station',    extraPlacesTypes: ['ferry_terminal'], searchStrategy: 'wide', useGenesisAlways: true, icon: '🚇', label: 'Public transport', color: '#0a3d6b', defaultMinRating: 0, tooltip: 'Train, metro, light rail + ferry terminals — plus Google\'s coloured transit-route overlay (the dotted ferry crossings over water and subway/bus lines on land). Bus stops are excluded because Google\'s API doesn\'t separate hub terminals from street-corner stops, so including them would flood the map.' },
     { key: 'traffic',     placesType: 'gas_station',        searchStrategy: 'wide', useGenesisAlways: true, icon: '🛣️', label: 'Roads & traffic', color: '#0a3d6b', defaultMinRating: 0, tooltip: 'Highway / arterial road names + live Google traffic congestion + gas stations across the wider trip area' },
 ];
 
@@ -118,13 +118,14 @@ function isPrimaryMatch(categoryKey, types) {
         || t === 'bed_and_breakfast' || t === 'guest_house' || t === 'inn'
         || t === 'resort_hotel' || t === 'extended_stay_hotel';
     const isSupermarket = (t) => t === 'supermarket' || t === 'grocery_or_supermarket';
-    // Hubs only — train, metro, light-rail, bus *terminals* (not
-    // every on-street bus stop), and ferry terminals. The generic
-    // `transit_station` type is excluded because Google uses it for
-    // every micro-stop too, which would flood the map.
+    // Hubs only — train, metro, light-rail, and ferry terminals.
+    // The generic `transit_station` type is excluded because Google
+    // labels every micro-stop with it. We also exclude `bus_station`:
+    // Google's API uses the same type for major bus terminals AND
+    // on-street bus stops, so there's no clean way to keep just hubs.
     const isBigTransit = (t) => t === 'train_station'
         || t === 'subway_station' || t === 'light_rail_station'
-        || t === 'bus_station' || t === 'ferry_terminal';
+        || t === 'ferry_terminal';
     // Human medical only — explicitly excludes veterinary_care.
     // Google's hospital search returns vet clinics too because
     // some carry both 'hospital' and 'veterinary_care' types.
@@ -503,22 +504,12 @@ export function renderHome() {
                             { featureType: 'road.arterial', elementType: 'labels', stylers: [{ visibility: 'on' }] },
                         );
                     }
-                    if (enabledSet.has('transit')) {
-                        // Re-enable Google's transit *route* geometry
-                        // (the dotted ferry crossings drawn over water,
-                        // plus subway / bus / train route lines) on top
-                        // of the placed station markers we already drop
-                        // via the Places search. Our base styles hide
-                        // all `transit` to keep the satellite view clean.
-                        // We keep transit.line *labels* off (no
-                        // "Linha 36"-style clutter) and transit.station
-                        // off because Places markers already cover that.
-                        styles.push(
-                            { featureType: 'transit.line', elementType: 'geometry', stylers: [{ visibility: 'on' }] },
-                            { featureType: 'transit.line', elementType: 'labels', stylers: [{ visibility: 'off' }] },
-                            { featureType: 'transit.station', stylers: [{ visibility: 'off' }] },
-                        );
-                    }
+                    // Note: we used to flip `transit.line.geometry` to
+                    // visible here when the transit pill was on, but
+                    // style overrides only render on the `roadmap` map
+                    // type and our base map is `hybrid`. The route
+                    // overlay is now drawn by `setTransitLinesVisible`
+                    // (TransitLayer), which works on every map type.
                     return styles;
                 };
 
@@ -954,8 +945,8 @@ export function renderHome() {
                 window.activeMap = map; // Read by external Google Maps callbacks; keep on window.
 
                 // Live traffic overlay — created lazily, attached to the
-                // map only while the Transit pill is on. Lives in the
-                // outer scope so the click handler can flip it on/off.
+                // map only while the Roads & traffic pill is on. Lives in
+                // the outer scope so the click handler can flip it on/off.
                 /** @type {any | null} */
                 let trafficLayer = null;
                 const setTrafficVisible = (visible) => {
@@ -964,6 +955,24 @@ export function renderHome() {
                         trafficLayer.setMap(map);
                     } else if (trafficLayer) {
                         trafficLayer.setMap(null);
+                    }
+                };
+
+                // Transit-route overlay — Google's TransitLayer, attached
+                // while the Public transport pill is on. Why a layer and
+                // not a styles tweak? Style overrides for `transit.line.
+                // geometry` only render on the `roadmap` mapTypeId; our
+                // map is `hybrid` (satellite + labels), so the styled
+                // dotted ferry routes never showed up. TransitLayer works
+                // on every map type — same pattern as TrafficLayer.
+                /** @type {any | null} */
+                let transitLayer = null;
+                const setTransitLinesVisible = (visible) => {
+                    if (visible) {
+                        if (!transitLayer) transitLayer = new google.maps.TransitLayer();
+                        transitLayer.setMap(map);
+                    } else if (transitLayer) {
+                        transitLayer.setMap(null);
                     }
                 };
 
@@ -1003,6 +1012,10 @@ export function renderHome() {
                         map.setOptions({ styles: buildPoiStyles(enabledPois) });
                         // Roads & traffic pill: live congestion overlay.
                         if (key === 'traffic') setTrafficVisible(willBeOn);
+                        // Public transport pill: route lines overlay
+                        // (ferry crossings over water + subway/bus on
+                        // land).
+                        if (key === 'transit') setTransitLinesVisible(willBeOn);
                         // Places API markers (categories with placesType).
                         // Async; pill state flips immediately so the UI
                         // feels responsive even before search returns.
@@ -1022,6 +1035,7 @@ export function renderHome() {
                 if (enabledPois.size > 0) {
                     map.setOptions({ styles: buildPoiStyles(enabledPois) });
                     if (enabledPois.has('traffic')) setTrafficVisible(true);
+                    if (enabledPois.has('transit')) setTransitLinesVisible(true);
                     enabledPois.forEach(key => {
                         const pill = poiTogglesEl?.querySelector(`.map-poi-toggle[data-poi="${key}"]`);
                         if (pill) {
