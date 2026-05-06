@@ -125,6 +125,57 @@ Before pointing real users at the deployed URL:
 
 ---
 
+## Photo storage strategy
+
+The app uploads photos via `/api/upload` (already auth-gated +
+MIME/size-hardened). They land in `/static/uploads/` on the server's
+filesystem. That works fine on day one but storage scales with photos
+× users × trips, and on a free 3 GB volume you hit the cap around
+~20-30 trips' worth of photos.
+
+**Local-only photos (kept on the user's device, never uploaded) is
+NOT the right answer for this app**, even though it's tempting from a
+cost angle:
+
+- Trip companions can't see each other's photos (multi-user is core)
+- Photos vanish when browser data is cleared
+- Doesn't sync between phone + laptop
+- Collections / "memories" experience breaks the moment storage clears
+
+**Recommended path:**
+
+1. **Day one**: keep photos on the server volume. Simpler, no third-party
+   dependency, works out of the box. Free Fly.io 3 GB is plenty for
+   personal use until usage actually proves it isn't.
+2. **When you near the cap (or earlier if you want)**: swap to a free
+   external image host. The server stores URLs, photos live on the host's
+   CDN. The app already stores URLs as strings everywhere — only
+   `/api/upload` needs to change (~50 lines).
+
+**Recommended host when the day comes**: **Cloudinary** free tier
+(25 GB storage, 25 GB monthly bandwidth, automatic image optimization
+
+- CDN delivery). Generous enough for years of personal use. The migration
+  shape is:
+
+* `/api/upload` reads the incoming file, posts it to Cloudinary's
+  upload API with a signed request, returns the Cloudinary URL.
+* Existing photos on `/static/uploads/` keep working — they're just
+  serving from the Fly volume forever (or you migrate them too with a
+  one-off script).
+
+Alternatives if Cloudinary is the wrong fit:
+
+- **Bunny.net Storage** — cheap, simple, generous free credits.
+- **Backblaze B2** — 10 GB free, fits cold-storage style.
+- **Cloudflare R2** — 10 GB free, no egress fees.
+
+**Don't pre-migrate** — the existing `/api/upload` works. Make the
+swap when you actually feel the volume getting tight. The decision is
+captured here so future-you doesn't have to re-derive it.
+
+---
+
 ## Domain + CDN (optional, free)
 
 - **Cloudflare Pages**: not for the backend, but Cloudflare's free
