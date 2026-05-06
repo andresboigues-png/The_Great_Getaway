@@ -17,7 +17,7 @@ import {
     getAllTripDocuments, getAllTripPhotos,
     addTripDocument, addTripPhoto,
     removeTripDocument, removeTripPhoto,
-    setDocumentDay,
+    setDocumentDay, setPhotoDay,
     buildGmailTripSearchUrl,
 } from '../tripMedia.js';
 
@@ -1961,6 +1961,9 @@ export function renderHome() {
             <div class="home-tab-content${activeHomeTab === 'photos' ? ' is-active' : ''}" data-home-tab="photos">
                 ${(() => {
                     const photos = getAllTripPhotos(activeTrip);
+                    const numberedDaysForPhotos = (STATE.tripDays || [])
+                        .filter(d => d.tripId === activeTrip.id && d.dayNumber > 0)
+                        .sort((a, b) => a.dayNumber - b.dayNumber);
                     const dayLabel = (id) => {
                         if (!id) return null;
                         const day = (STATE.tripDays || []).find(d => d.id === id);
@@ -2011,9 +2014,27 @@ export function renderHome() {
                                     // card for everything else.
                                     const isImage = /^data:image\//i.test(p.src || '')
                                         || /\.(jpe?g|png|gif|webp|avif|heic|heif|bmp|tiff?|svg)(\?.*)?$/i.test(p.src || '');
-                                    const dayBadge = p.dayId
-                                        ? `<div style="position:absolute; top:6px; left:6px; background: rgba(0,0,0,0.55); color:white; padding:2px 8px; border-radius:999px; font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; backdrop-filter: blur(6px);">${esc(dayLabel(p.dayId) || '')}</div>`
-                                        : `<div style="position:absolute; top:6px; left:6px; background: rgba(52,199,89,0.85); color:white; padding:2px 8px; border-radius:999px; font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; backdrop-filter: blur(6px);">Trip-wide</div>`;
+                                    // For trip-level photos AND when the
+                                    // user is a planner: render the day
+                                    // label as a tiny interactive <select>
+                                    // so the user can reassign trip-wide
+                                    // ↔ Day N without leaving the grid.
+                                    // Legacy day.photos entries (immutable
+                                    // — they can't be reassigned without
+                                    // losing the legacy index reference)
+                                    // and non-planner views fall back to
+                                    // the static chip.
+                                    const canEditDay = tripIsEditable && p._source === 'trip';
+                                    const staticChipFor = (label, bg) => `<div style="position:absolute; top:6px; left:6px; background: ${bg}; color:white; padding:2px 8px; border-radius:999px; font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; backdrop-filter: blur(6px); pointer-events:none;">${esc(label)}</div>`;
+                                    const dayBadge = canEditDay
+                                        ? `<select class="trip-photo-day-select" data-photo-id="${esc(p.id)}" title="Move to a day or trip-wide"
+                                                style="position:absolute; top:6px; left:6px; background: ${p.dayId ? 'rgba(0,0,0,0.55)' : 'rgba(52,199,89,0.85)'}; color:white; border:0; padding:2px 22px 2px 10px; border-radius:999px; font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; backdrop-filter: blur(6px); cursor:pointer; appearance:none; -webkit-appearance:none; background-image: url('data:image/svg+xml;utf8,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;10&quot; height=&quot;10&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;white&quot; stroke-width=&quot;3&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;><polyline points=&quot;6 9 12 15 18 9&quot;/></svg>'); background-repeat:no-repeat; background-position: right 7px center; background-size: 8px;">
+                                                <option value="" ${!p.dayId ? 'selected' : ''}>Trip-wide</option>
+                                                ${numberedDaysForPhotos.map(nd => `<option value="${esc(nd.id)}" ${p.dayId === nd.id ? 'selected' : ''}>Day ${nd.dayNumber}</option>`).join('')}
+                                            </select>`
+                                        : (p.dayId
+                                            ? staticChipFor(dayLabel(p.dayId) || '', 'rgba(0,0,0,0.55)')
+                                            : staticChipFor('Trip-wide', 'rgba(52,199,89,0.85)'));
                                     const removeBtn = tripIsEditable
                                         ? `<button type="button" class="trip-photo-remove-btn" data-photo-id="${esc(p.id)}" title="Remove" aria-label="Remove photo"
                                             style="position:absolute; top:6px; right:6px; background:rgba(0,0,0,0.55); border:0; color:white; width:24px; height:24px; border-radius:50%; cursor:pointer; font-size:0.75rem; line-height:1; backdrop-filter: blur(6px); z-index:1;">✕</button>`
@@ -2384,8 +2405,13 @@ export function renderHome() {
             // Photos tab — thumbnail click. Image-kind cards open
             // the lightbox; link-kind cards open the share URL in a
             // new tab so Drive / Dropbox / iCloud links work.
+            // Skip the click if the user actually clicked the day-
+            // select dropdown (otherwise opening it would also
+            // trigger lightbox / link-open).
             const photoCard = /** @type {HTMLElement | null} */ (target.closest('.trip-photo-card'));
-            if (photoCard?.dataset.photoId && activeTrip && !target.closest('.trip-photo-remove-btn')) {
+            if (photoCard?.dataset.photoId && activeTrip
+                && !target.closest('.trip-photo-remove-btn')
+                && !target.closest('.trip-photo-day-select')) {
                 const photo = getAllTripPhotos(activeTrip).find(p => p.id === photoCard.dataset.photoId);
                 if (photo) {
                     if (photoCard.dataset.photoKind === 'link') {
@@ -2415,18 +2441,28 @@ export function renderHome() {
         // dropdowns live in the AI panel and are still authoritative
         // for that path because the prompt needs explicit assignments.)
 
-        // Documents tab: per-row dayId reassignment via the dropdown.
-        // Only available for trip-level entries (legacy day.tickets
-        // entries can't be moved without re-creating them).
+        // Documents + Photos tabs: per-row dayId reassignment via
+        // the inline dropdown. Only available for trip-level entries
+        // (legacy day.tickets / day.photos entries can't be moved
+        // without re-creating them).
         daysContainer.addEventListener('change', (ev) => {
-            const sel = /** @type {HTMLSelectElement | null} */ (
-                /** @type {HTMLElement | null} */ (ev.target)?.closest('.trip-doc-day-select')
-            );
-            if (sel?.dataset.docId && activeTrip && tripIsEditable) {
-                setDocumentDay(activeTrip, sel.dataset.docId, sel.value || null);
+            const target = /** @type {HTMLElement | null} */ (ev.target);
+            if (!target || !activeTrip || !tripIsEditable) return;
+            const docSel = /** @type {HTMLSelectElement | null} */ (target.closest('.trip-doc-day-select'));
+            if (docSel?.dataset.docId) {
+                setDocumentDay(activeTrip, docSel.dataset.docId, docSel.value || null);
                 emit('state:changed');
                 upsertTrip(activeTrip);
                 navigate('home');
+                return;
+            }
+            const photoSel = /** @type {HTMLSelectElement | null} */ (target.closest('.trip-photo-day-select'));
+            if (photoSel?.dataset.photoId) {
+                setPhotoDay(activeTrip, photoSel.dataset.photoId, photoSel.value || null);
+                emit('state:changed');
+                upsertTrip(activeTrip);
+                navigate('home');
+                return;
             }
         });
 
