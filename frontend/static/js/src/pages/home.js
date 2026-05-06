@@ -2387,6 +2387,25 @@ export function renderHome() {
                 return;
             }
 
+            // Documents tab — clicking a doc-link with a .pdf URL
+            // intercepts the default <a target="_blank"> behavior and
+            // opens the in-app PDF previewer instead. Honour Cmd-click
+            // / Ctrl-click / middle-click / right-click so the user
+            // can still force a new tab (those events don't reach
+            // this handler the same way; the `event.metaKey` /
+            // `ctrlKey` check is belt-and-braces). Non-PDF URLs fall
+            // through to the anchor's default behavior (new tab).
+            const docLink = /** @type {HTMLAnchorElement | null} */ (target.closest('.trip-doc-link'));
+            if (docLink && looksLikePdfUrl(docLink.href)) {
+                const ev = /** @type {MouseEvent} */ (e);
+                if (!ev.metaKey && !ev.ctrlKey && !ev.shiftKey && ev.button !== 1) {
+                    ev.preventDefault();
+                    const card = docLink.closest('.trip-doc-card');
+                    const name = card?.querySelector('a')?.textContent?.trim() || 'Document';
+                    openPdfPreview(docLink.href, name);
+                    return;
+                }
+            }
             // Documents tab — Gmail search button (visible to all members).
             if (target.closest('#searchGmailDocsBtn') && activeTrip) {
                 const url = buildGmailTripSearchUrl(activeTrip);
@@ -2869,6 +2888,68 @@ const openPhotoLightbox = (src) => {
     root.addEventListener('click', () => close());
 };
 
+/** In-app PDF preview. Renders the file in a borderless `<iframe>`
+ *  inside a large modal so the user doesn't have to leave GG to read
+ *  a booking confirmation. Browser-native PDF viewer handles rendering
+ *  + zoom + page nav + download — works on Chrome, Safari, Firefox.
+ *
+ *  Caveat: cross-origin PDFs (Google Drive share links, some hosts)
+ *  may set `X-Frame-Options: DENY` or `Content-Security-Policy:
+ *  frame-ancestors none`, blocking the iframe entirely. We can't
+ *  reliably detect that ahead of time (the load event fires either
+ *  way), so the modal always carries an "Open in new tab ↗" button
+ *  as a guaranteed fallback. Same-origin PDFs (anything we host via
+ *  /api/upload/...) always work.
+ *
+ *  @param {string} url
+ *  @param {string} [name] — display name in the modal header
+ */
+export const openPdfPreview = (url, name) => {
+    if (!url) return;
+    const safeUrl = esc(url);
+    const safeName = esc(name || 'Document');
+    const { root, close } = showModal({
+        cardClass: 'card glass',
+        cardStyle: 'width: min(1100px, 96vw); height: min(880px, 92vh); padding: 0; background: white; border: 1px solid rgba(0,0,0,0.08); border-radius: 18px; overflow: hidden; display: flex; flex-direction: column;',
+        innerHTML: `
+            <!-- Header bar — name + actions. Sticks to the top of
+                 the modal card; iframe takes the rest. -->
+            <div style="display:flex; align-items:center; gap:12px; padding: 10px 14px 10px 18px; border-bottom: 1px solid rgba(0,0,0,0.07); background: rgba(245,247,250,0.95); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); flex-shrink:0;">
+                <span style="font-size:1.1rem; line-height:1; flex-shrink:0;">📎</span>
+                <h3 style="flex:1; min-width:0; margin:0; font-size:0.95rem; font-weight:800; color:#002d5b; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${safeName}</h3>
+                <a href="${safeUrl}" target="_blank" rel="noreferrer"
+                    style="background:rgba(0,113,227,0.08); color:var(--accent-blue); border:1px solid rgba(0,113,227,0.18); padding:6px 12px; border-radius:999px; font-size:0.75rem; font-weight:800; text-decoration:none; display:inline-flex; align-items:center; gap:6px;"
+                    title="Open this PDF in a new browser tab">
+                    Open in new tab ↗
+                </a>
+                <button id="closePdfPreviewBtn" type="button" aria-label="Close"
+                    style="background:rgba(0,0,0,0.04); border:0; color:rgba(0,0,0,0.55); width:30px; height:30px; border-radius:50%; cursor:pointer; font-size:0.95rem; line-height:1; flex-shrink:0;">✕</button>
+            </div>
+            <!-- Body — iframe fills the rest. The #toolbar=0 fragment
+                 hint asks Chrome to hide its built-in toolbar (cleaner
+                 inline view); ignored by Safari/Firefox without harm. -->
+            <iframe src="${safeUrl}#toolbar=1&navpanes=0" title="${safeName}"
+                style="flex:1; border:0; display:block; background:#f5f7fa; min-height:0;"
+                referrerpolicy="no-referrer"></iframe>
+        `,
+    });
+    /** @type {HTMLButtonElement} */ (q(root, '#closePdfPreviewBtn')).onclick = () => close();
+};
+
+/** Detect whether a URL points to something we can preview inline
+ *  via the browser's native PDF viewer. Conservative — we only flip
+ *  the in-app preview for clear PDF signals. Anything else (Drive
+ *  share pages, generic links) keeps the existing "open in new tab"
+ *  behaviour. */
+export const looksLikePdfUrl = (url) => {
+    if (!url) return false;
+    if (/^data:application\/pdf/i.test(url)) return true;
+    // Strip query string + fragment before checking the extension —
+    // many CDN URLs append ?token=... or #page=2.
+    const cleaned = url.split(/[?#]/)[0];
+    return /\.pdf$/i.test(cleaned);
+};
+
 
 /** Read-only modal for viewing a day's plan. Used in two places:
  *  1. Archived trip detail (collections.js) where every day is frozen.
@@ -2981,6 +3062,20 @@ export const openDayView = (day) => {
         `,
     });
     /** @type {HTMLButtonElement} */ (q(root, '#closeViewBtn')).onclick = () => close();
+    // Documents card anchors → PDF preview in-app for .pdf URLs;
+    // anything else stays as the default new-tab anchor behavior.
+    // Cmd/Ctrl/Shift/middle-click still escape to the browser
+    // default. (openDayView is its own modal DOM, separate from
+    // the home-page click delegation, so we wire interception here.)
+    root.addEventListener('click', (ev) => {
+        const target = /** @type {HTMLElement | null} */ (ev.target);
+        const a = /** @type {HTMLAnchorElement | null} */ (target?.closest('a[href]'));
+        if (!a || !looksLikePdfUrl(a.href)) return;
+        const me = /** @type {MouseEvent} */ (ev);
+        if (me.metaKey || me.ctrlKey || me.shiftKey || me.button === 1) return;
+        me.preventDefault();
+        openPdfPreview(a.href, a.textContent?.trim().replace(/^📎\s*/, '') || 'Document');
+    });
 };
 
 const openDayDetail = (dayId) => {

@@ -4,7 +4,7 @@ import { showConfirmModal, formatHome, esc } from '../utils.js';
 import { navigate } from '../router.js';
 import { apiUrl } from '../api.js';
 import { wireRoleButtonKeys } from '../components/Keyboard.js';
-import { openDayView } from './home.js';
+import { openDayView, openPdfPreview, looksLikePdfUrl } from './home.js';
 
 export function renderCollections() {
     const div = document.createElement('div');
@@ -409,6 +409,22 @@ export function renderArchivedTripDetail(tripId) {
         const target = /** @type {HTMLElement | null} */ (e.target);
         const restoreBtn = /** @type {HTMLElement | null} */ (target?.closest('.restore-trip-btn'));
         if (restoreBtn?.dataset.tripId) { restoreTrip(restoreBtn.dataset.tripId); return; }
+        // Documents-section anchor: clicking a .pdf row pops the
+        // in-app PDF preview instead of opening a new tab. Cmd/Ctrl/
+        // Shift/middle-click still escape to the browser default so
+        // power users can force a new tab. Same logic as the active
+        // Documents tab — kept here as the archived view doesn't
+        // share its DOM with home.js.
+        const docAnchor = /** @type {HTMLAnchorElement | null} */ (target?.closest('a[href]'));
+        if (docAnchor && looksLikePdfUrl(docAnchor.href)) {
+            const ev = /** @type {MouseEvent} */ (e);
+            if (!ev.metaKey && !ev.ctrlKey && !ev.shiftKey && ev.button !== 1) {
+                ev.preventDefault();
+                const name = docAnchor.querySelector('span')?.textContent?.trim() || 'Document';
+                openPdfPreview(docAnchor.href, name);
+                return;
+            }
+        }
         // Click a day-block to open its read-only detail view. Days inside
         // an archived trip live on `trip.tripDays`, not in STATE.tripDays
         // (the restore flow at restoreTrip() splats them back into the
