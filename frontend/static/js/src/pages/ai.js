@@ -4,7 +4,7 @@ import { q, esc, formatDayDate } from '../utils.js';
 import { openNewTripModal } from '../modals.js';
 import { apiFetch, upsertDay, deleteDayOnServer, upsertTrip } from '../api.js';
 import { canEdit, getMyRole, ROLE_BUDGETEER, ROLE_RELAXER } from '../permissions.js';
-import { getMarkedPlaces, removeMarkedPlace, setMarkedPlaceAssignment } from '../markedPlaces.js';
+import { getMarkedPlaces, removeMarkedPlace, setMarkedPlaceAssignment, toggleMarkedPlaceForAI } from '../markedPlaces.js';
 import { showModal } from '../components/Modal.js';
 
 /** @type {any} */
@@ -174,13 +174,18 @@ export function renderAI() {
                 </div>
             </div>
 
-            <!-- Marked Places (full-width below) — places the user
-                 stamped from the home map InfoWindow with "Mark for AI".
-                 Each card shows the place + day/time-of-day dropdowns
-                 (only when dates are entered, since assignments need a
-                 day to bind to) + a remove button. The Generate flow
-                 below appends these into Gemini's prompt context. -->
-            <div id="aiMarkedPlacesPanel" style="margin-bottom: 32px;"></div>
+            <!-- To-do list panel (full-width below) — surfaces the
+                 trip's unified to-do list (places stamped from the home
+                 map InfoWindow with "Add to to-do"). Each row is a
+                 checkbox bound to the place's forAI flag: ticked = the
+                 AI generation request includes this place; unticked =
+                 the place stays on the to-do list but isn't sent to
+                 Gemini. New places ship pre-ticked so the common case
+                 ("yes, consider this place") needs zero clicks. Day
+                 and time-of-day dropdowns appear when dates are set
+                 above — that's when assignments make sense.
+                 Generate (further below) reads forAI from this panel. -->
+            <div id="aiTodoListPanel" style="margin-bottom: 32px;"></div>
 
             <!-- Itinerary Output (full-width below) -->
             <div id="itineraryOutput" style="margin-bottom: 60px;"></div>
@@ -419,24 +424,29 @@ export function renderAI() {
             };
         };
 
-        /** Render the marked-places panel. Re-rendered after every
-         *  user action (remove, day change, time-of-day change) since
-         *  the panel reflects mutable state on activeTrip.markedPlaces.
-         *  When dates are entered in the AI planner, the day dropdown
-         *  becomes available — that's when day/time assignments make
-         *  sense (per the user's spec). */
-        const renderMarkedPlacesPanel = () => {
-            const panel = /** @type {HTMLElement | null} */ (div.querySelector('#aiMarkedPlacesPanel'));
+        /** Render the to-do list panel — the unified surface that
+         *  shows every place on this trip's to-do list, each row a
+         *  checkbox bound to the place's `forAI` flag. Ticked = the
+         *  AI generation request includes this place. New entries are
+         *  pre-ticked so the common case ("consider this place") needs
+         *  zero clicks. The remove button drops the entry from the
+         *  to-do list entirely (which also un-checks any ticked state
+         *  by definition). When trip dates are set above, day/time
+         *  dropdowns appear so the AI can respect explicit slots.
+         *  Re-rendered after every user action since the panel
+         *  reflects mutable state on activeTrip.markedPlaces. */
+        const renderTodoListPanel = () => {
+            const panel = /** @type {HTMLElement | null} */ (div.querySelector('#aiTodoListPanel'));
             if (!panel) return;
-            const marked = getMarkedPlaces(activeTrip).filter(p => p.forAI);
-            if (marked.length === 0) {
+            const todoItems = getMarkedPlaces(activeTrip).filter(p => p.forManual);
+            if (todoItems.length === 0) {
                 panel.innerHTML = `
-                    <div class="card glass" style="padding: 20px; border-radius: 18px; border: 1.5px dashed rgba(88, 86, 214, 0.35); background: rgba(88, 86, 214, 0.04);">
+                    <div class="card glass" style="padding: 20px; border-radius: 18px; border: 1.5px dashed rgba(155, 89, 182, 0.35); background: rgba(155, 89, 182, 0.04);">
                         <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
-                            <span style="font-size: 1.2rem;">🤖</span>
-                            <h3 style="margin:0; color:#5856d6; font-weight:800; letter-spacing:-0.01em;">Marked for AI</h3>
+                            <span style="font-size: 1.2rem;">📋</span>
+                            <h3 style="margin:0; color:#9b59b6; font-weight:800; letter-spacing:-0.01em;">Your to-do list</h3>
                         </div>
-                        <p style="margin:0; color: var(--text-secondary); font-size: 0.9rem;">No places marked yet. On the Home map, click any pin and hit <strong>🤖 Mark for AI</strong> to add it here. Once dates are set above, you'll be able to assign each marked place to a specific day and part of the day; the AI will respect those when generating your itinerary.</p>
+                        <p style="margin:0; color: var(--text-secondary); font-size: 0.9rem;">Nothing on your to-do list yet. Open the <strong>Home map</strong>, click any pin and hit <strong>📋 Add to to-do list</strong>. Items show up here pre-ticked — untick the ones you want to slot manually instead. Once dates are set above, each item gets day-and-time dropdowns the AI will respect.</p>
                     </div>
                 `;
                 return;
@@ -465,23 +475,31 @@ export function renderAI() {
                 <option value="evening"   ${selectedTime === 'evening'   ? 'selected' : ''}>🌙 Evening</option>
             `;
 
-            const cardsHtml = marked.map(p => `
-                <div class="ai-marked-card" data-place-id="${esc(p.placeId)}" style="background:white; border:1.5px solid ${p.color}; border-radius:14px; padding:14px; box-shadow: 0 4px 12px rgba(0,0,0,0.06); display:flex; flex-direction:column; gap:10px; min-height: 0;">
-                    <div style="display:flex; align-items:flex-start; gap:8px;">
+            const tickedCount = todoItems.filter(p => p.forAI).length;
+
+            const cardsHtml = todoItems.map(p => {
+                const isTicked = !!p.forAI;
+                return `
+                <div class="ai-marked-card" data-place-id="${esc(p.placeId)}" style="background:white; border:1.5px solid ${isTicked ? p.color : 'rgba(0,0,0,0.08)'}; border-radius:14px; padding:14px; box-shadow: 0 4px 12px rgba(0,0,0,${isTicked ? '0.06' : '0.03'}); display:flex; flex-direction:column; gap:10px; min-height: 0; opacity: ${isTicked ? '1' : '0.65'}; transition: opacity 0.15s, border-color 0.15s;">
+                    <div style="display:flex; align-items:flex-start; gap:10px;">
+                        <label style="display:flex; align-items:center; cursor:pointer; flex-shrink:0; padding-top:2px;" title="${isTicked ? 'Ticked — AI will consider this place' : 'Unticked — AI will skip this place'}">
+                            <input type="checkbox" class="ai-todo-tick" data-place-id="${esc(p.placeId)}" ${isTicked ? 'checked' : ''}
+                                style="width:18px; height:18px; accent-color:#9b59b6; cursor:pointer; margin:0;">
+                        </label>
                         <span style="font-size:1.4rem; line-height:1;">${p.icon}</span>
                         <div style="flex:1; min-width:0;">
                             <div style="font-weight:800; color:#002d5b; font-size:0.95rem; line-height:1.25;">${esc(p.name)}</div>
                             ${p.address ? `<div style="font-size:0.75rem; color:var(--text-secondary); margin-top:2px;">${esc(p.address)}</div>` : ''}
                         </div>
-                        <button type="button" class="marked-remove-btn" data-place-id="${esc(p.placeId)}" title="Remove from AI list" aria-label="Remove ${esc(p.name)}"
+                        <button type="button" class="marked-remove-btn" data-place-id="${esc(p.placeId)}" title="Remove from to-do list" aria-label="Remove ${esc(p.name)}"
                             style="background: rgba(255,59,48,0.08); border: 1px solid rgba(255,59,48,0.25); color:#ff3b30; border-radius: 8px; padding: 4px 8px; font-size:0.75rem; font-weight:800; cursor:pointer; flex-shrink:0;">✕</button>
                     </div>
                     ${datesSet ? `
                         <div style="display:flex; gap:8px; min-width:0;">
-                            <select class="marked-day-select" data-place-id="${esc(p.placeId)}" style="flex:1 1 0; min-width:0; max-width:100%; padding:6px 8px; border-radius:8px; border:1px solid rgba(0,0,0,0.1); font-size:0.78rem; background:white;">
+                            <select class="marked-day-select" data-place-id="${esc(p.placeId)}" ${isTicked ? '' : 'disabled'} style="flex:1 1 0; min-width:0; max-width:100%; padding:6px 8px; border-radius:8px; border:1px solid rgba(0,0,0,0.1); font-size:0.78rem; background:white;">
                                 ${dayOpts(p.dayId)}
                             </select>
-                            <select class="marked-time-select" data-place-id="${esc(p.placeId)}" style="flex:1 1 0; min-width:0; max-width:100%; padding:6px 8px; border-radius:8px; border:1px solid rgba(0,0,0,0.1); font-size:0.78rem; background:white;">
+                            <select class="marked-time-select" data-place-id="${esc(p.placeId)}" ${isTicked ? '' : 'disabled'} style="flex:1 1 0; min-width:0; max-width:100%; padding:6px 8px; border-radius:8px; border:1px solid rgba(0,0,0,0.1); font-size:0.78rem; background:white;">
                                 ${timeOpts(p.timeOfDay)}
                             </select>
                         </div>
@@ -489,14 +507,14 @@ export function renderAI() {
                         <div style="font-size:0.75rem; color:var(--text-secondary); font-style:italic;">Set Travel Dates above to assign this to a specific day / time of day.</div>
                     `}
                 </div>
-            `).join('');
+            `;}).join('');
 
             panel.innerHTML = `
-                <div class="card glass" style="padding:20px; border-radius:18px; border: 1.5px solid rgba(88, 86, 214, 0.25);">
-                    <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px;">
-                        <span style="font-size: 1.2rem;">🤖</span>
-                        <h3 style="margin:0; color:#5856d6; font-weight:800; letter-spacing:-0.01em;">Marked for AI <span style="background:rgba(88,86,214,0.12); color:#5856d6; font-size:0.7rem; padding:2px 8px; border-radius:999px; margin-left:6px;">${marked.length}</span></h3>
-                        <span style="margin-left:auto; font-size:0.78rem; color:var(--text-secondary);">Will be fed into Gemini's prompt when you Generate.</span>
+                <div class="card glass" style="padding:20px; border-radius:18px; border: 1.5px solid rgba(155, 89, 182, 0.25);">
+                    <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px; flex-wrap:wrap;">
+                        <span style="font-size: 1.2rem;">📋</span>
+                        <h3 style="margin:0; color:#9b59b6; font-weight:800; letter-spacing:-0.01em;">Your to-do list <span style="background:rgba(155,89,182,0.12); color:#9b59b6; font-size:0.7rem; padding:2px 8px; border-radius:999px; margin-left:6px;">${tickedCount}/${todoItems.length} ticked</span></h3>
+                        <span style="margin-left:auto; font-size:0.78rem; color:var(--text-secondary);">Tick the items you want the AI to plan around. Untick to keep on the list but skip for this generation.</span>
                     </div>
                     <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap:12px;">
                         ${cardsHtml}
@@ -504,8 +522,21 @@ export function renderAI() {
                 </div>
             `;
 
-            // Wire per-card actions: remove + day select + time select.
+            // Wire per-card actions: tick toggle + remove + day/time selects.
             // Delegated since the panel re-renders on every change.
+            panel.querySelectorAll('.ai-todo-tick').forEach(box => {
+                /** @type {HTMLInputElement} */ (box).onchange = () => {
+                    const pid = /** @type {HTMLElement} */ (box).dataset.placeId;
+                    if (!pid) return;
+                    toggleMarkedPlaceForAI(activeTrip, pid);
+                    emit('state:changed');
+                    upsertTrip(activeTrip);
+                    // Re-render so the visual ticked/unticked state
+                    // (border colour, opacity, dropdown disabled state,
+                    // header counter) updates in lockstep.
+                    renderTodoListPanel();
+                };
+            });
             panel.querySelectorAll('.marked-remove-btn').forEach(btn => {
                 /** @type {HTMLButtonElement} */ (btn).onclick = () => {
                     const pid = /** @type {HTMLElement} */ (btn).dataset.placeId;
@@ -513,7 +544,7 @@ export function renderAI() {
                     removeMarkedPlace(activeTrip, pid);
                     emit('state:changed');
                     upsertTrip(activeTrip);
-                    renderMarkedPlacesPanel();
+                    renderTodoListPanel();
                 };
             });
             panel.querySelectorAll('.marked-day-select, .marked-time-select').forEach(sel => {
@@ -537,7 +568,7 @@ export function renderAI() {
                 };
             });
         };
-        renderMarkedPlacesPanel();
+        renderTodoListPanel();
 
         if (generatedItinerary) renderItineraryOutput(generatedItinerary, savedNumDays, tripCountry);
 
@@ -653,12 +684,12 @@ export function renderAI() {
             });
         }
 
-        // Re-render the marked-places panel whenever the user types in
+        // Re-render the to-do list panel whenever the user types in
         // date inputs — this is what reveals the day/time-of-day
         // dropdowns once dates are set.
         ['#aiDateFrom', '#aiDateTo'].forEach(sel => {
             const el = /** @type {HTMLInputElement | null} */ (div.querySelector(sel));
-            if (el) el.addEventListener('change', () => renderMarkedPlacesPanel());
+            if (el) el.addEventListener('change', () => renderTodoListPanel());
         });
 
         div.querySelector('#generateBtn')?.addEventListener('click', async () => {
@@ -671,12 +702,16 @@ export function renderAI() {
             const from = new Date(dateFrom), to = new Date(dateTo);
             const numDays = Math.max(1, Math.round((to.getTime() - from.getTime()) / 86400000) + 1);
 
-            // Build the marked-places suffix that gets appended to the
-            // user's freeform context so Gemini sees both. Format chosen
-            // to be unambiguous: each place on its own line, with day
-            // and time-of-day labels when assigned. The AI is instructed
-            // to incorporate these places where it makes sense.
-            const markedForAI = getMarkedPlaces(activeTrip).filter(p => p.forAI);
+            // Build the to-do-list suffix that gets appended to the
+            // user's freeform context so Gemini sees both. Only items
+            // with forAI:true (the ticked checkboxes in the panel above)
+            // are sent — the user can untick to keep an item on the
+            // to-do list while excluding it from this generation.
+            // Format chosen to be unambiguous: each place on its own
+            // line, with day and time-of-day labels when assigned. The
+            // AI is instructed to incorporate these places where it
+            // makes sense.
+            const markedForAI = getMarkedPlaces(activeTrip).filter(p => p.forAI && p.forManual);
             let markedSuffix = '';
             if (markedForAI.length > 0) {
                 const tripDays = (STATE.tripDays || [])

@@ -162,6 +162,17 @@ export function loadState() {
         // dance and assume an array. New trips ship with [], but pre-feature
         // localStorage snapshots may not have the field at all.
         if (!Array.isArray(trip.markedPlaces)) trip.markedPlaces = [];
+        // To-do/AI consolidation migration: the old model had two independent
+        // flags (`forManual` = shortlist tab, `forAI` = AI planner list). We
+        // collapsed those into a single To-do list (`forManual`) where each
+        // entry can additionally be ticked for AI consideration (`forAI`).
+        // Items that previously lived ONLY in the AI list (forAI:true,
+        // forManual:false) would otherwise vanish from the new To-do tab.
+        // Set forManual:true on those so they surface in the to-do list with
+        // their AI-tick already on — preserving both surfaces' worth of work.
+        for (const p of trip.markedPlaces) {
+            if (p && p.forAI && !p.forManual) p.forManual = true;
+        }
         // Trip-level Documents and Photos. Each entry has an optional
         // dayId; "trip-wide" means dayId === Trip Genesis (Day 0).
         // Earlier snapshots used dayId: null to mean trip-wide; this
@@ -184,6 +195,10 @@ export function loadState() {
     for (const trip of STATE.archivedTrips || []) {
         trip.companions = normalizeTripCompanions(trip.companions);
         if (!Array.isArray(trip.markedPlaces)) trip.markedPlaces = [];
+        // Same to-do/AI consolidation migration as live trips above.
+        for (const p of trip.markedPlaces) {
+            if (p && p.forAI && !p.forManual) p.forManual = true;
+        }
         if (!Array.isArray(trip.documents)) trip.documents = [];
         if (!Array.isArray(trip.photos)) trip.photos = [];
         // Archived trips carry their tripDays nested on the trip

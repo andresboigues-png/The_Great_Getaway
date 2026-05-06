@@ -1318,13 +1318,167 @@ def list_friends():
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute('''
-            SELECT u.id, u.name, u.email, u.picture 
+            SELECT u.id, u.name, u.email, u.picture
             FROM users u
             JOIN friends f ON u.id = f.friend_id
             WHERE f.user_id = ? AND f.status = 'accepted'
         ''', (user_id,))
         friends = [dict(row) for row in cursor.fetchall()]
     return jsonify(friends)
+
+
+@app.route("/api/feed", methods=["GET"])
+@require_auth
+@limiter.limit("60/minute")
+def get_feed():
+    """Activity feed: things the caller's friends have done recently.
+
+    Synthesised on read from existing tables — no separate `activities`
+    table — so we don't have to backfill history when shipping. Each event
+    has a stable `id` (so the frontend can dedupe across polls), an
+    `actor` (the friend who did the thing), a human-readable description,
+    and an ISO `when` so the client can render relative dates.
+
+    Event types currently emitted:
+      - friend_created_trip   — your friend started planning a trip
+      - friend_joined_trip    — your friend was added to someone's trip
+                                (only fired when YOU were already on it
+                                or own it, so we're surfacing relevant
+                                co-traveller activity not random data)
+      - friend_archived_trip  — your friend "completed" a trip (archived)
+      - new_friendship        — you became friends with someone
+
+    Window: last 30 days. Hard-cap at 100 events to keep the payload
+    bounded; sorted desc by timestamp. Empty list = nothing recent.
+    """
+    user_id = current_user_id()
+    events = []
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # 1) Pull the caller's accepted friend list — every event below
+        # is gated on the actor being in this set.
+        cursor.execute('''
+            SELECT u.id, u.name, u.picture
+            FROM users u
+            JOIN friends f ON u.id = f.friend_id
+            WHERE f.user_id = ? AND f.status = 'accepted'
+        ''', (user_id,))
+        friend_rows = [dict(r) for r in cursor.fetchall()]
+        friend_ids = [f["id"] for f in friend_rows]
+        friend_lookup = {f["id"]: f for f in friend_rows}
+        if not friend_ids:
+            return jsonify([])
+
+        placeholders = ",".join(["?"] * len(friend_ids))
+
+        # 2) friend_created_trip — friend is the trip's owner, created
+        # in last 30 days. Excludes archived trips (those get their own
+        # event below).
+        cursor.execute(f'''
+            SELECT id, user_id, name, country, created_at
+            FROM trips
+            WHERE user_id IN ({placeholders})
+              AND COALESCE(is_archived, 0) = 0
+              AND created_at >= datetime('now', '-30 days')
+            ORDER BY created_at DESC
+        ''', friend_ids)
+        for row in cursor.fetchall():
+            actor = friend_lookup.get(row["user_id"])
+            if not actor:
+                continue
+            events.append({
+                "id": f"trip_created_{row['id']}",
+                "type": "friend_created_trip",
+                "actor": actor,
+                "trip": {"id": row["id"], "name": row["name"], "country": row["country"]},
+                "when": row["created_at"],
+            })
+
+        # 3) friend_archived_trip — friend's trip got archived (= they
+        # marked it complete). We don't have an `archived_at` column so
+        # fall back to created_at as a best-effort timestamp; in practice
+        # the user's "completed a trip" celebration is more about the
+        # ACT than the precise moment, and they'll see this in the feed
+        # the next time they open it after the friend hits Complete.
+        cursor.execute(f'''
+            SELECT id, user_id, name, country, created_at
+            FROM trips
+            WHERE user_id IN ({placeholders})
+              AND COALESCE(is_archived, 0) = 1
+              AND created_at >= datetime('now', '-30 days')
+            ORDER BY created_at DESC
+        ''', friend_ids)
+        for row in cursor.fetchall():
+            actor = friend_lookup.get(row["user_id"])
+            if not actor:
+                continue
+            events.append({
+                "id": f"trip_archived_{row['id']}",
+                "type": "friend_archived_trip",
+                "actor": actor,
+                "trip": {"id": row["id"], "name": row["name"], "country": row["country"]},
+                "when": row["created_at"],
+            })
+
+        # 4) friend_joined_trip — your friend was accepted onto a trip
+        # owned by someone else (and you also belong to that trip, so
+        # this is "co-traveller activity" not random feed noise). The
+        # trip_members table doesn't carry a join timestamp, so we use
+        # the trip's created_at as a proxy. Filtered to accepted-only.
+        cursor.execute(f'''
+            SELECT tm.trip_id, tm.user_id AS friend_id, t.name, t.country, t.created_at, t.user_id AS owner_id
+            FROM trip_members tm
+            JOIN trips t ON t.id = tm.trip_id
+            JOIN trip_members me ON me.trip_id = tm.trip_id
+                                 AND me.user_id = ?
+                                 AND me.invitation_status = 'accepted'
+            WHERE tm.user_id IN ({placeholders})
+              AND tm.invitation_status = 'accepted'
+              AND tm.user_id != t.user_id
+              AND tm.user_id != ?
+              AND t.created_at >= datetime('now', '-30 days')
+        ''', [user_id, *friend_ids, user_id])
+        for row in cursor.fetchall():
+            actor = friend_lookup.get(row["friend_id"])
+            if not actor:
+                continue
+            events.append({
+                "id": f"trip_joined_{row['trip_id']}_{row['friend_id']}",
+                "type": "friend_joined_trip",
+                "actor": actor,
+                "trip": {"id": row["trip_id"], "name": row["name"], "country": row["country"]},
+                "when": row["created_at"],
+            })
+
+        # 5) new_friendship — the caller became friends with someone in
+        # the last 30 days. The friends table is two-rowed (one per
+        # direction); we read the row where the caller is `user_id` so
+        # there's exactly one event per friendship.
+        cursor.execute(f'''
+            SELECT u.id, u.name, u.picture, f.created_at
+            FROM friends f
+            JOIN users u ON u.id = f.friend_id
+            WHERE f.user_id = ?
+              AND f.status = 'accepted'
+              AND f.created_at IS NOT NULL
+              AND f.created_at >= datetime('now', '-30 days')
+            ORDER BY f.created_at DESC
+        ''', (user_id,))
+        for row in cursor.fetchall():
+            events.append({
+                "id": f"friendship_{user_id}_{row['id']}",
+                "type": "new_friendship",
+                "actor": {"id": row["id"], "name": row["name"], "picture": row["picture"]},
+                "when": row["created_at"],
+            })
+
+    # Sort newest-first, hard-cap to keep payload bounded.
+    # Some rows can carry a NULL `when` (legacy data with no timestamp);
+    # treat those as oldest so they fall to the back rather than crash
+    # the comparator.
+    events.sort(key=lambda e: e.get("when") or "", reverse=True)
+    return jsonify(events[:100])
 
 @app.route("/api/trips/share", methods=["POST"])
 @require_auth

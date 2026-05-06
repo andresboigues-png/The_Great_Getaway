@@ -12,7 +12,7 @@ import { canEdit, canManageRoster, ROLE_PLANNER, ROLE_BUDGETEER } from '../permi
 import { findTripCompanionByLinkedUser } from '../companions.js';
 import { showModal } from '../components/Modal.js';
 import { wireRoleButtonKeys } from '../components/Keyboard.js';
-import { findMarkedPlace, toggleMarkedPlaceFlag, removeMarkedPlace } from '../markedPlaces.js';
+import { findMarkedPlace, toggleTodoListMembership, removeMarkedPlace } from '../markedPlaces.js';
 import {
     getAllTripDocuments, getAllTripPhotos,
     addTripDocument, addTripPhoto,
@@ -36,7 +36,11 @@ let editingDayId = null; // ID of the day currently being geolocated/pinned
 let activeMapClickListener = null; // Reference to the active map click handler
 let openMenuDayId = null; // Track which day's sidebar menu is open
 /** @type {'days' | 'companions' | 'shortlist' | 'documents' | 'photos'} */
-let activeHomeTab = 'days'; // Sub-tab on the home trip view (Path / Companions / Shortlist / Documents / Photos)
+let activeHomeTab = 'days'; // Sub-tab on the home trip view (Path / Companions / To do list / Documents / Photos)
+// 'shortlist' is the legacy key kept here so URL state, in-memory state,
+// and DOM data attributes don't need a churning rename — the user-visible
+// label is now "To do list" (and the data behind it is `forManual` on
+// markedPlaces, same as before).
 
 /** Single source of truth for the home-map POI quick-access pills.
  *  Read by:
@@ -91,7 +95,7 @@ export const POI_CATEGORIES = [
     // trip" is the question being asked — locking to a single day
     // pin would just mean missing the obvious ones two
     // neighborhoods over. Always anchored on genesis.
-    { key: 'medical',     placesType: 'hospital',           searchStrategy: 'wide', useGenesisAlways: true, icon: '🏥', label: 'Medical',         color: '#ff3b30', defaultMinRating: 0, tooltip: 'Hospitals, doctors, pharmacies, clinics. Vets are excluded — they live on the Pets pill.' },
+    { key: 'medical',     placesType: 'hospital',           extraPlacesTypes: ['pharmacy'], searchStrategy: 'wide', useGenesisAlways: true, icon: '🏥', label: 'Medical',         color: '#ff3b30', defaultMinRating: 0, tooltip: 'Hospitals, doctors, pharmacies, clinics across the wider trip area. Vets are excluded — they live on the Pets pill.' },
     { key: 'pets',        placesType: 'veterinary_care',    extraPlacesTypes: ['pet_store'], searchStrategy: 'wide', useGenesisAlways: true, icon: '🐾', label: 'Pets',           color: '#a460ed', defaultMinRating: 0, tooltip: 'Vets and pet stores across the wider trip area' },
     { key: 'schools',     placesType: 'school',             searchStrategy: 'wide', useGenesisAlways: true, icon: '🎓', label: 'Schools',         color: '#0071e3', defaultMinRating: 0, tooltip: 'Schools and universities. Always searches the wider trip area.' },
     { key: 'sports',      placesType: 'stadium',            searchStrategy: 'wide', useGenesisAlways: true, icon: '🏟️', label: 'Sports',          color: '#ff2d55', defaultMinRating: 0, tooltip: 'Stadiums and gyms. Always searches the wider trip area — they\'re landmarks, you want them all.' },
@@ -625,21 +629,19 @@ export function renderHome() {
                     const mapsUrl = place.place_id
                         ? `https://www.google.com/maps/place/?q=place_id:${encodeURIComponent(place.place_id)}`
                         : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.name || '')}`;
-                    // Mark-for-AI / Add-to-shortlist buttons — planner-only.
-                    // The current marked state determines the button label
-                    // and styling (filled when marked, outline when not).
+                    // Add-to-to-do button — planner-only. Single button (the
+                    // old "Mark for AI" + "Shortlist" pair was collapsed when
+                    // we merged the two lists into one). Adding stamps the
+                    // place into the trip's To-do list AND pre-ticks it for
+                    // AI consideration; the user can untick in the AI panel
+                    // for places they want to slot manually only.
                     const marked = findMarkedPlace(activeTrip, place.place_id);
-                    const isAi = !!marked?.forAI;
-                    const isManual = !!marked?.forManual;
+                    const isOnTodo = !!marked?.forManual;
                     const markBtnsHtml = tripIsEditable && place.place_id ? `
-                        <div style="display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap;">
-                            <button type="button" data-action="mark-ai" data-place-id="${esc(place.place_id)}"
-                                style="flex: 1; min-width: 120px; padding: 6px 10px; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; border: 1.5px solid #5856d6; background: ${isAi ? '#5856d6' : 'white'}; color: ${isAi ? 'white' : '#5856d6'};">
-                                ${isAi ? '✓ Marked for AI' : '🤖 Mark for AI'}
-                            </button>
-                            <button type="button" data-action="mark-manual" data-place-id="${esc(place.place_id)}"
-                                style="flex: 1; min-width: 120px; padding: 6px 10px; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; border: 1.5px solid #ff9500; background: ${isManual ? '#ff9500' : 'white'}; color: ${isManual ? 'white' : '#ff9500'};">
-                                ${isManual ? '✓ Shortlisted' : '📝 Shortlist it'}
+                        <div style="display: flex; gap: 6px; margin-top: 10px;">
+                            <button type="button" data-action="toggle-todo" data-place-id="${esc(place.place_id)}"
+                                style="flex: 1; padding: 7px 12px; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; border: 1.5px solid #9b59b6; background: ${isOnTodo ? '#9b59b6' : 'white'}; color: ${isOnTodo ? 'white' : '#9b59b6'};">
+                                ${isOnTodo ? '✓ On your to-do list' : '📋 Add to to-do list'}
                             </button>
                         </div>
                     ` : '';
@@ -657,52 +659,31 @@ export function renderHome() {
                     `;
                 };
 
-                /** Wire click handlers on whatever's currently inside the
-                 *  InfoWindow. Called on every open + after every content
-                 *  refresh (which we trigger when the user clicks a mark
-                 *  button so the button label updates). Google's
-                 *  InfoWindow domready event fires when the DOM is
-                 *  available, including after setContent. */
+                /** Wire click handler on the InfoWindow's single
+                 *  "Add to to-do" button. Called on every open + after
+                 *  every content refresh (which we trigger on click so
+                 *  the button label flips between "Add" and "✓ On your
+                 *  to-do list"). Google's InfoWindow domready event
+                 *  fires when the DOM is available, including after
+                 *  setContent — so the re-attach below survives rebuilds. */
                 const wireInfoWindowMarkButtons = (cat, place) => {
                     const iw = getInfoWindow();
-                    const root = iw && /** @type {any} */ (iw).getContent && /** @type {any} */ (iw).getContent();
-                    // The content can be a string OR a DOM node depending
-                    // on how setContent was called. We pass strings, so
-                    // Google parses it into a DOM tree we can reach via
-                    // the InfoWindow's internal anchor. Easier: use
-                    // document.querySelectorAll on the gm-style-iw
-                    // wrapper that Google adds to the DOM.
-                    const anyEl = document.querySelector(`.gm-style-iw [data-action="mark-ai"][data-place-id="${place.place_id}"]`);
-                    if (!anyEl) return; // iw not in DOM yet, will retry on next domready
-                    const aiBtn = /** @type {HTMLButtonElement} */ (anyEl);
-                    const manualBtn = /** @type {HTMLButtonElement | null} */ (
-                        document.querySelector(`.gm-style-iw [data-action="mark-manual"][data-place-id="${place.place_id}"]`)
+                    const todoBtn = /** @type {HTMLButtonElement | null} */ (
+                        document.querySelector(`.gm-style-iw [data-action="toggle-todo"][data-place-id="${place.place_id}"]`)
                     );
-                    /** Re-renders the InfoWindow content (so the button
-                     *  label flips to "✓ Marked") AND re-attaches the
-                     *  domready listener that re-runs this wiring after
-                     *  Google rebuilds the InfoWindow's DOM. Without the
-                     *  re-attach, only the first click would work. */
+                    if (!todoBtn) return; // iw not in DOM yet, will retry on next domready
                     const refresh = () => {
                         iw.setContent(buildInfoWindowHtml(cat, place));
                         google.maps.event.addListenerOnce(iw, 'domready', () => {
                             wireInfoWindowMarkButtons(cat, place);
                         });
                     };
-                    aiBtn.onclick = () => {
-                        toggleMarkedPlaceFlag(activeTrip, place, 'forAI', cat);
+                    todoBtn.onclick = () => {
+                        toggleTodoListMembership(activeTrip, place, cat);
                         emit('state:changed');
                         upsertTrip(activeTrip);
                         refresh();
                     };
-                    if (manualBtn) {
-                        manualBtn.onclick = () => {
-                            toggleMarkedPlaceFlag(activeTrip, place, 'forManual', cat);
-                            emit('state:changed');
-                            upsertTrip(activeTrip);
-                            refresh();
-                        };
-                    }
                 };
 
                 /** Drop a marker for one Places result. Color comes from
@@ -1085,9 +1066,9 @@ export function renderHome() {
                 // structured predictions, click a row and PlacesService
                 // .getDetails fetches the place's geometry + types.
                 // Result lands as a custom marker that uses the same
-                // InfoWindow flow (with Mark for AI / Shortlist buttons)
-                // as the POI pills, so anything found here can be added
-                // to the AI prompt or the manual shortlist with one tap.
+                // InfoWindow flow (with the Add-to-to-do button) as the
+                // POI pills, so anything found here can be added to the
+                // trip's to-do list (and pre-ticked for AI) with one tap.
                 //
                 // The "category" displayed in the InfoWindow is faked
                 // from the place's types[] (best-effort match against
@@ -1175,7 +1156,7 @@ export function renderHome() {
                         if (map.getZoom() < 14) map.setZoom(15);
 
                         // Open the same InfoWindow the POI pills use, so
-                        // Mark for AI / Shortlist buttons appear.
+                        // the Add-to-to-do button appears.
                         const iw = getInfoWindow();
                         iw.setContent(buildInfoWindowHtml(cat, place));
                         google.maps.event.addListenerOnce(iw, 'domready', () => {
@@ -1745,7 +1726,7 @@ export function renderHome() {
             <nav class="home-tabnav" role="tablist">
                 <button class="home-tabnav__tab${activeHomeTab === 'days' ? ' is-active' : ''}" data-home-tab="days" role="tab">Path</button>
                 <button class="home-tabnav__tab${activeHomeTab === 'companions' ? ' is-active' : ''}" data-home-tab="companions" role="tab">Companions</button>
-                <button class="home-tabnav__tab${activeHomeTab === 'shortlist' ? ' is-active' : ''}" data-home-tab="shortlist" role="tab">Shortlist${badge(shortlistCount, { bg: 'rgba(255,149,0,0.15)', fg: '#ff9500' })}</button>
+                <button class="home-tabnav__tab${activeHomeTab === 'shortlist' ? ' is-active' : ''}" data-home-tab="shortlist" role="tab">To do list${badge(shortlistCount, { bg: 'rgba(155,89,182,0.15)', fg: '#9b59b6' })}</button>
                 <button class="home-tabnav__tab${activeHomeTab === 'documents' ? ' is-active' : ''}" data-home-tab="documents" role="tab">Documents${badge(docsCount, { bg: 'rgba(88,86,214,0.15)', fg: '#5856d6' })}</button>
                 <button class="home-tabnav__tab${activeHomeTab === 'photos' ? ' is-active' : ''}" data-home-tab="photos" role="tab">Photos${badge(photosCount, { bg: 'rgba(52,199,89,0.15)', fg: '#1a6b3c' })}</button>
             </nav>
@@ -1773,29 +1754,25 @@ export function renderHome() {
                 </div>
             </div>
 
-            <!-- Shortlist tab — places the user marked from the home
-                 map InfoWindow with "📝 Shortlist it". Cards show the
-                 place and a remove button; the day-and-time-of-day
-                 dropdowns appear when the trip has numbered days, so
-                 the user can tag each place to a day they're planning
-                 to visit. -->
-            <!-- Shortlist tab content. Pure pool of places — no day/time
-                 dropdowns. The user assigns places to a day by clicking
-                 AM/PM/Eve in the Day Detail modal, which writes the line
-                 directly into the day's textarea (so the place's actual
-                 home is the day plan itself, not metadata on the place).
-                 This avoids the prior "tag stamped, textarea forgotten"
-                 mismatch where shortlist showed Tagged for Day 2 but
-                 Day 2's plan was empty. -->
+            <!-- To do list tab — places the user added from the home
+                 map InfoWindow with "📋 Add to to-do list". Cards show
+                 the place and a remove button. The user assigns a place
+                 to a day by either: opening a day's Full Plan and tapping
+                 AM/PM/Eve, OR opening the AI planner where each item
+                 surfaces with a checkbox + day/time dropdowns to feed
+                 the AI generation. The data backing this is the same
+                 trip.markedPlaces.forManual list as the legacy shortlist.
+                 The 'shortlist' DOM key is kept to avoid pointless churn
+                 across the tab-switch wiring. -->
             <div class="home-tab-content${activeHomeTab === 'shortlist' ? ' is-active' : ''}" data-home-tab="shortlist">
                 ${(() => {
                     const shortlist = (activeTrip.markedPlaces || []).filter(p => p.forManual);
                     if (shortlist.length === 0) {
                         return `
-                            <div class="card glass" style="padding: 28px; border-radius: 18px; border: 1.5px dashed rgba(255, 149, 0, 0.35); background: rgba(255, 149, 0, 0.04); text-align:center;">
-                                <div style="font-size:2rem; margin-bottom:8px;">📝</div>
-                                <h3 style="margin:0 0 6px; color:#ff9500; font-weight:800;">No shortlisted places yet</h3>
-                                <p style="margin:0; color:var(--text-secondary); font-size:0.9rem;">On the home map, click any pin and hit <strong>📝 Shortlist it</strong> to add it here. Then open any day's <strong>Full Plan</strong> and tap AM / PM / Eve to drop a place into that day.</p>
+                            <div class="card glass" style="padding: 28px; border-radius: 18px; border: 1.5px dashed rgba(155, 89, 182, 0.35); background: rgba(155, 89, 182, 0.04); text-align:center;">
+                                <div style="font-size:2rem; margin-bottom:8px;">📋</div>
+                                <h3 style="margin:0 0 6px; color:#9b59b6; font-weight:800;">Your to-do list is empty</h3>
+                                <p style="margin:0; color:var(--text-secondary); font-size:0.9rem;">On the home map, click any pin and hit <strong>📋 Add to to-do list</strong>. From there, open any day's <strong>Full Plan</strong> and tap AM / PM / Eve to drop a place into that day — or jump to <strong>Plan with AI ✦</strong>, where each to-do item arrives pre-ticked for the AI to consider.</p>
                             </div>
                         `;
                     }
@@ -1805,15 +1782,15 @@ export function renderHome() {
                     // out side-by-side instead of stacking. (Companions tab
                     // dodges this with its single .trip-companions-section
                     // wrapper.)
-                    // Shortlist visibility is everyone-can-see, but only
+                    // To-do visibility is everyone-can-see, but only
                     // planners can mutate (add via map InfoWindow, remove
                     // via this card's ✕). For non-planners we hide the ✕
                     // button so the card is purely informational; the
                     // click handler also re-checks tripIsEditable as
                     // defense in depth.
                     const helperText = tripIsEditable
-                        ? `Open any day's <strong>Full Plan</strong> below and use AM / PM / Eve to drop a shortlisted place into the matching textarea.`
-                        : `Places your trip planners flagged to fit in somewhere. Open any day's <strong>Full Plan</strong> to view it.`;
+                        ? `Open any day's <strong>Full Plan</strong> below and use AM / PM / Eve to drop an item into that day — or visit <strong>Plan with AI ✦</strong> to let the AI slot them.`
+                        : `Places your trip planners want to fit in somewhere. Open any day's <strong>Full Plan</strong> to view it.`;
                     return `
                         <div style="display:flex; flex-direction:column; gap:12px; flex:1; min-width:0;">
                             <div style="font-size:0.8rem; color:var(--text-secondary);">${helperText}</div>
@@ -1826,7 +1803,7 @@ export function renderHome() {
                                             ${p.address ? `<div style="font-size:0.75rem; color:var(--text-secondary); margin-top:2px;">${esc(p.address)}</div>` : ''}
                                         </div>
                                         ${tripIsEditable ? `
-                                            <button type="button" class="shortlist-remove-btn" data-place-id="${esc(p.placeId)}" title="Remove from shortlist" aria-label="Remove ${esc(p.name)}"
+                                            <button type="button" class="shortlist-remove-btn" data-place-id="${esc(p.placeId)}" title="Remove from to-do list" aria-label="Remove ${esc(p.name)}"
                                                 style="background: rgba(255,59,48,0.08); border: 1px solid rgba(255,59,48,0.25); color:#ff3b30; border-radius: 8px; padding: 4px 8px; font-size:0.75rem; font-weight:800; cursor:pointer; flex-shrink:0;">✕</button>
                                         ` : ''}
                                     </div>
@@ -3273,10 +3250,10 @@ const openDayDetail = (dayId) => {
     `;
 
     const shortlistSectionHtml = allShortlist.length > 0 ? `
-        <div style="margin-top: var(--space-10); padding: var(--space-6); background: rgba(255, 149, 0, 0.04); border: 1px solid rgba(255, 149, 0, 0.2); border-radius: 24px;">
+        <div style="margin-top: var(--space-10); padding: var(--space-6); background: rgba(155, 89, 182, 0.04); border: 1px solid rgba(155, 89, 182, 0.2); border-radius: 24px;">
             <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px;">
-                <span style="font-size: 1.2rem;">📝</span>
-                <h4 style="margin:0; color:#ff9500; font-weight:800; letter-spacing:-0.01em;">From your shortlist</h4>
+                <span style="font-size: 1.2rem;">📋</span>
+                <h4 style="margin:0; color:#9b59b6; font-weight:800; letter-spacing:-0.01em;">From your to-do list</h4>
                 <span style="margin-left:auto; font-size:0.78rem; color:var(--text-secondary);">Click AM / PM / Eve to drop a place into the matching textarea above. ✓ shows where it currently lives.</span>
             </div>
             <div style="display:flex; flex-direction:column; gap:8px;">

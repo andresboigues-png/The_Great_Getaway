@@ -88,9 +88,11 @@ def init_db():
             # scope to this list instead of the full account roster, so each
             # trip computes who-owes-whom against just its real participants.
             ("companions_json", "ALTER TABLE trips ADD COLUMN companions_json TEXT"),
-            # JSON-encoded list of places the user has "marked" from the
-            # home map. Two flavours: forAI (fed into Gemini prompt) and
-            # forManual (shortlist to pick from when manually editing days).
+            # JSON-encoded list of places the user has added to the
+            # trip's To-do list (the unified surface that replaced the
+            # old Shortlist + Mark-for-AI pair). Each entry carries
+            # `forManual` (in the to-do list) and `forAI` (ticked for
+            # the next AI generation). New entries default to both true.
             # Schema: see migrations/versions/c374584f6044*.
             ("marked_places_json", "ALTER TABLE trips ADD COLUMN marked_places_json TEXT"),
             # JSON-encoded list of trip-level documents (booking
@@ -133,11 +135,20 @@ def init_db():
                 user_id TEXT,
                 friend_id TEXT,
                 status TEXT DEFAULT 'pending', -- 'pending', 'accepted'
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY(user_id, friend_id),
                 FOREIGN KEY(user_id) REFERENCES users(id),
                 FOREIGN KEY(friend_id) REFERENCES users(id)
             )
         ''')
+        # Backfill created_at on legacy databases that pre-date the column.
+        # Old rows end up NULL — the Feed endpoint treats NULL as "long ago"
+        # and just hides them past the 30-day window. New rows get a real
+        # timestamp going forward.
+        try:
+            cursor.execute("ALTER TABLE friends ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP")
+        except Exception:
+            pass
         
         # Trip Sharing (Collaboration) — legacy, retained so old DBs don't
         # error on schema upgrade. Phase 3 introduced `trip_members` below

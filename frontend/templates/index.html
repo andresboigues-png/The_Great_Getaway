@@ -97,7 +97,7 @@
                 <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
                 <path d="M16 3.13a4 4 0 0 1 0 7.75" />
             </svg>
-            Friends
+            Your network
         </a>
 
         <div class="sidebar-section-label" style="margin-top: 16px; color: #ff9500;">Keeping track</div>
@@ -173,6 +173,18 @@
                 <span></span><span></span><span></span>
             </button>
             <div class="nav-brand">The Great Getaway</div>
+            <!-- Feed (sits immediately left of the bell — friend activity
+                 lives in the same "stay-in-the-loop" mental cluster as
+                 notifications, so they're visually adjacent). Routes to
+                 the Feed page via data-page wiring. -->
+            <a href="#" data-page="feed" id="navFeedBtn" aria-label="Feed" title="Feed — what your friends are up to"
+                style="background: transparent; border: none; cursor: pointer; padding: 4px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: background 0.2s; margin-left: 8px; text-decoration: none; color: inherit;">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4 11a9 9 0 0 1 9 9"></path>
+                    <path d="M4 4a16 16 0 0 1 16 16"></path>
+                    <circle cx="5" cy="19" r="1"></circle>
+                </svg>
+            </a>
             <!-- Notification Bell -->
             <div style="position: relative; margin-left: 8px;">
                 <button id="notificationBellBtn" aria-label="Notifications" style="background: transparent; border: none; cursor: pointer; position: relative; padding: 4px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: background 0.2s;">

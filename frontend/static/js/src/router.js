@@ -10,6 +10,7 @@ import { renderCollections } from './pages/collections.js';
 import { renderAI } from './pages/ai.js';
 import { renderSettlement } from './pages/settlement.js';
 import { renderFriends } from './pages/friends.js';
+import { renderFeed } from './pages/feed.js';
 import { renderProfile, renderLoginWall } from './pages/profile.js';
 
 let isInternalNav = false;
@@ -70,6 +71,7 @@ export function navigate(page, params = null, preserveScroll = false) {
         case PAGES.AI: pageEl = renderAI(); break;
         case PAGES.SETTLEMENT: pageEl = renderSettlement(); break;
         case PAGES.FRIENDS: pageEl = renderFriends(); break;
+        case PAGES.FEED: pageEl = renderFeed(); break;
         case PAGES.PROFILE: pageEl = renderProfile(params?.userId); break;
         default: pageEl = renderHome();
     }
