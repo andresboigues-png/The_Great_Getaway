@@ -1695,9 +1695,9 @@
             <span style="color: var(--text-secondary); font-size:0.85rem; font-weight:600;">Tap a day to relive what was planned.</span>
         </div>
         <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:18px;">
-            ${a.sort((e,t)=>e.dayNumber-t.dayNumber).map(e=>{let t=e.photos||[],n=s.filter(t=>t.dayId===e.id),r=t.length+n.length,i=e.tickets||[],a=c.filter(t=>t.dayId===e.id),o=i.length+a.length,l=Number(e.dayNumber)===0,u=t[0]||n[0]?.src||(l?null:d),f=!!u;return`
+            ${a.sort((e,t)=>e.dayNumber-t.dayNumber).map(e=>{let t=e.photos||[],n=s.filter(t=>t.dayId===e.id),r=t.length+n.length,i=e.tickets||[],a=c.filter(t=>t.dayId===e.id),o=i.length+a.length,l=Number(e.dayNumber)===0,u=t[0]||n[0]?.src||null,d=!!u;return`
                     <div class="archived-day-block" data-day-id="${L(e.id)}" role="button" tabindex="0" aria-label="View Day ${e.dayNumber}${e.name?` — `+e.name:``}"
-                        style="position:relative; cursor:pointer; min-height:170px; border-radius:24px; padding:20px; display:flex; flex-direction:column; justify-content:space-between; transition: transform 0.35s cubic-bezier(0.16,1,0.3,1), box-shadow 0.35s cubic-bezier(0.16,1,0.3,1); ${f?`background: linear-gradient(180deg, rgba(0,45,91,0.15) 0%, rgba(0,45,91,0.78) 100%), url(${L(u)}) center/cover no-repeat; border: 1px solid rgba(0,0,0,0.08); color: white;`:`background: white; border: 1.5px solid rgba(0,113,227,0.18); color: #002d5b;`} box-shadow: 0 10px 30px rgba(0,0,0,0.06);"
+                        style="position:relative; cursor:pointer; min-height:170px; border-radius:24px; padding:20px; display:flex; flex-direction:column; justify-content:space-between; transition: transform 0.35s cubic-bezier(0.16,1,0.3,1), box-shadow 0.35s cubic-bezier(0.16,1,0.3,1); ${d?`background: linear-gradient(180deg, rgba(0,45,91,0.15) 0%, rgba(0,45,91,0.78) 100%), url(${L(u)}) center/cover no-repeat; border: 1px solid rgba(0,0,0,0.08); color: white;`:`background: white; border: 1.5px solid rgba(0,113,227,0.18); color: #002d5b;`} box-shadow: 0 10px 30px rgba(0,0,0,0.06);"
                         onmouseover="this.style.transform='translateY(-6px)';this.style.boxShadow='0 24px 50px rgba(0,0,0,0.16)';"
                         onmouseout="this.style.transform='';this.style.boxShadow='0 10px 30px rgba(0,0,0,0.06)';">
                         <!-- Top: badge -->
@@ -1706,11 +1706,11 @@
                         </div>
                         <!-- Bottom: name + count chips -->
                         <div>
-                            <h3 style="margin:0; font-size:1.4rem; font-weight:800; letter-spacing:-0.02em; color:${f?`#ffffff`:`#002d5b`}; line-height:1.15; ${f?`text-shadow: 0 2px 12px rgba(0,0,0,0.4);`:``}">${L(e.name||(l?`Trip Genesis`:`Day ${e.dayNumber}`))}</h3>
+                            <h3 style="margin:0; font-size:1.4rem; font-weight:800; letter-spacing:-0.02em; color:${d?`#ffffff`:`#002d5b`}; line-height:1.15; ${d?`text-shadow: 0 2px 12px rgba(0,0,0,0.4);`:``}">${L(e.name||(l?`Trip Genesis`:`Day ${e.dayNumber}`))}</h3>
                             <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:10px;">
-                                ${r>0?`<span style="background:${f?`rgba(255,255,255,0.18)`:`rgba(0,113,227,0.08)`}; color:${f?`#ffffff`:`var(--accent-blue)`}; padding:3px 10px; border-radius:999px; font-size:0.7rem; font-weight:700;">📸 ${r}</span>`:``}
-                                ${o>0?`<span style="background:${f?`rgba(255,255,255,0.18)`:`rgba(88,86,214,0.08)`}; color:${f?`#ffffff`:`#5856d6`}; padding:3px 10px; border-radius:999px; font-size:0.7rem; font-weight:700;">📎 ${o}</span>`:``}
-                                ${e.notes?`<span style="background:${f?`rgba(255,255,255,0.18)`:`rgba(255,149,0,0.08)`}; color:${f?`#ffffff`:`#ff9500`}; padding:3px 10px; border-radius:999px; font-size:0.7rem; font-weight:700;">📝 Notes</span>`:``}
+                                ${r>0?`<span style="background:${d?`rgba(255,255,255,0.18)`:`rgba(0,113,227,0.08)`}; color:${d?`#ffffff`:`var(--accent-blue)`}; padding:3px 10px; border-radius:999px; font-size:0.7rem; font-weight:700;">📸 ${r}</span>`:``}
+                                ${o>0?`<span style="background:${d?`rgba(255,255,255,0.18)`:`rgba(88,86,214,0.08)`}; color:${d?`#ffffff`:`#5856d6`}; padding:3px 10px; border-radius:999px; font-size:0.7rem; font-weight:700;">📎 ${o}</span>`:``}
+                                ${e.notes?`<span style="background:${d?`rgba(255,255,255,0.18)`:`rgba(255,149,0,0.08)`}; color:${d?`#ffffff`:`#ff9500`}; padding:3px 10px; border-radius:999px; font-size:0.7rem; font-weight:700;">📝 Notes</span>`:``}
                             </div>
                         </div>
                     </div>

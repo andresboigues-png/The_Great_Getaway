@@ -241,9 +241,18 @@ export function renderArchivedTripDetail(tripId) {
                 const dayDocsFromTrip = tripDocs.filter(d => d.dayId === day.id);
                 const totalDayDocs = dayDocsFromDay.length + dayDocsFromTrip.length;
                 const isStartingPoint = Number(day.dayNumber) === 0;
-                const photoBg = dayPhotosFromDay[0]
-                    || dayPhotosFromTrip[0]?.src
-                    || (isStartingPoint ? null : firstPhoto);
+                // The day-card background uses ONLY photos that are
+                // explicitly tied to this day. An earlier version
+                // fell back to `firstPhoto` (the first photo found
+                // anywhere on the trip) when a day had no photo of
+                // its own — which made a Day-1-tagged photo
+                // "leak" onto every other day's card. The user
+                // correctly flagged this as misleading. Days with
+                // no own-photo now render the clean white card
+                // style; firstPhoto is still used for the hero
+                // background (where it correctly represents the
+                // trip overall, not any one day).
+                const photoBg = dayPhotosFromDay[0] || dayPhotosFromTrip[0]?.src || null;
                 const hasBg = !!photoBg;
                 return `
                     <div class="archived-day-block" data-day-id="${esc(day.id)}" role="button" tabindex="0" aria-label="View Day ${day.dayNumber}${day.name ? ' — ' + day.name : ''}"
