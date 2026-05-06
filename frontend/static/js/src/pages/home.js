@@ -419,6 +419,14 @@ export function renderHome() {
                 /** @type {Record<string, any[]>} */
                 const placesCache = {};
 
+                /** In-flight fetches keyed the same way. Concurrent
+                 *  toggles for the same pill resolve to the same
+                 *  promise instead of firing duplicate searches —
+                 *  fixes the race where rapid on/off/on left orphan
+                 *  markers from the first fetch on top of the second.
+                 *  @type {Record<string, Promise<any[]>>} */
+                const placesPending = {};
+
                 /** Single shared InfoWindow — reused across every Places
                  *  marker so only one bubble is ever open at a time
                  *  (Google Maps standard behavior, less visual chaos). */
@@ -509,64 +517,82 @@ export function renderHome() {
                  *  total) when available so the bigger search radius
                  *  doesn't get artificially capped at 20 results.
                  */
-                const fetchPlacesForTrip = (cat) => new Promise((resolve) => {
+                const fetchPlacesForTrip = (cat) => {
                     const tripId = activeTrip?.id || '';
                     const key = `${tripId}|${cat.key}`;
-                    if (placesCache[key]) { resolve(placesCache[key]); return; }
-                    // Genesis pin (day 0) is the trip's location anchor —
-                    // always set when the trip has a location, falls back
-                    // to the trip's own lat/lng if for some reason day 0
-                    // is missing.
-                    const genesis = currentTripDays.find(d => d.dayNumber === 0 && d.lat);
-                    const center = genesis
-                        ? { lat: genesis.lat, lng: genesis.lng || genesis.lon }
-                        : (activeTrip?.lat ? { lat: activeTrip.lat, lng: activeTrip.lng } : null);
-                    if (!center || typeof center.lat !== 'number' || typeof center.lng !== 'number') {
-                        resolve([]); return;
-                    }
-                    const svc = getPlacesService();
-                    if (!svc) { resolve([]); return; }
-                    /** @type {any[]} */
-                    const all = [];
-                    const handle = (results, status, pagination) => {
-                        const ok = status === google.maps.places.PlacesServiceStatus.OK
-                            || status === google.maps.places.PlacesServiceStatus.ZERO_RESULTS;
-                        if (ok && Array.isArray(results)) all.push(...results);
-                        // Paginate up to 3 pages (≈60 results) — past
-                        // that, density crowds the map and the cost
-                        // grows linearly. Each pagination is a new
-                        // billable call, so capping is intentional.
-                        if (pagination && pagination.hasNextPage && all.length < 60) {
-                            // Google requires a brief delay before nextPage.
-                            setTimeout(() => pagination.nextPage(), 200);
-                        } else {
-                            placesCache[key] = all;
-                            resolve(all);
+                    // Cached → instant resolve.
+                    if (placesCache[key]) return Promise.resolve(placesCache[key]);
+                    // In-flight → return the same promise so concurrent
+                    // toggles share one search instead of duplicating.
+                    if (placesPending[key]) return placesPending[key];
+
+                    const promise = new Promise((resolve) => {
+                        // Genesis pin (day 0) is the trip's location anchor —
+                        // always set when the trip has a location, falls back
+                        // to the trip's own lat/lng if for some reason day 0
+                        // is missing.
+                        const genesis = currentTripDays.find(d => d.dayNumber === 0 && d.lat);
+                        const center = genesis
+                            ? { lat: genesis.lat, lng: genesis.lng || genesis.lon }
+                            : (activeTrip?.lat ? { lat: activeTrip.lat, lng: activeTrip.lng } : null);
+                        if (!center || typeof center.lat !== 'number' || typeof center.lng !== 'number') {
+                            resolve([]); return;
                         }
-                    };
-                    svc.nearbySearch({
-                        location: center,
-                        radius: 50000,
-                        type: cat.placesType,
-                    }, handle);
-                });
+                        const svc = getPlacesService();
+                        if (!svc) { resolve([]); return; }
+                        /** @type {any[]} */
+                        const all = [];
+                        const handle = (results, status, pagination) => {
+                            const ok = status === google.maps.places.PlacesServiceStatus.OK
+                                || status === google.maps.places.PlacesServiceStatus.ZERO_RESULTS;
+                            if (ok && Array.isArray(results)) all.push(...results);
+                            if (pagination && pagination.hasNextPage && all.length < 60) {
+                                setTimeout(() => pagination.nextPage(), 200);
+                            } else {
+                                resolve(all);
+                            }
+                        };
+                        svc.nearbySearch({
+                            location: center,
+                            radius: 50000,
+                            type: cat.placesType,
+                        }, handle);
+                    });
+                    placesPending[key] = promise;
+                    promise.then(list => {
+                        placesCache[key] = list;
+                        delete placesPending[key];
+                    });
+                    return promise;
+                };
 
                 /** Toggle markers for one pill key on/off.
                  *  No-op for categories without a placesType (e.g. the
                  *  "Roads & traffic" pill, which is a pure styles+layer
-                 *  toggle handled in the click handler). */
+                 *  toggle handled in the click handler).
+                 *
+                 *  Always clears any existing markers up front (covers
+                 *  off-toggles AND the "user clicked again before async
+                 *  resolved" path). After the fetch completes, only
+                 *  adds markers if the pill is STILL enabled — fixes
+                 *  the race where rapid on/off left orphans on the map. */
                 const setPlacesPillVisible = async (pillKey, visible) => {
                     const cat = POI_CATEGORIES.find(c => c.key === pillKey);
                     if (!cat || !cat.placesType) return;
-                    if (!visible) {
-                        (placesMarkers[pillKey] || []).forEach(m => m.setMap(null));
-                        placesMarkers[pillKey] = [];
-                        return;
-                    }
-                    // Visible: one big trip-wide search → drop a marker
-                    // per result. Dedup by place_id (defensive — one
-                    // search shouldn't return duplicates, but better safe).
+
+                    // Clear unconditionally so the off path AND the
+                    // "rapidly toggled on twice" path both reset cleanly.
+                    (placesMarkers[pillKey] || []).forEach(m => m.setMap(null));
+                    placesMarkers[pillKey] = [];
+
+                    if (!visible) return;
+
                     const results = await fetchPlacesForTrip(cat);
+
+                    // Re-check after the await — the user may have
+                    // toggled the pill back off while we were waiting.
+                    if (!enabledPois.has(pillKey)) return;
+
                     /** @type {any[]} */
                     const markers = [];
                     const seen = new Set();
