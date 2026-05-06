@@ -587,6 +587,35 @@ def archive_trip(trip_id):
     return jsonify({"status": "archived"})
 
 
+@app.route("/api/trips/<trip_id>/unarchive", methods=["POST"])
+@require_auth
+def unarchive_trip(trip_id):
+    """Inverse of /archive — flips THIS caller's `trip_members.is_archived`
+    back to 0 so the trip returns to their active list on next /api/data
+    pull. Mirrors `trips.is_archived = 0` when the actor is the owner.
+
+    Without this endpoint, restoring an archived trip from Collections
+    would only mutate client-side STATE — the next reload would re-bucket
+    the trip into archivedTrips because /api/data reads the per-user
+    `trip_members.is_archived` (which would stay at 1)."""
+    user_id = current_user_id()
+    with get_db() as conn:
+        cursor = conn.cursor()
+        if _trip_member_role(cursor, trip_id, user_id) is None:
+            return jsonify({"error": "Forbidden"}), 403
+        cursor.execute(
+            "UPDATE trip_members SET is_archived = 0 WHERE trip_id = ? AND user_id = ?",
+            (trip_id, user_id),
+        )
+        if _is_trip_owner(cursor, trip_id, user_id):
+            cursor.execute(
+                "UPDATE trips SET is_archived = 0 WHERE id = ? AND user_id = ?",
+                (trip_id, user_id),
+            )
+        conn.commit()
+    return jsonify({"status": "unarchived"})
+
+
 # ── Trip member endpoints (Phase 3) ──────────────────────────────────────────
 
 @app.route("/api/trips/invite", methods=["POST"])

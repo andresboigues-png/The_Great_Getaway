@@ -2,7 +2,7 @@
 import { STATE, emit } from '../state.js';
 import { showConfirmModal, formatHome, esc, shortPlaceName } from '../utils.js';
 import { navigate } from '../router.js';
-import { apiUrl } from '../api.js';
+import { apiUrl, unarchiveTripOnServer } from '../api.js';
 import { wireRoleButtonKeys } from '../components/Keyboard.js';
 import { openDayView, openPdfPreview, looksLikePdfUrl } from './home.js';
 
@@ -716,14 +716,14 @@ const toggleTripPrivacy = async (id, isPublic) => {
 const restoreTrip = (id) => {
     const trip = STATE.archivedTrips.find(t => t.id === id);
     if (!trip) return;
-    
+
     showConfirmModal({
         title: "Restore Trip?",
         message: "This will move the trip back to your active list.",
         confirmText: "Restore",
         onConfirm: () => {
             trip.isArchived = false;
-            
+
             // Restore expenses and days to global lists
             if (trip.expenses) {
                 STATE.expenses = [...STATE.expenses, ...trip.expenses];
@@ -733,11 +733,16 @@ const restoreTrip = (id) => {
                 STATE.tripDays = [...STATE.tripDays, ...trip.tripDays];
                 delete trip.tripDays;
             }
-            
+
             STATE.trips.push(trip);
             STATE.archivedTrips = STATE.archivedTrips.filter(t => t.id !== id);
             STATE.activeTripId = id;
             emit('state:changed');
+            // Server delta — without this the per-user `trip_members.is_archived`
+            // stays at 1 and the trip re-buckets into archivedTrips on the
+            // next /api/data pull (i.e. on every reload). Local STATE alone
+            // is the wrong source of truth; the per-user flag is.
+            unarchiveTripOnServer(id);
             navigate('home');
         }
     });

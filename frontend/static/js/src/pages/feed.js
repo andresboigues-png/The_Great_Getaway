@@ -109,16 +109,21 @@ export function renderFeed() {
     const div = document.createElement('div');
     div.style.cssText = `font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text',sans-serif;`;
 
-    // Header + container shell. The list itself paints into #feedList so
-    // the network refresh can swap the body without re-rendering the
-    // header (which would steal scroll position).
+    // Header + container shell. Both the header and the list live inside
+    // the same centered column (max-width 760, margin auto) so they share
+    // a vertical alignment line — left-aligning either one against the
+    // wide app-container would feel off. The list itself paints into
+    // #feedList so the network refresh can swap the body without
+    // re-rendering the header (which would steal scroll position).
     div.innerHTML = `
-        <div style="padding:32px 0 24px;">
-            <h1 style="margin:0 0 6px;font-size:2.8rem;font-weight:800;letter-spacing:-0.04em;background:linear-gradient(135deg,var(--accent-blue),#9b59b6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Feed</h1>
-            <p style="margin:0;color:var(--text-secondary);font-size:1rem;">What your friends are up to lately</p>
-        </div>
+        <div style="max-width: 760px; margin: 0 auto;">
+            <div style="padding:32px 0 24px; text-align:center;">
+                <h1 style="margin:0 0 6px;font-size:2.8rem;font-weight:800;letter-spacing:-0.04em;background:linear-gradient(135deg,var(--accent-blue),#9b59b6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Feed</h1>
+                <p style="margin:0;color:var(--text-secondary);font-size:1rem;">What your friends are up to lately</p>
+            </div>
 
-        <div id="feedList" style="display:flex; flex-direction:column; gap:12px; max-width: 760px;"></div>
+            <div id="feedList" style="display:flex; flex-direction:column; gap:12px;"></div>
+        </div>
     `;
 
     /** Paint #feedList from `cachedEvents`. Pure DOM swap; no fetch. */

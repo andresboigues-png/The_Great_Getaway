@@ -683,6 +683,27 @@ export function renderHome() {
                         emit('state:changed');
                         upsertTrip(activeTrip);
                         refresh();
+                        // Patch the home tab nav's "To do list" badge inline
+                        // so the count reflects the change without re-rendering
+                        // the whole home page (which would tear down the map
+                        // and close this InfoWindow). If the To-do tab is
+                        // currently the visible sub-tab, fall back to a full
+                        // re-render so the user also sees the new card —
+                        // they're explicitly looking at that surface.
+                        if (activeTrip) {
+                            const newCount = (activeTrip.markedPlaces || []).filter(p => p.forManual).length;
+                            const tabBtn = document.querySelector('.home-tabnav__tab[data-home-tab="shortlist"]');
+                            if (tabBtn) {
+                                const badgeHtml = newCount > 0
+                                    ? ` <span style="background:rgba(155,89,182,0.15); color:#9b59b6; padding:1px 6px; border-radius:999px; font-size:0.7rem; font-weight:800; margin-left:2px;">${newCount}</span>`
+                                    : '';
+                                tabBtn.innerHTML = `To do list${badgeHtml}`;
+                            }
+                            const todoTabIsVisible = document.querySelector('.home-tab-content[data-home-tab="shortlist"].is-active');
+                            if (todoTabIsVisible) {
+                                navigate('home');
+                            }
+                        }
                     };
                 };
 

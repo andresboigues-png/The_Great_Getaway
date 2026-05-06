@@ -203,6 +203,16 @@ export function archiveTripOnServer(tripId) {
     return _post(`/api/trips/${tripId}/archive`, {});
 }
 
+/** Inverse of archiveTripOnServer — flips the caller's
+ *  `trip_members.is_archived` back to 0 (and `trips.is_archived` for
+ *  owners). Restore-from-Collections must call this; otherwise the
+ *  trip re-archives on every reload because /api/data reads the
+ *  per-user member flag, which the local STATE mutation alone can't fix. */
+export function unarchiveTripOnServer(tripId) {
+    if (!STATE.user) return;
+    return _post(`/api/trips/${tripId}/unarchive`, {});
+}
+
 /** Phase 3 — invite a friend (linked-companion's user_id) to a trip with a role.
  *  Server creates a pending member row + fires `trip_invite` notification. */
 export function inviteTripMember(tripId, targetUserId, role) {
