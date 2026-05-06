@@ -135,6 +135,7 @@ I planned!" share moment.
 - Auth pitfall: the public route must NOT accidentally read JWT
   cookies / Authorization headers (verify the server's `current_user_id`
   is genuinely None on this path).
+  I also want a way for users to know how many views the trip has had. It should appear as an aesthetic "Views" banner opn the home page and whren stored in collections as well. 
 
 **Effort**: 4-6 hours. Most complex because of the auth-bypass route
 and the careful "what to expose" boundary.
