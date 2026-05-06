@@ -146,25 +146,58 @@ export function loadState() {
     // objects with `.name`. Without this an older browser session would
     // crash on `chip.name.charAt(...)` because `chip.name` was undefined
     // (the iterator was reading a bare string instead of an object).
+    // Helper: every trip should have a Day-0 / Trip-Genesis row;
+    // openNewTripModal stamps one for new trips, but archived legacy
+    // data may not. We use it as the canonical "trip-wide" bucket
+    // for documents and photos — see the migration below.
+    /** @param {string} tripId @param {{id:string,dayNumber:number,tripId?:string}[]} pool */
+    const findGenesisId = (tripId, pool) => {
+        const g = (pool || []).find(d => d.tripId === tripId && Number(d.dayNumber) === 0);
+        return g ? g.id : null;
+    };
+
     for (const trip of STATE.trips || []) {
         trip.companions = normalizeTripCompanions(trip.companions);
         // Backfill so every read site can drop the `(trip.markedPlaces || [])`
         // dance and assume an array. New trips ship with [], but pre-feature
         // localStorage snapshots may not have the field at all.
         if (!Array.isArray(trip.markedPlaces)) trip.markedPlaces = [];
-        // Trip-level Documents and Photos (both can carry an optional
-        // dayId for items tied to a specific day; absent dayId means
-        // trip-wide). The new Documents and Photos tabs on Home read
-        // these as the canonical store; legacy day.tickets/day.photos
-        // remain for backwards compat (the tabs union both views).
+        // Trip-level Documents and Photos. Each entry has an optional
+        // dayId; "trip-wide" means dayId === Trip Genesis (Day 0).
+        // Earlier snapshots used dayId: null to mean trip-wide; this
+        // migration moves those to dayId: genesisId so the data has a
+        // single canonical representation. The Photos / Documents tabs
+        // and the Genesis day card both now key off Genesis as the
+        // trip-wide bucket.
         if (!Array.isArray(trip.documents)) trip.documents = [];
         if (!Array.isArray(trip.photos)) trip.photos = [];
+        const genesisId = findGenesisId(trip.id, STATE.tripDays || []);
+        if (genesisId) {
+            for (const d of trip.documents) {
+                if (d && (d.dayId === null || d.dayId === undefined)) d.dayId = genesisId;
+            }
+            for (const p of trip.photos) {
+                if (p && (p.dayId === null || p.dayId === undefined)) p.dayId = genesisId;
+            }
+        }
     }
     for (const trip of STATE.archivedTrips || []) {
         trip.companions = normalizeTripCompanions(trip.companions);
         if (!Array.isArray(trip.markedPlaces)) trip.markedPlaces = [];
         if (!Array.isArray(trip.documents)) trip.documents = [];
         if (!Array.isArray(trip.photos)) trip.photos = [];
+        // Archived trips carry their tripDays nested on the trip
+        // object (see collections.js restoreTrip), so Genesis lookup
+        // pulls from there rather than STATE.tripDays.
+        const genesisId = findGenesisId(trip.id, trip.tripDays || []);
+        if (genesisId) {
+            for (const d of trip.documents) {
+                if (d && (d.dayId === null || d.dayId === undefined)) d.dayId = genesisId;
+            }
+            for (const p of trip.photos) {
+                if (p && (p.dayId === null || p.dayId === undefined)) p.dayId = genesisId;
+            }
+        }
     }
 
     // Backfill: every trip the current user owns should have a self-linked

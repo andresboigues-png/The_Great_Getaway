@@ -291,18 +291,31 @@ export function renderArchivedTripDetail(tripId) {
             // Each section unions the new trip-level store with
             // any legacy day-level entries (day.tickets, day.photos)
             // so old archived trips don't lose their data.
+            // Genesis (Day 0) is the trip-wide bucket post-pivot —
+            // each chip explicitly says "⭐ Genesis" so users know
+            // where their trip-wide stuff lives. Numbered days get
+            // a blue "Day N" chip. Orphans (legacy null-dayId
+            // entries that didn't migrate because the trip lacked
+            // a Genesis day) fall back to a neutral "Unsorted" chip.
             const dayLabel = (id) => {
                 if (!id) return null;
                 const d = tripDays.find(x => x.id === id);
                 if (!d) return null;
-                if (Number(d.dayNumber) === 0) return null; // Genesis chip suppressed.
-                return `Day ${d.dayNumber}`;
+                return Number(d.dayNumber) === 0 ? '⭐ Genesis' : `Day ${d.dayNumber}`;
+            };
+            const isGenesisId = (id) => {
+                if (!id) return false;
+                const d = tripDays.find(x => x.id === id);
+                return !!d && Number(d.dayNumber) === 0;
             };
             const dayChip = (id) => {
+                if (isGenesisId(id)) {
+                    return `<span style="background:rgba(52,199,89,0.12); color:#1a6b3c; padding:2px 10px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">⭐ Genesis</span>`;
+                }
                 const lbl = dayLabel(id);
                 return lbl
                     ? `<span style="background:rgba(0,113,227,0.08); color:var(--accent-blue); padding:2px 10px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">${esc(lbl)}</span>`
-                    : `<span style="background:rgba(88,86,214,0.08); color:#5856d6; padding:2px 10px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">Trip-wide</span>`;
+                    : `<span style="background:rgba(0,0,0,0.05); color:rgba(0,0,0,0.45); padding:2px 10px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">Unsorted</span>`;
             };
 
             // Build the union document list (trip-level + legacy
@@ -374,9 +387,11 @@ export function renderArchivedTripDetail(tripId) {
                 <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:10px; margin-bottom:24px;">
                     ${allPhotos.map(p => {
                         const lbl = dayLabel(p.dayId);
+                        // Genesis chip = green; numbered day chip = dark.
+                        const chipBg = isGenesisId(p.dayId) ? 'rgba(52,199,89,0.85)' : 'rgba(0,0,0,0.55)';
                         const chip = lbl
-                            ? `<div style="position:absolute; top:6px; left:6px; background: rgba(0,0,0,0.55); color:white; padding:2px 8px; border-radius:999px; font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; backdrop-filter: blur(6px);">${esc(lbl)}</div>`
-                            : `<div style="position:absolute; top:6px; left:6px; background: rgba(52,199,89,0.85); color:white; padding:2px 8px; border-radius:999px; font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; backdrop-filter: blur(6px);">Trip-wide</div>`;
+                            ? `<div style="position:absolute; top:6px; left:6px; background: ${chipBg}; color:white; padding:2px 8px; border-radius:999px; font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; backdrop-filter: blur(6px);">${esc(lbl)}</div>`
+                            : `<div style="position:absolute; top:6px; left:6px; background: rgba(0,0,0,0.45); color:white; padding:2px 8px; border-radius:999px; font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; backdrop-filter: blur(6px);">Unsorted</div>`;
                         if (isImage(p.src)) {
                             return `<a href="${esc(p.src)}" target="_blank" rel="noreferrer" style="position:relative; aspect-ratio:1; border-radius:14px; overflow:hidden; background-image:url(${esc(p.src)}); background-size:cover; background-position:center; box-shadow: 0 4px 12px rgba(0,0,0,0.06); border:1px solid rgba(0,0,0,0.06); display:block;">${chip}</a>`;
                         }

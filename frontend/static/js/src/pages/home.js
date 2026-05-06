@@ -1847,33 +1847,45 @@ export function renderHome() {
             <div class="home-tab-content${activeHomeTab === 'documents' ? ' is-active' : ''}" data-home-tab="documents">
                 ${(() => {
                     const docs = getAllTripDocuments(activeTrip);
+                    const genesisDay = (STATE.tripDays || [])
+                        .find(d => d.tripId === activeTrip.id && Number(d.dayNumber) === 0);
                     const numberedDays = (STATE.tripDays || [])
                         .filter(d => d.tripId === activeTrip.id && d.dayNumber > 0)
                         .sort((a, b) => a.dayNumber - b.dayNumber);
+                    /** Genesis day = trip-wide bucket; numbered days = day-
+                     *  specific. dayLabel returns "⭐ Genesis" for Day 0 and
+                     *  "Day N" for numbered days; null only for orphans
+                     *  (legacy data with no matching tripDay). */
                     const dayLabel = (id) => {
                         if (!id) return null;
                         const day = (STATE.tripDays || []).find(d => d.id === id);
-                        return day ? (day.dayNumber === 0 ? 'Genesis' : `Day ${day.dayNumber}`) : null;
+                        if (!day) return null;
+                        return Number(day.dayNumber) === 0 ? '⭐ Genesis' : `Day ${day.dayNumber}`;
                     };
+                    const isGenesis = (id) => !!id && id === genesisDay?.id;
                     const dayChip = (id) => {
+                        if (isGenesis(id)) {
+                            return `<span style="background:rgba(52,199,89,0.12); color:#1a6b3c; padding:2px 8px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">⭐ Genesis</span>`;
+                        }
                         const lbl = dayLabel(id);
                         return lbl
                             ? `<span style="background:rgba(0,113,227,0.08); color:var(--accent-blue); padding:2px 8px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">${esc(lbl)}</span>`
-                            : `<span style="background:rgba(88,86,214,0.08); color:#5856d6; padding:2px 8px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">Trip-wide</span>`;
+                            : `<span style="background:rgba(0,0,0,0.05); color:rgba(0,0,0,0.45); padding:2px 8px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">Unsorted</span>`;
                     };
 
-                    // Group by dayId so the list reads scannably:
-                    // Trip-wide first, then Day 0, Day 1, …
+                    // Group by dayId. Genesis first (it's day 0, the
+                    // trip-wide bucket), then numbered days in order,
+                    // then any orphan / unmatched-id rows last.
                     /** @type {Map<string, any[]>} */
                     const groups = new Map();
                     docs.forEach(d => {
-                        const key = d.dayId || '__trip__';
+                        const key = d.dayId || '__orphan__';
                         if (!groups.has(key)) groups.set(key, []);
                         groups.get(key).push(d);
                     });
                     const sortedKeys = [...groups.keys()].sort((a, b) => {
-                        if (a === '__trip__') return -1;
-                        if (b === '__trip__') return 1;
+                        if (a === '__orphan__') return 1;
+                        if (b === '__orphan__') return -1;
                         const da = (STATE.tripDays || []).find(d => d.id === a);
                         const db = (STATE.tripDays || []).find(d => d.id === b);
                         return (da?.dayNumber ?? 999) - (db?.dayNumber ?? 999);
@@ -1902,7 +1914,7 @@ export function renderHome() {
                                 <div class="card glass" style="padding: 28px; border-radius: 18px; border: 1.5px dashed rgba(88,86,214,0.32); background: rgba(88,86,214,0.04); text-align:center;">
                                     <div style="font-size:2rem; margin-bottom:8px;">📎</div>
                                     <h3 style="margin:0 0 6px; color:#5856d6; font-weight:800;">No documents yet</h3>
-                                    <p style="margin:0; color:var(--text-secondary); font-size:0.9rem;">Click <strong>📧 Search Gmail for bookings</strong> to find your confirmation emails, then drop the PDFs / links in via <strong>➕ Add document</strong>. Mark each as trip-wide (passport, multi-day hotel) or tag it to a specific day (a museum ticket).</p>
+                                    <p style="margin:0; color:var(--text-secondary); font-size:0.9rem;">Click <strong>📧 Search Gmail for bookings</strong> to find your confirmation emails, then drop the PDFs / links in via <strong>➕ Add document</strong>. Trip-wide docs (passport, multi-day hotel) live on <strong>⭐ Trip Genesis</strong>; day-specific ones (museum ticket) tag to a numbered day.</p>
                                 </div>
                             </div>
                         `;
@@ -1913,9 +1925,12 @@ export function renderHome() {
                             ${headerRow}
                             ${sortedKeys.map(key => {
                                 const items = groups.get(key) || [];
-                                const isTripWide = key === '__trip__';
-                                const groupLabel = isTripWide ? 'Trip-wide' : (dayLabel(key) || 'Unknown day');
-                                const accent = isTripWide ? '#5856d6' : 'var(--accent-blue)';
+                                const orphan = key === '__orphan__';
+                                const isGen = !orphan && isGenesis(key);
+                                const groupLabel = orphan
+                                    ? 'Unsorted'
+                                    : (isGen ? '⭐ Trip Genesis · trip-wide' : (dayLabel(key) || 'Unknown day'));
+                                const accent = orphan ? 'rgba(0,0,0,0.45)' : (isGen ? '#1a6b3c' : 'var(--accent-blue)');
                                 return `
                                     <div>
                                         <h4 style="margin:0 0 8px; font-size:0.7rem; font-weight:800; text-transform:uppercase; letter-spacing:0.1em; color:${accent};">${esc(groupLabel)}</h4>
@@ -1931,10 +1946,10 @@ export function renderHome() {
                                                         ${d.url ? `<div style="font-size:0.7rem; color:var(--text-secondary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(d.url)}</div>` : ''}
                                                     </div>
                                                     ${tripIsEditable ? `
-                                                        ${d._source === 'trip' && numberedDays.length > 0 ? `
+                                                        ${d._source === 'trip' && (genesisDay || numberedDays.length > 0) ? `
                                                             <select class="trip-doc-day-select" data-doc-id="${esc(d.id)}"
-                                                                style="padding:6px 8px; border-radius:8px; border:1px solid rgba(0,0,0,0.1); font-size:0.75rem; background:white; max-width:140px;">
-                                                                <option value="" ${!d.dayId ? 'selected' : ''}>Trip-wide</option>
+                                                                style="padding:6px 8px; border-radius:8px; border:1px solid rgba(0,0,0,0.1); font-size:0.75rem; background:white; max-width:160px;">
+                                                                ${genesisDay ? `<option value="${esc(genesisDay.id)}" ${d.dayId === genesisDay.id ? 'selected' : ''}>⭐ Genesis</option>` : ''}
                                                                 ${numberedDays.map(nd => `
                                                                     <option value="${esc(nd.id)}" ${d.dayId === nd.id ? 'selected' : ''}>Day ${nd.dayNumber}</option>
                                                                 `).join('')}
@@ -1961,14 +1976,18 @@ export function renderHome() {
             <div class="home-tab-content${activeHomeTab === 'photos' ? ' is-active' : ''}" data-home-tab="photos">
                 ${(() => {
                     const photos = getAllTripPhotos(activeTrip);
+                    const genesisDayForPhotos = (STATE.tripDays || [])
+                        .find(d => d.tripId === activeTrip.id && Number(d.dayNumber) === 0);
                     const numberedDaysForPhotos = (STATE.tripDays || [])
                         .filter(d => d.tripId === activeTrip.id && d.dayNumber > 0)
                         .sort((a, b) => a.dayNumber - b.dayNumber);
                     const dayLabel = (id) => {
                         if (!id) return null;
                         const day = (STATE.tripDays || []).find(d => d.id === id);
-                        return day ? (day.dayNumber === 0 ? 'Genesis' : `Day ${day.dayNumber}`) : null;
+                        if (!day) return null;
+                        return Number(day.dayNumber) === 0 ? '⭐ Genesis' : `Day ${day.dayNumber}`;
                     };
+                    const isGenesisPhoto = (id) => !!id && id === genesisDayForPhotos?.id;
 
                     const headerRow = `
                         <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
@@ -1994,7 +2013,7 @@ export function renderHome() {
                                 <div class="card glass" style="padding: 28px; border-radius: 18px; border: 1.5px dashed rgba(52,199,89,0.32); background: rgba(52,199,89,0.04); text-align:center;">
                                     <div style="font-size:2rem; margin-bottom:8px;">📸</div>
                                     <h3 style="margin:0 0 6px; color:#1a6b3c; font-weight:800;">No photos yet</h3>
-                                    <p style="margin:0; color:var(--text-secondary); font-size:0.9rem;">Use <strong>➕ Add photos</strong> to upload trip-wide photos (or tag them to specific days). Photos here surface across the trip view, in completed-trip Memories, and as the day-card backgrounds.</p>
+                                    <p style="margin:0; color:var(--text-secondary); font-size:0.9rem;">Use <strong>📤 Upload photos</strong> for files on your device, or <strong>🔗 Add by link</strong> for a Drive / Dropbox / iCloud share. New photos go to <strong>⭐ Trip Genesis</strong> (the trip-wide bucket); you can re-tag any of them to a specific day from the dropdown on each card.</p>
                                 </div>
                             </div>
                         `;
@@ -2026,15 +2045,23 @@ export function renderHome() {
                                     // the static chip.
                                     const canEditDay = tripIsEditable && p._source === 'trip';
                                     const staticChipFor = (label, bg) => `<div style="position:absolute; top:6px; left:6px; background: ${bg}; color:white; padding:2px 8px; border-radius:999px; font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; backdrop-filter: blur(6px); pointer-events:none;">${esc(label)}</div>`;
+                                    // Genesis = green; numbered days = dark;
+                                    // orphan (rare, legacy null dayId post-
+                                    // migration) = neutral grey "Unsorted".
+                                    const chipBg = isGenesisPhoto(p.dayId)
+                                        ? 'rgba(52,199,89,0.85)'
+                                        : (p.dayId ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0.45)');
                                     const dayBadge = canEditDay
-                                        ? `<select class="trip-photo-day-select" data-photo-id="${esc(p.id)}" title="Move to a day or trip-wide"
-                                                style="position:absolute; top:6px; left:6px; background: ${p.dayId ? 'rgba(0,0,0,0.55)' : 'rgba(52,199,89,0.85)'}; color:white; border:0; padding:2px 22px 2px 10px; border-radius:999px; font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; backdrop-filter: blur(6px); cursor:pointer; appearance:none; -webkit-appearance:none; background-image: url('data:image/svg+xml;utf8,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;10&quot; height=&quot;10&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;white&quot; stroke-width=&quot;3&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;><polyline points=&quot;6 9 12 15 18 9&quot;/></svg>'); background-repeat:no-repeat; background-position: right 7px center; background-size: 8px;">
-                                                <option value="" ${!p.dayId ? 'selected' : ''}>Trip-wide</option>
+                                        ? `<select class="trip-photo-day-select" data-photo-id="${esc(p.id)}" title="Move to Trip Genesis or a numbered day"
+                                                style="position:absolute; top:6px; left:6px; background: ${chipBg}; color:white; border:0; padding:2px 22px 2px 10px; border-radius:999px; font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; backdrop-filter: blur(6px); cursor:pointer; appearance:none; -webkit-appearance:none; background-image: url('data:image/svg+xml;utf8,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;10&quot; height=&quot;10&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;white&quot; stroke-width=&quot;3&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;><polyline points=&quot;6 9 12 15 18 9&quot;/></svg>'); background-repeat:no-repeat; background-position: right 7px center; background-size: 8px;">
+                                                ${genesisDayForPhotos ? `<option value="${esc(genesisDayForPhotos.id)}" ${p.dayId === genesisDayForPhotos.id ? 'selected' : ''}>⭐ Genesis</option>` : ''}
                                                 ${numberedDaysForPhotos.map(nd => `<option value="${esc(nd.id)}" ${p.dayId === nd.id ? 'selected' : ''}>Day ${nd.dayNumber}</option>`).join('')}
                                             </select>`
-                                        : (p.dayId
-                                            ? staticChipFor(dayLabel(p.dayId) || '', 'rgba(0,0,0,0.55)')
-                                            : staticChipFor('Trip-wide', 'rgba(52,199,89,0.85)'));
+                                        : (isGenesisPhoto(p.dayId)
+                                            ? staticChipFor('⭐ Genesis', 'rgba(52,199,89,0.85)')
+                                            : (p.dayId
+                                                ? staticChipFor(dayLabel(p.dayId) || '', 'rgba(0,0,0,0.55)')
+                                                : staticChipFor('Unsorted', 'rgba(0,0,0,0.45)')));
                                     const removeBtn = tripIsEditable
                                         ? `<button type="button" class="trip-photo-remove-btn" data-photo-id="${esc(p.id)}" title="Remove" aria-label="Remove photo"
                                             style="position:absolute; top:6px; right:6px; background:rgba(0,0,0,0.55); border:0; color:white; width:24px; height:24px; border-radius:50%; cursor:pointer; font-size:0.75rem; line-height:1; backdrop-filter: blur(6px); z-index:1;">✕</button>`
@@ -2105,12 +2132,31 @@ export function renderHome() {
                                 `}
                                 <div style="display: flex; flex-direction: column;">
                                     <h3 style="margin: 0; font-size: 1.3rem; font-weight: 800; color: #002d5b; letter-spacing: -0.02em;">${isStartingPoint ? 'Trip Genesis' : esc(day.name)}</h3>
-                                    <div style="font-size: 0.9rem; color: var(--text-secondary); font-weight: 600; margin-top: 4px; display: flex; align-items: center; gap: 8px;">
+                                    <div style="font-size: 0.9rem; color: var(--text-secondary); font-weight: 600; margin-top: 4px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                                         ${isStartingPoint
                                             ? `<span>${activeTrip && activeTrip.country ? shortPlaceName(activeTrip.country) : 'Where the trip begins'}</span>`
                                             : `<span>📅 ${formatDayDate(day.date) || 'Set date'}</span>`}
                                         ${day.lat && !isStartingPoint ? `<span style="color: var(--accent-blue); opacity: 0.6;">•</span> <span style="color: var(--accent-blue);">📍 Location Set</span>` : ''}
                                         ${(!isStartingPoint && !day.lat && !day.lng) ? `<span style="color: rgba(0,0,0,0.25);">•</span> <span class="day-card__pin-hint">📌 Pin this day</span>` : ''}
+                                        ${(() => {
+                                            // Trip Genesis subtitle gets count
+                                            // chips for trip-wide docs/photos
+                                            // (the bucket lives here per the
+                                            // pivot). Shows nothing when empty.
+                                            if (!isStartingPoint || !activeTrip) return '';
+                                            const docs = (activeTrip.documents || []).filter(d => d.dayId === day.id);
+                                            const photos = (activeTrip.photos || []).filter(p => p.dayId === day.id);
+                                            const dayDocs = (day.tickets || []);
+                                            const dayPhotos = (day.photos || []);
+                                            const totalDocs = docs.length + dayDocs.length;
+                                            const totalPhotos = photos.length + dayPhotos.length;
+                                            if (totalDocs === 0 && totalPhotos === 0) return '';
+                                            return `
+                                                <span style="color: rgba(0,0,0,0.25);">•</span>
+                                                ${totalPhotos > 0 ? `<span style="background:rgba(52,199,89,0.12); color:#1a6b3c; padding:2px 8px; border-radius:999px; font-size:0.7rem; font-weight:800;">📸 ${totalPhotos}</span>` : ''}
+                                                ${totalDocs > 0 ? `<span style="background:rgba(88,86,214,0.12); color:#5856d6; padding:2px 8px; border-radius:999px; font-size:0.7rem; font-weight:800;">📎 ${totalDocs}</span>` : ''}
+                                            `;
+                                        })()}
                                     </div>
                                 </div>
                             </div>
@@ -2476,6 +2522,12 @@ export function renderHome() {
                 const files = Array.from(photoInput.files || []);
                 if (files.length === 0 || !activeTrip) return;
                 showLiquidAlert(`Uploading ${files.length} photo${files.length === 1 ? '' : 's'}…`);
+                // Quick-upload default: Trip Genesis (the trip-wide
+                // bucket). User can re-tag any photo to a numbered
+                // day from the dropdown chip on its tile.
+                const genesisDay = (STATE.tripDays || [])
+                    .find(d => d.tripId === activeTrip.id && Number(d.dayNumber) === 0);
+                const defaultDayId = genesisDay ? genesisDay.id : null;
                 let added = 0;
                 for (const file of files) {
                     try {
@@ -2485,7 +2537,7 @@ export function renderHome() {
                         // nothing useful and the photo never appeared.
                         const res = await uploadMedia(file);
                         if (res?.url) {
-                            addTripPhoto(activeTrip, { src: res.url, dayId: null });
+                            addTripPhoto(activeTrip, { src: res.url, dayId: defaultDayId });
                             added++;
                         }
                     } catch (e) {
@@ -2654,6 +2706,12 @@ const openJournalingModal = (dayId) => {
 /** @param {any} trip */
 const openAddTripDocumentModal = (trip) => {
     if (!trip) return;
+    // Genesis is the trip-wide bucket. New documents default to it;
+    // numbered days are alternatives the user can pick. The legacy
+    // "Trip-wide" sentinel was retired — Genesis owns that role
+    // throughout the app now.
+    const genesisDay = (STATE.tripDays || [])
+        .find(d => d.tripId === trip.id && Number(d.dayNumber) === 0);
     const numberedDays = (STATE.tripDays || [])
         .filter(d => d.tripId === trip.id && d.dayNumber > 0)
         .sort((a, b) => a.dayNumber - b.dayNumber);
@@ -2688,9 +2746,9 @@ const openAddTripDocumentModal = (trip) => {
                     <strong style="color: var(--accent-blue);">📧 Booking email without an attachment?</strong><br>
                     Open the email in Gmail, hit <strong>Cmd&nbsp;+&nbsp;P</strong> (or Ctrl + P on Windows), pick <strong>Save as PDF</strong> as the destination, then come back here and click <strong>📤 Upload</strong> with that file. Captures the layout exactly — QR codes, dates, prices, all of it.
                 </div>
-                <label style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-secondary); margin-top:8px;">Tie to a day (optional)</label>
+                <label style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-secondary); margin-top:8px;">Where does it belong?</label>
                 <select id="newDocDay" class="glass-input" style="padding: var(--space-3); border-radius: 12px; background:white;">
-                    <option value="">Trip-wide (passport, multi-day hotel, return flight…)</option>
+                    ${genesisDay ? `<option value="${esc(genesisDay.id)}" selected>⭐ Trip Genesis (passport, multi-day hotel, return flight…)</option>` : ''}
                     ${numberedDays.map(d => `<option value="${esc(d.id)}">Day ${d.dayNumber}${d.date ? ` — ${formatDayDate(d.date) || d.date}` : ''}</option>`).join('')}
                 </select>
             </div>
@@ -2754,6 +2812,9 @@ const openAddTripDocumentModal = (trip) => {
  */
 const openAddTripPhotoUrlModal = (trip) => {
     if (!trip) return;
+    // Genesis is the trip-wide bucket; numbered days are alternatives.
+    const genesisDay = (STATE.tripDays || [])
+        .find(d => d.tripId === trip.id && Number(d.dayNumber) === 0);
     const numberedDays = (STATE.tripDays || [])
         .filter(d => d.tripId === trip.id && d.dayNumber > 0)
         .sort((a, b) => a.dayNumber - b.dayNumber);
@@ -2769,9 +2830,9 @@ const openAddTripPhotoUrlModal = (trip) => {
                 <div style="font-size:0.72rem; color:var(--text-secondary); line-height:1.45;">
                     <strong>Tip:</strong> for Drive / Dropbox albums, paste the share link — the link will open the album when clicked. Direct image URLs (ending in .jpg / .png / .heic) will render as a thumbnail in the grid.
                 </div>
-                <label style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-secondary); margin-top:8px;">Tie to a day (optional)</label>
+                <label style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-secondary); margin-top:8px;">Where does it belong?</label>
                 <select id="newPhotoDay" class="glass-input" style="padding: var(--space-3); border-radius: 12px; background:white;">
-                    <option value="">Trip-wide</option>
+                    ${genesisDay ? `<option value="${esc(genesisDay.id)}" selected>⭐ Trip Genesis</option>` : ''}
                     ${numberedDays.map(d => `<option value="${esc(d.id)}">Day ${d.dayNumber}${d.date ? ` — ${formatDayDate(d.date) || d.date}` : ''}</option>`).join('')}
                 </select>
             </div>
@@ -2887,31 +2948,30 @@ export const openDayView = (day) => {
                         <h4 class="text-tag">Personal Notes</h4>
                         ${day.notes ? `<p style="margin:0; white-space:pre-wrap; line-height:1.55; color:#002d5b;">${esc(day.notes)}</p>` : `<p style="margin:0; color:var(--text-secondary); font-style:italic;">No notes.</p>`}
                     </div>
-                    <!-- Photos + Documents render for numbered days
-                         only. Trip Genesis (Day 0) is a logistics
-                         anchor — it doesn't carry day-scoped media,
-                         so we skip both cards there. Trip-wide docs
-                         and photos still live on the Documents and
-                         Photos tabs / archived trip view. -->
-                    ${Number(day.dayNumber) !== 0 ? `
+                    <!-- Photos + Documents always render. For Trip
+                         Genesis these surface the trip-wide bucket
+                         (passport, multi-day hotel, return flight…);
+                         for numbered days they surface day-specific
+                         items. The data union behind photoSrcs / docs
+                         pulls trip.photos+documents filtered by this
+                         day's id, plus any legacy day.photos/tickets. -->
                     <div style="background: rgba(52,199,89,0.04); padding: var(--space-6); border-radius: 24px; border: 1px solid rgba(52,199,89,0.15);">
-                        <h4 class="text-tag" style="--accent: 52,199,89;">Photos${photoSrcs.length > 0 ? ` (${photoSrcs.length})` : ''}</h4>
+                        <h4 class="text-tag" style="--accent: 52,199,89;">${Number(day.dayNumber) === 0 ? 'Trip-wide photos' : 'Photos'}${photoSrcs.length > 0 ? ` (${photoSrcs.length})` : ''}</h4>
                         ${photoSrcs.length > 0 ? `
                             <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 8px;">
                                 ${photoSrcs.slice(0, 9).map(src => `<div style="aspect-ratio:1; background-image:url(${esc(src)}); background-size:cover; background-position:center; border-radius:10px;"></div>`).join('')}
                             </div>
                             ${photoSrcs.length > 9 ? `<div style="font-size:0.75rem; color:var(--text-secondary); margin-top:6px;">+${photoSrcs.length - 9} more</div>` : ''}
-                        ` : `<p style="margin: 6px 0 0; color: var(--text-secondary); font-style: italic; font-size: 0.85rem;">No photos for this day.</p>`}
+                        ` : `<p style="margin: 6px 0 0; color: var(--text-secondary); font-style: italic; font-size: 0.85rem;">${Number(day.dayNumber) === 0 ? 'No trip-wide photos yet — add some from the Photos tab.' : 'No photos for this day.'}</p>`}
                     </div>
                     <div style="background: rgba(88,86,214,0.04); padding: var(--space-6); border-radius: 24px; border: 1px solid rgba(88,86,214,0.15);">
-                        <h4 class="text-tag" style="--accent: 88,86,214;">Documents${docs.length > 0 ? ` (${docs.length})` : ''}</h4>
+                        <h4 class="text-tag" style="--accent: 88,86,214;">${Number(day.dayNumber) === 0 ? 'Trip-wide documents' : 'Documents'}${docs.length > 0 ? ` (${docs.length})` : ''}</h4>
                         ${docs.length > 0 ? `
                             <div style="display:flex; flex-direction:column; gap:6px; margin-top:8px;">
                                 ${docs.map(d => `<a href="${esc(d.url || '#')}" target="_blank" rel="noreferrer" style="font-size:0.85rem; color:var(--accent-blue); font-weight:700; text-decoration:none;">📎 ${esc(d.name || 'Document')}</a>`).join('')}
                             </div>
-                        ` : `<p style="margin: 6px 0 0; color: var(--text-secondary); font-style: italic; font-size: 0.85rem;">No documents for this day.</p>`}
+                        ` : `<p style="margin: 6px 0 0; color: var(--text-secondary); font-style: italic; font-size: 0.85rem;">${Number(day.dayNumber) === 0 ? 'No trip-wide docs yet — add passports, hotels, return flights from the Documents tab.' : 'No documents for this day.'}</p>`}
                     </div>
-                    ` : ''}
                     <div style="background: #000; padding: var(--space-6); border-radius: 24px; color: white;">
                         <h4 class="text-tag" style="--accent: 52,199,89;">Expert Tip</h4>
                         <p style="margin: 0; font-size: var(--font-md); line-height: 1.5; opacity: 0.9;">${esc(day.tip || "Always keep a portable charger and a small bottle of water in your bag for long exploration days.")}</p>
