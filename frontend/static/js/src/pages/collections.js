@@ -276,6 +276,117 @@ export function renderArchivedTripDetail(tripId) {
                 `;
             }).join('')}
         </div>
+
+        ${(() => {
+            // Documents + Photos sections beneath the day grid.
+            // Without these, archived trips had no surface to show
+            // trip-wide docs (a passport scan, a multi-day hotel
+            // voucher) — they only existed as a count on the hero
+            // chip. Same applies to trip-wide photos. Day-tagged
+            // entries do appear via the day cards (count chip +
+            // openDayView), but they're worth showing here too in
+            // a single scrollable list so the user can browse all
+            // their memorabilia without clicking each day.
+            //
+            // Each section unions the new trip-level store with
+            // any legacy day-level entries (day.tickets, day.photos)
+            // so old archived trips don't lose their data.
+            const dayLabel = (id) => {
+                if (!id) return null;
+                const d = tripDays.find(x => x.id === id);
+                if (!d) return null;
+                if (Number(d.dayNumber) === 0) return null; // Genesis chip suppressed.
+                return `Day ${d.dayNumber}`;
+            };
+            const dayChip = (id) => {
+                const lbl = dayLabel(id);
+                return lbl
+                    ? `<span style="background:rgba(0,113,227,0.08); color:var(--accent-blue); padding:2px 10px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">${esc(lbl)}</span>`
+                    : `<span style="background:rgba(88,86,214,0.08); color:#5856d6; padding:2px 10px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">Trip-wide</span>`;
+            };
+
+            // Build the union document list (trip-level + legacy
+            // day.tickets) sorted Trip-wide → Day 1 → Day 2 …
+            /** @type {{name:string, url:string, dayId:string|null, source:'trip'|'day', _key:string}[]} */
+            const allDocs = [];
+            tripDocs.forEach(d => allDocs.push({
+                name: d.name || 'Document', url: d.url || '', dayId: d.dayId || null,
+                source: 'trip', _key: d.id || `${d.name}-${d.url}`,
+            }));
+            tripDays.forEach(day => {
+                (day.tickets || []).forEach((t, i) => allDocs.push({
+                    name: t.name || 'Document', url: t.url || '', dayId: day.id,
+                    source: 'day', _key: `${day.id}#${i}`,
+                }));
+            });
+            const dayOrder = (id) => {
+                if (!id) return -1; // Trip-wide first
+                const d = tripDays.find(x => x.id === id);
+                return d ? d.dayNumber : 999;
+            };
+            allDocs.sort((a, b) => dayOrder(a.dayId) - dayOrder(b.dayId));
+
+            // Same union for photos.
+            /** @type {{src:string, dayId:string|null, source:'trip'|'day', _key:string}[]} */
+            const allPhotos = [];
+            tripPhotos.forEach(p => allPhotos.push({
+                src: p.src || '', dayId: p.dayId || null,
+                source: 'trip', _key: p.id || p.src,
+            }));
+            tripDays.forEach(day => {
+                (day.photos || []).forEach((src, i) => allPhotos.push({
+                    src, dayId: day.id,
+                    source: 'day', _key: `${day.id}#${i}`,
+                }));
+            });
+            allPhotos.sort((a, b) => dayOrder(a.dayId) - dayOrder(b.dayId));
+
+            const isImage = (src) => /^data:image\//i.test(src || '')
+                || /\.(jpe?g|png|gif|webp|avif|heic|heif|bmp|tiff?|svg)(\?.*)?$/i.test(src || '');
+
+            const docsSection = allDocs.length === 0 ? '' : `
+                <div style="display:flex; align-items:baseline; gap:12px; margin: 32px 4px 14px;">
+                    <h2 style="margin:0; font-size:1.4rem; color:#002d5b; font-weight:800; letter-spacing:-0.02em;">Documents</h2>
+                    <span style="color: var(--text-secondary); font-size:0.85rem; font-weight:600;">${allDocs.length} saved · click any to open</span>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:8px;">
+                    ${allDocs.map(d => `
+                        <a href="${esc(d.url || '#')}" target="_blank" rel="noreferrer" style="display:flex; align-items:center; gap:12px; background:white; border:1px solid rgba(0,0,0,0.07); border-radius:14px; padding:12px 14px; box-shadow: 0 2px 8px rgba(0,45,91,0.04); text-decoration:none; color:#002d5b;">
+                            <span style="font-size:1.3rem; line-height:1; flex-shrink:0;">📎</span>
+                            <div style="flex:1; min-width:0;">
+                                <div style="display:flex; align-items:center; gap:8px;">
+                                    <span style="font-weight:800; font-size:0.92rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(d.name)}</span>
+                                    ${dayChip(d.dayId)}
+                                </div>
+                                ${d.url ? `<div style="font-size:0.7rem; color:var(--text-secondary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(d.url)}</div>` : ''}
+                            </div>
+                            <span style="color: var(--accent-blue); font-size:0.78rem; font-weight:700; flex-shrink:0;">Open ↗</span>
+                        </a>
+                    `).join('')}
+                </div>
+            `;
+
+            const photosSection = allPhotos.length === 0 ? '' : `
+                <div style="display:flex; align-items:baseline; gap:12px; margin: 32px 4px 14px;">
+                    <h2 style="margin:0; font-size:1.4rem; color:#002d5b; font-weight:800; letter-spacing:-0.02em;">All photos</h2>
+                    <span style="color: var(--text-secondary); font-size:0.85rem; font-weight:600;">${allPhotos.length} saved</span>
+                </div>
+                <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:10px; margin-bottom:24px;">
+                    ${allPhotos.map(p => {
+                        const lbl = dayLabel(p.dayId);
+                        const chip = lbl
+                            ? `<div style="position:absolute; top:6px; left:6px; background: rgba(0,0,0,0.55); color:white; padding:2px 8px; border-radius:999px; font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; backdrop-filter: blur(6px);">${esc(lbl)}</div>`
+                            : `<div style="position:absolute; top:6px; left:6px; background: rgba(52,199,89,0.85); color:white; padding:2px 8px; border-radius:999px; font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; backdrop-filter: blur(6px);">Trip-wide</div>`;
+                        if (isImage(p.src)) {
+                            return `<a href="${esc(p.src)}" target="_blank" rel="noreferrer" style="position:relative; aspect-ratio:1; border-radius:14px; overflow:hidden; background-image:url(${esc(p.src)}); background-size:cover; background-position:center; box-shadow: 0 4px 12px rgba(0,0,0,0.06); border:1px solid rgba(0,0,0,0.06); display:block;">${chip}</a>`;
+                        }
+                        return `<a href="${esc(p.src)}" target="_blank" rel="noreferrer" style="position:relative; aspect-ratio:1; border-radius:14px; overflow:hidden; background: linear-gradient(135deg, #0071e3, #5856d6); box-shadow: 0 4px 12px rgba(0,113,227,0.18); border:1px solid rgba(0,0,0,0.06); display:flex; flex-direction:column; align-items:center; justify-content:center; padding:14px; text-align:center; color:white; text-decoration:none;">${chip}<div style="font-size:1.8rem; line-height:1; margin-bottom:8px;">🔗</div><div style="font-size:0.7rem; font-weight:800; opacity:0.9; word-break:break-all; overflow:hidden; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical;">${esc(p.src.replace(/^https?:\/\//, ''))}</div></a>`;
+                    }).join('')}
+                </div>
+            `;
+
+            return docsSection + photosSection;
+        })()}
     `;
 
     div.querySelector('#backToCollectionsBtn')?.addEventListener('click', () => navigate('collections'));

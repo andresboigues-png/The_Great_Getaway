@@ -2887,12 +2887,13 @@ export const openDayView = (day) => {
                         <h4 class="text-tag">Personal Notes</h4>
                         ${day.notes ? `<p style="margin:0; white-space:pre-wrap; line-height:1.55; color:#002d5b;">${esc(day.notes)}</p>` : `<p style="margin:0; color:var(--text-secondary); font-style:italic;">No notes.</p>`}
                     </div>
-                    <!-- Photos + Documents always render so the user
-                         knows the categories exist (and to keep the
-                         right column from collapsing to just Notes +
-                         Expert Tip). Empty days get a soft placeholder
-                         line. Days with content get a thumbnail grid /
-                         link list as before. -->
+                    <!-- Photos + Documents render for numbered days
+                         only. Trip Genesis (Day 0) is a logistics
+                         anchor — it doesn't carry day-scoped media,
+                         so we skip both cards there. Trip-wide docs
+                         and photos still live on the Documents and
+                         Photos tabs / archived trip view. -->
+                    ${Number(day.dayNumber) !== 0 ? `
                     <div style="background: rgba(52,199,89,0.04); padding: var(--space-6); border-radius: 24px; border: 1px solid rgba(52,199,89,0.15);">
                         <h4 class="text-tag" style="--accent: 52,199,89;">Photos${photoSrcs.length > 0 ? ` (${photoSrcs.length})` : ''}</h4>
                         ${photoSrcs.length > 0 ? `
@@ -2910,6 +2911,7 @@ export const openDayView = (day) => {
                             </div>
                         ` : `<p style="margin: 6px 0 0; color: var(--text-secondary); font-style: italic; font-size: 0.85rem;">No documents for this day.</p>`}
                     </div>
+                    ` : ''}
                     <div style="background: #000; padding: var(--space-6); border-radius: 24px; color: white;">
                         <h4 class="text-tag" style="--accent: 52,199,89;">Expert Tip</h4>
                         <p style="margin: 0; font-size: var(--font-md); line-height: 1.5; opacity: 0.9;">${esc(day.tip || "Always keep a portable charger and a small bottle of water in your bag for long exploration days.")}</p>

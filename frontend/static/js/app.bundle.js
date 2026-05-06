@@ -1017,12 +1017,13 @@
                         <h4 class="text-tag">Personal Notes</h4>
                         ${e.notes?`<p style="margin:0; white-space:pre-wrap; line-height:1.55; color:#002d5b;">${L(e.notes)}</p>`:`<p style="margin:0; color:var(--text-secondary); font-style:italic;">No notes.</p>`}
                     </div>
-                    <!-- Photos + Documents always render so the user
-                         knows the categories exist (and to keep the
-                         right column from collapsing to just Notes +
-                         Expert Tip). Empty days get a soft placeholder
-                         line. Days with content get a thumbnail grid /
-                         link list as before. -->
+                    <!-- Photos + Documents render for numbered days
+                         only. Trip Genesis (Day 0) is a logistics
+                         anchor — it doesn't carry day-scoped media,
+                         so we skip both cards there. Trip-wide docs
+                         and photos still live on the Documents and
+                         Photos tabs / archived trip view. -->
+                    ${Number(e.dayNumber)===0?``:`
                     <div style="background: rgba(52,199,89,0.04); padding: var(--space-6); border-radius: 24px; border: 1px solid rgba(52,199,89,0.15);">
                         <h4 class="text-tag" style="--accent: 52,199,89;">Photos${n.length>0?` (${n.length})`:``}</h4>
                         ${n.length>0?`
@@ -1040,6 +1041,7 @@
                             </div>
                         `:`<p style="margin: 6px 0 0; color: var(--text-secondary); font-style: italic; font-size: 0.85rem;">No documents for this day.</p>`}
                     </div>
+                    `}
                     <div style="background: #000; padding: var(--space-6); border-radius: 24px; color: white;">
                         <h4 class="text-tag" style="--accent: 52,199,89;">Expert Tip</h4>
                         <p style="margin: 0; font-size: var(--font-md); line-height: 1.5; opacity: 0.9;">${L(e.tip||`Always keep a portable charger and a small bottle of water in your bag for long exploration days.`)}</p>
@@ -1716,6 +1718,36 @@
                     </div>
                 `}).join(``)}
         </div>
+
+        ${(()=>{let e=e=>{if(!e)return null;let t=a.find(t=>t.id===e);return!t||Number(t.dayNumber)===0?null:`Day ${t.dayNumber}`},t=t=>{let n=e(t);return n?`<span style="background:rgba(0,113,227,0.08); color:var(--accent-blue); padding:2px 10px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">${L(n)}</span>`:`<span style="background:rgba(88,86,214,0.08); color:#5856d6; padding:2px 10px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">Trip-wide</span>`},n=[];c.forEach(e=>n.push({name:e.name||`Document`,url:e.url||``,dayId:e.dayId||null,source:`trip`,_key:e.id||`${e.name}-${e.url}`})),a.forEach(e=>{(e.tickets||[]).forEach((t,r)=>n.push({name:t.name||`Document`,url:t.url||``,dayId:e.id,source:`day`,_key:`${e.id}#${r}`}))});let r=e=>{if(!e)return-1;let t=a.find(t=>t.id===e);return t?t.dayNumber:999};n.sort((e,t)=>r(e.dayId)-r(t.dayId));let i=[];s.forEach(e=>i.push({src:e.src||``,dayId:e.dayId||null,source:`trip`,_key:e.id||e.src})),a.forEach(e=>{(e.photos||[]).forEach((t,n)=>i.push({src:t,dayId:e.id,source:`day`,_key:`${e.id}#${n}`}))}),i.sort((e,t)=>r(e.dayId)-r(t.dayId));let o=e=>/^data:image\//i.test(e||``)||/\.(jpe?g|png|gif|webp|avif|heic|heif|bmp|tiff?|svg)(\?.*)?$/i.test(e||``);return(n.length===0?``:`
+                <div style="display:flex; align-items:baseline; gap:12px; margin: 32px 4px 14px;">
+                    <h2 style="margin:0; font-size:1.4rem; color:#002d5b; font-weight:800; letter-spacing:-0.02em;">Documents</h2>
+                    <span style="color: var(--text-secondary); font-size:0.85rem; font-weight:600;">${n.length} saved · click any to open</span>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:8px;">
+                    ${n.map(e=>`
+                        <a href="${L(e.url||`#`)}" target="_blank" rel="noreferrer" style="display:flex; align-items:center; gap:12px; background:white; border:1px solid rgba(0,0,0,0.07); border-radius:14px; padding:12px 14px; box-shadow: 0 2px 8px rgba(0,45,91,0.04); text-decoration:none; color:#002d5b;">
+                            <span style="font-size:1.3rem; line-height:1; flex-shrink:0;">📎</span>
+                            <div style="flex:1; min-width:0;">
+                                <div style="display:flex; align-items:center; gap:8px;">
+                                    <span style="font-weight:800; font-size:0.92rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${L(e.name)}</span>
+                                    ${t(e.dayId)}
+                                </div>
+                                ${e.url?`<div style="font-size:0.7rem; color:var(--text-secondary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${L(e.url)}</div>`:``}
+                            </div>
+                            <span style="color: var(--accent-blue); font-size:0.78rem; font-weight:700; flex-shrink:0;">Open ↗</span>
+                        </a>
+                    `).join(``)}
+                </div>
+            `)+(i.length===0?``:`
+                <div style="display:flex; align-items:baseline; gap:12px; margin: 32px 4px 14px;">
+                    <h2 style="margin:0; font-size:1.4rem; color:#002d5b; font-weight:800; letter-spacing:-0.02em;">All photos</h2>
+                    <span style="color: var(--text-secondary); font-size:0.85rem; font-weight:600;">${i.length} saved</span>
+                </div>
+                <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:10px; margin-bottom:24px;">
+                    ${i.map(t=>{let n=e(t.dayId),r=n?`<div style="position:absolute; top:6px; left:6px; background: rgba(0,0,0,0.55); color:white; padding:2px 8px; border-radius:999px; font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; backdrop-filter: blur(6px);">${L(n)}</div>`:`<div style="position:absolute; top:6px; left:6px; background: rgba(52,199,89,0.85); color:white; padding:2px 8px; border-radius:999px; font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; backdrop-filter: blur(6px);">Trip-wide</div>`;return o(t.src)?`<a href="${L(t.src)}" target="_blank" rel="noreferrer" style="position:relative; aspect-ratio:1; border-radius:14px; overflow:hidden; background-image:url(${L(t.src)}); background-size:cover; background-position:center; box-shadow: 0 4px 12px rgba(0,0,0,0.06); border:1px solid rgba(0,0,0,0.06); display:block;">${r}</a>`:`<a href="${L(t.src)}" target="_blank" rel="noreferrer" style="position:relative; aspect-ratio:1; border-radius:14px; overflow:hidden; background: linear-gradient(135deg, #0071e3, #5856d6); box-shadow: 0 4px 12px rgba(0,113,227,0.18); border:1px solid rgba(0,0,0,0.06); display:flex; flex-direction:column; align-items:center; justify-content:center; padding:14px; text-align:center; color:white; text-decoration:none;">${r}<div style="font-size:1.8rem; line-height:1; margin-bottom:8px;">🔗</div><div style="font-size:0.7rem; font-weight:800; opacity:0.9; word-break:break-all; overflow:hidden; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical;">${L(t.src.replace(/^https?:\/\//,``))}</div></a>`}).join(``)}
+                </div>
+            `)})()}
     `,n.querySelector(`#backToCollectionsBtn`)?.addEventListener(`click`,()=>J(`collections`)),n.addEventListener(`click`,e=>{let n=e.target,r=n?.closest(`.restore-trip-btn`);if(r?.dataset.tripId){Pt(r.dataset.tripId);return}let i=n?.closest(`.archived-day-block`);if(i?.dataset.dayId){let e=(t.tripDays||[]).find(e=>e.id===i.dataset.dayId);e&&dt(e);return}}),n.addEventListener(`change`,e=>{let t=e.target?.closest(`.trip-privacy-toggle`);t?.dataset.tripId&&Nt(t.dataset.tripId,t.checked)}),n}var Mt=e=>{let t=document.getElementById(`app-container`);t&&(t.innerHTML=``,t.appendChild(jt(e)))},Nt=async(e,t)=>{let n=b.archivedTrips.find(t=>t.id===e)||b.trips.find(t=>t.id===e);if(!n)return;n.isPublic=t,T(`state:changed`);let r=document.getElementById(`publicLabel-${e}`);if(r&&(r.textContent=t?`Public`:`Not public`,r.style.color=t?`#34c759`:`rgba(0,0,0,0.3)`,r.style.textShadow=t?`0 0 12px rgba(52, 199, 89, 0.6)`:`none`),b.user)try{await fetch(Y(`/api/trips/privacy`),{method:`POST`,headers:{"Content-Type":`application/json`},body:JSON.stringify({user_id:b.user.id,trip_id:e,is_public:t})})}catch{}},Pt=e=>{let t=b.archivedTrips.find(t=>t.id===e);t&&P({title:`Restore Trip?`,message:`This will move the trip back to your active list.`,confirmText:`Restore`,onConfirm:()=>{t.isArchived=!1,t.expenses&&(b.expenses=[...b.expenses,...t.expenses],delete t.expenses),t.tripDays&&(b.tripDays=[...b.tripDays,...t.tripDays],delete t.tripDays),b.trips.push(t),b.archivedTrips=b.archivedTrips.filter(t=>t.id!==e),b.activeTripId=e,T(`state:changed`),J(`home`)}})},Ft=e=>{P({title:`Delete Permanently?`,message:`This trip and all its memories will be gone forever.`,confirmText:`Delete`,onConfirm:async()=>{if(b.archivedTrips=b.archivedTrips.filter(t=>t.id!==e),T(`state:changed`),b.user)try{await fetch(Y(`/api/trips/delete`),{method:`DELETE`,headers:{"Content-Type":`application/json`},body:JSON.stringify({user_id:b.user.id,trip_id:e})})}catch{}J(`collections`)}})},q=null,It=[];function Lt(){let e=document.createElement(`div`),t=b.trips.find(e=>e.id===b.activeTripId);if(!t)return e.innerHTML=`
             <div style="padding:32px 0 24px;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text',sans-serif;">
                 <h1 style="margin:0 0 6px;font-size:2.8rem;font-weight:800;letter-spacing:-0.04em;background:linear-gradient(135deg,var(--accent-blue),#9b59b6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Plan with AI ✦</h1>
