@@ -12,7 +12,7 @@ import { canEdit, canManageRoster, ROLE_PLANNER, ROLE_BUDGETEER } from '../permi
 import { findTripCompanionByLinkedUser } from '../companions.js';
 import { showModal } from '../components/Modal.js';
 import { wireRoleButtonKeys } from '../components/Keyboard.js';
-import { findMarkedPlace, toggleMarkedPlaceFlag, removeMarkedPlace, setMarkedPlaceAssignment } from '../markedPlaces.js';
+import { findMarkedPlace, toggleMarkedPlaceFlag, removeMarkedPlace } from '../markedPlaces.js';
 
 // Empty-state slideshow timer. Lives in this module; router.js calls
 // stopHomeSlideshow() on every navigate so the timer doesn't leak past home.
@@ -1493,6 +1493,14 @@ export function renderHome() {
                  dropdowns appear when the trip has numbered days, so
                  the user can tag each place to a day they're planning
                  to visit. -->
+            <!-- Shortlist tab content. Pure pool of places — no day/time
+                 dropdowns. The user assigns places to a day by clicking
+                 AM/PM/Eve in the Day Detail modal, which writes the line
+                 directly into the day's textarea (so the place's actual
+                 home is the day plan itself, not metadata on the place).
+                 This avoids the prior "tag stamped, textarea forgotten"
+                 mismatch where shortlist showed Tagged for Day 2 but
+                 Day 2's plan was empty. -->
             <div class="home-tab-content${activeHomeTab === 'shortlist' ? ' is-active' : ''}" data-home-tab="shortlist">
                 ${(() => {
                     const shortlist = (activeTrip.markedPlaces || []).filter(p => p.forManual);
@@ -1501,52 +1509,22 @@ export function renderHome() {
                             <div class="card glass" style="padding: 28px; border-radius: 18px; border: 1.5px dashed rgba(255, 149, 0, 0.35); background: rgba(255, 149, 0, 0.04); text-align:center;">
                                 <div style="font-size:2rem; margin-bottom:8px;">📝</div>
                                 <h3 style="margin:0 0 6px; color:#ff9500; font-weight:800;">No shortlisted places yet</h3>
-                                <p style="margin:0; color:var(--text-secondary); font-size:0.9rem;">On the home map, click any pin and hit <strong>📝 Shortlist it</strong> to add it here. This is a free-form list of places you'd like to fit in somewhere — useful when you're filling in days by hand. Pin a day below to tag a place to it.</p>
+                                <p style="margin:0; color:var(--text-secondary); font-size:0.9rem;">On the home map, click any pin and hit <strong>📝 Shortlist it</strong> to add it here. Then open any day's <strong>Full Plan</strong> and tap AM / PM / Eve to drop a place into that day.</p>
                             </div>
                         `;
                     }
-                    const numberedDays = (STATE.tripDays || [])
-                        .filter(d => d.tripId === activeTrip.id && d.dayNumber > 0)
-                        .sort((a, b) => a.dayNumber - b.dayNumber);
-                    const dayOpts = (selectedId) => `
-                        <option value="" ${!selectedId ? 'selected' : ''}>Any day</option>
-                        ${numberedDays.map(d => `
-                            <option value="${esc(d.id)}" ${d.id === selectedId ? 'selected' : ''}>
-                                Day ${d.dayNumber}${d.date ? ` — ${formatDayDate(d.date) || d.date}` : ''}
-                            </option>
-                        `).join('')}
-                    `;
-                    const timeOpts = (selectedTime) => `
-                        <option value="" ${!selectedTime ? 'selected' : ''}>Any time</option>
-                        <option value="morning"   ${selectedTime === 'morning'   ? 'selected' : ''}>🌅 Morning</option>
-                        <option value="afternoon" ${selectedTime === 'afternoon' ? 'selected' : ''}>☀️ Afternoon</option>
-                        <option value="evening"   ${selectedTime === 'evening'   ? 'selected' : ''}>🌙 Evening</option>
-                    `;
                     return `
+                        <div style="margin-bottom: 12px; font-size:0.8rem; color:var(--text-secondary);">Open any day's <strong>Full Plan</strong> below and use AM / PM / Eve to drop a shortlisted place into the matching textarea.</div>
                         <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap:12px;">
                             ${shortlist.map(p => `
-                                <div class="shortlist-card" data-place-id="${esc(p.placeId)}" style="background:white; border:1.5px solid ${p.color}; border-radius:14px; padding:14px; box-shadow: 0 4px 12px rgba(0,0,0,0.06); display:flex; flex-direction:column; gap:10px;">
-                                    <div style="display:flex; align-items:flex-start; gap:8px;">
-                                        <span style="font-size:1.4rem; line-height:1;">${p.icon}</span>
-                                        <div style="flex:1; min-width:0;">
-                                            <div style="font-weight:800; color:#002d5b; font-size:0.95rem; line-height:1.25;">${esc(p.name)}</div>
-                                            ${p.address ? `<div style="font-size:0.75rem; color:var(--text-secondary); margin-top:2px;">${esc(p.address)}</div>` : ''}
-                                        </div>
-                                        <button type="button" class="shortlist-remove-btn" data-place-id="${esc(p.placeId)}" title="Remove from shortlist" aria-label="Remove ${esc(p.name)}"
-                                            style="background: rgba(255,59,48,0.08); border: 1px solid rgba(255,59,48,0.25); color:#ff3b30; border-radius: 8px; padding: 4px 8px; font-size:0.75rem; font-weight:800; cursor:pointer; flex-shrink:0;">✕</button>
+                                <div class="shortlist-card" data-place-id="${esc(p.placeId)}" style="background:white; border:1.5px solid ${p.color}; border-radius:14px; padding:14px; box-shadow: 0 4px 12px rgba(0,0,0,0.06); display:flex; align-items:flex-start; gap:10px;">
+                                    <span style="font-size:1.4rem; line-height:1;">${p.icon}</span>
+                                    <div style="flex:1; min-width:0;">
+                                        <div style="font-weight:800; color:#002d5b; font-size:0.95rem; line-height:1.25;">${esc(p.name)}</div>
+                                        ${p.address ? `<div style="font-size:0.75rem; color:var(--text-secondary); margin-top:2px;">${esc(p.address)}</div>` : ''}
                                     </div>
-                                    ${numberedDays.length > 0 ? `
-                                        <div style="display:flex; gap:8px; min-width:0;">
-                                            <select class="shortlist-day-select" data-place-id="${esc(p.placeId)}" style="flex:1 1 0; min-width:0; max-width:100%; padding:6px 8px; border-radius:8px; border:1px solid rgba(0,0,0,0.1); font-size:0.78rem; background:white;">
-                                                ${dayOpts(p.dayId)}
-                                            </select>
-                                            <select class="shortlist-time-select" data-place-id="${esc(p.placeId)}" style="flex:1 1 0; min-width:0; max-width:100%; padding:6px 8px; border-radius:8px; border:1px solid rgba(0,0,0,0.1); font-size:0.78rem; background:white;">
-                                                ${timeOpts(p.timeOfDay)}
-                                            </select>
-                                        </div>
-                                    ` : `
-                                        <div style="font-size:0.75rem; color:var(--text-secondary); font-style:italic;">Add Path days to tag this place to a specific day.</div>
-                                    `}
+                                    <button type="button" class="shortlist-remove-btn" data-place-id="${esc(p.placeId)}" title="Remove from shortlist" aria-label="Remove ${esc(p.name)}"
+                                        style="background: rgba(255,59,48,0.08); border: 1px solid rgba(255,59,48,0.25); color:#ff3b30; border-radius: 8px; padding: 4px 8px; font-size:0.75rem; font-weight:800; cursor:pointer; flex-shrink:0;">✕</button>
                                 </div>
                             `).join('')}
                         </div>
@@ -1737,13 +1715,14 @@ export function renderHome() {
                 return;
             }
 
-            // Home sub-tabs (Days / Companions) — toggle the active block
-            // via class swap; both tabs stay in the DOM so nothing has to
-            // remount on switch (preserves the per-day delegated handlers
-            // and the timeline's animation state).
+            // Home sub-tabs (Path / Companions / Shortlist) — toggle the
+            // active block via class swap; all tabs stay in the DOM so
+            // nothing has to remount on switch (preserves per-day
+            // delegated handlers and timeline animation state).
             const tabBtn = /** @type {HTMLElement | null} */ (target.closest('.home-tabnav__tab'));
-            if (tabBtn?.dataset.homeTab === 'days' || tabBtn?.dataset.homeTab === 'companions') {
-                activeHomeTab = tabBtn.dataset.homeTab;
+            const tabKey = tabBtn?.dataset.homeTab;
+            if (tabKey === 'days' || tabKey === 'companions' || tabKey === 'shortlist') {
+                activeHomeTab = tabKey;
                 daysContainer.querySelectorAll('.home-tabnav__tab').forEach(t => {
                     /** @type {HTMLElement} */ (t).classList.toggle('is-active', /** @type {HTMLElement} */ (t).dataset.homeTab === activeHomeTab);
                 });
@@ -1831,33 +1810,12 @@ export function renderHome() {
             if (card?.dataset.dayId) { toggleDayMenu(card.dataset.dayId); return; }
         });
 
-        // Shortlist tab dropdowns — day + time-of-day. Delegated since
-        // the tab content is part of daysContainer.innerHTML and would
-        // otherwise need re-binding on every render.
-        daysContainer.addEventListener('change', (e) => {
-            const target = /** @type {HTMLElement | null} */ (e.target);
-            if (!target || !activeTrip) return;
-            const sel = target.closest('.shortlist-day-select, .shortlist-time-select');
-            if (!sel) return;
-            const pid = /** @type {HTMLElement} */ (sel).dataset.placeId;
-            if (!pid) return;
-            const card = /** @type {HTMLElement | null} */ (sel.closest('.shortlist-card'));
-            if (!card) return;
-            const daySel = /** @type {HTMLSelectElement | null} */ (card.querySelector('.shortlist-day-select'));
-            const timeSel = /** @type {HTMLSelectElement | null} */ (card.querySelector('.shortlist-time-select'));
-            setMarkedPlaceAssignment(
-                activeTrip,
-                pid,
-                daySel?.value || null,
-                /** @type {any} */ (timeSel?.value) || null
-            );
-            emit('state:changed');
-            upsertTrip(activeTrip);
-            // No re-render — the dropdowns already show the new value
-            // and there's no derived UI on home that depends on this
-            // (yet — future "5 shortlisted on Day 2" badges on day
-            // cards would re-render here).
-        });
+        // (Shortlist day/time dropdowns were removed — the manual flow
+        // now relies entirely on the day-textarea content as the source
+        // of truth. Assignment-as-metadata caused tag/textarea drift
+        // when the user closed the modal without saving. The AI flow's
+        // dropdowns live in the AI panel and are still authoritative
+        // for that path because the prompt needs explicit assignments.)
 
         setTimeout(() => {
             const addBtn = /** @type {HTMLButtonElement | null} */ (div.querySelector('#addDayBtn'));
@@ -2184,62 +2142,55 @@ const openDayDetail = (dayId) => {
     if (!day) return;
     const trip = STATE.trips.find(t => t.id === day.tripId);
 
-    // Shortlist section. Picks every place the user marked-for-manual
-    // on this trip; sorts THIS day's tagged ones first, then untagged
-    // (those without a dayId), then places tagged for OTHER days at
-    // the bottom in case the user wants to pull one over. Each item
-    // gets three "Add to ..." buttons that prepend the place name to
-    // the relevant textarea AND stamp the assignment so the shortlist
-    // reflects what the user actually used the place for.
+    // Shortlist section. Pure pool — no per-place day/time metadata.
+    // The day-textarea content is the single source of truth for "what
+    // is planned for this day"; tag-based metadata used to drift from
+    // it (user clicked AM, closed without saving, place stayed tagged
+    // but the textarea was empty). Now the AM/PM/Eve buttons just write
+    // a line into the matching textarea and immediately persist the
+    // day. A live ✓ marker on each button reflects whether the place's
+    // name appears in that section's textarea, so the user can see at
+    // a glance where each shortlisted place currently lives.
     const allShortlist = (trip?.markedPlaces || []).filter(p => p.forManual);
-    const taggedHere = allShortlist.filter(p => p.dayId === day.id);
-    const untagged = allShortlist.filter(p => !p.dayId);
-    const taggedElsewhere = allShortlist.filter(p => p.dayId && p.dayId !== day.id);
-    const sortedShortlist = [...taggedHere, ...untagged, ...taggedElsewhere];
 
-    const allDaysForBadge = (STATE.tripDays || []).filter(d => d.tripId === day.tripId);
-    const dayNumberFor = (id) => allDaysForBadge.find(d => d.id === id)?.dayNumber;
-
-    const shortlistRowHtml = (p) => {
-        const isHere = p.dayId === day.id;
-        const otherDayNum = p.dayId && !isHere ? dayNumberFor(p.dayId) : null;
-        const badge = isHere
-            ? `<span style="background:rgba(52,199,89,0.14); color:#1a6b3c; font-size:0.65rem; font-weight:800; padding:2px 8px; border-radius:999px; text-transform:uppercase; letter-spacing:0.04em;">Tagged for today</span>`
-            : (otherDayNum
-                ? `<span style="background:rgba(0,0,0,0.06); color:rgba(0,0,0,0.5); font-size:0.65rem; font-weight:800; padding:2px 8px; border-radius:999px;">Tagged Day ${otherDayNum}</span>`
-                : '');
-        return `
-            <div class="day-shortlist-row" data-place-id="${esc(p.placeId)}" style="display:flex; align-items:center; gap:10px; padding:10px 12px; background:white; border:1px solid ${p.color}40; border-left:3px solid ${p.color}; border-radius:10px;">
-                <span style="font-size:1.2rem; line-height:1; flex-shrink:0;">${p.icon}</span>
-                <div style="flex:1; min-width:0;">
-                    <div style="font-weight:700; color:#002d5b; font-size:0.9rem; line-height:1.2; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(p.name)}</div>
-                    ${p.address ? `<div style="font-size:0.72rem; color:var(--text-secondary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(p.address)}</div>` : ''}
-                </div>
-                ${badge}
-                <div style="display:flex; gap:4px; flex-shrink:0;">
-                    <button type="button" class="day-shortlist-add-btn" data-place-id="${esc(p.placeId)}" data-time="morning" title="Add to Morning"
-                        style="background:rgba(0,113,227,0.08); border:1px solid rgba(0,113,227,0.2); color:var(--accent-blue); padding:5px 10px; border-radius:6px; font-size:0.7rem; font-weight:700; cursor:pointer;">🌅 AM</button>
-                    <button type="button" class="day-shortlist-add-btn" data-place-id="${esc(p.placeId)}" data-time="afternoon" title="Add to Afternoon"
-                        style="background:rgba(255,149,0,0.08); border:1px solid rgba(255,149,0,0.25); color:#ff9500; padding:5px 10px; border-radius:6px; font-size:0.7rem; font-weight:700; cursor:pointer;">☀️ PM</button>
-                    <button type="button" class="day-shortlist-add-btn" data-place-id="${esc(p.placeId)}" data-time="evening" title="Add to Evening"
-                        style="background:rgba(88,86,214,0.08); border:1px solid rgba(88,86,214,0.25); color:#5856d6; padding:5px 10px; border-radius:6px; font-size:0.7rem; font-weight:700; cursor:pointer;">🌙 Eve</button>
-                </div>
+    const shortlistRowHtml = (p) => `
+        <div class="day-shortlist-row" data-place-id="${esc(p.placeId)}" style="display:flex; align-items:center; gap:10px; padding:10px 12px; background:white; border:1px solid ${p.color}40; border-left:3px solid ${p.color}; border-radius:10px;">
+            <span style="font-size:1.2rem; line-height:1; flex-shrink:0;">${p.icon}</span>
+            <div style="flex:1; min-width:0;">
+                <div style="font-weight:700; color:#002d5b; font-size:0.9rem; line-height:1.2; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(p.name)}</div>
+                ${p.address ? `<div style="font-size:0.72rem; color:var(--text-secondary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(p.address)}</div>` : ''}
             </div>
-        `;
-    };
+            <div style="display:flex; gap:4px; flex-shrink:0;">
+                <button type="button" class="day-shortlist-add-btn" data-place-id="${esc(p.placeId)}" data-time="morning" title="Add to Morning"
+                    style="background:rgba(0,113,227,0.08); border:1px solid rgba(0,113,227,0.2); color:var(--accent-blue); padding:5px 10px; border-radius:6px; font-size:0.7rem; font-weight:700; cursor:pointer;">🌅 AM</button>
+                <button type="button" class="day-shortlist-add-btn" data-place-id="${esc(p.placeId)}" data-time="afternoon" title="Add to Afternoon"
+                    style="background:rgba(255,149,0,0.08); border:1px solid rgba(255,149,0,0.25); color:#ff9500; padding:5px 10px; border-radius:6px; font-size:0.7rem; font-weight:700; cursor:pointer;">☀️ PM</button>
+                <button type="button" class="day-shortlist-add-btn" data-place-id="${esc(p.placeId)}" data-time="evening" title="Add to Evening"
+                    style="background:rgba(88,86,214,0.08); border:1px solid rgba(88,86,214,0.25); color:#5856d6; padding:5px 10px; border-radius:6px; font-size:0.7rem; font-weight:700; cursor:pointer;">🌙 Eve</button>
+            </div>
+        </div>
+    `;
 
-    const shortlistSectionHtml = sortedShortlist.length > 0 ? `
+    const shortlistSectionHtml = allShortlist.length > 0 ? `
         <div style="margin-top: var(--space-10); padding: var(--space-6); background: rgba(255, 149, 0, 0.04); border: 1px solid rgba(255, 149, 0, 0.2); border-radius: 24px;">
             <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px;">
                 <span style="font-size: 1.2rem;">📝</span>
                 <h4 style="margin:0; color:#ff9500; font-weight:800; letter-spacing:-0.01em;">From your shortlist</h4>
-                <span style="margin-left:auto; font-size:0.78rem; color:var(--text-secondary);">Click AM / PM / Eve to drop a place into the matching textarea above.</span>
+                <span style="margin-left:auto; font-size:0.78rem; color:var(--text-secondary);">Click AM / PM / Eve to drop a place into the matching textarea above. ✓ shows where it currently lives.</span>
             </div>
             <div style="display:flex; flex-direction:column; gap:8px;">
-                ${sortedShortlist.map(shortlistRowHtml).join('')}
+                ${allShortlist.map(shortlistRowHtml).join('')}
             </div>
         </div>
     ` : '';
+
+    // Forward-declared so the modal's `onClose` (fired on Esc /
+    // backdrop click) can flush a pending debounced save before the
+    // overlay is detached. The actual implementation is assigned a
+    // few lines below; TDZ is safe because `onClose` only runs when
+    // the user closes the modal, which is always after this fn returns.
+    /** @type {(() => void) | null} */
+    let flushPendingOnExit = null;
 
     const { root, close } = showModal({
         cardClass: 'card glass',
@@ -2279,21 +2230,139 @@ const openDayDetail = (dayId) => {
                         <h4 class="text-tag" style="--accent: 52,199,89;">Expert Tip</h4>
                         <p style="margin: 0; font-size: var(--font-md); line-height: 1.5; opacity: 0.9;">${esc(day.tip || "Always keep a portable charger and a small bottle of water in your bag for long exploration days.")}</p>
                     </div>
-                    <button id="saveDetailBtn" class="btn-primary" style="width: 100%; padding: var(--space-5); border-radius: var(--radius-xl); font-size: var(--font-xl);">Save All Changes</button>
+                    <div style="display:flex; flex-direction:column; gap:6px;">
+                        <button id="saveDetailBtn" class="btn-primary" style="width: 100%; padding: var(--space-5); border-radius: var(--radius-xl); font-size: var(--font-xl);">Done</button>
+                        <div id="autosaveStatus" style="text-align:center; font-size:0.7rem; color:var(--text-secondary); font-weight:600; min-height:1em;">Changes save automatically</div>
+                    </div>
                 </div>
             </div>
             ${shortlistSectionHtml}
         `,
+        onClose: () => flushPendingOnExit?.(),
     });
 
-    // Wire shortlist "Add to AM/PM/Eve" buttons. Each click prepends
-    // "- {name}" on a new line to the matching textarea AND stamps the
-    // assignment on the shortlist entry so the data model reflects
-    // what the user actually used the place for. The actual textarea
-    // value isn't persisted until they click "Save All Changes" — we
-    // just mutate the in-DOM textarea and let the existing save flow
-    // pick it up. Trip is upserted immediately for the assignment
-    // change since that's a pure data write.
+    // ── Auto-save plumbing ─────────────────────────────────────────
+    // Why: the user used to lose plan edits if they closed the modal
+    // without clicking "Save All Changes". Now any input on a plan
+    // textarea (or the notes textarea) writes to `day.plan` / `day.notes`
+    // immediately and schedules a debounced upsertDay so the server
+    // stays in sync without spamming requests on every keystroke.
+    const planTextareas = /** @type {NodeListOf<HTMLTextAreaElement>} */
+        (root.querySelectorAll('textarea.plan-input'));
+    const notesTextarea = /** @type {HTMLTextAreaElement} */
+        (q(root, '#detailNotes'));
+    const statusEl = /** @type {HTMLElement} */ (q(root, '#autosaveStatus'));
+
+    /** @type {ReturnType<typeof setTimeout> | null} */
+    let saveTimer = null;
+    let pendingSave = false;
+
+    const flashStatus = (msg, color = 'var(--text-secondary)') => {
+        statusEl.textContent = msg;
+        statusEl.style.color = color;
+    };
+
+    // Pull the current textarea values into `day`. Pure DOM->state read.
+    const syncDayFromInputs = () => {
+        const morning = /** @type {HTMLTextAreaElement} */ (root.querySelector('textarea.plan-input[data-time="morning"]'))?.value ?? '';
+        const afternoon = /** @type {HTMLTextAreaElement} */ (root.querySelector('textarea.plan-input[data-time="afternoon"]'))?.value ?? '';
+        const evening = /** @type {HTMLTextAreaElement} */ (root.querySelector('textarea.plan-input[data-time="evening"]'))?.value ?? '';
+        day.plan = { morning, afternoon, evening };
+        day.notes = notesTextarea?.value ?? '';
+    };
+
+    const persistNow = async () => {
+        if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+        syncDayFromInputs();
+        emit('state:changed');
+        pendingSave = true;
+        flashStatus('Saving…');
+        try {
+            await upsertDay(day);
+            flashStatus('Saved ✓', '#1a6b3c');
+            // Decay back to neutral after a beat so the badge isn't
+            // permanently green (would imply nothing's pending).
+            setTimeout(() => {
+                if (statusEl.textContent === 'Saved ✓') flashStatus('Changes save automatically');
+            }, 1400);
+        } catch (e) {
+            console.error('Day auto-save failed:', e);
+            flashStatus('Save failed — try again', '#ff3b30');
+        } finally {
+            pendingSave = false;
+        }
+    };
+
+    const queueSave = () => {
+        syncDayFromInputs();
+        emit('state:changed'); // local persistence + UI subscribers
+        flashStatus('Editing…');
+        if (saveTimer) clearTimeout(saveTimer);
+        saveTimer = setTimeout(() => { saveTimer = null; persistNow(); }, 700);
+    };
+
+    // Now that persistNow exists, wire the modal-close flush. Esc /
+    // backdrop click → Modal.js calls onClose → we flush. We also
+    // capture textarea values into `day` synchronously (before the
+    // overlay is detached + before the network round-trip resolves)
+    // so a navigate-away mid-save still leaves `day` correct in
+    // memory and localStorage.
+    flushPendingOnExit = () => {
+        if (saveTimer || pendingSave) {
+            // Eager DOM read while textareas are still attached.
+            syncDayFromInputs();
+            emit('state:changed');
+            // Fire-and-forget — overlay is being torn down. Server
+            // round-trip continues; if it fails we log but UI is gone.
+            persistNow().catch(err => console.error('Day flush-on-close failed:', err));
+        }
+    };
+
+    // ── Live ✓ indicators on shortlist buttons ─────────────────────
+    // Refresh after each typing event / each shortlist click so the
+    // marker reflects what's actually in the textareas right now.
+    // Match by case-insensitive substring of the place name; this is
+    // forgiving to user edits ("had dinner at La Brasa" still counts).
+    const refreshShortlistButtons = () => {
+        const planVals = {
+            morning: (/** @type {HTMLTextAreaElement} */ (root.querySelector('textarea.plan-input[data-time="morning"]'))?.value || '').toLowerCase(),
+            afternoon: (/** @type {HTMLTextAreaElement} */ (root.querySelector('textarea.plan-input[data-time="afternoon"]'))?.value || '').toLowerCase(),
+            evening: (/** @type {HTMLTextAreaElement} */ (root.querySelector('textarea.plan-input[data-time="evening"]'))?.value || '').toLowerCase(),
+        };
+        root.querySelectorAll('.day-shortlist-add-btn').forEach(b => {
+            const btn = /** @type {HTMLButtonElement} */ (b);
+            const pid = btn.dataset.placeId;
+            const time = /** @type {'morning' | 'afternoon' | 'evening'} */ (btn.dataset.time);
+            if (!pid || !time) return;
+            const place = allShortlist.find(p => p.placeId === pid);
+            if (!place) return;
+            const isThere = planVals[time].includes(place.name.toLowerCase());
+            // Restore the canonical label, then prefix with ✓ if present.
+            const label = time === 'morning' ? '🌅 AM' : time === 'afternoon' ? '☀️ PM' : '🌙 Eve';
+            btn.textContent = isThere ? `✓ ${label}` : label;
+            btn.style.background = isThere
+                ? (time === 'morning' ? 'rgba(0,113,227,0.22)' : time === 'afternoon' ? 'rgba(255,149,0,0.22)' : 'rgba(88,86,214,0.22)')
+                : (time === 'morning' ? 'rgba(0,113,227,0.08)' : time === 'afternoon' ? 'rgba(255,149,0,0.08)' : 'rgba(88,86,214,0.08)');
+        });
+    };
+
+    // Initial paint so reopening a day with prior plans shows ✓ at once.
+    refreshShortlistButtons();
+
+    // Wire input events on every editable textarea.
+    planTextareas.forEach(ta => {
+        ta.addEventListener('input', () => {
+            queueSave();
+            refreshShortlistButtons();
+        });
+    });
+    notesTextarea?.addEventListener('input', () => { queueSave(); });
+
+    // Wire shortlist "Add to AM/PM/Eve" buttons. Each click appends
+    // "- {name}" on a new line to the matching textarea, syncs the
+    // day from inputs, and persists immediately (no debounce — the
+    // user expects the click to "stick"). Re-render the ✓ markers
+    // so the just-clicked button shows ✓ right away.
     root.addEventListener('click', (ev) => {
         const target = /** @type {HTMLElement | null} */ (ev.target);
         const btn = target?.closest('.day-shortlist-add-btn');
@@ -2301,37 +2370,39 @@ const openDayDetail = (dayId) => {
         const pid = /** @type {HTMLElement} */ (btn).dataset.placeId;
         const time = /** @type {HTMLElement} */ (btn).dataset.time;
         if (!pid || !time || !trip) return;
-        const place = (trip.markedPlaces || []).find(p => p.placeId === pid);
+        const place = allShortlist.find(p => p.placeId === pid);
         if (!place) return;
-        const ta = /** @type {HTMLTextAreaElement | null} */ (root.querySelector(`[data-time="${time}"]`));
+        const ta = /** @type {HTMLTextAreaElement | null} */
+            (root.querySelector(`textarea.plan-input[data-time="${time}"]`));
         if (!ta) return;
         const line = `- ${place.name}`;
+        // Don't double-add: if the name is already in this section,
+        // bail out silently. The visual ✓ already conveys "it's there".
+        if (ta.value.toLowerCase().includes(place.name.toLowerCase())) {
+            // Tiny shake-feedback so the user knows we noticed the click.
+            /** @type {HTMLButtonElement} */ (btn).animate(
+                [{ transform: 'translateX(0)' }, { transform: 'translateX(-3px)' }, { transform: 'translateX(3px)' }, { transform: 'translateX(0)' }],
+                { duration: 220, easing: 'ease-out' }
+            );
+            return;
+        }
         ta.value = ta.value.trim().length > 0 ? `${ta.value.trim()}\n${line}` : line;
-        // Stamp the assignment so subsequent shortlist views (Home tab,
-        // AI panel) reflect that the place is being used for this day.
-        setMarkedPlaceAssignment(trip, pid, day.id, /** @type {any} */ (time));
-        emit('state:changed');
-        upsertTrip(trip);
-        // Brief inline feedback so the user knows the click registered
-        // before they press Save All Changes.
-        const original = btn.textContent;
-        /** @type {HTMLButtonElement} */ (btn).textContent = '✓';
-        /** @type {HTMLButtonElement} */ (btn).disabled = true;
-        setTimeout(() => {
-            /** @type {HTMLButtonElement} */ (btn).textContent = original;
-            /** @type {HTMLButtonElement} */ (btn).disabled = false;
-        }, 700);
+        // Persist now (no debounce wait) — the user's click is an
+        // explicit save signal.
+        persistNow();
+        refreshShortlistButtons();
     });
-    /** @type {HTMLButtonElement} */ (q(root, '#closeDetailBtn')).onclick = () => close();
+
+    /** @type {HTMLButtonElement} */ (q(root, '#closeDetailBtn')).onclick = async () => {
+        // Flush any pending debounce so closing-while-typing doesn't drop
+        // the last keystroke. persistNow clears the timer + saves.
+        if (saveTimer || pendingSave) await persistNow();
+        close();
+    };
     /** @type {HTMLButtonElement} */ (q(root, '#saveDetailBtn')).onclick = async () => {
-        const morning = /** @type {HTMLTextAreaElement} */ (q(root, '[data-time="morning"]')).value;
-        const afternoon = /** @type {HTMLTextAreaElement} */ (q(root, '[data-time="afternoon"]')).value;
-        const evening = /** @type {HTMLTextAreaElement} */ (q(root, '[data-time="evening"]')).value;
-        const notes = /** @type {HTMLTextAreaElement} */ (q(root, '#detailNotes')).value;
-        day.plan = { morning, afternoon, evening };
-        day.notes = notes;
-        emit('state:changed');
-        await upsertDay(day);
+        // Manual "Done" button — explicit save + close. Mostly redundant
+        // with auto-save but kept as a comfortable Big Button exit.
+        await persistNow();
         showLiquidAlert("Itinerary updated!");
         close();
         navigate('home');
