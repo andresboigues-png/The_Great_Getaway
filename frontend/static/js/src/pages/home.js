@@ -429,13 +429,56 @@ export function renderHome() {
                 /** @type {Record<string, any[]>} */
                 const placesCache = {};
 
+                /** Single shared InfoWindow — reused across every Places
+                 *  marker so only one bubble is ever open at a time
+                 *  (Google Maps standard behavior, less visual chaos). */
+                /** @type {any | null} */
+                let placesInfoWindow = null;
+                const getInfoWindow = () => {
+                    if (placesInfoWindow) return placesInfoWindow;
+                    placesInfoWindow = new google.maps.InfoWindow();
+                    return placesInfoWindow;
+                };
+
+                /** Build the HTML shown inside the InfoWindow when a
+                 *  user clicks a Places marker. Uses what's already in
+                 *  the nearbySearch result (name / vicinity / rating)
+                 *  so we don't need a paid Place Details follow-up call.
+                 *  The "View on Google Maps" link uses the place_id URL
+                 *  scheme so it lands directly on the place's full page
+                 *  (with photos, hours, reviews, directions, etc.). */
+                const buildInfoWindowHtml = (cat, place) => {
+                    const safeName = esc(place.name || cat.label);
+                    const safeVicinity = esc(place.vicinity || '');
+                    const ratingHtml = (typeof place.rating === 'number')
+                        ? `<div style="margin-top: 6px; font-size: 13px; color: #444;"><span style="color: #ff9500;">★</span> ${place.rating.toFixed(1)}${place.user_ratings_total ? ` <span style="color: #888;">(${place.user_ratings_total})</span>` : ''}</div>`
+                        : '';
+                    const mapsUrl = place.place_id
+                        ? `https://www.google.com/maps/place/?q=place_id:${encodeURIComponent(place.place_id)}`
+                        : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.name || '')}`;
+                    return `
+                        <div style="font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif; min-width: 220px; max-width: 260px; padding: 4px 2px;">
+                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                                <span style="font-size: 18px;">${cat.icon}</span>
+                                <strong style="font-size: 15px; color: #002d5b; line-height: 1.25;">${safeName}</strong>
+                            </div>
+                            ${safeVicinity ? `<div style="font-size: 12px; color: #666; line-height: 1.4;">${safeVicinity}</div>` : ''}
+                            ${ratingHtml}
+                            <a href="${mapsUrl}" target="_blank" rel="noopener" style="display: inline-block; margin-top: 10px; padding: 6px 12px; background: ${cat.color}; color: white; text-decoration: none; border-radius: 8px; font-size: 12px; font-weight: 700;">View on Google Maps →</a>
+                        </div>
+                    `;
+                };
+
                 /** Drop a marker for one Places result. Color comes from
                  *  the pill's POI_CATEGORIES entry; the icon emoji shows
                  *  inside a white circle. Sized at 44px so it reads as
                  *  a real "this is a thing" marker rather than a tiny
                  *  decoration — the user wanted the toggled info to
                  *  stand out. The colored ring + outer drop-shadow help
-                 *  the marker pop against the satellite imagery. */
+                 *  the marker pop against the satellite imagery.
+                 *  Click → pans + zooms to the place AND opens an
+                 *  InfoWindow with name / address / rating + a Google
+                 *  Maps link for the full info page. */
                 const dropPlaceMarker = (cat, place) => {
                     const loc = place.geometry?.location;
                     if (!loc) return null;
@@ -453,6 +496,16 @@ export function renderHome() {
                         title: place.name || cat.label,
                         icon: { url: svg, scaledSize: new google.maps.Size(40, 40), anchor: new google.maps.Point(20, 20) },
                         zIndex: 1, // below the day pins (which use default zIndex)
+                    });
+                    marker.addListener('click', () => {
+                        const iw = getInfoWindow();
+                        iw.setContent(buildInfoWindowHtml(cat, place));
+                        iw.open({ map, anchor: marker });
+                        // Pan + zoom to the place. 17 ≈ "see the building";
+                        // tighter than the trip overview but loose enough
+                        // to keep neighborhood context visible.
+                        map.panTo(loc);
+                        if (map.getZoom() < 17) map.setZoom(17);
                     });
                     return marker;
                 };
