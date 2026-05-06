@@ -193,6 +193,7 @@ export function renderSettings() {
                 ${isGeneral ? (() => {
                     const filters = STATE.preferences?.poiFilters || {};
                     const anchoring = STATE.preferences?.poiAnchoring || {};
+                    const visibility = STATE.preferences?.poiVisible || {};
                     const ratingOptions = [0, 3, 3.5, 4, 4.5];
                     const rows = POI_CATEGORIES
                         // Roads & traffic isn't a Places-API pill, no
@@ -216,12 +217,14 @@ export function renderSettings() {
                                 <option value="epicenter" ${effectiveAnchor === 'epicenter' ? 'selected' : ''}>📍 Day-aware</option>
                                 <option value="genesis"   ${effectiveAnchor === 'genesis' ? 'selected' : ''}>🌐 Trip-wide</option>
                             `;
+                            const isVisible = visibility[c.key] !== false; // default true
                             const isRatingCustom = userMin !== c.defaultMinRating;
                             const isAnchorCustom = (userAnchor === 'genesis' || userAnchor === 'epicenter')
                                 && userAnchor !== defaultAnchor;
-                            const isCustom = isRatingCustom || isAnchorCustom;
+                            const isVisibilityCustom = !isVisible; // default = visible, so hidden = customised
+                            const isCustom = isRatingCustom || isAnchorCustom || isVisibilityCustom;
                             return `
-                                <div class="poi-filter-row">
+                                <div class="poi-filter-row${isVisible ? '' : ' poi-filter-row--hidden'}">
                                     <span class="poi-filter-row__icon">${c.icon}</span>
                                     <div class="poi-filter-row__body">
                                         <div class="poi-filter-row__label">${esc(c.label)}</div>
@@ -233,21 +236,26 @@ export function renderSettings() {
                                     <select class="poi-filter-rating" data-poi="${c.key}" aria-label="Minimum rating for ${esc(c.label)}">
                                         ${ratingOpts}
                                     </select>
-                                    <span class="poi-filter-row__default" title="Defaults: ${c.defaultMinRating === 0 ? 'Any rating' : c.defaultMinRating + '★+'} / ${defaultAnchor === 'genesis' ? 'Trip-wide' : 'Day-aware'}">
-                                        ${isCustom ? '<button type="button" class="poi-filter-reset" data-poi="' + c.key + '" title="Reset both rating and anchor to default">Reset</button>' : '<span class="muted">Default</span>'}
+                                    <span class="poi-filter-row__default" title="Defaults: ${c.defaultMinRating === 0 ? 'Any rating' : c.defaultMinRating + '★+'} / ${defaultAnchor === 'genesis' ? 'Trip-wide' : 'Day-aware'} / shown">
+                                        ${isCustom ? '<button type="button" class="poi-filter-reset" data-poi="' + c.key + '" title="Reset rating, anchor, and visibility to default">Reset</button>' : '<span class="muted">Default</span>'}
                                     </span>
+                                    <label class="switch poi-visibility-switch" title="${isVisible ? 'Visible on the home pill row — switch off to hide.' : 'Hidden from the home pill row — switch on to show.'}">
+                                        <input type="checkbox" class="poi-visibility-toggle" data-poi="${c.key}" ${isVisible ? 'checked' : ''}>
+                                        <span class="slider"></span>
+                                    </label>
                                 </div>
                             `;
                         }).join('');
                     return `
                         <div class="card glass" style="padding: 32px; border-radius: 28px;">
                             <h2 style="color: var(--accent-blue); margin-top: 0;">Map pill filters</h2>
+                            <p style="color: var(--text-secondary); margin-bottom: 16px;"><strong>Show on Home</strong> (the right-side switch) toggles whether each pill appears in the home map's pill row. Useful for hiding categories you never use so the row stays compact.</p>
                             <p style="color: var(--text-secondary); margin-bottom: 16px;"><strong>Minimum rating</strong> hides results below the chosen ★. Restaurants and Hotels default to 4★+ (rating is a meaningful quality signal there); the rest default to "Any rating".</p>
                             <p style="color: var(--text-secondary); margin-bottom: 24px;"><strong>Search anchor</strong> picks where each pill searches from. <em>Day-aware</em> uses the day you've set as search center on the Home page (falls back to the trip's genesis pin). <em>Trip-wide</em> always anchors on the genesis pin so the 50 km wide search covers the whole trip — better for sparse "where are these across my whole trip" categories like Medical, Sports, Govt, Schools, Public transit.</p>
                             <div class="poi-filter-list">
                                 ${rows}
                             </div>
-                            <p style="color: var(--text-secondary); margin: 24px 0 0; font-size: 0.85rem;">Changes take effect the next time you toggle a pill on. Reset clears both rating and anchor back to that pill's default.</p>
+                            <p style="color: var(--text-secondary); margin: 24px 0 0; font-size: 0.85rem;">Visibility changes take effect on next Home navigation. Filter / anchor changes apply on the next pill toggle. Reset returns rating, anchor, AND visibility to the pill's defaults.</p>
                         </div>
                     `;
                 })() : ''}
@@ -448,12 +456,14 @@ export function renderSettings() {
         if (target.closest('#saveCustomFormatBtn')) { saveCustomFormat(); return; }
 
         // POI filter: reset one category back to its defaults — clears
-        // BOTH rating AND anchor overrides so the row shows "Default".
+        // rating, anchor, AND visibility overrides so the row shows
+        // "Default" again.
         const resetPoiBtn = /** @type {HTMLElement | null} */ (target.closest('.poi-filter-reset'));
         if (resetPoiBtn?.dataset.poi) {
             ensurePoiPrefs();
             delete STATE.preferences.poiFilters[resetPoiBtn.dataset.poi];
             delete STATE.preferences.poiAnchoring[resetPoiBtn.dataset.poi];
+            delete STATE.preferences.poiVisible[resetPoiBtn.dataset.poi];
             emit('state:changed');
             switchSettingsTab('general'); // re-render so the row reflects the reset
             return;
@@ -492,6 +502,21 @@ export function renderSettings() {
             switchSettingsTab('general');
             return;
         }
+
+        const visibilityToggle = target.closest('.poi-visibility-toggle');
+        if (visibilityToggle) {
+            const key = /** @type {HTMLElement} */ (visibilityToggle).dataset.poi;
+            if (!key) return;
+            const checked = /** @type {HTMLInputElement} */ (visibilityToggle).checked;
+            ensurePoiPrefs();
+            // Default is visible (=== true). Only persist when the user
+            // hides — checked = visible = "remove the override".
+            if (checked) delete STATE.preferences.poiVisible[key];
+            else STATE.preferences.poiVisible[key] = false;
+            emit('state:changed');
+            switchSettingsTab('general');
+            return;
+        }
     });
 
     /** Defensive: STATE.preferences and its sub-objects should already
@@ -500,13 +525,16 @@ export function renderSettings() {
      *  validateLoadedState. */
     function ensurePoiPrefs() {
         if (!STATE.preferences) {
-            STATE.preferences = { mapDefaultPois: ['sights', 'parks', 'transit'], poiFilters: {}, pillEpicenters: {}, poiAnchoring: {} };
+            STATE.preferences = { mapDefaultPois: ['sights', 'parks', 'transit'], poiFilters: {}, pillEpicenters: {}, poiAnchoring: {}, poiVisible: {} };
         }
         if (!STATE.preferences.poiFilters || typeof STATE.preferences.poiFilters !== 'object') {
             STATE.preferences.poiFilters = {};
         }
         if (!STATE.preferences.poiAnchoring || typeof STATE.preferences.poiAnchoring !== 'object') {
             STATE.preferences.poiAnchoring = {};
+        }
+        if (!STATE.preferences.poiVisible || typeof STATE.preferences.poiVisible !== 'object') {
+            STATE.preferences.poiVisible = {};
         }
     }
 

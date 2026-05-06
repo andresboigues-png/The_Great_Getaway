@@ -67,12 +67,16 @@ export const STATE = {
      *    { [pillKey]: 'epicenter' | 'genesis' }. Empty / missing keys
      *    fall back to the category's useGenesisAlways flag in
      *    POI_CATEGORIES (see pages/home.js). The user customises this
-     *    in Settings → General. */
+     *    in Settings → General.
+     *  - `poiVisible` controls which pills appear in the home pill row.
+     *    Shape: { [pillKey]: boolean }. Missing key OR true means
+     *    visible; false means hidden. Default {} = every pill visible. */
     preferences: {
         mapDefaultPois: ['sights', 'parks', 'transit'],
         poiFilters: {},
         pillEpicenters: {},
         poiAnchoring: {},
+        poiVisible: {},
     },
 };
 
@@ -115,6 +119,9 @@ export function loadState() {
     }
     if (!STATE.preferences.poiAnchoring || typeof STATE.preferences.poiAnchoring !== 'object') {
         STATE.preferences.poiAnchoring = {};
+    }
+    if (!STATE.preferences.poiVisible || typeof STATE.preferences.poiVisible !== 'object') {
+        STATE.preferences.poiVisible = {};
     }
 
     // Per-trip companions used to be `string[]` of names. Promote any

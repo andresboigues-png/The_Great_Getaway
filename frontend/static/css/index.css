@@ -1652,14 +1652,28 @@ h1 {
 }
 .poi-filter-row {
     display: grid;
-    /* icon | label/hint | anchor select | rating select | reset */
-    grid-template-columns: 32px 1fr auto auto auto;
+    /* icon | label/hint | anchor select | rating select | reset | switch */
+    grid-template-columns: 32px 1fr auto auto auto auto;
     align-items: center;
     gap: var(--space-3);
     padding: var(--space-3) var(--space-4);
     background: rgba(0, 113, 227, 0.04);
     border: 1px solid rgba(0, 113, 227, 0.1);
     border-radius: var(--radius-lg);
+    transition: opacity 0.2s ease;
+}
+/* Hidden pill: dim everything except the switch (and keep its tooltip
+   readable) so the user sees that the row's other controls don't apply
+   while the pill itself is off. The switch stays at full opacity so
+   it's clearly the way to bring it back. */
+.poi-filter-row--hidden > :not(.poi-visibility-switch) {
+    opacity: 0.4;
+}
+.poi-visibility-switch {
+    /* Reuse the existing .switch component's geometry; just shrink
+       slightly to fit the row gracefully. */
+    transform: scale(0.85);
+    margin-left: var(--space-2);
 }
 .poi-anchor-mode {
     background: white;

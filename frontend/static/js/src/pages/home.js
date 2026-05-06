@@ -397,12 +397,16 @@ export function renderHome() {
             </div>
 
             <!-- POI filter pills — sit BELOW the map so they don't cover
-                 anything. Every category visible with its label since
-                 the row fits on a single line at typical viewport widths. -->
+                 anything. Each pill renders with its label by default
+                 since the row fits on a single line at typical viewport
+                 widths. Pills the user has hidden in Settings → General
+                 (poiVisible[key] === false) are filtered out here. -->
             <div id="homeMapPoiToggles" class="map-poi-toggles map-poi-toggles--below">
-                ${POI_CATEGORIES.map(c => `
-                    <button type="button" class="map-poi-toggle" data-poi="${c.key}" aria-pressed="false" title="${esc(c.tooltip)}">${c.icon} <span>${esc(c.label)}</span></button>
-                `).join('')}
+                ${POI_CATEGORIES
+                    .filter(c => STATE.preferences?.poiVisible?.[c.key] !== false)
+                    .map(c => `
+                        <button type="button" class="map-poi-toggle" data-poi="${c.key}" aria-pressed="false" title="${esc(c.tooltip)}">${c.icon} <span>${esc(c.label)}</span></button>
+                    `).join('')}
             </div>
         `;
 
