@@ -12,6 +12,7 @@ import { canEdit, canManageRoster, ROLE_PLANNER, ROLE_BUDGETEER } from '../permi
 import { findTripCompanionByLinkedUser } from '../companions.js';
 import { showModal } from '../components/Modal.js';
 import { wireRoleButtonKeys } from '../components/Keyboard.js';
+import { findMarkedPlace, toggleMarkedPlaceFlag } from '../markedPlaces.js';
 
 // Empty-state slideshow timer. Lives in this module; router.js calls
 // stopHomeSlideshow() on every navigate so the timer doesn't leak past home.
@@ -38,6 +39,10 @@ let activeHomeTab = 'days'; // Sub-tab on the home trip view (Days timeline vs C
  *
  *  `placesType`: one Google Places API type for nearbySearch.
  *    `null` = pure styles-toggle pill (Roads & traffic).
+ *  `extraPlacesTypes`: optional secondary types. When set, a separate
+ *    nearbySearch fires for each and the results are merged + deduped.
+ *    Used by Pets (vets + pet stores — Places API takes one type per
+ *    call, so multi-category pills need multiple round-trips).
  *  `searchStrategy`: how to query the API.
  *    'distance' → rankBy:DISTANCE, no radius, returns 60 CLOSEST.
  *      Right for dense urban categories (restaurants, hotels,
@@ -75,7 +80,8 @@ export const POI_CATEGORIES = [
     // trip" is the question being asked — locking to a single day
     // pin would just mean missing the obvious ones two
     // neighborhoods over. Always anchored on genesis.
-    { key: 'medical',     placesType: 'hospital',           searchStrategy: 'wide', useGenesisAlways: true, icon: '🏥', label: 'Medical',         color: '#ff3b30', defaultMinRating: 0, tooltip: 'Hospitals + clinics. Always searches the wider trip area (50 km from genesis), even if you\'ve picked a specific day as the search center.' },
+    { key: 'medical',     placesType: 'hospital',           searchStrategy: 'wide', useGenesisAlways: true, icon: '🏥', label: 'Medical',         color: '#ff3b30', defaultMinRating: 0, tooltip: 'Hospitals, doctors, pharmacies, clinics. Vets are excluded — they live on the Pets pill.' },
+    { key: 'pets',        placesType: 'veterinary_care',    extraPlacesTypes: ['pet_store'], searchStrategy: 'wide', useGenesisAlways: true, icon: '🐾', label: 'Pets',           color: '#a460ed', defaultMinRating: 0, tooltip: 'Vets and pet stores across the wider trip area' },
     { key: 'schools',     placesType: 'school',             searchStrategy: 'wide', useGenesisAlways: true, icon: '🎓', label: 'Schools',         color: '#0071e3', defaultMinRating: 0, tooltip: 'Schools and universities. Always searches the wider trip area.' },
     { key: 'sports',      placesType: 'stadium',            searchStrategy: 'wide', useGenesisAlways: true, icon: '🏟️', label: 'Sports',          color: '#ff2d55', defaultMinRating: 0, tooltip: 'Stadiums and gyms. Always searches the wider trip area — they\'re landmarks, you want them all.' },
     { key: 'govt',        placesType: 'city_hall',          searchStrategy: 'wide', useGenesisAlways: true, icon: '🏛️', label: 'Govt',            color: '#8e8e93', defaultMinRating: 0, tooltip: 'Government buildings + embassies. Always searches the wider trip area — sparse and useful to know where they are across the whole trip.' },
@@ -110,18 +116,27 @@ function isPrimaryMatch(categoryKey, types) {
         || t === 'bed_and_breakfast' || t === 'guest_house' || t === 'inn'
         || t === 'resort_hotel' || t === 'extended_stay_hotel';
     const isSupermarket = (t) => t === 'supermarket' || t === 'grocery_or_supermarket';
-    // Only "big" transit — train, metro, light-rail. Generic
-    // transit_station and bus_station/bus_stop are excluded so the
-    // user doesn't get peppered with every street-corner stop.
+    // "Big" transit only — train, metro, light-rail. Generic
+    // transit_station and bus_station/bus_stop excluded so the user
+    // doesn't get peppered with every street-corner stop.
     const isBigTransit = (t) => t === 'train_station'
         || t === 'subway_station' || t === 'light_rail_station';
+    // Human medical only — explicitly excludes veterinary_care.
+    // Google's hospital search returns vet clinics too because
+    // some carry both 'hospital' and 'veterinary_care' types.
+    const isHumanMedical = (t) => t === 'hospital' || t === 'doctor'
+        || t === 'pharmacy' || t === 'dentist' || t === 'physiotherapist'
+        || t === 'health' || t === 'medical_lab';
+    const isPet = (t) => t === 'veterinary_care' || t === 'pet_store';
 
     /** @type {{match: (t:string)=>boolean, conflict: (t:string)=>boolean} | undefined} */
     const rule = ({
-        restaurants:  { match: isRestaurant,  conflict: isHotel },
-        hotels:       { match: isHotel,       conflict: isRestaurant },
-        supermarkets: { match: isSupermarket, conflict: () => false },
-        transit:      { match: isBigTransit,  conflict: () => false },
+        restaurants:  { match: isRestaurant,    conflict: isHotel },
+        hotels:       { match: isHotel,         conflict: isRestaurant },
+        supermarkets: { match: isSupermarket,   conflict: () => false },
+        transit:      { match: isBigTransit,    conflict: () => false },
+        medical:      { match: isHumanMedical,  conflict: isPet },
+        pets:         { match: isPet,           conflict: isHumanMedical },
     })[categoryKey];
     if (!rule) return true;
 
@@ -521,6 +536,7 @@ export function renderHome() {
                  *  The "View on Google Maps" link uses the place_id URL
                  *  scheme so it lands directly on the place's full page
                  *  (with photos, hours, reviews, directions, etc.). */
+                const tripIsEditable = canEdit(activeTrip);
                 const buildInfoWindowHtml = (cat, place) => {
                     const safeName = esc(place.name || cat.label);
                     const safeVicinity = esc(place.vicinity || '');
@@ -530,8 +546,26 @@ export function renderHome() {
                     const mapsUrl = place.place_id
                         ? `https://www.google.com/maps/place/?q=place_id:${encodeURIComponent(place.place_id)}`
                         : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.name || '')}`;
+                    // Mark-for-AI / Add-to-shortlist buttons — planner-only.
+                    // The current marked state determines the button label
+                    // and styling (filled when marked, outline when not).
+                    const marked = findMarkedPlace(activeTrip, place.place_id);
+                    const isAi = !!marked?.forAI;
+                    const isManual = !!marked?.forManual;
+                    const markBtnsHtml = tripIsEditable && place.place_id ? `
+                        <div style="display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap;">
+                            <button type="button" data-action="mark-ai" data-place-id="${esc(place.place_id)}"
+                                style="flex: 1; min-width: 120px; padding: 6px 10px; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; border: 1.5px solid #5856d6; background: ${isAi ? '#5856d6' : 'white'}; color: ${isAi ? 'white' : '#5856d6'};">
+                                ${isAi ? '✓ Marked for AI' : '🤖 Mark for AI'}
+                            </button>
+                            <button type="button" data-action="mark-manual" data-place-id="${esc(place.place_id)}"
+                                style="flex: 1; min-width: 120px; padding: 6px 10px; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; border: 1.5px solid #ff9500; background: ${isManual ? '#ff9500' : 'white'}; color: ${isManual ? 'white' : '#ff9500'};">
+                                ${isManual ? '✓ Shortlisted' : '📝 Shortlist it'}
+                            </button>
+                        </div>
+                    ` : '';
                     return `
-                        <div style="font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif; min-width: 220px; max-width: 260px; padding: 4px 2px;">
+                        <div style="font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif; min-width: 240px; max-width: 280px; padding: 4px 2px;">
                             <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
                                 <span style="font-size: 18px;">${cat.icon}</span>
                                 <strong style="font-size: 15px; color: #002d5b; line-height: 1.25;">${safeName}</strong>
@@ -539,8 +573,57 @@ export function renderHome() {
                             ${safeVicinity ? `<div style="font-size: 12px; color: #666; line-height: 1.4;">${safeVicinity}</div>` : ''}
                             ${ratingHtml}
                             <a href="${mapsUrl}" target="_blank" rel="noopener" style="display: inline-block; margin-top: 10px; padding: 6px 12px; background: ${cat.color}; color: white; text-decoration: none; border-radius: 8px; font-size: 12px; font-weight: 700;">View on Google Maps →</a>
+                            ${markBtnsHtml}
                         </div>
                     `;
+                };
+
+                /** Wire click handlers on whatever's currently inside the
+                 *  InfoWindow. Called on every open + after every content
+                 *  refresh (which we trigger when the user clicks a mark
+                 *  button so the button label updates). Google's
+                 *  InfoWindow domready event fires when the DOM is
+                 *  available, including after setContent. */
+                const wireInfoWindowMarkButtons = (cat, place) => {
+                    const iw = getInfoWindow();
+                    const root = iw && /** @type {any} */ (iw).getContent && /** @type {any} */ (iw).getContent();
+                    // The content can be a string OR a DOM node depending
+                    // on how setContent was called. We pass strings, so
+                    // Google parses it into a DOM tree we can reach via
+                    // the InfoWindow's internal anchor. Easier: use
+                    // document.querySelectorAll on the gm-style-iw
+                    // wrapper that Google adds to the DOM.
+                    const anyEl = document.querySelector(`.gm-style-iw [data-action="mark-ai"][data-place-id="${place.place_id}"]`);
+                    if (!anyEl) return; // iw not in DOM yet, will retry on next domready
+                    const aiBtn = /** @type {HTMLButtonElement} */ (anyEl);
+                    const manualBtn = /** @type {HTMLButtonElement | null} */ (
+                        document.querySelector(`.gm-style-iw [data-action="mark-manual"][data-place-id="${place.place_id}"]`)
+                    );
+                    /** Re-renders the InfoWindow content (so the button
+                     *  label flips to "✓ Marked") AND re-attaches the
+                     *  domready listener that re-runs this wiring after
+                     *  Google rebuilds the InfoWindow's DOM. Without the
+                     *  re-attach, only the first click would work. */
+                    const refresh = () => {
+                        iw.setContent(buildInfoWindowHtml(cat, place));
+                        google.maps.event.addListenerOnce(iw, 'domready', () => {
+                            wireInfoWindowMarkButtons(cat, place);
+                        });
+                    };
+                    aiBtn.onclick = () => {
+                        toggleMarkedPlaceFlag(activeTrip, place, 'forAI', cat);
+                        emit('state:changed');
+                        upsertTrip(activeTrip);
+                        refresh();
+                    };
+                    if (manualBtn) {
+                        manualBtn.onclick = () => {
+                            toggleMarkedPlaceFlag(activeTrip, place, 'forManual', cat);
+                            emit('state:changed');
+                            upsertTrip(activeTrip);
+                            refresh();
+                        };
+                    }
                 };
 
                 /** Drop a marker for one Places result. Color comes from
@@ -574,6 +657,14 @@ export function renderHome() {
                     marker.addListener('click', () => {
                         const iw = getInfoWindow();
                         iw.setContent(buildInfoWindowHtml(cat, place));
+                        // domready fires AFTER the InfoWindow's DOM is
+                        // mounted (or remounted, if setContent runs
+                        // again). Each mount wires up the mark buttons.
+                        // Using addListenerOnce so we don't accumulate
+                        // handlers when the user re-clicks the marker.
+                        google.maps.event.addListenerOnce(iw, 'domready', () => {
+                            wireInfoWindowMarkButtons(cat, place);
+                        });
                         iw.open({ map, anchor: marker });
                         // Pan + zoom to the place. 17 ≈ "see the building";
                         // tighter than the trip overview but loose enough
@@ -674,19 +765,39 @@ export function renderHome() {
                         //     want — "main hospital" should land first.
                         // Note: rankBy: DISTANCE is incompatible with
                         // `radius`. The API rejects both together.
-                        if (cat.searchStrategy === 'distance') {
-                            svc.nearbySearch({
-                                location: center,
-                                rankBy: google.maps.places.RankBy.DISTANCE,
-                                type: cat.placesType,
-                            }, handle);
-                        } else {
-                            svc.nearbySearch({
-                                location: center,
-                                radius: 50000,
-                                type: cat.placesType,
-                            }, handle);
-                        }
+                        //
+                        // Multi-type categories (cat.extraPlacesTypes)
+                        // run one search per type and pool the results.
+                        // Places API takes a single `type` per call, so
+                        // a pill like "Pets" (vets + pet stores) needs
+                        // multiple round-trips to cover both.
+                        const typesToSearch = [cat.placesType, ...(cat.extraPlacesTypes || [])];
+                        let pendingSearches = typesToSearch.length;
+                        const sharedHandle = (results, status, pagination) => {
+                            const ok = status === google.maps.places.PlacesServiceStatus.OK
+                                || status === google.maps.places.PlacesServiceStatus.ZERO_RESULTS;
+                            if (ok && Array.isArray(results)) all.push(...results);
+                            if (pagination && pagination.hasNextPage && all.length < 60) {
+                                setTimeout(() => pagination.nextPage(), 200);
+                            } else if (--pendingSearches === 0) {
+                                resolve(all);
+                            }
+                        };
+                        typesToSearch.forEach(t => {
+                            if (cat.searchStrategy === 'distance') {
+                                svc.nearbySearch({
+                                    location: center,
+                                    rankBy: google.maps.places.RankBy.DISTANCE,
+                                    type: t,
+                                }, sharedHandle);
+                            } else {
+                                svc.nearbySearch({
+                                    location: center,
+                                    radius: 50000,
+                                    type: t,
+                                }, sharedHandle);
+                            }
+                        });
                     });
                     placesPending[key] = promise;
                     promise.then(list => {

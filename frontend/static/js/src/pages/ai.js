@@ -1,9 +1,10 @@
 // @ts-check
 import { STATE, emit } from '../state.js';
-import { q } from '../utils.js';
+import { q, esc, formatDayDate } from '../utils.js';
 import { openNewTripModal } from '../modals.js';
-import { apiFetch, upsertDay, deleteDayOnServer } from '../api.js';
-import { canEdit } from '../permissions.js';
+import { apiFetch, upsertDay, deleteDayOnServer, upsertTrip } from '../api.js';
+import { canEdit, getMyRole, ROLE_BUDGETEER, ROLE_RELAXER } from '../permissions.js';
+import { getMarkedPlaces, removeMarkedPlace, setMarkedPlaceAssignment } from '../markedPlaces.js';
 
 /** @type {any} */
 let googleMap = null;
@@ -121,9 +122,24 @@ export function renderAI() {
                     <!-- Generate -->
                     ${tripIsEditable
                         ? `<button id="generateBtn" class="ai-generate-btn" style="width:100%; border-radius: var(--radius-lg);flex:0 0 auto;">✦ Generate My Itinerary</button>`
-                        : `<div class="card glass" style="padding:16px; border-radius: var(--radius-lg); text-align:center; color: var(--text-secondary); font-size: 0.85rem; flex:0 0 auto;">
-                            👁 You're a Relaxer on this trip — generating a new plan is up to the Planners.
-                          </div>`}
+                        : (() => {
+                            // Role-aware copy. Relaxers + Budgeteers
+                            // both land here (canEdit returns false
+                            // for both — only Planners can edit the
+                            // itinerary). Show the right role label
+                            // so Budgeteers don't get told they're
+                            // a Relaxer.
+                            const role = getMyRole(activeTrip);
+                            const roleLabel = role === ROLE_BUDGETEER ? 'Budgeteer'
+                                : role === ROLE_RELAXER ? 'Relaxer'
+                                : 'observer';
+                            const note = role === ROLE_BUDGETEER
+                                ? "you handle the trip's expenses but the itinerary is up to the Planners."
+                                : "generating a new plan is up to the Planners.";
+                            return `<div class="card glass" style="padding:16px; border-radius: var(--radius-lg); text-align:center; color: var(--text-secondary); font-size: 0.85rem; flex:0 0 auto;">
+                                👁 You're a ${roleLabel} on this trip — ${note}
+                            </div>`;
+                        })()}
                 </div>
 
                 <!-- Right: Google Map (sticky) -->
@@ -136,6 +152,14 @@ export function renderAI() {
                     </div>
                 </div>
             </div>
+
+            <!-- Marked Places (full-width below) — places the user
+                 stamped from the home map InfoWindow with "Mark for AI".
+                 Each card shows the place + day/time-of-day dropdowns
+                 (only when dates are entered, since assignments need a
+                 day to bind to) + a remove button. The Generate flow
+                 below appends these into Gemini's prompt context. -->
+            <div id="aiMarkedPlacesPanel" style="margin-bottom: 32px;"></div>
 
             <!-- Itinerary Output (full-width below) -->
             <div id="itineraryOutput" style="margin-bottom: 60px;"></div>
@@ -374,6 +398,126 @@ export function renderAI() {
             };
         };
 
+        /** Render the marked-places panel. Re-rendered after every
+         *  user action (remove, day change, time-of-day change) since
+         *  the panel reflects mutable state on activeTrip.markedPlaces.
+         *  When dates are entered in the AI planner, the day dropdown
+         *  becomes available — that's when day/time assignments make
+         *  sense (per the user's spec). */
+        const renderMarkedPlacesPanel = () => {
+            const panel = /** @type {HTMLElement | null} */ (div.querySelector('#aiMarkedPlacesPanel'));
+            if (!panel) return;
+            const marked = getMarkedPlaces(activeTrip).filter(p => p.forAI);
+            if (marked.length === 0) {
+                panel.innerHTML = `
+                    <div class="card glass" style="padding: 20px; border-radius: 18px; border: 1.5px dashed rgba(88, 86, 214, 0.35); background: rgba(88, 86, 214, 0.04);">
+                        <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
+                            <span style="font-size: 1.2rem;">🤖</span>
+                            <h3 style="margin:0; color:#5856d6; font-weight:800; letter-spacing:-0.01em;">Marked for AI</h3>
+                        </div>
+                        <p style="margin:0; color: var(--text-secondary); font-size: 0.9rem;">No places marked yet. On the Home map, click any pin and hit <strong>🤖 Mark for AI</strong> to add it here. Once dates are set above, you'll be able to assign each marked place to a specific day and part of the day; the AI will respect those when generating your itinerary.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const dateFromEl = /** @type {HTMLInputElement | null} */ (div.querySelector('#aiDateFrom'));
+            const dateToEl = /** @type {HTMLInputElement | null} */ (div.querySelector('#aiDateTo'));
+            const datesSet = !!(dateFromEl?.value && dateToEl?.value);
+            // Build day options from existing tripDays (numbered) when
+            // dates are set. Falls back to no-options message when not.
+            const tripDays = (STATE.tripDays || [])
+                .filter(d => d.tripId === activeTrip.id && d.dayNumber > 0)
+                .sort((a, b) => a.dayNumber - b.dayNumber);
+            const dayOpts = (selectedId) => `
+                <option value="" ${!selectedId ? 'selected' : ''}>Any day</option>
+                ${tripDays.map(d => `
+                    <option value="${esc(d.id)}" ${d.id === selectedId ? 'selected' : ''}>
+                        Day ${d.dayNumber}${d.date ? ` — ${formatDayDate(d.date) || d.date}` : ''}
+                    </option>
+                `).join('')}
+            `;
+            const timeOpts = (selectedTime) => `
+                <option value="" ${!selectedTime ? 'selected' : ''}>Any time</option>
+                <option value="morning"   ${selectedTime === 'morning'   ? 'selected' : ''}>🌅 Morning</option>
+                <option value="afternoon" ${selectedTime === 'afternoon' ? 'selected' : ''}>☀️ Afternoon</option>
+                <option value="evening"   ${selectedTime === 'evening'   ? 'selected' : ''}>🌙 Evening</option>
+            `;
+
+            const cardsHtml = marked.map(p => `
+                <div class="ai-marked-card" data-place-id="${esc(p.placeId)}" style="background:white; border:1.5px solid ${p.color}; border-radius:14px; padding:14px; box-shadow: 0 4px 12px rgba(0,0,0,0.06); display:flex; flex-direction:column; gap:10px; min-height: 0;">
+                    <div style="display:flex; align-items:flex-start; gap:8px;">
+                        <span style="font-size:1.4rem; line-height:1;">${p.icon}</span>
+                        <div style="flex:1; min-width:0;">
+                            <div style="font-weight:800; color:#002d5b; font-size:0.95rem; line-height:1.25;">${esc(p.name)}</div>
+                            ${p.address ? `<div style="font-size:0.75rem; color:var(--text-secondary); margin-top:2px;">${esc(p.address)}</div>` : ''}
+                        </div>
+                        <button type="button" class="marked-remove-btn" data-place-id="${esc(p.placeId)}" title="Remove from AI list" aria-label="Remove ${esc(p.name)}"
+                            style="background: rgba(255,59,48,0.08); border: 1px solid rgba(255,59,48,0.25); color:#ff3b30; border-radius: 8px; padding: 4px 8px; font-size:0.75rem; font-weight:800; cursor:pointer; flex-shrink:0;">✕</button>
+                    </div>
+                    ${datesSet ? `
+                        <div style="display:flex; gap:8px;">
+                            <select class="marked-day-select" data-place-id="${esc(p.placeId)}" style="flex:1; padding:6px 8px; border-radius:8px; border:1px solid rgba(0,0,0,0.1); font-size:0.78rem; background:white;">
+                                ${dayOpts(p.dayId)}
+                            </select>
+                            <select class="marked-time-select" data-place-id="${esc(p.placeId)}" style="flex:1; padding:6px 8px; border-radius:8px; border:1px solid rgba(0,0,0,0.1); font-size:0.78rem; background:white;">
+                                ${timeOpts(p.timeOfDay)}
+                            </select>
+                        </div>
+                    ` : `
+                        <div style="font-size:0.75rem; color:var(--text-secondary); font-style:italic;">Set Travel Dates above to assign this to a specific day / time of day.</div>
+                    `}
+                </div>
+            `).join('');
+
+            panel.innerHTML = `
+                <div class="card glass" style="padding:20px; border-radius:18px; border: 1.5px solid rgba(88, 86, 214, 0.25);">
+                    <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px;">
+                        <span style="font-size: 1.2rem;">🤖</span>
+                        <h3 style="margin:0; color:#5856d6; font-weight:800; letter-spacing:-0.01em;">Marked for AI <span style="background:rgba(88,86,214,0.12); color:#5856d6; font-size:0.7rem; padding:2px 8px; border-radius:999px; margin-left:6px;">${marked.length}</span></h3>
+                        <span style="margin-left:auto; font-size:0.78rem; color:var(--text-secondary);">Will be fed into Gemini's prompt when you Generate.</span>
+                    </div>
+                    <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap:12px;">
+                        ${cardsHtml}
+                    </div>
+                </div>
+            `;
+
+            // Wire per-card actions: remove + day select + time select.
+            // Delegated since the panel re-renders on every change.
+            panel.querySelectorAll('.marked-remove-btn').forEach(btn => {
+                /** @type {HTMLButtonElement} */ (btn).onclick = () => {
+                    const pid = /** @type {HTMLElement} */ (btn).dataset.placeId;
+                    if (!pid) return;
+                    removeMarkedPlace(activeTrip, pid);
+                    emit('state:changed');
+                    upsertTrip(activeTrip);
+                    renderMarkedPlacesPanel();
+                };
+            });
+            panel.querySelectorAll('.marked-day-select, .marked-time-select').forEach(sel => {
+                /** @type {HTMLSelectElement} */ (sel).onchange = () => {
+                    const pid = /** @type {HTMLElement} */ (sel).dataset.placeId;
+                    if (!pid) return;
+                    const card = panel.querySelector(`.ai-marked-card[data-place-id="${pid}"]`);
+                    if (!card) return;
+                    const daySel = /** @type {HTMLSelectElement | null} */ (card.querySelector('.marked-day-select'));
+                    const timeSel = /** @type {HTMLSelectElement | null} */ (card.querySelector('.marked-time-select'));
+                    setMarkedPlaceAssignment(
+                        activeTrip,
+                        pid,
+                        daySel?.value || null,
+                        /** @type {any} */ (timeSel?.value) || null
+                    );
+                    emit('state:changed');
+                    upsertTrip(activeTrip);
+                    // No re-render needed — the dropdowns already show
+                    // the new value, and there's no derived UI to update.
+                };
+            });
+        };
+        renderMarkedPlacesPanel();
+
         if (generatedItinerary) renderItineraryOutput(generatedItinerary, savedNumDays, tripCountry);
 
         const contextInput = /** @type {HTMLTextAreaElement | null} */ (div.querySelector('#aiExtraContext'));
@@ -384,16 +528,46 @@ export function renderAI() {
             };
         }
 
+        // Re-render the marked-places panel whenever the user types in
+        // date inputs — this is what reveals the day/time-of-day
+        // dropdowns once dates are set.
+        ['#aiDateFrom', '#aiDateTo'].forEach(sel => {
+            const el = /** @type {HTMLInputElement | null} */ (div.querySelector(sel));
+            if (el) el.addEventListener('change', () => renderMarkedPlacesPanel());
+        });
+
         div.querySelector('#generateBtn')?.addEventListener('click', async () => {
             const outputEl = q(div, '#itineraryOutput');
             const dateFrom = /** @type {HTMLInputElement} */ (q(div, '#aiDateFrom')).value;
             const dateTo = /** @type {HTMLInputElement} */ (q(div, '#aiDateTo')).value;
             const ctxInput = /** @type {HTMLTextAreaElement | null} */ (document.getElementById('aiExtraContext'));
-            const context = ctxInput?.value ?? '';
+            const userContext = ctxInput?.value ?? '';
             if (!dateFrom || !dateTo) { alert('Please select your travel dates.'); return; }
             const from = new Date(dateFrom), to = new Date(dateTo);
             const numDays = Math.max(1, Math.round((to.getTime() - from.getTime()) / 86400000) + 1);
-            activeTrip.aiContext = context; activeTrip.aiNumDays = numDays; emit('state:changed');
+
+            // Build the marked-places suffix that gets appended to the
+            // user's freeform context so Gemini sees both. Format chosen
+            // to be unambiguous: each place on its own line, with day
+            // and time-of-day labels when assigned. The AI is instructed
+            // to incorporate these places where it makes sense.
+            const markedForAI = getMarkedPlaces(activeTrip).filter(p => p.forAI);
+            let markedSuffix = '';
+            if (markedForAI.length > 0) {
+                const tripDays = (STATE.tripDays || [])
+                    .filter(d => d.tripId === activeTrip.id && d.dayNumber > 0);
+                const dayNumberOf = (id) => tripDays.find(d => d.id === id)?.dayNumber;
+                const lines = markedForAI.map(p => {
+                    const d = p.dayId ? dayNumberOf(p.dayId) : null;
+                    const dayPart = d ? `, on Day ${d}` : '';
+                    const timePart = p.timeOfDay ? `, ${p.timeOfDay}` : '';
+                    const addrPart = p.address ? ` (${p.address})` : '';
+                    return `- ${p.name}${addrPart}${dayPart}${timePart}`;
+                }).join('\n');
+                markedSuffix = `\n\nThe user has marked these specific places to include in the itinerary. Please incorporate them where they fit, respecting any day/time assignments where given:\n${lines}`;
+            }
+            const context = userContext + markedSuffix;
+            activeTrip.aiContext = userContext; activeTrip.aiNumDays = numDays; emit('state:changed');
             outputEl.innerHTML = `<div style="text-align:center;padding:60px;"><div class="spinner-ring" style="width:40px;height:40px;border:3px solid rgba(255,255,255,0.1);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 20px;"></div><div style="color:white;font-weight:600;">Consulting Gemini AI...</div></div>`;
             outputEl.scrollIntoView({ behavior: 'smooth' });
             try {

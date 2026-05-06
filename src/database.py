@@ -88,6 +88,11 @@ def init_db():
             # scope to this list instead of the full account roster, so each
             # trip computes who-owes-whom against just its real participants.
             ("companions_json", "ALTER TABLE trips ADD COLUMN companions_json TEXT"),
+            # JSON-encoded list of places the user has "marked" from the
+            # home map. Two flavours: forAI (fed into Gemini prompt) and
+            # forManual (shortlist to pick from when manually editing days).
+            # Schema: see migrations/versions/c374584f6044*.
+            ("marked_places_json", "ALTER TABLE trips ADD COLUMN marked_places_json TEXT"),
         ]:
             try:
                 cursor.execute(ddl)
