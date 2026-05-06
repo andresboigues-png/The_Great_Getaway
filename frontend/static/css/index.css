@@ -1643,8 +1643,20 @@ h1 {
     outline: 2px solid var(--accent-blue);
     outline-offset: 2px;
 }
-/* "+ N" More button — same shape but with a tighter look so it reads
-   as an affordance rather than a category. */
+/* Pill labels — hidden by default so the row reads as a tight
+   icon-only chrome. The "+ More" button (toggling .is-expanded on
+   the parent) reveals the labels for users who can't remember which
+   emoji is which. */
+.map-poi-toggles:not(.is-expanded) .map-poi-toggle:not(.map-poi-toggle--more) span {
+    display: none;
+}
+.map-poi-toggles:not(.is-expanded) .map-poi-toggle:not(.map-poi-toggle--more) {
+    /* Squarer when icon-only so the chip doesn't look stretched. */
+    padding: 4px 8px;
+}
+
+/* "+ More" button — tighter look so it reads as an affordance
+   rather than a category. */
 .map-poi-toggle--more {
     background: rgba(0, 113, 227, 0.12);
     border-color: rgba(0, 113, 227, 0.28);
@@ -1654,13 +1666,6 @@ h1 {
     background: var(--accent-blue);
     color: white;
 }
-/* Overflow container — hugs the pill row, wraps to next line so the
-   extra pills don't push the visible ones around. */
-.map-poi-overflow {
-    pointer-events: auto;
-    display: contents;
-}
-.map-poi-overflow[hidden] { display: none; }
 
 /* Settings → General preference rows. One row per POI category with a
    checkbox + emoji + name + tooltip-style hint, stacked vertically. */

@@ -312,31 +312,18 @@ export function renderHome() {
             
             <div class="card glass cover-card cover-card--md">
                 <div id="homeHeroMap" style="width: 100%; height: 100%; position: absolute; inset: 0; z-index: 0;"></div>
-                <!-- POI filter pills — sit on top of the gradient so they
-                     stay clickable. The visible set is whatever the user
-                     picked in Settings → General (defaults: sights/parks/
-                     transit); the rest live behind a "More" expander. The
-                     full 9-category list is centralized in POI_CATEGORIES
-                     so this row, the More overflow, and the Settings page
-                     all read from one source. -->
+                <!-- POI filter pills — every category visible by default
+                     as icon-only chips so the row stays compact. The
+                     "+ More" pill toggles the labels in/out so the user
+                     can confirm what each emoji means without permanently
+                     widening the row. Labels show via .is-expanded on
+                     the parent container; CSS hides .map-poi-toggle span
+                     by default. -->
                 <div id="homeMapPoiToggles" class="map-poi-toggles">
-                    ${(() => {
-                        const defaults = STATE.preferences?.mapDefaultPois || ['sights', 'parks', 'transit'];
-                        const visible = POI_CATEGORIES.filter(c => defaults.includes(c.key));
-                        const hidden = POI_CATEGORIES.filter(c => !defaults.includes(c.key));
-                        const renderPill = (c) => `
-                            <button type="button" class="map-poi-toggle" data-poi="${c.key}" aria-pressed="false" title="${esc(c.tooltip)}">${c.icon} <span>${esc(c.label)}</span></button>
-                        `;
-                        return `
-                            ${visible.map(renderPill).join('')}
-                            ${hidden.length > 0 ? `
-                                <button type="button" class="map-poi-toggle map-poi-toggle--more" id="homeMapPoiMoreBtn" aria-expanded="false" title="Show more layer toggles">+ ${hidden.length}</button>
-                                <div class="map-poi-overflow" id="homeMapPoiOverflow" hidden>
-                                    ${hidden.map(renderPill).join('')}
-                                </div>
-                            ` : ''}
-                        `;
-                    })()}
+                    ${POI_CATEGORIES.map(c => `
+                        <button type="button" class="map-poi-toggle" data-poi="${c.key}" aria-pressed="false" title="${esc(c.label)} — ${esc(c.tooltip)}">${c.icon} <span>${esc(c.label)}</span></button>
+                    `).join('')}
+                    <button type="button" class="map-poi-toggle map-poi-toggle--more" id="homeMapPoiMoreBtn" aria-expanded="false" title="Show pill names">+ More</button>
                 </div>
                 <div class="cover-card__gradient" style="pointer-events: none; z-index: 1;"></div>
                 <div class="cover-card__content" style="pointer-events: none; z-index: 2;">
@@ -424,8 +411,11 @@ export function renderHome() {
                 /** @type {Record<string, any[]>} */
                 const placesMarkers = {};
 
-                /** Cache of nearbySearch results keyed by `${dayId}|${pillKey}`
-                 *  so re-toggling doesn't burn another API call. */
+                /** Cache of nearbySearch results keyed by `${tripId}|${pillKey}`.
+                 *  Trip-wide cache because the search is now one big
+                 *  query around the genesis pin (50 km radius), not one
+                 *  per day pin — re-toggling a pill on the same trip
+                 *  doesn't burn another API call. */
                 /** @type {Record<string, any[]>} */
                 const placesCache = {};
 
@@ -510,25 +500,55 @@ export function renderHome() {
                     return marker;
                 };
 
-                /** Run nearbySearch for one (day, category) pair. Cached. */
-                const fetchPlacesFor = (cat, day) => new Promise((resolve) => {
-                    const key = `${day.id}|${cat.key}`;
+                /** Run a single trip-wide nearbySearch for one category,
+                 *  centered on the genesis pin (day 0). Radius is the
+                 *  Places API maximum (50 km) — covers a metro region
+                 *  the size of "Sintra ↔ Cascais ↔ Lisbon ↔ Setúbal".
+                 *  Cached per (tripId, pillKey) so re-toggling is free.
+                 *  We also paginate up to 3 result pages (60 results
+                 *  total) when available so the bigger search radius
+                 *  doesn't get artificially capped at 20 results.
+                 */
+                const fetchPlacesForTrip = (cat) => new Promise((resolve) => {
+                    const tripId = activeTrip?.id || '';
+                    const key = `${tripId}|${cat.key}`;
                     if (placesCache[key]) { resolve(placesCache[key]); return; }
-                    const lng = day.lng || day.lon;
-                    if (!day.lat || !lng) { resolve([]); return; }
+                    // Genesis pin (day 0) is the trip's location anchor —
+                    // always set when the trip has a location, falls back
+                    // to the trip's own lat/lng if for some reason day 0
+                    // is missing.
+                    const genesis = currentTripDays.find(d => d.dayNumber === 0 && d.lat);
+                    const center = genesis
+                        ? { lat: genesis.lat, lng: genesis.lng || genesis.lon }
+                        : (activeTrip?.lat ? { lat: activeTrip.lat, lng: activeTrip.lng } : null);
+                    if (!center || typeof center.lat !== 'number' || typeof center.lng !== 'number') {
+                        resolve([]); return;
+                    }
                     const svc = getPlacesService();
                     if (!svc) { resolve([]); return; }
-                    svc.nearbySearch({
-                        location: { lat: day.lat, lng },
-                        radius: 1500,
-                        type: cat.placesType,
-                    }, (results, status) => {
+                    /** @type {any[]} */
+                    const all = [];
+                    const handle = (results, status, pagination) => {
                         const ok = status === google.maps.places.PlacesServiceStatus.OK
                             || status === google.maps.places.PlacesServiceStatus.ZERO_RESULTS;
-                        const list = ok && Array.isArray(results) ? results.slice(0, 12) : [];
-                        placesCache[key] = list;
-                        resolve(list);
-                    });
+                        if (ok && Array.isArray(results)) all.push(...results);
+                        // Paginate up to 3 pages (≈60 results) — past
+                        // that, density crowds the map and the cost
+                        // grows linearly. Each pagination is a new
+                        // billable call, so capping is intentional.
+                        if (pagination && pagination.hasNextPage && all.length < 60) {
+                            // Google requires a brief delay before nextPage.
+                            setTimeout(() => pagination.nextPage(), 200);
+                        } else {
+                            placesCache[key] = all;
+                            resolve(all);
+                        }
+                    };
+                    svc.nearbySearch({
+                        location: center,
+                        radius: 50000,
+                        type: cat.placesType,
+                    }, handle);
                 });
 
                 /** Toggle markers for one pill key on/off.
@@ -543,21 +563,20 @@ export function renderHome() {
                         placesMarkers[pillKey] = [];
                         return;
                     }
-                    // Visible: query each day pin (in parallel) and drop markers.
-                    const days = currentTripDays.filter(d => d.lat && (d.lng || d.lon));
-                    const allResults = await Promise.all(days.map(d => fetchPlacesFor(cat, d)));
+                    // Visible: one big trip-wide search → drop a marker
+                    // per result. Dedup by place_id (defensive — one
+                    // search shouldn't return duplicates, but better safe).
+                    const results = await fetchPlacesForTrip(cat);
                     /** @type {any[]} */
                     const markers = [];
-                    /** Dedup by place_id across days — a popular spot near
-                     *  multiple day pins shouldn't get duplicate markers. */
                     const seen = new Set();
-                    allResults.forEach(list => list.forEach(place => {
+                    results.forEach(place => {
                         const pid = place.place_id;
                         if (pid && seen.has(pid)) return;
                         if (pid) seen.add(pid);
                         const m = dropPlaceMarker(cat, place);
                         if (m) markers.push(m);
-                    }));
+                    });
                     placesMarkers[pillKey] = markers;
                 };
 
@@ -613,16 +632,14 @@ export function renderHome() {
                     poiTogglesEl.addEventListener('click', (ev) => {
                         const target = /** @type {HTMLElement | null} */ (ev.target);
 
-                        // "+ N" expander — flip the overflow visibility.
+                        // "+ More" — toggle whether the icon-only pills
+                        // also show their labels. CSS does the actual
+                        // hide/show via .is-expanded on the parent row.
                         const moreBtn = target?.closest('#homeMapPoiMoreBtn');
                         if (moreBtn) {
-                            const overflow = document.getElementById('homeMapPoiOverflow');
-                            if (overflow) {
-                                const open = overflow.hasAttribute('hidden');
-                                if (open) overflow.removeAttribute('hidden');
-                                else overflow.setAttribute('hidden', '');
-                                moreBtn.setAttribute('aria-expanded', String(open));
-                            }
+                            const expanded = poiTogglesEl.classList.toggle('is-expanded');
+                            moreBtn.setAttribute('aria-expanded', String(expanded));
+                            moreBtn.textContent = expanded ? '− Less' : '+ More';
                             return;
                         }
 
