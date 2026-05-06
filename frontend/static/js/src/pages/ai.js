@@ -618,6 +618,23 @@ export function renderAI() {
                             free tier comfortably covers casual personal use; paid tier kicks in only if you go
                             heavy. Your key is yours — clear it any time by emptying the input.
                         </div>
+                        <!-- Free-tier limits. Numbers reflect Google's
+                             current published quotas for Gemini 2.5
+                             Flash (the model the planner falls through
+                             to), but Google rotates these — we link
+                             out so the user can spot-check. -->
+                        <div style="margin-top: 12px; background: rgba(52,199,89,0.06); border:1px solid rgba(52,199,89,0.22); border-radius: 14px; padding: 12px 14px; font-size: 0.82rem; color: #002d5b; line-height: 1.55;">
+                            <strong style="color:#1a6b3c;">How many itineraries can I generate?</strong>
+                            <ul style="margin: 6px 0 0; padding-left: 18px;">
+                                <li><strong>~250 per day</strong> on the free tier (each generated itinerary = 1 API call).</li>
+                                <li><strong>~10 per minute</strong>, so don't spam-click the button.</li>
+                                <li>Very long requirements text or huge marked-place lists count toward a separate <em>tokens-per-minute</em> bucket (~250k); typical use stays well under it.</li>
+                            </ul>
+                            <div style="margin-top:8px;"><strong style="color:#1a6b3c;">When does it reset?</strong>
+                                The per-minute bucket refills every minute (rolling). The daily bucket resets at <strong>midnight Pacific Time</strong> (Google's standard quota window). If you ever hit a limit you'll see a 429-style error in the output panel — wait a minute (for spam) or until the next day (for the cap).
+                            </div>
+                            <div style="margin-top:8px; font-size: 0.74rem; color: var(--text-secondary);">Quotas are set by Google and may change — see the <a href="https://ai.google.dev/gemini-api/docs/rate-limits" target="_blank" rel="noreferrer" style="color: var(--accent-blue); font-weight: 700;">current rate-limit page</a> for the live numbers.</div>
+                        </div>
                         <div style="display:flex; justify-content:flex-end; margin-top:18px;">
                             <button id="aiKeyHelpDone" class="btn-primary" style="padding: 10px 22px; border-radius: 999px;">Got it</button>
                         </div>
