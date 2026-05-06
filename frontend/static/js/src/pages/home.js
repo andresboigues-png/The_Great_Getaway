@@ -63,13 +63,22 @@ export const POI_CATEGORIES = [
     { key: 'restaurants', placesType: 'restaurant',         searchStrategy: 'distance', icon: '🍽️', label: 'Restaurants',     color: '#ff9500', defaultMinRating: 4, tooltip: 'Closest restaurants (≤60) to the search center — defaults to 4★+, tweak in Settings → General' },
     { key: 'supermarkets',placesType: 'supermarket',        searchStrategy: 'distance', icon: '🛒', label: 'Supermarkets',    color: '#34c759', defaultMinRating: 0, tooltip: 'Closest supermarkets and grocery stores' },
     { key: 'hotels',      placesType: 'lodging',            searchStrategy: 'distance', icon: '🛏️', label: 'Hotels',          color: '#5856d6', defaultMinRating: 4, tooltip: 'Closest hotels and lodging — defaults to 4★+' },
+    // sights / parks / worship: epicenter-aware. People often plan
+    // these per-day ("what attractions are near today's pin"), so the
+    // user-picked day epicenter is the right anchor.
     { key: 'sights',      placesType: 'tourist_attraction', searchStrategy: 'wide',     icon: '🏖️', label: 'Sights',          color: '#a460ed', defaultMinRating: 0, tooltip: 'Tourist attractions across the wider trip area (50 km)' },
     { key: 'parks',       placesType: 'park',               searchStrategy: 'wide',     icon: '🌳', label: 'Parks',           color: '#1a6b3c', defaultMinRating: 0, tooltip: 'Parks and gardens across the wider trip area' },
-    { key: 'medical',     placesType: 'hospital',           searchStrategy: 'wide',     icon: '🏥', label: 'Medical',         color: '#ff3b30', defaultMinRating: 0, tooltip: 'Hospitals + clinics across the wider trip area' },
     { key: 'worship',     placesType: 'church',             searchStrategy: 'wide',     icon: '⛪', label: 'Worship',         color: '#a460ed', defaultMinRating: 0, tooltip: 'Churches and places of worship across the wider trip area' },
-    { key: 'schools',     placesType: 'school',             searchStrategy: 'wide',     icon: '🎓', label: 'Schools',         color: '#0071e3', defaultMinRating: 0, tooltip: 'Schools and universities across the wider trip area' },
-    { key: 'sports',      placesType: 'stadium',            searchStrategy: 'wide',     icon: '🏟️', label: 'Sports',          color: '#ff2d55', defaultMinRating: 0, tooltip: 'Stadiums and gyms across the wider trip area' },
-    { key: 'govt',        placesType: 'city_hall',          searchStrategy: 'wide',     icon: '🏛️', label: 'Govt',            color: '#8e8e93', defaultMinRating: 0, tooltip: 'Government buildings + embassies across the wider trip area' },
+
+    // useGenesisAlways: sparse, trip-wide-concept categories. There's
+    // not many to find, and "where are the hospitals across my whole
+    // trip" is the question being asked — locking to a single day
+    // pin would just mean missing the obvious ones two
+    // neighborhoods over. Always anchored on genesis.
+    { key: 'medical',     placesType: 'hospital',           searchStrategy: 'wide', useGenesisAlways: true, icon: '🏥', label: 'Medical',         color: '#ff3b30', defaultMinRating: 0, tooltip: 'Hospitals + clinics. Always searches the wider trip area (50 km from genesis), even if you\'ve picked a specific day as the search center.' },
+    { key: 'schools',     placesType: 'school',             searchStrategy: 'wide', useGenesisAlways: true, icon: '🎓', label: 'Schools',         color: '#0071e3', defaultMinRating: 0, tooltip: 'Schools and universities. Always searches the wider trip area.' },
+    { key: 'sports',      placesType: 'stadium',            searchStrategy: 'wide', useGenesisAlways: true, icon: '🏟️', label: 'Sports',          color: '#ff2d55', defaultMinRating: 0, tooltip: 'Stadiums and gyms. Always searches the wider trip area — they\'re landmarks, you want them all.' },
+    { key: 'govt',        placesType: 'city_hall',          searchStrategy: 'wide', useGenesisAlways: true, icon: '🏛️', label: 'Govt',            color: '#8e8e93', defaultMinRating: 0, tooltip: 'Government buildings + embassies. Always searches the wider trip area — sparse and useful to know where they are across the whole trip.' },
     { key: 'transit',     placesType: 'transit_station',    searchStrategy: 'wide', useGenesisAlways: true, icon: '🚆', label: 'Public transit',  color: '#0a3d6b', defaultMinRating: 0, tooltip: 'Big stations only — train, metro, light rail. Always searches the wider trip area (50 km from the genesis pin), even if you\'ve picked a specific day as the search center. Bus stops are filtered out.' },
     { key: 'traffic',     placesType: null,                 searchStrategy: 'wide',     icon: '🛣️', label: 'Roads & traffic', color: '#0a3d6b', defaultMinRating: 0, tooltip: 'Highway / arterial road names + live Google traffic congestion' },
 ];
