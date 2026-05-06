@@ -1,180 +1,348 @@
 // @ts-check
 import { STATE, emit } from '../state.js';
 import { CONVERSION_RATES } from '../constants.js';
-import { generateId, q, formatHome, getHomeCurrency } from '../utils.js';
+import { generateId, q, formatHome, getHomeCurrency, esc, showLiquidAlert, showConfirmModal } from '../utils.js';
 import { upsertBudget, deleteBudgetOnServer } from '../api.js';
 import { navigate } from '../router.js';
 import { getTripCompanionNames } from '../companions.js';
+import { showModal } from '../components/Modal.js';
+
+// ── Budget calculation helpers ────────────────────────────────────────
+// Pulled out so the per-card render and the trip-summary card share one
+// implementation. Earlier the spent-against-budget logic lived inline
+// in the map and could drift between the two views.
+
+/** Sum (in EUR) the trip/category/user-filtered expenses for a budget. */
+function spentForBudget(budget) {
+    let spent = 0;
+    for (const e of STATE.expenses || []) {
+        if (e.isSettlement) continue;
+        if (budget.tripId && budget.tripId !== 'all' && e.tripId !== budget.tripId) continue;
+        if (budget.categoryId && budget.categoryId !== 'all' && e.categoryId !== budget.categoryId) continue;
+        if (budget.user && budget.user !== 'all' && e.who !== budget.user) continue;
+        spent += e.euroValue || 0;
+    }
+    return spent;
+}
+
+/** Status tier for a budget — drives the color + label across the UI. */
+function budgetStatus(budget) {
+    const spent = spentForBudget(budget);
+    const target = budget.amount || 0;
+    const pct = target > 0 ? (spent / target) * 100 : 0;
+    if (target > 0 && spent > target) return { tier: 'over',   color: '#ff3b30', label: 'Over budget',  spent, target, pct };
+    if (target > 0 && pct > 80)        return { tier: 'near',  color: '#ff9500', label: 'Near limit',   spent, target, pct };
+    return                              { tier: 'ok',    color: '#34c759', label: 'On track',     spent, target, pct };
+}
+
+// ── Filter/sort state for the budgets page ───────────────────────────
+// Module-level so a filter pick survives navigating away and back. Both
+// keys are stringly-typed; '' means "no filter / all".
+let budgetsFilterTrip = '';
+
+/** Build a human-readable title for a budget's combination of filters. */
+function budgetTitle(b) {
+    const parts = [];
+    if (b.tripId && b.tripId !== 'all') {
+        const trip = (STATE.trips || []).find(t => t.id === b.tripId);
+        const archived = (STATE.archivedTrips || []).find(t => t.id === b.tripId);
+        parts.push(trip?.name || archived?.name || 'Trip');
+    }
+    if (b.categoryId && b.categoryId !== 'all') {
+        parts.push((STATE.categories || []).find(c => c.id === b.categoryId)?.name || 'Category');
+    }
+    if (b.user && b.user !== 'all') parts.push(b.user);
+    return parts.length > 0 ? parts.join(' · ') : 'General Budget';
+}
 
 const deleteBudget = (id) => {
-    STATE.budgets = STATE.budgets.filter(b => b.id !== id);
-    emit('state:changed');
-    deleteBudgetOnServer(id); // Delta: delete budget on server
-    navigate('budgets');
+    const b = (STATE.budgets || []).find(x => x.id === id);
+    if (!b) return;
+    showConfirmModal({
+        title: 'Delete this budget?',
+        message: `${budgetTitle(b)} — ${formatHome(b.amount, 'EUR')}. The expenses themselves stay; only the budget target is removed.`,
+        confirmText: 'Delete',
+        onConfirm: () => {
+            STATE.budgets = STATE.budgets.filter(x => x.id !== id);
+            emit('state:changed');
+            // Fire-and-forget on the server side; the optimistic local
+            // delete already rendered. If the server rejects we have a
+            // mild ghost-budget on next sync, but the UI told the user
+            // it's gone so we don't block here.
+            deleteBudgetOnServer(id).catch(err => console.error('Delete budget failed:', err));
+            showLiquidAlert('Budget deleted.');
+            navigate('budgets');
+        },
+    });
 };
 
+// ── Create-budget modal ───────────────────────────────────────────────
+// Replaces the always-visible side-by-side form. Modal flow keeps the
+// page clean (just a list of budgets you care about) and means the
+// form's defaults reset to "fresh" on every open. Validation +
+// error-handling layered in, including a guard against unknown
+// currency codes (was a silent default-1 trap in the previous version).
+const openCreateBudgetModal = () => {
+    const tripOpts = (STATE.trips || []).map(t => `<option value="${esc(t.id)}">${esc(t.name)}</option>`).join('');
+    const catOpts = (STATE.categories || []).map(c => `<option value="${esc(c.id)}">${esc(c.icon ? c.icon + ' ' : '')}${esc(c.name)}</option>`).join('');
+    const allCompanionNames = Array.from(new Set(
+        (STATE.trips || []).flatMap(t => getTripCompanionNames(t))
+    )).sort();
+    const userOpts = allCompanionNames.map(g => `<option value="${esc(g)}">${esc(g)}</option>`).join('');
+    const home = getHomeCurrency();
+    const currOpts = Object.keys(CONVERSION_RATES).map(c => `<option value="${c}" ${home === c ? 'selected' : ''}>${c}</option>`).join('');
+
+    const { root, close } = showModal({
+        variant: 'glass-light',
+        cardStyle: 'width: 480px; max-width: calc(100vw - 32px); max-height: 90vh; overflow-y: auto;',
+        innerHTML: `
+            <h2 class="h2-display">New budget</h2>
+            <p class="text-subtitle">Set a spending ceiling — track it against the matching expenses.</p>
+            <div style="display: flex; flex-direction: column; gap: var(--space-3); margin: var(--space-4) 0 var(--space-6);">
+                <label style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-secondary);">Trip</label>
+                <select id="newBudTrip" class="glass-input" style="padding: var(--space-3); border-radius: 12px; background:white;">
+                    <option value="all">All trips</option>${tripOpts}
+                </select>
+                <label style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-secondary); margin-top:8px;">Category</label>
+                <select id="newBudCat" class="glass-input" style="padding: var(--space-3); border-radius: 12px; background:white;">
+                    <option value="all">All categories</option>${catOpts}
+                </select>
+                <label style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-secondary); margin-top:8px;">Person</label>
+                <select id="newBudUser" class="glass-input" style="padding: var(--space-3); border-radius: 12px; background:white;">
+                    <option value="all">Everyone on the trip</option>${userOpts}
+                </select>
+                <label style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-secondary); margin-top:8px;">Target amount</label>
+                <div style="display: grid; grid-template-columns: 1fr 110px; gap: var(--space-3);">
+                    <input type="number" id="newBudAmt" class="glass-input" placeholder="1000" min="0" step="any" style="padding: var(--space-3); border-radius: 12px;">
+                    <select id="newBudCurr" class="glass-input" style="padding: var(--space-3); border-radius: 12px; background:white;">${currOpts}</select>
+                </div>
+                <div id="newBudStatus" style="font-size:0.72rem; color: var(--text-secondary); min-height:1em; font-weight:700;"></div>
+            </div>
+            <div style="display:flex; gap: var(--space-3);">
+                <button id="newBudCancelBtn" class="btn-neutral" style="flex:1; border-radius: var(--radius-lg);">Cancel</button>
+                <button id="newBudSaveBtn" class="btn-primary" style="flex:2; border-radius: var(--radius-lg);">Save budget</button>
+            </div>
+        `,
+    });
+    const statusEl = /** @type {HTMLElement} */ (q(root, '#newBudStatus'));
+    /** @type {HTMLButtonElement} */ (q(root, '#newBudCancelBtn')).onclick = () => close();
+    /** @type {HTMLButtonElement} */ (q(root, '#newBudSaveBtn')).onclick = async () => {
+        const amtRaw = /** @type {HTMLInputElement} */ (q(root, '#newBudAmt')).value;
+        const amt = parseFloat(amtRaw);
+        if (!Number.isFinite(amt) || amt <= 0) {
+            statusEl.textContent = 'Enter a valid positive amount.';
+            statusEl.style.color = '#ff9500';
+            return;
+        }
+        const curr = /** @type {HTMLSelectElement} */ (q(root, '#newBudCurr')).value;
+        // Validate currency — used to silently default to 1:1 which
+        // would lock in a budget at the wrong scale. Now we reject
+        // unknown codes outright.
+        const rate = CONVERSION_RATES[curr];
+        if (rate === undefined) {
+            statusEl.textContent = `Unknown currency "${curr}" — pick one from the list.`;
+            statusEl.style.color = '#ff3b30';
+            return;
+        }
+        const eurAmt = curr === 'EUR' ? amt : amt * rate;
+
+        /** @type {import('../types').Budget} */
+        const budget = {
+            id: generateId(),
+            tripId: /** @type {HTMLSelectElement} */ (q(root, '#newBudTrip')).value,
+            categoryId: /** @type {HTMLSelectElement} */ (q(root, '#newBudCat')).value,
+            user: /** @type {HTMLSelectElement} */ (q(root, '#newBudUser')).value,
+            amount: eurAmt,
+            originalAmount: amt,
+            originalCurrency: curr,
+        };
+        STATE.budgets.push(budget);
+        emit('state:changed');
+        statusEl.textContent = 'Saving…';
+        statusEl.style.color = 'var(--text-secondary)';
+        try {
+            await upsertBudget(budget);
+            close();
+            showLiquidAlert('Budget saved.');
+            navigate('budgets');
+        } catch (err) {
+            // Roll the optimistic add back so the user can retry without
+            // a duplicate entry.
+            STATE.budgets = STATE.budgets.filter(b => b.id !== budget.id);
+            emit('state:changed');
+            statusEl.textContent = `Save failed (${/** @type {Error} */ (err).message}). Try again.`;
+            statusEl.style.color = '#ff3b30';
+        }
+    };
+};
+
+// ── Page render ───────────────────────────────────────────────────────
 export function renderBudgets() {
     const div = document.createElement('div');
-    // Login-gated paths used to live here; mandatory-login means the router
-    // never reaches this page while signed out.
     STATE.budgets = STATE.budgets || [];
 
-    const tripOpts = STATE.trips.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
-    const catOpts = STATE.categories.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
-    // Budget targets pull from the union of every trip's companion roster —
-    // budgets are personal but can target any name the user might log
-    // expenses against. Account-wide companions don't exist anymore.
-    const allCompanionNames = Array.from(new Set(
-        STATE.trips.flatMap(t => getTripCompanionNames(t))
-    ));
-    const userOpts = allCompanionNames.map(g => `<option value="${g}">${g}</option>`).join('');
+    // Apply trip filter — '' means show all budgets.
+    const visibleBudgets = budgetsFilterTrip
+        ? STATE.budgets.filter(b => b.tripId === budgetsFilterTrip)
+        : STATE.budgets;
 
-    const activeBudgetsHtml = STATE.budgets.length > 0 ? STATE.budgets.map(b => {
-        let spent = 0;
-        STATE.expenses.forEach(e => {
-            if (e.isSettlement) return; // Settlements don't count towards budget
-            if (b.tripId && b.tripId !== 'all' && e.tripId !== b.tripId) return;
-            if (b.categoryId && b.categoryId !== 'all' && e.categoryId !== b.categoryId) return;
-            if (b.user && b.user !== 'all' && e.who !== b.user) return;
-            spent += e.euroValue || 0;
-        });
+    // Roll-up totals for the summary card. "Allocated" is the sum of
+    // all visible budget targets in EUR; "Spent" is the sum of matched
+    // expenses for those same budgets (de-duplicated would be ideal,
+    // but in practice budgets target distinct slices so straight sum
+    // is fine and matches user intuition).
+    const totalAllocated = visibleBudgets.reduce((s, b) => s + (b.amount || 0), 0);
+    const totalSpent = visibleBudgets.reduce((s, b) => s + spentForBudget(b), 0);
+    const totalRemaining = totalAllocated - totalSpent;
+    const overallPct = totalAllocated > 0 ? Math.min((totalSpent / totalAllocated) * 100, 999) : 0;
+    const overallTier = totalAllocated === 0
+        ? 'ok'
+        : (totalSpent > totalAllocated ? 'over' : (overallPct > 80 ? 'near' : 'ok'));
+    const overallColor = overallTier === 'over' ? '#ff3b30' : overallTier === 'near' ? '#ff9500' : '#34c759';
 
-        const pct = Math.min((spent / b.amount) * 100, 100);
-        const isOver = spent > b.amount;
-        const isNear = !isOver && pct > 80;
-
-        let statusLabel = "On Track";
-        let statusColor = "#34c759";
-
-        if (isOver) {
-            statusLabel = "Over Budget";
-            statusColor = "#ff3b30";
-        } else if (isNear) {
-            statusLabel = "Near Limit";
-            statusColor = "#ff9500";
-        }
-
-        const category = STATE.categories.find(c => c.id === b.categoryId);
-        const icon = category ? category.icon : '💰';
-
-        const titleParts = [];
-        if (b.tripId && b.tripId !== 'all') titleParts.push(STATE.trips.find(t => t.id === b.tripId)?.name || 'Trip');
-        if (b.categoryId && b.categoryId !== 'all') titleParts.push(category?.name || 'Category');
-        if (b.user && b.user !== 'all') titleParts.push(b.user);
-
-        const title = titleParts.length > 0 ? titleParts.join(' · ') : 'General Budget';
-
-        return `
-            <div style="padding: 16px; background: rgba(255,255,255,0.03); border-radius: 16px; border: 1px solid var(--glass-border); margin-bottom: 12px;">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <span style="font-size: 1.1rem;">${icon}</span>
-                        <div style="font-weight: 700; font-size: 0.95rem;">${title}</div>
-                    </div>
-                    <div style="font-size: 0.7rem; font-weight: 800; color: ${statusColor}; text-transform: uppercase; letter-spacing: 0.05em;">${statusLabel}</div>
-                </div>
-
-                <div style="height: 6px; background: rgba(255,255,255,0.05); border-radius: 3px; overflow: hidden; margin-bottom: 8px;">
-                    <div style="height: 100%; width: ${pct}%; background: ${statusColor}; border-radius: 3px; transition: width 1s;"></div>
-                </div>
-
-                <div style="display: flex; align-items: center; justify-content: space-between;">
-                    <div style="font-size: 0.8rem; font-weight: 600;">
-                        ${formatHome(spent, 'EUR')} <span style="color: var(--text-secondary); opacity: 0.6;">/ ${formatHome(b.amount, 'EUR')}</span>
-                    </div>
-                    <button class="btn-small delete-budget-btn" data-budget-id="${b.id}" style="background: none; border: none; color: #ff3b30; font-size: 0.7rem; font-weight: 700; cursor: pointer; padding: 0;">Delete</button>
-                </div>
-            </div>
-        `;
-    }).join('') : `
-        <div style="text-align: center; padding: 32px; border: 2px dashed var(--glass-border); border-radius: 16px; color: var(--text-secondary); font-size: 0.9rem;">
-            No active budgets yet.
-        </div>
-    `;
+    // Trip filter chip row — one chip per trip that has ≥1 budget,
+    // plus an "All" chip. Auto-hidden when only one trip is in play.
+    const tripsInBudgets = [...new Set(STATE.budgets.map(b => b.tripId).filter(id => id && id !== 'all'))];
+    const showTripChips = tripsInBudgets.length > 1;
 
     div.innerHTML = `
         <div class="ai-page-header">
             <h1 class="gradient-text" style="--g-from: #ffd60a; --g-to: #ff9f0a;">Budgets</h1>
-            <p>Set spending limits and track them across trips.</p>
+            <p>Set spending ceilings and track them across trips.</p>
         </div>
-        
-        <div class="grid-2" style="margin-top: 24px;">
-            <div class="card glass card-glow-blue">
-                <h2 class="card-title" style="color: var(--accent-blue);">Create New Budget</h2>
-                <div class="compact-form-row">
-                    <label class="compact-form-label">Trip</label>
-                    <select id="budTrip" class="glass-input" style="width:100%;"><option value="all">All Trips</option>${tripOpts}</select>
-                </div>
-                <div class="compact-form-row">
-                    <label class="compact-form-label">Category</label>
-                    <select id="budCat" class="glass-input" style="width:100%;"><option value="all">All Categories</option>${catOpts}</select>
-                </div>
-                <div class="compact-form-row">
-                    <label class="compact-form-label">Person</label>
-                    <select id="budUser" class="glass-input" style="width:100%;"><option value="all">Everyone</option>${userOpts}</select>
-                </div>
-                <div style="display: grid; grid-template-columns: 1fr 100px; gap: var(--space-3); margin-bottom: var(--space-4);">
-                    <div>
-                        <label class="compact-form-label">Target Amount</label>
-                        <input type="number" id="budAmt" class="glass-input" style="width:100%;" placeholder="e.g. 1000">
+
+        <!-- Action row: Create + (optional) trip filter chips -->
+        <div style="margin-top: 20px; display:flex; flex-wrap:wrap; gap: 10px; align-items:center;">
+            <button id="createBudgetBtn" type="button"
+                style="background: linear-gradient(135deg, #ffd60a, #ff9f0a); color:#5e3c00; border:0; padding: 10px 18px; border-radius: 999px; font-weight:800; font-size:0.88rem; cursor:pointer; box-shadow: 0 8px 24px rgba(255,159,10,0.32);">
+                + New budget
+            </button>
+            ${showTripChips ? `
+                <button class="bud-trip-chip" data-trip="" type="button"
+                    style="background: ${budgetsFilterTrip === '' ? 'rgba(255,159,10,0.16)' : 'rgba(0,0,0,0.04)'}; color:${budgetsFilterTrip === '' ? '#a35200' : '#002d5b'}; border:1px solid ${budgetsFilterTrip === '' ? 'rgba(255,159,10,0.4)' : 'rgba(0,0,0,0.08)'}; padding:7px 14px; border-radius:999px; font-size:0.78rem; font-weight:800; cursor:pointer;">
+                    All trips
+                </button>
+                ${tripsInBudgets.map(tid => {
+                    const trip = (STATE.trips || []).find(t => t.id === tid)
+                        || (STATE.archivedTrips || []).find(t => t.id === tid);
+                    if (!trip) return '';
+                    const active = budgetsFilterTrip === tid;
+                    return `
+                        <button class="bud-trip-chip" data-trip="${esc(tid)}" type="button"
+                            style="background:${active ? 'rgba(255,159,10,0.16)' : 'rgba(0,0,0,0.04)'}; color:${active ? '#a35200' : '#002d5b'}; border:1px solid ${active ? 'rgba(255,159,10,0.4)' : 'rgba(0,0,0,0.08)'}; padding:7px 14px; border-radius:999px; font-size:0.78rem; font-weight:800; cursor:pointer;">
+                            ${esc(trip.name)}
+                        </button>
+                    `;
+                }).join('')}
+            ` : ''}
+            <span style="margin-left:auto; font-size:0.78rem; color:var(--text-secondary); font-weight:700;">
+                ${visibleBudgets.length} ${visibleBudgets.length === 1 ? 'budget' : 'budgets'}
+            </span>
+        </div>
+
+        ${visibleBudgets.length > 0 ? `
+            <!-- Summary card: allocated vs spent + remaining + overall pct.
+                 Big numbers, single-row layout, matches the GG aesthetic
+                 (rounded glass card + colour accent). -->
+            <div class="card glass" style="margin-top: 18px; padding: 24px 28px; border-radius: 28px; background: ${overallTier === 'over' ? 'linear-gradient(135deg, rgba(255,59,48,0.06), rgba(255,159,10,0.04))' : 'linear-gradient(135deg, rgba(255,214,10,0.06), rgba(255,159,10,0.04))'}; border:1px solid ${overallTier === 'over' ? 'rgba(255,59,48,0.2)' : 'rgba(255,159,10,0.18)'};">
+                <div style="display:flex; flex-wrap:wrap; gap:24px; align-items:center; justify-content:space-between;">
+                    <div style="min-width:0;">
+                        <div style="font-size:0.7rem; font-weight:800; text-transform:uppercase; letter-spacing:0.12em; color:var(--text-secondary); margin-bottom:6px;">${budgetsFilterTrip ? 'Trip overview' : 'Overall'}</div>
+                        <div style="display:flex; align-items:baseline; gap:14px; flex-wrap:wrap;">
+                            <div>
+                                <div style="font-size:0.66rem; font-weight:800; text-transform:uppercase; letter-spacing:0.1em; color:var(--text-secondary);">Spent</div>
+                                <div style="font-size:1.8rem; font-weight:800; color:#002d5b; letter-spacing:-0.02em;">${formatHome(totalSpent, 'EUR')}</div>
+                            </div>
+                            <span style="color: rgba(0,0,0,0.25); font-size:1.5rem;">/</span>
+                            <div>
+                                <div style="font-size:0.66rem; font-weight:800; text-transform:uppercase; letter-spacing:0.1em; color:var(--text-secondary);">Allocated</div>
+                                <div style="font-size:1.8rem; font-weight:800; color:#002d5b; opacity:0.55; letter-spacing:-0.02em;">${formatHome(totalAllocated, 'EUR')}</div>
+                            </div>
+                        </div>
                     </div>
-                    <div>
-                        <label class="compact-form-label">Currency</label>
-                        <select id="budCurr" class="glass-input" style="width:100%;">
-                            ${Object.keys(CONVERSION_RATES).map(c => `<option value="${c}" ${getHomeCurrency() === c ? 'selected' : ''}>${c}</option>`).join('')}
-                        </select>
+                    <div style="text-align:right;">
+                        <div style="font-size:0.66rem; font-weight:800; text-transform:uppercase; letter-spacing:0.1em; color:var(--text-secondary);">${totalRemaining >= 0 ? 'Remaining' : 'Over by'}</div>
+                        <div style="font-size:2rem; font-weight:800; color:${overallColor}; letter-spacing:-0.02em;">${formatHome(Math.abs(totalRemaining), 'EUR')}</div>
+                        <div style="font-size:0.7rem; color:${overallColor}; font-weight:800; text-transform:uppercase; letter-spacing:0.1em; margin-top:2px;">
+                            ${overallTier === 'over' ? '⚠ Over budget' : overallTier === 'near' ? '⚡ Near limit' : '✓ On track'}
+                        </div>
                     </div>
                 </div>
-                <button id="saveBudgetBtn" class="btn-primary" style="width:100%;">Save Budget</button>
-            </div>
-            
-            <div class="card glass card-glow-blue">
-                <h2 class="card-title">Active Tracking</h2>
-                <div style="display: flex; flex-direction: column; gap: 8px;">
-                    ${activeBudgetsHtml}
+                <!-- Slim progress bar across the bottom of the summary card. -->
+                <div style="height: 8px; background: rgba(0,0,0,0.06); border-radius: 999px; overflow: hidden; margin-top: 16px;">
+                    <div style="height: 100%; width: ${Math.min(overallPct, 100)}%; background: ${overallColor}; border-radius: 999px; transition: width 0.6s cubic-bezier(0.16,1,0.3,1); box-shadow: 0 0 12px ${overallColor};"></div>
                 </div>
             </div>
+        ` : ''}
+
+        <!-- Budget cards grid -->
+        <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; margin-top: 18px;">
+            ${visibleBudgets.length === 0 ? `
+                <div class="card glass" style="grid-column: 1 / -1; padding: 48px 32px; border-radius: 28px; text-align:center; border:1.5px dashed rgba(255,159,10,0.32); background: rgba(255,159,10,0.04);">
+                    <div style="font-size: 3rem; margin-bottom: 8px;">💰</div>
+                    <h2 style="margin:0 0 6px; color:#a35200; font-weight:800;">No budgets ${budgetsFilterTrip ? 'on this trip' : 'yet'}</h2>
+                    <p style="margin:0; color: var(--text-secondary);">Click <strong>+ New budget</strong> above to set a target. You can scope it to one trip + category + person, or leave it as an account-wide cap.</p>
+                </div>
+            ` : visibleBudgets.map(b => {
+                const status = budgetStatus(b);
+                const variance = status.tier === 'over'
+                    ? `Over by ${formatHome(status.spent - status.target, 'EUR')}`
+                    : `${formatHome(Math.max(status.target - status.spent, 0), 'EUR')} left`;
+                const category = (STATE.categories || []).find(c => c.id === b.categoryId);
+                const icon = category?.icon || '💰';
+                const accentColor = category?.color || status.color;
+                return `
+                    <div class="card glass card-glow-blue" style="padding: 18px 20px; border-radius: 24px; display:flex; flex-direction:column; gap:14px;">
+                        <div style="display:flex; align-items:flex-start; gap:12px;">
+                            <div style="width:44px; height:44px; border-radius:14px; background: ${accentColor}1f; color:${accentColor}; display:flex; align-items:center; justify-content:center; font-size:1.4rem; flex-shrink:0;">${icon}</div>
+                            <div style="flex:1; min-width:0;">
+                                <div style="font-weight:800; color:#002d5b; font-size:1rem; line-height:1.2; overflow:hidden; text-overflow:ellipsis;">${esc(budgetTitle(b))}</div>
+                                <div style="font-size:0.7rem; color:var(--text-secondary); font-weight:700; text-transform:uppercase; letter-spacing:0.08em; margin-top:2px;">
+                                    Target ${formatHome(b.amount, 'EUR')}${b.originalCurrency && b.originalCurrency !== 'EUR' ? ` · was ${formatHome(b.originalAmount || 0, b.originalCurrency)}` : ''}
+                                </div>
+                            </div>
+                            <span style="background: ${status.color}1f; color:${status.color}; padding:3px 10px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.08em; flex-shrink:0;">${status.label}</span>
+                        </div>
+                        <div>
+                            <div style="display:flex; align-items:baseline; gap:6px; margin-bottom:8px;">
+                                <span style="font-size:1.5rem; font-weight:800; color:#002d5b; letter-spacing:-0.02em;">${formatHome(status.spent, 'EUR')}</span>
+                                <span style="font-size:0.85rem; color:var(--text-secondary); font-weight:600;">spent · ${variance}</span>
+                            </div>
+                            <div style="height: 8px; background: rgba(0,0,0,0.05); border-radius: 999px; overflow: hidden;">
+                                <div style="height:100%; width:${Math.min(status.pct, 100)}%; background:${status.color}; border-radius:999px; transition: width 0.6s cubic-bezier(0.16,1,0.3,1); box-shadow: 0 0 8px ${status.color};"></div>
+                            </div>
+                            <div style="display:flex; justify-content:space-between; margin-top:6px; font-size:0.7rem; color:var(--text-secondary); font-weight:700;">
+                                <span>${Math.round(status.pct)}% used</span>
+                                <button class="delete-budget-btn" data-budget-id="${esc(b.id)}" type="button"
+                                    style="background:none; border:0; color:#ff3b30; font-size:0.72rem; font-weight:800; cursor:pointer; padding:0; text-transform:uppercase; letter-spacing:0.06em;">Delete</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('')}
         </div>
     `;
 
-    setTimeout(() => {
-        div.addEventListener('click', (e) => {
-            const delBtn = /** @type {HTMLElement | null} */ (
-                /** @type {HTMLElement | null} */ (e.target)?.closest('.delete-budget-btn')
-            );
-            if (delBtn?.dataset.budgetId) deleteBudget(delBtn.dataset.budgetId);
-        });
-
-        const btn = div.querySelector('#saveBudgetBtn');
-        if (btn) btn.addEventListener('click', () => {
-            const amt = parseFloat(/** @type {HTMLInputElement} */ (q(div, '#budAmt')).value);
-            const curr = /** @type {HTMLSelectElement} */ (q(div, '#budCurr')).value;
-            if (!amt || amt <= 0) return alert('Enter a valid amount.');
-
-            // Convert to EUR for consistent tracking if needed
-            let eurAmt = amt;
-            if (curr !== 'EUR') {
-                const rate = CONVERSION_RATES[curr] || 1;
-                eurAmt = amt * rate;
-            }
-
-            /** @type {import('../types').Budget} */
-            const budget = {
-                id: generateId(),
-                tripId: /** @type {HTMLSelectElement} */ (q(div, '#budTrip')).value,
-                categoryId: /** @type {HTMLSelectElement} */ (q(div, '#budCat')).value,
-                user: /** @type {HTMLSelectElement} */ (q(div, '#budUser')).value,
-                amount: eurAmt,
-                originalAmount: amt,
-                originalCurrency: curr
-            };
-            STATE.budgets.push(budget);
-            emit('state:changed');
-            upsertBudget(budget); // Delta: persist budget to server
+    // Delegated handlers — single click listener on the page root.
+    div.addEventListener('click', (e) => {
+        const target = /** @type {HTMLElement | null} */ (e.target);
+        if (!target) return;
+        if (target.closest('#createBudgetBtn')) {
+            openCreateBudgetModal();
+            return;
+        }
+        const tripChip = /** @type {HTMLElement | null} */ (target.closest('.bud-trip-chip'));
+        if (tripChip) {
+            budgetsFilterTrip = tripChip.dataset.trip || '';
             navigate('budgets');
-        });
-    }, 0);
+            return;
+        }
+        const delBtn = /** @type {HTMLElement | null} */ (target.closest('.delete-budget-btn'));
+        if (delBtn?.dataset.budgetId) {
+            deleteBudget(delBtn.dataset.budgetId);
+            return;
+        }
+    });
 
     return div;
 }
-
