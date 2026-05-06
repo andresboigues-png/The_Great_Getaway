@@ -19,7 +19,8 @@
 // feature an alarming red toast on every transient blip is too much.
 
 import { STATE } from '../state.js';
-import { apiFetch, toggleFeedLike, toggleFeedBookmark, repostFeedPost } from '../api.js';
+import { apiFetch, toggleFeedLike, toggleFeedBookmark, repostFeedPost,
+         fetchFeedComments, postFeedComment, deleteFeedComment } from '../api.js';
 import { esc, q, showLiquidAlert } from '../utils.js';
 import { navigate } from '../router.js';
 
@@ -36,12 +37,22 @@ import { navigate } from '../router.js';
  *   like_count?: number,
  *   is_liked?: boolean,
  *   is_bookmarked?: boolean,
+ *   comment_count?: number,
  * }} FeedEvent */
+/** @typedef {{ id: number, author: Actor, body: string, when: string }} FeedComment */
 
 // Module-level cache survives navigation away and back, so the second
 // visit paints from cache before the network call returns.
 /** @type {FeedEvent[]} */
 let cachedEvents = [];
+// Per-event comment cache. Lazy-populated when the user expands a thread,
+// then re-used on collapse + re-expand within the same session so we
+// don't refetch on every click. Cleared whenever the feed itself is
+// refreshed from the server (cachedEvents replacement clears stale
+// counts; the thread cache becomes stale-but-still-readable, which is
+// fine — the next expand re-fetches anyway).
+/** @type {Object<string, FeedComment[]>} */
+const cachedThreads = {};
 
 /** Avatar circle — picture if available, otherwise a gradient initials
  *  badge so empty avatars don't break the visual rhythm. Mirrors the
@@ -127,14 +138,18 @@ function eventAccent(type) {
     }
 }
 
-/** Build the action-row HTML — like, repost, bookmark. Repost only
- *  appears on shareable events (friend_shared_trip + friend_reposted_trip),
+/** Build the action-row HTML — like, comment, repost, bookmark. Repost
+ *  only appears on shareable events (friend_shared_trip + friend_reposted_trip),
  *  since reposting an auto-synthesised "X created a trip" event has no
- *  source post to point back to. The like + bookmark live on every event. */
+ *  source post to point back to. Like + comment + bookmark live on every
+ *  event. The thread itself renders below the action row when expanded
+ *  (built lazily by the click handler — empty `<div class="feed-thread">`
+ *  shipped with every card so the slot is always there). */
 function actionsRow(ev) {
     const liked = !!ev.is_liked;
     const bookmarked = !!ev.is_bookmarked;
     const count = ev.like_count || 0;
+    const commentCount = ev.comment_count || 0;
     const canRepost = (ev.type === 'friend_shared_trip' || ev.type === 'friend_reposted_trip') && ev.post_id;
     const likeBtn = `
         <button type="button" class="feed-like-btn" data-event-id="${esc(ev.id)}" data-liked="${liked ? '1' : '0'}"
@@ -142,6 +157,14 @@ function actionsRow(ev) {
             style="display:inline-flex; align-items:center; gap:5px; background:transparent; border:0; padding:4px 8px; border-radius:999px; cursor:pointer; color:${liked ? '#ff3b30' : 'var(--text-secondary)'}; font-weight:700; font-size:0.82rem; transition: background 0.15s;">
             <span style="font-size:1.05rem;">${liked ? '❤️' : '🤍'}</span>
             <span class="feed-like-count">${count > 0 ? count : ''}</span>
+        </button>
+    `;
+    const commentBtn = `
+        <button type="button" class="feed-comment-btn" data-event-id="${esc(ev.id)}"
+            title="Comments" aria-label="Comments"
+            style="display:inline-flex; align-items:center; gap:5px; background:transparent; border:0; padding:4px 8px; border-radius:999px; cursor:pointer; color:var(--text-secondary); font-weight:700; font-size:0.82rem; transition: background 0.15s;">
+            <span style="font-size:1.05rem;">💬</span>
+            <span class="feed-comment-count">${commentCount > 0 ? commentCount : ''}</span>
         </button>
     `;
     const repostBtn = canRepost ? `
@@ -162,9 +185,51 @@ function actionsRow(ev) {
     return `
         <div class="feed-actions" style="display:flex; align-items:center; gap:4px; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(0,45,91,0.06);">
             ${likeBtn}
+            ${commentBtn}
             ${repostBtn}
             ${bookmarkBtn}
         </div>
+        <div class="feed-thread" data-event-id="${esc(ev.id)}" data-loaded="0" style="display:none; margin-top:10px; padding-top:10px; border-top:1px solid rgba(0,45,91,0.06);"></div>
+    `;
+}
+
+/** Render a single comment row for the thread. `canDelete` is true when
+ *  the current user authored the comment — adds a small ✕ button. */
+function commentRowHtml(c, canDelete) {
+    return `
+        <div class="feed-comment-row" data-comment-id="${c.id}" style="display:flex; align-items:flex-start; gap:10px; padding:8px 0; border-bottom:1px dashed rgba(0,45,91,0.06);">
+            ${avatar(c.author, 32)}
+            <div style="flex:1; min-width:0;">
+                <div style="display:flex; align-items:baseline; gap:8px; flex-wrap:wrap;">
+                    <strong style="color:#002d5b; font-size:0.85rem;">${esc(c.author?.name || 'Someone')}</strong>
+                    <span style="font-size:0.7rem; color:var(--text-secondary); font-weight:600; text-transform:uppercase; letter-spacing:0.06em;">${esc(relativeTime(c.when))}</span>
+                </div>
+                <div style="font-size:0.88rem; color:#002d5b; line-height:1.4; margin-top:2px; white-space:pre-wrap; word-wrap:break-word;">${esc(c.body || '')}</div>
+            </div>
+            ${canDelete ? `
+                <button type="button" class="feed-comment-delete-btn" data-comment-id="${c.id}" title="Delete your comment" aria-label="Delete comment"
+                    style="background:transparent; border:0; color:rgba(255,59,48,0.6); cursor:pointer; padding:2px 6px; font-size:0.72rem; font-weight:800; flex-shrink:0;">✕</button>
+            ` : ''}
+        </div>
+    `;
+}
+
+/** Render the full thread block (comment list + add-input) into the
+ *  `.feed-thread` container for an event. Called after the lazy fetch
+ *  resolves and after every optimistic add/delete. */
+function renderThread(threadEl, eventId, comments) {
+    const meId = STATE.user?.id;
+    const listHtml = comments.length > 0
+        ? comments.map(c => commentRowHtml(c, c.author?.id === meId)).join('')
+        : '<div style="font-size:0.82rem; color:var(--text-secondary); padding:6px 0;">No comments yet — be the first.</div>';
+    threadEl.innerHTML = `
+        <div class="feed-comment-list">${listHtml}</div>
+        <form class="feed-comment-form" data-event-id="${esc(eventId)}" style="display:flex; gap:8px; margin-top:10px;">
+            <input type="text" name="body" placeholder="Add a comment…" maxlength="500" autocomplete="off"
+                style="flex:1; min-width:0; padding:8px 12px; border:1px solid rgba(0,45,91,0.12); border-radius:999px; font-size:0.85rem; background:rgba(0,113,227,0.04); color:#002d5b; font-family: inherit;">
+            <button type="submit" class="feed-comment-submit" title="Post comment" aria-label="Post comment"
+                style="background:var(--accent-blue); color:white; border:0; padding:8px 16px; border-radius:999px; font-size:0.82rem; font-weight:800; cursor:pointer;">Post</button>
+        </form>
     `;
 }
 
@@ -298,6 +363,65 @@ export function renderFeed() {
             return;
         }
 
+        // Comment expand/collapse — clicking 💬 toggles the thread
+        // open/closed under the card. First open lazy-fetches the
+        // comments via /api/feed/comments; subsequent toggles re-use
+        // the cached array so opening + closing is instant.
+        const commentBtn = /** @type {HTMLElement | null} */ (target.closest('.feed-comment-btn'));
+        if (commentBtn?.dataset.eventId) {
+            const eventId = commentBtn.dataset.eventId;
+            const card = commentBtn.closest('.feed-event');
+            const threadEl = /** @type {HTMLElement | null} */ (card?.querySelector('.feed-thread'));
+            if (!threadEl) return;
+            const isOpen = threadEl.style.display !== 'none';
+            if (isOpen) {
+                threadEl.style.display = 'none';
+                return;
+            }
+            threadEl.style.display = 'block';
+            // Reuse cache when present, else fetch.
+            if (cachedThreads[eventId]) {
+                renderThread(threadEl, eventId, cachedThreads[eventId]);
+            } else {
+                threadEl.innerHTML = '<div style="font-size:0.82rem; color:var(--text-secondary); padding:6px 0;">Loading…</div>';
+                const comments = await fetchFeedComments(eventId);
+                cachedThreads[eventId] = comments || [];
+                renderThread(threadEl, eventId, cachedThreads[eventId]);
+            }
+            // Auto-focus the input so the user can type immediately.
+            const input = threadEl.querySelector('input[name="body"]');
+            if (input) /** @type {HTMLInputElement} */ (input).focus();
+            return;
+        }
+
+        // Comment delete — author-only ✕ on a row.
+        const commentDeleteBtn = /** @type {HTMLElement | null} */ (target.closest('.feed-comment-delete-btn'));
+        if (commentDeleteBtn?.dataset.commentId) {
+            const commentId = Number(commentDeleteBtn.dataset.commentId);
+            const row = commentDeleteBtn.closest('.feed-comment-row');
+            const threadEl = /** @type {HTMLElement | null} */ (commentDeleteBtn.closest('.feed-thread'));
+            const eventId = threadEl?.dataset.eventId;
+            // Optimistic remove from DOM + cache.
+            if (row) /** @type {HTMLElement} */ (row).remove();
+            if (eventId && cachedThreads[eventId]) {
+                cachedThreads[eventId] = cachedThreads[eventId].filter(c => c.id !== commentId);
+            }
+            const ev = eventId ? cachedEvents.find(e => e.id === eventId) : null;
+            if (ev) {
+                ev.comment_count = Math.max(0, (ev.comment_count || 0) - 1);
+                // Patch the count chip on the comment button.
+                const card = threadEl?.closest('.feed-event');
+                const btn = card?.querySelector('.feed-comment-btn .feed-comment-count');
+                if (btn) btn.textContent = ev.comment_count > 0 ? String(ev.comment_count) : '';
+            }
+            const result = await deleteFeedComment(commentId);
+            if (!result.ok) {
+                showLiquidAlert("Couldn't delete — try again in a moment.");
+                // No rollback for v1 — the next refresh reconciles.
+            }
+            return;
+        }
+
         const repostBtn = /** @type {HTMLElement | null} */ (target.closest('.feed-repost-btn'));
         if (repostBtn?.dataset.postId) {
             const postId = Number(repostBtn.dataset.postId);
@@ -322,6 +446,47 @@ export function renderFeed() {
                 showLiquidAlert('Repost failed — try again in a moment.');
             }
             return;
+        }
+    });
+
+    // Comment form submit — delegated. Posts the new comment, appends
+    // it to the thread + cache, and bumps the count chip. Optimistic:
+    // input clears immediately so the user can keep typing follow-ups.
+    div.addEventListener('submit', async (e) => {
+        const form = /** @type {HTMLFormElement | null} */ (e.target);
+        if (!form?.classList?.contains('feed-comment-form')) return;
+        e.preventDefault();
+        const eventId = form.dataset.eventId;
+        if (!eventId) return;
+        const input = /** @type {HTMLInputElement | null} */ (form.querySelector('input[name="body"]'));
+        const body = input?.value.trim();
+        if (!body) return;
+        const submitBtn = /** @type {HTMLButtonElement | null} */ (form.querySelector('.feed-comment-submit'));
+        if (input) input.value = '';
+        if (submitBtn) submitBtn.disabled = true;
+        const result = await postFeedComment(eventId, body);
+        if (submitBtn) submitBtn.disabled = false;
+        if (!result.ok || !result.body?.comment) {
+            // Restore the typed text so the user doesn't lose it.
+            if (input) input.value = body;
+            showLiquidAlert("Couldn't post comment — try again.");
+            return;
+        }
+        // Append to cache + DOM, bump the count chip.
+        const newComment = /** @type {FeedComment} */ (result.body.comment);
+        if (!cachedThreads[eventId]) cachedThreads[eventId] = [];
+        cachedThreads[eventId].push(newComment);
+        const threadEl = /** @type {HTMLElement | null} */ (form.closest('.feed-thread'));
+        if (threadEl) renderThread(threadEl, eventId, cachedThreads[eventId]);
+        // Re-focus the new (re-rendered) input so the user can keep typing.
+        const refocus = threadEl?.querySelector('input[name="body"]');
+        if (refocus) /** @type {HTMLInputElement} */ (refocus).focus();
+        const ev = cachedEvents.find(e => e.id === eventId);
+        if (ev) {
+            ev.comment_count = (ev.comment_count || 0) + 1;
+            const card = threadEl?.closest('.feed-event');
+            const countEl = card?.querySelector('.feed-comment-btn .feed-comment-count');
+            if (countEl) countEl.textContent = String(ev.comment_count);
         }
     });
 

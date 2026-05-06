@@ -1574,11 +1574,14 @@ def get_feed():
         events.sort(key=lambda e: e.get("when") or "", reverse=True)
         events = events[:100]
 
-        # Like/bookmark attach. Two batched queries: one for global like
-        # counts (everyone sees these), one for the caller's own
-        # liked/bookmarked sets. event_id keys persist in the table
-        # even when their underlying event ages out of the window —
-        # harmless for v1.
+        # Like/bookmark/comment attach. Three batched queries: one for
+        # global like counts (everyone sees these), one for the caller's
+        # own liked/bookmarked sets, and one for global comment counts.
+        # The full comment thread is fetched on-demand by the frontend
+        # via /api/feed/comments/<event_id> — only the count is included
+        # here so the feed payload stays lean even on chatty events.
+        # event_id keys persist in the table even when their underlying
+        # event ages out of the window — harmless for v1.
         if events:
             event_ids = [e['id'] for e in events]
             id_placeholders = ",".join(["?"] * len(event_ids))
@@ -1600,10 +1603,17 @@ def get_feed():
                 [user_id, *event_ids],
             )
             bookmarked_by_me = {r['event_id'] for r in cursor.fetchall()}
+            cursor.execute(
+                f"SELECT event_id, COUNT(*) AS c FROM feed_comments "
+                f"WHERE event_id IN ({id_placeholders}) GROUP BY event_id",
+                event_ids,
+            )
+            comments_count = {r['event_id']: r['c'] for r in cursor.fetchall()}
             for e in events:
                 e['like_count'] = likes_count.get(e['id'], 0)
                 e['is_liked'] = e['id'] in liked_by_me
                 e['is_bookmarked'] = e['id'] in bookmarked_by_me
+                e['comment_count'] = comments_count.get(e['id'], 0)
 
     return jsonify(events)
 
@@ -1748,6 +1758,103 @@ def toggle_feed_bookmark(event_id):
             )
         conn.commit()
     return jsonify({"status": "ok", "bookmarked": not existed})
+
+
+@app.route("/api/feed/comments/<event_id>", methods=["GET"])
+@require_auth
+@limiter.limit("120/minute")
+def list_feed_comments(event_id):
+    """Return all comments on a feed event, oldest-first so the thread
+    reads chronologically. Joined with users for name/picture. The feed
+    list endpoint returns only counts; this is fetched on-demand when
+    the user expands a thread, keeping the feed payload lean."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT c.id, c.user_id, c.body, c.created_at,
+                   u.name AS user_name, u.picture AS user_picture
+            FROM feed_comments c
+            LEFT JOIN users u ON u.id = c.user_id
+            WHERE c.event_id = ?
+            ORDER BY c.created_at ASC, c.id ASC
+        ''', (event_id,))
+        rows = cursor.fetchall()
+    return jsonify([
+        {
+            "id": r["id"],
+            "author": {"id": r["user_id"], "name": r["user_name"], "picture": r["user_picture"]},
+            "body": r["body"],
+            "when": r["created_at"],
+        }
+        for r in rows
+    ])
+
+
+@app.route("/api/feed/comment/<event_id>", methods=["POST"])
+@require_auth
+@limiter.limit("60/minute")
+def add_feed_comment(event_id):
+    """Append a comment to a feed event. body is plain text, capped at
+    500 chars (defensive: longer payloads silently truncated rather than
+    400'd, so a copy-paste of a giant message still posts something).
+    Returns the inserted row so the frontend can append without an
+    extra round-trip to /comments/<event_id>."""
+    user_id = current_user_id()
+    data = request.json or {}
+    body = (data.get("body") or "").strip()
+    if not body:
+        return jsonify({"error": "Empty comment"}), 400
+    body = body[:500]
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO feed_comments (event_id, user_id, body) VALUES (?, ?, ?)",
+            (event_id, user_id, body),
+        )
+        comment_id = cursor.lastrowid
+        cursor.execute(
+            "SELECT c.id, c.created_at, u.name, u.picture "
+            "FROM feed_comments c LEFT JOIN users u ON u.id = c.user_id "
+            "WHERE c.id = ?",
+            (comment_id,),
+        )
+        row = cursor.fetchone()
+        conn.commit()
+    return jsonify({
+        "status": "ok",
+        "comment": {
+            "id": row["id"],
+            "author": {"id": user_id, "name": row["name"], "picture": row["picture"]},
+            "body": body,
+            "when": row["created_at"],
+        },
+    })
+
+
+@app.route("/api/feed/comment/<int:comment_id>", methods=["DELETE"])
+@require_auth
+@limiter.limit("60/minute")
+def delete_feed_comment(comment_id):
+    """Delete a comment. Author-only — silently no-ops on someone else's
+    comment rather than 403'ing (keeps DELETE idempotent if the row was
+    already gone). Returns the event_id so the frontend can refresh the
+    matching thread / count without a separate query."""
+    user_id = current_user_id()
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT user_id, event_id FROM feed_comments WHERE id = ?",
+            (comment_id,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"status": "ok", "event_id": None})
+        if row["user_id"] != user_id:
+            return jsonify({"error": "Forbidden"}), 403
+        event_id = row["event_id"]
+        cursor.execute("DELETE FROM feed_comments WHERE id = ?", (comment_id,))
+        conn.commit()
+    return jsonify({"status": "ok", "event_id": event_id})
 
 @app.route("/api/trips/share", methods=["POST"])
 @require_auth

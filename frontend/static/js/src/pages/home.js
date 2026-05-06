@@ -120,6 +120,33 @@ export const POI_CATEGORIES = [
  *  @param {string[]} types
  *  @returns {boolean}
  */
+/** Pick the best display emoji for a single Place result based on its
+ *  Google `types[]` first, falling back to the pill's category icon.
+ *  This makes mixed-type pills (medical = hospitals + pharmacies + …,
+ *  pets = vets + pet stores) visually decoded at a glance — without
+ *  this every result on the medical pill rendered as the generic 🏥
+ *  hospital pin and pharmacies were indistinguishable from hospitals
+ *  on the map.
+ *  @param {{key: string, icon: string}} cat
+ *  @param {{types?: string[]}} place
+ *  @returns {string}
+ */
+function pickPlaceIcon(cat, place) {
+    const types = Array.isArray(place?.types) ? place.types : [];
+    if (cat.key === 'medical') {
+        if (types.includes('pharmacy'))      return '💊';
+        if (types.includes('hospital'))      return '🏥';
+        if (types.includes('doctor'))        return '🩺';
+        if (types.includes('dentist'))       return '🦷';
+        if (types.includes('physiotherapist')) return '🧑‍⚕️';
+    }
+    if (cat.key === 'pets') {
+        if (types.includes('pet_store'))       return '🐶';
+        if (types.includes('veterinary_care')) return '🐾';
+    }
+    return cat.icon;
+}
+
 function isPrimaryMatch(categoryKey, types) {
     if (!Array.isArray(types) || types.length === 0) return true;
     const isRestaurant = (t) => t === 'restaurant' || t.endsWith('_restaurant')
@@ -645,10 +672,14 @@ export function renderHome() {
                             </button>
                         </div>
                     ` : '';
+                    // Same per-place icon picker the marker uses, so the
+                    // InfoWindow header matches what the user clicked
+                    // (a 💊 pill click opens an InfoWindow headed with 💊).
+                    const headerIcon = pickPlaceIcon(cat, place);
                     return `
                         <div style="font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif; min-width: 240px; max-width: 280px; padding: 4px 2px;">
                             <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
-                                <span style="font-size: 18px;">${cat.icon}</span>
+                                <span style="font-size: 18px;">${headerIcon}</span>
                                 <strong style="font-size: 15px; color: #002d5b; line-height: 1.25;">${safeName}</strong>
                             </div>
                             ${safeVicinity ? `<div style="font-size: 12px; color: #666; line-height: 1.4;">${safeVicinity}</div>` : ''}
@@ -720,13 +751,18 @@ export function renderHome() {
                 const dropPlaceMarker = (cat, place) => {
                     const loc = place.geometry?.location;
                     if (!loc) return null;
+                    // Pick a per-place icon when the pill spans multiple
+                    // Google types (medical → 🏥/💊/🩺/🦷, pets → 🐶/🐾).
+                    // Falls back to the pill's category icon for everything
+                    // else, so single-type pills look the way they always did.
+                    const markerIcon = pickPlaceIcon(cat, place);
                     const svg = 'data:image/svg+xml;utf8,'
                         + `<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44">`
                         + `<defs><filter id="s" x="-20%" y="-20%" width="140%" height="140%">`
                         +   `<feDropShadow dx="0" dy="2" stdDeviation="2" flood-opacity="0.35"/>`
                         + `</filter></defs>`
                         + `<circle cx="22" cy="22" r="18" fill="white" stroke="${encodeURIComponent(cat.color)}" stroke-width="3.5" filter="url(%23s)"/>`
-                        + `<text x="22" y="29" text-anchor="middle" font-size="20">${cat.icon}</text>`
+                        + `<text x="22" y="29" text-anchor="middle" font-size="20">${markerIcon}</text>`
                         + '</svg>';
                     const marker = new google.maps.Marker({
                         map,

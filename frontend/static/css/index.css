@@ -2430,17 +2430,22 @@ h1 {
 }
 .icon-btn-circle:focus-visible { outline: 2px solid rgb(var(--accent)); outline-offset: 2px; }
 
-/* Complete Trip button — the only `.icon-btn-circle` with the
-   green accent (52,199,89). Reframed from the destructive Archive
-   verb to a positive Complete one, so it gets a constant neon-green
-   glow + a stronger pulse on hover. The sibling Delete-trip button
-   keeps the muted shadow because it IS destructive. */
+/* Complete Trip button — the only `.icon-btn-circle` in the navbar
+   with the green accent (52,199,89). Reframed from the destructive
+   Archive verb to a positive Complete one, so it gets a constant
+   neon-green glow + a stronger pulse on hover. The sibling Delete-trip
+   button keeps the muted shadow because it IS destructive.
+   The glow recipe is reused below as `.icon-btn-circle--glow-success`
+   so other "positive ✓" affordances (Accept friend request) inherit
+   the same visual language. */
+.icon-btn-circle--glow-success,
 #completeTripBtn {
     box-shadow:
         0 0 0 1px rgba(52, 199, 89, 0.35),
         0 0 16px rgba(52, 199, 89, 0.45),
         0 8px 22px rgba(52, 199, 89, 0.25);
 }
+.icon-btn-circle--glow-success:hover,
 #completeTripBtn:hover {
     box-shadow:
         0 0 0 2px rgba(52, 199, 89, 0.6),

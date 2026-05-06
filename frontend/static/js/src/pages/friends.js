@@ -115,12 +115,25 @@ export function renderFriends() {
                 ? ''
                 : cachedPending.map(p => userCard(p, {
                     variant: 'pending',
+                    // Accept + Reject as the same `icon-btn-circle` pair
+                    // the navbar uses for Complete-Trip + Delete-Trip:
+                    // small circular icon buttons in green / red. Accept
+                    // gets the shared `--glow-success` modifier so it
+                    // pulls the same neon glow as Complete-Trip, marking
+                    // it as the positive primary action of the row.
                     rightSide: `
                         <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
-                            <button class="reject-friend-btn" data-user-id="${esc(p.id)}" data-user-name="${esc(p.name || p.email || 'this person')}" type="button"
-                                style="background: rgba(255,59,48,0.08); border: 1px solid rgba(255,59,48,0.22); color:#ff3b30; padding:8px 16px; border-radius:999px; font-weight:800; font-size:0.78rem; cursor:pointer;">✕ Reject</button>
-                            <button class="accept-friend-btn" data-user-id="${esc(p.id)}" type="button"
-                                style="background: linear-gradient(135deg, #34c759, #1a6b3c); color:white; border:0; padding:8px 16px; border-radius:999px; font-weight:800; font-size:0.78rem; cursor:pointer; box-shadow: 0 4px 12px rgba(52,199,89,0.28);">✓ Accept</button>
+                            <button class="reject-friend-btn icon-btn-circle" data-user-id="${esc(p.id)}" data-user-name="${esc(p.name || p.email || 'this person')}" type="button" style="--accent: 255,59,48;" title="Reject request" aria-label="Reject friend request">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                                </svg>
+                            </button>
+                            <button class="accept-friend-btn icon-btn-circle icon-btn-circle--glow-success" data-user-id="${esc(p.id)}" type="button" style="--accent: 52,199,89;" title="Accept request" aria-label="Accept friend request">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <polyline points="20 6 9 17 4 12"></polyline>
+                                </svg>
+                            </button>
                         </div>
                     `,
                 })).join('');

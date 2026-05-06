@@ -301,6 +301,27 @@ def init_db():
                 FOREIGN KEY(user_id) REFERENCES users(id)
             )
         ''')
+        # feed_comments: replies on feed events. event_id keys the same
+        # synthesised IDs as likes/bookmarks. body is plain text (no
+        # markdown for v1) capped server-side at 500 chars. created_at
+        # ascends so the thread reads in chronological order. We expose
+        # a `comment_count` per event on /api/feed and a separate
+        # /api/feed/comments/<event_id> for the full thread when the user
+        # expands it — keeps the feed payload lean even on chatty events.
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS feed_comments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_id TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                body TEXT NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(user_id) REFERENCES users(id)
+            )
+        ''')
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_feed_comments_event "
+            "ON feed_comments(event_id, created_at)"
+        )
 
         # Trip Days Table
         cursor.execute('''

@@ -253,6 +253,49 @@ export function toggleFeedBookmark(eventId) {
     return _postJson(`/api/feed/bookmark/${encodeURIComponent(eventId)}`, {});
 }
 
+/** Fetch the full comment thread for one feed event. Lazy — only called
+ *  when the user expands the thread. Returns oldest-first order so the
+ *  UI can append-render without re-sorting. Returns the parsed array
+ *  on success or null on failure (callers treat null as "show nothing
+ *  yet, will retry when user re-expands"). */
+export async function fetchFeedComments(eventId) {
+    if (!STATE.user) return null;
+    try {
+        const res = await apiFetch(`/api/feed/comments/${encodeURIComponent(eventId)}`);
+        if (!res.ok) return null;
+        const data = await res.json();
+        return Array.isArray(data) ? data : null;
+    } catch (e) {
+        console.error('fetchFeedComments failed:', e);
+        return null;
+    }
+}
+
+/** Post a new comment on a feed event. Returns `{ ok, body }` where
+ *  `body.comment` is the freshly-inserted row (server-set id + created_at)
+ *  so the UI can append without a follow-up GET — saves a round-trip
+ *  and avoids the "you posted but the thread is stale" race. */
+export function postFeedComment(eventId, body) {
+    if (!STATE.user) return Promise.resolve({ ok: false, status: 0, body: null });
+    return _postJson(`/api/feed/comment/${encodeURIComponent(eventId)}`, { body });
+}
+
+/** Delete one of your own comments. Author-only on the server; silently
+ *  no-ops if the row is already gone (idempotent DELETE). Returns
+ *  `{ ok, body }` shape consistent with the other feed helpers. */
+export async function deleteFeedComment(commentId) {
+    if (!STATE.user) return { ok: false, status: 0, body: null };
+    try {
+        const res = await apiFetch(`/api/feed/comment/${commentId}`, { method: 'DELETE' });
+        let payload = null;
+        try { payload = await res.json(); } catch { /* not JSON */ }
+        return { ok: res.ok, status: res.status, body: payload };
+    } catch (e) {
+        console.error('deleteFeedComment failed:', e);
+        return { ok: false, status: 0, body: null };
+    }
+}
+
 /** Phase 3 — invite a friend (linked-companion's user_id) to a trip with a role.
  *  Server creates a pending member row + fires `trip_invite` notification. */
 export function inviteTripMember(tripId, targetUserId, role) {
