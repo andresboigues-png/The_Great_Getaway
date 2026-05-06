@@ -70,7 +70,7 @@ export const POI_CATEGORIES = [
     { key: 'schools',     placesType: 'school',             searchStrategy: 'wide',     icon: '🎓', label: 'Schools',         color: '#0071e3', defaultMinRating: 0, tooltip: 'Schools and universities across the wider trip area' },
     { key: 'sports',      placesType: 'stadium',            searchStrategy: 'wide',     icon: '🏟️', label: 'Sports',          color: '#ff2d55', defaultMinRating: 0, tooltip: 'Stadiums and gyms across the wider trip area' },
     { key: 'govt',        placesType: 'city_hall',          searchStrategy: 'wide',     icon: '🏛️', label: 'Govt',            color: '#8e8e93', defaultMinRating: 0, tooltip: 'Government buildings + embassies across the wider trip area' },
-    { key: 'transit',     placesType: 'transit_station',    searchStrategy: 'wide',     icon: '🚆', label: 'Public transit',  color: '#0a3d6b', defaultMinRating: 0, tooltip: 'Train / metro / bus stations across the wider trip area' },
+    { key: 'transit',     placesType: 'transit_station',    searchStrategy: 'wide',     icon: '🚆', label: 'Public transit',  color: '#0a3d6b', defaultMinRating: 0, tooltip: 'Big stations only — train, metro, light rail. Bus stops are filtered out so the map doesn\'t get peppered with every street-corner stop.' },
     { key: 'traffic',     placesType: null,                 searchStrategy: 'wide',     icon: '🛣️', label: 'Roads & traffic', color: '#0a3d6b', defaultMinRating: 0, tooltip: 'Highway / arterial road names + live Google traffic congestion' },
 ];
 
@@ -101,12 +101,18 @@ function isPrimaryMatch(categoryKey, types) {
         || t === 'bed_and_breakfast' || t === 'guest_house' || t === 'inn'
         || t === 'resort_hotel' || t === 'extended_stay_hotel';
     const isSupermarket = (t) => t === 'supermarket' || t === 'grocery_or_supermarket';
+    // Only "big" transit — train, metro, light-rail. Generic
+    // transit_station and bus_station/bus_stop are excluded so the
+    // user doesn't get peppered with every street-corner stop.
+    const isBigTransit = (t) => t === 'train_station'
+        || t === 'subway_station' || t === 'light_rail_station';
 
     /** @type {{match: (t:string)=>boolean, conflict: (t:string)=>boolean} | undefined} */
     const rule = ({
         restaurants:  { match: isRestaurant,  conflict: isHotel },
         hotels:       { match: isHotel,       conflict: isRestaurant },
         supermarkets: { match: isSupermarket, conflict: () => false },
+        transit:      { match: isBigTransit,  conflict: () => false },
     })[categoryKey];
     if (!rule) return true;
 
@@ -373,25 +379,24 @@ export function renderHome() {
             
             <div class="card glass cover-card cover-card--md">
                 <div id="homeHeroMap" style="width: 100%; height: 100%; position: absolute; inset: 0; z-index: 0;"></div>
-                <!-- POI filter pills — every category visible by default
-                     as icon-only chips so the row stays compact. The
-                     "+ More" pill toggles the labels in/out so the user
-                     can confirm what each emoji means without permanently
-                     widening the row. Labels show via .is-expanded on
-                     the parent container; CSS hides .map-poi-toggle span
-                     by default. -->
-                <div id="homeMapPoiToggles" class="map-poi-toggles">
-                    ${POI_CATEGORIES.map(c => `
-                        <button type="button" class="map-poi-toggle" data-poi="${c.key}" aria-pressed="false" title="${esc(c.label)} — ${esc(c.tooltip)}">${c.icon} <span>${esc(c.label)}</span></button>
-                    `).join('')}
-                    <button type="button" class="map-poi-toggle map-poi-toggle--more" id="homeMapPoiMoreBtn" aria-expanded="false" title="Show pill names">+ More</button>
-                </div>
                 <div class="cover-card__gradient" style="pointer-events: none; z-index: 1;"></div>
                 <div class="cover-card__content" style="pointer-events: none; z-index: 2;">
                     <p id="homeQuote" class="cover-card__quote">
                         ${displayQuotes[0] || ''}
                     </p>
                 </div>
+            </div>
+
+            <!-- POI filter pills — sit BELOW the map so they don't cover
+                 anything. Every category visible by default as icon-only
+                 chips so the row stays compact; the "+ More" pill
+                 toggles the labels in/out. CSS hides .map-poi-toggle
+                 span by default; .is-expanded on the parent reveals it. -->
+            <div id="homeMapPoiToggles" class="map-poi-toggles map-poi-toggles--below">
+                ${POI_CATEGORIES.map(c => `
+                    <button type="button" class="map-poi-toggle" data-poi="${c.key}" aria-pressed="false" title="${esc(c.label)} — ${esc(c.tooltip)}">${c.icon} <span>${esc(c.label)}</span></button>
+                `).join('')}
+                <button type="button" class="map-poi-toggle map-poi-toggle--more" id="homeMapPoiMoreBtn" aria-expanded="false" title="Show pill names">+ More</button>
             </div>
         `;
 

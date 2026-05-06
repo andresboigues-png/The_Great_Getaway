@@ -1596,23 +1596,20 @@ h1 {
     background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 60%);
 }
 
-/* POI filter pills overlaid on the home cover-card map. Sit at the
-   top-left and float above the gradient + content layers. The visible
-   set is what the user picked in Settings → General; the rest live
-   behind the "+ N" More pill which expands an overflow row. */
+/* POI filter pills — render BELOW the home map so they don't cover
+   the satellite view. Each pill toggles a Places-API search; the
+   "+ More" pill expands the labels in/out (icons-only by default). */
 .map-poi-toggles {
-    position: absolute;
-    top: var(--space-3);
-    left: var(--space-3);
-    right: var(--space-3);
-    z-index: 3;
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
-    pointer-events: none;
+    margin-top: var(--space-4);
+    margin-bottom: var(--space-4);
+    /* No pointer-events:none here — the row sits in normal flow now,
+       not overlaid on the map, so it doesn't need to "let clicks
+       through" anywhere. */
 }
 .map-poi-toggle {
-    pointer-events: auto;
     background: rgba(255, 255, 255, 0.85);
     backdrop-filter: blur(8px);
     border: 1px solid rgba(0, 113, 227, 0.18);
