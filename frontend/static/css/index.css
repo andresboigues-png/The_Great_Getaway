@@ -151,7 +151,16 @@ body {
 
 .nav-item {
     text-decoration: none;
-    color: var(--accent-blue);
+    /* Same blue→purple gradient the "Plan with AI" page title uses,
+       so all four nav links read as a uniform set. opacity stays the
+       active/hover signal — at 0.6 the gradient looks dimmed; at 1 it
+       pops. font-weight bumps in active/hover state for the same
+       visual emphasis the flat-blue version had. */
+    background: linear-gradient(135deg, var(--accent-blue), #9b59b6);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    color: transparent;
     font-size: 0.9rem;
     font-weight: 600;
     opacity: 0.6;
