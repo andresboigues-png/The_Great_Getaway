@@ -9,7 +9,7 @@ export function renderInsights() {
     const div = document.createElement('div');
 
     if (!STATE.activeTripId) {
-        div.innerHTML = `<h1 style="background: linear-gradient(135deg, var(--accent-blue), #9b59b6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Insights</h1><div class="card glass"><p>Please select a trip.</p></div>`;
+        div.innerHTML = `<h1 style="display: inline-block; background: linear-gradient(135deg, var(--accent-blue), #9b59b6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Insights</h1><div class="card glass"><p>Please select a trip.</p></div>`;
         return div;
     }
 
@@ -21,7 +21,7 @@ export function renderInsights() {
 
     if (tripExps.length === 0) {
         div.innerHTML = `
-            <h1 style="background: linear-gradient(135deg, var(--accent-blue), #9b59b6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Insights</h1>
+            <h1 style="display: inline-block; background: linear-gradient(135deg, var(--accent-blue), #9b59b6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Insights</h1>
             <div style="height: 60vh; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: var(--text-secondary);">
                 <div style="font-size: 5rem; margin-bottom: 20px; opacity: 0.5;">📊</div>
                 <h2 style="color: var(--text-primary); margin-bottom: 10px;">No Data to Analyze Yet</h2>
@@ -154,7 +154,7 @@ export function renderInsights() {
         <!-- Header Section -->
         <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 20px; margin-bottom: 40px; padding-bottom: 20px; border-bottom: 1px solid var(--glass-border);">
             <div>
-                <h1 style="background: linear-gradient(135deg, var(--accent-blue), #9b59b6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin: 0; font-size: 3.5rem; letter-spacing: -0.04em;">Insights</h1>
+                <h1 style="display: inline-block; background: linear-gradient(135deg, var(--accent-blue), #9b59b6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin: 0; font-size: 3.5rem; letter-spacing: -0.04em;">Insights</h1>
                 <p style="color: var(--text-secondary); margin: 8px 0 0 0; font-size: 1.1rem;">Your travel spending at a glance.</p>
             </div>
             <div style="display: flex; align-items: center; gap: 24px;">
