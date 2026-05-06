@@ -250,7 +250,7 @@ export function renderHome() {
     if (!activeTrip) {
         div.innerHTML = `
             <div class="ai-page-header" style="padding: 40px; text-align: center; border-radius: 28px;">
-                <h1 class="gradient-text" style="--g-from: #0071e3; --g-to: #9b59b6; margin: 0; font-size: 3.5rem;">Let's travel.</h1>
+                <h1 style="background: linear-gradient(135deg, var(--accent-blue), #9b59b6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin: 0; font-size: 3.5rem;">Let's travel.</h1>
                 <p style="color: var(--text-secondary); max-width: 440px; margin: 10px auto 0; font-size: 1.1rem;">Your next big adventure is waiting. Create a trip to start tracking expenses and planning days.</p>
             </div>
             
@@ -295,7 +295,7 @@ export function renderHome() {
 
         div.innerHTML = `
             <div class="ai-page-header" style="text-align: center;">
-                <h1 class="gradient-text" style="--g-from: #0071e3; --g-to: #9b59b6;">${greeting}</h1>
+                <h1 style="background: linear-gradient(135deg, var(--accent-blue), #9b59b6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">${greeting}</h1>
                 ${activeTrip ? `<p>You have <strong>${tripExpenses.length}</strong> expenses recorded for ${activeTrip.name}.</p>` : `<p>Welcome! Start by creating your first trip.</p>`}
             </div>
             

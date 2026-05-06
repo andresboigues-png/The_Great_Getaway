@@ -57,12 +57,12 @@ export function renderExpenses() {
     const div = document.createElement('div');
 
     if (!STATE.activeTripId) {
-        div.innerHTML = `<h1 class="gradient-text" style="--g-from: #0071e3; --g-to: #9b59b6;">Expenses</h1><div class="card glass"><p>Please select a trip first.</p></div>`;
+        div.innerHTML = `<h1 style="background: linear-gradient(135deg, var(--accent-blue), #9b59b6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Expenses</h1><div class="card glass"><p>Please select a trip first.</p></div>`;
         return div;
     }
 
     div.innerHTML = `
-        <h1 class="gradient-text" style="--g-from: #0071e3; --g-to: #9b59b6; margin-bottom: 12px;">Expenses</h1>
+        <h1 style="background: linear-gradient(135deg, var(--accent-blue), #9b59b6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin-bottom: 12px;">Expenses</h1>
         <nav class="expenses-tabnav" role="tablist">
             <button class="expenses-tabnav__tab" data-tab="manual" role="tab">Manual Upload</button>
             <button class="expenses-tabnav__tab" data-tab="batch" role="tab">Batch Upload</button>
