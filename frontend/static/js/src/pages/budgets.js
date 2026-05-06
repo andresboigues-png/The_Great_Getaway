@@ -40,19 +40,39 @@ function budgetStatus(budget) {
 // keys are stringly-typed; '' means "no filter / all".
 let budgetsFilterTrip = '';
 
-/** Build a human-readable title for a budget's combination of filters. */
+/** Build a human-readable title for a budget's combination of filters.
+ *  Always shows all three dimensions (trip, category, person) — the
+ *  earlier version silently skipped 'all' selections, which made a
+ *  "Everywhere · Everyone" budget appear titled by just the category
+ *  and a "Trip + All categories" budget show only the trip name with
+ *  no hint of its scope. Now every dimension renders explicitly so
+ *  the user can see exactly what each card targets. */
 function budgetTitle(b) {
+    /** @type {string[]} */
     const parts = [];
     if (b.tripId && b.tripId !== 'all') {
         const trip = (STATE.trips || []).find(t => t.id === b.tripId);
         const archived = (STATE.archivedTrips || []).find(t => t.id === b.tripId);
-        parts.push(trip?.name || archived?.name || 'Trip');
+        const name = trip?.name || archived?.name;
+        // Skip the trip part entirely if the lookup fails (orphaned
+        // budget on a deleted trip) — falling back to a generic
+        // "Trip" sentinel is misleading.
+        if (name) parts.push(name);
+    } else {
+        parts.push('All trips');
     }
     if (b.categoryId && b.categoryId !== 'all') {
-        parts.push((STATE.categories || []).find(c => c.id === b.categoryId)?.name || 'Category');
+        const cat = (STATE.categories || []).find(c => c.id === b.categoryId);
+        if (cat) parts.push(`${cat.icon ? cat.icon + ' ' : ''}${cat.name}`);
+    } else {
+        parts.push('All categories');
     }
-    if (b.user && b.user !== 'all') parts.push(b.user);
-    return parts.length > 0 ? parts.join(' · ') : 'General Budget';
+    if (b.user && b.user !== 'all') {
+        parts.push(b.user);
+    } else {
+        parts.push('Everyone');
+    }
+    return parts.join(' · ');
 }
 
 const deleteBudget = (id) => {
@@ -83,7 +103,12 @@ const deleteBudget = (id) => {
 // error-handling layered in, including a guard against unknown
 // currency codes (was a silent default-1 trap in the previous version).
 const openCreateBudgetModal = () => {
-    const tripOpts = (STATE.trips || []).map(t => `<option value="${esc(t.id)}">${esc(t.name)}</option>`).join('');
+    // Pre-select the user's active trip if any. The earlier flow
+    // defaulted to "All trips" — easy to leave on by accident, then
+    // your trip-specific budget becomes a global one. Defaulting to
+    // the active trip matches what users almost always want.
+    const activeTripId = STATE.activeTripId || '';
+    const tripOpts = (STATE.trips || []).map(t => `<option value="${esc(t.id)}" ${t.id === activeTripId ? 'selected' : ''}>${esc(t.name)}</option>`).join('');
     const catOpts = (STATE.categories || []).map(c => `<option value="${esc(c.id)}">${esc(c.icon ? c.icon + ' ' : '')}${esc(c.name)}</option>`).join('');
     const allCompanionNames = Array.from(new Set(
         (STATE.trips || []).flatMap(t => getTripCompanionNames(t))
@@ -101,7 +126,7 @@ const openCreateBudgetModal = () => {
             <div style="display: flex; flex-direction: column; gap: var(--space-3); margin: var(--space-4) 0 var(--space-6);">
                 <label style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-secondary);">Trip</label>
                 <select id="newBudTrip" class="glass-input" style="padding: var(--space-3); border-radius: 12px; background:white;">
-                    <option value="all">All trips</option>${tripOpts}
+                    <option value="all" ${!activeTripId ? 'selected' : ''}>All trips</option>${tripOpts}
                 </select>
                 <label style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-secondary); margin-top:8px;">Category</label>
                 <select id="newBudCat" class="glass-input" style="padding: var(--space-3); border-radius: 12px; background:white;">
@@ -292,19 +317,28 @@ export function renderBudgets() {
                 const icon = category?.icon || '💰';
                 const accentColor = category?.color || status.color;
                 return `
-                    <div class="card glass card-glow-blue" style="padding: 18px 20px; border-radius: 24px; display:flex; flex-direction:column; gap:14px;">
-                        <div style="display:flex; align-items:flex-start; gap:12px;">
+                    <div class="card glass card-glow-blue" style="padding: 18px 20px; border-radius: 24px; display:flex; flex-direction:column; gap:14px; height:100%; box-sizing:border-box;">
+                        <!-- Top section: icon + title + status pill.
+                             min-height keeps two-line titles from
+                             pushing the bottom section out of sync
+                             with single-line cards in the same row. -->
+                        <div style="display:flex; align-items:flex-start; gap:12px; min-height:56px;">
                             <div style="width:44px; height:44px; border-radius:14px; background: ${accentColor}1f; color:${accentColor}; display:flex; align-items:center; justify-content:center; font-size:1.4rem; flex-shrink:0;">${icon}</div>
                             <div style="flex:1; min-width:0;">
-                                <div style="font-weight:800; color:#002d5b; font-size:1rem; line-height:1.2; overflow:hidden; text-overflow:ellipsis;">${esc(budgetTitle(b))}</div>
+                                <div style="font-weight:800; color:#002d5b; font-size:1rem; line-height:1.25; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;">${esc(budgetTitle(b))}</div>
                                 <div style="font-size:0.7rem; color:var(--text-secondary); font-weight:700; text-transform:uppercase; letter-spacing:0.08em; margin-top:2px;">
                                     Target ${formatHome(b.amount, 'EUR')}${b.originalCurrency && b.originalCurrency !== 'EUR' ? ` · was ${formatHome(b.originalAmount || 0, b.originalCurrency)}` : ''}
                                 </div>
                             </div>
-                            <span style="background: ${status.color}1f; color:${status.color}; padding:3px 10px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.08em; flex-shrink:0;">${status.label}</span>
+                            <span style="background: ${status.color}1f; color:${status.color}; padding:3px 10px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.08em; flex-shrink:0; white-space:nowrap;">${status.label}</span>
                         </div>
-                        <div>
-                            <div style="display:flex; align-items:baseline; gap:6px; margin-bottom:8px;">
+                        <!-- Bottom section: spent / variance / progress
+                             bar / delete row. margin-top:auto pushes
+                             this block to the bottom of the card so
+                             progress bars align across cards in the
+                             same row regardless of title length. -->
+                        <div style="margin-top:auto;">
+                            <div style="display:flex; align-items:baseline; gap:6px; margin-bottom:8px; flex-wrap:wrap;">
                                 <span style="font-size:1.5rem; font-weight:800; color:#002d5b; letter-spacing:-0.02em;">${formatHome(status.spent, 'EUR')}</span>
                                 <span style="font-size:0.85rem; color:var(--text-secondary); font-weight:600;">spent · ${variance}</span>
                             </div>
