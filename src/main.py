@@ -1362,20 +1362,30 @@ def list_friends():
 def get_feed():
     """Activity feed: things the caller's friends have done recently.
 
-    Synthesised on read from existing tables — no separate `activities`
-    table — so we don't have to backfill history when shipping. Each event
-    has a stable `id` (so the frontend can dedupe across polls), an
-    `actor` (the friend who did the thing), a human-readable description,
-    and an ISO `when` so the client can render relative dates.
+    Mostly synthesised on read from existing tables (created/archived/
+    joined/friendship) so most events don't need a backfill. Two event
+    types live in their own table (`feed_posts`): explicit shares and
+    reposts, which are user-initiated and therefore can't be derived
+    from passive activity.
+
+    Each event has a stable `id` (so the frontend can dedupe across polls),
+    an `actor` (the friend who did the thing), a human-readable
+    description, and an ISO `when` so the client can render relative dates.
+    Like and bookmark state is attached per-event for the caller.
 
     Event types currently emitted:
       - friend_created_trip   — your friend started planning a trip
-      - friend_joined_trip    — your friend was added to someone's trip
-                                (only fired when YOU were already on it
-                                or own it, so we're surfacing relevant
-                                co-traveller activity not random data)
       - friend_archived_trip  — your friend "completed" a trip (archived)
+      - friend_joined_trip    — your friend was added to ANY trip
+                                (regardless of whether you're on it —
+                                this surfaces all friend co-travel
+                                activity, not just shared trips)
       - new_friendship        — you became friends with someone
+      - friend_shared_trip    — your friend explicitly posted a trip
+                                to their feed
+      - friend_reposted_trip  — your friend reposted someone else's
+                                share (could be from outside your
+                                network — this is how trips spread)
 
     Window: last 30 days. Hard-cap at 100 events to keep the payload
     bounded; sorted desc by timestamp. Empty list = nothing recent.
@@ -1450,24 +1460,24 @@ def get_feed():
                 "when": row["created_at"],
             })
 
-        # 4) friend_joined_trip — your friend was accepted onto a trip
-        # owned by someone else (and you also belong to that trip, so
-        # this is "co-traveller activity" not random feed noise). The
-        # trip_members table doesn't carry a join timestamp, so we use
-        # the trip's created_at as a proxy. Filtered to accepted-only.
+        # 4) friend_joined_trip — your friend was added to ANY trip
+        # (even one whose owner you don't know). Earlier this was gated
+        # on the caller also being on the trip, but the user wants the
+        # feed to surface all friend activity, not just co-travel.
+        # Excludes the trips your friend OWNS (that's `friend_created_trip`)
+        # and excludes your own membership rows (you're not your own feed).
+        # trip_members has no join timestamp; we use trip.created_at as a
+        # best-effort proxy.
         cursor.execute(f'''
-            SELECT tm.trip_id, tm.user_id AS friend_id, t.name, t.country, t.created_at, t.user_id AS owner_id
+            SELECT tm.trip_id, tm.user_id AS friend_id, t.name, t.country, t.created_at
             FROM trip_members tm
             JOIN trips t ON t.id = tm.trip_id
-            JOIN trip_members me ON me.trip_id = tm.trip_id
-                                 AND me.user_id = ?
-                                 AND me.invitation_status = 'accepted'
             WHERE tm.user_id IN ({placeholders})
               AND tm.invitation_status = 'accepted'
               AND tm.user_id != t.user_id
               AND tm.user_id != ?
               AND t.created_at >= datetime('now', '-30 days')
-        ''', [user_id, *friend_ids, user_id])
+        ''', [*friend_ids, user_id])
         for row in cursor.fetchall():
             actor = friend_lookup.get(row["friend_id"])
             if not actor:
@@ -1502,12 +1512,242 @@ def get_feed():
                 "when": row["created_at"],
             })
 
-    # Sort newest-first, hard-cap to keep payload bounded.
-    # Some rows can carry a NULL `when` (legacy data with no timestamp);
-    # treat those as oldest so they fall to the back rather than crash
-    # the comparator.
-    events.sort(key=lambda e: e.get("when") or "", reverse=True)
-    return jsonify(events[:100])
+        # 6) friend_shared_trip — explicit "Share to feed" posts. Original
+        # shares only (repost_of_post_id IS NULL). Trip metadata joined
+        # so the card has a name/country to show.
+        cursor.execute(f'''
+            SELECT fp.id, fp.user_id AS sharer_id, fp.trip_id, fp.created_at,
+                   u.name AS sharer_name, u.picture AS sharer_picture,
+                   t.name AS trip_name, t.country AS trip_country
+            FROM feed_posts fp
+            JOIN users u ON u.id = fp.user_id
+            JOIN trips t ON t.id = fp.trip_id
+            WHERE fp.user_id IN ({placeholders})
+              AND fp.repost_of_post_id IS NULL
+              AND fp.created_at >= datetime('now', '-30 days')
+            ORDER BY fp.created_at DESC
+        ''', friend_ids)
+        for row in cursor.fetchall():
+            events.append({
+                "id": f"share_{row['id']}",
+                "type": "friend_shared_trip",
+                "actor": {"id": row['sharer_id'], "name": row['sharer_name'], "picture": row['sharer_picture']},
+                "trip": {"id": row['trip_id'], "name": row['trip_name'], "country": row['trip_country']},
+                "post_id": row['id'],
+                "when": row['created_at'],
+            })
+
+        # 7) friend_reposted_trip — reposts (repost_of_post_id set). We
+        # also pull the original sharer's name/picture so the card can
+        # render "Reposted X's share". The original sharer can be a
+        # non-friend — that's the whole point: reposts are how trips
+        # propagate beyond your immediate network.
+        cursor.execute(f'''
+            SELECT fp.id, fp.user_id AS reposter_id, fp.trip_id, fp.created_at,
+                   u.name AS reposter_name, u.picture AS reposter_picture,
+                   t.name AS trip_name, t.country AS trip_country,
+                   orig.user_id AS original_sharer_id,
+                   ou.name AS original_sharer_name, ou.picture AS original_sharer_picture
+            FROM feed_posts fp
+            JOIN users u ON u.id = fp.user_id
+            JOIN trips t ON t.id = fp.trip_id
+            JOIN feed_posts orig ON orig.id = fp.repost_of_post_id
+            JOIN users ou ON ou.id = orig.user_id
+            WHERE fp.user_id IN ({placeholders})
+              AND fp.repost_of_post_id IS NOT NULL
+              AND fp.created_at >= datetime('now', '-30 days')
+            ORDER BY fp.created_at DESC
+        ''', friend_ids)
+        for row in cursor.fetchall():
+            events.append({
+                "id": f"repost_{row['id']}",
+                "type": "friend_reposted_trip",
+                "actor": {"id": row['reposter_id'], "name": row['reposter_name'], "picture": row['reposter_picture']},
+                "original_sharer": {"id": row['original_sharer_id'], "name": row['original_sharer_name'], "picture": row['original_sharer_picture']},
+                "trip": {"id": row['trip_id'], "name": row['trip_name'], "country": row['trip_country']},
+                "post_id": row['id'],
+                "when": row['created_at'],
+            })
+
+        # Sort + cap before attaching like/bookmark state — keeps the
+        # follow-up queries bounded to <=100 event_ids.
+        events.sort(key=lambda e: e.get("when") or "", reverse=True)
+        events = events[:100]
+
+        # Like/bookmark attach. Two batched queries: one for global like
+        # counts (everyone sees these), one for the caller's own
+        # liked/bookmarked sets. event_id keys persist in the table
+        # even when their underlying event ages out of the window —
+        # harmless for v1.
+        if events:
+            event_ids = [e['id'] for e in events]
+            id_placeholders = ",".join(["?"] * len(event_ids))
+            cursor.execute(
+                f"SELECT event_id, COUNT(*) AS c FROM feed_likes "
+                f"WHERE event_id IN ({id_placeholders}) GROUP BY event_id",
+                event_ids,
+            )
+            likes_count = {r['event_id']: r['c'] for r in cursor.fetchall()}
+            cursor.execute(
+                f"SELECT event_id FROM feed_likes "
+                f"WHERE user_id = ? AND event_id IN ({id_placeholders})",
+                [user_id, *event_ids],
+            )
+            liked_by_me = {r['event_id'] for r in cursor.fetchall()}
+            cursor.execute(
+                f"SELECT event_id FROM feed_bookmarks "
+                f"WHERE user_id = ? AND event_id IN ({id_placeholders})",
+                [user_id, *event_ids],
+            )
+            bookmarked_by_me = {r['event_id'] for r in cursor.fetchall()}
+            for e in events:
+                e['like_count'] = likes_count.get(e['id'], 0)
+                e['is_liked'] = e['id'] in liked_by_me
+                e['is_bookmarked'] = e['id'] in bookmarked_by_me
+
+    return jsonify(events)
+
+
+@app.route("/api/feed/share", methods=["POST"])
+@require_auth
+@limiter.limit("30/minute")
+def share_trip_to_feed():
+    """Create a feed_post (original share — repost_of_post_id NULL) for
+    the caller's trip. Caller must be an accepted member of the trip and
+    the trip must not be archived. Idempotent: re-sharing returns the
+    existing post_id rather than creating a duplicate."""
+    user_id = current_user_id()
+    data = request.json or {}
+    trip_id = data.get("trip_id")
+    if not trip_id:
+        return jsonify({"error": "Missing trip_id"}), 400
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT is_archived FROM trip_members WHERE trip_id = ? "
+            "AND user_id = ? AND invitation_status = 'accepted'",
+            (trip_id, user_id),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"error": "Forbidden"}), 403
+        if row['is_archived']:
+            return jsonify({"error": "Cannot share an archived trip"}), 400
+        cursor.execute(
+            "SELECT id FROM feed_posts WHERE user_id = ? AND trip_id = ? "
+            "AND repost_of_post_id IS NULL",
+            (user_id, trip_id),
+        )
+        existing = cursor.fetchone()
+        if existing:
+            return jsonify({"status": "already_shared", "post_id": existing['id']})
+        cursor.execute(
+            "INSERT INTO feed_posts (user_id, trip_id, repost_of_post_id) "
+            "VALUES (?, ?, NULL)",
+            (user_id, trip_id),
+        )
+        post_id = cursor.lastrowid
+        conn.commit()
+    return jsonify({"status": "shared", "post_id": post_id})
+
+
+@app.route("/api/feed/repost/<int:post_id>", methods=["POST"])
+@require_auth
+@limiter.limit("30/minute")
+def repost_feed_post(post_id):
+    """Repost an existing feed_post (any user's). Creates a new feed_post
+    for the caller pointing at the original via repost_of_post_id. The
+    trip_id is denormalised onto the repost row so the feed read path
+    can render trip details without an extra join. Idempotent per (user,
+    original_post)."""
+    user_id = current_user_id()
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT trip_id, user_id FROM feed_posts WHERE id = ?", (post_id,))
+        original = cursor.fetchone()
+        if not original:
+            return jsonify({"error": "Post not found"}), 404
+        if original['user_id'] == user_id:
+            # Reposting your own original is meaningless — silently
+            # idempotent: just hand back the original post_id.
+            return jsonify({"status": "same_user", "post_id": post_id})
+        trip_id = original['trip_id']
+        cursor.execute(
+            "SELECT id FROM feed_posts WHERE user_id = ? AND repost_of_post_id = ?",
+            (user_id, post_id),
+        )
+        existing = cursor.fetchone()
+        if existing:
+            return jsonify({"status": "already_reposted", "post_id": existing['id']})
+        cursor.execute(
+            "INSERT INTO feed_posts (user_id, trip_id, repost_of_post_id) "
+            "VALUES (?, ?, ?)",
+            (user_id, trip_id, post_id),
+        )
+        new_post_id = cursor.lastrowid
+        conn.commit()
+    return jsonify({"status": "reposted", "post_id": new_post_id})
+
+
+@app.route("/api/feed/like/<event_id>", methods=["POST"])
+@require_auth
+@limiter.limit("120/minute")
+def toggle_feed_like(event_id):
+    """Toggle the caller's like on a feed event. Returns the new state
+    (liked: bool) plus the new global count for the event."""
+    user_id = current_user_id()
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT 1 FROM feed_likes WHERE user_id = ? AND event_id = ?",
+            (user_id, event_id),
+        )
+        existed = cursor.fetchone() is not None
+        if existed:
+            cursor.execute(
+                "DELETE FROM feed_likes WHERE user_id = ? AND event_id = ?",
+                (user_id, event_id),
+            )
+        else:
+            cursor.execute(
+                "INSERT OR IGNORE INTO feed_likes (user_id, event_id) VALUES (?, ?)",
+                (user_id, event_id),
+            )
+        cursor.execute(
+            "SELECT COUNT(*) AS c FROM feed_likes WHERE event_id = ?",
+            (event_id,),
+        )
+        count = cursor.fetchone()['c']
+        conn.commit()
+    return jsonify({"status": "ok", "liked": not existed, "count": count})
+
+
+@app.route("/api/feed/bookmark/<event_id>", methods=["POST"])
+@require_auth
+@limiter.limit("120/minute")
+def toggle_feed_bookmark(event_id):
+    """Toggle the caller's bookmark on a feed event. Personal — there's
+    no global count exposed (deliberate; bookmarks are private)."""
+    user_id = current_user_id()
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT 1 FROM feed_bookmarks WHERE user_id = ? AND event_id = ?",
+            (user_id, event_id),
+        )
+        existed = cursor.fetchone() is not None
+        if existed:
+            cursor.execute(
+                "DELETE FROM feed_bookmarks WHERE user_id = ? AND event_id = ?",
+                (user_id, event_id),
+            )
+        else:
+            cursor.execute(
+                "INSERT OR IGNORE INTO feed_bookmarks (user_id, event_id) VALUES (?, ?)",
+                (user_id, event_id),
+            )
+        conn.commit()
+    return jsonify({"status": "ok", "bookmarked": not existed})
 
 @app.route("/api/trips/share", methods=["POST"])
 @require_auth

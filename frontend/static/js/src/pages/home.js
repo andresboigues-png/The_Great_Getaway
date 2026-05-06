@@ -4,7 +4,7 @@
 import { STATE, emit } from '../state.js';
 import { INSPIRATIONAL_PAIRS } from '../constants.js';
 import { getMediaForTrip, showLiquidAlert, formatDayDate, q, showConfirmModal, generateId, shortPlaceName, esc } from '../utils.js';
-import { upsertDay, uploadMedia, deleteDayOnServer, upsertTrip } from '../api.js';
+import { upsertDay, uploadMedia, deleteDayOnServer, upsertTrip, shareTripToFeed } from '../api.js';
 import { navigate } from '../router.js';
 import { showPersTab } from './settings.js';
 import { openNewTripModal, openAddDayModal, openEditTripModal, openCompanionPickerModal, openTripMembersModal } from '../modals.js';
@@ -1126,6 +1126,17 @@ export function renderHome() {
                         resultsEl.innerHTML = '';
                     };
 
+                    /** Format a metres count as a compact distance. <1km
+                     *  in metres ("850 m"), 1–100km in km with one decimal
+                     *  ("12.4 km"), >100km in km no decimal ("245 km"). */
+                    const formatDistance = (meters) => {
+                        if (typeof meters !== 'number' || !isFinite(meters) || meters < 0) return '';
+                        if (meters < 1000) return `${Math.round(meters)} m`;
+                        const km = meters / 1000;
+                        if (km < 100) return `${km.toFixed(1)} km`;
+                        return `${Math.round(km)} km`;
+                    };
+
                     const renderPredictions = (preds) => {
                         if (!preds || preds.length === 0) {
                             resultsEl.style.display = 'block';
@@ -1133,7 +1144,18 @@ export function renderHome() {
                             return;
                         }
                         resultsEl.style.display = 'block';
-                        resultsEl.innerHTML = preds.slice(0, 6).map(p => `
+                        resultsEl.innerHTML = preds.slice(0, 6).map(p => {
+                            // distance_meters is populated by the
+                            // AutocompleteService when the request carried
+                            // an `origin` (the trip's genesis pin lat/lng,
+                            // see the request builder below). Falls back
+                            // to empty string for predictions that don't
+                            // expose it (e.g. very generic queries) so the
+                            // row still renders cleanly.
+                            const distHtml = typeof p.distance_meters === 'number'
+                                ? `<span style="flex-shrink:0; font-size:0.72rem; color:var(--text-secondary); font-weight:700; margin-left:8px; padding:2px 8px; background:rgba(0,113,227,0.07); border-radius:999px; align-self:center;">${esc(formatDistance(p.distance_meters))}</span>`
+                                : '';
+                            return `
                             <button type="button" class="map-search-row" data-place-id="${esc(p.place_id)}"
                                 style="width:100%; text-align:left; padding:11px 16px; background:transparent; border:0; border-bottom:1px solid rgba(0,0,0,0.05); display:flex; gap:10px; align-items:flex-start; cursor:pointer;">
                                 <span style="font-size:1rem; line-height:1.2; flex-shrink:0;">📍</span>
@@ -1141,8 +1163,9 @@ export function renderHome() {
                                     <div style="font-weight:700; color:#002d5b; font-size:0.88rem; line-height:1.25; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(p.structured_formatting?.main_text || p.description || '')}</div>
                                     ${p.structured_formatting?.secondary_text ? `<div style="font-size:0.74rem; color:var(--text-secondary); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(p.structured_formatting.secondary_text)}</div>` : ''}
                                 </div>
+                                ${distHtml}
                             </button>
-                        `).join('');
+                        `;}).join('');
                     };
 
                     /** Make-or-update the marker that represents the
@@ -1215,6 +1238,16 @@ export function renderHome() {
                             const req = { input: q };
                             const bounds = map.getBounds();
                             if (bounds) req.bounds = bounds;
+                            // Set `origin` to the trip's genesis pin so
+                            // each prediction carries `distance_meters`
+                            // from there — the result rows render the
+                            // distance as a small chip on the right.
+                            // Skipped when the trip has no geo (legacy
+                            // text-only trips); predictions still work,
+                            // just without the distance chip.
+                            if (activeTrip && typeof activeTrip.lat === 'number' && typeof activeTrip.lng === 'number') {
+                                req.origin = { lat: activeTrip.lat, lng: activeTrip.lng };
+                            }
                             autocomplete.getPlacePredictions(req, (preds, status) => {
                                 if (status !== google.maps.places.PlacesServiceStatus.OK) {
                                     if (status === google.maps.places.PlacesServiceStatus.ZERO_RESULTS) {
@@ -1724,6 +1757,19 @@ export function renderHome() {
                             </a>
                         `;
                     })()}
+                    <!-- Share to feed — any accepted member can share
+                         (the backend gates on membership, not ownership).
+                         Posts the trip to the caller's friends' feeds as
+                         a friend_shared_trip event; idempotent so a
+                         re-click on an already-shared trip just hands
+                         back the existing post. -->
+                    <button id="shareToFeedBtn" class="icon-btn-square" title="Share this trip to your feed" aria-label="Share to feed">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path>
+                            <polyline points="16 6 12 2 8 6"></polyline>
+                            <line x1="12" y1="2" x2="12" y2="15"></line>
+                        </svg>
+                    </button>
                     ${!tripIsEditable ? `
                         <span class="trip-role-badge trip-role-badge--relaxer" title="You're a Relaxer on this trip — view-only">👁 Relaxer</span>
                     ` : ''}
@@ -2348,6 +2394,31 @@ export function renderHome() {
 
             // Edit-trip pencil — owner-only, hidden when !manageable.
             if (target.closest('#editTripBtn')) { openEditTripModal(activeTrip); return; }
+
+            // Share-to-feed — any accepted member can share. Confirm
+            // first because there's no "unshare" surface yet, then
+            // toast the result. Idempotent server-side, so a re-click
+            // surfaces "already shared" rather than creating duplicates.
+            if (target.closest('#shareToFeedBtn') && activeTrip) {
+                showConfirmModal({
+                    title: "Share this trip to your feed?",
+                    message: `Your friends will see "${activeTrip.name}" in their feed and can like or repost it. Anyone they share it to can repost it further.`,
+                    confirmText: "Share",
+                    onConfirm: async () => {
+                        const result = await shareTripToFeed(activeTrip.id);
+                        if (!result || !result.ok) {
+                            showLiquidAlert("Couldn't share — try again in a moment.");
+                            return;
+                        }
+                        if (result.body?.status === 'already_shared') {
+                            showLiquidAlert("Already shared to your feed.");
+                        } else {
+                            showLiquidAlert("Shared to your feed.");
+                        }
+                    },
+                });
+                return;
+            }
 
             // Companions / Members button OR the inline member-chip panel —
             // both route through the same dispatcher: owner picks roster,

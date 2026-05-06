@@ -256,6 +256,52 @@ def init_db():
             cursor.execute("ALTER TABLE notifications ADD COLUMN title TEXT")
         except Exception: pass
 
+        # ── Feed (social / sharing layer) ──────────────────────────────
+        # feed_posts: explicit, user-initiated shares + reposts. Synthesised
+        # events (created/archived/joined) are derived from existing tables
+        # at /api/feed read time and don't have rows here. A row with
+        # repost_of_post_id IS NULL is an "original share"; a row with it
+        # set is a "repost" of the referenced post (Twitter-style retweet
+        # semantics). trip_id is denormalised onto the repost row so the
+        # feed can render trip details without an extra join chain.
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS feed_posts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                trip_id TEXT NOT NULL,
+                repost_of_post_id INTEGER,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(user_id) REFERENCES users(id),
+                FOREIGN KEY(trip_id) REFERENCES trips(id)
+            )
+        ''')
+        # feed_likes: social like signal per event. event_id is the
+        # synthesised event ID from /api/feed (e.g. "trip_created_<trip>",
+        # "share_<post>") so likes survive across event categories. Like
+        # rows can outlive their event (event ages out of the 30-day window,
+        # row stays); harmless because nobody can see the orphan event
+        # anyway, and we don't expose a "list everyone's likes" surface.
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS feed_likes (
+                user_id TEXT NOT NULL,
+                event_id TEXT NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (user_id, event_id),
+                FOREIGN KEY(user_id) REFERENCES users(id)
+            )
+        ''')
+        # feed_bookmarks: personal save. Same event_id keying as likes.
+        # Strictly per-user; no count exposed on /api/feed.
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS feed_bookmarks (
+                user_id TEXT NOT NULL,
+                event_id TEXT NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (user_id, event_id),
+                FOREIGN KEY(user_id) REFERENCES users(id)
+            )
+        ''')
+
         # Trip Days Table
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS trip_days (

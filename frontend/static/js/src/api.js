@@ -213,6 +213,46 @@ export function unarchiveTripOnServer(tripId) {
     return _post(`/api/trips/${tripId}/unarchive`, {});
 }
 
+// ── Feed (social / sharing) ────────────────────────────────────────
+// All four return `{ ok, status, body }` so the calling UI can branch
+// on success, surface errors, and roll back optimistic state when the
+// server rejects (forbidden / archived / 429 rate limit). The feed page
+// treats failure on like/bookmark as transient — keeps the UI in the
+// new state and lets the next refresh reconcile.
+
+/** Post the user's trip to their feed (their friends' feeds will surface
+ *  it as a `friend_shared_trip` event). Idempotent server-side: re-sharing
+ *  the same trip returns the existing post id rather than duplicating. */
+export function shareTripToFeed(tripId) {
+    if (!STATE.user) return Promise.resolve({ ok: false, status: 0, body: null });
+    return _postJson('/api/feed/share', { trip_id: tripId });
+}
+
+/** Repost an existing feed post (any user's). Spreads the trip beyond
+ *  your immediate friend graph — your friends see the repost in their
+ *  feed even if they don't know the original sharer. Idempotent per
+ *  (caller, original_post). */
+export function repostFeedPost(postId) {
+    if (!STATE.user) return Promise.resolve({ ok: false, status: 0, body: null });
+    return _postJson(`/api/feed/repost/${postId}`, {});
+}
+
+/** Toggle a like on a feed event. The server returns the new state
+ *  AND the new global count so a single round-trip lets us reconcile
+ *  any drift from optimistic UI. event_id is the synthesised id from
+ *  /api/feed (e.g. "trip_created_<trip>", "share_<post>"). */
+export function toggleFeedLike(eventId) {
+    if (!STATE.user) return Promise.resolve({ ok: false, status: 0, body: null });
+    return _postJson(`/api/feed/like/${encodeURIComponent(eventId)}`, {});
+}
+
+/** Toggle a personal bookmark on a feed event. No global count exposed
+ *  (bookmarks are private — nobody sees what you save). */
+export function toggleFeedBookmark(eventId) {
+    if (!STATE.user) return Promise.resolve({ ok: false, status: 0, body: null });
+    return _postJson(`/api/feed/bookmark/${encodeURIComponent(eventId)}`, {});
+}
+
 /** Phase 3 — invite a friend (linked-companion's user_id) to a trip with a role.
  *  Server creates a pending member row + fires `trip_invite` notification. */
 export function inviteTripMember(tripId, targetUserId, role) {
