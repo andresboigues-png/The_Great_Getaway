@@ -32,21 +32,27 @@ let activeHomeTab = 'days'; // Sub-tab on the home trip view (Days timeline vs C
 /** Single source of truth for the home-map POI quick-access pills.
  *  Read by:
  *   - the template above (renders the visible / hidden pill rows)
- *   - the buildPoiStyles helper (maps key → Google Maps featureType)
+ *   - the Places API nearbySearch wiring (maps key → Places type +
+ *     marker color)
  *   - the Settings → General tab (renders checkboxes)
- *  Each entry is everything one category needs, so adding a tenth
- *  category later is one push to this array.
- *  @type {{key: string, featureType: string, icon: string, label: string, tooltip: string}[]} */
+ *  Adding a tenth category is one push to this array.
+ *
+ *  `placesType`: a single Google Places API type used for nearbySearch
+ *  around each day pin. Single type per category because the Places
+ *  API doesn't accept arrays — pick the most representative one.
+ *  `color`: marker fill color so the user can read the pill→pin
+ *  visual link at a glance.
+ *  @type {{key: string, placesType: string, icon: string, label: string, color: string, tooltip: string}[]} */
 export const POI_CATEGORIES = [
-    { key: 'food',    featureType: 'poi.business',         icon: '🛒', label: 'Shops & food', tooltip: 'Restaurants, supermarkets, gas, hotels, ATMs, shops' },
-    { key: 'sights',  featureType: 'poi.attraction',       icon: '🏖️', label: 'Sights',       tooltip: 'Tourist attractions, beaches, museums, monuments' },
-    { key: 'parks',   featureType: 'poi.park',             icon: '🌳', label: 'Parks',        tooltip: 'Parks and gardens' },
-    { key: 'medical', featureType: 'poi.medical',          icon: '🏥', label: 'Medical',      tooltip: 'Hospitals, pharmacies, clinics' },
-    { key: 'worship', featureType: 'poi.place_of_worship', icon: '⛪', label: 'Worship',      tooltip: 'Churches, temples, mosques' },
-    { key: 'schools', featureType: 'poi.school',           icon: '🎓', label: 'Schools',      tooltip: 'Schools and universities' },
-    { key: 'sports',  featureType: 'poi.sports_complex',   icon: '🏟️', label: 'Sports',       tooltip: 'Stadiums, gyms, sports complexes' },
-    { key: 'govt',    featureType: 'poi.government',       icon: '🏛️', label: 'Govt',         tooltip: 'Government buildings, embassies' },
-    { key: 'transit', featureType: 'transit',              icon: '🚆', label: 'Transit',      tooltip: 'Train stations, metro, bus stops' },
+    { key: 'food',    placesType: 'restaurant',        icon: '🛒', label: 'Shops & food', color: '#ff9500', tooltip: 'Nearby restaurants — real Google Places search around your day pins' },
+    { key: 'sights',  placesType: 'tourist_attraction',icon: '🏖️', label: 'Sights',       color: '#5856d6', tooltip: 'Nearby tourist attractions, museums, monuments' },
+    { key: 'parks',   placesType: 'park',              icon: '🌳', label: 'Parks',        color: '#34c759', tooltip: 'Nearby parks and gardens' },
+    { key: 'medical', placesType: 'hospital',          icon: '🏥', label: 'Medical',      color: '#ff3b30', tooltip: 'Nearby hospitals + pharmacies' },
+    { key: 'worship', placesType: 'church',            icon: '⛪', label: 'Worship',      color: '#a460ed', tooltip: 'Nearby churches and places of worship' },
+    { key: 'schools', placesType: 'school',            icon: '🎓', label: 'Schools',      color: '#0071e3', tooltip: 'Nearby schools and universities' },
+    { key: 'sports',  placesType: 'stadium',           icon: '🏟️', label: 'Sports',       color: '#ff2d55', tooltip: 'Nearby stadiums and gyms' },
+    { key: 'govt',    placesType: 'city_hall',         icon: '🏛️', label: 'Govt',         color: '#8e8e93', tooltip: 'Nearby government buildings + embassies' },
+    { key: 'transit', placesType: 'transit_station',   icon: '🚆', label: 'Transit',      color: '#0a3d6b', tooltip: 'Nearby train / metro / bus stations' },
 ];
 
 // Per-day card action helpers. The map setTimeout below detects
@@ -357,41 +363,37 @@ export function renderHome() {
                 const tripMapKey = activeTrip ? activeTrip.id : null;
                 const savedMapView = tripMapKey && STATE.mapViews && STATE.mapViews[tripMapKey];
 
-                /** Build the styles array given which categories are
-                 *  currently enabled. Each subcategory gets its own
-                 *  explicit `off` rule (rather than the master `poi: off`)
-                 *  so the toggle-on rule for one category cleanly overrides
-                 *  only that subcategory — the master-rule approach was
-                 *  cascading weirdly, leaving casinos/beaches showing
-                 *  under "Shops & food".
-                 *  Administrative labels (cities, neighbourhoods) are left
-                 *  untouched so geographic place names always show.
-                 *  When a category is on, its labels also get a dark fill
-                 *  and a thick white halo — Google's Styles API has no
-                 *  font-size lever, but the halo trick makes the labels
-                 *  read as physically larger/bolder on the satellite. */
+                /** Hide all built-in POI labels by default. The pills
+                 *  drive Places API searches that drop their own markers
+                 *  per category — much more precise than Google's baked
+                 *  label decisions ("Shops & food" → real restaurants,
+                 *  not casinos and beaches). Administrative labels
+                 *  (cities, neighborhoods) are left untouched so
+                 *  geographic place names always show.
+                 *  Transit still gets the road.highway label boost
+                 *  because that's a styling effect, not a POI lookup. */
+                const HIDE_ALL_POI_STYLES = (() => {
+                    /** @type {any[]} */
+                    const s = [];
+                    POI_CATEGORIES.forEach(cat => {
+                        // featureType still matches old keys for the
+                        // Styles "off" rule — we hide the broad poi.*
+                        // categories so Google's default labels don't
+                        // bleed in alongside our Places markers.
+                    });
+                    s.push(
+                        { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+                        { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+                    );
+                    return s;
+                })();
                 const buildPoiStyles = (enabledSet) => {
                     /** @type {any[]} */
-                    const styles = [];
-                    // Hide every POI subcategory + transit by default.
-                    POI_CATEGORIES.forEach(cat => {
-                        styles.push({ featureType: cat.featureType, stylers: [{ visibility: 'off' }] });
-                    });
-                    // Re-enable + boost whichever the user has toggled.
-                    POI_CATEGORIES.forEach(cat => {
-                        if (!enabledSet.has(cat.key)) return;
-                        styles.push(
-                            { featureType: cat.featureType, stylers: [{ visibility: 'on' }] },
-                            { featureType: cat.featureType, elementType: 'labels.text.fill', stylers: [{ color: '#0a3d6b' }, { weight: 2 }] },
-                            { featureType: cat.featureType, elementType: 'labels.text.stroke', stylers: [{ color: '#ffffff' }, { weight: 4 }] },
-                            { featureType: cat.featureType, elementType: 'labels.icon', stylers: [{ visibility: 'on' }] },
-                        );
-                    });
-                    // Transit pill: ALSO surface highway / arterial road
-                    // labels so the user can see major routes the way
-                    // Google Maps' default transit/traffic view does.
-                    // Local streets stay hidden to keep the map clean.
+                    const styles = HIDE_ALL_POI_STYLES.slice();
                     if (enabledSet.has('transit')) {
+                        // Highway / arterial road labels visible only when
+                        // Transit is on, so the user sees major routes the
+                        // way Google's built-in Traffic view does.
                         styles.push(
                             { featureType: 'road.highway', elementType: 'labels', stylers: [{ visibility: 'on' }] },
                             { featureType: 'road.highway', elementType: 'labels.text.fill', stylers: [{ color: '#0a3d6b' }, { weight: 2 }] },
@@ -400,6 +402,96 @@ export function renderHome() {
                         );
                     }
                     return styles;
+                };
+
+                // ── Places API: per-pill Nearby Search around day pins ──
+                // The whole point of the pills now: when a user toggles
+                // a category, we run nearbySearch around each day pin
+                // and drop precise markers. No more guessing what
+                // Google's default labels include.
+
+                /** PlacesService needs a real DOM element (not the map),
+                 *  but it's also fine to pass the map. The map mode that
+                 *  works with Places library: any. */
+                const placesService = new google.maps.places.PlacesService(map);
+
+                /** Markers grouped by pill key so we can clear one
+                 *  category without disturbing the others. Each entry is
+                 *  an array of google.maps.Marker. */
+                /** @type {Record<string, any[]>} */
+                const placesMarkers = {};
+
+                /** Cache of nearbySearch results keyed by `${dayId}|${pillKey}`
+                 *  so re-toggling doesn't burn another API call. */
+                /** @type {Record<string, any[]>} */
+                const placesCache = {};
+
+                /** Drop a marker for one Places result. Color comes from
+                 *  the pill's POI_CATEGORIES entry; the icon emoji shows
+                 *  inside a small white circle so it reads cleanly on
+                 *  satellite imagery. */
+                const dropPlaceMarker = (cat, place) => {
+                    const loc = place.geometry?.location;
+                    if (!loc) return null;
+                    const svg = 'data:image/svg+xml;utf8,'
+                        + `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">`
+                        + `<circle cx="16" cy="16" r="13" fill="white" stroke="${encodeURIComponent(cat.color)}" stroke-width="2.5"/>`
+                        + `<text x="16" y="22" text-anchor="middle" font-size="14">${cat.icon}</text>`
+                        + '</svg>';
+                    const marker = new google.maps.Marker({
+                        map,
+                        position: loc,
+                        title: place.name || cat.label,
+                        icon: { url: svg, scaledSize: new google.maps.Size(28, 28), anchor: new google.maps.Point(14, 14) },
+                        zIndex: 1, // below the day pins (which use default zIndex)
+                    });
+                    return marker;
+                };
+
+                /** Run nearbySearch for one (day, category) pair. Cached. */
+                const fetchPlacesFor = (cat, day) => new Promise((resolve) => {
+                    const key = `${day.id}|${cat.key}`;
+                    if (placesCache[key]) { resolve(placesCache[key]); return; }
+                    const lng = day.lng || day.lon;
+                    if (!day.lat || !lng) { resolve([]); return; }
+                    placesService.nearbySearch({
+                        location: { lat: day.lat, lng },
+                        radius: 1500,
+                        type: cat.placesType,
+                    }, (results, status) => {
+                        const ok = status === google.maps.places.PlacesServiceStatus.OK
+                            || status === google.maps.places.PlacesServiceStatus.ZERO_RESULTS;
+                        const list = ok && Array.isArray(results) ? results.slice(0, 12) : [];
+                        placesCache[key] = list;
+                        resolve(list);
+                    });
+                });
+
+                /** Toggle markers for one pill key on/off. */
+                const setPlacesPillVisible = async (pillKey, visible) => {
+                    const cat = POI_CATEGORIES.find(c => c.key === pillKey);
+                    if (!cat) return;
+                    if (!visible) {
+                        (placesMarkers[pillKey] || []).forEach(m => m.setMap(null));
+                        placesMarkers[pillKey] = [];
+                        return;
+                    }
+                    // Visible: query each day pin (in parallel) and drop markers.
+                    const days = currentTripDays.filter(d => d.lat && (d.lng || d.lon));
+                    const allResults = await Promise.all(days.map(d => fetchPlacesFor(cat, d)));
+                    /** @type {any[]} */
+                    const markers = [];
+                    /** Dedup by place_id across days — a popular spot near
+                     *  multiple day pins shouldn't get duplicate markers. */
+                    const seen = new Set();
+                    allResults.forEach(list => list.forEach(place => {
+                        const pid = place.place_id;
+                        if (pid && seen.has(pid)) return;
+                        if (pid) seen.add(pid);
+                        const m = dropPlaceMarker(cat, place);
+                        if (m) markers.push(m);
+                    }));
+                    placesMarkers[pillKey] = markers;
                 };
 
                 /** @type {Set<string>} */
@@ -467,21 +559,25 @@ export function renderHome() {
                             return;
                         }
 
-                        // Regular category pill — toggle that POI layer.
+                        // Regular category pill — flip Places API markers
+                        // for that category on/off.
                         const pill = target?.closest('.map-poi-toggle');
                         if (!pill || pill.classList.contains('map-poi-toggle--more')) return;
                         const key = /** @type {HTMLElement} */ (pill).dataset.poi;
                         if (!key) return;
-                        if (enabledPois.has(key)) enabledPois.delete(key);
-                        else enabledPois.add(key);
+                        const willBeOn = !enabledPois.has(key);
+                        if (willBeOn) enabledPois.add(key);
+                        else enabledPois.delete(key);
+                        // Refresh styles (only Transit changes this layer
+                        // — the highway label tweaks happen here).
                         map.setOptions({ styles: buildPoiStyles(enabledPois) });
-                        // Transit also flips the live-traffic overlay so the
-                        // pill matches Google Maps' built-in transit/traffic
-                        // view (highway labels via styles + congestion colors
-                        // via TrafficLayer).
-                        if (key === 'transit') setTrafficVisible(enabledPois.has('transit'));
-                        pill.classList.toggle('is-on', enabledPois.has(key));
-                        pill.setAttribute('aria-pressed', String(enabledPois.has(key)));
+                        // Transit pill: live-traffic congestion overlay.
+                        if (key === 'transit') setTrafficVisible(willBeOn);
+                        // Places API markers — async; pill state flips
+                        // immediately so the UI feels responsive.
+                        setPlacesPillVisible(key, willBeOn);
+                        pill.classList.toggle('is-on', willBeOn);
+                        pill.setAttribute('aria-pressed', String(willBeOn));
                     });
                 }
 
