@@ -517,15 +517,24 @@ export function renderHome() {
                         // Re-enable transit *route geometry* (the dotted
                         // ferry crossings drawn over water + subway/bus
                         // line geometry). Our base styles hide all
-                        // `transit` to keep the satellite view clean,
-                        // so we explicitly override here. setTransit
-                        // LinesVisible flips the map to `roadmap` so
-                        // these style overrides actually render — they
-                        // silently no-op on hybrid/satellite. Labels
-                        // stay off (no "Linha 36" clutter) and station
-                        // dots stay off (Places markers cover those).
+                        // `transit` to keep the satellite view clean.
+                        // These overrides only render on `roadmap` map
+                        // type — silently no-op on hybrid/satellite.
+                        //
+                        // Colour: bright cyan (#00d4ff) at thicker
+                        // weight so ferry routes "pop" the way the
+                        // user asked for. Google's style API can't
+                        // filter by transit mode, so this colours
+                        // ALL transit lines (train, metro, ferry, bus)
+                        // the same — uniform neon-blue treatment.
+                        // geometry.stroke gets the saturated core,
+                        // geometry.fill gets a slightly lighter tint
+                        // so the line reads as "glowing" rather than
+                        // a flat stripe.
                         styles.push(
                             { featureType: 'transit.line', elementType: 'geometry', stylers: [{ visibility: 'on' }] },
+                            { featureType: 'transit.line', elementType: 'geometry.stroke', stylers: [{ color: '#00d4ff' }, { weight: 3 }] },
+                            { featureType: 'transit.line', elementType: 'geometry.fill', stylers: [{ color: '#5ad8ff' }] },
                             { featureType: 'transit.line', elementType: 'labels', stylers: [{ visibility: 'off' }] },
                             { featureType: 'transit.station', stylers: [{ visibility: 'off' }] },
                         );
