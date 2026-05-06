@@ -397,15 +397,12 @@ export function renderHome() {
             </div>
 
             <!-- POI filter pills — sit BELOW the map so they don't cover
-                 anything. Every category visible by default as icon-only
-                 chips so the row stays compact; the "+ More" pill
-                 toggles the labels in/out. CSS hides .map-poi-toggle
-                 span by default; .is-expanded on the parent reveals it. -->
+                 anything. Every category visible with its label since
+                 the row fits on a single line at typical viewport widths. -->
             <div id="homeMapPoiToggles" class="map-poi-toggles map-poi-toggles--below">
                 ${POI_CATEGORIES.map(c => `
-                    <button type="button" class="map-poi-toggle" data-poi="${c.key}" aria-pressed="false" title="${esc(c.label)} — ${esc(c.tooltip)}">${c.icon} <span>${esc(c.label)}</span></button>
+                    <button type="button" class="map-poi-toggle" data-poi="${c.key}" aria-pressed="false" title="${esc(c.tooltip)}">${c.icon} <span>${esc(c.label)}</span></button>
                 `).join('')}
-                <button type="button" class="map-poi-toggle map-poi-toggle--more" id="homeMapPoiMoreBtn" aria-expanded="false" title="Show pill names">+ More</button>
             </div>
         `;
 
@@ -800,30 +797,16 @@ export function renderHome() {
                     }
                 };
 
-                // Wire the POI filter pills (delegated so it covers both
-                // the visible row AND the overflow that's appended after
-                // the More button is clicked). The More button itself
-                // toggles the overflow's hidden attribute.
+                // Wire the POI filter pills via delegation on the row.
                 const poiTogglesEl = document.getElementById('homeMapPoiToggles');
                 if (poiTogglesEl) {
                     poiTogglesEl.addEventListener('click', (ev) => {
                         const target = /** @type {HTMLElement | null} */ (ev.target);
 
-                        // "+ More" — toggle whether the icon-only pills
-                        // also show their labels. CSS does the actual
-                        // hide/show via .is-expanded on the parent row.
-                        const moreBtn = target?.closest('#homeMapPoiMoreBtn');
-                        if (moreBtn) {
-                            const expanded = poiTogglesEl.classList.toggle('is-expanded');
-                            moreBtn.setAttribute('aria-expanded', String(expanded));
-                            moreBtn.textContent = expanded ? '− Less' : '+ More';
-                            return;
-                        }
-
                         // Regular category pill — flip Places API markers
                         // for that category on/off.
                         const pill = target?.closest('.map-poi-toggle');
-                        if (!pill || pill.classList.contains('map-poi-toggle--more')) return;
+                        if (!pill) return;
                         const key = /** @type {HTMLElement} */ (pill).dataset.poi;
                         if (!key) return;
                         const willBeOn = !enabledPois.has(key);

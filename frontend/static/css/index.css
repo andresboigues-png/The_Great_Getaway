@@ -1640,29 +1640,6 @@ h1 {
     outline: 2px solid var(--accent-blue);
     outline-offset: 2px;
 }
-/* Pill labels — hidden by default so the row reads as a tight
-   icon-only chrome. The "+ More" button (toggling .is-expanded on
-   the parent) reveals the labels for users who can't remember which
-   emoji is which. */
-.map-poi-toggles:not(.is-expanded) .map-poi-toggle:not(.map-poi-toggle--more) span {
-    display: none;
-}
-.map-poi-toggles:not(.is-expanded) .map-poi-toggle:not(.map-poi-toggle--more) {
-    /* Squarer when icon-only so the chip doesn't look stretched. */
-    padding: 4px 8px;
-}
-
-/* "+ More" button — tighter look so it reads as an affordance
-   rather than a category. */
-.map-poi-toggle--more {
-    background: rgba(0, 113, 227, 0.12);
-    border-color: rgba(0, 113, 227, 0.28);
-    font-weight: 800;
-}
-.map-poi-toggle--more[aria-expanded="true"] {
-    background: var(--accent-blue);
-    color: white;
-}
 
 /* Settings → General: per-pill rating filter rows. One row per
    Places-API pill, with the icon, label/hint, a min-rating dropdown,
