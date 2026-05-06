@@ -1249,6 +1249,34 @@ export function renderHome() {
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
                         </button>
                     ` : ''}
+                    ${(() => {
+                        // "Open in Google Maps" — visible to everyone
+                        // (relaxers included; opening a link is read-only).
+                        // Prefer place_id when we have one — it lands on
+                        // the canonical Place page in Google Maps with
+                        // photos, hours, reviews, directions all queued
+                        // up. Falls back to lat/lng search, then to a
+                        // text search of the trip's country/city, so
+                        // there's always a working URL.
+                        let href = '';
+                        if (activeTrip.placeId) {
+                            href = `https://www.google.com/maps/place/?q=place_id:${encodeURIComponent(activeTrip.placeId)}`;
+                        } else if (typeof activeTrip.lat === 'number' && typeof activeTrip.lng === 'number') {
+                            href = `https://www.google.com/maps/search/?api=1&query=${activeTrip.lat},${activeTrip.lng}`;
+                        } else if (activeTrip.country) {
+                            href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(activeTrip.country)}`;
+                        }
+                        if (!href) return '';
+                        return `
+                            <a href="${href}" target="_blank" rel="noopener" class="icon-btn-square" title="Open this trip's location in Google Maps" aria-label="Open in Google Maps">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                                    <polyline points="15 3 21 3 21 9"></polyline>
+                                    <line x1="10" y1="14" x2="21" y2="3"></line>
+                                </svg>
+                            </a>
+                        `;
+                    })()}
                     ${!tripIsEditable ? `
                         <span class="trip-role-badge trip-role-badge--relaxer" title="You're a Relaxer on this trip — view-only">👁 Relaxer</span>
                     ` : ''}

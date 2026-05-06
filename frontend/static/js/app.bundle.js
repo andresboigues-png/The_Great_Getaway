@@ -486,6 +486,15 @@
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
                         </button>
                     `:``}
+                    ${(()=>{let e=``;return t.placeId?e=`https://www.google.com/maps/place/?q=place_id:${encodeURIComponent(t.placeId)}`:typeof t.lat==`number`&&typeof t.lng==`number`?e=`https://www.google.com/maps/search/?api=1&query=${t.lat},${t.lng}`:t.country&&(e=`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(t.country)}`),e?`
+                            <a href="${e}" target="_blank" rel="noopener" class="icon-btn-square" title="Open this trip's location in Google Maps" aria-label="Open in Google Maps">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                                    <polyline points="15 3 21 3 21 9"></polyline>
+                                    <line x1="10" y1="14" x2="21" y2="3"></line>
+                                </svg>
+                            </a>
+                        `:``})()}
                     ${O?``:`
                         <span class="trip-role-badge trip-role-badge--relaxer" title="You're a Relaxer on this trip — view-only">👁 Relaxer</span>
                     `}
