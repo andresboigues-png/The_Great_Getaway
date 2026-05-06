@@ -87,8 +87,7 @@ export const POI_CATEGORIES = [
     { key: 'pets',        placesType: 'veterinary_care',    extraPlacesTypes: ['pet_store'], searchStrategy: 'wide', useGenesisAlways: true, icon: '🐾', label: 'Pets',           color: '#a460ed', defaultMinRating: 0, tooltip: 'Vets and pet stores across the wider trip area' },
     { key: 'schools',     placesType: 'school',             searchStrategy: 'wide', useGenesisAlways: true, icon: '🎓', label: 'Schools',         color: '#0071e3', defaultMinRating: 0, tooltip: 'Schools and universities. Always searches the wider trip area.' },
     { key: 'sports',      placesType: 'stadium',            searchStrategy: 'wide', useGenesisAlways: true, icon: '🏟️', label: 'Sports',          color: '#ff2d55', defaultMinRating: 0, tooltip: 'Stadiums and gyms. Always searches the wider trip area — they\'re landmarks, you want them all.' },
-    { key: 'waterways',   placesType: 'ferry_terminal',     searchStrategy: 'wide', useGenesisAlways: true, icon: '⛴️', label: 'Waterways',       color: '#00b8d4', defaultMinRating: 0, tooltip: 'Ferry terminals + the dotted transit-route lines over water (like the ones you see on default Google Maps for ferry crossings). Google groups all transit routes together, so subway/bus lines may also appear where they exist.' },
-    { key: 'transit',     placesType: 'transit_station',    searchStrategy: 'wide', useGenesisAlways: true, icon: '🚆', label: 'Public transit',  color: '#0a3d6b', defaultMinRating: 0, tooltip: 'Big stations only — train, metro, light rail. Always searches the wider trip area (50 km from the genesis pin), even if you\'ve picked a specific day as the search center. Bus stops are filtered out.' },
+    { key: 'transit',     placesType: 'transit_station',    extraPlacesTypes: ['ferry_terminal', 'bus_station'], searchStrategy: 'wide', useGenesisAlways: true, icon: '🚆', label: 'Public transport', color: '#0a3d6b', defaultMinRating: 0, tooltip: 'Train, metro, light rail, bus terminals + ferry terminals — plus Google\'s dotted transit-route lines (the ferry crossings you see over water by default + subway/bus lines on land). Individual on-street bus stops are filtered out so the map doesn\'t flood.' },
     { key: 'traffic',     placesType: 'gas_station',        searchStrategy: 'wide', useGenesisAlways: true, icon: '🛣️', label: 'Roads & traffic', color: '#0a3d6b', defaultMinRating: 0, tooltip: 'Highway / arterial road names + live Google traffic congestion + gas stations across the wider trip area' },
 ];
 
@@ -119,11 +118,13 @@ function isPrimaryMatch(categoryKey, types) {
         || t === 'bed_and_breakfast' || t === 'guest_house' || t === 'inn'
         || t === 'resort_hotel' || t === 'extended_stay_hotel';
     const isSupermarket = (t) => t === 'supermarket' || t === 'grocery_or_supermarket';
-    // "Big" transit only — train, metro, light-rail. Generic
-    // transit_station and bus_station/bus_stop excluded so the user
-    // doesn't get peppered with every street-corner stop.
+    // Hubs only — train, metro, light-rail, bus *terminals* (not
+    // every on-street bus stop), and ferry terminals. The generic
+    // `transit_station` type is excluded because Google uses it for
+    // every micro-stop too, which would flood the map.
     const isBigTransit = (t) => t === 'train_station'
-        || t === 'subway_station' || t === 'light_rail_station';
+        || t === 'subway_station' || t === 'light_rail_station'
+        || t === 'bus_station' || t === 'ferry_terminal';
     // Human medical only — explicitly excludes veterinary_care.
     // Google's hospital search returns vet clinics too because
     // some carry both 'hospital' and 'veterinary_care' types.
@@ -502,23 +503,16 @@ export function renderHome() {
                             { featureType: 'road.arterial', elementType: 'labels', stylers: [{ visibility: 'on' }] },
                         );
                     }
-                    if (enabledSet.has('waterways')) {
-                        // The dotted ferry routes you see by default on
-                        // Google Maps over water (e.g. Lisbon ↔ Cacilhas,
-                        // Staten Island, Hong Kong harbour) are
-                        // `transit.line.geometry` features. Our base
-                        // styles hide all `transit` to keep the satellite
-                        // view clean, so we explicitly re-enable the
-                        // line geometry here. We keep transit.line
-                        // *labels* off (no "Linha 36" clutter) and
-                        // transit.station off (the Public transit pill
-                        // owns those via separate Places markers).
-                        // Caveat: Google's style API can't filter by
-                        // transit mode, so this also surfaces any
-                        // subway/bus/train route lines in the area —
-                        // tooltip flags this. Ferries are usually the
-                        // visually distinctive ones because they're
-                        // the only routes drawn over water.
+                    if (enabledSet.has('transit')) {
+                        // Re-enable Google's transit *route* geometry
+                        // (the dotted ferry crossings drawn over water,
+                        // plus subway / bus / train route lines) on top
+                        // of the placed station markers we already drop
+                        // via the Places search. Our base styles hide
+                        // all `transit` to keep the satellite view clean.
+                        // We keep transit.line *labels* off (no
+                        // "Linha 36"-style clutter) and transit.station
+                        // off because Places markers already cover that.
                         styles.push(
                             { featureType: 'transit.line', elementType: 'geometry', stylers: [{ visibility: 'on' }] },
                             { featureType: 'transit.line', elementType: 'labels', stylers: [{ visibility: 'off' }] },
