@@ -1536,11 +1536,11 @@ export function renderHome() {
                                             style="background: rgba(255,59,48,0.08); border: 1px solid rgba(255,59,48,0.25); color:#ff3b30; border-radius: 8px; padding: 4px 8px; font-size:0.75rem; font-weight:800; cursor:pointer; flex-shrink:0;">✕</button>
                                     </div>
                                     ${numberedDays.length > 0 ? `
-                                        <div style="display:flex; gap:8px;">
-                                            <select class="shortlist-day-select" data-place-id="${esc(p.placeId)}" style="flex:1; padding:6px 8px; border-radius:8px; border:1px solid rgba(0,0,0,0.1); font-size:0.78rem; background:white;">
+                                        <div style="display:flex; gap:8px; min-width:0;">
+                                            <select class="shortlist-day-select" data-place-id="${esc(p.placeId)}" style="flex:1 1 0; min-width:0; max-width:100%; padding:6px 8px; border-radius:8px; border:1px solid rgba(0,0,0,0.1); font-size:0.78rem; background:white;">
                                                 ${dayOpts(p.dayId)}
                                             </select>
-                                            <select class="shortlist-time-select" data-place-id="${esc(p.placeId)}" style="flex:1; padding:6px 8px; border-radius:8px; border:1px solid rgba(0,0,0,0.1); font-size:0.78rem; background:white;">
+                                            <select class="shortlist-time-select" data-place-id="${esc(p.placeId)}" style="flex:1 1 0; min-width:0; max-width:100%; padding:6px 8px; border-radius:8px; border:1px solid rgba(0,0,0,0.1); font-size:0.78rem; background:white;">
                                                 ${timeOpts(p.timeOfDay)}
                                             </select>
                                         </div>
@@ -2182,6 +2182,65 @@ const openDocumentsModal = (dayId) => {
 const openDayDetail = (dayId) => {
     const day = STATE.tripDays.find(d => d.id === dayId);
     if (!day) return;
+    const trip = STATE.trips.find(t => t.id === day.tripId);
+
+    // Shortlist section. Picks every place the user marked-for-manual
+    // on this trip; sorts THIS day's tagged ones first, then untagged
+    // (those without a dayId), then places tagged for OTHER days at
+    // the bottom in case the user wants to pull one over. Each item
+    // gets three "Add to ..." buttons that prepend the place name to
+    // the relevant textarea AND stamp the assignment so the shortlist
+    // reflects what the user actually used the place for.
+    const allShortlist = (trip?.markedPlaces || []).filter(p => p.forManual);
+    const taggedHere = allShortlist.filter(p => p.dayId === day.id);
+    const untagged = allShortlist.filter(p => !p.dayId);
+    const taggedElsewhere = allShortlist.filter(p => p.dayId && p.dayId !== day.id);
+    const sortedShortlist = [...taggedHere, ...untagged, ...taggedElsewhere];
+
+    const allDaysForBadge = (STATE.tripDays || []).filter(d => d.tripId === day.tripId);
+    const dayNumberFor = (id) => allDaysForBadge.find(d => d.id === id)?.dayNumber;
+
+    const shortlistRowHtml = (p) => {
+        const isHere = p.dayId === day.id;
+        const otherDayNum = p.dayId && !isHere ? dayNumberFor(p.dayId) : null;
+        const badge = isHere
+            ? `<span style="background:rgba(52,199,89,0.14); color:#1a6b3c; font-size:0.65rem; font-weight:800; padding:2px 8px; border-radius:999px; text-transform:uppercase; letter-spacing:0.04em;">Tagged for today</span>`
+            : (otherDayNum
+                ? `<span style="background:rgba(0,0,0,0.06); color:rgba(0,0,0,0.5); font-size:0.65rem; font-weight:800; padding:2px 8px; border-radius:999px;">Tagged Day ${otherDayNum}</span>`
+                : '');
+        return `
+            <div class="day-shortlist-row" data-place-id="${esc(p.placeId)}" style="display:flex; align-items:center; gap:10px; padding:10px 12px; background:white; border:1px solid ${p.color}40; border-left:3px solid ${p.color}; border-radius:10px;">
+                <span style="font-size:1.2rem; line-height:1; flex-shrink:0;">${p.icon}</span>
+                <div style="flex:1; min-width:0;">
+                    <div style="font-weight:700; color:#002d5b; font-size:0.9rem; line-height:1.2; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(p.name)}</div>
+                    ${p.address ? `<div style="font-size:0.72rem; color:var(--text-secondary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(p.address)}</div>` : ''}
+                </div>
+                ${badge}
+                <div style="display:flex; gap:4px; flex-shrink:0;">
+                    <button type="button" class="day-shortlist-add-btn" data-place-id="${esc(p.placeId)}" data-time="morning" title="Add to Morning"
+                        style="background:rgba(0,113,227,0.08); border:1px solid rgba(0,113,227,0.2); color:var(--accent-blue); padding:5px 10px; border-radius:6px; font-size:0.7rem; font-weight:700; cursor:pointer;">🌅 AM</button>
+                    <button type="button" class="day-shortlist-add-btn" data-place-id="${esc(p.placeId)}" data-time="afternoon" title="Add to Afternoon"
+                        style="background:rgba(255,149,0,0.08); border:1px solid rgba(255,149,0,0.25); color:#ff9500; padding:5px 10px; border-radius:6px; font-size:0.7rem; font-weight:700; cursor:pointer;">☀️ PM</button>
+                    <button type="button" class="day-shortlist-add-btn" data-place-id="${esc(p.placeId)}" data-time="evening" title="Add to Evening"
+                        style="background:rgba(88,86,214,0.08); border:1px solid rgba(88,86,214,0.25); color:#5856d6; padding:5px 10px; border-radius:6px; font-size:0.7rem; font-weight:700; cursor:pointer;">🌙 Eve</button>
+                </div>
+            </div>
+        `;
+    };
+
+    const shortlistSectionHtml = sortedShortlist.length > 0 ? `
+        <div style="margin-top: var(--space-10); padding: var(--space-6); background: rgba(255, 149, 0, 0.04); border: 1px solid rgba(255, 149, 0, 0.2); border-radius: 24px;">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px;">
+                <span style="font-size: 1.2rem;">📝</span>
+                <h4 style="margin:0; color:#ff9500; font-weight:800; letter-spacing:-0.01em;">From your shortlist</h4>
+                <span style="margin-left:auto; font-size:0.78rem; color:var(--text-secondary);">Click AM / PM / Eve to drop a place into the matching textarea above.</span>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:8px;">
+                ${sortedShortlist.map(shortlistRowHtml).join('')}
+            </div>
+        </div>
+    ` : '';
+
     const { root, close } = showModal({
         cardClass: 'card glass',
         cardStyle: 'width: 800px; max-height: 90vh; overflow-y: auto; padding: var(--space-12); border-radius: 48px; background: white; border: 1px solid rgba(0,0,0,0.1);',
@@ -2223,7 +2282,45 @@ const openDayDetail = (dayId) => {
                     <button id="saveDetailBtn" class="btn-primary" style="width: 100%; padding: var(--space-5); border-radius: var(--radius-xl); font-size: var(--font-xl);">Save All Changes</button>
                 </div>
             </div>
+            ${shortlistSectionHtml}
         `,
+    });
+
+    // Wire shortlist "Add to AM/PM/Eve" buttons. Each click prepends
+    // "- {name}" on a new line to the matching textarea AND stamps the
+    // assignment on the shortlist entry so the data model reflects
+    // what the user actually used the place for. The actual textarea
+    // value isn't persisted until they click "Save All Changes" — we
+    // just mutate the in-DOM textarea and let the existing save flow
+    // pick it up. Trip is upserted immediately for the assignment
+    // change since that's a pure data write.
+    root.addEventListener('click', (ev) => {
+        const target = /** @type {HTMLElement | null} */ (ev.target);
+        const btn = target?.closest('.day-shortlist-add-btn');
+        if (!btn) return;
+        const pid = /** @type {HTMLElement} */ (btn).dataset.placeId;
+        const time = /** @type {HTMLElement} */ (btn).dataset.time;
+        if (!pid || !time || !trip) return;
+        const place = (trip.markedPlaces || []).find(p => p.placeId === pid);
+        if (!place) return;
+        const ta = /** @type {HTMLTextAreaElement | null} */ (root.querySelector(`[data-time="${time}"]`));
+        if (!ta) return;
+        const line = `- ${place.name}`;
+        ta.value = ta.value.trim().length > 0 ? `${ta.value.trim()}\n${line}` : line;
+        // Stamp the assignment so subsequent shortlist views (Home tab,
+        // AI panel) reflect that the place is being used for this day.
+        setMarkedPlaceAssignment(trip, pid, day.id, /** @type {any} */ (time));
+        emit('state:changed');
+        upsertTrip(trip);
+        // Brief inline feedback so the user knows the click registered
+        // before they press Save All Changes.
+        const original = btn.textContent;
+        /** @type {HTMLButtonElement} */ (btn).textContent = '✓';
+        /** @type {HTMLButtonElement} */ (btn).disabled = true;
+        setTimeout(() => {
+            /** @type {HTMLButtonElement} */ (btn).textContent = original;
+            /** @type {HTMLButtonElement} */ (btn).disabled = false;
+        }, 700);
     });
     /** @type {HTMLButtonElement} */ (q(root, '#closeDetailBtn')).onclick = () => close();
     /** @type {HTMLButtonElement} */ (q(root, '#saveDetailBtn')).onclick = async () => {

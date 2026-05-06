@@ -456,11 +456,11 @@ export function renderAI() {
                             style="background: rgba(255,59,48,0.08); border: 1px solid rgba(255,59,48,0.25); color:#ff3b30; border-radius: 8px; padding: 4px 8px; font-size:0.75rem; font-weight:800; cursor:pointer; flex-shrink:0;">✕</button>
                     </div>
                     ${datesSet ? `
-                        <div style="display:flex; gap:8px;">
-                            <select class="marked-day-select" data-place-id="${esc(p.placeId)}" style="flex:1; padding:6px 8px; border-radius:8px; border:1px solid rgba(0,0,0,0.1); font-size:0.78rem; background:white;">
+                        <div style="display:flex; gap:8px; min-width:0;">
+                            <select class="marked-day-select" data-place-id="${esc(p.placeId)}" style="flex:1 1 0; min-width:0; max-width:100%; padding:6px 8px; border-radius:8px; border:1px solid rgba(0,0,0,0.1); font-size:0.78rem; background:white;">
                                 ${dayOpts(p.dayId)}
                             </select>
-                            <select class="marked-time-select" data-place-id="${esc(p.placeId)}" style="flex:1; padding:6px 8px; border-radius:8px; border:1px solid rgba(0,0,0,0.1); font-size:0.78rem; background:white;">
+                            <select class="marked-time-select" data-place-id="${esc(p.placeId)}" style="flex:1 1 0; min-width:0; max-width:100%; padding:6px 8px; border-radius:8px; border:1px solid rgba(0,0,0,0.1); font-size:0.78rem; background:white;">
                                 ${timeOpts(p.timeOfDay)}
                             </select>
                         </div>
