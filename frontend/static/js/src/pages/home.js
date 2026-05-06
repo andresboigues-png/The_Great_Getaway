@@ -819,42 +819,6 @@ export function renderHome() {
                     <!-- Timeline Dot — Starting Point uses a green dot to distinguish from numbered days -->
                     <div style="position: absolute; left: -14px; top: 22px; width: 10px; height: 10px; border-radius: 50%; background: ${isOpen ? (isStartingPoint ? '#34c759' : 'var(--accent-blue)') : 'white'}; border: 2px solid ${isStartingPoint ? '#34c759' : 'var(--accent-blue)'}; z-index: 2; box-shadow: 0 0 0 4px white;"></div>
 
-                    <!-- LEFT SPACE MENU — only rendered for users with edit
-                         rights. Relaxers see the day cards as read-only,
-                         no actions panel beside them. -->
-                    ${tripIsEditable ? `
-                    <div class="day-actions-panel${isOpen ? ' is-open' : ''}">
-                        <div class="day-actions-label">Actions</div>
-
-                        ${editingDayId === day.id ? `
-                            <div style="display: flex; gap: var(--space-1);">
-                                <button class="day-action-btn day-action-btn--success day-pin-save-btn" data-day-id="${day.id}" style="flex: 2; justify-content: center;">Save Pin</button>
-                                <button class="day-action-btn day-action-btn--danger-fill day-pin-delete-btn" data-day-id="${day.id}" style="flex: 1; justify-content: center;">X</button>
-                            </div>
-                        ` : `
-                            <button class="day-action-btn day-action-btn--brand day-pin-toggle-btn" data-day-id="${day.id}">
-                                <span>${day.lat ? '📍 Edit Pin Location' : '📍 Add Pin to Map'}</span>
-                            </button>
-                        `}
-
-                        <button class="day-action-btn day-action-btn--neutral day-journaling-btn" data-day-id="${day.id}">
-                            <span>✍️ Journaling</span>
-                        </button>
-
-                        <button class="day-action-btn day-action-btn--neutral day-photos-btn" data-day-id="${day.id}">
-                            <span>📸 Add Photos</span>
-                        </button>
-
-                        <button class="day-action-btn day-action-btn--neutral day-documents-btn" data-day-id="${day.id}">
-                            <span>📄 Documents</span>
-                        </button>
-
-                        <button class="day-action-btn day-action-btn--danger day-delete-btn" data-day-id="${day.id}" style="margin-top: var(--space-1);">
-                            <span>🗑️ Delete Day</span>
-                        </button>
-                    </div>
-                    ` : ''}
-
                     <!-- MAIN CARD: state-driven border via CSS class.
                          genesis -> thin green; pinned -> thin blue;
                          unpinned -> dashed amber plus a Pin this day pill.
@@ -910,6 +874,43 @@ export function renderHome() {
                             </div>
                         ` : ''}
                     </div>
+
+                    <!-- RIGHT-SIDE ACTIONS — only rendered for users with edit
+                         rights. Relaxers see the day cards as read-only,
+                         no actions panel beside them. Sits AFTER the card so
+                         the flex row lays card → panel left-to-right. -->
+                    ${tripIsEditable ? `
+                    <div class="day-actions-panel${isOpen ? ' is-open' : ''}">
+                        <div class="day-actions-label">Actions</div>
+
+                        ${editingDayId === day.id ? `
+                            <div style="display: flex; gap: var(--space-1);">
+                                <button class="day-action-btn day-action-btn--success day-pin-save-btn" data-day-id="${day.id}" style="flex: 2; justify-content: center;">Save Pin</button>
+                                <button class="day-action-btn day-action-btn--danger-fill day-pin-delete-btn" data-day-id="${day.id}" style="flex: 1; justify-content: center;">X</button>
+                            </div>
+                        ` : `
+                            <button class="day-action-btn day-action-btn--brand day-pin-toggle-btn" data-day-id="${day.id}">
+                                <span>${day.lat ? '📍 Edit Pin Location' : '📍 Add Pin to Map'}</span>
+                            </button>
+                        `}
+
+                        <button class="day-action-btn day-action-btn--neutral day-journaling-btn" data-day-id="${day.id}">
+                            <span>✍️ Journaling</span>
+                        </button>
+
+                        <button class="day-action-btn day-action-btn--neutral day-photos-btn" data-day-id="${day.id}">
+                            <span>📸 Add Photos</span>
+                        </button>
+
+                        <button class="day-action-btn day-action-btn--neutral day-documents-btn" data-day-id="${day.id}">
+                            <span>📄 Documents</span>
+                        </button>
+
+                        <button class="day-action-btn day-action-btn--danger day-delete-btn" data-day-id="${day.id}" style="margin-top: var(--space-1);">
+                            <span>🗑️ Delete Day</span>
+                        </button>
+                    </div>
+                    ` : ''}
                 </div>
             `}).join('')}
             

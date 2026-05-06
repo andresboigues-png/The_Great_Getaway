@@ -1517,18 +1517,19 @@ h1 {
     color: var(--text-secondary);
 }
 
-/* Day-card actions panel — slides in from the left when the day card
-   is expanded. Width *and* max-height collapse to 0 when closed (just
-   width isn't enough — flex column children still stack to their
-   natural height, which would inflate the row and leave a vertical
-   gap). The `.is-open` modifier is set by JS in lockstep with the
-   parent day-card's open state. */
+/* Day-card actions panel — slides in from the right when the day card
+   is expanded. Sits AFTER the card in the DOM so the flex row reads
+   card → panel left-to-right. Width *and* max-height collapse to 0
+   when closed (just width isn't enough — flex column children still
+   stack to their natural height, which would inflate the row and
+   leave a vertical gap). The `.is-open` modifier is set by JS in
+   lockstep with the parent day-card's open state. */
 .day-actions-panel {
     width: 0;
     min-width: 0;
     max-height: 0;
     opacity: 0;
-    transform: translateX(-20px);
+    transform: translateX(20px);
     pointer-events: none;
     overflow: hidden;
     display: flex;
@@ -2292,6 +2293,14 @@ h1 {
    card stays put. Replaces the last conditional onmouseover/onmouseout
    in home.js. */
 .day-card {
+    /* Cap width so a single day-card doesn't span the full content
+       column — half-width reads as "row of cards along a timeline"
+       rather than "stack of long banners". The actions panel now
+       opens to the right of the card; together they still fit
+       comfortably inside the parent. min-width keeps the card usable
+       on narrower viewports / tablet. */
+    max-width: 50%;
+    min-width: 320px;
     transition: transform 0.4s var(--easing-smooth), border-color 0.4s var(--easing-smooth), background 0.4s var(--easing-smooth), box-shadow 0.4s var(--easing-smooth);
 }
 .day-card:not(.is-open):hover {
