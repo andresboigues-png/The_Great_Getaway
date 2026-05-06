@@ -39,12 +39,6 @@ let activeHomeTab = 'days'; // Sub-tab on the home trip view (Days timeline vs C
  *  `placesType`: one Google Places API type for nearbySearch.
  *    Places API doesn't accept arrays — pick the most representative
  *    type per category. `null` = pure styles-toggle pill (Roads & traffic).
- *  `excludeTypes`: types whose presence on a result disqualifies it.
- *    Google's nearbySearch returns places whose types[] array
- *    *contains* the searched type — that includes cross-tagged places
- *    like a hotel-with-restaurant (has both 'lodging' AND 'restaurant').
- *    Without this filter, "Restaurants" surfaced hotels and "Hotels"
- *    surfaced restaurants. The list excludes the obvious cross-tags.
  *  `defaultMinRating`: rating floor applied client-side after the
  *    Places search. Restaurants/Hotels default to 4★ so the user gets
  *    only proven good ones; others default to 0 (show everything)
@@ -52,21 +46,68 @@ let activeHomeTab = 'days'; // Sub-tab on the home trip view (Days timeline vs C
  *    override per-pill in Settings → General.
  *  `color`: marker fill color so the user can read the pill→pin
  *    visual link at a glance.
- *  @type {{key: string, placesType: string|null, icon: string, label: string, color: string, defaultMinRating: number, excludeTypes?: string[], tooltip: string}[]} */
+ *
+ *  Cross-category bleed (a hotel surfacing under "Restaurants" because
+ *  Google tags it with both `lodging` and `restaurant`) is handled by
+ *  isPrimaryMatch() below, NOT a per-category exclude list. Reason:
+ *  most real hotels carry `restaurant` for their on-site dining, so
+ *  blanket-excluding `restaurant` from the Hotels pill was hiding the
+ *  hotels themselves. Looking at types[0] (the API's "general primary
+ *  type") gets it right without false negatives.
+ *
+ *  @type {{key: string, placesType: string|null, icon: string, label: string, color: string, defaultMinRating: number, tooltip: string}[]} */
 export const POI_CATEGORIES = [
-    { key: 'restaurants', placesType: 'restaurant',         icon: '🍽️', label: 'Restaurants',     color: '#ff9500', defaultMinRating: 4, excludeTypes: ['lodging'], tooltip: 'Nearby restaurants — defaults to 4★+, tweak in Settings → General. Excludes hotel restaurants.' },
-    { key: 'supermarkets',placesType: 'supermarket',        icon: '🛒', label: 'Supermarkets',    color: '#34c759', defaultMinRating: 0, excludeTypes: ['lodging', 'restaurant'], tooltip: 'Nearby supermarkets and grocery stores' },
-    { key: 'hotels',      placesType: 'lodging',            icon: '🛏️', label: 'Hotels',          color: '#5856d6', defaultMinRating: 4, excludeTypes: ['restaurant', 'cafe', 'bar', 'meal_takeaway'], tooltip: 'Nearby hotels and lodging — defaults to 4★+. Excludes places primarily tagged as a restaurant or bar.' },
-    { key: 'sights',      placesType: 'tourist_attraction', icon: '🏖️', label: 'Sights',          color: '#a460ed', defaultMinRating: 0, excludeTypes: ['lodging', 'restaurant'], tooltip: 'Nearby tourist attractions, museums, monuments' },
+    { key: 'restaurants', placesType: 'restaurant',         icon: '🍽️', label: 'Restaurants',     color: '#ff9500', defaultMinRating: 4, tooltip: 'Nearby restaurants — defaults to 4★+, tweak in Settings → General' },
+    { key: 'supermarkets',placesType: 'supermarket',        icon: '🛒', label: 'Supermarkets',    color: '#34c759', defaultMinRating: 0, tooltip: 'Nearby supermarkets and grocery stores' },
+    { key: 'hotels',      placesType: 'lodging',            icon: '🛏️', label: 'Hotels',          color: '#5856d6', defaultMinRating: 4, tooltip: 'Nearby hotels and lodging — defaults to 4★+' },
+    { key: 'sights',      placesType: 'tourist_attraction', icon: '🏖️', label: 'Sights',          color: '#a460ed', defaultMinRating: 0, tooltip: 'Nearby tourist attractions, museums, monuments' },
     { key: 'parks',       placesType: 'park',               icon: '🌳', label: 'Parks',           color: '#1a6b3c', defaultMinRating: 0, tooltip: 'Nearby parks and gardens' },
     { key: 'medical',     placesType: 'hospital',           icon: '🏥', label: 'Medical',         color: '#ff3b30', defaultMinRating: 0, tooltip: 'Nearby hospitals + clinics' },
     { key: 'worship',     placesType: 'church',             icon: '⛪', label: 'Worship',         color: '#a460ed', defaultMinRating: 0, tooltip: 'Nearby churches and places of worship' },
     { key: 'schools',     placesType: 'school',             icon: '🎓', label: 'Schools',         color: '#0071e3', defaultMinRating: 0, tooltip: 'Nearby schools and universities' },
-    { key: 'sports',      placesType: 'stadium',            icon: '🏟️', label: 'Sports',          color: '#ff2d55', defaultMinRating: 0, excludeTypes: ['lodging', 'restaurant'], tooltip: 'Nearby stadiums and gyms' },
+    { key: 'sports',      placesType: 'stadium',            icon: '🏟️', label: 'Sports',          color: '#ff2d55', defaultMinRating: 0, tooltip: 'Nearby stadiums and gyms' },
     { key: 'govt',        placesType: 'city_hall',          icon: '🏛️', label: 'Govt',            color: '#8e8e93', defaultMinRating: 0, tooltip: 'Nearby government buildings + embassies' },
     { key: 'transit',     placesType: 'transit_station',    icon: '🚆', label: 'Public transit',  color: '#0a3d6b', defaultMinRating: 0, tooltip: 'Nearby train / metro / bus stations' },
     { key: 'traffic',     placesType: null,                 icon: '🛣️', label: 'Roads & traffic', color: '#0a3d6b', defaultMinRating: 0, tooltip: 'Highway / arterial road names + live Google traffic congestion' },
 ];
+
+/** Returns true if `types[0]` (Google's "general primary type") is one
+ *  the user genuinely associates with this category. Used to keep
+ *  hotels off the Restaurants pill without excluding hotels-with-
+ *  restaurants from the Hotels pill (the previous excludeTypes approach
+ *  was too blunt — it dropped most hotels too).
+ *
+ *  Subtype-aware: Google emits things like `french_restaurant`,
+ *  `extended_stay_hotel`, `grocery_or_supermarket` as primary types,
+ *  so we match by suffix/equality rather than a single string.
+ *
+ *  Categories not listed return true (no primary-type filtering).
+ *  @param {string} categoryKey
+ *  @param {string[]} types
+ *  @returns {boolean}
+ */
+function isPrimaryMatch(categoryKey, types) {
+    if (!Array.isArray(types) || types.length === 0) return true;
+    const t = types[0];
+    switch (categoryKey) {
+        case 'restaurants':
+            return t === 'restaurant'
+                || t.endsWith('_restaurant')
+                || t === 'cafe' || t === 'bar'
+                || t === 'meal_takeaway' || t === 'meal_delivery';
+        case 'hotels':
+            return t === 'lodging'
+                || t.endsWith('_hotel')
+                || t === 'motel' || t === 'hostel'
+                || t === 'bed_and_breakfast'
+                || t === 'guest_house' || t === 'inn'
+                || t === 'resort_hotel' || t === 'extended_stay_hotel';
+        case 'supermarkets':
+            return t === 'supermarket' || t === 'grocery_or_supermarket';
+        default:
+            return true;
+    }
+}
 
 // Per-day card action helpers. The map setTimeout below detects
 // activeMapClickListener and wires it on the map; these helpers just mutate
@@ -614,19 +655,20 @@ export function renderHome() {
                     /** @type {any[]} */
                     const markers = [];
                     const seen = new Set();
-                    const excludeTypes = cat.excludeTypes || [];
                     results.forEach(place => {
                         const pid = place.place_id;
                         if (pid && seen.has(pid)) return;
                         if (pid) seen.add(pid);
-                        // Cross-tag exclusion: a place that's primarily a
-                        // hotel often carries 'restaurant' too because of
-                        // its on-site dining; same the other way. We drop
-                        // any result whose types[] hits an exclude entry,
-                        // so the Restaurants pill is restaurants-only and
-                        // the Hotels pill is hotels-only.
-                        const types = Array.isArray(place.types) ? place.types : [];
-                        if (excludeTypes.length > 0 && excludeTypes.some(t => types.includes(t))) return;
+                        // Primary-type check: keep only places whose
+                        // first-listed type genuinely matches this
+                        // category. Hotels-with-restaurants stay under
+                        // Hotels (types[0]='lodging' or '*_hotel'),
+                        // restaurants-inside-hotels stay under
+                        // Restaurants (types[0]='restaurant' or
+                        // '*_restaurant'). Categories without a matcher
+                        // (parks, medical, worship, etc.) keep every
+                        // result Google's nearbySearch returns.
+                        if (!isPrimaryMatch(cat.key, place.types)) return;
                         const rating = typeof place.rating === 'number' ? place.rating : 0;
                         if (rating < minRating) return;
                         const m = dropPlaceMarker(cat, place);
