@@ -1180,13 +1180,78 @@ def pending_friends():
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute('''
-            SELECT u.id, u.name, u.email, u.picture 
+            SELECT u.id, u.name, u.email, u.picture
             FROM users u
             JOIN friends f ON u.id = f.user_id
             WHERE f.friend_id = ? AND f.status = 'pending'
         ''', (user_id,))
         requests = [dict(row) for row in cursor.fetchall()]
     return jsonify(requests)
+
+
+@app.route("/api/friends/reject", methods=["POST"])
+@limiter.limit("30 per minute")
+@require_auth
+def reject_friend():
+    """Reject a pending friend request. Mirror of accept_friend's
+    permission gate: the caller must be the RECIPIENT of the
+    pending invitation (otherwise anyone could nuke arbitrary
+    pending rows). Deletes the pending row but does NOT block the
+    sender from re-sending later — rejection is "not now," not
+    "blocked."
+    Recipient comes from JWT; sender (friend_id) in body."""
+    user_id = current_user_id()  # The person rejecting
+    friend_id = (request.json or {}).get("friend_id")  # The person who sent the request
+    if not friend_id:
+        return jsonify({"status": "error", "message": "Missing data"}), 400
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT 1 FROM friends WHERE user_id = ? AND friend_id = ? AND status = 'pending'",
+            (friend_id, user_id),
+        )
+        if not cursor.fetchone():
+            return jsonify({"status": "error", "message": "No pending request"}), 404
+        cursor.execute(
+            "DELETE FROM friends WHERE user_id = ? AND friend_id = ? AND status = 'pending'",
+            (friend_id, user_id),
+        )
+        conn.commit()
+    return jsonify({"status": "success"})
+
+
+@app.route("/api/friends/remove", methods=["POST"])
+@limiter.limit("30 per minute")
+@require_auth
+def remove_friend():
+    """Remove a friendship in BOTH directions. The friends table
+    stores reciprocal rows on accept (see accept_friend), so an
+    "I unfriend you" needs to delete both my-side and their-side.
+
+    Either party can call this: the call uses the JWT-derived
+    user_id and the body's friend_id, and removes any rows pairing
+    those two regardless of which is in user_id vs friend_id. No
+    notification is created — unfriending is a quiet exit, mirrors
+    how most social apps handle it.
+    Caller from JWT; counterparty in body."""
+    user_id = current_user_id()
+    friend_id = (request.json or {}).get("friend_id")
+    if not friend_id:
+        return jsonify({"status": "error", "message": "Missing data"}), 400
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        # Two-direction delete via OR, scoped to the (user_id, friend_id)
+        # pair in either column ordering. Status is unconstrained —
+        # this also clears any leftover pending rows in the rare case
+        # of a concurrent accept + remove.
+        cursor.execute(
+            "DELETE FROM friends WHERE (user_id = ? AND friend_id = ?) OR (user_id = ? AND friend_id = ?)",
+            (user_id, friend_id, friend_id, user_id),
+        )
+        conn.commit()
+    return jsonify({"status": "success"})
 
 @app.route("/api/notifications/list", methods=["GET"])
 @require_auth

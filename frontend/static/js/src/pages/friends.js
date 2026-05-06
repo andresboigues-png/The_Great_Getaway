@@ -1,6 +1,6 @@
 // @ts-check
 import { STATE } from '../state.js';
-import { showLiquidAlert, q, esc } from '../utils.js';
+import { showLiquidAlert, showConfirmModal, q, esc } from '../utils.js';
 import { navigate } from '../router.js';
 import { apiFetch } from '../api.js';
 import { wireRoleButtonKeys } from '../components/Keyboard.js';
@@ -95,7 +95,13 @@ export function renderFriends() {
                     variant: 'neutral',
                     clickable: true,
                     rowClass: 'friend-row',
-                    rightSide: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(0,45,91,0.3)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0;"><polyline points="9 18 15 12 9 6"></polyline></svg>`,
+                    rightSide: `
+                        <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
+                            <button class="remove-friend-btn" data-user-id="${esc(f.id)}" data-user-name="${esc(f.name || f.email || 'this friend')}" type="button" title="Remove friend"
+                                style="background: rgba(255,59,48,0.08); border: 1px solid rgba(255,59,48,0.22); color:#ff3b30; width:28px; height:28px; border-radius:50%; cursor:pointer; font-size:0.78rem; font-weight:800; display:inline-flex; align-items:center; justify-content:center; padding:0;">✕</button>
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(0,45,91,0.3)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                        </div>
+                    `,
                 })).join('');
         }
 
@@ -109,8 +115,14 @@ export function renderFriends() {
                 ? ''
                 : cachedPending.map(p => userCard(p, {
                     variant: 'pending',
-                    rightSide: `<button class="accept-friend-btn" data-user-id="${esc(p.id)}" type="button"
-                            style="background: linear-gradient(135deg, #34c759, #1a6b3c); color:white; border:0; padding:8px 16px; border-radius:999px; font-weight:800; font-size:0.78rem; cursor:pointer; flex-shrink:0; box-shadow: 0 4px 12px rgba(52,199,89,0.28);">✓ Accept</button>`,
+                    rightSide: `
+                        <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
+                            <button class="reject-friend-btn" data-user-id="${esc(p.id)}" data-user-name="${esc(p.name || p.email || 'this person')}" type="button"
+                                style="background: rgba(255,59,48,0.08); border: 1px solid rgba(255,59,48,0.22); color:#ff3b30; padding:8px 16px; border-radius:999px; font-weight:800; font-size:0.78rem; cursor:pointer;">✕ Reject</button>
+                            <button class="accept-friend-btn" data-user-id="${esc(p.id)}" type="button"
+                                style="background: linear-gradient(135deg, #34c759, #1a6b3c); color:white; border:0; padding:8px 16px; border-radius:999px; font-weight:800; font-size:0.78rem; cursor:pointer; box-shadow: 0 4px 12px rgba(52,199,89,0.28);">✓ Accept</button>
+                        </div>
+                    `,
                 })).join('');
         }
     };
@@ -228,6 +240,83 @@ export function renderFriends() {
         }
     };
 
+    /** Reject (decline) a pending friend request. The request just
+     *  goes away — sender isn't notified, isn't blocked from sending
+     *  again later. Same UX most chat apps use; keeps the flow light. */
+    const rejectFriendRequest = (friendId, friendName) => {
+        if (!STATE.user || !friendId) return;
+        showConfirmModal({
+            title: 'Reject this request?',
+            message: `Decline the friend request from ${friendName}? You can still accept later if they re-send.`,
+            confirmText: 'Reject',
+            onConfirm: async () => {
+                // Optimistic local removal so the row disappears
+                // immediately even if the network is slow.
+                cachedPending = cachedPending.filter(p => p.id !== friendId);
+                paintLists();
+                paintStatChips();
+                try {
+                    const res = await apiFetch('/api/friends/reject', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ friend_id: friendId }),
+                    });
+                    const data = await res.json();
+                    if (data.status === 'success') {
+                        showLiquidAlert('Request declined.');
+                        // Refresh from server to catch any concurrent
+                        // changes (sender may have retracted in parallel).
+                        updateFriendsList();
+                    } else {
+                        // Revert if the server rejected our delete (the
+                        // pending row may have already been resolved on
+                        // another tab). Pull fresh and show the error.
+                        showLiquidAlert(data.message || 'Could not decline.');
+                        updateFriendsList();
+                    }
+                } catch (err) {
+                    showLiquidAlert('Could not decline — try again.');
+                    updateFriendsList();
+                }
+            },
+        });
+    };
+
+    /** Unfriend — removes the friendship in both directions. Quiet
+     *  (no notification to the other party), confirmable, and
+     *  optimistic so the row disappears right away. */
+    const removeFriend = (friendId, friendName) => {
+        if (!STATE.user || !friendId) return;
+        showConfirmModal({
+            title: 'Remove this friend?',
+            message: `${friendName} will be removed from your friends list. They won't be notified, and you can always send a new request later.`,
+            confirmText: 'Remove',
+            onConfirm: async () => {
+                cachedFriends = cachedFriends.filter(f => f.id !== friendId);
+                paintLists();
+                paintStatChips();
+                try {
+                    const res = await apiFetch('/api/friends/remove', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ friend_id: friendId }),
+                    });
+                    const data = await res.json();
+                    if (data.status === 'success') {
+                        showLiquidAlert('Friend removed.');
+                        updateFriendsList();
+                    } else {
+                        showLiquidAlert(data.message || 'Could not remove.');
+                        updateFriendsList();
+                    }
+                } catch (err) {
+                    showLiquidAlert('Could not remove — try again.');
+                    updateFriendsList();
+                }
+            },
+        });
+    };
+
     div.innerHTML = `
         <div class="ai-page-header">
             <h1 class="gradient-text" style="--g-from: #007aff; --g-to: #5856d6;">Friends</h1>
@@ -296,11 +385,24 @@ export function renderFriends() {
 
     // Delegated handler for dynamically rendered rows in #friendsList,
     // #pendingList, #searchResults — listeners attached on div once.
+    // Order matters: action buttons checked BEFORE the outer friend-
+    // row click so clicking ✕ Remove doesn't also navigate to the
+    // user's profile underneath.
     div.addEventListener('click', (e) => {
         const target = /** @type {HTMLElement | null} */ (e.target);
         if (!target) return;
         const acceptBtn = /** @type {HTMLElement | null} */ (target.closest('.accept-friend-btn'));
         if (acceptBtn?.dataset.userId) { acceptFriendRequest(acceptBtn.dataset.userId); return; }
+        const rejectBtn = /** @type {HTMLElement | null} */ (target.closest('.reject-friend-btn'));
+        if (rejectBtn?.dataset.userId) {
+            rejectFriendRequest(rejectBtn.dataset.userId, rejectBtn.dataset.userName || 'this person');
+            return;
+        }
+        const removeBtn = /** @type {HTMLElement | null} */ (target.closest('.remove-friend-btn'));
+        if (removeBtn?.dataset.userId) {
+            removeFriend(removeBtn.dataset.userId, removeBtn.dataset.userName || 'this friend');
+            return;
+        }
         const sendBtn = /** @type {HTMLElement | null} */ (target.closest('.send-friend-btn'));
         if (sendBtn?.dataset.userId) { sendFriendRequest(sendBtn.dataset.userId); return; }
         const friendRow = /** @type {HTMLElement | null} */ (target.closest('.friend-row'));
