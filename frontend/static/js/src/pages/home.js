@@ -70,7 +70,7 @@ export const POI_CATEGORIES = [
     { key: 'schools',     placesType: 'school',             searchStrategy: 'wide',     icon: '🎓', label: 'Schools',         color: '#0071e3', defaultMinRating: 0, tooltip: 'Schools and universities across the wider trip area' },
     { key: 'sports',      placesType: 'stadium',            searchStrategy: 'wide',     icon: '🏟️', label: 'Sports',          color: '#ff2d55', defaultMinRating: 0, tooltip: 'Stadiums and gyms across the wider trip area' },
     { key: 'govt',        placesType: 'city_hall',          searchStrategy: 'wide',     icon: '🏛️', label: 'Govt',            color: '#8e8e93', defaultMinRating: 0, tooltip: 'Government buildings + embassies across the wider trip area' },
-    { key: 'transit',     placesType: 'transit_station',    searchStrategy: 'wide',     icon: '🚆', label: 'Public transit',  color: '#0a3d6b', defaultMinRating: 0, tooltip: 'Big stations only — train, metro, light rail. Bus stops are filtered out so the map doesn\'t get peppered with every street-corner stop.' },
+    { key: 'transit',     placesType: 'transit_station',    searchStrategy: 'wide', useGenesisAlways: true, icon: '🚆', label: 'Public transit',  color: '#0a3d6b', defaultMinRating: 0, tooltip: 'Big stations only — train, metro, light rail. Always searches the wider trip area (50 km from the genesis pin), even if you\'ve picked a specific day as the search center. Bus stops are filtered out.' },
     { key: 'traffic',     placesType: null,                 searchStrategy: 'wide',     icon: '🛣️', label: 'Roads & traffic', color: '#0a3d6b', defaultMinRating: 0, tooltip: 'Highway / arterial road names + live Google traffic congestion' },
 ];
 
@@ -587,17 +587,23 @@ export function renderHome() {
                  *  searches. Order of preference:
                  *    1. STATE.preferences.pillEpicenters[tripId] →
                  *       the day the user explicitly chose
+                 *       (skipped when `forceGenesis: true` is passed,
+                 *        which categories like transit use to always
+                 *        cover the trip's full area)
                  *    2. Genesis day (dayNumber === 0)
                  *    3. activeTrip.lat/lng as a defensive last resort
                  *  Cache-key callers also need the resolved dayId
                  *  (or 'genesis') so changing epicenter properly
-                 *  cache-misses. */
-                const resolveSearchCenter = () => {
+                 *  cache-misses.
+                 *  @param {boolean} [forceGenesis=false] */
+                const resolveSearchCenter = (forceGenesis = false) => {
                     const tripId = activeTrip?.id || '';
-                    const userPickId = STATE.preferences?.pillEpicenters?.[tripId];
-                    if (userPickId) {
-                        const d = currentTripDays.find(d2 => d2.id === userPickId && d2.lat);
-                        if (d) return { center: { lat: d.lat, lng: d.lng || d.lon }, anchorId: d.id };
+                    if (!forceGenesis) {
+                        const userPickId = STATE.preferences?.pillEpicenters?.[tripId];
+                        if (userPickId) {
+                            const d = currentTripDays.find(d2 => d2.id === userPickId && d2.lat);
+                            if (d) return { center: { lat: d.lat, lng: d.lng || d.lon }, anchorId: d.id };
+                        }
                     }
                     const genesis = currentTripDays.find(d => d.dayNumber === 0 && d.lat);
                     if (genesis) return { center: { lat: genesis.lat, lng: genesis.lng || genesis.lon }, anchorId: 'genesis' };
@@ -607,7 +613,7 @@ export function renderHome() {
 
                 const fetchPlacesForTrip = (cat) => {
                     const tripId = activeTrip?.id || '';
-                    const { center, anchorId } = resolveSearchCenter();
+                    const { center, anchorId } = resolveSearchCenter(!!cat.useGenesisAlways);
                     // Cache-key includes the anchor + strategy so:
                     //  - changing epicenter cache-misses (refetches)
                     //  - toggling between strategies (if we ever swap
