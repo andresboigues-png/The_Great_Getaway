@@ -87,7 +87,7 @@ export const POI_CATEGORIES = [
     { key: 'pets',        placesType: 'veterinary_care',    extraPlacesTypes: ['pet_store'], searchStrategy: 'wide', useGenesisAlways: true, icon: '🐾', label: 'Pets',           color: '#a460ed', defaultMinRating: 0, tooltip: 'Vets and pet stores across the wider trip area' },
     { key: 'schools',     placesType: 'school',             searchStrategy: 'wide', useGenesisAlways: true, icon: '🎓', label: 'Schools',         color: '#0071e3', defaultMinRating: 0, tooltip: 'Schools and universities. Always searches the wider trip area.' },
     { key: 'sports',      placesType: 'stadium',            searchStrategy: 'wide', useGenesisAlways: true, icon: '🏟️', label: 'Sports',          color: '#ff2d55', defaultMinRating: 0, tooltip: 'Stadiums and gyms. Always searches the wider trip area — they\'re landmarks, you want them all.' },
-    { key: 'transit',     placesType: 'transit_station',    extraPlacesTypes: ['ferry_terminal'], searchStrategy: 'wide', useGenesisAlways: true, icon: '🚇', label: 'Public transport', color: '#0a3d6b', defaultMinRating: 0, tooltip: 'Train, metro, light rail + ferry terminals — plus Google\'s coloured transit-route overlay (the dotted ferry crossings over water and subway/bus lines on land). Bus stops are excluded because Google\'s API doesn\'t separate hub terminals from street-corner stops, so including them would flood the map.' },
+    { key: 'transit',     placesType: 'transit_station',    extraPlacesTypes: ['ferry_terminal'], searchStrategy: 'wide', useGenesisAlways: true, icon: '🚉', label: 'Public transport', color: '#0a3d6b', defaultMinRating: 0, tooltip: 'Train, metro, light rail, smaller commuter stations + ferry terminals. Toggling on also switches the map to road view briefly so Google\'s dotted ferry-route lines (over water) and subway / bus route lines (on land) become visible — they only render on the road map type. Bus stops are excluded because Google\'s API uses the same `bus_station` type for both hub terminals and street-corner stops.' },
     { key: 'traffic',     placesType: 'gas_station',        searchStrategy: 'wide', useGenesisAlways: true, icon: '🛣️', label: 'Roads & traffic', color: '#0a3d6b', defaultMinRating: 0, tooltip: 'Highway / arterial road names + live Google traffic congestion + gas stations across the wider trip area' },
 ];
 
@@ -118,14 +118,23 @@ function isPrimaryMatch(categoryKey, types) {
         || t === 'bed_and_breakfast' || t === 'guest_house' || t === 'inn'
         || t === 'resort_hotel' || t === 'extended_stay_hotel';
     const isSupermarket = (t) => t === 'supermarket' || t === 'grocery_or_supermarket';
-    // Hubs only — train, metro, light-rail, and ferry terminals.
-    // The generic `transit_station` type is excluded because Google
-    // labels every micro-stop with it. We also exclude `bus_station`:
-    // Google's API uses the same type for major bus terminals AND
-    // on-street bus stops, so there's no clean way to keep just hubs.
+    // Train + metro + light-rail + ferry terminals + the generic
+    // `transit_station` (because Google's data quality varies — small
+    // commuter stations like the Lisbon-Cascais line CP stops carry
+    // *only* `transit_station` in their types[], not the specific
+    // `train_station` label). We pair this match with `isBusStop` as
+    // the conflict (see below) so bus stops that ALSO carry
+    // transit_station don't sneak through.
     const isBigTransit = (t) => t === 'train_station'
         || t === 'subway_station' || t === 'light_rail_station'
-        || t === 'ferry_terminal';
+        || t === 'ferry_terminal'
+        || t === 'transit_station';
+    // Conflict for the transit pill — Google uses `bus_station` for
+    // both hub terminals AND street-corner stops, indistinguishably.
+    // Treating it as a conflict drops generic transit_station entries
+    // that are actually bus stops while keeping CP-style commuter
+    // train stations (which don't carry bus_station at all).
+    const isBusStop = (t) => t === 'bus_station';
     // Human medical only — explicitly excludes veterinary_care.
     // Google's hospital search returns vet clinics too because
     // some carry both 'hospital' and 'veterinary_care' types.
@@ -139,7 +148,7 @@ function isPrimaryMatch(categoryKey, types) {
         restaurants:  { match: isRestaurant,    conflict: isHotel },
         hotels:       { match: isHotel,         conflict: isRestaurant },
         supermarkets: { match: isSupermarket,   conflict: () => false },
-        transit:      { match: isBigTransit,    conflict: () => false },
+        transit:      { match: isBigTransit,    conflict: isBusStop },
         medical:      { match: isHumanMedical,  conflict: isPet },
         pets:         { match: isPet,           conflict: isHumanMedical },
     })[categoryKey];
@@ -504,12 +513,23 @@ export function renderHome() {
                             { featureType: 'road.arterial', elementType: 'labels', stylers: [{ visibility: 'on' }] },
                         );
                     }
-                    // Note: we used to flip `transit.line.geometry` to
-                    // visible here when the transit pill was on, but
-                    // style overrides only render on the `roadmap` map
-                    // type and our base map is `hybrid`. The route
-                    // overlay is now drawn by `setTransitLinesVisible`
-                    // (TransitLayer), which works on every map type.
+                    if (enabledSet.has('transit')) {
+                        // Re-enable transit *route geometry* (the dotted
+                        // ferry crossings drawn over water + subway/bus
+                        // line geometry). Our base styles hide all
+                        // `transit` to keep the satellite view clean,
+                        // so we explicitly override here. setTransit
+                        // LinesVisible flips the map to `roadmap` so
+                        // these style overrides actually render — they
+                        // silently no-op on hybrid/satellite. Labels
+                        // stay off (no "Linha 36" clutter) and station
+                        // dots stay off (Places markers cover those).
+                        styles.push(
+                            { featureType: 'transit.line', elementType: 'geometry', stylers: [{ visibility: 'on' }] },
+                            { featureType: 'transit.line', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+                            { featureType: 'transit.station', stylers: [{ visibility: 'off' }] },
+                        );
+                    }
                     return styles;
                 };
 
@@ -958,21 +978,31 @@ export function renderHome() {
                     }
                 };
 
-                // Transit-route overlay — Google's TransitLayer, attached
-                // while the Public transport pill is on. Why a layer and
-                // not a styles tweak? Style overrides for `transit.line.
-                // geometry` only render on the `roadmap` mapTypeId; our
-                // map is `hybrid` (satellite + labels), so the styled
-                // dotted ferry routes never showed up. TransitLayer works
-                // on every map type — same pattern as TrafficLayer.
-                /** @type {any | null} */
-                let transitLayer = null;
+                // Public-transport map-type swap. The dotted ferry-route
+                // lines the user wants are part of `transit.line.geometry`
+                // in Google's roadmap base style — they DO NOT render on
+                // hybrid/satellite. Switching map types is also necessary
+                // for the small commuter train-line geometry on land.
+                // TransitLayer was an earlier attempt and didn't work:
+                // the docs say it "alters the style of the base map" and
+                // returns "thick coloured lines" rather than the dotted
+                // route geometry, plus it fights our `transit: off`
+                // style mask. Cleanest path: when the pill is on, swap
+                // hybrid → roadmap; when off, swap back.
+                const DEFAULT_MAP_TYPE = 'hybrid';
                 const setTransitLinesVisible = (visible) => {
+                    if (!map) return;
                     if (visible) {
-                        if (!transitLayer) transitLayer = new google.maps.TransitLayer();
-                        transitLayer.setMap(map);
-                    } else if (transitLayer) {
-                        transitLayer.setMap(null);
+                        if (map.getMapTypeId() !== 'roadmap') {
+                            map.setMapTypeId('roadmap');
+                        }
+                    } else {
+                        // Only swap back if we're still on roadmap (don't
+                        // override a manual user choice made between
+                        // toggles).
+                        if (map.getMapTypeId() === 'roadmap') {
+                            map.setMapTypeId(DEFAULT_MAP_TYPE);
+                        }
                     }
                 };
 
