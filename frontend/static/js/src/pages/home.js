@@ -1515,20 +1515,28 @@ export function renderHome() {
                             </div>
                         `;
                     }
+                    // Wrap in a single column-flex container — the parent
+                    // .home-tab-content.is-active rule sets `display: flex`
+                    // (row by default), so two top-level children would lay
+                    // out side-by-side instead of stacking. (Companions tab
+                    // dodges this with its single .trip-companions-section
+                    // wrapper.)
                     return `
-                        <div style="margin-bottom: 12px; font-size:0.8rem; color:var(--text-secondary);">Open any day's <strong>Full Plan</strong> below and use AM / PM / Eve to drop a shortlisted place into the matching textarea.</div>
-                        <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap:12px;">
-                            ${shortlist.map(p => `
-                                <div class="shortlist-card" data-place-id="${esc(p.placeId)}" style="background:white; border:1.5px solid ${p.color}; border-radius:14px; padding:14px; box-shadow: 0 4px 12px rgba(0,0,0,0.06); display:flex; align-items:flex-start; gap:10px;">
-                                    <span style="font-size:1.4rem; line-height:1;">${p.icon}</span>
-                                    <div style="flex:1; min-width:0;">
-                                        <div style="font-weight:800; color:#002d5b; font-size:0.95rem; line-height:1.25;">${esc(p.name)}</div>
-                                        ${p.address ? `<div style="font-size:0.75rem; color:var(--text-secondary); margin-top:2px;">${esc(p.address)}</div>` : ''}
+                        <div style="display:flex; flex-direction:column; gap:12px; flex:1; min-width:0;">
+                            <div style="font-size:0.8rem; color:var(--text-secondary);">Open any day's <strong>Full Plan</strong> below and use AM / PM / Eve to drop a shortlisted place into the matching textarea.</div>
+                            <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap:12px;">
+                                ${shortlist.map(p => `
+                                    <div class="shortlist-card" data-place-id="${esc(p.placeId)}" style="background:white; border:1.5px solid ${p.color}; border-radius:14px; padding:14px; box-shadow: 0 4px 12px rgba(0,0,0,0.06); display:flex; align-items:flex-start; gap:10px;">
+                                        <span style="font-size:1.4rem; line-height:1;">${p.icon}</span>
+                                        <div style="flex:1; min-width:0;">
+                                            <div style="font-weight:800; color:#002d5b; font-size:0.95rem; line-height:1.25;">${esc(p.name)}</div>
+                                            ${p.address ? `<div style="font-size:0.75rem; color:var(--text-secondary); margin-top:2px;">${esc(p.address)}</div>` : ''}
+                                        </div>
+                                        <button type="button" class="shortlist-remove-btn" data-place-id="${esc(p.placeId)}" title="Remove from shortlist" aria-label="Remove ${esc(p.name)}"
+                                            style="background: rgba(255,59,48,0.08); border: 1px solid rgba(255,59,48,0.25); color:#ff3b30; border-radius: 8px; padding: 4px 8px; font-size:0.75rem; font-weight:800; cursor:pointer; flex-shrink:0;">✕</button>
                                     </div>
-                                    <button type="button" class="shortlist-remove-btn" data-place-id="${esc(p.placeId)}" title="Remove from shortlist" aria-label="Remove ${esc(p.name)}"
-                                        style="background: rgba(255,59,48,0.08); border: 1px solid rgba(255,59,48,0.25); color:#ff3b30; border-radius: 8px; padding: 4px 8px; font-size:0.75rem; font-weight:800; cursor:pointer; flex-shrink:0;">✕</button>
-                                </div>
-                            `).join('')}
+                                `).join('')}
+                            </div>
                         </div>
                     `;
                 })()}

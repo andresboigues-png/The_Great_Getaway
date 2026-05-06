@@ -576,19 +576,21 @@
                                 <p style="margin:0; color:var(--text-secondary); font-size:0.9rem;">On the home map, click any pin and hit <strong>📝 Shortlist it</strong> to add it here. Then open any day's <strong>Full Plan</strong> and tap AM / PM / Eve to drop a place into that day.</p>
                             </div>
                         `:`
-                        <div style="margin-bottom: 12px; font-size:0.8rem; color:var(--text-secondary);">Open any day's <strong>Full Plan</strong> below and use AM / PM / Eve to drop a shortlisted place into the matching textarea.</div>
-                        <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap:12px;">
-                            ${e.map(e=>`
-                                <div class="shortlist-card" data-place-id="${L(e.placeId)}" style="background:white; border:1.5px solid ${e.color}; border-radius:14px; padding:14px; box-shadow: 0 4px 12px rgba(0,0,0,0.06); display:flex; align-items:flex-start; gap:10px;">
-                                    <span style="font-size:1.4rem; line-height:1;">${e.icon}</span>
-                                    <div style="flex:1; min-width:0;">
-                                        <div style="font-weight:800; color:#002d5b; font-size:0.95rem; line-height:1.25;">${L(e.name)}</div>
-                                        ${e.address?`<div style="font-size:0.75rem; color:var(--text-secondary); margin-top:2px;">${L(e.address)}</div>`:``}
+                        <div style="display:flex; flex-direction:column; gap:12px; flex:1; min-width:0;">
+                            <div style="font-size:0.8rem; color:var(--text-secondary);">Open any day's <strong>Full Plan</strong> below and use AM / PM / Eve to drop a shortlisted place into the matching textarea.</div>
+                            <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap:12px;">
+                                ${e.map(e=>`
+                                    <div class="shortlist-card" data-place-id="${L(e.placeId)}" style="background:white; border:1.5px solid ${e.color}; border-radius:14px; padding:14px; box-shadow: 0 4px 12px rgba(0,0,0,0.06); display:flex; align-items:flex-start; gap:10px;">
+                                        <span style="font-size:1.4rem; line-height:1;">${e.icon}</span>
+                                        <div style="flex:1; min-width:0;">
+                                            <div style="font-weight:800; color:#002d5b; font-size:0.95rem; line-height:1.25;">${L(e.name)}</div>
+                                            ${e.address?`<div style="font-size:0.75rem; color:var(--text-secondary); margin-top:2px;">${L(e.address)}</div>`:``}
+                                        </div>
+                                        <button type="button" class="shortlist-remove-btn" data-place-id="${L(e.placeId)}" title="Remove from shortlist" aria-label="Remove ${L(e.name)}"
+                                            style="background: rgba(255,59,48,0.08); border: 1px solid rgba(255,59,48,0.25); color:#ff3b30; border-radius: 8px; padding: 4px 8px; font-size:0.75rem; font-weight:800; cursor:pointer; flex-shrink:0;">✕</button>
                                     </div>
-                                    <button type="button" class="shortlist-remove-btn" data-place-id="${L(e.placeId)}" title="Remove from shortlist" aria-label="Remove ${L(e.name)}"
-                                        style="background: rgba(255,59,48,0.08); border: 1px solid rgba(255,59,48,0.25); color:#ff3b30; border-radius: 8px; padding: 4px 8px; font-size:0.75rem; font-weight:800; cursor:pointer; flex-shrink:0;">✕</button>
-                                </div>
-                            `).join(``)}
+                                `).join(``)}
+                            </div>
                         </div>
                     `})()}
             </div>
