@@ -181,10 +181,16 @@ function archiveActiveTrip() {
     // Login is mandatory at the router boundary, so callers here always
     // have a user. The previous "Log In to Archive" guard is gone.
 
+    // Copy reframe: "Archive" → "Complete". Same data flow underneath
+    // (still flips trip_members.is_archived on the server), but the
+    // user-facing language is positive — completing a trip is a happy
+    // moment, not a filing exercise. Confirm button paints green
+    // (#34c759) instead of the default destructive red.
     showConfirmModal({
-        title: "Archive Trip?",
-        message: "This will move the trip to your collections and lock editing.",
-        confirmText: "Archive",
+        title: "Complete this trip?",
+        message: "It moves into your Collections as a completed memory. You can revisit it anytime, and reopen it later if you need to.",
+        confirmText: "Complete",
+        confirmColor: "#34c759",
         onConfirm: () => {
             trip.isArchived = true;
             trip.expenses = STATE.expenses.filter(e => e.tripId === trip.id);
@@ -216,7 +222,7 @@ const deleteActiveTrip = () => {
     if (!canDelete(trip)) {
         showConfirmModal({
             title: "Owner only",
-            message: "Only the trip's owner can delete it. You can archive your own copy from the navbar instead.",
+            message: "Only the trip's owner can delete it. You can mark your own copy complete from the navbar instead.",
             confirmText: "OK",
             onConfirm: () => {},
         });
