@@ -2430,22 +2430,29 @@ export const openDayView = (day) => {
                         <h4 class="text-tag">Personal Notes</h4>
                         ${day.notes ? `<p style="margin:0; white-space:pre-wrap; line-height:1.55; color:#002d5b;">${esc(day.notes)}</p>` : `<p style="margin:0; color:var(--text-secondary); font-style:italic;">No notes.</p>`}
                     </div>
-                    ${photos.length > 0 ? `
-                        <div style="background: rgba(52,199,89,0.04); padding: var(--space-6); border-radius: 24px; border: 1px solid rgba(52,199,89,0.15);">
-                            <h4 class="text-tag" style="--accent: 52,199,89;">Photos (${photos.length})</h4>
+                    <!-- Photos + Documents always render so the user
+                         knows the categories exist (and to keep the
+                         right column from collapsing to just Notes +
+                         Expert Tip). Empty days get a soft placeholder
+                         line. Days with content get a thumbnail grid /
+                         link list as before. -->
+                    <div style="background: rgba(52,199,89,0.04); padding: var(--space-6); border-radius: 24px; border: 1px solid rgba(52,199,89,0.15);">
+                        <h4 class="text-tag" style="--accent: 52,199,89;">Photos${photos.length > 0 ? ` (${photos.length})` : ''}</h4>
+                        ${photos.length > 0 ? `
                             <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 8px;">
                                 ${photos.slice(0, 9).map(src => `<div style="aspect-ratio:1; background-image:url(${esc(src)}); background-size:cover; background-position:center; border-radius:10px;"></div>`).join('')}
                             </div>
-                        </div>
-                    ` : ''}
-                    ${docs.length > 0 ? `
-                        <div style="background: rgba(88,86,214,0.04); padding: var(--space-6); border-radius: 24px; border: 1px solid rgba(88,86,214,0.15);">
-                            <h4 class="text-tag" style="--accent: 88,86,214;">Documents (${docs.length})</h4>
+                            ${photos.length > 9 ? `<div style="font-size:0.75rem; color:var(--text-secondary); margin-top:6px;">+${photos.length - 9} more</div>` : ''}
+                        ` : `<p style="margin: 6px 0 0; color: var(--text-secondary); font-style: italic; font-size: 0.85rem;">No photos for this day.</p>`}
+                    </div>
+                    <div style="background: rgba(88,86,214,0.04); padding: var(--space-6); border-radius: 24px; border: 1px solid rgba(88,86,214,0.15);">
+                        <h4 class="text-tag" style="--accent: 88,86,214;">Documents${docs.length > 0 ? ` (${docs.length})` : ''}</h4>
+                        ${docs.length > 0 ? `
                             <div style="display:flex; flex-direction:column; gap:6px; margin-top:8px;">
                                 ${docs.map(d => `<a href="${esc(d.url || '#')}" target="_blank" rel="noreferrer" style="font-size:0.85rem; color:var(--accent-blue); font-weight:700; text-decoration:none;">📎 ${esc(d.name || 'Document')}</a>`).join('')}
                             </div>
-                        </div>
-                    ` : ''}
+                        ` : `<p style="margin: 6px 0 0; color: var(--text-secondary); font-style: italic; font-size: 0.85rem;">No documents for this day.</p>`}
+                    </div>
                     <div style="background: #000; padding: var(--space-6); border-radius: 24px; color: white;">
                         <h4 class="text-tag" style="--accent: 52,199,89;">Expert Tip</h4>
                         <p style="margin: 0; font-size: var(--font-md); line-height: 1.5; opacity: 0.9;">${esc(day.tip || "Always keep a portable charger and a small bottle of water in your bag for long exploration days.")}</p>
