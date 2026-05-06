@@ -1970,11 +1970,15 @@ export function renderHome() {
                     const headerRow = `
                         <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
                             ${tripIsEditable ? `
-                                <button id="addPhotosBtn" type="button"
+                                <button id="addPhotosBtn" type="button" title="Upload photos from your device"
                                     style="background:#34c759; color:white; border:0; padding:9px 16px; border-radius:999px; font-weight:800; font-size:0.82rem; cursor:pointer; box-shadow: 0 4px 12px rgba(52,199,89,0.22);">
-                                    ➕ Add photos
+                                    📤 Upload photos
                                 </button>
                                 <input id="addPhotosInput" type="file" accept="image/*" multiple style="display:none;">
+                                <button id="addPhotoUrlBtn" type="button" title="Paste a link to a Google Drive / Dropbox / hosted image album"
+                                    style="background:white; color:#002d5b; border:1px solid rgba(0,0,0,0.1); padding:9px 16px; border-radius:999px; font-weight:800; font-size:0.82rem; cursor:pointer;">
+                                    🔗 Add by link
+                                </button>
                             ` : ''}
                             <span style="margin-left:auto; font-size:0.78rem; color:var(--text-secondary); font-weight:600;">${photos.length} ${photos.length === 1 ? 'photo' : 'photos'}</span>
                         </div>
@@ -1997,19 +2001,43 @@ export function renderHome() {
                         <div style="display:flex; flex-direction:column; gap:14px; flex:1; min-width:0;">
                             ${headerRow}
                             <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:10px;">
-                                ${photos.map(p => `
-                                    <div class="trip-photo-card" data-photo-id="${esc(p.id)}" style="position:relative; aspect-ratio:1; border-radius:14px; overflow:hidden; background-image:url(${esc(p.src)}); background-size:cover; background-position:center; box-shadow: 0 4px 12px rgba(0,0,0,0.06); cursor:pointer; border:1px solid rgba(0,0,0,0.06);">
-                                        ${p.dayId ? `
-                                            <div style="position:absolute; top:6px; left:6px; background: rgba(0,0,0,0.55); color:white; padding:2px 8px; border-radius:999px; font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; backdrop-filter: blur(6px);">${esc(dayLabel(p.dayId) || '')}</div>
-                                        ` : `
-                                            <div style="position:absolute; top:6px; left:6px; background: rgba(52,199,89,0.85); color:white; padding:2px 8px; border-radius:999px; font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; backdrop-filter: blur(6px);">Trip-wide</div>
-                                        `}
-                                        ${tripIsEditable ? `
-                                            <button type="button" class="trip-photo-remove-btn" data-photo-id="${esc(p.id)}" title="Remove" aria-label="Remove photo"
-                                                style="position:absolute; top:6px; right:6px; background:rgba(0,0,0,0.55); border:0; color:white; width:24px; height:24px; border-radius:50%; cursor:pointer; font-size:0.75rem; line-height:1; backdrop-filter: blur(6px);">✕</button>
-                                        ` : ''}
-                                    </div>
-                                `).join('')}
+                                ${photos.map(p => {
+                                    // Direct image vs share-link card.
+                                    // We can't render most cross-origin
+                                    // share pages as a thumbnail, so we
+                                    // detect by URL shape (data: prefix
+                                    // or known image extension) and
+                                    // fall back to a coloured "open link"
+                                    // card for everything else.
+                                    const isImage = /^data:image\//i.test(p.src || '')
+                                        || /\.(jpe?g|png|gif|webp|avif|heic|heif|bmp|tiff?|svg)(\?.*)?$/i.test(p.src || '');
+                                    const dayBadge = p.dayId
+                                        ? `<div style="position:absolute; top:6px; left:6px; background: rgba(0,0,0,0.55); color:white; padding:2px 8px; border-radius:999px; font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; backdrop-filter: blur(6px);">${esc(dayLabel(p.dayId) || '')}</div>`
+                                        : `<div style="position:absolute; top:6px; left:6px; background: rgba(52,199,89,0.85); color:white; padding:2px 8px; border-radius:999px; font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; backdrop-filter: blur(6px);">Trip-wide</div>`;
+                                    const removeBtn = tripIsEditable
+                                        ? `<button type="button" class="trip-photo-remove-btn" data-photo-id="${esc(p.id)}" title="Remove" aria-label="Remove photo"
+                                            style="position:absolute; top:6px; right:6px; background:rgba(0,0,0,0.55); border:0; color:white; width:24px; height:24px; border-radius:50%; cursor:pointer; font-size:0.75rem; line-height:1; backdrop-filter: blur(6px); z-index:1;">✕</button>`
+                                        : '';
+                                    if (isImage) {
+                                        return `
+                                            <div class="trip-photo-card" data-photo-id="${esc(p.id)}" data-photo-kind="image" style="position:relative; aspect-ratio:1; border-radius:14px; overflow:hidden; background-image:url(${esc(p.src)}); background-size:cover; background-position:center; box-shadow: 0 4px 12px rgba(0,0,0,0.06); cursor:pointer; border:1px solid rgba(0,0,0,0.06);">
+                                                ${dayBadge}
+                                                ${removeBtn}
+                                            </div>
+                                        `;
+                                    }
+                                    // Link-style card: gradient background,
+                                    // 🔗 icon, truncated URL, opens in new
+                                    // tab on click.
+                                    return `
+                                        <div class="trip-photo-card" data-photo-id="${esc(p.id)}" data-photo-kind="link" style="position:relative; aspect-ratio:1; border-radius:14px; overflow:hidden; background: linear-gradient(135deg, #0071e3, #5856d6); box-shadow: 0 4px 12px rgba(0,113,227,0.18); cursor:pointer; border:1px solid rgba(0,0,0,0.06); display:flex; flex-direction:column; align-items:center; justify-content:center; padding:14px; text-align:center; color:white;">
+                                            ${dayBadge}
+                                            ${removeBtn}
+                                            <div style="font-size:1.8rem; line-height:1; margin-bottom:8px;">🔗</div>
+                                            <div style="font-size:0.7rem; font-weight:800; opacity:0.9; word-break:break-all; overflow:hidden; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical;">${esc(p.src.replace(/^https?:\/\//, ''))}</div>
+                                        </div>
+                                    `;
+                                }).join('')}
                             </div>
                         </div>
                     `;
@@ -2328,6 +2356,14 @@ export function renderHome() {
                 (div.querySelector('#addPhotosInput'))?.click();
                 return;
             }
+            // Photos tab — Add by link button (planner-only). Opens a
+            // small modal asking for a URL (Google Drive, Dropbox,
+            // hosted image, etc.) plus optional day-tie. Same pattern
+            // as the document-add modal.
+            if (target.closest('#addPhotoUrlBtn') && activeTrip && tripIsEditable) {
+                openAddTripPhotoUrlModal(activeTrip);
+                return;
+            }
             // Photos tab — per-thumbnail remove.
             const photoRemoveBtn = /** @type {HTMLElement | null} */ (target.closest('.trip-photo-remove-btn'));
             if (photoRemoveBtn?.dataset.photoId && activeTrip && tripIsEditable) {
@@ -2345,11 +2381,19 @@ export function renderHome() {
                 }
                 return;
             }
-            // Photos tab — thumbnail click → lightbox.
+            // Photos tab — thumbnail click. Image-kind cards open
+            // the lightbox; link-kind cards open the share URL in a
+            // new tab so Drive / Dropbox / iCloud links work.
             const photoCard = /** @type {HTMLElement | null} */ (target.closest('.trip-photo-card'));
             if (photoCard?.dataset.photoId && activeTrip && !target.closest('.trip-photo-remove-btn')) {
                 const photo = getAllTripPhotos(activeTrip).find(p => p.id === photoCard.dataset.photoId);
-                if (photo) openPhotoLightbox(photo.src);
+                if (photo) {
+                    if (photoCard.dataset.photoKind === 'link') {
+                        window.open(photo.src, '_blank', 'noopener,noreferrer');
+                    } else {
+                        openPhotoLightbox(photo.src);
+                    }
+                }
                 return;
             }
 
@@ -2642,6 +2686,63 @@ const openAddTripDocumentModal = (trip) => {
         await upsertTrip(trip);
         close();
         showLiquidAlert('Document added.');
+        navigate('home');
+    };
+};
+
+/** Photo-by-URL modal — for users who keep their photos in a Google
+ *  Drive / Dropbox / iCloud share rather than uploading from the
+ *  device. Mirrors the document-by-URL modal: name (auto-defaulted
+ *  to "Trip photo"), URL input, day-tie dropdown. The src is stored
+ *  as-is on trip.photos; we DON'T render the link as an inline image
+ *  because cross-origin images often need a thumbnail link, not a
+ *  share link. The thumbnail will work for direct image URLs (e.g.
+ *  most CDN-served files); for share-page links the photo card will
+ *  be empty until the user pastes a direct-image URL. We surface
+ *  both options in the help text below the input.
+ *
+ *  @param {any} trip
+ */
+const openAddTripPhotoUrlModal = (trip) => {
+    if (!trip) return;
+    const numberedDays = (STATE.tripDays || [])
+        .filter(d => d.tripId === trip.id && d.dayNumber > 0)
+        .sort((a, b) => a.dayNumber - b.dayNumber);
+    const { root, close } = showModal({
+        variant: 'glass-light',
+        cardStyle: 'width: 480px; max-width: calc(100vw - 32px);',
+        innerHTML: `
+            <h2 class="h2-display">Add photo by link</h2>
+            <p class="text-subtitle">Paste a link to a hosted image, a Google Drive / Dropbox share, or a photo album page.</p>
+            <div style="display: flex; flex-direction: column; gap: var(--space-3); margin: var(--space-4) 0 var(--space-6);">
+                <label style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-secondary);">Image / album URL</label>
+                <input type="text" id="newPhotoUrl" class="glass-input" placeholder="https://..." style="padding: var(--space-3); border-radius: 12px;">
+                <div style="font-size:0.72rem; color:var(--text-secondary); line-height:1.45;">
+                    <strong>Tip:</strong> for Drive / Dropbox albums, paste the share link — the link will open the album when clicked. Direct image URLs (ending in .jpg / .png / .heic) will render as a thumbnail in the grid.
+                </div>
+                <label style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-secondary); margin-top:8px;">Tie to a day (optional)</label>
+                <select id="newPhotoDay" class="glass-input" style="padding: var(--space-3); border-radius: 12px; background:white;">
+                    <option value="">Trip-wide</option>
+                    ${numberedDays.map(d => `<option value="${esc(d.id)}">Day ${d.dayNumber}${d.date ? ` — ${formatDayDate(d.date) || d.date}` : ''}</option>`).join('')}
+                </select>
+            </div>
+            <div style="display:flex; gap: var(--space-3);">
+                <button id="newPhotoCancelBtn" class="btn-neutral" style="flex:1; border-radius: var(--radius-lg);">Cancel</button>
+                <button id="newPhotoSaveBtn" class="btn-primary" style="flex:2; border-radius: var(--radius-lg);">Add</button>
+            </div>
+        `,
+    });
+    const urlEl = /** @type {HTMLInputElement} */ (q(root, '#newPhotoUrl'));
+    const dayEl = /** @type {HTMLSelectElement} */ (q(root, '#newPhotoDay'));
+    /** @type {HTMLButtonElement} */ (q(root, '#newPhotoCancelBtn')).onclick = () => close();
+    /** @type {HTMLButtonElement} */ (q(root, '#newPhotoSaveBtn')).onclick = async () => {
+        const url = urlEl.value.trim();
+        if (!url) return;
+        addTripPhoto(trip, { src: url, dayId: dayEl.value || null });
+        emit('state:changed');
+        await upsertTrip(trip);
+        close();
+        showLiquidAlert('Photo link added.');
         navigate('home');
     };
 };

@@ -187,30 +187,71 @@ export function setPhotoDay(trip, id, dayId) {
 //
 // Search syntax docs: https://support.google.com/mail/answer/7190
 //
-// What I tried first and why it failed: an earlier version added
-// `after:tripStart before:tripEnd` filters so the search would be
-// "tight". That filtered by the email's *Date header*, which excluded
-// the very emails the user is looking for — booking confirmations are
-// sent weeks or months BEFORE the trip dates. A user testing this on
-// a forwarded Atlanta itinerary (subject: "Fw: Your itinerary for
-// Atlanta - Sat, Jun 13") got zero results because the email was
-// received in Feb but the trip is in June.
+// Two earlier failures, both fixed here:
 //
-// Cleanest fix: drop the date filter entirely. Destination + the
-// booking-keyword OR group is precise enough on a typical inbox, and
-// any over-recall is on Google's "search relevance" side, not the
-// "wrong time window" side. Users can refine in Gmail itself.
+// 1. `after:tripStart before:tripEnd` filtered by the email's Date
+//    header, which excluded the very emails the user wants — booking
+//    confirmations are sent weeks-to-months BEFORE the trip itself.
+//    A test user got zero results on a forwarded "Fw: Your itinerary
+//    for Atlanta" because the email was received in Feb but the trip
+//    is in June. Dropped the date filter entirely.
+//
+// 2. Using `trip.country` directly as the location term wasn't enough.
+//    For an Atlanta trip the user might have entered country as
+//    "USA", "Atlanta, GA", "Atlanta, Georgia, USA", etc. — and many
+//    booking emails subject-mention the city, not the country. Now
+//    the location group is an OR over multiple alternatives:
+//    `(trip.name OR firstChunkOfCountry OR fullCountry)`, with
+//    multi-word terms quoted. That way at least one alternative
+//    is likely to match what the email actually says.
 
 const BOOKING_KEYWORDS = 'booking OR confirmation OR reservation OR ticket OR itinerary OR voucher OR boarding';
 
-/** Build a Gmail-search URL for a trip — destination + booking
- *  keyword group. No date filter (see comment above for why). */
+/** Wrap a search term in quotes if it contains spaces. Single-word
+ *  terms stay unquoted because Gmail handles them best that way. */
+function gmailQuote(term) {
+    return term.includes(' ') ? `"${term.replace(/"/g, '')}"` : term;
+}
+
+/** Pull location alternatives from a trip — trip.name, the first
+ *  chunk of trip.country (split on comma or " - " for legacy
+ *  "USA - California" entries), and the full country if it has no
+ *  ambiguous separators. De-duplicates and drops empties. */
+function locationAlternatives(trip) {
+    /** @type {string[]} */
+    const out = [];
+    const push = (s) => {
+        const v = (s || '').trim();
+        if (v && !out.includes(v)) out.push(v);
+    };
+    push(trip.name || '');
+    const country = (trip.country || '').trim();
+    if (country) {
+        // First chunk (handles "Atlanta, GA" → "Atlanta", "USA -
+        // California" → "USA"). Best signal in most cases.
+        const firstChunk = country.split(/[,–-]/)[0].trim();
+        push(firstChunk);
+        // Full country only if it didn't split — otherwise
+        // commas/hyphens confuse Gmail's tokeniser.
+        if (firstChunk === country) push(country);
+    }
+    return out;
+}
+
+/** Build a Gmail-search URL for a trip — location-alternatives
+ *  OR group + booking-keyword OR group, no date filter. Result:
+ *  `("Atlanta dad trip" OR Atlanta) (booking OR confirmation OR …)`
+ *  which Gmail interprets as `(any-location-term) AND (any-keyword)`.
+ *  Wide enough to catch forwarded confirmations sent months ahead;
+ *  tight enough to filter out unrelated emails. */
 export function buildGmailTripSearchUrl(trip) {
     if (!trip) return null;
-    const destination = (trip.country || '').trim();
+    const locations = locationAlternatives(trip);
     /** @type {string[]} */
     const parts = [];
-    if (destination) parts.push(destination);
+    if (locations.length > 0) {
+        parts.push(`(${locations.map(gmailQuote).join(' OR ')})`);
+    }
     parts.push(`(${BOOKING_KEYWORDS})`);
     return `https://mail.google.com/mail/u/0/#search/${encodeURIComponent(parts.join(' '))}`;
 }
