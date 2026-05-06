@@ -212,12 +212,20 @@ const deleteDayPin = async (dayId) => {
 const deleteDay = (dayId) => {
     const day = STATE.tripDays.find(d => d.id === dayId);
     if (!day) return;
-    const isStartingPoint = Number(day.dayNumber) === 0;
+    // Genesis is the trip's anchor — pill search, wide-area POIs, and
+    // the lazy day-0 sessionStorage flag all key off it. The delete
+    // button is already hidden on the genesis card; this guard is
+    // belt-and-braces in case some old in-memory STATE / external
+    // call site reaches deleteDay with a day-0 id.
+    if (Number(day.dayNumber) === 0) {
+        showLiquidAlert("Trip Genesis can't be deleted — it anchors the trip.");
+        return;
+    }
 
     showConfirmModal({
-        title: isStartingPoint ? 'Remove Trip Genesis?' : `Delete Day ${day.dayNumber}?`,
+        title: `Delete Day ${day.dayNumber}?`,
         message: "This removes the day and all its journaling, photos, and documents. This can't be undone.",
-        confirmText: isStartingPoint ? 'Remove' : 'Delete Day',
+        confirmText: 'Delete Day',
         onConfirm: async () => {
             const tripId = day.tripId;
 
@@ -237,19 +245,13 @@ const deleteDay = (dayId) => {
                 activeMapClickListener = null;
             }
 
-            // Clear the per-trip Day-0 flag when the user removes Genesis,
-            // so a subsequent home render can lazy-recreate it cleanly.
-            if (isStartingPoint) {
-                try { sessionStorage.removeItem(`tggDay0Created:${tripId}`); } catch (_) {}
-            }
-
             emit('state:changed');
             await deleteDayOnServer(dayId);
             // Persist the renumbered survivors so server stays in sync.
             await Promise.all(
                 STATE.tripDays.filter(d => d.tripId === tripId).map(d => upsertDay(d))
             );
-            showLiquidAlert(isStartingPoint ? 'Trip Genesis removed' : 'Day deleted');
+            showLiquidAlert('Day deleted');
             navigate('home', null, true);
         }
     });
@@ -1649,9 +1651,20 @@ export function renderHome() {
                             return `<button class="${cls}" data-day-id="${day.id}"><span>${label}</span></button>`;
                         })()}
 
-                        <button class="day-action-btn day-action-btn--danger day-delete-btn" data-day-id="${day.id}" style="margin-top: var(--space-1);">
-                            <span>🗑️ Delete Day</span>
-                        </button>
+                        ${isStartingPoint ? `
+                            <!-- Genesis is the trip's anchor — pillEpicenters,
+                                 the wide-area pill searches, and the lazy
+                                 sessionStorage flag all key off it. Removing
+                                 it from the menu (vs. only blocking the
+                                 confirm) makes the contract obvious. -->
+                            <div class="day-action-note" style="margin-top: var(--space-1); padding: 8px 12px; background: rgba(52,199,89,0.06); border: 1px solid rgba(52,199,89,0.18); border-radius: 10px; font-size: 0.72rem; color: rgba(0,0,0,0.55); line-height: 1.35; text-align:center;">
+                                ⭐ Trip Genesis can't be deleted — it anchors the trip.
+                            </div>
+                        ` : `
+                            <button class="day-action-btn day-action-btn--danger day-delete-btn" data-day-id="${day.id}" style="margin-top: var(--space-1);">
+                                <span>🗑️ Delete Day</span>
+                            </button>
+                        `}
                     </div>
                     ` : ''}
                 </div>
