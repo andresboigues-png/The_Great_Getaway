@@ -18,6 +18,7 @@ import {
     addTripDocument, addTripPhoto,
     removeTripDocument, removeTripPhoto,
     setDocumentDay, setPhotoDay,
+    updateTripDocument,
     buildGmailTripSearchUrl,
 } from '../tripMedia.js';
 
@@ -1955,6 +1956,8 @@ export function renderHome() {
                                                                 `).join('')}
                                                             </select>
                                                         ` : ''}
+                                                        <button type="button" class="trip-doc-edit-btn" data-doc-id="${esc(d.id)}" title="Rename / change link" aria-label="Edit ${esc(d.name)}"
+                                                            style="background: rgba(0,113,227,0.08); border: 1px solid rgba(0,113,227,0.22); color:var(--accent-blue); border-radius: 8px; padding: 4px 8px; font-size:0.75rem; font-weight:800; cursor:pointer; flex-shrink:0;">✎</button>
                                                         <button type="button" class="trip-doc-remove-btn" data-doc-id="${esc(d.id)}" title="Remove" aria-label="Remove ${esc(d.name)}"
                                                             style="background: rgba(255,59,48,0.08); border: 1px solid rgba(255,59,48,0.25); color:#ff3b30; border-radius: 8px; padding: 4px 8px; font-size:0.75rem; font-weight:800; cursor:pointer; flex-shrink:0;">✕</button>
                                                     ` : ''}
@@ -2417,6 +2420,12 @@ export function renderHome() {
                 openAddTripDocumentModal(activeTrip);
                 return;
             }
+            // Documents tab — per-row Edit (rename / change link).
+            const docEditBtn = /** @type {HTMLElement | null} */ (target.closest('.trip-doc-edit-btn'));
+            if (docEditBtn?.dataset.docId && activeTrip && tripIsEditable) {
+                openEditTripDocumentModal(activeTrip, docEditBtn.dataset.docId);
+                return;
+            }
             // Documents tab — per-row remove.
             const docRemoveBtn = /** @type {HTMLElement | null} */ (target.closest('.trip-doc-remove-btn'));
             if (docRemoveBtn?.dataset.docId && activeTrip && tripIsEditable) {
@@ -2829,6 +2838,121 @@ const openAddTripDocumentModal = (trip) => {
  *
  *  @param {any} trip
  */
+/** Edit an existing document — name, URL, optional day-tie. Mirrors
+ *  the add modal so the user gets a familiar shape; pre-populates the
+ *  fields from the existing entry. Works on both trip-level docs and
+ *  legacy day.tickets (the latter via updateTripDocument's id-prefix
+ *  detection); the day-tie dropdown only shows for trip-level entries
+ *  because legacy ones can't be moved between days without breaking
+ *  their index-based id (matches the inline-row dropdown behaviour).
+ *
+ *  @param {any} trip
+ *  @param {string} docId
+ */
+const openEditTripDocumentModal = (trip, docId) => {
+    if (!trip) return;
+    const all = getAllTripDocuments(trip);
+    const doc = all.find(d => d.id === docId);
+    if (!doc) {
+        showLiquidAlert('Could not find that document.');
+        return;
+    }
+    const isTripLevel = doc._source === 'trip';
+    const genesisDay = (STATE.tripDays || [])
+        .find(d => d.tripId === trip.id && Number(d.dayNumber) === 0);
+    const numberedDays = (STATE.tripDays || [])
+        .filter(d => d.tripId === trip.id && d.dayNumber > 0)
+        .sort((a, b) => a.dayNumber - b.dayNumber);
+    const { root, close } = showModal({
+        variant: 'glass-light',
+        cardStyle: 'width: 480px; max-width: calc(100vw - 32px); max-height: 90vh; overflow-y: auto;',
+        innerHTML: `
+            <h2 class="h2-display">Edit document</h2>
+            <p class="text-subtitle">${isTripLevel ? 'Rename it, swap the link, or move it to a different day.' : 'Rename it or swap the link. (Legacy per-day entries can\'t be moved between days; delete + re-add to do that.)'}</p>
+            <div style="display: flex; flex-direction: column; gap: var(--space-3); margin: var(--space-4) 0 var(--space-6);">
+                <label style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-secondary);">Name</label>
+                <input type="text" id="editDocName" class="glass-input" value="${esc(doc.name || '')}" style="padding: var(--space-3); border-radius: 12px;">
+                <label style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-secondary); margin-top:8px;">Link or URL</label>
+                <div style="display: flex; gap: var(--space-2);">
+                    <input type="text" id="editDocUrl" class="glass-input" value="${esc(doc.url || '')}" style="flex: 1; padding: var(--space-3); border-radius: 12px;">
+                    <label class="btn-primary" style="padding: var(--space-3) var(--space-4); cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
+                        📤 Replace
+                        <input type="file" id="editDocUpload" style="display: none;">
+                    </label>
+                </div>
+                <div id="editDocStatus" style="font-size:0.72rem; color:var(--text-secondary); min-height:1em; font-weight:600;"></div>
+                ${isTripLevel ? `
+                    <label style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-secondary); margin-top:8px;">Where does it belong?</label>
+                    <select id="editDocDay" class="glass-input" style="padding: var(--space-3); border-radius: 12px; background:white;">
+                        ${genesisDay ? `<option value="${esc(genesisDay.id)}" ${doc.dayId === genesisDay.id ? 'selected' : ''}>⭐ Trip Genesis (trip-wide)</option>` : ''}
+                        ${numberedDays.map(d => `<option value="${esc(d.id)}" ${doc.dayId === d.id ? 'selected' : ''}>Day ${d.dayNumber}${d.date ? ` — ${formatDayDate(d.date) || d.date}` : ''}</option>`).join('')}
+                    </select>
+                ` : ''}
+            </div>
+            <div style="display:flex; gap: var(--space-3);">
+                <button id="editDocCancelBtn" class="btn-neutral" style="flex:1; border-radius: var(--radius-lg);">Cancel</button>
+                <button id="editDocSaveBtn" class="btn-primary" style="flex:2; border-radius: var(--radius-lg);">Save changes</button>
+            </div>
+        `,
+    });
+    const nameEl = /** @type {HTMLInputElement} */ (q(root, '#editDocName'));
+    const urlEl = /** @type {HTMLInputElement} */ (q(root, '#editDocUrl'));
+    const dayEl = /** @type {HTMLSelectElement | null} */ (root.querySelector('#editDocDay'));
+    const statusEl = /** @type {HTMLElement} */ (q(root, '#editDocStatus'));
+    const fileEl = /** @type {HTMLInputElement} */ (q(root, '#editDocUpload'));
+    fileEl.addEventListener('change', async () => {
+        const file = fileEl.files?.[0];
+        if (!file) return;
+        statusEl.textContent = '⌛ Uploading…';
+        try {
+            const res = await uploadMedia(file);
+            if (res?.url) {
+                urlEl.value = res.url;
+                statusEl.textContent = '✓ Replaced — click Save to confirm.';
+            } else {
+                statusEl.textContent = '❌ Upload failed.';
+            }
+        } catch (e) {
+            statusEl.textContent = '❌ Upload failed.';
+        }
+    });
+    /** @type {HTMLButtonElement} */ (q(root, '#editDocCancelBtn')).onclick = () => close();
+    /** @type {HTMLButtonElement} */ (q(root, '#editDocSaveBtn')).onclick = async () => {
+        const name = nameEl.value.trim();
+        const url = urlEl.value.trim();
+        if (!name || !url) {
+            statusEl.textContent = 'Name and URL are both required.';
+            statusEl.style.color = '#ff9500';
+            return;
+        }
+        const patch = { name, url, ...(dayEl ? { dayId: dayEl.value || null } : {}) };
+        const source = updateTripDocument(trip, docId, patch);
+        if (!source) {
+            statusEl.textContent = 'Could not save. Refresh and try again.';
+            statusEl.style.color = '#ff3b30';
+            return;
+        }
+        emit('state:changed');
+        try {
+            if (source === 'trip') {
+                await upsertTrip(trip);
+            } else {
+                // Legacy day.tickets — find the day and upsert.
+                const hashIdx = docId.indexOf('#');
+                const dayId = hashIdx > 0 ? docId.slice(0, hashIdx) : null;
+                const day = dayId ? STATE.tripDays.find(d => d.id === dayId) : null;
+                if (day) await upsertDay(day);
+            }
+            close();
+            showLiquidAlert('Document updated.');
+            navigate('home');
+        } catch (err) {
+            statusEl.textContent = `Save failed (${/** @type {Error} */ (err).message}). Try again.`;
+            statusEl.style.color = '#ff3b30';
+        }
+    };
+};
+
 const openAddTripPhotoUrlModal = (trip) => {
     if (!trip) return;
     // Genesis is the trip-wide bucket; numbered days are alternatives.

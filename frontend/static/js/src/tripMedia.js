@@ -162,6 +162,51 @@ export function removeTripPhoto(trip, id) {
     return null;
 }
 
+/** Edit name / url / dayId of an existing document. Looks in BOTH
+ *  stores so both new trip-level and legacy day.tickets entries can
+ *  be renamed without the user having to know which list they live in.
+ *
+ *  Returns the source it found the doc in ('trip' | 'day' | null) so
+ *  callers can decide whether to upsertTrip vs upsertDay.
+ *
+ *  Note: legacy day.tickets entries don't carry a stable id — their
+ *  synthesized id is `${dayId}#${index}`. Renaming one is fine since
+ *  we keep the array index. But moving the doc between days would
+ *  break the index reference, so dayId reassignment is REJECTED on
+ *  legacy entries (matches setDocumentDay's behaviour).
+ *
+ *  @param {*} trip
+ *  @param {string} id
+ *  @param {{name?: string, url?: string, dayId?: string|null}} patch
+ */
+export function updateTripDocument(trip, id, patch) {
+    if (!trip || !id || !patch) return null;
+    if (Array.isArray(trip.documents)) {
+        const entry = trip.documents.find(d => d.id === id);
+        if (entry) {
+            if (typeof patch.name === 'string') entry.name = patch.name;
+            if (typeof patch.url === 'string') entry.url = patch.url;
+            if (patch.dayId !== undefined) entry.dayId = patch.dayId || null;
+            return /** @type {const} */ ('trip');
+        }
+    }
+    // Legacy day.tickets entry — id is `${dayId}#${index}`.
+    const hashIdx = id.indexOf('#');
+    if (hashIdx > 0) {
+        const dayId = id.slice(0, hashIdx);
+        const idx = parseInt(id.slice(hashIdx + 1), 10);
+        const day = (STATE.tripDays || []).find(d => d.id === dayId);
+        if (day && Array.isArray(day.tickets) && Number.isFinite(idx) && idx >= 0 && idx < day.tickets.length) {
+            const t = day.tickets[idx];
+            if (typeof patch.name === 'string') t.name = patch.name;
+            if (typeof patch.url === 'string') t.url = patch.url;
+            // dayId reassignment is intentionally NOT supported here.
+            return /** @type {const} */ ('day');
+        }
+    }
+    return null;
+}
+
 /** Move a document from trip-wide → day-scoped or vice-versa. Only
  *  works for trip-level entries (legacy day.tickets entries can't be
  *  reassigned without losing the legacy index reference; we treat
