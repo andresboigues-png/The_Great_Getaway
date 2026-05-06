@@ -50,10 +50,17 @@ export const STATE = {
     archivedTrips: [],   // Array of completed trips
     activeDetailId: null, // Store ID for detail views (e.g. archived trip detail)
     notifications: [],
-    /** User preferences. Currently used for the home-map POI quick-access
-     *  pills (`mapDefaultPois`); future preferences live here too. */
+    /** User preferences.
+     *  - `mapDefaultPois` is legacy from when only some pills were
+     *    visible by default (now all are; field kept for backward
+     *    compat with any existing snapshots).
+     *  - `poiFilters` holds per-category filter overrides for the
+     *    home-map Places search. Shape: { [pillKey]: { minRating } }.
+     *    Empty / missing keys fall back to the category's defaultMinRating
+     *    in POI_CATEGORIES (see pages/home.js). */
     preferences: {
         mapDefaultPois: ['sights', 'parks', 'transit'],
+        poiFilters: {},
     },
 };
 
@@ -84,9 +91,12 @@ export function loadState() {
     if (!STATE.savedFormats) STATE.savedFormats = [];
     if (!STATE.tripDays) STATE.tripDays = [];
     if (!STATE.archivedTrips) STATE.archivedTrips = [];
-    if (!STATE.preferences) STATE.preferences = { mapDefaultPois: ['sights', 'parks', 'transit'] };
+    if (!STATE.preferences) STATE.preferences = { mapDefaultPois: ['sights', 'parks', 'transit'], poiFilters: {} };
     if (!Array.isArray(STATE.preferences.mapDefaultPois)) {
         STATE.preferences.mapDefaultPois = ['sights', 'parks', 'transit'];
+    }
+    if (!STATE.preferences.poiFilters || typeof STATE.preferences.poiFilters !== 'object') {
+        STATE.preferences.poiFilters = {};
     }
 
     // Per-trip companions used to be `string[]` of names. Promote any

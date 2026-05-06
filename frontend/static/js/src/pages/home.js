@@ -31,33 +31,35 @@ let activeHomeTab = 'days'; // Sub-tab on the home trip view (Days timeline vs C
 
 /** Single source of truth for the home-map POI quick-access pills.
  *  Read by:
- *   - the template above (renders the visible / hidden pill rows)
+ *   - the template above (renders the icon-only / labeled pill row)
  *   - the Places API nearbySearch wiring (maps key → Places type +
  *     marker color)
- *   - the Settings → General tab (renders checkboxes)
- *  Adding a tenth category is one push to this array.
+ *   - the Settings → General tab (renders the per-pill filter UI)
  *
- *  `placesType`: a single Google Places API type used for nearbySearch
- *  around each day pin. Single type per category because the Places
- *  API doesn't accept arrays — pick the most representative one.
+ *  `placesType`: one Google Places API type for nearbySearch.
+ *    Places API doesn't accept arrays — pick the most representative
+ *    type per category. `null` = pure styles-toggle pill (Roads & traffic).
+ *  `defaultMinRating`: rating floor applied client-side after the
+ *    Places search. Restaurants default to 4★ so the user gets only
+ *    proven good ones; others default to 0 (show everything) since a
+ *    "4★ supermarket" filter would hide real ones. The user can
+ *    override per-pill in Settings → General.
  *  `color`: marker fill color so the user can read the pill→pin
- *  visual link at a glance.
- *  @type {{key: string, placesType: string, icon: string, label: string, color: string, tooltip: string}[]} */
+ *    visual link at a glance.
+ *  @type {{key: string, placesType: string|null, icon: string, label: string, color: string, defaultMinRating: number, tooltip: string}[]} */
 export const POI_CATEGORIES = [
-    { key: 'food',    placesType: 'restaurant',        icon: '🛒', label: 'Shops & food', color: '#ff9500', tooltip: 'Nearby restaurants — real Google Places search around your day pins' },
-    { key: 'sights',  placesType: 'tourist_attraction',icon: '🏖️', label: 'Sights',       color: '#5856d6', tooltip: 'Nearby tourist attractions, museums, monuments' },
-    { key: 'parks',   placesType: 'park',              icon: '🌳', label: 'Parks',        color: '#34c759', tooltip: 'Nearby parks and gardens' },
-    { key: 'medical', placesType: 'hospital',          icon: '🏥', label: 'Medical',      color: '#ff3b30', tooltip: 'Nearby hospitals + pharmacies' },
-    { key: 'worship', placesType: 'church',            icon: '⛪', label: 'Worship',      color: '#a460ed', tooltip: 'Nearby churches and places of worship' },
-    { key: 'schools', placesType: 'school',            icon: '🎓', label: 'Schools',      color: '#0071e3', tooltip: 'Nearby schools and universities' },
-    { key: 'sports',  placesType: 'stadium',           icon: '🏟️', label: 'Sports',       color: '#ff2d55', tooltip: 'Nearby stadiums and gyms' },
-    { key: 'govt',    placesType: 'city_hall',         icon: '🏛️', label: 'Govt',         color: '#8e8e93', tooltip: 'Nearby government buildings + embassies' },
-    { key: 'transit', placesType: 'transit_station',   icon: '🚆', label: 'Public transit', color: '#0a3d6b', tooltip: 'Nearby train / metro / bus stations (real Places search)' },
-    // No placesType: pure styles-toggle pill that flips highway/road
-    // labels on AND attaches the live Google TrafficLayer congestion
-    // overlay. Separate from "Public transit" — that one's about
-    // walkable stations; this one's about driving routes.
-    { key: 'traffic', placesType: null,                 icon: '🛣️', label: 'Roads & traffic', color: '#1a6b3c', tooltip: 'Highway / arterial road names + live Google traffic congestion' },
+    { key: 'restaurants', placesType: 'restaurant',         icon: '🍽️', label: 'Restaurants',     color: '#ff9500', defaultMinRating: 4,   tooltip: 'Nearby restaurants — defaults to 4★+; tweak in Settings → General' },
+    { key: 'supermarkets',placesType: 'supermarket',        icon: '🛒', label: 'Supermarkets',    color: '#34c759', defaultMinRating: 0,   tooltip: 'Nearby supermarkets and grocery stores' },
+    { key: 'hotels',      placesType: 'lodging',            icon: '🛏️', label: 'Hotels',          color: '#5856d6', defaultMinRating: 4,   tooltip: 'Nearby hotels and lodging — defaults to 4★+' },
+    { key: 'sights',      placesType: 'tourist_attraction', icon: '🏖️', label: 'Sights',          color: '#a460ed', defaultMinRating: 0,   tooltip: 'Nearby tourist attractions, museums, monuments' },
+    { key: 'parks',       placesType: 'park',               icon: '🌳', label: 'Parks',           color: '#1a6b3c', defaultMinRating: 0,   tooltip: 'Nearby parks and gardens' },
+    { key: 'medical',     placesType: 'hospital',           icon: '🏥', label: 'Medical',         color: '#ff3b30', defaultMinRating: 0,   tooltip: 'Nearby hospitals + clinics' },
+    { key: 'worship',     placesType: 'church',             icon: '⛪', label: 'Worship',         color: '#a460ed', defaultMinRating: 0,   tooltip: 'Nearby churches and places of worship' },
+    { key: 'schools',     placesType: 'school',             icon: '🎓', label: 'Schools',         color: '#0071e3', defaultMinRating: 0,   tooltip: 'Nearby schools and universities' },
+    { key: 'sports',      placesType: 'stadium',            icon: '🏟️', label: 'Sports',          color: '#ff2d55', defaultMinRating: 0,   tooltip: 'Nearby stadiums and gyms' },
+    { key: 'govt',        placesType: 'city_hall',          icon: '🏛️', label: 'Govt',            color: '#8e8e93', defaultMinRating: 0,   tooltip: 'Nearby government buildings + embassies' },
+    { key: 'transit',     placesType: 'transit_station',    icon: '🚆', label: 'Public transit',  color: '#0a3d6b', defaultMinRating: 0,   tooltip: 'Nearby train / metro / bus stations' },
+    { key: 'traffic',     placesType: null,                 icon: '🛣️', label: 'Roads & traffic', color: '#0a3d6b', defaultMinRating: 0,   tooltip: 'Highway / arterial road names + live Google traffic congestion' },
 ];
 
 // Per-day card action helpers. The map setTimeout below detects
@@ -593,6 +595,16 @@ export function renderHome() {
                     // toggled the pill back off while we were waiting.
                     if (!enabledPois.has(pillKey)) return;
 
+                    // Resolve the user's filter for this pill.
+                    // Falls back to POI_CATEGORIES.defaultMinRating
+                    // (4 for restaurants/hotels, 0 elsewhere) when the
+                    // user hasn't customised. Places without a rating
+                    // get a defensive 0, so they fail any non-zero floor.
+                    const userFilter = STATE.preferences?.poiFilters?.[pillKey] || {};
+                    const minRating = typeof userFilter.minRating === 'number'
+                        ? userFilter.minRating
+                        : cat.defaultMinRating;
+
                     /** @type {any[]} */
                     const markers = [];
                     const seen = new Set();
@@ -600,6 +612,8 @@ export function renderHome() {
                         const pid = place.place_id;
                         if (pid && seen.has(pid)) return;
                         if (pid) seen.add(pid);
+                        const rating = typeof place.rating === 'number' ? place.rating : 0;
+                        if (rating < minRating) return;
                         const m = dropPlaceMarker(cat, place);
                         if (m) markers.push(m);
                     });

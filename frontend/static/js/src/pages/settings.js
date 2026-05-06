@@ -4,6 +4,7 @@ import { generateId, showConfirmModal, q, esc } from '../utils.js';
 import { syncCategories, apiFetch } from '../api.js';
 import { navigate } from '../router.js';
 import { showModal } from '../components/Modal.js';
+import { POI_CATEGORIES } from './home.js';
 
 export const showSettingsTab = (tab) => {
     const tabs = /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll('.settings-tab-btn'));
@@ -169,7 +170,7 @@ export function renderSettings() {
                 <div class="settings-grid">
                     <button type="button" class="card-button-reset card glass management-card settings-tab-card" data-tab="general">
                         <h2 class="card-title" style="color: var(--accent-blue); margin: 0;">General Settings</h2>
-                        <p style="color: var(--text-secondary); margin: 8px 0 0;">App-wide preferences — pick which map layer pills appear by default.</p>
+                        <p style="color: var(--text-secondary); margin: 8px 0 0;">Customise per-pill filters for the home map (minimum rating, etc.).</p>
                         <div style="margin-top: 20px; color: var(--accent-blue); font-weight: 700; font-size: 0.85rem;">Configure &rarr;</div>
                     </button>
 
@@ -189,12 +190,48 @@ export function renderSettings() {
             ` : `
                 <button class="btn btn-small btn-liquid-glass settings-tab-card" data-tab="menu" style="margin-bottom: 24px; padding: 10px 20px; border-radius: 14px;">&larr; Back to Control Center</button>
 
-                ${isGeneral ? `
-                    <div class="card glass" style="padding: 32px; border-radius: 28px;">
-                        <h2 style="color: var(--accent-blue); margin-top: 0;">General Settings</h2>
-                        <p style="color: var(--text-secondary); margin-bottom: 0;">App-wide preferences will live here. More options coming soon — the home-map pill row now shows every category by default with a "+ More" toggle for the labels, so the per-pill default-set picker is no longer needed.</p>
-                    </div>
-                ` : ''}
+                ${isGeneral ? (() => {
+                    const filters = STATE.preferences?.poiFilters || {};
+                    const ratingOptions = [0, 3, 3.5, 4, 4.5];
+                    const rows = POI_CATEGORIES
+                        // Roads & traffic isn't a Places-API pill, no
+                        // rating filter applies to it.
+                        .filter(c => c.placesType)
+                        .map(c => {
+                            const userMin = typeof filters[c.key]?.minRating === 'number'
+                                ? filters[c.key].minRating
+                                : c.defaultMinRating;
+                            const opts = ratingOptions.map(v => `
+                                <option value="${v}" ${v === userMin ? 'selected' : ''}>${v === 0 ? 'Any rating' : `${v}★ +`}</option>
+                            `).join('');
+                            const isCustom = userMin !== c.defaultMinRating;
+                            return `
+                                <div class="poi-filter-row">
+                                    <span class="poi-filter-row__icon">${c.icon}</span>
+                                    <div class="poi-filter-row__body">
+                                        <div class="poi-filter-row__label">${esc(c.label)}</div>
+                                        <div class="poi-filter-row__hint">${esc(c.tooltip)}</div>
+                                    </div>
+                                    <select class="poi-filter-rating" data-poi="${c.key}" aria-label="Minimum rating for ${esc(c.label)}">
+                                        ${opts}
+                                    </select>
+                                    <span class="poi-filter-row__default" title="Default for this category: ${c.defaultMinRating === 0 ? 'Any rating' : `${c.defaultMinRating}★ +`}">
+                                        ${isCustom ? '<button type="button" class="poi-filter-reset" data-poi="' + c.key + '" title="Reset to default">Reset</button>' : '<span class="muted">Default</span>'}
+                                    </span>
+                                </div>
+                            `;
+                        }).join('');
+                    return `
+                        <div class="card glass" style="padding: 32px; border-radius: 28px;">
+                            <h2 style="color: var(--accent-blue); margin-top: 0;">Map pill filters</h2>
+                            <p style="color: var(--text-secondary); margin-bottom: 24px;">Set the minimum rating for each Places-API pill. The home map's pin search applies this floor to results — a 4★+ filter on Restaurants hides everything below 4 stars. Restaurants and Hotels default to 4★+ (because rating is a meaningful quality signal there); the rest default to "Any rating" so you don't accidentally hide a real-but-unrated supermarket or hospital.</p>
+                            <div class="poi-filter-list">
+                                ${rows}
+                            </div>
+                            <p style="color: var(--text-secondary); margin: 24px 0 0; font-size: 0.85rem;">Changes take effect the next time you toggle a pill on (or click the same pill twice to refresh).</p>
+                        </div>
+                    `;
+                })() : ''}
 
                 ${isReset ? `
                     <div class="settings-grid">
@@ -390,7 +427,49 @@ export function renderSettings() {
 
         if (target.closest('#addFormatMappingBtn')) { addFormatMapping(); return; }
         if (target.closest('#saveCustomFormatBtn')) { saveCustomFormat(); return; }
+
+        // POI filter: reset one category back to its default min rating.
+        const resetPoiBtn = /** @type {HTMLElement | null} */ (target.closest('.poi-filter-reset'));
+        if (resetPoiBtn?.dataset.poi) {
+            ensurePoiFilters();
+            delete STATE.preferences.poiFilters[resetPoiBtn.dataset.poi];
+            emit('state:changed');
+            switchSettingsTab('general'); // re-render so the row reflects the reset
+            return;
+        }
     });
+
+    // POI filter rating dropdown — change listener so picking a new
+    // floor saves immediately. Delegated for the same reason as click:
+    // div.innerHTML is rewritten on tab switch, so per-element listeners
+    // would die.
+    div.addEventListener('change', (e) => {
+        const target = /** @type {HTMLElement | null} */ (e.target);
+        const sel = target?.closest('.poi-filter-rating');
+        if (!sel) return;
+        const key = /** @type {HTMLElement} */ (sel).dataset.poi;
+        if (!key) return;
+        const value = parseFloat(/** @type {HTMLSelectElement} */ (sel).value);
+        ensurePoiFilters();
+        STATE.preferences.poiFilters[key] = { minRating: value };
+        emit('state:changed');
+        // Re-render so the "Default / Reset" indicator on the right
+        // flips to "Reset" (or back to "Default" if they re-pick the
+        // category's own default).
+        switchSettingsTab('general');
+    });
+
+    /** Defensive: STATE.preferences and .poiFilters should already exist
+     *  via loadState's backfill, but this protects against a corrupt
+     *  / hand-edited localStorage that bypasses validateLoadedState. */
+    function ensurePoiFilters() {
+        if (!STATE.preferences) {
+            STATE.preferences = { mapDefaultPois: ['sights', 'parks', 'transit'], poiFilters: {} };
+        }
+        if (!STATE.preferences.poiFilters || typeof STATE.preferences.poiFilters !== 'object') {
+            STATE.preferences.poiFilters = {};
+        }
+    }
 
     return div;
 }

@@ -1667,6 +1667,82 @@ h1 {
     color: white;
 }
 
+/* Settings → General: per-pill rating filter rows. One row per
+   Places-API pill, with the icon, label/hint, a min-rating dropdown,
+   and a reset affordance that appears when the user has changed the
+   default. */
+.poi-filter-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+.poi-filter-row {
+    display: grid;
+    grid-template-columns: 32px 1fr auto auto;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    background: rgba(0, 113, 227, 0.04);
+    border: 1px solid rgba(0, 113, 227, 0.1);
+    border-radius: var(--radius-lg);
+}
+.poi-filter-row__icon {
+    font-size: 1.4rem;
+    line-height: 1;
+}
+.poi-filter-row__label {
+    font-weight: 700;
+    color: var(--text-primary);
+    font-size: 1rem;
+}
+.poi-filter-row__hint {
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+    margin-top: 2px;
+}
+.poi-filter-rating {
+    background: white;
+    border: 1px solid rgba(0, 113, 227, 0.2);
+    border-radius: var(--radius-md);
+    padding: 6px 10px;
+    color: var(--text-primary);
+    font-weight: 700;
+    font-size: 0.85rem;
+    cursor: pointer;
+    min-width: 110px;
+}
+.poi-filter-rating:focus-visible {
+    outline: 2px solid var(--accent-blue);
+    outline-offset: 2px;
+}
+.poi-filter-row__default {
+    min-width: 64px;
+    text-align: right;
+    font-size: 0.78rem;
+}
+.poi-filter-row__default .muted {
+    color: rgba(0, 0, 0, 0.35);
+    font-weight: 600;
+}
+.poi-filter-reset {
+    background: transparent;
+    border: 1px solid rgba(0, 113, 227, 0.3);
+    color: var(--accent-blue);
+    border-radius: var(--radius-pill);
+    padding: 4px 12px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+.poi-filter-reset:hover {
+    background: rgba(0, 113, 227, 0.08);
+}
+.poi-filter-reset:focus-visible {
+    outline: 2px solid var(--accent-blue);
+    outline-offset: 2px;
+}
+
 /* Settings → General preference rows. One row per POI category with a
    checkbox + emoji + name + tooltip-style hint, stacked vertically. */
 .general-pref-list {
