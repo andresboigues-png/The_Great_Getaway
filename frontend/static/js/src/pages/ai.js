@@ -618,22 +618,30 @@ export function renderAI() {
                             free tier comfortably covers casual personal use; paid tier kicks in only if you go
                             heavy. Your key is yours — clear it any time by emptying the input.
                         </div>
-                        <!-- Free-tier limits. Numbers reflect Google's
-                             current published quotas for Gemini 2.5
-                             Flash (the model the planner falls through
-                             to), but Google rotates these — we link
-                             out so the user can spot-check. -->
+                        <!-- Free-tier limits. Google no longer publishes
+                             fixed numbers on the docs page — they're
+                             per-account and rotate based on tier /
+                             usage / region — so we describe the shape
+                             of the limits and link out to the live
+                             dashboard rather than make up specifics. -->
                         <div style="margin-top: 12px; background: rgba(52,199,89,0.06); border:1px solid rgba(52,199,89,0.22); border-radius: 14px; padding: 12px 14px; font-size: 0.82rem; color: #002d5b; line-height: 1.55;">
                             <strong style="color:#1a6b3c;">How many itineraries can I generate?</strong>
-                            <ul style="margin: 6px 0 0; padding-left: 18px;">
-                                <li><strong>~250 per day</strong> on the free tier (each generated itinerary = 1 API call).</li>
-                                <li><strong>~10 per minute</strong>, so don't spam-click the button.</li>
-                                <li>Very long requirements text or huge marked-place lists count toward a separate <em>tokens-per-minute</em> bucket (~250k); typical use stays well under it.</li>
-                            </ul>
-                            <div style="margin-top:8px;"><strong style="color:#1a6b3c;">When does it reset?</strong>
-                                The per-minute bucket refills every minute (rolling). The daily bucket resets at <strong>midnight Pacific Time</strong> (Google's standard quota window). If you ever hit a limit you'll see a 429-style error in the output panel — wait a minute (for spam) or until the next day (for the cap).
+                            <p style="margin:6px 0 0;">
+                                Each generated itinerary is one API call. Google doesn't publish one fixed number for the free tier any more — limits depend on your account / region / how recently you signed up, and they rotate. In practice the free tier comfortably covers everyday personal planning; you'd have to be hammering Generate to feel a ceiling.
+                            </p>
+                            <div style="margin-top:8px;"><strong style="color:#1a6b3c;">There are two buckets that can stop you:</strong>
+                                <ul style="margin: 4px 0 0; padding-left: 18px;">
+                                    <li><strong>Per-minute</strong> (rolling) — refills automatically every minute. Hit when spam-clicking the button.</li>
+                                    <li><strong>Per-day</strong> — resets on a 24-hour window. Hit only with sustained heavy use.</li>
+                                </ul>
                             </div>
-                            <div style="margin-top:8px; font-size: 0.74rem; color: var(--text-secondary);">Quotas are set by Google and may change — see the <a href="https://ai.google.dev/gemini-api/docs/rate-limits" target="_blank" rel="noreferrer" style="color: var(--accent-blue); font-weight: 700;">current rate-limit page</a> for the live numbers.</div>
+                            <div style="margin-top:8px;">
+                                If a request fails with a "rate limit" / 429-style error, wait a minute and try again; if it persists the daily cap is full — try again tomorrow.
+                            </div>
+                            <div style="margin-top:8px; font-size: 0.78rem;">
+                                See your <strong>actual</strong> numbers (and how much you've used) on Google's
+                                <a href="https://aistudio.google.com/rate-limit?timeRange=last-28-days" target="_blank" rel="noreferrer" style="color: var(--accent-blue); font-weight: 700;">rate-limit dashboard</a>.
+                            </div>
                         </div>
                         <div style="display:flex; justify-content:flex-end; margin-top:18px;">
                             <button id="aiKeyHelpDone" class="btn-primary" style="padding: 10px 22px; border-radius: 999px;">Got it</button>
