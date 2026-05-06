@@ -916,16 +916,24 @@ def upsert_day():
 @app.route("/api/days/<day_id>", methods=["DELETE"])
 @require_auth
 def delete_day(day_id):
-    """Delete a single trip day. Planner-role gate."""
+    """Delete a single trip day. Planner-role gate.
+
+    Day 0 (Trip Genesis) is the trip's anchor — pill epicenter searches,
+    the wide-area POI fetch radius, and the lazy day-0 sessionStorage
+    flag all key off it. The home UI hides the delete button on the
+    genesis card; this 422 is belt-and-braces in case a stale client
+    or a curl-wielding user fires the request anyway."""
     user_id = current_user_id()
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT trip_id FROM trip_days WHERE id = ?", (day_id,))
+        cursor.execute("SELECT trip_id, day_number FROM trip_days WHERE id = ?", (day_id,))
         row = cursor.fetchone()
         if not row:
             return jsonify({"status": "deleted"})  # idempotent
         if not _can_edit_trip(cursor, row["trip_id"], user_id):
             return jsonify({"error": "Forbidden"}), 403
+        if int(row["day_number"] or 0) == 0:
+            return jsonify({"error": "Trip Genesis (day 0) anchors the trip and can't be deleted."}), 422
         cursor.execute("DELETE FROM trip_days WHERE id = ?", (day_id,))
         conn.commit()
     return jsonify({"status": "deleted"})

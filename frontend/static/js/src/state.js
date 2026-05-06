@@ -142,9 +142,14 @@ export function loadState() {
     // (the iterator was reading a bare string instead of an object).
     for (const trip of STATE.trips || []) {
         trip.companions = normalizeTripCompanions(trip.companions);
+        // Backfill so every read site can drop the `(trip.markedPlaces || [])`
+        // dance and assume an array. New trips ship with [], but pre-feature
+        // localStorage snapshots may not have the field at all.
+        if (!Array.isArray(trip.markedPlaces)) trip.markedPlaces = [];
     }
     for (const trip of STATE.archivedTrips || []) {
         trip.companions = normalizeTripCompanions(trip.companions);
+        if (!Array.isArray(trip.markedPlaces)) trip.markedPlaces = [];
     }
 
     // Backfill: every trip the current user owns should have a self-linked

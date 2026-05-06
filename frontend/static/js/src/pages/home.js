@@ -1521,9 +1521,18 @@ export function renderHome() {
                     // out side-by-side instead of stacking. (Companions tab
                     // dodges this with its single .trip-companions-section
                     // wrapper.)
+                    // Shortlist visibility is everyone-can-see, but only
+                    // planners can mutate (add via map InfoWindow, remove
+                    // via this card's ✕). For non-planners we hide the ✕
+                    // button so the card is purely informational; the
+                    // click handler also re-checks tripIsEditable as
+                    // defense in depth.
+                    const helperText = tripIsEditable
+                        ? `Open any day's <strong>Full Plan</strong> below and use AM / PM / Eve to drop a shortlisted place into the matching textarea.`
+                        : `Places your trip planners flagged to fit in somewhere. Open any day's <strong>Full Plan</strong> to view it.`;
                     return `
                         <div style="display:flex; flex-direction:column; gap:12px; flex:1; min-width:0;">
-                            <div style="font-size:0.8rem; color:var(--text-secondary);">Open any day's <strong>Full Plan</strong> below and use AM / PM / Eve to drop a shortlisted place into the matching textarea.</div>
+                            <div style="font-size:0.8rem; color:var(--text-secondary);">${helperText}</div>
                             <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap:12px;">
                                 ${shortlist.map(p => `
                                     <div class="shortlist-card" data-place-id="${esc(p.placeId)}" style="background:white; border:1.5px solid ${p.color}; border-radius:14px; padding:14px; box-shadow: 0 4px 12px rgba(0,0,0,0.06); display:flex; align-items:flex-start; gap:10px;">
@@ -1532,8 +1541,10 @@ export function renderHome() {
                                             <div style="font-weight:800; color:#002d5b; font-size:0.95rem; line-height:1.25;">${esc(p.name)}</div>
                                             ${p.address ? `<div style="font-size:0.75rem; color:var(--text-secondary); margin-top:2px;">${esc(p.address)}</div>` : ''}
                                         </div>
-                                        <button type="button" class="shortlist-remove-btn" data-place-id="${esc(p.placeId)}" title="Remove from shortlist" aria-label="Remove ${esc(p.name)}"
-                                            style="background: rgba(255,59,48,0.08); border: 1px solid rgba(255,59,48,0.25); color:#ff3b30; border-radius: 8px; padding: 4px 8px; font-size:0.75rem; font-weight:800; cursor:pointer; flex-shrink:0;">✕</button>
+                                        ${tripIsEditable ? `
+                                            <button type="button" class="shortlist-remove-btn" data-place-id="${esc(p.placeId)}" title="Remove from shortlist" aria-label="Remove ${esc(p.name)}"
+                                                style="background: rgba(255,59,48,0.08); border: 1px solid rgba(255,59,48,0.25); color:#ff3b30; border-radius: 8px; padding: 4px 8px; font-size:0.75rem; font-weight:800; cursor:pointer; flex-shrink:0;">✕</button>
+                                        ` : ''}
                                     </div>
                                 `).join('')}
                             </div>
@@ -1808,11 +1819,12 @@ export function renderHome() {
                 return;
             }
 
-            // Shortlist tab: per-card remove. Day / time-of-day
-            // dropdowns are handled in the change listener below
-            // (delegated like the click).
+            // Shortlist tab: per-card remove (planner-only). The render
+            // path already hides the button for non-planners; this guard
+            // is belt-and-braces in case a stale DOM survives a role
+            // demotion.
             const shortlistRemoveBtn = /** @type {HTMLElement | null} */ (target.closest('.shortlist-remove-btn'));
-            if (shortlistRemoveBtn?.dataset.placeId && activeTrip) {
+            if (shortlistRemoveBtn?.dataset.placeId && activeTrip && tripIsEditable) {
                 removeMarkedPlace(activeTrip, shortlistRemoveBtn.dataset.placeId);
                 emit('state:changed');
                 upsertTrip(activeTrip);
@@ -2158,10 +2170,104 @@ const openDocumentsModal = (dayId) => {
     /** @type {HTMLButtonElement} */ (q(root, '#closeDocsBtn')).onclick = () => close();
 };
 
+/** Read-only modal for viewing a day's plan. Used in two places:
+ *  1. Archived trip detail (collections.js) where every day is frozen.
+ *  2. Active trips when the current user isn't a planner (relaxers and
+ *     budgeteers shouldn't be able to edit the plan).
+ *
+ *  Takes a `day` object directly (not an id) because archived trips
+ *  carry their own nested `tripDays` array — those rows aren't in
+ *  STATE.tripDays. The shape is identical otherwise.
+ */
+export const openDayView = (day) => {
+    if (!day) return;
+    const photos = Array.isArray(day.photos) ? day.photos : [];
+    const docs = Array.isArray(day.tickets) ? day.tickets : [];
+    const renderParagraph = (text) => {
+        if (!text || !text.trim()) {
+            return `<p style="margin:0; color:var(--text-secondary); font-style:italic;">Nothing planned.</p>`;
+        }
+        // pre-wrap preserves user's line breaks; esc() defends against XSS.
+        return `<p style="margin:0; white-space:pre-wrap; line-height:1.55; color:#002d5b;">${esc(text)}</p>`;
+    };
+    const { root, close } = showModal({
+        cardClass: 'card glass',
+        cardStyle: 'width: 800px; max-height: 90vh; overflow-y: auto; padding: var(--space-12); border-radius: 48px; background: white; border: 1px solid rgba(0,0,0,0.1);',
+        innerHTML: `
+            <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: var(--space-10);">
+                <div>
+                    <div style="display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-2);">
+                        <div style="background: var(--accent-blue); color: white; padding: var(--space-1) var(--space-3); border-radius: var(--radius-sm); font-weight: 800; font-size: var(--font-xs); text-transform: uppercase;">Day ${day.dayNumber}</div>
+                        ${day.date ? `<div style="color: var(--text-secondary); font-weight: 600; font-size: var(--font-base);">${formatDayDate(day.date) || ''}</div>` : ''}
+                        <div style="background: rgba(0,0,0,0.06); color: rgba(0,0,0,0.55); padding: 2px 10px; border-radius: 999px; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing:0.05em;">View only</div>
+                    </div>
+                    <h2 style="font-size: 2.5rem; color: #002d5b; font-weight: 800; letter-spacing: -0.04em; margin: 0;">${esc(day.name || `Day ${day.dayNumber}`)}</h2>
+                </div>
+                <button id="closeViewBtn" class="close-x-btn" aria-label="Close">✕</button>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-10);">
+                <div style="display: flex; flex-direction: column; gap: var(--space-6);">
+                    <div class="subcard-soft">
+                        <h4 class="text-tag">Morning</h4>
+                        ${renderParagraph(day.plan?.morning)}
+                    </div>
+                    <div class="subcard-soft">
+                        <h4 class="text-tag" style="--accent: 255,149,0;">Afternoon</h4>
+                        ${renderParagraph(day.plan?.afternoon)}
+                    </div>
+                    <div class="subcard-soft">
+                        <h4 class="text-tag" style="--accent: 88,86,214;">Evening</h4>
+                        ${renderParagraph(day.plan?.evening)}
+                    </div>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: var(--space-6);">
+                    <div style="background: rgba(0,113,227,0.05); padding: var(--space-6); border-radius: 24px; border: 1px solid rgba(0,113,227,0.1);">
+                        <h4 class="text-tag">Personal Notes</h4>
+                        ${day.notes ? `<p style="margin:0; white-space:pre-wrap; line-height:1.55; color:#002d5b;">${esc(day.notes)}</p>` : `<p style="margin:0; color:var(--text-secondary); font-style:italic;">No notes.</p>`}
+                    </div>
+                    ${photos.length > 0 ? `
+                        <div style="background: rgba(52,199,89,0.04); padding: var(--space-6); border-radius: 24px; border: 1px solid rgba(52,199,89,0.15);">
+                            <h4 class="text-tag" style="--accent: 52,199,89;">Photos (${photos.length})</h4>
+                            <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 8px;">
+                                ${photos.slice(0, 9).map(src => `<div style="aspect-ratio:1; background-image:url(${esc(src)}); background-size:cover; background-position:center; border-radius:10px;"></div>`).join('')}
+                            </div>
+                        </div>
+                    ` : ''}
+                    ${docs.length > 0 ? `
+                        <div style="background: rgba(88,86,214,0.04); padding: var(--space-6); border-radius: 24px; border: 1px solid rgba(88,86,214,0.15);">
+                            <h4 class="text-tag" style="--accent: 88,86,214;">Documents (${docs.length})</h4>
+                            <div style="display:flex; flex-direction:column; gap:6px; margin-top:8px;">
+                                ${docs.map(d => `<a href="${esc(d.url || '#')}" target="_blank" rel="noreferrer" style="font-size:0.85rem; color:var(--accent-blue); font-weight:700; text-decoration:none;">📎 ${esc(d.name || 'Document')}</a>`).join('')}
+                            </div>
+                        </div>
+                    ` : ''}
+                    <div style="background: #000; padding: var(--space-6); border-radius: 24px; color: white;">
+                        <h4 class="text-tag" style="--accent: 52,199,89;">Expert Tip</h4>
+                        <p style="margin: 0; font-size: var(--font-md); line-height: 1.5; opacity: 0.9;">${esc(day.tip || "Always keep a portable charger and a small bottle of water in your bag for long exploration days.")}</p>
+                    </div>
+                </div>
+            </div>
+        `,
+    });
+    /** @type {HTMLButtonElement} */ (q(root, '#closeViewBtn')).onclick = () => close();
+};
+
 const openDayDetail = (dayId) => {
     const day = STATE.tripDays.find(d => d.id === dayId);
     if (!day) return;
     const trip = STATE.trips.find(t => t.id === day.tripId);
+
+    // Permission gate: only planners can edit the plan. Budgeteers and
+    // relaxers fall through to the read-only viewer so they can still
+    // see what's planned for the day, just can't change it. Without
+    // this gate, a relaxer who clicked Open Full Plan got the editable
+    // modal with auto-save wired up — they could mutate plan textareas
+    // and the writes would even persist (server-side has its own role
+    // checks but UX-wise the modal claimed editability it didn't have).
+    if (!canEdit(trip)) {
+        openDayView(day);
+        return;
+    }
 
     // Shortlist section. Pure pool — no per-place day/time metadata.
     // The day-textarea content is the single source of truth for "what
