@@ -10,7 +10,7 @@ must reach Google's domains** (auth + maps + AI all break otherwise).
 
 ---
 
-## 1. Recommended: Fly.io
+## 1. Recommended: Fly.io (SEE IONOS NOW)
 
 Best fit for this app. Free tier specifics:
 
