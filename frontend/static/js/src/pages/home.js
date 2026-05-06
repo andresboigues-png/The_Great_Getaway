@@ -87,7 +87,7 @@ export const POI_CATEGORIES = [
     { key: 'pets',        placesType: 'veterinary_care',    extraPlacesTypes: ['pet_store'], searchStrategy: 'wide', useGenesisAlways: true, icon: '🐾', label: 'Pets',           color: '#a460ed', defaultMinRating: 0, tooltip: 'Vets and pet stores across the wider trip area' },
     { key: 'schools',     placesType: 'school',             searchStrategy: 'wide', useGenesisAlways: true, icon: '🎓', label: 'Schools',         color: '#0071e3', defaultMinRating: 0, tooltip: 'Schools and universities. Always searches the wider trip area.' },
     { key: 'sports',      placesType: 'stadium',            searchStrategy: 'wide', useGenesisAlways: true, icon: '🏟️', label: 'Sports',          color: '#ff2d55', defaultMinRating: 0, tooltip: 'Stadiums and gyms. Always searches the wider trip area — they\'re landmarks, you want them all.' },
-    { key: 'govt',        placesType: 'city_hall',          searchStrategy: 'wide', useGenesisAlways: true, icon: '🏛️', label: 'Govt',            color: '#8e8e93', defaultMinRating: 0, tooltip: 'Government buildings + embassies. Always searches the wider trip area — sparse and useful to know where they are across the whole trip.' },
+    { key: 'waterways',   placesType: 'ferry_terminal',     searchStrategy: 'wide', useGenesisAlways: true, icon: '⛴️', label: 'Waterways',       color: '#00b8d4', defaultMinRating: 0, tooltip: 'Ferry terminals and water voyages across the wider trip area — like the traffic pill, but for the sea.' },
     { key: 'transit',     placesType: 'transit_station',    searchStrategy: 'wide', useGenesisAlways: true, icon: '🚆', label: 'Public transit',  color: '#0a3d6b', defaultMinRating: 0, tooltip: 'Big stations only — train, metro, light rail. Always searches the wider trip area (50 km from the genesis pin), even if you\'ve picked a specific day as the search center. Bus stops are filtered out.' },
     { key: 'traffic',     placesType: 'gas_station',        searchStrategy: 'wide', useGenesisAlways: true, icon: '🛣️', label: 'Roads & traffic', color: '#0a3d6b', defaultMinRating: 0, tooltip: 'Highway / arterial road names + live Google traffic congestion + gas stations across the wider trip area' },
 ];
@@ -413,6 +413,29 @@ export function renderHome() {
                     <p id="homeQuote" class="cover-card__quote">
                         ${displayQuotes[0] || ''}
                     </p>
+                </div>
+
+                <!-- Map search banner. Floats over the map, top-centered.
+                     Uses Google's AutocompleteService for predictions and
+                     PlacesService.getDetails to drop a marker + open the
+                     standard Mark-for-AI / Shortlist InfoWindow on the
+                     selected place. pointer-events:auto on the wrapper
+                     so the input is clickable through the gradient overlay
+                     above it. -->
+                <div id="homeMapSearchWrap" style="position:absolute; top:14px; left:50%; transform:translateX(-50%); z-index:6; width: min(560px, calc(100% - 28px)); pointer-events:auto;">
+                    <div style="display:flex; align-items:center; gap:10px; background:rgba(255,255,255,0.94); backdrop-filter: blur(20px) saturate(160%); -webkit-backdrop-filter: blur(20px) saturate(160%); border:1px solid rgba(0,0,0,0.06); border-radius:999px; padding:8px 14px 8px 16px; box-shadow: 0 10px 28px rgba(0,45,91,0.16);">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#002d5b" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0;">
+                            <circle cx="11" cy="11" r="7"></circle>
+                            <path d="M21 21l-4.35-4.35"></path>
+                        </svg>
+                        <input id="homeMapSearchInput" type="search" autocomplete="off" placeholder="Search any place on the map…"
+                            style="flex:1; min-width:0; border:0; outline:0; background:transparent; padding:6px 0; font-size:0.95rem; color:#002d5b; font-weight:600;">
+                        <button id="homeMapSearchClear" type="button" title="Clear" aria-label="Clear search"
+                            style="display:none; background:rgba(0,0,0,0.05); border:0; color:rgba(0,0,0,0.5); width:24px; height:24px; border-radius:999px; cursor:pointer; font-size:0.8rem; line-height:1; flex-shrink:0;">✕</button>
+                    </div>
+                    <div id="homeMapSearchResults"
+                        style="display:none; margin-top:8px; background:rgba(255,255,255,0.97); backdrop-filter: blur(22px) saturate(160%); -webkit-backdrop-filter: blur(22px) saturate(160%); border:1px solid rgba(0,0,0,0.08); border-radius:18px; box-shadow: 0 18px 44px rgba(0,45,91,0.18); overflow:hidden; max-height:300px; overflow-y:auto;">
+                    </div>
                 </div>
             </div>
 
@@ -990,6 +1013,185 @@ export function renderHome() {
                         setPlacesPillVisible(key, true);
                     });
                 }
+
+                // ── Map search banner ──────────────────────────────────
+                // Free-form search of the Google Places database for the
+                // home map. The user types, AutocompleteService returns
+                // structured predictions, click a row and PlacesService
+                // .getDetails fetches the place's geometry + types.
+                // Result lands as a custom marker that uses the same
+                // InfoWindow flow (with Mark for AI / Shortlist buttons)
+                // as the POI pills, so anything found here can be added
+                // to the AI prompt or the manual shortlist with one tap.
+                //
+                // The "category" displayed in the InfoWindow is faked
+                // from the place's types[] (best-effort match against
+                // POI_CATEGORIES, falling back to a generic 📍 pin).
+                (() => {
+                    const searchInput = /** @type {HTMLInputElement | null} */ (document.getElementById('homeMapSearchInput'));
+                    const resultsEl   = /** @type {HTMLElement | null} */     (document.getElementById('homeMapSearchResults'));
+                    const clearBtn    = /** @type {HTMLButtonElement | null} */ (document.getElementById('homeMapSearchClear'));
+                    if (!searchInput || !resultsEl || !clearBtn) return;
+                    if (typeof google === 'undefined' || !google.maps?.places?.AutocompleteService) return;
+
+                    const autocomplete = new google.maps.places.AutocompleteService();
+                    /** @type {google.maps.Marker | null} */
+                    let searchMarker = null;
+                    /** @type {ReturnType<typeof setTimeout> | null} */
+                    let typingTimer = null;
+
+                    /** Pick the best POI category match for a place — used so
+                     *  the InfoWindow matches the colour/icon of the relevant
+                     *  pill if the place happens to be a known type. */
+                    const guessCategory = (types) => {
+                        if (!Array.isArray(types)) return null;
+                        for (const cat of POI_CATEGORIES) {
+                            if (!cat.placesType) continue;
+                            if (types.includes(cat.placesType)) return cat;
+                            if (Array.isArray(cat.extraPlacesTypes) && cat.extraPlacesTypes.some(t => types.includes(t))) return cat;
+                        }
+                        return null;
+                    };
+                    const fallbackCat = { key: 'search', icon: '📍', color: '#0071e3', label: 'Search result' };
+
+                    const hideResults = () => {
+                        resultsEl.style.display = 'none';
+                        resultsEl.innerHTML = '';
+                    };
+
+                    const renderPredictions = (preds) => {
+                        if (!preds || preds.length === 0) {
+                            resultsEl.style.display = 'block';
+                            resultsEl.innerHTML = `<div style="padding:14px 18px; color:var(--text-secondary); font-size:0.85rem;">No matches.</div>`;
+                            return;
+                        }
+                        resultsEl.style.display = 'block';
+                        resultsEl.innerHTML = preds.slice(0, 6).map(p => `
+                            <button type="button" class="map-search-row" data-place-id="${esc(p.place_id)}"
+                                style="width:100%; text-align:left; padding:11px 16px; background:transparent; border:0; border-bottom:1px solid rgba(0,0,0,0.05); display:flex; gap:10px; align-items:flex-start; cursor:pointer;">
+                                <span style="font-size:1rem; line-height:1.2; flex-shrink:0;">📍</span>
+                                <div style="flex:1; min-width:0;">
+                                    <div style="font-weight:700; color:#002d5b; font-size:0.88rem; line-height:1.25; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(p.structured_formatting?.main_text || p.description || '')}</div>
+                                    ${p.structured_formatting?.secondary_text ? `<div style="font-size:0.74rem; color:var(--text-secondary); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(p.structured_formatting.secondary_text)}</div>` : ''}
+                                </div>
+                            </button>
+                        `).join('');
+                    };
+
+                    /** Make-or-update the marker that represents the
+                     *  user's current search hit. Uses the same icon
+                     *  shape as POI markers (colour-fill SVG) so it
+                     *  reads as a search-pin rather than something
+                     *  arbitrary. */
+                    const dropMarker = (place, cat) => {
+                        const loc = place?.geometry?.location;
+                        if (!loc) return;
+                        const color = cat.color || '#0071e3';
+                        const icon = {
+                            path: 'M12 2C8 2 5 5 5 9c0 5 7 13 7 13s7-8 7-13c0-4-3-7-7-7z',
+                            fillColor: color,
+                            fillOpacity: 1,
+                            strokeColor: '#ffffff',
+                            strokeWeight: 2,
+                            scale: 1.6,
+                            anchor: new google.maps.Point(12, 22),
+                        };
+                        if (searchMarker) searchMarker.setMap(null);
+                        searchMarker = new google.maps.Marker({
+                            position: loc,
+                            map,
+                            icon,
+                            title: place.name || '',
+                            zIndex: 9999,
+                        });
+                        // Recenter + zoom in. Don't use fitBounds — we want
+                        // a graceful glide, not a viewport jump.
+                        map.panTo(loc);
+                        if (map.getZoom() < 14) map.setZoom(15);
+
+                        // Open the same InfoWindow the POI pills use, so
+                        // Mark for AI / Shortlist buttons appear.
+                        const iw = getInfoWindow();
+                        iw.setContent(buildInfoWindowHtml(cat, place));
+                        google.maps.event.addListenerOnce(iw, 'domready', () => {
+                            wireInfoWindowMarkButtons(cat, place);
+                        });
+                        iw.open({ map, anchor: searchMarker });
+                    };
+
+                    const fetchDetails = (placeId) => {
+                        const svc = getPlacesService();
+                        svc.getDetails({
+                            placeId,
+                            fields: ['place_id', 'name', 'formatted_address', 'vicinity', 'geometry', 'types', 'rating', 'user_ratings_total', 'icon', 'url'],
+                        }, (place, status) => {
+                            if (status !== google.maps.places.PlacesServiceStatus.OK || !place) return;
+                            const cat = guessCategory(place.types) || fallbackCat;
+                            dropMarker(place, cat);
+                        });
+                    };
+
+                    searchInput.addEventListener('input', () => {
+                        const q = searchInput.value.trim();
+                        clearBtn.style.display = q ? 'inline-flex' : 'none';
+                        if (typingTimer) clearTimeout(typingTimer);
+                        if (!q) { hideResults(); return; }
+                        // Debounce 220ms — Autocomplete is cheap but a
+                        // request per keystroke is wasteful and noisy
+                        // visually as predictions fight to render.
+                        typingTimer = setTimeout(() => {
+                            // Bias predictions toward the current viewport
+                            // so "lisbon" while looking at Berlin doesn't
+                            // surface unrelated Lisbons; falls back to
+                            // global if no map bounds yet.
+                            /** @type {google.maps.places.AutocompletionRequest} */
+                            const req = { input: q };
+                            const bounds = map.getBounds();
+                            if (bounds) req.bounds = bounds;
+                            autocomplete.getPlacePredictions(req, (preds, status) => {
+                                if (status !== google.maps.places.PlacesServiceStatus.OK) {
+                                    if (status === google.maps.places.PlacesServiceStatus.ZERO_RESULTS) {
+                                        renderPredictions([]);
+                                    } else {
+                                        hideResults();
+                                    }
+                                    return;
+                                }
+                                renderPredictions(preds || []);
+                            });
+                        }, 220);
+                    });
+
+                    resultsEl.addEventListener('click', (e) => {
+                        const row = /** @type {HTMLElement | null} */ (
+                            /** @type {HTMLElement | null} */ (e.target)?.closest('.map-search-row')
+                        );
+                        if (!row?.dataset.placeId) return;
+                        const placeId = row.dataset.placeId;
+                        searchInput.value = row.querySelector('div')?.textContent?.trim() || searchInput.value;
+                        hideResults();
+                        fetchDetails(placeId);
+                    });
+
+                    clearBtn.addEventListener('click', () => {
+                        searchInput.value = '';
+                        clearBtn.style.display = 'none';
+                        hideResults();
+                        if (searchMarker) { searchMarker.setMap(null); searchMarker = null; }
+                        const iw = getInfoWindow();
+                        try { iw.close(); } catch (_) {}
+                        searchInput.focus();
+                    });
+
+                    // Click outside the search wrapper closes the
+                    // suggestions but keeps the input value (so the
+                    // user can refine).
+                    document.addEventListener('click', (e) => {
+                        const wrap = document.getElementById('homeMapSearchWrap');
+                        if (!wrap) return;
+                        if (!wrap.contains(/** @type {Node} */ (e.target))) hideResults();
+                    });
+                })();
 
                 // Add pins for accepted Trip Days that have locations
                 const currentTripDays = activeTrip ? (STATE.tripDays || []).filter(d => d.tripId === activeTrip.id) : [];
