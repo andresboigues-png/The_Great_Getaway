@@ -2295,7 +2295,31 @@ export function renderHome() {
                     }
                 }
                 if (!bounds.isEmpty()) {
-                    map.fitBounds(bounds, 80);
+                    // Single-pin trips (only Genesis, or only the trip
+                    // header lat/lng) produce a near-zero-span bounds.
+                    // fitBounds on that hits the max-zoom ceiling and
+                    // shows a street-corner view — way too tight for
+                    // "show me the whole trip" intent. Detect the
+                    // collapse and fall back to the saved viewport
+                    // (city-level) when available, else a sensible
+                    // neighborhood zoom.
+                    const ne = bounds.getNorthEast();
+                    const sw = bounds.getSouthWest();
+                    const latSpan = Math.abs(ne.lat() - sw.lat());
+                    const lngSpan = Math.abs(ne.lng() - sw.lng());
+                    const isEffectivelyPoint = latSpan < 0.001 && lngSpan < 0.001;
+                    if (isEffectivelyPoint && activeTrip.viewport) {
+                        const v = activeTrip.viewport;
+                        map.fitBounds(new _g.maps.LatLngBounds(
+                            { lat: v.south, lng: v.west },
+                            { lat: v.north, lng: v.east },
+                        ));
+                    } else if (isEffectivelyPoint) {
+                        map.setCenter(ne);
+                        map.setZoom(12);
+                    } else {
+                        map.fitBounds(bounds, 80);
+                    }
                 } else if (activeTrip.viewport) {
                     const v = activeTrip.viewport;
                     map.fitBounds(new _g.maps.LatLngBounds(
