@@ -1336,7 +1336,10 @@ h1 {
     box-shadow: 0 20px 50px rgba(0,0,0,0.2);
 }
 
-.settlement-trip-card.is-hovered { opacity: 1; }
+/* (.settlement-trip-card legacy hover rule removed alongside the
+   selector itself — the trip-selector card was renamed to
+   .settlement-trip-pill in the settlements revamp; inline styles
+   on the new class own the hover/active appearance now.) */
 
 .guide-step-card.is-hovered {
     transform: translateY(-4px);
@@ -1958,53 +1961,12 @@ h1 {
     color: var(--accent-blue);
 }
 
-/* Settlement trip card — horizontally scrollable trip selector at the
-   top of the settlements page. The `.is-active` modifier scales it
-   slightly and brightens the border. */
-.settlement-trip-card {
-    min-width: 200px;
-    padding: var(--space-5);
-    cursor: pointer;
-    border: 2px solid transparent;
-    opacity: 0.8;
-    transition: transform 0.3s var(--easing-smooth), border-color 0.3s var(--easing-smooth), opacity 0.3s var(--easing-smooth);
-}
-.settlement-trip-card:hover { opacity: 1; }
-.settlement-trip-card.is-active {
-    border-color: var(--accent-blue);
-    transform: scale(1.02);
-    opacity: 1;
-}
-.settlement-trip-card__label {
-    font-size: var(--font-xs);
-    color: var(--text-secondary);
-    text-transform: uppercase;
-    font-weight: 800;
-    margin-bottom: 6px;
-    letter-spacing: 0.05em;
-}
-.settlement-trip-card__name {
-    font-weight: 700;
-    font-size: 1.2rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    margin-bottom: var(--space-3);
-}
-.settlement-trip-card__amount {
-    font-size: 1.3rem;
-    font-weight: 800;
-    color: white;
-}
-.settlement-trip-card.is-active .settlement-trip-card__amount {
-    color: var(--accent-blue);
-}
-.settlement-trip-card__active-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--accent-blue);
-}
+/* (Legacy .settlement-trip-card rules + sub-class styles removed —
+   the settlements revamp renders the trip-selector strip with
+   inline styles on a renamed .settlement-trip-pill class. The old
+   border:2px-solid-transparent + blue is-active modifier was
+   conflicting with the new gold gradient border, leaving the edge
+   visible only partway around the card.) */
 
 /* Tinted info callout — soft fill + tinted border + accent label.
    Each call site sets `--accent: R,G,B`. Used by upload.js for the

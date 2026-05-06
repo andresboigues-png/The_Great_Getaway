@@ -2184,7 +2184,7 @@
                             <button id="aiKeyHelpDone" class="btn-primary" style="padding: 10px 22px; border-radius: 999px;">Got it</button>
                         </div>
                     `});e.querySelector(`#aiKeyHelpClose`)?.addEventListener(`click`,t),e.querySelector(`#aiKeyHelpDone`)?.addEventListener(`click`,t)}),[`#aiDateFrom`,`#aiDateTo`].forEach(t=>{let n=e.querySelector(t);n&&n.addEventListener(`change`,()=>o())}),e.querySelector(`#generateBtn`)?.addEventListener(`click`,async()=>{let r=F(e,`#itineraryOutput`),o=F(e,`#aiDateFrom`).value,s=F(e,`#aiDateTo`).value,c=document.getElementById(`aiExtraContext`)?.value??``;if(!o||!s){alert(`Please select your travel dates.`);return}let l=new Date(o),u=new Date(s),d=Math.max(1,Math.round((u.getTime()-l.getTime())/864e5)+1),f=Fe(t).filter(e=>e.forAI),p=``;if(f.length>0){let e=(b.tripDays||[]).filter(e=>e.tripId===t.id&&e.dayNumber>0),n=t=>e.find(e=>e.id===t)?.dayNumber;p=`\n\nThe user has marked these specific places to include in the itinerary. Please incorporate them where they fit, respecting any day/time assignments where given:\n${f.map(e=>{let t=e.dayId?n(e.dayId):null,r=t?`, on Day ${t}`:``,i=e.timeOfDay?`, ${e.timeOfDay}`:``,a=e.address?` (${e.address})`:``;return`- ${e.name}${a}${r}${i}`}).join(`
-`)}`}let m=c+p;t.aiContext=c,t.aiNumDays=d,w(`state:changed`),r.innerHTML=`<div style="text-align:center;padding:60px;"><div class="spinner-ring" style="width:40px;height:40px;border:3px solid rgba(255,255,255,0.1);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 20px;"></div><div style="color:white;font-weight:600;">Consulting Gemini AI...</div></div>`,r.scrollIntoView({behavior:`smooth`});try{let e=await(await X(`/api/generate_itinerary`,{method:`POST`,headers:{"Content-Type":`application/json`},body:JSON.stringify({destination:n,numDays:d,dateFrom:o,dateTo:s,context:m,gemini_key:(b.geminiApiKey||``).trim()})})).json();if(e.error)throw Error(e.error);i=e.itinerary,t.aiPlan=i??void 0,w(`state:changed`),a(i,d,n),r.scrollIntoView({behavior:`smooth`})}catch(e){r.innerHTML=`<div class="card glass" style="text-align:center;padding:40px;"><h2 style="color:#ff3b30;">Generation Failed</h2><p>${e.message}</p></div>`}})},0),e}var G=`trip`,K=null;function on(e){if(!e)return{balances:{},roster:[],expenses:[]};let t=(b.expenses||[]).filter(t=>t.tripId===e.id),n=h(e),r=n.length>0?n:Array.from(new Set(t.flatMap(e=>[e.who,...Object.keys(e.splits||{})]).filter(Boolean))),i={};r.forEach(e=>i[e]=0);for(let e of t){let t=e.euroValue||e.value||0;if(i[e.who]!==void 0&&(i[e.who]+=t),e.splits&&Object.keys(e.splits).length>0)for(let[n,r]of Object.entries(e.splits))i[n]!==void 0&&(i[n]-=t*(Number(r)/100));else{let e=t/Math.max(r.length,1);r.forEach(t=>{i[t]!==void 0&&(i[t]-=e)})}}return{balances:i,roster:r,expenses:t}}function sn(e){let t=[],n=[];for(let[r,i]of Object.entries(e))i>.01?t.push({person:r,amount:i}):i<-.01&&n.push({person:r,amount:Math.abs(i)});t.sort((e,t)=>t.amount-e.amount),n.sort((e,t)=>t.amount-e.amount);let r=[],i=0,a=0;for(;i<n.length&&a<t.length;){let e=Math.min(n[i].amount,t[a].amount);r.push({from:n[i].person,to:t[a].person,amount:e}),n[i].amount-=e,t[a].amount-=e,n[i].amount<.01&&i++,t[a].amount<.01&&a++}return r}function cn(){let e={};for(let t of[...b.trips,...b.archivedTrips||[]])for(let n of h(t))n in e||(e[n]=0);let t=(b.archivedTrips||[]).flatMap(e=>e.expenses||[]),n=[...b.expenses,...t],r={};for(let e of[...b.trips,...b.archivedTrips||[]])r[e.id]=h(e);for(let t of n){let n=t.euroValue||t.value||0;if(e[t.who]!==void 0&&(e[t.who]+=n),t.splits&&Object.keys(t.splits).length>0)for(let[r,i]of Object.entries(t.splits))e[r]!==void 0&&(e[r]-=n*(Number(i)/100));else{let i=r[t.tripId]||[],a=i.length>0?i:Array.from(new Set([t.who,...Object.keys(t.splits||{})].filter(Boolean))),o=n/Math.max(a.length,1);a.forEach(t=>{e[t]!==void 0&&(e[t]-=o)})}}return e}function ln(e){if(!e)return[];let t=(b.expenses||[]).filter(t=>t.tripId===e.id),n=h(e),r={};n.forEach(e=>r[e]={paid:0,share:0});for(let e of t){let t=e.euroValue||e.value||0;if(r[e.who]&&(r[e.who].paid+=t),e.splits&&Object.keys(e.splits).length>0)for(let[n,i]of Object.entries(e.splits))r[n]&&(r[n].share+=t*(Number(i)/100));else{let e=t/Math.max(n.length,1);n.forEach(t=>{r[t]&&(r[t].share+=e)})}}return Object.entries(r).map(([e,t])=>({name:e,paid:t.paid,share:t.share,net:t.paid-t.share}))}function un(){let e=document.createElement(`div`);K&&b.trips.find(e=>e.id===K)||(K=b.activeTripId||(b.trips.length>0?b.trips[0].id:null));let t=b.trips.find(e=>e.id===K)||null;return e.innerHTML=dn(t,L(t)),e.addEventListener(`click`,t=>{let n=t.target;if(!n)return;let r=n.closest(`.settlement-trip-card`);if(r?.dataset.tripId){K=r.dataset.tripId,e.innerHTML=dn(b.trips.find(e=>e.id===K)||null,L(b.trips.find(e=>e.id===K)));return}let i=n.closest(`.settle-tab`);if(i?.dataset.tab){G=i.dataset.tab,e.innerHTML=dn(b.trips.find(e=>e.id===K)||null,L(b.trips.find(e=>e.id===K)));return}let a=n.closest(`.settle-debt-btn`);if(a?.dataset.tripId&&a.dataset.from&&a.dataset.to&&a.dataset.amount&&!a.disabled){a.disabled=!0,a.textContent=`Recording…`,_n(a.dataset.tripId,a.dataset.from,a.dataset.to,parseFloat(a.dataset.amount),`EUR`,e);return}let o=n.closest(`.open-manual-settle-btn`);if(o?.dataset.tripId){yn(o.dataset.tripId,e);return}let s=n.closest(`.edit-settlement-btn`);if(s?.dataset.settlementId){bn(s.dataset.settlementId,e);return}let c=n.closest(`.unsettle-settlement-btn`);if(c?.dataset.settlementId&&c.dataset.tripId){vn(c.dataset.settlementId,c.dataset.tripId,e);return}}),e}function dn(e,t){let n=`
+`)}`}let m=c+p;t.aiContext=c,t.aiNumDays=d,w(`state:changed`),r.innerHTML=`<div style="text-align:center;padding:60px;"><div class="spinner-ring" style="width:40px;height:40px;border:3px solid rgba(255,255,255,0.1);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 20px;"></div><div style="color:white;font-weight:600;">Consulting Gemini AI...</div></div>`,r.scrollIntoView({behavior:`smooth`});try{let e=await(await X(`/api/generate_itinerary`,{method:`POST`,headers:{"Content-Type":`application/json`},body:JSON.stringify({destination:n,numDays:d,dateFrom:o,dateTo:s,context:m,gemini_key:(b.geminiApiKey||``).trim()})})).json();if(e.error)throw Error(e.error);i=e.itinerary,t.aiPlan=i??void 0,w(`state:changed`),a(i,d,n),r.scrollIntoView({behavior:`smooth`})}catch(e){r.innerHTML=`<div class="card glass" style="text-align:center;padding:40px;"><h2 style="color:#ff3b30;">Generation Failed</h2><p>${e.message}</p></div>`}})},0),e}var G=`trip`,K=null;function on(e){if(!e)return{balances:{},roster:[],expenses:[]};let t=(b.expenses||[]).filter(t=>t.tripId===e.id),n=h(e),r=n.length>0?n:Array.from(new Set(t.flatMap(e=>[e.who,...Object.keys(e.splits||{})]).filter(Boolean))),i={};r.forEach(e=>i[e]=0);for(let e of t){let t=e.euroValue||e.value||0;if(i[e.who]!==void 0&&(i[e.who]+=t),e.splits&&Object.keys(e.splits).length>0)for(let[n,r]of Object.entries(e.splits))i[n]!==void 0&&(i[n]-=t*(Number(r)/100));else{let e=t/Math.max(r.length,1);r.forEach(t=>{i[t]!==void 0&&(i[t]-=e)})}}return{balances:i,roster:r,expenses:t}}function sn(e){let t=[],n=[];for(let[r,i]of Object.entries(e))i>.01?t.push({person:r,amount:i}):i<-.01&&n.push({person:r,amount:Math.abs(i)});t.sort((e,t)=>t.amount-e.amount),n.sort((e,t)=>t.amount-e.amount);let r=[],i=0,a=0;for(;i<n.length&&a<t.length;){let e=Math.min(n[i].amount,t[a].amount);r.push({from:n[i].person,to:t[a].person,amount:e}),n[i].amount-=e,t[a].amount-=e,n[i].amount<.01&&i++,t[a].amount<.01&&a++}return r}function cn(){let e={};for(let t of[...b.trips,...b.archivedTrips||[]])for(let n of h(t))n in e||(e[n]=0);let t=(b.archivedTrips||[]).flatMap(e=>e.expenses||[]),n=[...b.expenses,...t],r={};for(let e of[...b.trips,...b.archivedTrips||[]])r[e.id]=h(e);for(let t of n){let n=t.euroValue||t.value||0;if(e[t.who]!==void 0&&(e[t.who]+=n),t.splits&&Object.keys(t.splits).length>0)for(let[r,i]of Object.entries(t.splits))e[r]!==void 0&&(e[r]-=n*(Number(i)/100));else{let i=r[t.tripId]||[],a=i.length>0?i:Array.from(new Set([t.who,...Object.keys(t.splits||{})].filter(Boolean))),o=n/Math.max(a.length,1);a.forEach(t=>{e[t]!==void 0&&(e[t]-=o)})}}return e}function ln(e){if(!e)return[];let t=(b.expenses||[]).filter(t=>t.tripId===e.id),n=h(e),r={};n.forEach(e=>r[e]={paid:0,share:0});for(let e of t){let t=e.euroValue||e.value||0;if(r[e.who]&&(r[e.who].paid+=t),e.splits&&Object.keys(e.splits).length>0)for(let[n,i]of Object.entries(e.splits))r[n]&&(r[n].share+=t*(Number(i)/100));else{let e=t/Math.max(n.length,1);n.forEach(t=>{r[t]&&(r[t].share+=e)})}}return Object.entries(r).map(([e,t])=>({name:e,paid:t.paid,share:t.share,net:t.paid-t.share}))}function un(){let e=document.createElement(`div`);K&&b.trips.find(e=>e.id===K)||(K=b.activeTripId||(b.trips.length>0?b.trips[0].id:null));let t=b.trips.find(e=>e.id===K)||null;return e.innerHTML=dn(t,L(t)),e.addEventListener(`click`,t=>{let n=t.target;if(!n)return;let r=n.closest(`.settlement-trip-pill`);if(r?.dataset.tripId){K=r.dataset.tripId,e.innerHTML=dn(b.trips.find(e=>e.id===K)||null,L(b.trips.find(e=>e.id===K)));return}let i=n.closest(`.settle-tab`);if(i?.dataset.tab){G=i.dataset.tab,e.innerHTML=dn(b.trips.find(e=>e.id===K)||null,L(b.trips.find(e=>e.id===K)));return}let a=n.closest(`.settle-debt-btn`);if(a?.dataset.tripId&&a.dataset.from&&a.dataset.to&&a.dataset.amount&&!a.disabled){a.disabled=!0,a.textContent=`Recording…`,_n(a.dataset.tripId,a.dataset.from,a.dataset.to,parseFloat(a.dataset.amount),`EUR`,e);return}let o=n.closest(`.open-manual-settle-btn`);if(o?.dataset.tripId){yn(o.dataset.tripId,e);return}let s=n.closest(`.edit-settlement-btn`);if(s?.dataset.settlementId){bn(s.dataset.settlementId,e);return}let c=n.closest(`.unsettle-settlement-btn`);if(c?.dataset.settlementId&&c.dataset.tripId){vn(c.dataset.settlementId,c.dataset.tripId,e);return}}),e}function dn(e,t){let n=`
         <div class="ai-page-header">
             <h1 class="gradient-text" style="--g-from: #ffd60a; --g-to: #ff9f0a;">Settlements</h1>
             <p>Calculate who owes what and settle up fairly.</p>
@@ -2207,9 +2207,9 @@
         <div style="margin-top: 22px; margin-bottom: 12px;">
             <div style="display:flex; gap:12px; overflow-x:auto; padding-bottom:6px; scroll-behavior:smooth; -webkit-overflow-scrolling:touch;">
                 ${b.trips.map(e=>{let t=(b.expenses||[]).filter(t=>t.tripId===e.id&&t.isSettlement).reduce((e,t)=>e+(t.euroValue||0),0),n=e.id===K;return`
-                        <button type="button" class="settlement-trip-card${n?` is-active`:``}" data-trip-id="${I(e.id)}"
-                            style="flex-shrink:0; min-width: 200px; text-align:left; background: ${n?`linear-gradient(135deg, rgba(255,214,10,0.16), rgba(255,159,10,0.08))`:`white`}; border: 1.5px solid ${n?`rgba(255,159,10,0.4)`:`rgba(0,0,0,0.06)`}; border-radius: 18px; padding: 14px 16px; cursor:pointer; box-shadow: ${n?`0 8px 24px rgba(255,159,10,0.18)`:`0 4px 12px rgba(0,45,91,0.06)`}; display:flex; flex-direction:column; gap:6px;">
-                            <span style="font-size:0.66rem; font-weight:800; text-transform:uppercase; letter-spacing:0.1em; color:${n?`#a35200`:`var(--text-secondary)`};">Adventure</span>
+                        <button type="button" class="settlement-trip-pill${n?` is-active`:``}" data-trip-id="${I(e.id)}"
+                            style="flex-shrink:0; min-width: 200px; text-align:left; background: ${n?`linear-gradient(135deg, rgba(255,214,10,0.16), rgba(255,159,10,0.08))`:`white`}; border: 1.5px solid ${n?`rgba(255,159,10,0.55)`:`rgba(0,0,0,0.06)`}; border-radius: 18px; padding: 14px 16px; cursor:pointer; box-shadow: ${n?`0 8px 24px rgba(255,159,10,0.22)`:`0 4px 12px rgba(0,45,91,0.06)`}; display:flex; flex-direction:column; gap:6px; font: inherit; color: inherit; outline: 0; margin: 0; transition: transform 0.25s cubic-bezier(0.16,1,0.3,1), box-shadow 0.25s cubic-bezier(0.16,1,0.3,1);">
+                            <span style="font-size:0.66rem; font-weight:800; text-transform:uppercase; letter-spacing:0.1em; color:${n?`#a35200`:`var(--text-secondary)`};">Trip</span>
                             <span style="font-size:1rem; font-weight:800; color:#002d5b; letter-spacing:-0.02em; line-height:1.15;">${I(e.name)}</span>
                             <span style="font-size:0.78rem; font-weight:700; color: var(--accent-blue);">${A(t,`EUR`)} settled</span>
                         </button>
@@ -2312,35 +2312,59 @@
                 </button>
             </div>
         `:``}
-    `}function hn(e,t){let n=(b.expenses||[]).filter(t=>t.tripId===e.id&&t.isSettlement).sort((e,t)=>new Date(t.date).getTime()-new Date(e.date).getTime());return n.length===0?`
+    `}function hn(e,t){let n=(b.expenses||[]).filter(t=>t.tripId===e.id&&t.isSettlement).sort((e,t)=>new Date(t.date).getTime()-new Date(e.date).getTime());if(n.length===0)return`
             <div class="card glass" style="padding: 48px 32px; text-align:center; border-radius: 28px; border:1.5px dashed rgba(0,113,227,0.3); background: rgba(0,113,227,0.04);">
                 <div style="font-size:2.5rem; margin-bottom: 8px;">📜</div>
                 <h2 style="margin:0 0 6px; color:#002d5b;">No past settlements yet</h2>
                 <p class="text-muted" style="margin:0;">Once payments are recorded between companions, they show up here as a timeline.</p>
             </div>
-        `:`
+        `;let r={};for(let e of n){let t=e.date||`undated`;r[t]||(r[t]=[]),r[t].push(e)}let i=new Date().toISOString().slice(0,10),a=new Date;a.setDate(a.getDate()-1);let o=a.toISOString().slice(0,10),s=e=>{if(e===`undated`)return`No date`;if(e===i)return`Today`;if(e===o)return`Yesterday`;let t=new Date(e);return isNaN(t.getTime())?e:t.toLocaleDateString(void 0,{weekday:`short`,month:`short`,day:`numeric`,year:`numeric`})},c=Object.keys(r).sort((e,t)=>e===`undated`?1:t===`undated`?-1:t.localeCompare(e));return`
         <div class="card glass" style="padding: 22px 24px; border-radius: 28px;">
             <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
                 <h3 style="margin:0; font-size:1.05rem; color:#002d5b; font-weight:800; letter-spacing:-0.02em;">Past settlements</h3>
                 <span style="font-size:0.7rem; font-weight:800; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.1em;">${n.length} recorded</span>
             </div>
-            <div style="display:flex; flex-direction:column; gap:10px;">
-                ${n.map(n=>{let r=Object.keys(n.splits||{})[0]||`?`,i=(()=>{let e=new Date(n.date);return isNaN(e.getTime())?n.date:e.toLocaleDateString(void 0,{year:`numeric`,month:`short`,day:`numeric`})})();return`
-                        <div style="display:flex; align-items:center; gap:14px; padding:14px 16px; background:white; border:1px solid rgba(0,0,0,0.06); border-radius:16px;">
-                            <div style="width:38px; height:38px; border-radius:50%; background:rgba(52,199,89,0.12); color:#1a6b3c; display:flex; align-items:center; justify-content:center; font-size:1.2rem; flex-shrink:0;">✓</div>
-                            <div style="flex:1; min-width:0;">
-                                <div style="font-weight:800; color:#002d5b; font-size:0.95rem;">${I(n.who)} <span style="color:rgba(0,0,0,0.3); font-weight:600;">→</span> ${I(r)}</div>
-                                <div style="font-size:0.75rem; color:var(--text-secondary); margin-top:2px;">${I(i)}</div>
+            <div style="display:flex; flex-direction:column; gap:18px;">
+                ${c.map(n=>{let i=r[n],a=i.reduce((e,t)=>e+(t.euroValue||0),0);return`
+                        <div>
+                            <!-- Date header — sticky-ish band with the
+                                 group name on the left and a per-day
+                                 total on the right. -->
+                            <div style="display:flex; align-items:baseline; justify-content:space-between; margin-bottom:8px; padding: 0 4px;">
+                                <h4 style="margin:0; font-size:0.7rem; font-weight:800; text-transform:uppercase; letter-spacing:0.12em; color:var(--text-secondary);">${I(s(n))}</h4>
+                                <span style="font-size:0.72rem; font-weight:700; color:var(--text-secondary);">${A(a,`EUR`)} · ${i.length} ${i.length===1?`settlement`:`settlements`}</span>
                             </div>
-                            <div style="font-size:1rem; font-weight:800; color:#1a6b3c; flex-shrink:0;">${A(n.euroValue||0,`EUR`)}</div>
-                            ${t?`
-                                <div style="display:flex; gap:6px; flex-shrink:0;">
-                                    <button class="edit-settlement-btn" data-settlement-id="${I(n.id)}" type="button"
-                                        style="background:rgba(0,113,227,0.08); border:1px solid rgba(0,113,227,0.22); color:var(--accent-blue); padding:5px 12px; border-radius:999px; font-size:0.72rem; font-weight:800; cursor:pointer;">Edit</button>
-                                    <button class="unsettle-settlement-btn" data-settlement-id="${I(n.id)}" data-trip-id="${I(e.id)}" type="button"
-                                        style="background:rgba(255,59,48,0.08); border:1px solid rgba(255,59,48,0.22); color:#ff3b30; padding:5px 12px; border-radius:999px; font-size:0.72rem; font-weight:800; cursor:pointer;">Unsettle</button>
-                                </div>
-                            `:``}
+                            <div style="display:flex; flex-direction:column; gap:8px;">
+                                ${i.map(n=>{let r=Object.keys(n.splits||{})[0]||`?`;return`
+                                        <div style="display:flex; align-items:center; gap:14px; padding:12px 14px; background:white; border:1px solid rgba(0,0,0,0.06); border-radius:14px;">
+                                            <!-- Avatar circle now uses the
+                                                 sender's initial, matching
+                                                 the Trip-balances row
+                                                 pattern. The standalone
+                                                 ✓ checkmark version was
+                                                 too dissimilar from the
+                                                 sibling tabs. -->
+                                            <div style="width:34px; height:34px; border-radius:50%; background:rgba(52,199,89,0.12); color:#1a6b3c; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:0.95rem; flex-shrink:0;">${I((n.who||`?`).charAt(0).toUpperCase())}</div>
+                                            <div style="flex:1; min-width:0;">
+                                                <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                                                    <span style="font-weight:800; color:#002d5b; font-size:0.95rem;">${I(n.who)}</span>
+                                                    <span style="color:rgba(0,0,0,0.3); font-weight:600;">→</span>
+                                                    <span style="font-weight:800; color:#002d5b; font-size:0.95rem;">${I(r)}</span>
+                                                    <span style="display:inline-flex; align-items:center; gap:3px; background:rgba(52,199,89,0.12); color:#1a6b3c; padding:1px 8px; border-radius:999px; font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">✓ Settled</span>
+                                                </div>
+                                            </div>
+                                            <div style="font-size:1rem; font-weight:800; color:#1a6b3c; flex-shrink:0;">${A(n.euroValue||0,`EUR`)}</div>
+                                            ${t?`
+                                                <div style="display:flex; gap:6px; flex-shrink:0;">
+                                                    <button class="edit-settlement-btn" data-settlement-id="${I(n.id)}" type="button"
+                                                        style="background:rgba(0,113,227,0.08); border:1px solid rgba(0,113,227,0.22); color:var(--accent-blue); padding:5px 12px; border-radius:999px; font-size:0.72rem; font-weight:800; cursor:pointer;">Edit</button>
+                                                    <button class="unsettle-settlement-btn" data-settlement-id="${I(n.id)}" data-trip-id="${I(e.id)}" type="button"
+                                                        style="background:rgba(255,59,48,0.08); border:1px solid rgba(255,59,48,0.22); color:#ff3b30; padding:5px 12px; border-radius:999px; font-size:0.72rem; font-weight:800; cursor:pointer;">Unsettle</button>
+                                                </div>
+                                            `:``}
+                                        </div>
+                                    `}).join(``)}
+                            </div>
                         </div>
                     `}).join(``)}
             </div>
@@ -2352,21 +2376,35 @@
                 <p class="text-muted" style="margin:0;">Add companions to a trip and log expenses to see cross-trip balances.</p>
             </div>
         `:`
-        <div class="card glass" style="padding: 22px 24px; border-radius: 28px; background: linear-gradient(135deg, rgba(0,113,227,0.04), rgba(88,86,214,0.03)); border-left: 4px solid var(--accent-blue);">
-            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
-                <h3 style="margin:0; font-size:1.05rem; color:#002d5b; font-weight:800; letter-spacing:-0.02em;">🌍 Cross-trip net balances</h3>
+        <div class="card glass" style="padding: 22px 24px; border-radius: 28px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+                <h3 style="margin:0; font-size:1.05rem; color:#002d5b; font-weight:800; letter-spacing:-0.02em;">🌍 Cross-trip balances</h3>
                 <span style="font-size:0.7rem; font-weight:800; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.1em;">Across all trips · active + completed</span>
             </div>
-            <div style="display:flex; flex-direction:column; gap:14px;">
-                ${t.map(([e,t])=>{let i=r?Math.abs(t)/n*100:0,a=t>.01,o=a?`#1a6b3c`:t<-.01?`#a30000`:`var(--text-secondary)`;return`
-                        <div style="display:grid; grid-template-columns: 120px 1fr 110px; align-items:center; gap:16px;">
-                            <div style="font-weight:800; color:#002d5b; font-size:0.95rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${I(e)}</div>
-                            ${r?`
-                                <div style="height:8px; background: rgba(0,0,0,0.06); border-radius:999px; overflow:hidden; position:relative;">
-                                    <div style="position:absolute; ${a?`left:50%`:`right:50%`}; top:0; bottom:0; width:${i/2}%; background: ${a?`#34c759`:`#ff3b30`}; border-radius:999px;"></div>
+            <div style="display:flex; flex-direction:column; gap:8px;">
+                ${t.map(([e,t])=>{let i=r?Math.min(Math.abs(t)/n*100,100):0,a=t>.01,o=t<-.01,s=a?`#1a6b3c`:o?`#a30000`:`var(--text-secondary)`;return`
+                        <div style="display:flex; flex-direction:column; gap:10px; padding:12px 14px; background:white; border:1px solid rgba(0,0,0,0.06); border-radius:14px;">
+                            <div style="display:flex; align-items:center; gap:14px;">
+                                <div style="width:34px; height:34px; border-radius:50%; background: ${a?`rgba(52,199,89,0.12)`:o?`rgba(255,59,48,0.1)`:`rgba(0,0,0,0.04)`}; color: ${a?`#1a6b3c`:o?`#a30000`:`rgba(0,0,0,0.5)`}; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:0.95rem; flex-shrink:0;">
+                                    ${I(e.charAt(0).toUpperCase())}
                                 </div>
-                            `:`<div></div>`}
-                            <div style="text-align:right; font-weight:800; color:${o}; font-size:1rem;">${a?`+`:``}${A(t,`EUR`)}</div>
+                                <div style="flex:1; min-width:0; font-weight:800; color:#002d5b; font-size:0.95rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${I(e)}</div>
+                                <div style="font-weight:800; color: ${s}; font-size:1rem;">
+                                    ${a?`+`:``}${A(t,`EUR`)}
+                                </div>
+                            </div>
+                            ${r?`
+                                <!-- Magnitude bar — split-axis so credit
+                                     fills right of centre (green) and
+                                     debt fills left of centre (red).
+                                     Width is bal / maxAbs so the largest
+                                     balance always touches the edge. -->
+                                <div style="height:6px; background: rgba(0,0,0,0.05); border-radius:999px; overflow:hidden; position:relative;">
+                                    ${a?`<div style="position:absolute; left:50%; top:0; bottom:0; width:${i/2}%; background:#34c759; border-radius:999px;"></div>`:``}
+                                    ${o?`<div style="position:absolute; right:50%; top:0; bottom:0; width:${i/2}%; background:#ff3b30; border-radius:999px;"></div>`:``}
+                                    <div style="position:absolute; left:50%; top:-2px; bottom:-2px; width:1px; background: rgba(0,0,0,0.12);"></div>
+                                </div>
+                            `:``}
                         </div>
                     `}).join(``)}
             </div>

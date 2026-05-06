@@ -178,7 +178,7 @@ export function renderSettlement() {
         if (!target) return;
 
         // Trip card (top strip) — switch the active trip.
-        const tripCard = /** @type {HTMLElement | null} */ (target.closest('.settlement-trip-card'));
+        const tripCard = /** @type {HTMLElement | null} */ (target.closest('.settlement-trip-pill'));
         if (tripCard?.dataset.tripId) {
             currentTripId = tripCard.dataset.tripId;
             div.innerHTML = buildPageHtml(
@@ -282,10 +282,18 @@ function renderTripsStrip() {
                         .filter(e => e.tripId === t.id && e.isSettlement)
                         .reduce((sum, e) => sum + (e.euroValue || 0), 0);
                     const isActive = t.id === currentTripId;
+                    // Class renamed to avoid the old .settlement-trip-card
+                    // legacy CSS that set border:2px solid transparent +
+                    // a blue is-active modifier — those rules clipped the
+                    // gold border + made the card scale on activation,
+                    // creating the "edge doesn't encompass the square"
+                    // visual the user reported. Inline styles + button
+                    // reset (font/text-align/outline) now fully control
+                    // the card.
                     return `
-                        <button type="button" class="settlement-trip-card${isActive ? ' is-active' : ''}" data-trip-id="${esc(t.id)}"
-                            style="flex-shrink:0; min-width: 200px; text-align:left; background: ${isActive ? 'linear-gradient(135deg, rgba(255,214,10,0.16), rgba(255,159,10,0.08))' : 'white'}; border: 1.5px solid ${isActive ? 'rgba(255,159,10,0.4)' : 'rgba(0,0,0,0.06)'}; border-radius: 18px; padding: 14px 16px; cursor:pointer; box-shadow: ${isActive ? '0 8px 24px rgba(255,159,10,0.18)' : '0 4px 12px rgba(0,45,91,0.06)'}; display:flex; flex-direction:column; gap:6px;">
-                            <span style="font-size:0.66rem; font-weight:800; text-transform:uppercase; letter-spacing:0.1em; color:${isActive ? '#a35200' : 'var(--text-secondary)'};">Adventure</span>
+                        <button type="button" class="settlement-trip-pill${isActive ? ' is-active' : ''}" data-trip-id="${esc(t.id)}"
+                            style="flex-shrink:0; min-width: 200px; text-align:left; background: ${isActive ? 'linear-gradient(135deg, rgba(255,214,10,0.16), rgba(255,159,10,0.08))' : 'white'}; border: 1.5px solid ${isActive ? 'rgba(255,159,10,0.55)' : 'rgba(0,0,0,0.06)'}; border-radius: 18px; padding: 14px 16px; cursor:pointer; box-shadow: ${isActive ? '0 8px 24px rgba(255,159,10,0.22)' : '0 4px 12px rgba(0,45,91,0.06)'}; display:flex; flex-direction:column; gap:6px; font: inherit; color: inherit; outline: 0; margin: 0; transition: transform 0.25s cubic-bezier(0.16,1,0.3,1), box-shadow 0.25s cubic-bezier(0.16,1,0.3,1);">
+                            <span style="font-size:0.66rem; font-weight:800; text-transform:uppercase; letter-spacing:0.1em; color:${isActive ? '#a35200' : 'var(--text-secondary)'};">Trip</span>
                             <span style="font-size:1rem; font-weight:800; color:#002d5b; letter-spacing:-0.02em; line-height:1.15;">${esc(t.name)}</span>
                             <span style="font-size:0.78rem; font-weight:700; color: var(--accent-blue);">${formatHome(settlementsTotal, 'EUR')} settled</span>
                         </button>
@@ -440,35 +448,88 @@ function renderHistoryTab(trip, tripIsEditable) {
         `;
     }
 
+    // Group settlements by date so the timeline reads like a feed
+    // ("Today · 3 settlements", "Yesterday", "Mar 14, 2025"). Easier to
+    // scan than a flat list when there are many settlements.
+    /** @type {Record<string, typeof past>} */
+    const groupedByDate = {};
+    for (const s of past) {
+        const key = s.date || 'undated';
+        if (!groupedByDate[key]) groupedByDate[key] = [];
+        groupedByDate[key].push(s);
+    }
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toISOString().slice(0, 10);
+    const formatGroupHeader = (key) => {
+        if (key === 'undated') return 'No date';
+        if (key === todayStr) return 'Today';
+        if (key === yesterdayStr) return 'Yesterday';
+        const d = new Date(key);
+        if (isNaN(d.getTime())) return key;
+        return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+    };
+    const sortedKeys = Object.keys(groupedByDate).sort((a, b) => {
+        if (a === 'undated') return 1;
+        if (b === 'undated') return -1;
+        return b.localeCompare(a); // newest first
+    });
+
     return `
         <div class="card glass" style="padding: 22px 24px; border-radius: 28px;">
             <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
                 <h3 style="margin:0; font-size:1.05rem; color:#002d5b; font-weight:800; letter-spacing:-0.02em;">Past settlements</h3>
                 <span style="font-size:0.7rem; font-weight:800; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.1em;">${past.length} recorded</span>
             </div>
-            <div style="display:flex; flex-direction:column; gap:10px;">
-                ${past.map(s => {
-                    const toPerson = Object.keys(s.splits || {})[0] || '?';
-                    const dateStr = (() => {
-                        const d = new Date(s.date);
-                        return isNaN(d.getTime()) ? s.date : d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
-                    })();
+            <div style="display:flex; flex-direction:column; gap:18px;">
+                ${sortedKeys.map(key => {
+                    const items = groupedByDate[key];
+                    const totalForDay = items.reduce((s, x) => s + (x.euroValue || 0), 0);
                     return `
-                        <div style="display:flex; align-items:center; gap:14px; padding:14px 16px; background:white; border:1px solid rgba(0,0,0,0.06); border-radius:16px;">
-                            <div style="width:38px; height:38px; border-radius:50%; background:rgba(52,199,89,0.12); color:#1a6b3c; display:flex; align-items:center; justify-content:center; font-size:1.2rem; flex-shrink:0;">✓</div>
-                            <div style="flex:1; min-width:0;">
-                                <div style="font-weight:800; color:#002d5b; font-size:0.95rem;">${esc(s.who)} <span style="color:rgba(0,0,0,0.3); font-weight:600;">→</span> ${esc(toPerson)}</div>
-                                <div style="font-size:0.75rem; color:var(--text-secondary); margin-top:2px;">${esc(dateStr)}</div>
+                        <div>
+                            <!-- Date header — sticky-ish band with the
+                                 group name on the left and a per-day
+                                 total on the right. -->
+                            <div style="display:flex; align-items:baseline; justify-content:space-between; margin-bottom:8px; padding: 0 4px;">
+                                <h4 style="margin:0; font-size:0.7rem; font-weight:800; text-transform:uppercase; letter-spacing:0.12em; color:var(--text-secondary);">${esc(formatGroupHeader(key))}</h4>
+                                <span style="font-size:0.72rem; font-weight:700; color:var(--text-secondary);">${formatHome(totalForDay, 'EUR')} · ${items.length} ${items.length === 1 ? 'settlement' : 'settlements'}</span>
                             </div>
-                            <div style="font-size:1rem; font-weight:800; color:#1a6b3c; flex-shrink:0;">${formatHome(s.euroValue || 0, 'EUR')}</div>
-                            ${tripIsEditable ? `
-                                <div style="display:flex; gap:6px; flex-shrink:0;">
-                                    <button class="edit-settlement-btn" data-settlement-id="${esc(s.id)}" type="button"
-                                        style="background:rgba(0,113,227,0.08); border:1px solid rgba(0,113,227,0.22); color:var(--accent-blue); padding:5px 12px; border-radius:999px; font-size:0.72rem; font-weight:800; cursor:pointer;">Edit</button>
-                                    <button class="unsettle-settlement-btn" data-settlement-id="${esc(s.id)}" data-trip-id="${esc(trip.id)}" type="button"
-                                        style="background:rgba(255,59,48,0.08); border:1px solid rgba(255,59,48,0.22); color:#ff3b30; padding:5px 12px; border-radius:999px; font-size:0.72rem; font-weight:800; cursor:pointer;">Unsettle</button>
-                                </div>
-                            ` : ''}
+                            <div style="display:flex; flex-direction:column; gap:8px;">
+                                ${items.map(s => {
+                                    const toPerson = Object.keys(s.splits || {})[0] || '?';
+                                    const fromInitial = (s.who || '?').charAt(0).toUpperCase();
+                                    return `
+                                        <div style="display:flex; align-items:center; gap:14px; padding:12px 14px; background:white; border:1px solid rgba(0,0,0,0.06); border-radius:14px;">
+                                            <!-- Avatar circle now uses the
+                                                 sender's initial, matching
+                                                 the Trip-balances row
+                                                 pattern. The standalone
+                                                 ✓ checkmark version was
+                                                 too dissimilar from the
+                                                 sibling tabs. -->
+                                            <div style="width:34px; height:34px; border-radius:50%; background:rgba(52,199,89,0.12); color:#1a6b3c; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:0.95rem; flex-shrink:0;">${esc(fromInitial)}</div>
+                                            <div style="flex:1; min-width:0;">
+                                                <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                                                    <span style="font-weight:800; color:#002d5b; font-size:0.95rem;">${esc(s.who)}</span>
+                                                    <span style="color:rgba(0,0,0,0.3); font-weight:600;">→</span>
+                                                    <span style="font-weight:800; color:#002d5b; font-size:0.95rem;">${esc(toPerson)}</span>
+                                                    <span style="display:inline-flex; align-items:center; gap:3px; background:rgba(52,199,89,0.12); color:#1a6b3c; padding:1px 8px; border-radius:999px; font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">✓ Settled</span>
+                                                </div>
+                                            </div>
+                                            <div style="font-size:1rem; font-weight:800; color:#1a6b3c; flex-shrink:0;">${formatHome(s.euroValue || 0, 'EUR')}</div>
+                                            ${tripIsEditable ? `
+                                                <div style="display:flex; gap:6px; flex-shrink:0;">
+                                                    <button class="edit-settlement-btn" data-settlement-id="${esc(s.id)}" type="button"
+                                                        style="background:rgba(0,113,227,0.08); border:1px solid rgba(0,113,227,0.22); color:var(--accent-blue); padding:5px 12px; border-radius:999px; font-size:0.72rem; font-weight:800; cursor:pointer;">Edit</button>
+                                                    <button class="unsettle-settlement-btn" data-settlement-id="${esc(s.id)}" data-trip-id="${esc(trip.id)}" type="button"
+                                                        style="background:rgba(255,59,48,0.08); border:1px solid rgba(255,59,48,0.22); color:#ff3b30; padding:5px 12px; border-radius:999px; font-size:0.72rem; font-weight:800; cursor:pointer;">Unsettle</button>
+                                                </div>
+                                            ` : ''}
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
                         </div>
                     `;
                 }).join('')}
@@ -493,27 +554,52 @@ function renderGlobalTab() {
         `;
     }
 
+    // Cross-trip rows now mirror the This-trip "Trip balances" row
+    // shape: avatar circle + name + net amount, all on one line, with
+    // a slim symmetrical bar UNDER the row showing magnitude relative
+    // to the largest balance. Same row card styling as the other tabs
+    // so the user sees a single consistent design across the page.
     return `
-        <div class="card glass" style="padding: 22px 24px; border-radius: 28px; background: linear-gradient(135deg, rgba(0,113,227,0.04), rgba(88,86,214,0.03)); border-left: 4px solid var(--accent-blue);">
-            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
-                <h3 style="margin:0; font-size:1.05rem; color:#002d5b; font-weight:800; letter-spacing:-0.02em;">🌍 Cross-trip net balances</h3>
+        <div class="card glass" style="padding: 22px 24px; border-radius: 28px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+                <h3 style="margin:0; font-size:1.05rem; color:#002d5b; font-weight:800; letter-spacing:-0.02em;">🌍 Cross-trip balances</h3>
                 <span style="font-size:0.7rem; font-weight:800; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.1em;">Across all trips · active + completed</span>
             </div>
-            <div style="display:flex; flex-direction:column; gap:14px;">
+            <div style="display:flex; flex-direction:column; gap:8px;">
                 ${sorted.map(([person, bal]) => {
-                    const pct = hasBalances ? (Math.abs(bal) / maxAbs) * 100 : 0;
-                    const isPos = bal > 0.01;
-                    const isNeg = bal < -0.01;
-                    const color = isPos ? '#1a6b3c' : isNeg ? '#a30000' : 'var(--text-secondary)';
+                    const pct = hasBalances ? Math.min((Math.abs(bal) / maxAbs) * 100, 100) : 0;
+                    const isCredit = bal > 0.01;
+                    const isDebt = bal < -0.01;
+                    const color = isCredit ? '#1a6b3c' : isDebt ? '#a30000' : 'var(--text-secondary)';
+                    const avatarBg = isCredit ? 'rgba(52,199,89,0.12)'
+                        : isDebt ? 'rgba(255,59,48,0.1)'
+                        : 'rgba(0,0,0,0.04)';
+                    const avatarColor = isCredit ? '#1a6b3c'
+                        : isDebt ? '#a30000'
+                        : 'rgba(0,0,0,0.5)';
                     return `
-                        <div style="display:grid; grid-template-columns: 120px 1fr 110px; align-items:center; gap:16px;">
-                            <div style="font-weight:800; color:#002d5b; font-size:0.95rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(person)}</div>
-                            ${hasBalances ? `
-                                <div style="height:8px; background: rgba(0,0,0,0.06); border-radius:999px; overflow:hidden; position:relative;">
-                                    <div style="position:absolute; ${isPos ? 'left:50%' : 'right:50%'}; top:0; bottom:0; width:${pct/2}%; background: ${isPos ? '#34c759' : '#ff3b30'}; border-radius:999px;"></div>
+                        <div style="display:flex; flex-direction:column; gap:10px; padding:12px 14px; background:white; border:1px solid rgba(0,0,0,0.06); border-radius:14px;">
+                            <div style="display:flex; align-items:center; gap:14px;">
+                                <div style="width:34px; height:34px; border-radius:50%; background: ${avatarBg}; color: ${avatarColor}; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:0.95rem; flex-shrink:0;">
+                                    ${esc(person.charAt(0).toUpperCase())}
                                 </div>
-                            ` : '<div></div>'}
-                            <div style="text-align:right; font-weight:800; color:${color}; font-size:1rem;">${isPos ? '+' : ''}${formatHome(bal, 'EUR')}</div>
+                                <div style="flex:1; min-width:0; font-weight:800; color:#002d5b; font-size:0.95rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(person)}</div>
+                                <div style="font-weight:800; color: ${color}; font-size:1rem;">
+                                    ${isCredit ? '+' : ''}${formatHome(bal, 'EUR')}
+                                </div>
+                            </div>
+                            ${hasBalances ? `
+                                <!-- Magnitude bar — split-axis so credit
+                                     fills right of centre (green) and
+                                     debt fills left of centre (red).
+                                     Width is bal / maxAbs so the largest
+                                     balance always touches the edge. -->
+                                <div style="height:6px; background: rgba(0,0,0,0.05); border-radius:999px; overflow:hidden; position:relative;">
+                                    ${isCredit ? `<div style="position:absolute; left:50%; top:0; bottom:0; width:${pct/2}%; background:#34c759; border-radius:999px;"></div>` : ''}
+                                    ${isDebt ? `<div style="position:absolute; right:50%; top:0; bottom:0; width:${pct/2}%; background:#ff3b30; border-radius:999px;"></div>` : ''}
+                                    <div style="position:absolute; left:50%; top:-2px; bottom:-2px; width:1px; background: rgba(0,0,0,0.12);"></div>
+                                </div>
+                            ` : ''}
                         </div>
                     `;
                 }).join('')}
