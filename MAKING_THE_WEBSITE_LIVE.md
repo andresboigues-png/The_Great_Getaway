@@ -154,13 +154,12 @@ cost angle:
 
 **Recommended host when the day comes**: **Cloudinary** free tier
 (25 GB storage, 25 GB monthly bandwidth, automatic image optimization
+and CDN delivery). Generous enough for years of personal use. The
+migration shape:
 
-- CDN delivery). Generous enough for years of personal use. The migration
-  shape is:
-
-* `/api/upload` reads the incoming file, posts it to Cloudinary's
+- `/api/upload` reads the incoming file, posts it to Cloudinary's
   upload API with a signed request, returns the Cloudinary URL.
-* Existing photos on `/static/uploads/` keep working — they're just
+- Existing photos on `/static/uploads/` keep working — they're just
   serving from the Fly volume forever (or you migrate them too with a
   one-off script).
 
