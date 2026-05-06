@@ -281,6 +281,17 @@ export function renderHome() {
             
             <div class="card glass cover-card cover-card--md">
                 <div id="homeHeroMap" style="width: 100%; height: 100%; position: absolute; inset: 0; z-index: 0;"></div>
+                <!-- POI filter pills — sit on top of the gradient so they
+                     stay clickable. Each toggles a Google Maps POI category
+                     on the satellite-overlay label layer. Default: all off,
+                     so the map only shows place names (cities, neighborhoods)
+                     without the restaurant/attraction clutter. -->
+                <div id="homeMapPoiToggles" class="map-poi-toggles">
+                    <button type="button" class="map-poi-toggle" data-poi="food" aria-pressed="false">🍽️ <span>Food</span></button>
+                    <button type="button" class="map-poi-toggle" data-poi="sights" aria-pressed="false">🏖️ <span>Sights</span></button>
+                    <button type="button" class="map-poi-toggle" data-poi="parks" aria-pressed="false">🌳 <span>Parks</span></button>
+                    <button type="button" class="map-poi-toggle" data-poi="transit" aria-pressed="false">🚆 <span>Transit</span></button>
+                </div>
                 <div class="cover-card__gradient" style="pointer-events: none; z-index: 1;"></div>
                 <div class="cover-card__content" style="pointer-events: none; z-index: 2;">
                     <p id="homeQuote" class="cover-card__quote">
@@ -311,20 +322,54 @@ export function renderHome() {
                 const tripMapKey = activeTrip ? activeTrip.id : null;
                 const savedMapView = tripMapKey && STATE.mapViews && STATE.mapViews[tripMapKey];
 
+                // POI category → Google Maps featureType mapping for the
+                // toggle pills. The label-layer styles work on hybrid (the
+                // overlay is vector); satellite imagery itself is unchanged.
+                const POI_FEATURE = {
+                    food: 'poi.business',
+                    sights: 'poi.attraction',
+                    parks: 'poi.park',
+                    transit: 'transit',
+                };
+                /** Build the styles array given which categories are
+                 *  currently enabled. Default-hide every poi.* category
+                 *  AND the master `poi` so labels stay clean; then turn
+                 *  back on whatever the user has toggled. Administrative
+                 *  labels (cities, neighbourhoods) are left untouched so
+                 *  geographic place names always show. */
+                const buildPoiStyles = (enabledSet) => {
+                    /** @type {any[]} */
+                    const styles = [
+                        { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+                        { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+                    ];
+                    enabledSet.forEach(key => {
+                        const ft = POI_FEATURE[key];
+                        if (ft) styles.push({ featureType: ft, stylers: [{ visibility: 'on' }] });
+                    });
+                    return styles;
+                };
+
+                /** @type {Set<string>} */
+                const enabledPois = new Set();
+
                 const mapOptions = {
                     center: savedMapView ? { lat: savedMapView.lat, lng: savedMapView.lng } : { lat: 20, lng: 0 },
                     zoom: savedMapView ? savedMapView.zoom : 2,
                     minZoom: 2,
-                    // hybrid = satellite imagery + roads/labels overlay. The
-                    // POI-hiding `styles` below are ignored on satellite/hybrid
-                    // (Google bakes them into the imagery), but the few labels
-                    // hybrid does show stay readable, which is why hybrid > pure
-                    // satellite for this trip-map use case.
+                    // hybrid = satellite imagery + roads/labels overlay.
+                    // The label overlay is vector-rendered, so the POI
+                    // styles below DO apply to the labels (restaurant
+                    // names, attraction names, etc.). Satellite imagery
+                    // itself is baked and unaffected, which is fine — the
+                    // user's "decluttered map" goal is about hiding
+                    // labels, not landmarks visible from space.
                     mapTypeId: 'hybrid',
                     disableDefaultUI: true,
                     keyboardShortcuts: false,
                     gestureHandling: 'greedy',
                     backgroundColor: '#ffffff',
+                    styles: buildPoiStyles(enabledPois),
                     restriction: {
                         latLngBounds: { north: 85, south: -85, west: -180, east: 180 },
                         strictBounds: true,
@@ -333,6 +378,25 @@ export function renderHome() {
 
                 const map = new google.maps.Map(mapContainer, mapOptions);
                 window.activeMap = map; // Read by external Google Maps callbacks; keep on window.
+
+                // Wire the POI filter pills. Each click flips the category's
+                // enabled state, refreshes the map styles, and updates the
+                // pill's aria-pressed + .is-on visual state.
+                const poiTogglesEl = document.getElementById('homeMapPoiToggles');
+                if (poiTogglesEl) {
+                    poiTogglesEl.addEventListener('click', (ev) => {
+                        const btn = /** @type {HTMLElement | null} */ (ev.target);
+                        const pill = btn?.closest('.map-poi-toggle');
+                        if (!pill) return;
+                        const key = /** @type {HTMLElement} */ (pill).dataset.poi;
+                        if (!key) return;
+                        if (enabledPois.has(key)) enabledPois.delete(key);
+                        else enabledPois.add(key);
+                        map.setOptions({ styles: buildPoiStyles(enabledPois) });
+                        pill.classList.toggle('is-on', enabledPois.has(key));
+                        pill.setAttribute('aria-pressed', String(enabledPois.has(key)));
+                    });
+                }
 
                 // Add pins for accepted Trip Days that have locations
                 const currentTripDays = activeTrip ? (STATE.tripDays || []).filter(d => d.tripId === activeTrip.id) : [];

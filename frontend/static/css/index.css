@@ -1604,6 +1604,52 @@ h1 {
     inset: 0;
     background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 60%);
 }
+
+/* POI filter pills overlaid on the home cover-card map. Sit at the
+   top-left and float above the gradient + content layers. Each pill
+   toggles a Google Maps POI category — off by default so the map
+   stays decluttered, on when the user wants to see that category. */
+.map-poi-toggles {
+    position: absolute;
+    top: var(--space-3);
+    left: var(--space-3);
+    z-index: 3;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    pointer-events: none;
+}
+.map-poi-toggle {
+    pointer-events: auto;
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(0, 113, 227, 0.18);
+    color: var(--accent-blue);
+    font-weight: 700;
+    font-size: 0.78rem;
+    padding: 6px 12px;
+    border-radius: var(--radius-pill);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    transition: background-color 0.2s ease, color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+.map-poi-toggle:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+.map-poi-toggle.is-on {
+    background: var(--accent-blue);
+    color: white;
+    border-color: var(--accent-blue);
+    box-shadow: 0 4px 12px rgba(0, 113, 227, 0.3);
+}
+.map-poi-toggle:focus-visible {
+    outline: 2px solid var(--accent-blue);
+    outline-offset: 2px;
+}
 .cover-card__content {
     position: absolute;
     bottom: var(--space-10);
