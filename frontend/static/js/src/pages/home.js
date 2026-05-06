@@ -620,9 +620,20 @@ export function renderHome() {
                     return { center: null, anchorId: '' };
                 };
 
+                /** Per-pill anchor mode: user override (Settings →
+                 *  General) wins, else the category's useGenesisAlways
+                 *  default. Returns true if this pill should always
+                 *  search from genesis (ignoring the day epicenter). */
+                const shouldForceGenesis = (cat) => {
+                    const userPref = STATE.preferences?.poiAnchoring?.[cat.key];
+                    if (userPref === 'genesis') return true;
+                    if (userPref === 'epicenter') return false;
+                    return !!cat.useGenesisAlways;
+                };
+
                 const fetchPlacesForTrip = (cat) => {
                     const tripId = activeTrip?.id || '';
-                    const { center, anchorId } = resolveSearchCenter(!!cat.useGenesisAlways);
+                    const { center, anchorId } = resolveSearchCenter(shouldForceGenesis(cat));
                     // Cache-key includes the anchor + strategy so:
                     //  - changing epicenter cache-misses (refetches)
                     //  - toggling between strategies (if we ever swap

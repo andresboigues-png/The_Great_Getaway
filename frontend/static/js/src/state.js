@@ -61,11 +61,18 @@ export const STATE = {
      *  - `pillEpicenters` holds the search center the user picked per
      *    trip. Shape: { [tripId]: dayId }. Falls back to the trip's
      *    genesis day when unset. The user toggles this from the day
-     *    actions panel ("Set as search center"). */
+     *    actions panel ("Set as search center").
+     *  - `poiAnchoring` is the per-pill override of "always use genesis"
+     *    vs "use the user-picked day epicenter". Shape:
+     *    { [pillKey]: 'epicenter' | 'genesis' }. Empty / missing keys
+     *    fall back to the category's useGenesisAlways flag in
+     *    POI_CATEGORIES (see pages/home.js). The user customises this
+     *    in Settings → General. */
     preferences: {
         mapDefaultPois: ['sights', 'parks', 'transit'],
         poiFilters: {},
         pillEpicenters: {},
+        poiAnchoring: {},
     },
 };
 
@@ -96,7 +103,7 @@ export function loadState() {
     if (!STATE.savedFormats) STATE.savedFormats = [];
     if (!STATE.tripDays) STATE.tripDays = [];
     if (!STATE.archivedTrips) STATE.archivedTrips = [];
-    if (!STATE.preferences) STATE.preferences = { mapDefaultPois: ['sights', 'parks', 'transit'], poiFilters: {}, pillEpicenters: {} };
+    if (!STATE.preferences) STATE.preferences = { mapDefaultPois: ['sights', 'parks', 'transit'], poiFilters: {}, pillEpicenters: {}, poiAnchoring: {} };
     if (!Array.isArray(STATE.preferences.mapDefaultPois)) {
         STATE.preferences.mapDefaultPois = ['sights', 'parks', 'transit'];
     }
@@ -105,6 +112,9 @@ export function loadState() {
     }
     if (!STATE.preferences.pillEpicenters || typeof STATE.preferences.pillEpicenters !== 'object') {
         STATE.preferences.pillEpicenters = {};
+    }
+    if (!STATE.preferences.poiAnchoring || typeof STATE.preferences.poiAnchoring !== 'object') {
+        STATE.preferences.poiAnchoring = {};
     }
 
     // Per-trip companions used to be `string[]` of names. Promote any

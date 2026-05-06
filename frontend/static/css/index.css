@@ -1675,13 +1675,29 @@ h1 {
 }
 .poi-filter-row {
     display: grid;
-    grid-template-columns: 32px 1fr auto auto;
+    /* icon | label/hint | anchor select | rating select | reset */
+    grid-template-columns: 32px 1fr auto auto auto;
     align-items: center;
     gap: var(--space-3);
     padding: var(--space-3) var(--space-4);
     background: rgba(0, 113, 227, 0.04);
     border: 1px solid rgba(0, 113, 227, 0.1);
     border-radius: var(--radius-lg);
+}
+.poi-anchor-mode {
+    background: white;
+    border: 1px solid rgba(0, 113, 227, 0.2);
+    border-radius: var(--radius-md);
+    padding: 6px 10px;
+    color: var(--text-primary);
+    font-weight: 700;
+    font-size: 0.85rem;
+    cursor: pointer;
+    min-width: 132px;
+}
+.poi-anchor-mode:focus-visible {
+    outline: 2px solid var(--accent-blue);
+    outline-offset: 2px;
 }
 .poi-filter-row__icon {
     font-size: 1.4rem;

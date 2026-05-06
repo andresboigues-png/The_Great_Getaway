@@ -192,19 +192,34 @@ export function renderSettings() {
 
                 ${isGeneral ? (() => {
                     const filters = STATE.preferences?.poiFilters || {};
+                    const anchoring = STATE.preferences?.poiAnchoring || {};
                     const ratingOptions = [0, 3, 3.5, 4, 4.5];
                     const rows = POI_CATEGORIES
                         // Roads & traffic isn't a Places-API pill, no
-                        // rating filter applies to it.
+                        // rating / anchor filter applies to it.
                         .filter(c => c.placesType)
                         .map(c => {
                             const userMin = typeof filters[c.key]?.minRating === 'number'
                                 ? filters[c.key].minRating
                                 : c.defaultMinRating;
-                            const opts = ratingOptions.map(v => `
+                            const ratingOpts = ratingOptions.map(v => `
                                 <option value="${v}" ${v === userMin ? 'selected' : ''}>${v === 0 ? 'Any rating' : `${v}★ +`}</option>
                             `).join('');
-                            const isCustom = userMin !== c.defaultMinRating;
+                            // Anchor mode: user override (Settings) wins,
+                            // else the category's useGenesisAlways default.
+                            const userAnchor = anchoring[c.key];
+                            const effectiveAnchor = (userAnchor === 'genesis' || userAnchor === 'epicenter')
+                                ? userAnchor
+                                : (c.useGenesisAlways ? 'genesis' : 'epicenter');
+                            const defaultAnchor = c.useGenesisAlways ? 'genesis' : 'epicenter';
+                            const anchorOpts = `
+                                <option value="epicenter" ${effectiveAnchor === 'epicenter' ? 'selected' : ''}>📍 Day-aware</option>
+                                <option value="genesis"   ${effectiveAnchor === 'genesis' ? 'selected' : ''}>🌐 Trip-wide</option>
+                            `;
+                            const isRatingCustom = userMin !== c.defaultMinRating;
+                            const isAnchorCustom = (userAnchor === 'genesis' || userAnchor === 'epicenter')
+                                && userAnchor !== defaultAnchor;
+                            const isCustom = isRatingCustom || isAnchorCustom;
                             return `
                                 <div class="poi-filter-row">
                                     <span class="poi-filter-row__icon">${c.icon}</span>
@@ -212,11 +227,14 @@ export function renderSettings() {
                                         <div class="poi-filter-row__label">${esc(c.label)}</div>
                                         <div class="poi-filter-row__hint">${esc(c.tooltip)}</div>
                                     </div>
-                                    <select class="poi-filter-rating" data-poi="${c.key}" aria-label="Minimum rating for ${esc(c.label)}">
-                                        ${opts}
+                                    <select class="poi-anchor-mode" data-poi="${c.key}" aria-label="Search anchor for ${esc(c.label)}" title="Day-aware = uses the day you've picked as search center on Home (falls back to genesis). Trip-wide = always anchored on the trip's genesis pin.">
+                                        ${anchorOpts}
                                     </select>
-                                    <span class="poi-filter-row__default" title="Default for this category: ${c.defaultMinRating === 0 ? 'Any rating' : `${c.defaultMinRating}★ +`}">
-                                        ${isCustom ? '<button type="button" class="poi-filter-reset" data-poi="' + c.key + '" title="Reset to default">Reset</button>' : '<span class="muted">Default</span>'}
+                                    <select class="poi-filter-rating" data-poi="${c.key}" aria-label="Minimum rating for ${esc(c.label)}">
+                                        ${ratingOpts}
+                                    </select>
+                                    <span class="poi-filter-row__default" title="Defaults: ${c.defaultMinRating === 0 ? 'Any rating' : c.defaultMinRating + '★+'} / ${defaultAnchor === 'genesis' ? 'Trip-wide' : 'Day-aware'}">
+                                        ${isCustom ? '<button type="button" class="poi-filter-reset" data-poi="' + c.key + '" title="Reset both rating and anchor to default">Reset</button>' : '<span class="muted">Default</span>'}
                                     </span>
                                 </div>
                             `;
@@ -224,11 +242,12 @@ export function renderSettings() {
                     return `
                         <div class="card glass" style="padding: 32px; border-radius: 28px;">
                             <h2 style="color: var(--accent-blue); margin-top: 0;">Map pill filters</h2>
-                            <p style="color: var(--text-secondary); margin-bottom: 24px;">Set the minimum rating for each Places-API pill. The home map's pin search applies this floor to results — a 4★+ filter on Restaurants hides everything below 4 stars. Restaurants and Hotels default to 4★+ (because rating is a meaningful quality signal there); the rest default to "Any rating" so you don't accidentally hide a real-but-unrated supermarket or hospital.</p>
+                            <p style="color: var(--text-secondary); margin-bottom: 16px;"><strong>Minimum rating</strong> hides results below the chosen ★. Restaurants and Hotels default to 4★+ (rating is a meaningful quality signal there); the rest default to "Any rating".</p>
+                            <p style="color: var(--text-secondary); margin-bottom: 24px;"><strong>Search anchor</strong> picks where each pill searches from. <em>Day-aware</em> uses the day you've set as search center on the Home page (falls back to the trip's genesis pin). <em>Trip-wide</em> always anchors on the genesis pin so the 50 km wide search covers the whole trip — better for sparse "where are these across my whole trip" categories like Medical, Sports, Govt, Schools, Public transit.</p>
                             <div class="poi-filter-list">
                                 ${rows}
                             </div>
-                            <p style="color: var(--text-secondary); margin: 24px 0 0; font-size: 0.85rem;">Changes take effect the next time you toggle a pill on (or click the same pill twice to refresh).</p>
+                            <p style="color: var(--text-secondary); margin: 24px 0 0; font-size: 0.85rem;">Changes take effect the next time you toggle a pill on. Reset clears both rating and anchor back to that pill's default.</p>
                         </div>
                     `;
                 })() : ''}
@@ -428,46 +447,66 @@ export function renderSettings() {
         if (target.closest('#addFormatMappingBtn')) { addFormatMapping(); return; }
         if (target.closest('#saveCustomFormatBtn')) { saveCustomFormat(); return; }
 
-        // POI filter: reset one category back to its default min rating.
+        // POI filter: reset one category back to its defaults — clears
+        // BOTH rating AND anchor overrides so the row shows "Default".
         const resetPoiBtn = /** @type {HTMLElement | null} */ (target.closest('.poi-filter-reset'));
         if (resetPoiBtn?.dataset.poi) {
-            ensurePoiFilters();
+            ensurePoiPrefs();
             delete STATE.preferences.poiFilters[resetPoiBtn.dataset.poi];
+            delete STATE.preferences.poiAnchoring[resetPoiBtn.dataset.poi];
             emit('state:changed');
             switchSettingsTab('general'); // re-render so the row reflects the reset
             return;
         }
     });
 
-    // POI filter rating dropdown — change listener so picking a new
-    // floor saves immediately. Delegated for the same reason as click:
-    // div.innerHTML is rewritten on tab switch, so per-element listeners
-    // would die.
+    // POI per-pill controls — change listener handles BOTH the rating
+    // dropdown and the anchor-mode dropdown, dispatching by class.
+    // Delegated because div.innerHTML is rewritten on tab switch, so
+    // per-element listeners would die.
     div.addEventListener('change', (e) => {
         const target = /** @type {HTMLElement | null} */ (e.target);
-        const sel = target?.closest('.poi-filter-rating');
-        if (!sel) return;
-        const key = /** @type {HTMLElement} */ (sel).dataset.poi;
-        if (!key) return;
-        const value = parseFloat(/** @type {HTMLSelectElement} */ (sel).value);
-        ensurePoiFilters();
-        STATE.preferences.poiFilters[key] = { minRating: value };
-        emit('state:changed');
-        // Re-render so the "Default / Reset" indicator on the right
-        // flips to "Reset" (or back to "Default" if they re-pick the
-        // category's own default).
-        switchSettingsTab('general');
+        if (!target) return;
+
+        const ratingSel = target.closest('.poi-filter-rating');
+        if (ratingSel) {
+            const key = /** @type {HTMLElement} */ (ratingSel).dataset.poi;
+            if (!key) return;
+            const value = parseFloat(/** @type {HTMLSelectElement} */ (ratingSel).value);
+            ensurePoiPrefs();
+            STATE.preferences.poiFilters[key] = { minRating: value };
+            emit('state:changed');
+            switchSettingsTab('general');
+            return;
+        }
+
+        const anchorSel = target.closest('.poi-anchor-mode');
+        if (anchorSel) {
+            const key = /** @type {HTMLElement} */ (anchorSel).dataset.poi;
+            if (!key) return;
+            const value = /** @type {HTMLSelectElement} */ (anchorSel).value;
+            if (value !== 'genesis' && value !== 'epicenter') return;
+            ensurePoiPrefs();
+            STATE.preferences.poiAnchoring[key] = value;
+            emit('state:changed');
+            switchSettingsTab('general');
+            return;
+        }
     });
 
-    /** Defensive: STATE.preferences and .poiFilters should already exist
-     *  via loadState's backfill, but this protects against a corrupt
-     *  / hand-edited localStorage that bypasses validateLoadedState. */
-    function ensurePoiFilters() {
+    /** Defensive: STATE.preferences and its sub-objects should already
+     *  exist via loadState's backfill, but this protects against a
+     *  corrupt / hand-edited localStorage that bypasses
+     *  validateLoadedState. */
+    function ensurePoiPrefs() {
         if (!STATE.preferences) {
-            STATE.preferences = { mapDefaultPois: ['sights', 'parks', 'transit'], poiFilters: {} };
+            STATE.preferences = { mapDefaultPois: ['sights', 'parks', 'transit'], poiFilters: {}, pillEpicenters: {}, poiAnchoring: {} };
         }
         if (!STATE.preferences.poiFilters || typeof STATE.preferences.poiFilters !== 'object') {
             STATE.preferences.poiFilters = {};
+        }
+        if (!STATE.preferences.poiAnchoring || typeof STATE.preferences.poiAnchoring !== 'object') {
+            STATE.preferences.poiAnchoring = {};
         }
     }
 
