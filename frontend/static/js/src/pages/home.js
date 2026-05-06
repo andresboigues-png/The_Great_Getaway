@@ -3,7 +3,7 @@
 
 import { STATE, emit } from '../state.js';
 import { INSPIRATIONAL_PAIRS } from '../constants.js';
-import { getMediaForTrip, showLiquidAlert, formatDayDate, q, showConfirmModal, generateId, cleanPlaceName, esc } from '../utils.js';
+import { getMediaForTrip, showLiquidAlert, formatDayDate, q, showConfirmModal, generateId, shortPlaceName, esc } from '../utils.js';
 import { upsertDay, uploadMedia, deleteDayOnServer, upsertTrip } from '../api.js';
 import { navigate } from '../router.js';
 import { showPersTab } from './settings.js';
@@ -400,14 +400,14 @@ export function renderHome() {
 
         let greeting = "Welcome back, traveler";
         if (isFresh && activeTrip.country) {
-            // Show state name for US states ("USA - California" → "California");
-            // strip postal-code prefixes ("8950 Castro Marim, Portugal" → "Castro Marim, Portugal")
-            // before they leak into greetings/headers.
-            const displayCountry = cleanPlaceName(
-                activeTrip.country.includes(' - ')
-                    ? activeTrip.country.split(' - ')[1]
-                    : activeTrip.country
-            );
+            // Compact display: drop postal-code prefixes AND extra
+            // comma-separated location chunks. Google returns localized
+            // formatted_address most-specific → least-specific, so the
+            // first token (city/town) is what reads cleanly in a header.
+            // E.g. "Atlanta, Geórgia, Estados Unidos" → "Atlanta",
+            //      "USA - California" → "California",
+            //      "8950 Castro Marim, Portugal" → "Castro Marim".
+            const displayCountry = shortPlaceName(activeTrip.country);
             const firstName = (STATE.user && STATE.user.firstName) ? STATE.user.firstName : "traveler";
             const greetings = [
                 `Welcome back, ${firstName}!`,
@@ -2107,7 +2107,7 @@ export function renderHome() {
                                     <h3 style="margin: 0; font-size: 1.3rem; font-weight: 800; color: #002d5b; letter-spacing: -0.02em;">${isStartingPoint ? 'Trip Genesis' : esc(day.name)}</h3>
                                     <div style="font-size: 0.9rem; color: var(--text-secondary); font-weight: 600; margin-top: 4px; display: flex; align-items: center; gap: 8px;">
                                         ${isStartingPoint
-                                            ? `<span>${activeTrip && activeTrip.country ? cleanPlaceName(activeTrip.country) : 'Where the trip begins'}</span>`
+                                            ? `<span>${activeTrip && activeTrip.country ? shortPlaceName(activeTrip.country) : 'Where the trip begins'}</span>`
                                             : `<span>📅 ${formatDayDate(day.date) || 'Set date'}</span>`}
                                         ${day.lat && !isStartingPoint ? `<span style="color: var(--accent-blue); opacity: 0.6;">•</span> <span style="color: var(--accent-blue);">📍 Location Set</span>` : ''}
                                         ${(!isStartingPoint && !day.lat && !day.lng) ? `<span style="color: rgba(0,0,0,0.25);">•</span> <span class="day-card__pin-hint">📌 Pin this day</span>` : ''}
@@ -2659,7 +2659,7 @@ const openAddTripDocumentModal = (trip) => {
         .sort((a, b) => a.dayNumber - b.dayNumber);
     const { root, close } = showModal({
         variant: 'glass-light',
-        cardStyle: 'width: 480px; max-width: calc(100vw - 32px);',
+        cardStyle: 'width: 480px; max-width: calc(100vw - 32px); max-height: 90vh; overflow-y: auto;',
         innerHTML: `
             <h2 class="h2-display">Add document</h2>
             <p class="text-subtitle">Booking confirmation, hotel voucher, ticket — link or upload.</p>
@@ -2675,6 +2675,19 @@ const openAddTripDocumentModal = (trip) => {
                     </label>
                 </div>
                 <div id="newDocStatus" style="font-size:0.72rem; color:var(--text-secondary); min-height:1em; font-weight:600;"></div>
+                <!-- Path A user-guidance: many booking emails (Airbnb,
+                     forwarded itineraries, restaurant confirmations)
+                     don't carry an attachment — the booking info is
+                     just in the body. The universally-supported fix
+                     is browser-native Print → Save as PDF, which
+                     captures the entire email exactly as the user
+                     sees it (formatting, embedded QR codes, footer
+                     details). Surfacing the recipe here so users
+                     don't have to learn it elsewhere. -->
+                <div style="background: rgba(0,113,227,0.06); border:1px solid rgba(0,113,227,0.18); border-radius: 12px; padding: 12px 14px; font-size:0.78rem; color:#002d5b; line-height:1.55; margin-top:4px;">
+                    <strong style="color: var(--accent-blue);">📧 Booking email without an attachment?</strong><br>
+                    Open the email in Gmail, hit <strong>Cmd&nbsp;+&nbsp;P</strong> (or Ctrl + P on Windows), pick <strong>Save as PDF</strong> as the destination, then come back here and click <strong>📤 Upload</strong> with that file. Captures the layout exactly — QR codes, dates, prices, all of it.
+                </div>
                 <label style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-secondary); margin-top:8px;">Tie to a day (optional)</label>
                 <select id="newDocDay" class="glass-input" style="padding: var(--space-3); border-radius: 12px; background:white;">
                     <option value="">Trip-wide (passport, multi-day hotel, return flight…)</option>

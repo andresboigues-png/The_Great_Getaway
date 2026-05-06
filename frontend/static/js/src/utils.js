@@ -177,6 +177,38 @@ export function cleanPlaceName(name) {
     return String(name).replace(/^\d{3,6}[\s,-]+/, '').replace(/\s+/g, ' ').trim();
 }
 
+/**
+ * Compact display name — best for headers / greetings where the full
+ * formatted_address looks heavy ("Atlanta, Geórgia, Estados Unidos
+ * adventure starts here." → "Atlanta adventure starts here.").
+ *
+ * Rules, in order:
+ *   1. Strip postal-code prefix (delegates to cleanPlaceName).
+ *   2. For legacy "USA - California" format, return the second
+ *      token (more specific — the state, not the country).
+ *   3. Otherwise split on commas, return the first non-empty token.
+ *      Google's localized formatted_address is comma-separated
+ *      most-specific → least-specific (city, state/region, country),
+ *      so the first token is the city or town. Works regardless of
+ *      browser locale ("Atlanta, Georgia, USA" or "Atlanta, Geórgia,
+ *      Estados Unidos" both collapse to "Atlanta").
+ *   4. Single-token inputs ("Tokyo", "USA") pass through unchanged.
+ *
+ * @param {string | null | undefined} name
+ * @returns {string}
+ */
+export function shortPlaceName(name) {
+    const cleaned = cleanPlaceName(name);
+    if (!cleaned) return '';
+    if (cleaned.includes(' - ')) {
+        const parts = cleaned.split(' - ').map(p => p.trim()).filter(Boolean);
+        if (parts.length >= 2) return parts[1];
+        if (parts.length === 1) return parts[0];
+    }
+    const firstChunk = cleaned.split(',')[0].trim();
+    return firstChunk || cleaned;
+}
+
 function resolveDestinationData(countryStr) {
     if (!countryStr) return null;
 
