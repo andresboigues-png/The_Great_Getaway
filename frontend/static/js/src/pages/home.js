@@ -404,10 +404,19 @@ export function renderHome() {
                 // and drop precise markers. No more guessing what
                 // Google's default labels include.
 
-                /** PlacesService needs a real DOM element (not the map),
-                 *  but it's also fine to pass the map. The map mode that
-                 *  works with Places library: any. */
-                const placesService = new google.maps.places.PlacesService(map);
+                /** Lazy PlacesService — `loading=async` on the Maps
+                 *  script means google.maps.places might not be defined
+                 *  by the time this code runs. Construct on first use
+                 *  instead of at module init so a slow places-library
+                 *  load doesn't take the whole map down with it. */
+                /** @type {any | null} */
+                let _placesService = null;
+                const getPlacesService = () => {
+                    if (_placesService) return _placesService;
+                    if (typeof google === 'undefined' || !google.maps || !google.maps.places) return null;
+                    _placesService = new google.maps.places.PlacesService(map);
+                    return _placesService;
+                };
 
                 /** Markers grouped by pill key so we can clear one
                  *  category without disturbing the others. Each entry is
@@ -454,7 +463,9 @@ export function renderHome() {
                     if (placesCache[key]) { resolve(placesCache[key]); return; }
                     const lng = day.lng || day.lon;
                     if (!day.lat || !lng) { resolve([]); return; }
-                    placesService.nearbySearch({
+                    const svc = getPlacesService();
+                    if (!svc) { resolve([]); return; }
+                    svc.nearbySearch({
                         location: { lat: day.lat, lng },
                         radius: 1500,
                         type: cat.placesType,
