@@ -594,7 +594,7 @@ export function renderAI() {
             keyHelpBtn.addEventListener('click', () => {
                 const { root: helpRoot, close: closeHelp } = showModal({
                     cardClass: 'card glass',
-                    cardStyle: 'width: 520px; max-width: calc(100vw - 32px); padding: 28px 32px; border-radius: 28px; background: white;',
+                    cardStyle: 'width: 520px; max-width: calc(100vw - 32px); max-height: 90vh; overflow-y: auto; padding: 28px 32px; border-radius: 28px; background: white;',
                     innerHTML: `
                         <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 12px;">
                             <h2 style="margin:0; font-size: 1.6rem; color:#9b59b6; font-weight: 800; letter-spacing:-0.02em;">✦ Get a Gemini API key</h2>
