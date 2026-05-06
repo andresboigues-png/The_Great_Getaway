@@ -12,7 +12,7 @@ import { canEdit, canManageRoster, ROLE_PLANNER, ROLE_BUDGETEER } from '../permi
 import { findTripCompanionByLinkedUser } from '../companions.js';
 import { showModal } from '../components/Modal.js';
 import { wireRoleButtonKeys } from '../components/Keyboard.js';
-import { findMarkedPlace, toggleMarkedPlaceFlag } from '../markedPlaces.js';
+import { findMarkedPlace, toggleMarkedPlaceFlag, removeMarkedPlace, setMarkedPlaceAssignment } from '../markedPlaces.js';
 
 // Empty-state slideshow timer. Lives in this module; router.js calls
 // stopHomeSlideshow() on every navigate so the timer doesn't leak past home.
@@ -27,8 +27,8 @@ let activeMarkers = {}; // Cache of Leaflet markers by day ID
 let editingDayId = null; // ID of the day currently being geolocated/pinned
 let activeMapClickListener = null; // Reference to the active map click handler
 let openMenuDayId = null; // Track which day's sidebar menu is open
-/** @type {'days' | 'companions'} */
-let activeHomeTab = 'days'; // Sub-tab on the home trip view (Days timeline vs Companions panel)
+/** @type {'days' | 'companions' | 'shortlist'} */
+let activeHomeTab = 'days'; // Sub-tab on the home trip view (Path / Companions / Shortlist)
 
 /** Single source of truth for the home-map POI quick-access pills.
  *  Read by:
@@ -869,8 +869,17 @@ export function renderHome() {
                     placesMarkers[pillKey] = markers;
                 };
 
+                /** Per-trip pill toggles persist via STATE.preferences.
+                 *  enabledPois[tripId] so navigating away and back, or
+                 *  refreshing the browser, restores the pills + their
+                 *  markers. The Set here is the in-render mirror; we
+                 *  sync to STATE on every toggle and seed from STATE on
+                 *  init below. */
+                const tripIdForPills = activeTrip?.id || '';
+                const persistedPills = (STATE.preferences?.enabledPois?.[tripIdForPills] || [])
+                    .filter(k => POI_CATEGORIES.some(c => c.key === k));
                 /** @type {Set<string>} */
-                const enabledPois = new Set();
+                const enabledPois = new Set(persistedPills);
 
                 const mapOptions = {
                     center: savedMapView ? { lat: savedMapView.lat, lng: savedMapView.lng } : { lat: 20, lng: 0 },
@@ -913,6 +922,21 @@ export function renderHome() {
                 };
 
                 // Wire the POI filter pills via delegation on the row.
+                /** Persist the current enabledPois Set to STATE.preferences
+                 *  so it survives navigation / refresh. Called after every
+                 *  toggle. The list is sorted in POI_CATEGORIES order so
+                 *  the persisted layout matches the on-screen pill order. */
+                const persistEnabledPois = () => {
+                    if (!STATE.preferences) return;
+                    if (!STATE.preferences.enabledPois) STATE.preferences.enabledPois = {};
+                    const tripId = activeTrip?.id || '';
+                    if (!tripId) return;
+                    STATE.preferences.enabledPois[tripId] = POI_CATEGORIES
+                        .filter(c => enabledPois.has(c.key))
+                        .map(c => c.key);
+                    emit('state:changed');
+                };
+
                 const poiTogglesEl = document.getElementById('homeMapPoiToggles');
                 if (poiTogglesEl) {
                     poiTogglesEl.addEventListener('click', (ev) => {
@@ -939,6 +963,26 @@ export function renderHome() {
                         setPlacesPillVisible(key, willBeOn);
                         pill.classList.toggle('is-on', willBeOn);
                         pill.setAttribute('aria-pressed', String(willBeOn));
+                        persistEnabledPois();
+                    });
+                }
+
+                // Restore previously-active pills from preferences.
+                // Each one fires a fresh Places API call (cache is
+                // per-render and starts empty). Pill UI state is set
+                // synchronously so the row reads correctly while the
+                // markers stream in. Map styles + traffic overlay also
+                // get restored if traffic was on.
+                if (enabledPois.size > 0) {
+                    map.setOptions({ styles: buildPoiStyles(enabledPois) });
+                    if (enabledPois.has('traffic')) setTrafficVisible(true);
+                    enabledPois.forEach(key => {
+                        const pill = poiTogglesEl?.querySelector(`.map-poi-toggle[data-poi="${key}"]`);
+                        if (pill) {
+                            pill.classList.add('is-on');
+                            pill.setAttribute('aria-pressed', 'true');
+                        }
+                        setPlacesPillVisible(key, true);
                     });
                 }
 
@@ -1418,6 +1462,7 @@ export function renderHome() {
             <nav class="home-tabnav" role="tablist">
                 <button class="home-tabnav__tab${activeHomeTab === 'days' ? ' is-active' : ''}" data-home-tab="days" role="tab">Path</button>
                 <button class="home-tabnav__tab${activeHomeTab === 'companions' ? ' is-active' : ''}" data-home-tab="companions" role="tab">Companions</button>
+                <button class="home-tabnav__tab${activeHomeTab === 'shortlist' ? ' is-active' : ''}" data-home-tab="shortlist" role="tab">Shortlist${(activeTrip.markedPlaces || []).filter(p => p.forManual).length > 0 ? ` <span style="background:rgba(255,149,0,0.15); color:#ff9500; padding:1px 6px; border-radius:999px; font-size:0.7rem; font-weight:800; margin-left:2px;">${(activeTrip.markedPlaces || []).filter(p => p.forManual).length}</span>` : ''}</button>
             </nav>
         ` : ''}
 
@@ -1440,6 +1485,73 @@ export function renderHome() {
                     </button>
                     ${memberChipsHtml}
                 </div>
+            </div>
+
+            <!-- Shortlist tab — places the user marked from the home
+                 map InfoWindow with "📝 Shortlist it". Cards show the
+                 place and a remove button; the day-and-time-of-day
+                 dropdowns appear when the trip has numbered days, so
+                 the user can tag each place to a day they're planning
+                 to visit. -->
+            <div class="home-tab-content${activeHomeTab === 'shortlist' ? ' is-active' : ''}" data-home-tab="shortlist">
+                ${(() => {
+                    const shortlist = (activeTrip.markedPlaces || []).filter(p => p.forManual);
+                    if (shortlist.length === 0) {
+                        return `
+                            <div class="card glass" style="padding: 28px; border-radius: 18px; border: 1.5px dashed rgba(255, 149, 0, 0.35); background: rgba(255, 149, 0, 0.04); text-align:center;">
+                                <div style="font-size:2rem; margin-bottom:8px;">📝</div>
+                                <h3 style="margin:0 0 6px; color:#ff9500; font-weight:800;">No shortlisted places yet</h3>
+                                <p style="margin:0; color:var(--text-secondary); font-size:0.9rem;">On the home map, click any pin and hit <strong>📝 Shortlist it</strong> to add it here. This is a free-form list of places you'd like to fit in somewhere — useful when you're filling in days by hand. Pin a day below to tag a place to it.</p>
+                            </div>
+                        `;
+                    }
+                    const numberedDays = (STATE.tripDays || [])
+                        .filter(d => d.tripId === activeTrip.id && d.dayNumber > 0)
+                        .sort((a, b) => a.dayNumber - b.dayNumber);
+                    const dayOpts = (selectedId) => `
+                        <option value="" ${!selectedId ? 'selected' : ''}>Any day</option>
+                        ${numberedDays.map(d => `
+                            <option value="${esc(d.id)}" ${d.id === selectedId ? 'selected' : ''}>
+                                Day ${d.dayNumber}${d.date ? ` — ${formatDayDate(d.date) || d.date}` : ''}
+                            </option>
+                        `).join('')}
+                    `;
+                    const timeOpts = (selectedTime) => `
+                        <option value="" ${!selectedTime ? 'selected' : ''}>Any time</option>
+                        <option value="morning"   ${selectedTime === 'morning'   ? 'selected' : ''}>🌅 Morning</option>
+                        <option value="afternoon" ${selectedTime === 'afternoon' ? 'selected' : ''}>☀️ Afternoon</option>
+                        <option value="evening"   ${selectedTime === 'evening'   ? 'selected' : ''}>🌙 Evening</option>
+                    `;
+                    return `
+                        <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap:12px;">
+                            ${shortlist.map(p => `
+                                <div class="shortlist-card" data-place-id="${esc(p.placeId)}" style="background:white; border:1.5px solid ${p.color}; border-radius:14px; padding:14px; box-shadow: 0 4px 12px rgba(0,0,0,0.06); display:flex; flex-direction:column; gap:10px;">
+                                    <div style="display:flex; align-items:flex-start; gap:8px;">
+                                        <span style="font-size:1.4rem; line-height:1;">${p.icon}</span>
+                                        <div style="flex:1; min-width:0;">
+                                            <div style="font-weight:800; color:#002d5b; font-size:0.95rem; line-height:1.25;">${esc(p.name)}</div>
+                                            ${p.address ? `<div style="font-size:0.75rem; color:var(--text-secondary); margin-top:2px;">${esc(p.address)}</div>` : ''}
+                                        </div>
+                                        <button type="button" class="shortlist-remove-btn" data-place-id="${esc(p.placeId)}" title="Remove from shortlist" aria-label="Remove ${esc(p.name)}"
+                                            style="background: rgba(255,59,48,0.08); border: 1px solid rgba(255,59,48,0.25); color:#ff3b30; border-radius: 8px; padding: 4px 8px; font-size:0.75rem; font-weight:800; cursor:pointer; flex-shrink:0;">✕</button>
+                                    </div>
+                                    ${numberedDays.length > 0 ? `
+                                        <div style="display:flex; gap:8px;">
+                                            <select class="shortlist-day-select" data-place-id="${esc(p.placeId)}" style="flex:1; padding:6px 8px; border-radius:8px; border:1px solid rgba(0,0,0,0.1); font-size:0.78rem; background:white;">
+                                                ${dayOpts(p.dayId)}
+                                            </select>
+                                            <select class="shortlist-time-select" data-place-id="${esc(p.placeId)}" style="flex:1; padding:6px 8px; border-radius:8px; border:1px solid rgba(0,0,0,0.1); font-size:0.78rem; background:white;">
+                                                ${timeOpts(p.timeOfDay)}
+                                            </select>
+                                        </div>
+                                    ` : `
+                                        <div style="font-size:0.75rem; color:var(--text-secondary); font-style:italic;">Add Path days to tag this place to a specific day.</div>
+                                    `}
+                                </div>
+                            `).join('')}
+                        </div>
+                    `;
+                })()}
             </div>
         ` : ''}
 
@@ -1696,6 +1808,18 @@ export function renderHome() {
                 return;
             }
 
+            // Shortlist tab: per-card remove. Day / time-of-day
+            // dropdowns are handled in the change listener below
+            // (delegated like the click).
+            const shortlistRemoveBtn = /** @type {HTMLElement | null} */ (target.closest('.shortlist-remove-btn'));
+            if (shortlistRemoveBtn?.dataset.placeId && activeTrip) {
+                removeMarkedPlace(activeTrip, shortlistRemoveBtn.dataset.placeId);
+                emit('state:changed');
+                upsertTrip(activeTrip);
+                navigate('home'); // re-render so the count + tab content update
+                return;
+            }
+
             const delDayBtn = /** @type {HTMLElement | null} */ (target.closest('.day-delete-btn'));
             if (delDayBtn?.dataset.dayId) { deleteDay(delDayBtn.dataset.dayId); return; }
 
@@ -1705,6 +1829,34 @@ export function renderHome() {
             // Outer card click — only reached if no inner button matched.
             const card = /** @type {HTMLElement | null} */ (target.closest('.day-card'));
             if (card?.dataset.dayId) { toggleDayMenu(card.dataset.dayId); return; }
+        });
+
+        // Shortlist tab dropdowns — day + time-of-day. Delegated since
+        // the tab content is part of daysContainer.innerHTML and would
+        // otherwise need re-binding on every render.
+        daysContainer.addEventListener('change', (e) => {
+            const target = /** @type {HTMLElement | null} */ (e.target);
+            if (!target || !activeTrip) return;
+            const sel = target.closest('.shortlist-day-select, .shortlist-time-select');
+            if (!sel) return;
+            const pid = /** @type {HTMLElement} */ (sel).dataset.placeId;
+            if (!pid) return;
+            const card = /** @type {HTMLElement | null} */ (sel.closest('.shortlist-card'));
+            if (!card) return;
+            const daySel = /** @type {HTMLSelectElement | null} */ (card.querySelector('.shortlist-day-select'));
+            const timeSel = /** @type {HTMLSelectElement | null} */ (card.querySelector('.shortlist-time-select'));
+            setMarkedPlaceAssignment(
+                activeTrip,
+                pid,
+                daySel?.value || null,
+                /** @type {any} */ (timeSel?.value) || null
+            );
+            emit('state:changed');
+            upsertTrip(activeTrip);
+            // No re-render — the dropdowns already show the new value
+            // and there's no derived UI on home that depends on this
+            // (yet — future "5 shortlisted on Day 2" badges on day
+            // cards would re-render here).
         });
 
         setTimeout(() => {

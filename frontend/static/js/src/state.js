@@ -70,13 +70,20 @@ export const STATE = {
      *    in Settings → General.
      *  - `poiVisible` controls which pills appear in the home pill row.
      *    Shape: { [pillKey]: boolean }. Missing key OR true means
-     *    visible; false means hidden. Default {} = every pill visible. */
+     *    visible; false means hidden. Default {} = every pill visible.
+     *  - `enabledPois` persists per-trip which pills the user had
+     *    toggled ON. Shape: { [tripId]: string[] }. The home page
+     *    restores these on render so toggling Restaurants then
+     *    navigating away and back keeps the pill (and its markers)
+     *    active. Each restore fires a fresh Places API call since
+     *    in-memory cache is per-render. */
     preferences: {
         mapDefaultPois: ['sights', 'parks', 'transit'],
         poiFilters: {},
         pillEpicenters: {},
         poiAnchoring: {},
         poiVisible: {},
+        enabledPois: {},
     },
 };
 
@@ -122,6 +129,9 @@ export function loadState() {
     }
     if (!STATE.preferences.poiVisible || typeof STATE.preferences.poiVisible !== 'object') {
         STATE.preferences.poiVisible = {};
+    }
+    if (!STATE.preferences.enabledPois || typeof STATE.preferences.enabledPois !== 'object') {
+        STATE.preferences.enabledPois = {};
     }
 
     // Per-trip companions used to be `string[]` of names. Promote any
