@@ -87,7 +87,7 @@ export const POI_CATEGORIES = [
     { key: 'pets',        placesType: 'veterinary_care',    extraPlacesTypes: ['pet_store'], searchStrategy: 'wide', useGenesisAlways: true, icon: '🐾', label: 'Pets',           color: '#a460ed', defaultMinRating: 0, tooltip: 'Vets and pet stores across the wider trip area' },
     { key: 'schools',     placesType: 'school',             searchStrategy: 'wide', useGenesisAlways: true, icon: '🎓', label: 'Schools',         color: '#0071e3', defaultMinRating: 0, tooltip: 'Schools and universities. Always searches the wider trip area.' },
     { key: 'sports',      placesType: 'stadium',            searchStrategy: 'wide', useGenesisAlways: true, icon: '🏟️', label: 'Sports',          color: '#ff2d55', defaultMinRating: 0, tooltip: 'Stadiums and gyms. Always searches the wider trip area — they\'re landmarks, you want them all.' },
-    { key: 'transit',     placesType: 'transit_station',    extraPlacesTypes: ['ferry_terminal'], searchStrategy: 'wide', useGenesisAlways: true, icon: '🚉', label: 'Public transport', color: '#0a3d6b', defaultMinRating: 0, tooltip: 'Train, metro, light rail, smaller commuter stations + ferry terminals. Toggling on also switches the map to road view briefly so Google\'s dotted ferry-route lines (over water) and subway / bus route lines (on land) become visible — they only render on the road map type. Bus stops are excluded because Google\'s API uses the same `bus_station` type for both hub terminals and street-corner stops.' },
+    { key: 'transit',     placesType: 'transit_station',    extraPlacesTypes: ['ferry_terminal'], searchStrategy: 'wide', useGenesisAlways: true, icon: '🚉', label: 'Public transport', color: '#0a3d6b', defaultMinRating: 0, tooltip: 'Train, metro, light rail, smaller commuter stations + ferry terminals. For the dotted ferry-route lines and subway/bus geometry over water and on land, switch the map to Road view via the controls in the top-right corner — those route lines only render on the road map type, not on satellite. Bus stops are excluded because Google\'s API uses the same `bus_station` type for both hub terminals and street-corner stops.' },
     { key: 'traffic',     placesType: 'gas_station',        searchStrategy: 'wide', useGenesisAlways: true, icon: '🛣️', label: 'Roads & traffic', color: '#0a3d6b', defaultMinRating: 0, tooltip: 'Highway / arterial road names + live Google traffic congestion + gas stations across the wider trip area' },
 ];
 
@@ -978,33 +978,19 @@ export function renderHome() {
                     }
                 };
 
-                // Public-transport map-type swap. The dotted ferry-route
-                // lines the user wants are part of `transit.line.geometry`
-                // in Google's roadmap base style — they DO NOT render on
-                // hybrid/satellite. Switching map types is also necessary
-                // for the small commuter train-line geometry on land.
-                // TransitLayer was an earlier attempt and didn't work:
-                // the docs say it "alters the style of the base map" and
-                // returns "thick coloured lines" rather than the dotted
-                // route geometry, plus it fights our `transit: off`
-                // style mask. Cleanest path: when the pill is on, swap
-                // hybrid → roadmap; when off, swap back.
-                const DEFAULT_MAP_TYPE = 'hybrid';
-                const setTransitLinesVisible = (visible) => {
-                    if (!map) return;
-                    if (visible) {
-                        if (map.getMapTypeId() !== 'roadmap') {
-                            map.setMapTypeId('roadmap');
-                        }
-                    } else {
-                        // Only swap back if we're still on roadmap (don't
-                        // override a manual user choice made between
-                        // toggles).
-                        if (map.getMapTypeId() === 'roadmap') {
-                            map.setMapTypeId(DEFAULT_MAP_TYPE);
-                        }
-                    }
-                };
+                // (Earlier revisions of the Public transport pill auto-
+                // swapped the map from hybrid → roadmap so Google's
+                // dotted `transit.line.geometry` would render — those
+                // styles only paint on roadmap. The auto-swap turned out
+                // to be jarring: any user who'd left the pill enabled
+                // got their satellite view yanked away on every refresh.
+                // We've reverted to keeping the user's chosen map type.
+                // The transit.line.geometry style override is still set
+                // when the pill is on (see buildPoiStyles below) — it
+                // silently no-ops on hybrid but renders correctly when
+                // the user manually switches to roadmap via the map's
+                // built-in mapTypeControl. The pill's job is now just
+                // station markers; lines are an opt-in roadmap feature.
 
                 // Wire the POI filter pills via delegation on the row.
                 /** Persist the current enabledPois Set to STATE.preferences
@@ -1042,10 +1028,6 @@ export function renderHome() {
                         map.setOptions({ styles: buildPoiStyles(enabledPois) });
                         // Roads & traffic pill: live congestion overlay.
                         if (key === 'traffic') setTrafficVisible(willBeOn);
-                        // Public transport pill: route lines overlay
-                        // (ferry crossings over water + subway/bus on
-                        // land).
-                        if (key === 'transit') setTransitLinesVisible(willBeOn);
                         // Places API markers (categories with placesType).
                         // Async; pill state flips immediately so the UI
                         // feels responsive even before search returns.
@@ -1065,7 +1047,6 @@ export function renderHome() {
                 if (enabledPois.size > 0) {
                     map.setOptions({ styles: buildPoiStyles(enabledPois) });
                     if (enabledPois.has('traffic')) setTrafficVisible(true);
-                    if (enabledPois.has('transit')) setTransitLinesVisible(true);
                     enabledPois.forEach(key => {
                         const pill = poiTogglesEl?.querySelector(`.map-poi-toggle[data-poi="${key}"]`);
                         if (pill) {
