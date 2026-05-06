@@ -4,6 +4,7 @@ import { generateId, showConfirmModal, q, esc } from '../utils.js';
 import { syncCategories, apiFetch } from '../api.js';
 import { navigate } from '../router.js';
 import { showModal } from '../components/Modal.js';
+import { POI_CATEGORIES } from './home.js';
 
 export const showSettingsTab = (tab) => {
     const tabs = /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll('.settings-tab-btn'));
@@ -157,6 +158,7 @@ export function renderSettings() {
         const isMenu = activeTab === 'menu';
         const isReset = activeTab === 'reset';
         const isFormat = activeTab === 'format';
+        const isGeneral = activeTab === 'general';
 
         return `
             <div class="ai-page-header">
@@ -166,6 +168,12 @@ export function renderSettings() {
 
             ${isMenu ? `
                 <div class="settings-grid">
+                    <button type="button" class="card-button-reset card glass management-card settings-tab-card" data-tab="general">
+                        <h2 class="card-title" style="color: var(--accent-blue); margin: 0;">General Settings</h2>
+                        <p style="color: var(--text-secondary); margin: 8px 0 0;">App-wide preferences — pick which map layer pills appear by default.</p>
+                        <div style="margin-top: 20px; color: var(--accent-blue); font-weight: 700; font-size: 0.85rem;">Configure &rarr;</div>
+                    </button>
+
                     <button type="button" class="card-button-reset card glass management-card settings-tab-card" data-tab="format">
                         <h2 class="card-title" style="color: #ff9500; margin: 0;">Format Options</h2>
                         <p style="color: var(--text-secondary); margin: 8px 0 0;">Configure Excel import mappings and global data formats.</p>
@@ -181,7 +189,28 @@ export function renderSettings() {
                 </div>
             ` : `
                 <button class="btn btn-small btn-liquid-glass settings-tab-card" data-tab="menu" style="margin-bottom: 24px; padding: 10px 20px; border-radius: 14px;">&larr; Back to Control Center</button>
-                
+
+                ${isGeneral ? (() => {
+                    const defaults = STATE.preferences?.mapDefaultPois || [];
+                    const rows = POI_CATEGORIES.map(c => `
+                        <label class="general-pref-row">
+                            <input type="checkbox" class="poi-default-toggle" data-poi="${c.key}" ${defaults.includes(c.key) ? 'checked' : ''}>
+                            <span class="general-pref-row__icon">${c.icon}</span>
+                            <span class="general-pref-row__label">${esc(c.label)}</span>
+                            <span class="general-pref-row__hint">${esc(c.tooltip)}</span>
+                        </label>
+                    `).join('');
+                    return `
+                        <div class="card glass" style="padding: 32px; border-radius: 28px;">
+                            <h2 style="color: var(--accent-blue); margin-top: 0;">Map layers</h2>
+                            <p style="color: var(--text-secondary); margin-bottom: 24px;">Pick which point-of-interest pills appear on the home map by default. Anything you don't pick stays accessible behind the "+ More" button.</p>
+                            <div class="general-pref-list">
+                                ${rows}
+                            </div>
+                        </div>
+                    `;
+                })() : ''}
+
                 ${isReset ? `
                     <div class="settings-grid">
                         <div class="card glass" style="padding: var(--space-6);">
@@ -358,6 +387,10 @@ export function renderSettings() {
         const tabCard = /** @type {HTMLElement | null} */ (target.closest('.settings-tab-card'));
         if (tabCard?.dataset.tab) { switchSettingsTab(tabCard.dataset.tab); return; }
 
+        // POI default-pill checkbox is handled via the change listener
+        // below, not here — clicks bubble up but the toggle's actual
+        // state change is what we react to.
+
         const resetBtn = /** @type {HTMLElement | null} */ (target.closest('.confirm-reset-btn'));
         if (resetBtn?.dataset.resetType) { confirmReset(resetBtn.dataset.resetType); return; }
 
@@ -372,6 +405,32 @@ export function renderSettings() {
 
         if (target.closest('#addFormatMappingBtn')) { addFormatMapping(); return; }
         if (target.closest('#saveCustomFormatBtn')) { saveCustomFormat(); return; }
+    });
+
+    // POI default-pill checkboxes — change listener so toggling a box
+    // immediately writes to STATE.preferences.mapDefaultPois. Next visit
+    // to home renders the new default set; the user doesn't need a Save
+    // button. Delegated like the click handler since the General tab
+    // is rendered in/out of the DOM as the user navigates.
+    div.addEventListener('change', (e) => {
+        const target = /** @type {HTMLInputElement | null} */ (e.target);
+        const cb = target?.closest('.poi-default-toggle');
+        if (!cb) return;
+        const key = /** @type {HTMLElement} */ (cb).dataset.poi;
+        if (!key) return;
+        if (!STATE.preferences) STATE.preferences = { mapDefaultPois: [] };
+        if (!Array.isArray(STATE.preferences.mapDefaultPois)) {
+            STATE.preferences.mapDefaultPois = [];
+        }
+        const set = new Set(STATE.preferences.mapDefaultPois);
+        if (/** @type {HTMLInputElement} */ (cb).checked) set.add(key);
+        else set.delete(key);
+        // Preserve the original POI_CATEGORIES order rather than the
+        // user's click order so the home pill row stays predictable.
+        STATE.preferences.mapDefaultPois = POI_CATEGORIES
+            .filter(c => set.has(c.key))
+            .map(c => c.key);
+        emit('state:changed');
     });
 
     return div;

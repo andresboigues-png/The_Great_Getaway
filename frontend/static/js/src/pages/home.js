@@ -29,6 +29,26 @@ let openMenuDayId = null; // Track which day's sidebar menu is open
 /** @type {'days' | 'companions'} */
 let activeHomeTab = 'days'; // Sub-tab on the home trip view (Days timeline vs Companions panel)
 
+/** Single source of truth for the home-map POI quick-access pills.
+ *  Read by:
+ *   - the template above (renders the visible / hidden pill rows)
+ *   - the buildPoiStyles helper (maps key → Google Maps featureType)
+ *   - the Settings → General tab (renders checkboxes)
+ *  Each entry is everything one category needs, so adding a tenth
+ *  category later is one push to this array.
+ *  @type {{key: string, featureType: string, icon: string, label: string, tooltip: string}[]} */
+export const POI_CATEGORIES = [
+    { key: 'food',    featureType: 'poi.business',         icon: '🛒', label: 'Shops & food', tooltip: 'Restaurants, supermarkets, gas, hotels, ATMs, shops' },
+    { key: 'sights',  featureType: 'poi.attraction',       icon: '🏖️', label: 'Sights',       tooltip: 'Tourist attractions, beaches, museums, monuments' },
+    { key: 'parks',   featureType: 'poi.park',             icon: '🌳', label: 'Parks',        tooltip: 'Parks and gardens' },
+    { key: 'medical', featureType: 'poi.medical',          icon: '🏥', label: 'Medical',      tooltip: 'Hospitals, pharmacies, clinics' },
+    { key: 'worship', featureType: 'poi.place_of_worship', icon: '⛪', label: 'Worship',      tooltip: 'Churches, temples, mosques' },
+    { key: 'schools', featureType: 'poi.school',           icon: '🎓', label: 'Schools',      tooltip: 'Schools and universities' },
+    { key: 'sports',  featureType: 'poi.sports_complex',   icon: '🏟️', label: 'Sports',       tooltip: 'Stadiums, gyms, sports complexes' },
+    { key: 'govt',    featureType: 'poi.government',       icon: '🏛️', label: 'Govt',         tooltip: 'Government buildings, embassies' },
+    { key: 'transit', featureType: 'transit',              icon: '🚆', label: 'Transit',      tooltip: 'Train stations, metro, bus stops' },
+];
+
 // Per-day card action helpers. The map setTimeout below detects
 // activeMapClickListener and wires it on the map; these helpers just mutate
 // the module-level state and re-navigate so renderHome runs again.
@@ -282,26 +302,30 @@ export function renderHome() {
             <div class="card glass cover-card cover-card--md">
                 <div id="homeHeroMap" style="width: 100%; height: 100%; position: absolute; inset: 0; z-index: 0;"></div>
                 <!-- POI filter pills — sit on top of the gradient so they
-                     stay clickable. Each toggles a Google Maps POI category
-                     on the satellite-overlay label layer. Default: all off,
-                     so the map only shows place names (cities, neighborhoods)
-                     without the restaurant/attraction clutter.
-                     The 9 categories are every poi.* feature type the
-                     Google Maps Styles API supports — finer subcategories
-                     (supermarket-only, gas-only, hotels-only, ATMs-only)
-                     all live inside poi.business, so the "Shops & food"
-                     pill turns them all on together. Splitting them
-                     further would require the paid Places API. -->
+                     stay clickable. The visible set is whatever the user
+                     picked in Settings → General (defaults: sights/parks/
+                     transit); the rest live behind a "More" expander. The
+                     full 9-category list is centralized in POI_CATEGORIES
+                     so this row, the More overflow, and the Settings page
+                     all read from one source. -->
                 <div id="homeMapPoiToggles" class="map-poi-toggles">
-                    <button type="button" class="map-poi-toggle" data-poi="food" aria-pressed="false" title="Restaurants, supermarkets, gas, hotels, ATMs, shops">🛒 <span>Shops &amp; food</span></button>
-                    <button type="button" class="map-poi-toggle" data-poi="sights" aria-pressed="false" title="Tourist attractions, beaches, museums, monuments">🏖️ <span>Sights</span></button>
-                    <button type="button" class="map-poi-toggle" data-poi="parks" aria-pressed="false" title="Parks and gardens">🌳 <span>Parks</span></button>
-                    <button type="button" class="map-poi-toggle" data-poi="medical" aria-pressed="false" title="Hospitals, pharmacies, clinics">🏥 <span>Medical</span></button>
-                    <button type="button" class="map-poi-toggle" data-poi="worship" aria-pressed="false" title="Churches, temples, mosques">⛪ <span>Worship</span></button>
-                    <button type="button" class="map-poi-toggle" data-poi="schools" aria-pressed="false" title="Schools and universities">🎓 <span>Schools</span></button>
-                    <button type="button" class="map-poi-toggle" data-poi="sports" aria-pressed="false" title="Stadiums, gyms, sports complexes">🏟️ <span>Sports</span></button>
-                    <button type="button" class="map-poi-toggle" data-poi="govt" aria-pressed="false" title="Government buildings, embassies">🏛️ <span>Govt</span></button>
-                    <button type="button" class="map-poi-toggle" data-poi="transit" aria-pressed="false" title="Train stations, metro, bus stops">🚆 <span>Transit</span></button>
+                    ${(() => {
+                        const defaults = STATE.preferences?.mapDefaultPois || ['sights', 'parks', 'transit'];
+                        const visible = POI_CATEGORIES.filter(c => defaults.includes(c.key));
+                        const hidden = POI_CATEGORIES.filter(c => !defaults.includes(c.key));
+                        const renderPill = (c) => `
+                            <button type="button" class="map-poi-toggle" data-poi="${c.key}" aria-pressed="false" title="${esc(c.tooltip)}">${c.icon} <span>${esc(c.label)}</span></button>
+                        `;
+                        return `
+                            ${visible.map(renderPill).join('')}
+                            ${hidden.length > 0 ? `
+                                <button type="button" class="map-poi-toggle map-poi-toggle--more" id="homeMapPoiMoreBtn" aria-expanded="false" title="Show more layer toggles">+ ${hidden.length}</button>
+                                <div class="map-poi-overflow" id="homeMapPoiOverflow" hidden>
+                                    ${hidden.map(renderPill).join('')}
+                                </div>
+                            ` : ''}
+                        `;
+                    })()}
                 </div>
                 <div class="cover-card__gradient" style="pointer-events: none; z-index: 1;"></div>
                 <div class="cover-card__content" style="pointer-events: none; z-index: 2;">
@@ -333,38 +357,34 @@ export function renderHome() {
                 const tripMapKey = activeTrip ? activeTrip.id : null;
                 const savedMapView = tripMapKey && STATE.mapViews && STATE.mapViews[tripMapKey];
 
-                // POI category → Google Maps featureType mapping for the
-                // toggle pills. The label-layer styles work on hybrid (the
-                // overlay is vector); satellite imagery itself is unchanged.
-                // These are every distinct poi.* type the Styles API
-                // supports — supermarkets/gas/hotels/ATMs all live inside
-                // poi.business and ship together under "Shops & food".
-                const POI_FEATURE = {
-                    food: 'poi.business',
-                    sights: 'poi.attraction',
-                    parks: 'poi.park',
-                    medical: 'poi.medical',
-                    worship: 'poi.place_of_worship',
-                    schools: 'poi.school',
-                    sports: 'poi.sports_complex',
-                    govt: 'poi.government',
-                    transit: 'transit',
-                };
                 /** Build the styles array given which categories are
                  *  currently enabled. Default-hide every poi.* category
-                 *  AND the master `poi` so labels stay clean; then turn
-                 *  back on whatever the user has toggled. Administrative
-                 *  labels (cities, neighbourhoods) are left untouched so
-                 *  geographic place names always show. */
+                 *  AND transit so labels stay clean; then turn back on
+                 *  whatever the user has toggled, AND make those labels
+                 *  visually heavier (dark fill + thick white halo) so
+                 *  the toggled categories pop on the satellite imagery.
+                 *  Administrative labels (cities, neighbourhoods) are
+                 *  left untouched so geographic place names always show. */
                 const buildPoiStyles = (enabledSet) => {
                     /** @type {any[]} */
                     const styles = [
                         { featureType: 'poi', stylers: [{ visibility: 'off' }] },
                         { featureType: 'transit', stylers: [{ visibility: 'off' }] },
                     ];
-                    enabledSet.forEach(key => {
-                        const ft = POI_FEATURE[key];
-                        if (ft) styles.push({ featureType: ft, stylers: [{ visibility: 'on' }] });
+                    POI_CATEGORIES.forEach(cat => {
+                        if (!enabledSet.has(cat.key)) return;
+                        // Bring the category back on AND boost it: dark
+                        // fill + thick white halo. Google's Styles API
+                        // doesn't support font-size, but stroke `weight`
+                        // bumps the halo width which makes the text read
+                        // as physically larger / bolder against the
+                        // satellite imagery.
+                        styles.push(
+                            { featureType: cat.featureType, stylers: [{ visibility: 'on' }] },
+                            { featureType: cat.featureType, elementType: 'labels.text.fill', stylers: [{ color: '#0a3d6b' }, { weight: 2 }] },
+                            { featureType: cat.featureType, elementType: 'labels.text.stroke', stylers: [{ color: '#ffffff' }, { weight: 4 }] },
+                            { featureType: cat.featureType, elementType: 'labels.icon', stylers: [{ visibility: 'on' }] },
+                        );
                     });
                     return styles;
                 };
@@ -398,15 +418,31 @@ export function renderHome() {
                 const map = new google.maps.Map(mapContainer, mapOptions);
                 window.activeMap = map; // Read by external Google Maps callbacks; keep on window.
 
-                // Wire the POI filter pills. Each click flips the category's
-                // enabled state, refreshes the map styles, and updates the
-                // pill's aria-pressed + .is-on visual state.
+                // Wire the POI filter pills (delegated so it covers both
+                // the visible row AND the overflow that's appended after
+                // the More button is clicked). The More button itself
+                // toggles the overflow's hidden attribute.
                 const poiTogglesEl = document.getElementById('homeMapPoiToggles');
                 if (poiTogglesEl) {
                     poiTogglesEl.addEventListener('click', (ev) => {
-                        const btn = /** @type {HTMLElement | null} */ (ev.target);
-                        const pill = btn?.closest('.map-poi-toggle');
-                        if (!pill) return;
+                        const target = /** @type {HTMLElement | null} */ (ev.target);
+
+                        // "+ N" expander — flip the overflow visibility.
+                        const moreBtn = target?.closest('#homeMapPoiMoreBtn');
+                        if (moreBtn) {
+                            const overflow = document.getElementById('homeMapPoiOverflow');
+                            if (overflow) {
+                                const open = overflow.hasAttribute('hidden');
+                                if (open) overflow.removeAttribute('hidden');
+                                else overflow.setAttribute('hidden', '');
+                                moreBtn.setAttribute('aria-expanded', String(open));
+                            }
+                            return;
+                        }
+
+                        // Regular category pill — toggle that POI layer.
+                        const pill = target?.closest('.map-poi-toggle');
+                        if (!pill || pill.classList.contains('map-poi-toggle--more')) return;
                         const key = /** @type {HTMLElement} */ (pill).dataset.poi;
                         if (!key) return;
                         if (enabledPois.has(key)) enabledPois.delete(key);

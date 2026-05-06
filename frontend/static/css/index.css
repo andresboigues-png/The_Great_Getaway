@@ -1597,17 +1597,18 @@ h1 {
 }
 
 /* POI filter pills overlaid on the home cover-card map. Sit at the
-   top-left and float above the gradient + content layers. Each pill
-   toggles a Google Maps POI category — off by default so the map
-   stays decluttered, on when the user wants to see that category. */
+   top-left and float above the gradient + content layers. The visible
+   set is what the user picked in Settings → General; the rest live
+   behind the "+ N" More pill which expands an overflow row. */
 .map-poi-toggles {
     position: absolute;
     top: var(--space-3);
     left: var(--space-3);
+    right: var(--space-3);
     z-index: 3;
     display: flex;
     flex-wrap: wrap;
-    gap: var(--space-2);
+    gap: 6px;
     pointer-events: none;
 }
 .map-poi-toggle {
@@ -1617,29 +1618,91 @@ h1 {
     border: 1px solid rgba(0, 113, 227, 0.18);
     color: var(--accent-blue);
     font-weight: 700;
-    font-size: 0.78rem;
-    padding: 6px 12px;
+    font-size: 0.72rem;
+    padding: 4px 10px;
     border-radius: var(--radius-pill);
     cursor: pointer;
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    gap: 4px;
+    line-height: 1.4;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
     transition: background-color 0.2s ease, color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
 }
 .map-poi-toggle:hover {
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
 }
 .map-poi-toggle.is-on {
     background: var(--accent-blue);
     color: white;
     border-color: var(--accent-blue);
-    box-shadow: 0 4px 12px rgba(0, 113, 227, 0.3);
+    box-shadow: 0 3px 10px rgba(0, 113, 227, 0.28);
 }
 .map-poi-toggle:focus-visible {
     outline: 2px solid var(--accent-blue);
     outline-offset: 2px;
+}
+/* "+ N" More button — same shape but with a tighter look so it reads
+   as an affordance rather than a category. */
+.map-poi-toggle--more {
+    background: rgba(0, 113, 227, 0.12);
+    border-color: rgba(0, 113, 227, 0.28);
+    font-weight: 800;
+}
+.map-poi-toggle--more[aria-expanded="true"] {
+    background: var(--accent-blue);
+    color: white;
+}
+/* Overflow container — hugs the pill row, wraps to next line so the
+   extra pills don't push the visible ones around. */
+.map-poi-overflow {
+    pointer-events: auto;
+    display: contents;
+}
+.map-poi-overflow[hidden] { display: none; }
+
+/* Settings → General preference rows. One row per POI category with a
+   checkbox + emoji + name + tooltip-style hint, stacked vertically. */
+.general-pref-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+.general-pref-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+.general-pref-row:hover {
+    background: rgba(0, 113, 227, 0.06);
+    border-color: rgba(0, 113, 227, 0.2);
+}
+.general-pref-row input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--accent-blue);
+    cursor: pointer;
+}
+.general-pref-row__icon {
+    font-size: 1.2rem;
+    flex-shrink: 0;
+}
+.general-pref-row__label {
+    font-weight: 700;
+    color: var(--text-primary);
+}
+.general-pref-row__hint {
+    flex: 1;
+    color: var(--text-secondary);
+    font-size: 0.82rem;
+    text-align: right;
 }
 .cover-card__content {
     position: absolute;

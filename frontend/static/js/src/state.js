@@ -49,7 +49,12 @@ export const STATE = {
     tripDays: [],        // Array of {id, tripId, name, dayNumber, photos: []}
     archivedTrips: [],   // Array of completed trips
     activeDetailId: null, // Store ID for detail views (e.g. archived trip detail)
-    notifications: []
+    notifications: [],
+    /** User preferences. Currently used for the home-map POI quick-access
+     *  pills (`mapDefaultPois`); future preferences live here too. */
+    preferences: {
+        mapDefaultPois: ['sights', 'parks', 'transit'],
+    },
 };
 
 export function loadState() {
@@ -79,6 +84,10 @@ export function loadState() {
     if (!STATE.savedFormats) STATE.savedFormats = [];
     if (!STATE.tripDays) STATE.tripDays = [];
     if (!STATE.archivedTrips) STATE.archivedTrips = [];
+    if (!STATE.preferences) STATE.preferences = { mapDefaultPois: ['sights', 'parks', 'transit'] };
+    if (!Array.isArray(STATE.preferences.mapDefaultPois)) {
+        STATE.preferences.mapDefaultPois = ['sights', 'parks', 'transit'];
+    }
 
     // Per-trip companions used to be `string[]` of names. Promote any
     // legacy snapshot in localStorage to the `Companion[]` shape so the
