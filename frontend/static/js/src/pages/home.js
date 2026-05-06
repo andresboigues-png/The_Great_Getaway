@@ -38,7 +38,10 @@ let activeHomeTab = 'days'; // Sub-tab on the home trip view (Path / Companions 
  *   - the Settings → General tab (renders the per-pill filter UI)
  *
  *  `placesType`: one Google Places API type for nearbySearch.
- *    `null` = pure styles-toggle pill (Roads & traffic).
+ *    `null` = pure styles/layer-toggle pill with no markers. None
+ *    currently use this; Roads & traffic was the original `null`
+ *    pill but now also drops gas-station markers (placesType:
+ *    'gas_station') alongside the traffic overlay + road styles.
  *  `extraPlacesTypes`: optional secondary types. When set, a separate
  *    nearbySearch fires for each and the results are merged + deduped.
  *    Used by Pets (vets + pet stores — Places API takes one type per
@@ -86,7 +89,7 @@ export const POI_CATEGORIES = [
     { key: 'sports',      placesType: 'stadium',            searchStrategy: 'wide', useGenesisAlways: true, icon: '🏟️', label: 'Sports',          color: '#ff2d55', defaultMinRating: 0, tooltip: 'Stadiums and gyms. Always searches the wider trip area — they\'re landmarks, you want them all.' },
     { key: 'govt',        placesType: 'city_hall',          searchStrategy: 'wide', useGenesisAlways: true, icon: '🏛️', label: 'Govt',            color: '#8e8e93', defaultMinRating: 0, tooltip: 'Government buildings + embassies. Always searches the wider trip area — sparse and useful to know where they are across the whole trip.' },
     { key: 'transit',     placesType: 'transit_station',    searchStrategy: 'wide', useGenesisAlways: true, icon: '🚆', label: 'Public transit',  color: '#0a3d6b', defaultMinRating: 0, tooltip: 'Big stations only — train, metro, light rail. Always searches the wider trip area (50 km from the genesis pin), even if you\'ve picked a specific day as the search center. Bus stops are filtered out.' },
-    { key: 'traffic',     placesType: null,                 searchStrategy: 'wide',     icon: '🛣️', label: 'Roads & traffic', color: '#0a3d6b', defaultMinRating: 0, tooltip: 'Highway / arterial road names + live Google traffic congestion' },
+    { key: 'traffic',     placesType: 'gas_station',        searchStrategy: 'wide', useGenesisAlways: true, icon: '🛣️', label: 'Roads & traffic', color: '#0a3d6b', defaultMinRating: 0, tooltip: 'Highway / arterial road names + live Google traffic congestion + gas stations across the wider trip area' },
 ];
 
 /** Returns true if this category claims the place as primarily its

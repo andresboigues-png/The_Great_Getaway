@@ -125,56 +125,123 @@ export function renderArchivedTripDetail(tripId) {
         return div;
     }
 
-    let totalSpent = 0;
-    (trip.expenses || []).filter(e => !e.isSettlement).forEach(e => totalSpent += (e.euroValue || 0));
+    // ── Trip stats roll-up ───────────────────────────────────────────
+    const expenses = (trip.expenses || []).filter(e => !e.isSettlement);
+    const totalSpent = expenses.reduce((sum, e) => sum + (e.euroValue || 0), 0);
+    const tripDays = (trip.tripDays || []);
+    const dayCount = tripDays.length;
+    const totalPhotos = tripDays.reduce((n, d) => n + ((d.photos || []).length), 0);
+    const totalDocs = tripDays.reduce((n, d) => n + ((d.tickets || []).length), 0);
 
+    // First photo (used as the hero background and a fallback for any
+    // day that doesn't carry its own photo).
     let firstPhoto = null;
-    if (trip.tripDays) {
-        for (const day of trip.tripDays) {
-            if (day.photos && day.photos.length > 0) {
-                firstPhoto = day.photos[0];
-                break;
-            }
-        }
+    for (const day of tripDays) {
+        if (day.photos && day.photos.length > 0) { firstPhoto = day.photos[0]; break; }
     }
 
+    // ── Hero card ────────────────────────────────────────────────────
+    // Glass card with a photo background when available, falling back
+    // to a clean blue/purple gradient. The "Memories of" caption +
+    // 4rem white title in the previous incarnation was a holdover from
+    // the old design language; this one matches the rest of the app —
+    // gradient-text title, action pills (Restore / Back) in the
+    // top-right, and a row of stat chips (Days / Photos / Spent) under
+    // the title. Public toggle is a chip in the same row, consistent
+    // with how the Collections list card displays it.
+    const heroBg = firstPhoto
+        ? `background: linear-gradient(135deg, rgba(0,45,91,0.55), rgba(88,86,214,0.45)), url(${esc(firstPhoto)}) center/cover no-repeat;`
+        : `background: linear-gradient(135deg, #007aff 0%, #5856d6 60%, #34c759 130%);`;
+    const heroTextColor = '#ffffff';
+    const heroSecondary = 'rgba(255,255,255,0.85)';
+    const chipBg = 'rgba(255,255,255,0.16)';
+    const chipBorder = '1px solid rgba(255,255,255,0.25)';
+
+    const statChip = (icon, label, value) => `
+        <div style="display:flex; align-items:center; gap:10px; background:${chipBg}; border:${chipBorder}; padding:10px 16px; border-radius:999px; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);">
+            <span style="font-size:1.05rem; line-height:1;">${icon}</span>
+            <div style="display:flex; flex-direction:column; line-height:1.05;">
+                <span style="font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.12em; color:${heroSecondary};">${esc(label)}</span>
+                <span style="font-size:0.95rem; font-weight:800; color:${heroTextColor};">${esc(value)}</span>
+            </div>
+        </div>
+    `;
+
     div.innerHTML = `
-        <div class="trip-banner" style="${firstPhoto ? `background: linear-gradient(rgba(0,45,91,0.6), rgba(0,45,91,0.8)), url(${firstPhoto}) center/cover no-repeat; border: none;` : `background: rgba(255,255,255,0.9); border: 1.5px solid var(--accent-blue);`}">
-            <div style="font-size: 0.9rem; color: ${firstPhoto ? 'rgba(255,255,255,0.7)' : 'rgba(0, 45, 91, 0.5)'}; font-weight: 800; text-transform: uppercase; letter-spacing: 0.25em; margin-bottom: 12px;">Memories of</div>
-            <h1 class="trip-banner-title" style="font-size: 4rem; margin: 0; letter-spacing: -0.06em; color: ${firstPhoto ? '#ffffff' : 'var(--accent-blue)'}; font-weight: 800; line-height: 0.95;">${trip.name}</h1>
-            <div style="display: flex; align-items: center; gap: 32px; margin-top: 20px; color: ${firstPhoto ? 'rgba(255,255,255,0.9)' : '#1a3a5f'}; font-weight: 700;">
-                <span style="display: flex; align-items: center; gap: 8px;">${trip.country}</span>
-                
-                <div style="display: flex; align-items: center; gap: 12px; background: rgba(255,255,255,0.08); padding: 8px 18px; border-radius: 980px; border: 1px solid rgba(255,255,255,0.15); backdrop-filter: blur(20px); box-shadow: inset 0 1px 1px rgba(255,255,255,0.1), 0 4px 12px rgba(0,0,0,0.1);">
-                    <span id="publicLabel-${trip.id}" style="width: 85px; display: inline-block; text-align: right; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); color: ${trip.isPublic ? '#34c759' : '#a1a1aa'}; text-shadow: ${trip.isPublic ? '0 0 12px rgba(52, 199, 89, 0.6)' : 'none'};">${trip.isPublic ? 'Public' : 'Not public'}</span>
-                    <label class="switch" style="transform: scale(0.75);">
-                        <input type="checkbox" class="trip-privacy-toggle" data-trip-id="${trip.id}" ${trip.isPublic ? 'checked' : ''}>
+        <div class="archived-hero" style="position:relative; overflow:hidden; border-radius:36px; padding:48px 52px; ${heroBg} box-shadow: 0 30px 80px rgba(0, 45, 91, 0.25); margin-bottom: 32px; border: 1px solid rgba(255,255,255,0.18);">
+            <!-- Subtle inner light wash, lifts the photo bg and keeps
+                 readability when the photo is bright. -->
+            <div style="position:absolute; inset:0; background: radial-gradient(circle at 20% 0%, rgba(255,255,255,0.18) 0%, transparent 55%); pointer-events:none;"></div>
+
+            <!-- Action pills float top-right; outline pill (Back) and
+                 solid pill (Restore Trip), matching .btn-primary-pill. -->
+            <div style="position:absolute; top:24px; right:24px; display:flex; gap:8px; z-index:2;">
+                <button id="backToCollectionsBtn" type="button" style="background:rgba(255,255,255,0.16); border:1px solid rgba(255,255,255,0.3); color:#ffffff; padding:10px 18px; border-radius:999px; font-weight:800; font-size:0.85rem; cursor:pointer; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);">← Back</button>
+                <button class="restore-trip-btn" data-trip-id="${esc(trip.id)}" type="button" style="background:#ffffff; color:#002d5b; padding:10px 18px; border-radius:999px; font-weight:800; font-size:0.85rem; cursor:pointer; box-shadow:0 4px 14px rgba(0,0,0,0.18); border: 0;">↺ Restore Trip</button>
+            </div>
+
+            <!-- Top tag chip + title block. -->
+            <div style="position:relative; z-index:1; max-width: calc(100% - 260px);">
+                <div style="display:inline-flex; align-items:center; gap:8px; background:${chipBg}; border:${chipBorder}; padding:6px 14px; border-radius:999px; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); margin-bottom:18px;">
+                    <span style="font-size:0.85rem; line-height:1;">📚</span>
+                    <span style="font-size:0.7rem; font-weight:800; text-transform:uppercase; letter-spacing:0.18em; color:${heroTextColor};">Completed memory</span>
+                </div>
+                <h1 style="font-size: 3.2rem; margin: 0; letter-spacing: -0.04em; color: ${heroTextColor}; font-weight: 800; line-height: 1; text-shadow: 0 2px 24px rgba(0,0,0,0.2);">${esc(trip.name)}</h1>
+                ${trip.country ? `<div style="margin-top:10px; font-size:1rem; color:${heroSecondary}; font-weight:600; display:flex; align-items:center; gap:8px;">📍 ${esc(trip.country)}</div>` : ''}
+            </div>
+
+            <!-- Stat chip row. -->
+            <div style="position:relative; z-index:1; display:flex; flex-wrap:wrap; gap:10px; margin-top:24px;">
+                ${statChip('🗓️', 'Days', String(dayCount))}
+                ${totalPhotos > 0 ? statChip('📸', 'Photos', String(totalPhotos)) : ''}
+                ${totalDocs > 0 ? statChip('📎', 'Documents', String(totalDocs)) : ''}
+                ${expenses.length > 0 ? statChip('💰', 'Spent', formatHome(totalSpent, 'EUR')) : ''}
+
+                <!-- Public/private toggle, styled as one of the chips. -->
+                <div style="display:flex; align-items:center; gap:12px; background:${chipBg}; border:${chipBorder}; padding:8px 16px; border-radius:999px; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);">
+                    <span id="publicLabel-${esc(trip.id)}" style="font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.12em; color:${trip.isPublic ? '#a4f3b8' : 'rgba(255,255,255,0.7)'};">${trip.isPublic ? 'Public' : 'Private'}</span>
+                    <label class="switch" style="transform: scale(0.7); margin: 0;">
+                        <input type="checkbox" class="trip-privacy-toggle" data-trip-id="${esc(trip.id)}" ${trip.isPublic ? 'checked' : ''}>
                         <span class="slider"></span>
                     </label>
                 </div>
-
-                <span style="display: flex; align-items: center; gap: 8px;">${trip.tripDays?.length || 0} Days</span>
-                <span style="display: flex; align-items: center; gap: 8px;">${formatHome(totalSpent, 'EUR')} spent</span>
-            </div>
-            <div style="position: absolute; right: 40px; bottom: 40px; display: flex; gap: 12px;">
-                <button class="btn restore-trip-btn" data-trip-id="${trip.id}" style="background: #002d5b; color: #ffffff; padding: 12px 24px; border-radius: 16px; font-weight: 800;">Restore Trip</button>
-                <button class="btn" id="backToCollectionsBtn" style="background: rgba(0,0,0,0.05); color: #002d5b; padding: 12px 24px; border-radius: 16px; font-weight: 800; border: 1px solid rgba(0,0,0,0.1);">Back</button>
             </div>
         </div>
 
-        <div class="day-blocks-grid">
-            ${(trip.tripDays || []).sort((a, b) => a.dayNumber - b.dayNumber).map(day => {
-        const dayPhotos = day.photos || [];
-
-        return `
-                    <div class="day-block archived-day-block" data-day-id="${esc(day.id)}" role="button" tabindex="0" aria-label="View Day ${day.dayNumber} ${day.name ? '— ' + day.name : ''}" style="cursor: pointer; ${dayPhotos.length > 0 ? `background: linear-gradient(rgba(0,45,91,0.7), rgba(0,45,91,0.85)), url(${dayPhotos[0]}) center/cover no-repeat; border: none;` : ''}">
-                        <div class="day-block-header">
-                            <span class="day-block-number" style="color: ${dayPhotos.length > 0 ? '#4da3ff' : '#007aff'};">Day ${day.dayNumber}</span>
+        <!-- Day grid. Each card is keyboard-accessible (role=button)
+             and opens the read-only openDayView modal on click. -->
+        <div style="display:flex; align-items:baseline; gap:12px; margin: 8px 4px 14px;">
+            <h2 style="margin:0; font-size:1.4rem; color:#002d5b; font-weight:800; letter-spacing:-0.02em;">The journey</h2>
+            <span style="color: var(--text-secondary); font-size:0.85rem; font-weight:600;">Tap a day to relive what was planned.</span>
+        </div>
+        <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:18px;">
+            ${tripDays.sort((a, b) => a.dayNumber - b.dayNumber).map(day => {
+                const dayPhotos = day.photos || [];
+                const dayDocs = day.tickets || [];
+                const isStartingPoint = Number(day.dayNumber) === 0;
+                const photoBg = dayPhotos[0] || (isStartingPoint ? null : firstPhoto);
+                const hasBg = !!photoBg;
+                return `
+                    <div class="archived-day-block" data-day-id="${esc(day.id)}" role="button" tabindex="0" aria-label="View Day ${day.dayNumber}${day.name ? ' — ' + day.name : ''}"
+                        style="position:relative; cursor:pointer; min-height:170px; border-radius:24px; padding:20px; display:flex; flex-direction:column; justify-content:space-between; transition: transform 0.35s cubic-bezier(0.16,1,0.3,1), box-shadow 0.35s cubic-bezier(0.16,1,0.3,1); ${hasBg ? `background: linear-gradient(180deg, rgba(0,45,91,0.15) 0%, rgba(0,45,91,0.78) 100%), url(${esc(photoBg)}) center/cover no-repeat; border: 1px solid rgba(0,0,0,0.08); color: white;` : `background: white; border: 1.5px solid rgba(0,113,227,0.18); color: #002d5b;`} box-shadow: 0 10px 30px rgba(0,0,0,0.06);"
+                        onmouseover="this.style.transform='translateY(-6px)';this.style.boxShadow='0 24px 50px rgba(0,0,0,0.16)';"
+                        onmouseout="this.style.transform='';this.style.boxShadow='0 10px 30px rgba(0,0,0,0.06)';">
+                        <!-- Top: badge -->
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <span style="background: ${isStartingPoint ? 'rgba(52,199,89,0.95)' : 'rgba(0,113,227,0.95)'}; color:white; padding: 4px 12px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.1em;">${isStartingPoint ? '⭐ Genesis' : `Day ${day.dayNumber}`}</span>
                         </div>
-                        <h3 class="day-block-name" style="color: ${dayPhotos.length > 0 ? '#ffffff' : 'var(--accent-blue)'}; font-size: 1.6rem; font-weight: 800;">${day.name || `Day ${day.dayNumber}`}</h3>
+                        <!-- Bottom: name + count chips -->
+                        <div>
+                            <h3 style="margin:0; font-size:1.4rem; font-weight:800; letter-spacing:-0.02em; color:${hasBg ? '#ffffff' : '#002d5b'}; line-height:1.15; ${hasBg ? 'text-shadow: 0 2px 12px rgba(0,0,0,0.4);' : ''}">${esc(day.name || (isStartingPoint ? 'Trip Genesis' : `Day ${day.dayNumber}`))}</h3>
+                            <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:10px;">
+                                ${dayPhotos.length > 0 ? `<span style="background:${hasBg ? 'rgba(255,255,255,0.18)' : 'rgba(0,113,227,0.08)'}; color:${hasBg ? '#ffffff' : 'var(--accent-blue)'}; padding:3px 10px; border-radius:999px; font-size:0.7rem; font-weight:700;">📸 ${dayPhotos.length}</span>` : ''}
+                                ${dayDocs.length > 0 ? `<span style="background:${hasBg ? 'rgba(255,255,255,0.18)' : 'rgba(88,86,214,0.08)'}; color:${hasBg ? '#ffffff' : '#5856d6'}; padding:3px 10px; border-radius:999px; font-size:0.7rem; font-weight:700;">📎 ${dayDocs.length}</span>` : ''}
+                                ${day.notes ? `<span style="background:${hasBg ? 'rgba(255,255,255,0.18)' : 'rgba(255,149,0,0.08)'}; color:${hasBg ? '#ffffff' : '#ff9500'}; padding:3px 10px; border-radius:999px; font-size:0.7rem; font-weight:700;">📝 Notes</span>` : ''}
+                            </div>
+                        </div>
                     </div>
                 `;
-    }).join('')}
+            }).join('')}
         </div>
     `;
 
