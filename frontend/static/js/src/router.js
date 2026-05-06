@@ -13,6 +13,11 @@ import { renderFriends } from './pages/friends.js';
 import { renderProfile, renderLoginWall } from './pages/profile.js';
 
 let isInternalNav = false;
+/** Last page rendered. Used to distinguish "user clicked a nav link
+ *  and went somewhere new" (scroll-to-top is correct) from "the page
+ *  re-rendered itself after a mutation" (scroll-to-top is annoying —
+ *  the user was just interacting halfway down the list). */
+let currentPage = /** @type {import('./constants.js').PageName | null} */ (null);
 
 /**
  * Navigate to a known page. The PageName union from constants.js typechecks
@@ -83,9 +88,19 @@ export function navigate(page, params = null, preserveScroll = false) {
     isInternalNav = true;
     window.location.hash = page;
 
-    if (!preserveScroll) {
+    // Scroll-to-top decision tree:
+    //   - Caller passed preserveScroll: keep position (existing override).
+    //   - Same page as last render: this is a mutation re-render
+    //     (user just edited a doc, toggled a filter, etc.) — preserving
+    //     scroll keeps them at the row they were touching. The previous
+    //     behaviour snapped to the top on every save, which was jarring.
+    //   - New page: this is a real navigation, top is the right
+    //     starting position for a fresh page.
+    const isSamePage = currentPage === page;
+    if (!preserveScroll && !isSamePage) {
         window.scrollTo(0, 0);
     }
+    currentPage = page;
 }
 
 window.onhashchange = () => {
