@@ -2205,7 +2205,11 @@
             </div>
         `}function fn(){return b.trips.length===0?``:`
         <div style="margin-top: 22px; margin-bottom: 12px;">
-            <div style="display:flex; gap:12px; overflow-x:auto; padding-bottom:6px; scroll-behavior:smooth; -webkit-overflow-scrolling:touch;">
+            <!-- padding-y reserves room for the active card's box-shadow.
+                 overflow-x:auto implicitly clips overflow-y, so without
+                 vertical padding the bottom of the gold glow gets cut
+                 off (and the top would too if the shadow was bigger). -->
+            <div style="display:flex; gap:12px; overflow-x:auto; padding: 6px 2px 28px; scroll-behavior:smooth; -webkit-overflow-scrolling:touch;">
                 ${b.trips.map(e=>{let t=(b.expenses||[]).filter(t=>t.tripId===e.id&&t.isSettlement).reduce((e,t)=>e+(t.euroValue||0),0),n=e.id===K;return`
                         <button type="button" class="settlement-trip-pill${n?` is-active`:``}" data-trip-id="${I(e.id)}"
                             style="flex-shrink:0; min-width: 200px; text-align:left; background: ${n?`linear-gradient(135deg, rgba(255,214,10,0.16), rgba(255,159,10,0.08))`:`white`}; border: 1.5px solid ${n?`rgba(255,159,10,0.55)`:`rgba(0,0,0,0.06)`}; border-radius: 18px; padding: 14px 16px; cursor:pointer; box-shadow: ${n?`0 8px 24px rgba(255,159,10,0.22)`:`0 4px 12px rgba(0,45,91,0.06)`}; display:flex; flex-direction:column; gap:6px; font: inherit; color: inherit; outline: 0; margin: 0; transition: transform 0.25s cubic-bezier(0.16,1,0.3,1), box-shadow 0.25s cubic-bezier(0.16,1,0.3,1);">
@@ -2295,9 +2299,12 @@
                 </div>
             </div>
             <div class="card glass" style="padding: 22px 24px; border-radius: 28px;">
-                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
-                    <h3 style="margin:0; font-size:1.05rem; color:#002d5b; font-weight:800; letter-spacing:-0.02em;">Suggested payments</h3>
-                    <span style="font-size:0.7rem; font-weight:800; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.1em;">${r.length} ${r.length===1?`payment`:`payments`}</span>
+                <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:14px;">
+                    <div style="min-width:0;">
+                        <h3 style="margin:0; font-size:1.05rem; color:#002d5b; font-weight:800; letter-spacing:-0.02em;">Suggested payments</h3>
+                        <div style="font-size:0.7rem; font-weight:700; color:var(--text-secondary); margin-top:3px;">For this trip only — see Cross-trip for everyone-everywhere.</div>
+                    </div>
+                    <span style="font-size:0.7rem; font-weight:800; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.1em; flex-shrink:0;">${r.length} ${r.length===1?`payment`:`payments`}</span>
                 </div>
                 <div style="display:flex; flex-direction:column; gap:10px;">
                     ${d}
@@ -2369,13 +2376,13 @@
                     `}).join(``)}
             </div>
         </div>
-    `}function gn(){let e=cn(),t=Object.entries(e).sort((e,t)=>t[1]-e[1]),n=Math.max(...Object.values(e).map(Math.abs),1),r=t.some(([,e])=>Math.abs(e)>.01);return t.length===0?`
+    `}function gn(){let e=cn(),t=Object.entries(e).sort((e,t)=>t[1]-e[1]),n=Math.max(...Object.values(e).map(Math.abs),1),r=t.some(([,e])=>Math.abs(e)>.01);if(t.length===0)return`
             <div class="card glass" style="padding: 48px 32px; text-align:center; border-radius: 28px; border:1.5px dashed rgba(0,113,227,0.3); background: rgba(0,113,227,0.04);">
                 <div style="font-size:2.5rem; margin-bottom: 8px;">🌍</div>
                 <h2 style="margin:0 0 6px; color:#002d5b;">No companions yet</h2>
                 <p class="text-muted" style="margin:0;">Add companions to a trip and log expenses to see cross-trip balances.</p>
             </div>
-        `:`
+        `;let i=sn(e);return`
         <div class="card glass" style="padding: 22px 24px; border-radius: 28px;">
             <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
                 <h3 style="margin:0; font-size:1.05rem; color:#002d5b; font-weight:800; letter-spacing:-0.02em;">🌍 Cross-trip balances</h3>
@@ -2409,6 +2416,39 @@
                     `}).join(``)}
             </div>
         </div>
+        ${i.length>0?`
+            <!-- Cross-trip suggested payments. Same row shape as the
+                 per-trip Suggested-payments column. No "Settle"
+                 button here — settlements are per-trip records, so a
+                 cross-trip simplification doesn't map to a single
+                 expense write. The user can still record the
+                 corresponding trip-level settlement(s) from the
+                 This-trip tab once they decide which trip to book
+                 the payment under. -->
+            <div class="card glass" style="margin-top:18px; padding: 22px 24px; border-radius: 28px;">
+                <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:14px;">
+                    <div style="min-width:0;">
+                        <h3 style="margin:0; font-size:1.05rem; color:#002d5b; font-weight:800; letter-spacing:-0.02em;">Suggested cross-trip payments</h3>
+                        <div style="font-size:0.7rem; font-weight:700; color:var(--text-secondary); margin-top:3px;">Fewest payments to clear everyone across every trip you share. Record the actual settlement on whichever trip's tab fits.</div>
+                    </div>
+                    <span style="font-size:0.7rem; font-weight:800; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.1em; flex-shrink:0;">${i.length} ${i.length===1?`payment`:`payments`}</span>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:10px;">
+                    ${i.map(e=>`
+                        <div style="display:flex; align-items:center; gap:14px; padding:14px 16px; background:white; border:1px solid rgba(0,0,0,0.06); border-radius:16px;">
+                            <div style="flex:1; min-width:0;">
+                                <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                                    <span style="font-weight:700; color:var(--text-secondary); font-size:0.78rem;">${I(e.from)}</span>
+                                    <span style="color:rgba(0,0,0,0.3);">→</span>
+                                    <span style="font-weight:800; color:#002d5b; font-size:0.95rem;">${I(e.to)}</span>
+                                </div>
+                                <div style="font-size:1.3rem; font-weight:800; color:#002d5b; letter-spacing:-0.01em; margin-top:2px;">${A(e.amount,`EUR`)}</div>
+                            </div>
+                        </div>
+                    `).join(``)}
+                </div>
+            </div>
+        `:``}
     `}function _n(e,t,n,r,i,a){if(t===n){M(`Sender and receiver must be different.`);return}if(!Number.isFinite(r)||r<=0){M(`Amount must be a positive number.`);return}let o=k(r,i,`EUR`),s={id:P(),tripId:e,label:`Settlement: ${t} → ${n}`,value:r,euroValue:o,currency:i,who:t,categoryId:b.categories[0]?.id??``,country:`Settlement`,date:new Date().toISOString().split(`T`)[0],splits:{[n]:100},isSettlement:!0};b.expenses.push(s),w(`state:changed`),M(`Recorded ${A(o,`EUR`)} ${t} → ${n}`);let c=b.trips.find(t=>t.id===e);a.innerHTML=dn(c||null,L(c))}function vn(e,t,n){N({title:`Unsettle this payment?`,message:`The settlement record is removed and balances revert.`,confirmText:`Unsettle`,onConfirm:()=>{b.expenses=b.expenses.filter(t=>t.id!==e),w(`state:changed`);let r=b.trips.find(e=>e.id===t);n.innerHTML=dn(r||null,L(r))}})}function yn(e,t){let n=h(b.trips.find(t=>t.id===e)).map(e=>`<option value="${I(e)}">${I(e)}</option>`).join(``),r=O(),{root:i,close:a}=D({variant:`glass-light`,cardStyle:`width: 440px; max-width: calc(100vw - 32px);`,innerHTML:`
             <h2 class="h2-display">Manual settlement</h2>
             <p class="text-subtitle">Record a payment that already happened off-app.</p>

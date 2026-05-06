@@ -276,7 +276,11 @@ function renderTripsStrip() {
     if (STATE.trips.length === 0) return '';
     return `
         <div style="margin-top: 22px; margin-bottom: 12px;">
-            <div style="display:flex; gap:12px; overflow-x:auto; padding-bottom:6px; scroll-behavior:smooth; -webkit-overflow-scrolling:touch;">
+            <!-- padding-y reserves room for the active card's box-shadow.
+                 overflow-x:auto implicitly clips overflow-y, so without
+                 vertical padding the bottom of the gold glow gets cut
+                 off (and the top would too if the shadow was bigger). -->
+            <div style="display:flex; gap:12px; overflow-x:auto; padding: 6px 2px 28px; scroll-behavior:smooth; -webkit-overflow-scrolling:touch;">
                 ${STATE.trips.map(t => {
                     const settlementsTotal = (STATE.expenses || [])
                         .filter(e => e.tripId === t.id && e.isSettlement)
@@ -413,9 +417,12 @@ function renderTripTab(trip, tripIsEditable) {
                 </div>
             </div>
             <div class="card glass" style="padding: 22px 24px; border-radius: 28px;">
-                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
-                    <h3 style="margin:0; font-size:1.05rem; color:#002d5b; font-weight:800; letter-spacing:-0.02em;">Suggested payments</h3>
-                    <span style="font-size:0.7rem; font-weight:800; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.1em;">${debts.length} ${debts.length === 1 ? 'payment' : 'payments'}</span>
+                <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:14px;">
+                    <div style="min-width:0;">
+                        <h3 style="margin:0; font-size:1.05rem; color:#002d5b; font-weight:800; letter-spacing:-0.02em;">Suggested payments</h3>
+                        <div style="font-size:0.7rem; font-weight:700; color:var(--text-secondary); margin-top:3px;">For this trip only — see Cross-trip for everyone-everywhere.</div>
+                    </div>
+                    <span style="font-size:0.7rem; font-weight:800; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.1em; flex-shrink:0;">${debts.length} ${debts.length === 1 ? 'payment' : 'payments'}</span>
                 </div>
                 <div style="display:flex; flex-direction:column; gap:10px;">
                     ${debtsHtml}
@@ -554,7 +561,16 @@ function renderGlobalTab() {
         `;
     }
 
-    // Cross-trip rows now mirror the This-trip "Trip balances" row
+    // Cross-trip suggested payments — same simplifyDebts greedy
+    // algorithm we use for the per-trip tab, but fed the global
+    // balance map. Resolves "across every trip you've ever shared
+    // with these people, here's how to clear everyone with the
+    // fewest payments." Worth showing alongside the balance list
+    // so a user finishing a long-running cohort can settle in one
+    // round instead of trip-by-trip.
+    const globalDebts = simplifyDebts(globalBalances);
+
+    // Cross-trip rows mirror the This-trip "Trip balances" row
     // shape: avatar circle + name + net amount, all on one line, with
     // a slim symmetrical bar UNDER the row showing magnitude relative
     // to the largest balance. Same row card styling as the other tabs
@@ -605,6 +621,39 @@ function renderGlobalTab() {
                 }).join('')}
             </div>
         </div>
+        ${globalDebts.length > 0 ? `
+            <!-- Cross-trip suggested payments. Same row shape as the
+                 per-trip Suggested-payments column. No "Settle"
+                 button here — settlements are per-trip records, so a
+                 cross-trip simplification doesn't map to a single
+                 expense write. The user can still record the
+                 corresponding trip-level settlement(s) from the
+                 This-trip tab once they decide which trip to book
+                 the payment under. -->
+            <div class="card glass" style="margin-top:18px; padding: 22px 24px; border-radius: 28px;">
+                <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:14px;">
+                    <div style="min-width:0;">
+                        <h3 style="margin:0; font-size:1.05rem; color:#002d5b; font-weight:800; letter-spacing:-0.02em;">Suggested cross-trip payments</h3>
+                        <div style="font-size:0.7rem; font-weight:700; color:var(--text-secondary); margin-top:3px;">Fewest payments to clear everyone across every trip you share. Record the actual settlement on whichever trip's tab fits.</div>
+                    </div>
+                    <span style="font-size:0.7rem; font-weight:800; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.1em; flex-shrink:0;">${globalDebts.length} ${globalDebts.length === 1 ? 'payment' : 'payments'}</span>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:10px;">
+                    ${globalDebts.map(d => `
+                        <div style="display:flex; align-items:center; gap:14px; padding:14px 16px; background:white; border:1px solid rgba(0,0,0,0.06); border-radius:16px;">
+                            <div style="flex:1; min-width:0;">
+                                <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                                    <span style="font-weight:700; color:var(--text-secondary); font-size:0.78rem;">${esc(d.from)}</span>
+                                    <span style="color:rgba(0,0,0,0.3);">→</span>
+                                    <span style="font-weight:800; color:#002d5b; font-size:0.95rem;">${esc(d.to)}</span>
+                                </div>
+                                <div style="font-size:1.3rem; font-weight:800; color:#002d5b; letter-spacing:-0.01em; margin-top:2px;">${formatHome(d.amount, 'EUR')}</div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        ` : ''}
     `;
 }
 
