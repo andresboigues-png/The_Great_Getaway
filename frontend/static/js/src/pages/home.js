@@ -250,7 +250,7 @@ export function renderHome() {
     if (!activeTrip) {
         div.innerHTML = `
             <div class="ai-page-header" style="padding: 40px; text-align: center; border-radius: 28px;">
-                <h1 class="gradient-text" style="--g-from: #007aff; --g-to: #5856d6; margin: 0; font-size: 3.5rem;">Let's travel.</h1>
+                <h1 class="gradient-text" style="--g-from: #0071e3; --g-to: #9b59b6; margin: 0; font-size: 3.5rem;">Let's travel.</h1>
                 <p style="color: var(--text-secondary); max-width: 440px; margin: 10px auto 0; font-size: 1.1rem;">Your next big adventure is waiting. Create a trip to start tracking expenses and planning days.</p>
             </div>
             
@@ -295,7 +295,7 @@ export function renderHome() {
 
         div.innerHTML = `
             <div class="ai-page-header" style="text-align: center;">
-                <h1 class="gradient-text" style="--g-from: #007aff; --g-to: #5856d6;">${greeting}</h1>
+                <h1 class="gradient-text" style="--g-from: #0071e3; --g-to: #9b59b6;">${greeting}</h1>
                 ${activeTrip ? `<p>You have <strong>${tripExpenses.length}</strong> expenses recorded for ${activeTrip.name}.</p>` : `<p>Welcome! Start by creating your first trip.</p>`}
             </div>
             
@@ -358,27 +358,28 @@ export function renderHome() {
                 const savedMapView = tripMapKey && STATE.mapViews && STATE.mapViews[tripMapKey];
 
                 /** Build the styles array given which categories are
-                 *  currently enabled. Default-hide every poi.* category
-                 *  AND transit so labels stay clean; then turn back on
-                 *  whatever the user has toggled, AND make those labels
-                 *  visually heavier (dark fill + thick white halo) so
-                 *  the toggled categories pop on the satellite imagery.
-                 *  Administrative labels (cities, neighbourhoods) are
-                 *  left untouched so geographic place names always show. */
+                 *  currently enabled. Each subcategory gets its own
+                 *  explicit `off` rule (rather than the master `poi: off`)
+                 *  so the toggle-on rule for one category cleanly overrides
+                 *  only that subcategory — the master-rule approach was
+                 *  cascading weirdly, leaving casinos/beaches showing
+                 *  under "Shops & food".
+                 *  Administrative labels (cities, neighbourhoods) are left
+                 *  untouched so geographic place names always show.
+                 *  When a category is on, its labels also get a dark fill
+                 *  and a thick white halo — Google's Styles API has no
+                 *  font-size lever, but the halo trick makes the labels
+                 *  read as physically larger/bolder on the satellite. */
                 const buildPoiStyles = (enabledSet) => {
                     /** @type {any[]} */
-                    const styles = [
-                        { featureType: 'poi', stylers: [{ visibility: 'off' }] },
-                        { featureType: 'transit', stylers: [{ visibility: 'off' }] },
-                    ];
+                    const styles = [];
+                    // Hide every POI subcategory + transit by default.
+                    POI_CATEGORIES.forEach(cat => {
+                        styles.push({ featureType: cat.featureType, stylers: [{ visibility: 'off' }] });
+                    });
+                    // Re-enable + boost whichever the user has toggled.
                     POI_CATEGORIES.forEach(cat => {
                         if (!enabledSet.has(cat.key)) return;
-                        // Bring the category back on AND boost it: dark
-                        // fill + thick white halo. Google's Styles API
-                        // doesn't support font-size, but stroke `weight`
-                        // bumps the halo width which makes the text read
-                        // as physically larger / bolder against the
-                        // satellite imagery.
                         styles.push(
                             { featureType: cat.featureType, stylers: [{ visibility: 'on' }] },
                             { featureType: cat.featureType, elementType: 'labels.text.fill', stylers: [{ color: '#0a3d6b' }, { weight: 2 }] },
@@ -386,6 +387,18 @@ export function renderHome() {
                             { featureType: cat.featureType, elementType: 'labels.icon', stylers: [{ visibility: 'on' }] },
                         );
                     });
+                    // Transit pill: ALSO surface highway / arterial road
+                    // labels so the user can see major routes the way
+                    // Google Maps' default transit/traffic view does.
+                    // Local streets stay hidden to keep the map clean.
+                    if (enabledSet.has('transit')) {
+                        styles.push(
+                            { featureType: 'road.highway', elementType: 'labels', stylers: [{ visibility: 'on' }] },
+                            { featureType: 'road.highway', elementType: 'labels.text.fill', stylers: [{ color: '#0a3d6b' }, { weight: 2 }] },
+                            { featureType: 'road.highway', elementType: 'labels.text.stroke', stylers: [{ color: '#ffffff' }, { weight: 4 }] },
+                            { featureType: 'road.arterial', elementType: 'labels', stylers: [{ visibility: 'on' }] },
+                        );
+                    }
                     return styles;
                 };
 
@@ -418,6 +431,20 @@ export function renderHome() {
                 const map = new google.maps.Map(mapContainer, mapOptions);
                 window.activeMap = map; // Read by external Google Maps callbacks; keep on window.
 
+                // Live traffic overlay — created lazily, attached to the
+                // map only while the Transit pill is on. Lives in the
+                // outer scope so the click handler can flip it on/off.
+                /** @type {any | null} */
+                let trafficLayer = null;
+                const setTrafficVisible = (visible) => {
+                    if (visible) {
+                        if (!trafficLayer) trafficLayer = new google.maps.TrafficLayer();
+                        trafficLayer.setMap(map);
+                    } else if (trafficLayer) {
+                        trafficLayer.setMap(null);
+                    }
+                };
+
                 // Wire the POI filter pills (delegated so it covers both
                 // the visible row AND the overflow that's appended after
                 // the More button is clicked). The More button itself
@@ -448,6 +475,11 @@ export function renderHome() {
                         if (enabledPois.has(key)) enabledPois.delete(key);
                         else enabledPois.add(key);
                         map.setOptions({ styles: buildPoiStyles(enabledPois) });
+                        // Transit also flips the live-traffic overlay so the
+                        // pill matches Google Maps' built-in transit/traffic
+                        // view (highway labels via styles + congestion colors
+                        // via TrafficLayer).
+                        if (key === 'transit') setTrafficVisible(enabledPois.has('transit'));
                         pill.classList.toggle('is-on', enabledPois.has(key));
                         pill.setAttribute('aria-pressed', String(enabledPois.has(key)));
                     });

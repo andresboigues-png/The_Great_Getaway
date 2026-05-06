@@ -60,7 +60,7 @@ export function renderLoginWall() {
     div.innerHTML = `
         <div class="login-wall">
             <div class="login-wall__inner">
-                <h1 class="login-wall__title gradient-text" style="--g-from: #007aff; --g-to: #34c759;">The Great Getaway</h1>
+                <h1 class="login-wall__title" style="background: linear-gradient(135deg, #0071e3 0%, #ff9500 50%, #34c759 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">The Great Getaway</h1>
                 <p class="login-wall__subtitle">${isReturning ? 'Welcome back. Sign in to pick up where you left off.' : 'Plan trips, split expenses, and bring friends along — all synced across devices.'}</p>
 
                 <div class="login-wall__features">
