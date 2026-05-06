@@ -52,7 +52,12 @@ export const POI_CATEGORIES = [
     { key: 'schools', placesType: 'school',            icon: '🎓', label: 'Schools',      color: '#0071e3', tooltip: 'Nearby schools and universities' },
     { key: 'sports',  placesType: 'stadium',           icon: '🏟️', label: 'Sports',       color: '#ff2d55', tooltip: 'Nearby stadiums and gyms' },
     { key: 'govt',    placesType: 'city_hall',         icon: '🏛️', label: 'Govt',         color: '#8e8e93', tooltip: 'Nearby government buildings + embassies' },
-    { key: 'transit', placesType: 'transit_station',   icon: '🚆', label: 'Transit',      color: '#0a3d6b', tooltip: 'Nearby train / metro / bus stations' },
+    { key: 'transit', placesType: 'transit_station',   icon: '🚆', label: 'Public transit', color: '#0a3d6b', tooltip: 'Nearby train / metro / bus stations (real Places search)' },
+    // No placesType: pure styles-toggle pill that flips highway/road
+    // labels on AND attaches the live Google TrafficLayer congestion
+    // overlay. Separate from "Public transit" — that one's about
+    // walkable stations; this one's about driving routes.
+    { key: 'traffic', placesType: null,                 icon: '🛣️', label: 'Roads & traffic', color: '#1a6b3c', tooltip: 'Highway / arterial road names + live Google traffic congestion' },
 ];
 
 // Per-day card action helpers. The map setTimeout below detects
@@ -363,37 +368,26 @@ export function renderHome() {
                 const tripMapKey = activeTrip ? activeTrip.id : null;
                 const savedMapView = tripMapKey && STATE.mapViews && STATE.mapViews[tripMapKey];
 
-                /** Hide all built-in POI labels by default. The pills
-                 *  drive Places API searches that drop their own markers
-                 *  per category — much more precise than Google's baked
-                 *  label decisions ("Shops & food" → real restaurants,
-                 *  not casinos and beaches). Administrative labels
-                 *  (cities, neighborhoods) are left untouched so
-                 *  geographic place names always show.
-                 *  Transit still gets the road.highway label boost
-                 *  because that's a styling effect, not a POI lookup. */
-                const HIDE_ALL_POI_STYLES = (() => {
-                    /** @type {any[]} */
-                    const s = [];
-                    POI_CATEGORIES.forEach(cat => {
-                        // featureType still matches old keys for the
-                        // Styles "off" rule — we hide the broad poi.*
-                        // categories so Google's default labels don't
-                        // bleed in alongside our Places markers.
-                    });
-                    s.push(
-                        { featureType: 'poi', stylers: [{ visibility: 'off' }] },
-                        { featureType: 'transit', stylers: [{ visibility: 'off' }] },
-                    );
-                    return s;
-                })();
+                /** Default styles: hide all POI labels, transit labels,
+                 *  AND road labels. The map shows only the satellite
+                 *  imagery + administrative labels (cities, neighborhoods,
+                 *  geographic areas). Pills bring back what the user
+                 *  actually wants — POIs via Places API markers, road
+                 *  names via the Roads & traffic pill. */
+                const HIDE_ALL_POI_STYLES = [
+                    { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+                    { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+                    { featureType: 'road', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+                ];
                 const buildPoiStyles = (enabledSet) => {
                     /** @type {any[]} */
                     const styles = HIDE_ALL_POI_STYLES.slice();
-                    if (enabledSet.has('transit')) {
+                    if (enabledSet.has('traffic')) {
                         // Highway / arterial road labels visible only when
-                        // Transit is on, so the user sees major routes the
-                        // way Google's built-in Traffic view does.
+                        // Roads & traffic is on, so the user sees major
+                        // routes the way Google's built-in Traffic view
+                        // does. Local streets stay hidden to keep the
+                        // satellite view from getting noisy.
                         styles.push(
                             { featureType: 'road.highway', elementType: 'labels', stylers: [{ visibility: 'on' }] },
                             { featureType: 'road.highway', elementType: 'labels.text.fill', stylers: [{ color: '#0a3d6b' }, { weight: 2 }] },
@@ -428,21 +422,27 @@ export function renderHome() {
 
                 /** Drop a marker for one Places result. Color comes from
                  *  the pill's POI_CATEGORIES entry; the icon emoji shows
-                 *  inside a small white circle so it reads cleanly on
-                 *  satellite imagery. */
+                 *  inside a white circle. Sized at 44px so it reads as
+                 *  a real "this is a thing" marker rather than a tiny
+                 *  decoration — the user wanted the toggled info to
+                 *  stand out. The colored ring + outer drop-shadow help
+                 *  the marker pop against the satellite imagery. */
                 const dropPlaceMarker = (cat, place) => {
                     const loc = place.geometry?.location;
                     if (!loc) return null;
                     const svg = 'data:image/svg+xml;utf8,'
-                        + `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">`
-                        + `<circle cx="16" cy="16" r="13" fill="white" stroke="${encodeURIComponent(cat.color)}" stroke-width="2.5"/>`
-                        + `<text x="16" y="22" text-anchor="middle" font-size="14">${cat.icon}</text>`
+                        + `<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44">`
+                        + `<defs><filter id="s" x="-20%" y="-20%" width="140%" height="140%">`
+                        +   `<feDropShadow dx="0" dy="2" stdDeviation="2" flood-opacity="0.35"/>`
+                        + `</filter></defs>`
+                        + `<circle cx="22" cy="22" r="18" fill="white" stroke="${encodeURIComponent(cat.color)}" stroke-width="3.5" filter="url(%23s)"/>`
+                        + `<text x="22" y="29" text-anchor="middle" font-size="20">${cat.icon}</text>`
                         + '</svg>';
                     const marker = new google.maps.Marker({
                         map,
                         position: loc,
                         title: place.name || cat.label,
-                        icon: { url: svg, scaledSize: new google.maps.Size(28, 28), anchor: new google.maps.Point(14, 14) },
+                        icon: { url: svg, scaledSize: new google.maps.Size(40, 40), anchor: new google.maps.Point(20, 20) },
                         zIndex: 1, // below the day pins (which use default zIndex)
                     });
                     return marker;
@@ -467,10 +467,13 @@ export function renderHome() {
                     });
                 });
 
-                /** Toggle markers for one pill key on/off. */
+                /** Toggle markers for one pill key on/off.
+                 *  No-op for categories without a placesType (e.g. the
+                 *  "Roads & traffic" pill, which is a pure styles+layer
+                 *  toggle handled in the click handler). */
                 const setPlacesPillVisible = async (pillKey, visible) => {
                     const cat = POI_CATEGORIES.find(c => c.key === pillKey);
-                    if (!cat) return;
+                    if (!cat || !cat.placesType) return;
                     if (!visible) {
                         (placesMarkers[pillKey] || []).forEach(m => m.setMap(null));
                         placesMarkers[pillKey] = [];
@@ -568,13 +571,15 @@ export function renderHome() {
                         const willBeOn = !enabledPois.has(key);
                         if (willBeOn) enabledPois.add(key);
                         else enabledPois.delete(key);
-                        // Refresh styles (only Transit changes this layer
-                        // — the highway label tweaks happen here).
+                        // Refresh styles (only "Roads & traffic" changes
+                        // this layer — the highway label tweaks happen
+                        // here).
                         map.setOptions({ styles: buildPoiStyles(enabledPois) });
-                        // Transit pill: live-traffic congestion overlay.
-                        if (key === 'transit') setTrafficVisible(willBeOn);
-                        // Places API markers — async; pill state flips
-                        // immediately so the UI feels responsive.
+                        // Roads & traffic pill: live congestion overlay.
+                        if (key === 'traffic') setTrafficVisible(willBeOn);
+                        // Places API markers (categories with placesType).
+                        // Async; pill state flips immediately so the UI
+                        // feels responsive even before search returns.
                         setPlacesPillVisible(key, willBeOn);
                         pill.classList.toggle('is-on', willBeOn);
                         pill.setAttribute('aria-pressed', String(willBeOn));
