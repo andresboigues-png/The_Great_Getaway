@@ -183,69 +183,34 @@ export function setPhotoDay(trip, id, dayId) {
 
 // ── Gmail deep-link helpers ───────────────────────────────────────────
 // Path A from the rollout plan: a "Search Gmail for bookings" button
-// that opens Gmail in a new tab with a smart pre-filled query. Two
-// flavours, depending on whether the user is searching a whole trip
-// or a single day.
+// that opens Gmail in a new tab with a smart pre-filled query.
 //
 // Search syntax docs: https://support.google.com/mail/answer/7190
-// We use simple AND/OR plus optional `after:` / `before:` operators
-// (Gmail wants `YYYY/MM/DD`, NOT ISO). Multiple keywords combine with
-// implicit AND; the OR group brackets the booking-related terms so
-// any one matches.
+//
+// What I tried first and why it failed: an earlier version added
+// `after:tripStart before:tripEnd` filters so the search would be
+// "tight". That filtered by the email's *Date header*, which excluded
+// the very emails the user is looking for — booking confirmations are
+// sent weeks or months BEFORE the trip dates. A user testing this on
+// a forwarded Atlanta itinerary (subject: "Fw: Your itinerary for
+// Atlanta - Sat, Jun 13") got zero results because the email was
+// received in Feb but the trip is in June.
+//
+// Cleanest fix: drop the date filter entirely. Destination + the
+// booking-keyword OR group is precise enough on a typical inbox, and
+// any over-recall is on Google's "search relevance" side, not the
+// "wrong time window" side. Users can refine in Gmail itself.
 
-const BOOKING_KEYWORDS = 'booking OR confirmation OR reservation OR ticket OR itinerary OR voucher';
+const BOOKING_KEYWORDS = 'booking OR confirmation OR reservation OR ticket OR itinerary OR voucher OR boarding';
 
-/** Build a Gmail-search URL for the whole trip — destination + the
- *  full date range across all days, plus the booking keyword group. */
+/** Build a Gmail-search URL for a trip — destination + booking
+ *  keyword group. No date filter (see comment above for why). */
 export function buildGmailTripSearchUrl(trip) {
     if (!trip) return null;
     const destination = (trip.country || '').trim();
-    const dateRange = computeTripDateRange(trip);
     /** @type {string[]} */
     const parts = [];
     if (destination) parts.push(destination);
     parts.push(`(${BOOKING_KEYWORDS})`);
-    if (dateRange.from) parts.push(`after:${dateRange.from.replace(/-/g, '/')}`);
-    if (dateRange.to) parts.push(`before:${dateRange.to.replace(/-/g, '/')}`);
     return `https://mail.google.com/mail/u/0/#search/${encodeURIComponent(parts.join(' '))}`;
-}
-
-/** Build a Gmail-search URL for a single day — destination + a tighter
- *  ±1-day window around the day's date + booking keywords. */
-export function buildGmailDaySearchUrl(trip, day) {
-    if (!trip || !day) return null;
-    const destination = (trip.country || '').trim();
-    /** @type {string[]} */
-    const parts = [];
-    if (destination) parts.push(destination);
-    parts.push(`(${BOOKING_KEYWORDS})`);
-    if (day.date) {
-        const d = new Date(day.date);
-        if (!isNaN(d.getTime())) {
-            const before = new Date(d);
-            before.setDate(d.getDate() + 2);
-            const after = new Date(d);
-            after.setDate(d.getDate() - 1);
-            parts.push(`after:${formatDateForGmail(after)}`);
-            parts.push(`before:${formatDateForGmail(before)}`);
-        }
-    }
-    return `https://mail.google.com/mail/u/0/#search/${encodeURIComponent(parts.join(' '))}`;
-}
-
-/** Earliest → latest dates across all numbered days on this trip.
- *  Used to bracket the Gmail search and surface bookings made within
- *  the trip window without leaking unrelated emails from years prior. */
-function computeTripDateRange(trip) {
-    const days = (STATE.tripDays || []).filter(d => d.tripId === trip.id && d.date);
-    if (days.length === 0) return { from: null, to: null };
-    const sorted = [...days].sort((a, b) => String(a.date).localeCompare(String(b.date)));
-    return { from: sorted[0].date, to: sorted[sorted.length - 1].date };
-}
-
-function formatDateForGmail(d) {
-    const yyyy = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
-    return `${yyyy}/${mm}/${dd}`;
 }

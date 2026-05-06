@@ -2114,12 +2114,6 @@ export function renderHome() {
                              multi-day items (passports, hotels for
                              N nights) have a proper home and the per-
                              day actions list stays focused. -->
-                        <button class="day-action-btn day-action-btn--neutral day-go-photos-btn" data-day-id="${day.id}" title="Open the trip Photos tab to add photos for this day">
-                            <span>📸 Photos →</span>
-                        </button>
-                        <button class="day-action-btn day-action-btn--neutral day-go-documents-btn" data-day-id="${day.id}" title="Open the trip Documents tab to add documents for this day">
-                            <span>📄 Documents →</span>
-                        </button>
 
                         ${(() => {
                             // "Set as search center" — only useful on
@@ -2265,21 +2259,9 @@ export function renderHome() {
             const journalBtn = /** @type {HTMLElement | null} */ (target.closest('.day-journaling-btn'));
             if (journalBtn?.dataset.dayId) { openJournalingModal(journalBtn.dataset.dayId); return; }
 
-            // Day-level "Photos →" and "Documents →" buttons jump to
-            // the trip-wide tabs (the canonical home for both stores).
-            // Per-day add modals were retired — see the tab views.
-            const goPhotosBtn = /** @type {HTMLElement | null} */ (target.closest('.day-go-photos-btn'));
-            if (goPhotosBtn?.dataset.dayId) {
-                activeHomeTab = 'photos';
-                navigate('home');
-                return;
-            }
-            const goDocsBtn = /** @type {HTMLElement | null} */ (target.closest('.day-go-documents-btn'));
-            if (goDocsBtn?.dataset.dayId) {
-                activeHomeTab = 'documents';
-                navigate('home');
-                return;
-            }
+            // (Day-level Photos/Documents buttons were removed
+            //  entirely. Both stores live at trip scope now and are
+            //  managed from the Documents + Photos tabs on Home.)
 
             // "Set as search center" — toggle this day as the pill-
             // search epicenter for the active trip. Click an active
@@ -2414,19 +2396,31 @@ export function renderHome() {
                 const files = Array.from(photoInput.files || []);
                 if (files.length === 0 || !activeTrip) return;
                 showLiquidAlert(`Uploading ${files.length} photo${files.length === 1 ? '' : 's'}…`);
+                let added = 0;
                 for (const file of files) {
                     try {
-                        const url = await uploadMedia(file);
-                        if (url) addTripPhoto(activeTrip, { src: url, dayId: null });
+                        // uploadMedia returns { url, name, ... } (or null)
+                        // — NOT a bare URL string. Earlier I treated the
+                        // whole object as the src, which silently stored
+                        // nothing useful and the photo never appeared.
+                        const res = await uploadMedia(file);
+                        if (res?.url) {
+                            addTripPhoto(activeTrip, { src: res.url, dayId: null });
+                            added++;
+                        }
                     } catch (e) {
                         console.error('Photo upload failed:', e);
                     }
                 }
                 photoInput.value = ''; // reset so the same file can be picked again
-                emit('state:changed');
-                await upsertTrip(activeTrip);
-                showLiquidAlert('Photos added.');
-                navigate('home');
+                if (added > 0) {
+                    emit('state:changed');
+                    await upsertTrip(activeTrip);
+                    showLiquidAlert(`${added} photo${added === 1 ? '' : 's'} added.`);
+                    navigate('home');
+                } else {
+                    showLiquidAlert('Upload failed — please try again.');
+                }
             });
         }
 
