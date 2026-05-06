@@ -71,42 +71,51 @@ export const POI_CATEGORIES = [
     { key: 'traffic',     placesType: null,                 icon: '🛣️', label: 'Roads & traffic', color: '#0a3d6b', defaultMinRating: 0, tooltip: 'Highway / arterial road names + live Google traffic congestion' },
 ];
 
-/** Returns true if `types[0]` (Google's "general primary type") is one
- *  the user genuinely associates with this category. Used to keep
- *  hotels off the Restaurants pill without excluding hotels-with-
- *  restaurants from the Hotels pill (the previous excludeTypes approach
- *  was too blunt — it dropped most hotels too).
+/** Returns true if this category claims the place as primarily its
+ *  own. The naive "types[0] is the only thing that matters" check was
+ *  too strict: real restaurants sometimes carry a less obvious type
+ *  first (a takeaway with `meal_takeaway` first then `restaurant`),
+ *  and we'd drop them.
  *
- *  Subtype-aware: Google emits things like `french_restaurant`,
- *  `extended_stay_hotel`, `grocery_or_supermarket` as primary types,
- *  so we match by suffix/equality rather than a single string.
+ *  Smarter rule: scan `types[]` for the FIRST match (this category)
+ *  and the FIRST conflict (a competing category). Include the place
+ *  iff the match comes before the conflict — meaning Google ranked
+ *  this category's identity higher in the place's profile.
  *
- *  Categories not listed return true (no primary-type filtering).
+ *  Categories without a rule (parks, medical, etc.) return true —
+ *  the nearbySearch type filter alone is good enough for those.
  *  @param {string} categoryKey
  *  @param {string[]} types
  *  @returns {boolean}
  */
 function isPrimaryMatch(categoryKey, types) {
     if (!Array.isArray(types) || types.length === 0) return true;
-    const t = types[0];
-    switch (categoryKey) {
-        case 'restaurants':
-            return t === 'restaurant'
-                || t.endsWith('_restaurant')
-                || t === 'cafe' || t === 'bar'
-                || t === 'meal_takeaway' || t === 'meal_delivery';
-        case 'hotels':
-            return t === 'lodging'
-                || t.endsWith('_hotel')
-                || t === 'motel' || t === 'hostel'
-                || t === 'bed_and_breakfast'
-                || t === 'guest_house' || t === 'inn'
-                || t === 'resort_hotel' || t === 'extended_stay_hotel';
-        case 'supermarkets':
-            return t === 'supermarket' || t === 'grocery_or_supermarket';
-        default:
-            return true;
+    const isRestaurant = (t) => t === 'restaurant' || t.endsWith('_restaurant')
+        || t === 'cafe' || t === 'bar'
+        || t === 'meal_takeaway' || t === 'meal_delivery';
+    const isHotel = (t) => t === 'lodging' || t.endsWith('_hotel')
+        || t === 'motel' || t === 'hostel'
+        || t === 'bed_and_breakfast' || t === 'guest_house' || t === 'inn'
+        || t === 'resort_hotel' || t === 'extended_stay_hotel';
+    const isSupermarket = (t) => t === 'supermarket' || t === 'grocery_or_supermarket';
+
+    /** @type {{match: (t:string)=>boolean, conflict: (t:string)=>boolean} | undefined} */
+    const rule = ({
+        restaurants:  { match: isRestaurant,  conflict: isHotel },
+        hotels:       { match: isHotel,       conflict: isRestaurant },
+        supermarkets: { match: isSupermarket, conflict: () => false },
+    })[categoryKey];
+    if (!rule) return true;
+
+    let firstMatch = -1, firstConflict = -1;
+    for (let i = 0; i < types.length; i++) {
+        if (firstMatch < 0 && rule.match(types[i])) firstMatch = i;
+        if (firstConflict < 0 && rule.conflict(types[i])) firstConflict = i;
+        if (firstMatch >= 0 && firstConflict >= 0) break;
     }
+    if (firstMatch < 0) return false;          // not this category at all
+    if (firstConflict < 0) return true;        // matches and nothing else competes
+    return firstMatch < firstConflict;         // matches AND outranks the conflict
 }
 
 // Per-day card action helpers. The map setTimeout below detects
@@ -601,9 +610,21 @@ export function renderHome() {
                                 resolve(all);
                             }
                         };
+                        // rankBy: DISTANCE returns the 60 places CLOSEST
+                        // to the center, regardless of Google's prominence
+                        // ranking. The default `radius` mode ranks by
+                        // prominence — in a metro-wide radius that
+                        // surfaces famous big-name restaurants and hides
+                        // small-but-good local places (the user's
+                        // "Brasa de Sassoeiros" complaint). Distance
+                        // ranking flips that: every result is local to
+                        // the genesis pin, capped only by the 60-result
+                        // hard limit.
+                        // Note: `rankBy: DISTANCE` is incompatible with
+                        // `radius` — the API rejects both. We omit radius.
                         svc.nearbySearch({
                             location: center,
-                            radius: 50000,
+                            rankBy: google.maps.places.RankBy.DISTANCE,
                             type: cat.placesType,
                         }, handle);
                     });
