@@ -285,12 +285,23 @@ export function renderHome() {
                      stay clickable. Each toggles a Google Maps POI category
                      on the satellite-overlay label layer. Default: all off,
                      so the map only shows place names (cities, neighborhoods)
-                     without the restaurant/attraction clutter. -->
+                     without the restaurant/attraction clutter.
+                     The 9 categories are every poi.* feature type the
+                     Google Maps Styles API supports — finer subcategories
+                     (supermarket-only, gas-only, hotels-only, ATMs-only)
+                     all live inside poi.business, so the "Shops & food"
+                     pill turns them all on together. Splitting them
+                     further would require the paid Places API. -->
                 <div id="homeMapPoiToggles" class="map-poi-toggles">
-                    <button type="button" class="map-poi-toggle" data-poi="food" aria-pressed="false">🍽️ <span>Food</span></button>
-                    <button type="button" class="map-poi-toggle" data-poi="sights" aria-pressed="false">🏖️ <span>Sights</span></button>
-                    <button type="button" class="map-poi-toggle" data-poi="parks" aria-pressed="false">🌳 <span>Parks</span></button>
-                    <button type="button" class="map-poi-toggle" data-poi="transit" aria-pressed="false">🚆 <span>Transit</span></button>
+                    <button type="button" class="map-poi-toggle" data-poi="food" aria-pressed="false" title="Restaurants, supermarkets, gas, hotels, ATMs, shops">🛒 <span>Shops &amp; food</span></button>
+                    <button type="button" class="map-poi-toggle" data-poi="sights" aria-pressed="false" title="Tourist attractions, beaches, museums, monuments">🏖️ <span>Sights</span></button>
+                    <button type="button" class="map-poi-toggle" data-poi="parks" aria-pressed="false" title="Parks and gardens">🌳 <span>Parks</span></button>
+                    <button type="button" class="map-poi-toggle" data-poi="medical" aria-pressed="false" title="Hospitals, pharmacies, clinics">🏥 <span>Medical</span></button>
+                    <button type="button" class="map-poi-toggle" data-poi="worship" aria-pressed="false" title="Churches, temples, mosques">⛪ <span>Worship</span></button>
+                    <button type="button" class="map-poi-toggle" data-poi="schools" aria-pressed="false" title="Schools and universities">🎓 <span>Schools</span></button>
+                    <button type="button" class="map-poi-toggle" data-poi="sports" aria-pressed="false" title="Stadiums, gyms, sports complexes">🏟️ <span>Sports</span></button>
+                    <button type="button" class="map-poi-toggle" data-poi="govt" aria-pressed="false" title="Government buildings, embassies">🏛️ <span>Govt</span></button>
+                    <button type="button" class="map-poi-toggle" data-poi="transit" aria-pressed="false" title="Train stations, metro, bus stops">🚆 <span>Transit</span></button>
                 </div>
                 <div class="cover-card__gradient" style="pointer-events: none; z-index: 1;"></div>
                 <div class="cover-card__content" style="pointer-events: none; z-index: 2;">
@@ -325,10 +336,18 @@ export function renderHome() {
                 // POI category → Google Maps featureType mapping for the
                 // toggle pills. The label-layer styles work on hybrid (the
                 // overlay is vector); satellite imagery itself is unchanged.
+                // These are every distinct poi.* type the Styles API
+                // supports — supermarkets/gas/hotels/ATMs all live inside
+                // poi.business and ship together under "Shops & food".
                 const POI_FEATURE = {
                     food: 'poi.business',
                     sights: 'poi.attraction',
                     parks: 'poi.park',
+                    medical: 'poi.medical',
+                    worship: 'poi.place_of_worship',
+                    schools: 'poi.school',
+                    sports: 'poi.sports_complex',
+                    govt: 'poi.government',
                     transit: 'transit',
                 };
                 /** Build the styles array given which categories are
