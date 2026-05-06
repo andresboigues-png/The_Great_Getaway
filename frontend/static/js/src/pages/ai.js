@@ -5,6 +5,7 @@ import { openNewTripModal } from '../modals.js';
 import { apiFetch, upsertDay, deleteDayOnServer, upsertTrip } from '../api.js';
 import { canEdit, getMyRole, ROLE_BUDGETEER, ROLE_RELAXER } from '../permissions.js';
 import { getMarkedPlaces, removeMarkedPlace, setMarkedPlaceAssignment } from '../markedPlaces.js';
+import { showModal } from '../components/Modal.js';
 
 /** @type {any} */
 let googleMap = null;
@@ -95,10 +96,30 @@ export function renderAI() {
                      the Requirements card can flex-grow into the spare space and
                      the Generate button bottom lines up with the map's bottom. -->
                 <div id="aiControlsPanel" style="display:flex;flex-direction:column;gap:16px;min-height:700px;">
-                    <!-- AI Engine badge -->
+                    <!-- AI Engine — Gemini key. Each user brings their
+                         own free key so we don't burn the host's quota
+                         when shipping to friends/family. The key is
+                         persisted on STATE.geminiApiKey (localStorage
+                         auto-flush via the saveState subscriber) and
+                         sent in the /api/generate_itinerary request
+                         body; backend falls back to its own env key
+                         when the request body has none, so dev /
+                         self-hosted setups still work. -->
                     <div class="card glass" style="padding:18px;border-color:rgba(155,89,182,0.3);flex:0 0 auto;">
-                        <h2 class="card-title" style="font-size:0.85rem;text-transform:uppercase;letter-spacing:0.07em;color:#9b59b6;margin-bottom:8px;">✦ AI Engine</h2>
-                        <p style="color:var(--text-secondary);font-size:0.82rem;margin:0;">Secure server-side Gemini integration.</p>
+                        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
+                            <h2 class="card-title" style="font-size:0.85rem;text-transform:uppercase;letter-spacing:0.07em;color:#9b59b6;margin:0;">✦ AI Engine — Gemini</h2>
+                            <button id="aiKeyHelpBtn" type="button" title="How to get a Gemini API key" aria-label="How to get a Gemini API key"
+                                style="background:rgba(155,89,182,0.12); border:1px solid rgba(155,89,182,0.35); color:#9b59b6; width:24px; height:24px; border-radius:50%; cursor:pointer; font-weight:800; font-size:0.78rem; line-height:1; display:inline-flex; align-items:center; justify-content:center; font-family: Georgia, serif; font-style: italic;">i</button>
+                        </div>
+                        <p style="color:var(--text-secondary);font-size:0.78rem;margin:0 0 10px;">Bring your own free Gemini API key. Stored on this device only.</p>
+                        <div style="position:relative;">
+                            <input id="aiKeyInput" type="password" placeholder="Paste your Gemini API key…" autocomplete="off" spellcheck="false"
+                                value="${esc(STATE.geminiApiKey || '')}"
+                                style="width:100%; box-sizing:border-box; padding:10px 42px 10px 12px; border:1px solid rgba(0,0,0,0.12); border-radius:10px; font-size:0.85rem; font-family: 'SF Mono', monospace; background:white; color:#002d5b;">
+                            <button id="aiKeyToggleBtn" type="button" title="Show / hide key" aria-label="Toggle visibility"
+                                style="position:absolute; right:6px; top:50%; transform:translateY(-50%); background:transparent; border:0; cursor:pointer; padding:4px 8px; color:rgba(0,0,0,0.5); font-size:0.95rem; line-height:1;">👁</button>
+                        </div>
+                        <div id="aiKeyStatus" style="margin-top:6px; font-size:0.7rem; font-weight:700; min-height:1em;"></div>
                     </div>
                     <!-- Dates -->
                     <div class="card glass" style="padding:20px;flex:0 0 auto;">
@@ -528,6 +549,85 @@ export function renderAI() {
             };
         }
 
+        // ── Gemini key plumbing ────────────────────────────────────
+        // Wire the masked input, the 👁 eye toggle, and the (i) help
+        // button. Persistence rides on emit('state:changed') →
+        // saveState → localStorage. No dedicated request/network here.
+        const keyInput = /** @type {HTMLInputElement | null} */ (div.querySelector('#aiKeyInput'));
+        const keyToggleBtn = /** @type {HTMLButtonElement | null} */ (div.querySelector('#aiKeyToggleBtn'));
+        const keyHelpBtn = /** @type {HTMLButtonElement | null} */ (div.querySelector('#aiKeyHelpBtn'));
+        const keyStatusEl = /** @type {HTMLElement | null} */ (div.querySelector('#aiKeyStatus'));
+
+        const renderKeyStatus = () => {
+            if (!keyStatusEl) return;
+            const v = (STATE.geminiApiKey || '').trim();
+            if (!v) {
+                keyStatusEl.textContent = 'No key saved — paste one above to enable AI generation.';
+                keyStatusEl.style.color = '#ff9500';
+                return;
+            }
+            // Light shape check — Gemini keys start "AIza" and are ~39
+            // chars. Don't *block* on shape (Google may rotate format),
+            // just hint when something looks off.
+            const looksLegit = v.startsWith('AIza') && v.length >= 30;
+            keyStatusEl.textContent = looksLegit ? '✓ Key saved on this device.' : '⚠ Saved, but the format looks off (Gemini keys usually start with "AIza"). Click i for help.';
+            keyStatusEl.style.color = looksLegit ? '#1a6b3c' : '#ff9500';
+        };
+        renderKeyStatus();
+
+        if (keyInput) {
+            keyInput.addEventListener('input', () => {
+                STATE.geminiApiKey = keyInput.value;
+                emit('state:changed');
+                renderKeyStatus();
+            });
+        }
+        if (keyToggleBtn && keyInput) {
+            keyToggleBtn.addEventListener('click', () => {
+                const showing = keyInput.type === 'text';
+                keyInput.type = showing ? 'password' : 'text';
+                keyToggleBtn.textContent = showing ? '👁' : '🙈';
+                keyToggleBtn.title = showing ? 'Show key' : 'Hide key';
+            });
+        }
+        if (keyHelpBtn) {
+            keyHelpBtn.addEventListener('click', () => {
+                const { root: helpRoot, close: closeHelp } = showModal({
+                    cardClass: 'card glass',
+                    cardStyle: 'width: 520px; max-width: calc(100vw - 32px); padding: 28px 32px; border-radius: 28px; background: white;',
+                    innerHTML: `
+                        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 12px;">
+                            <h2 style="margin:0; font-size: 1.6rem; color:#9b59b6; font-weight: 800; letter-spacing:-0.02em;">✦ Get a Gemini API key</h2>
+                            <button id="aiKeyHelpClose" class="close-x-btn" aria-label="Close">✕</button>
+                        </div>
+                        <p style="margin:0 0 14px; color: var(--text-secondary); font-size: 0.92rem; line-height: 1.5;">
+                            Free for personal use, takes about a minute. The key lives only on your device — pasting it
+                            here saves it in this browser, and we send it on each AI generation request alongside the
+                            prompt. We don't store it on our servers.
+                        </p>
+                        <ol style="margin: 0 0 16px 0; padding-left: 22px; color: #002d5b; font-size: 0.92rem; line-height: 1.7;">
+                            <li>Open <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" style="color: var(--accent-blue); font-weight: 700;">aistudio.google.com/app/apikey</a> in a new tab.</li>
+                            <li>Sign in with a regular Google account if prompted.</li>
+                            <li>Click <strong>Create API key</strong>.</li>
+                            <li>Pick <em>"Create API key in new project"</em> if you don't already have a Google Cloud project — fastest path.</li>
+                            <li>Copy the long string that appears (it starts with <code style="background:rgba(0,0,0,0.05); padding:1px 5px; border-radius:4px; font-size:0.85em;">AIza…</code>).</li>
+                            <li>Paste it into the <strong>AI Engine — Gemini</strong> box on this page.</li>
+                        </ol>
+                        <div style="background: rgba(155,89,182,0.06); border:1px solid rgba(155,89,182,0.18); border-radius: 14px; padding: 12px 14px; font-size: 0.82rem; color: #002d5b; line-height: 1.55;">
+                            <strong>What's it for?</strong> Each itinerary you generate makes one Gemini API call. The
+                            free tier comfortably covers casual personal use; paid tier kicks in only if you go
+                            heavy. Your key is yours — clear it any time by emptying the input.
+                        </div>
+                        <div style="display:flex; justify-content:flex-end; margin-top:18px;">
+                            <button id="aiKeyHelpDone" class="btn-primary" style="padding: 10px 22px; border-radius: 999px;">Got it</button>
+                        </div>
+                    `,
+                });
+                /** @type {HTMLButtonElement | null} */ (helpRoot.querySelector('#aiKeyHelpClose'))?.addEventListener('click', closeHelp);
+                /** @type {HTMLButtonElement | null} */ (helpRoot.querySelector('#aiKeyHelpDone'))?.addEventListener('click', closeHelp);
+            });
+        }
+
         // Re-render the marked-places panel whenever the user types in
         // date inputs — this is what reveals the day/time-of-day
         // dropdowns once dates are set.
@@ -576,6 +676,9 @@ export function renderAI() {
                     body: JSON.stringify({
                         destination: tripCountry,
                         numDays, dateFrom, dateTo, context,
+                        // BYO key from the AI Engine card; backend falls
+                        // back to its env var if this is empty.
+                        gemini_key: (STATE.geminiApiKey || '').trim(),
                     })
                 });
                 const d = await r.json();

@@ -32,6 +32,12 @@ export const STATE = {
     rateCache: {}, // { 'YYYY-MM-DD_FROM_TO': rate }
     user: null, // Stores { id, name, email, picture }
     hasLoggedInBefore: false, // Tracks if user has ever signed in
+    /** User's personal Gemini API key for the AI planner. Bring-your-own
+     *  so we don't burn a shared host key on friends/family rollouts.
+     *  Stored on this device only (localStorage), sent in each
+     *  /api/generate_itinerary request body; backend falls back to its
+     *  GEMINI_API_KEY env var when this is empty (dev / self-hosted). */
+    geminiApiKey: '',
     excelMapping: {
         who: 'Who',
         categoryId: 'Category',

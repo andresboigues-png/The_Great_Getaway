@@ -963,9 +963,15 @@ def generate_itinerary():
     date_to = data.get("dateTo", "")
     context = data.get("context", "")
 
-    api_key = os.getenv("GEMINI_API_KEY")
+    # BYO key path: client sends its own Gemini key in the request body
+    # so we don't burn the host's quota on friends/family rollouts. We
+    # never persist this to disk — used for the API call only and then
+    # discarded with the request lifecycle. Empty / missing falls back
+    # to the env var so dev + self-hosted setups still work.
+    user_key = (data.get("gemini_key") or "").strip()
+    api_key = user_key or os.getenv("GEMINI_API_KEY") or ""
     if not api_key:
-        return jsonify({"error": "Gemini API key not configured"}), 500
+        return jsonify({"error": "Gemini API key required. Click the (i) on the AI Engine card to learn how to get one — it's free for personal use."}), 400
 
     prompt = f"""
     You are an expert travel planner. Create a detailed {num_days}-day itinerary for {destination} from {date_from} to {date_to}.
