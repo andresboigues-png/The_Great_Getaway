@@ -521,20 +521,25 @@ export function renderHome() {
                         // These overrides only render on `roadmap` map
                         // type — silently no-op on hybrid/satellite.
                         //
-                        // Colour: bright cyan (#00d4ff) at thicker
-                        // weight so ferry routes "pop" the way the
-                        // user asked for. Google's style API can't
-                        // filter by transit mode, so this colours
-                        // ALL transit lines (train, metro, ferry, bus)
-                        // the same — uniform neon-blue treatment.
-                        // geometry.stroke gets the saturated core,
-                        // geometry.fill gets a slightly lighter tint
-                        // so the line reads as "glowing" rather than
-                        // a flat stripe.
+                        // Colour: saturated cyan (#00e5ff) with a
+                        // chunky weight so ferry routes pop and stay
+                        // legible at zoomed-out levels (Google fades
+                        // transit lines to nothing at low zoom by
+                        // default; weight is the only lever the style
+                        // API gives us to keep them visible). Google's
+                        // style API can't filter by transit mode so
+                        // this colours ALL transit lines (train,
+                        // metro, ferry, bus) the same — uniform
+                        // neon-blue treatment, which is what the user
+                        // asked for. geometry.stroke is the saturated
+                        // core stroke, geometry.fill is a paler tint
+                        // that gives a soft "glow" feel against
+                        // darker line backgrounds (no blur primitive
+                        // is available in the style API).
                         styles.push(
                             { featureType: 'transit.line', elementType: 'geometry', stylers: [{ visibility: 'on' }] },
-                            { featureType: 'transit.line', elementType: 'geometry.stroke', stylers: [{ color: '#00d4ff' }, { weight: 3 }] },
-                            { featureType: 'transit.line', elementType: 'geometry.fill', stylers: [{ color: '#5ad8ff' }] },
+                            { featureType: 'transit.line', elementType: 'geometry.stroke', stylers: [{ color: '#00e5ff' }, { weight: 6 }] },
+                            { featureType: 'transit.line', elementType: 'geometry.fill', stylers: [{ color: '#5ad8ff' }, { weight: 6 }] },
                             { featureType: 'transit.line', elementType: 'labels', stylers: [{ visibility: 'off' }] },
                             { featureType: 'transit.station', stylers: [{ visibility: 'off' }] },
                         );
