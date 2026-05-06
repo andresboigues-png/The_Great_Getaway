@@ -193,6 +193,12 @@ function archiveActiveTrip() {
         confirmColor: "#34c759",
         onConfirm: () => {
             trip.isArchived = true;
+            // Stamp the moment of completion so Collections can sort
+            // by "Recently completed" without relying on array-order
+            // proxies (which break on cross-device sync). Field is
+            // tolerated by the server JSON column even if it doesn't
+            // round-trip via a dedicated trips column.
+            trip.archivedAt = new Date().toISOString();
             trip.expenses = STATE.expenses.filter(e => e.tripId === trip.id);
             trip.tripDays = STATE.tripDays.filter(d => d.tripId === trip.id);
 
