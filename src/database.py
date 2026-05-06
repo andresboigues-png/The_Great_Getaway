@@ -93,6 +93,17 @@ def init_db():
             # forManual (shortlist to pick from when manually editing days).
             # Schema: see migrations/versions/c374584f6044*.
             ("marked_places_json", "ALTER TABLE trips ADD COLUMN marked_places_json TEXT"),
+            # JSON-encoded list of trip-level documents (booking
+            # confirmations, hotel vouchers, multi-day reservations,
+            # passport scans). Each entry: { id, name, url, dayId?,
+            # addedAt? }. dayId is optional — when set, the doc is
+            # tied to a specific day; when null/absent, it's
+            # trip-wide. See the Documents tab on Home.
+            ("documents_json", "ALTER TABLE trips ADD COLUMN documents_json TEXT"),
+            # JSON-encoded list of trip-level photos. Each entry:
+            # { id, src, dayId?, addedAt? }. Same shape rules as
+            # documents — dayId optional. See the Photos tab on Home.
+            ("photos_json", "ALTER TABLE trips ADD COLUMN photos_json TEXT"),
         ]:
             try:
                 cursor.execute(ddl)

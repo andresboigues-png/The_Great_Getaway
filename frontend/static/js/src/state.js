@@ -152,10 +152,19 @@ export function loadState() {
         // dance and assume an array. New trips ship with [], but pre-feature
         // localStorage snapshots may not have the field at all.
         if (!Array.isArray(trip.markedPlaces)) trip.markedPlaces = [];
+        // Trip-level Documents and Photos (both can carry an optional
+        // dayId for items tied to a specific day; absent dayId means
+        // trip-wide). The new Documents and Photos tabs on Home read
+        // these as the canonical store; legacy day.tickets/day.photos
+        // remain for backwards compat (the tabs union both views).
+        if (!Array.isArray(trip.documents)) trip.documents = [];
+        if (!Array.isArray(trip.photos)) trip.photos = [];
     }
     for (const trip of STATE.archivedTrips || []) {
         trip.companions = normalizeTripCompanions(trip.companions);
         if (!Array.isArray(trip.markedPlaces)) trip.markedPlaces = [];
+        if (!Array.isArray(trip.documents)) trip.documents = [];
+        if (!Array.isArray(trip.photos)) trip.photos = [];
     }
 
     // Backfill: every trip the current user owns should have a self-linked

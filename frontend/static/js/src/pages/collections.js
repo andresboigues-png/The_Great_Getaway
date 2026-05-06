@@ -126,18 +126,33 @@ export function renderArchivedTripDetail(tripId) {
     }
 
     // ── Trip stats roll-up ───────────────────────────────────────────
+    // Counts pull from BOTH the legacy day-level arrays AND the new
+    // trip-level stores (trip.photos, trip.documents) added with the
+    // Documents/Photos tabs on Home. Archive carries the trip object
+    // intact, so trip.photos / trip.documents survive without any
+    // migration on this side.
     const expenses = (trip.expenses || []).filter(e => !e.isSettlement);
     const totalSpent = expenses.reduce((sum, e) => sum + (e.euroValue || 0), 0);
     const tripDays = (trip.tripDays || []);
     const dayCount = tripDays.length;
-    const totalPhotos = tripDays.reduce((n, d) => n + ((d.photos || []).length), 0);
-    const totalDocs = tripDays.reduce((n, d) => n + ((d.tickets || []).length), 0);
+    const tripPhotos = Array.isArray(trip.photos) ? trip.photos : [];
+    const tripDocs = Array.isArray(trip.documents) ? trip.documents : [];
+    const totalPhotos =
+        tripDays.reduce((n, d) => n + ((d.photos || []).length), 0)
+        + tripPhotos.length;
+    const totalDocs =
+        tripDays.reduce((n, d) => n + ((d.tickets || []).length), 0)
+        + tripDocs.length;
 
     // First photo (used as the hero background and a fallback for any
-    // day that doesn't carry its own photo).
+    // day that doesn't carry its own photo). Try the trip-level store
+    // first (where new uploads land) and fall back to legacy day photos.
     let firstPhoto = null;
-    for (const day of tripDays) {
-        if (day.photos && day.photos.length > 0) { firstPhoto = day.photos[0]; break; }
+    if (tripPhotos.length > 0) firstPhoto = tripPhotos[0].src;
+    if (!firstPhoto) {
+        for (const day of tripDays) {
+            if (day.photos && day.photos.length > 0) { firstPhoto = day.photos[0]; break; }
+        }
     }
 
     // ── Hero card ────────────────────────────────────────────────────
@@ -216,10 +231,19 @@ export function renderArchivedTripDetail(tripId) {
         </div>
         <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:18px;">
             ${tripDays.sort((a, b) => a.dayNumber - b.dayNumber).map(day => {
-                const dayPhotos = day.photos || [];
-                const dayDocs = day.tickets || [];
+                // Per-day media counts: legacy day-level arrays + any
+                // trip-level entries this day was tagged with via the
+                // Documents/Photos tabs.
+                const dayPhotosFromDay = day.photos || [];
+                const dayPhotosFromTrip = tripPhotos.filter(p => p.dayId === day.id);
+                const totalDayPhotos = dayPhotosFromDay.length + dayPhotosFromTrip.length;
+                const dayDocsFromDay = day.tickets || [];
+                const dayDocsFromTrip = tripDocs.filter(d => d.dayId === day.id);
+                const totalDayDocs = dayDocsFromDay.length + dayDocsFromTrip.length;
                 const isStartingPoint = Number(day.dayNumber) === 0;
-                const photoBg = dayPhotos[0] || (isStartingPoint ? null : firstPhoto);
+                const photoBg = dayPhotosFromDay[0]
+                    || dayPhotosFromTrip[0]?.src
+                    || (isStartingPoint ? null : firstPhoto);
                 const hasBg = !!photoBg;
                 return `
                     <div class="archived-day-block" data-day-id="${esc(day.id)}" role="button" tabindex="0" aria-label="View Day ${day.dayNumber}${day.name ? ' — ' + day.name : ''}"
@@ -234,8 +258,8 @@ export function renderArchivedTripDetail(tripId) {
                         <div>
                             <h3 style="margin:0; font-size:1.4rem; font-weight:800; letter-spacing:-0.02em; color:${hasBg ? '#ffffff' : '#002d5b'}; line-height:1.15; ${hasBg ? 'text-shadow: 0 2px 12px rgba(0,0,0,0.4);' : ''}">${esc(day.name || (isStartingPoint ? 'Trip Genesis' : `Day ${day.dayNumber}`))}</h3>
                             <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:10px;">
-                                ${dayPhotos.length > 0 ? `<span style="background:${hasBg ? 'rgba(255,255,255,0.18)' : 'rgba(0,113,227,0.08)'}; color:${hasBg ? '#ffffff' : 'var(--accent-blue)'}; padding:3px 10px; border-radius:999px; font-size:0.7rem; font-weight:700;">📸 ${dayPhotos.length}</span>` : ''}
-                                ${dayDocs.length > 0 ? `<span style="background:${hasBg ? 'rgba(255,255,255,0.18)' : 'rgba(88,86,214,0.08)'}; color:${hasBg ? '#ffffff' : '#5856d6'}; padding:3px 10px; border-radius:999px; font-size:0.7rem; font-weight:700;">📎 ${dayDocs.length}</span>` : ''}
+                                ${totalDayPhotos > 0 ? `<span style="background:${hasBg ? 'rgba(255,255,255,0.18)' : 'rgba(0,113,227,0.08)'}; color:${hasBg ? '#ffffff' : 'var(--accent-blue)'}; padding:3px 10px; border-radius:999px; font-size:0.7rem; font-weight:700;">📸 ${totalDayPhotos}</span>` : ''}
+                                ${totalDayDocs > 0 ? `<span style="background:${hasBg ? 'rgba(255,255,255,0.18)' : 'rgba(88,86,214,0.08)'}; color:${hasBg ? '#ffffff' : '#5856d6'}; padding:3px 10px; border-radius:999px; font-size:0.7rem; font-weight:700;">📎 ${totalDayDocs}</span>` : ''}
                                 ${day.notes ? `<span style="background:${hasBg ? 'rgba(255,255,255,0.18)' : 'rgba(255,149,0,0.08)'}; color:${hasBg ? '#ffffff' : '#ff9500'}; padding:3px 10px; border-radius:999px; font-size:0.7rem; font-weight:700;">📝 Notes</span>` : ''}
                             </div>
                         </div>

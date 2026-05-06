@@ -13,6 +13,13 @@ import { findTripCompanionByLinkedUser } from '../companions.js';
 import { showModal } from '../components/Modal.js';
 import { wireRoleButtonKeys } from '../components/Keyboard.js';
 import { findMarkedPlace, toggleMarkedPlaceFlag, removeMarkedPlace } from '../markedPlaces.js';
+import {
+    getAllTripDocuments, getAllTripPhotos,
+    addTripDocument, addTripPhoto,
+    removeTripDocument, removeTripPhoto,
+    setDocumentDay,
+    buildGmailTripSearchUrl,
+} from '../tripMedia.js';
 
 // Empty-state slideshow timer. Lives in this module; router.js calls
 // stopHomeSlideshow() on every navigate so the timer doesn't leak past home.
@@ -27,8 +34,8 @@ let activeMarkers = {}; // Cache of Leaflet markers by day ID
 let editingDayId = null; // ID of the day currently being geolocated/pinned
 let activeMapClickListener = null; // Reference to the active map click handler
 let openMenuDayId = null; // Track which day's sidebar menu is open
-/** @type {'days' | 'companions' | 'shortlist'} */
-let activeHomeTab = 'days'; // Sub-tab on the home trip view (Path / Companions / Shortlist)
+/** @type {'days' | 'companions' | 'shortlist' | 'documents' | 'photos'} */
+let activeHomeTab = 'days'; // Sub-tab on the home trip view (Path / Companions / Shortlist / Documents / Photos)
 
 /** Single source of truth for the home-map POI quick-access pills.
  *  Read by:
@@ -1722,13 +1729,27 @@ export function renderHome() {
             <p style="font-size: 0.95rem; color: var(--text-secondary); margin: 6px 0 0; font-weight: 500;">${tripDays.length} Day${tripDays.length !== 1 ? 's' : ''} of adventure</p>
         </div>
 
-        ${activeTrip ? `
+        ${activeTrip ? (() => {
+            // Tab badge counters — built once so the JSX (template
+            // string) reads less noisy, and so we can reuse the same
+            // counts in tab body rendering below.
+            const shortlistCount = (activeTrip.markedPlaces || []).filter(p => p.forManual).length;
+            const docsCount = getAllTripDocuments(activeTrip).length;
+            const photosCount = getAllTripPhotos(activeTrip).length;
+            /** Small chip rendered next to a tab label when count > 0. */
+            const badge = (n, color) => n > 0
+                ? ` <span style="background:${color.bg}; color:${color.fg}; padding:1px 6px; border-radius:999px; font-size:0.7rem; font-weight:800; margin-left:2px;">${n}</span>`
+                : '';
+            return `
             <nav class="home-tabnav" role="tablist">
                 <button class="home-tabnav__tab${activeHomeTab === 'days' ? ' is-active' : ''}" data-home-tab="days" role="tab">Path</button>
                 <button class="home-tabnav__tab${activeHomeTab === 'companions' ? ' is-active' : ''}" data-home-tab="companions" role="tab">Companions</button>
-                <button class="home-tabnav__tab${activeHomeTab === 'shortlist' ? ' is-active' : ''}" data-home-tab="shortlist" role="tab">Shortlist${(activeTrip.markedPlaces || []).filter(p => p.forManual).length > 0 ? ` <span style="background:rgba(255,149,0,0.15); color:#ff9500; padding:1px 6px; border-radius:999px; font-size:0.7rem; font-weight:800; margin-left:2px;">${(activeTrip.markedPlaces || []).filter(p => p.forManual).length}</span>` : ''}</button>
+                <button class="home-tabnav__tab${activeHomeTab === 'shortlist' ? ' is-active' : ''}" data-home-tab="shortlist" role="tab">Shortlist${badge(shortlistCount, { bg: 'rgba(255,149,0,0.15)', fg: '#ff9500' })}</button>
+                <button class="home-tabnav__tab${activeHomeTab === 'documents' ? ' is-active' : ''}" data-home-tab="documents" role="tab">Documents${badge(docsCount, { bg: 'rgba(88,86,214,0.15)', fg: '#5856d6' })}</button>
+                <button class="home-tabnav__tab${activeHomeTab === 'photos' ? ' is-active' : ''}" data-home-tab="photos" role="tab">Photos${badge(photosCount, { bg: 'rgba(52,199,89,0.15)', fg: '#1a6b3c' })}</button>
             </nav>
-        ` : ''}
+            `;
+        })() : ''}
 
         <!-- Companions tab content. Render order matters: this sits ABOVE
              the Days tab in source so the timeline stays the document
@@ -1806,6 +1827,186 @@ export function renderHome() {
                                         ${tripIsEditable ? `
                                             <button type="button" class="shortlist-remove-btn" data-place-id="${esc(p.placeId)}" title="Remove from shortlist" aria-label="Remove ${esc(p.name)}"
                                                 style="background: rgba(255,59,48,0.08); border: 1px solid rgba(255,59,48,0.25); color:#ff3b30; border-radius: 8px; padding: 4px 8px; font-size:0.75rem; font-weight:800; cursor:pointer; flex-shrink:0;">✕</button>
+                                        ` : ''}
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `;
+                })()}
+            </div>
+
+            <!-- Documents tab — trip-wide and day-tagged booking
+                 confirmations, hotel vouchers, etc. The list is the
+                 UNION of trip.documents (new canonical store) and any
+                 legacy day.tickets entries; tripMedia.getAllTripDocuments
+                 hides that distinction. Only planners see the add /
+                 delete affordances. The Gmail-search button at the
+                 top opens Gmail in a new tab with a smart query
+                 pre-filled (Path A from the rollout plan). -->
+            <div class="home-tab-content${activeHomeTab === 'documents' ? ' is-active' : ''}" data-home-tab="documents">
+                ${(() => {
+                    const docs = getAllTripDocuments(activeTrip);
+                    const numberedDays = (STATE.tripDays || [])
+                        .filter(d => d.tripId === activeTrip.id && d.dayNumber > 0)
+                        .sort((a, b) => a.dayNumber - b.dayNumber);
+                    const dayLabel = (id) => {
+                        if (!id) return null;
+                        const day = (STATE.tripDays || []).find(d => d.id === id);
+                        return day ? (day.dayNumber === 0 ? 'Genesis' : `Day ${day.dayNumber}`) : null;
+                    };
+                    const dayChip = (id) => {
+                        const lbl = dayLabel(id);
+                        return lbl
+                            ? `<span style="background:rgba(0,113,227,0.08); color:var(--accent-blue); padding:2px 8px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">${esc(lbl)}</span>`
+                            : `<span style="background:rgba(88,86,214,0.08); color:#5856d6; padding:2px 8px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">Trip-wide</span>`;
+                    };
+
+                    // Group by dayId so the list reads scannably:
+                    // Trip-wide first, then Day 0, Day 1, …
+                    /** @type {Map<string, any[]>} */
+                    const groups = new Map();
+                    docs.forEach(d => {
+                        const key = d.dayId || '__trip__';
+                        if (!groups.has(key)) groups.set(key, []);
+                        groups.get(key).push(d);
+                    });
+                    const sortedKeys = [...groups.keys()].sort((a, b) => {
+                        if (a === '__trip__') return -1;
+                        if (b === '__trip__') return 1;
+                        const da = (STATE.tripDays || []).find(d => d.id === a);
+                        const db = (STATE.tripDays || []).find(d => d.id === b);
+                        return (da?.dayNumber ?? 999) - (db?.dayNumber ?? 999);
+                    });
+
+                    const headerRow = `
+                        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                            ${tripIsEditable ? `
+                                <button id="addDocBtn" type="button"
+                                    style="background:var(--accent-blue); color:white; border:0; padding:9px 16px; border-radius:999px; font-weight:800; font-size:0.82rem; cursor:pointer; box-shadow: 0 4px 12px rgba(0,113,227,0.22);">
+                                    ➕ Add document
+                                </button>
+                            ` : ''}
+                            <button id="searchGmailDocsBtn" type="button"
+                                style="background:white; color:#002d5b; border:1px solid rgba(0,0,0,0.1); padding:9px 16px; border-radius:999px; font-weight:800; font-size:0.82rem; cursor:pointer;">
+                                📧 Search Gmail for bookings
+                            </button>
+                            <span style="margin-left:auto; font-size:0.78rem; color:var(--text-secondary); font-weight:600;">${docs.length} ${docs.length === 1 ? 'document' : 'documents'}</span>
+                        </div>
+                    `;
+
+                    if (docs.length === 0) {
+                        return `
+                            <div style="display:flex; flex-direction:column; gap:14px; flex:1; min-width:0;">
+                                ${headerRow}
+                                <div class="card glass" style="padding: 28px; border-radius: 18px; border: 1.5px dashed rgba(88,86,214,0.32); background: rgba(88,86,214,0.04); text-align:center;">
+                                    <div style="font-size:2rem; margin-bottom:8px;">📎</div>
+                                    <h3 style="margin:0 0 6px; color:#5856d6; font-weight:800;">No documents yet</h3>
+                                    <p style="margin:0; color:var(--text-secondary); font-size:0.9rem;">Click <strong>📧 Search Gmail for bookings</strong> to find your confirmation emails, then drop the PDFs / links in via <strong>➕ Add document</strong>. Mark each as trip-wide (passport, multi-day hotel) or tag it to a specific day (a museum ticket).</p>
+                                </div>
+                            </div>
+                        `;
+                    }
+
+                    return `
+                        <div style="display:flex; flex-direction:column; gap:14px; flex:1; min-width:0;">
+                            ${headerRow}
+                            ${sortedKeys.map(key => {
+                                const items = groups.get(key) || [];
+                                const isTripWide = key === '__trip__';
+                                const groupLabel = isTripWide ? 'Trip-wide' : (dayLabel(key) || 'Unknown day');
+                                const accent = isTripWide ? '#5856d6' : 'var(--accent-blue)';
+                                return `
+                                    <div>
+                                        <h4 style="margin:0 0 8px; font-size:0.7rem; font-weight:800; text-transform:uppercase; letter-spacing:0.1em; color:${accent};">${esc(groupLabel)}</h4>
+                                        <div style="display:flex; flex-direction:column; gap:8px;">
+                                            ${items.map(d => `
+                                                <div class="trip-doc-card" data-doc-id="${esc(d.id)}" style="display:flex; align-items:center; gap:12px; background:white; border:1px solid rgba(0,0,0,0.07); border-radius:14px; padding:12px 14px; box-shadow: 0 2px 8px rgba(0,45,91,0.04);">
+                                                    <span style="font-size:1.3rem; line-height:1; flex-shrink:0;">📎</span>
+                                                    <div style="flex:1; min-width:0;">
+                                                        <div style="display:flex; align-items:center; gap:8px; margin-bottom:2px;">
+                                                            <a href="${esc(d.url || '#')}" target="_blank" rel="noreferrer" class="trip-doc-link" style="font-weight:800; color:#002d5b; font-size:0.92rem; text-decoration:none; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(d.name || 'Document')}</a>
+                                                            ${dayChip(d.dayId)}
+                                                        </div>
+                                                        ${d.url ? `<div style="font-size:0.7rem; color:var(--text-secondary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(d.url)}</div>` : ''}
+                                                    </div>
+                                                    ${tripIsEditable ? `
+                                                        ${d._source === 'trip' && numberedDays.length > 0 ? `
+                                                            <select class="trip-doc-day-select" data-doc-id="${esc(d.id)}"
+                                                                style="padding:6px 8px; border-radius:8px; border:1px solid rgba(0,0,0,0.1); font-size:0.75rem; background:white; max-width:140px;">
+                                                                <option value="" ${!d.dayId ? 'selected' : ''}>Trip-wide</option>
+                                                                ${numberedDays.map(nd => `
+                                                                    <option value="${esc(nd.id)}" ${d.dayId === nd.id ? 'selected' : ''}>Day ${nd.dayNumber}</option>
+                                                                `).join('')}
+                                                            </select>
+                                                        ` : ''}
+                                                        <button type="button" class="trip-doc-remove-btn" data-doc-id="${esc(d.id)}" title="Remove" aria-label="Remove ${esc(d.name)}"
+                                                            style="background: rgba(255,59,48,0.08); border: 1px solid rgba(255,59,48,0.25); color:#ff3b30; border-radius: 8px; padding: 4px 8px; font-size:0.75rem; font-weight:800; cursor:pointer; flex-shrink:0;">✕</button>
+                                                    ` : ''}
+                                                </div>
+                                            `).join('')}
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    `;
+                })()}
+            </div>
+
+            <!-- Photos tab — same union pattern as Documents but for
+                 imagery: trip.photos (canonical) + legacy day.photos.
+                 The grid lays out as a masonry-ish auto-fill 140px
+                 minimum; clicking a thumbnail opens a lightbox. -->
+            <div class="home-tab-content${activeHomeTab === 'photos' ? ' is-active' : ''}" data-home-tab="photos">
+                ${(() => {
+                    const photos = getAllTripPhotos(activeTrip);
+                    const dayLabel = (id) => {
+                        if (!id) return null;
+                        const day = (STATE.tripDays || []).find(d => d.id === id);
+                        return day ? (day.dayNumber === 0 ? 'Genesis' : `Day ${day.dayNumber}`) : null;
+                    };
+
+                    const headerRow = `
+                        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                            ${tripIsEditable ? `
+                                <button id="addPhotosBtn" type="button"
+                                    style="background:#34c759; color:white; border:0; padding:9px 16px; border-radius:999px; font-weight:800; font-size:0.82rem; cursor:pointer; box-shadow: 0 4px 12px rgba(52,199,89,0.22);">
+                                    ➕ Add photos
+                                </button>
+                                <input id="addPhotosInput" type="file" accept="image/*" multiple style="display:none;">
+                            ` : ''}
+                            <span style="margin-left:auto; font-size:0.78rem; color:var(--text-secondary); font-weight:600;">${photos.length} ${photos.length === 1 ? 'photo' : 'photos'}</span>
+                        </div>
+                    `;
+
+                    if (photos.length === 0) {
+                        return `
+                            <div style="display:flex; flex-direction:column; gap:14px; flex:1; min-width:0;">
+                                ${headerRow}
+                                <div class="card glass" style="padding: 28px; border-radius: 18px; border: 1.5px dashed rgba(52,199,89,0.32); background: rgba(52,199,89,0.04); text-align:center;">
+                                    <div style="font-size:2rem; margin-bottom:8px;">📸</div>
+                                    <h3 style="margin:0 0 6px; color:#1a6b3c; font-weight:800;">No photos yet</h3>
+                                    <p style="margin:0; color:var(--text-secondary); font-size:0.9rem;">Use <strong>➕ Add photos</strong> to upload trip-wide photos (or tag them to specific days). Photos here surface across the trip view, in completed-trip Memories, and as the day-card backgrounds.</p>
+                                </div>
+                            </div>
+                        `;
+                    }
+
+                    return `
+                        <div style="display:flex; flex-direction:column; gap:14px; flex:1; min-width:0;">
+                            ${headerRow}
+                            <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:10px;">
+                                ${photos.map(p => `
+                                    <div class="trip-photo-card" data-photo-id="${esc(p.id)}" style="position:relative; aspect-ratio:1; border-radius:14px; overflow:hidden; background-image:url(${esc(p.src)}); background-size:cover; background-position:center; box-shadow: 0 4px 12px rgba(0,0,0,0.06); cursor:pointer; border:1px solid rgba(0,0,0,0.06);">
+                                        ${p.dayId ? `
+                                            <div style="position:absolute; top:6px; left:6px; background: rgba(0,0,0,0.55); color:white; padding:2px 8px; border-radius:999px; font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; backdrop-filter: blur(6px);">${esc(dayLabel(p.dayId) || '')}</div>
+                                        ` : `
+                                            <div style="position:absolute; top:6px; left:6px; background: rgba(52,199,89,0.85); color:white; padding:2px 8px; border-radius:999px; font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; backdrop-filter: blur(6px);">Trip-wide</div>
+                                        `}
+                                        ${tripIsEditable ? `
+                                            <button type="button" class="trip-photo-remove-btn" data-photo-id="${esc(p.id)}" title="Remove" aria-label="Remove photo"
+                                                style="position:absolute; top:6px; right:6px; background:rgba(0,0,0,0.55); border:0; color:white; width:24px; height:24px; border-radius:50%; cursor:pointer; font-size:0.75rem; line-height:1; backdrop-filter: blur(6px);">✕</button>
                                         ` : ''}
                                     </div>
                                 `).join('')}
@@ -1907,12 +2108,17 @@ export function renderHome() {
                             <span>✍️ Journaling</span>
                         </button>
 
-                        <button class="day-action-btn day-action-btn--neutral day-photos-btn" data-day-id="${day.id}">
-                            <span>📸 Add Photos</span>
+                        <!-- 📸 Photos and 📄 Documents buttons used to
+                             live here. Both moved to dedicated trip-
+                             wide tabs (Documents + Photos on Home) so
+                             multi-day items (passports, hotels for
+                             N nights) have a proper home and the per-
+                             day actions list stays focused. -->
+                        <button class="day-action-btn day-action-btn--neutral day-go-photos-btn" data-day-id="${day.id}" title="Open the trip Photos tab to add photos for this day">
+                            <span>📸 Photos →</span>
                         </button>
-
-                        <button class="day-action-btn day-action-btn--neutral day-documents-btn" data-day-id="${day.id}">
-                            <span>📄 Documents</span>
+                        <button class="day-action-btn day-action-btn--neutral day-go-documents-btn" data-day-id="${day.id}" title="Open the trip Documents tab to add documents for this day">
+                            <span>📄 Documents →</span>
                         </button>
 
                         ${(() => {
@@ -2015,7 +2221,7 @@ export function renderHome() {
             // delegated handlers and timeline animation state).
             const tabBtn = /** @type {HTMLElement | null} */ (target.closest('.home-tabnav__tab'));
             const tabKey = tabBtn?.dataset.homeTab;
-            if (tabKey === 'days' || tabKey === 'companions' || tabKey === 'shortlist') {
+            if (tabKey === 'days' || tabKey === 'companions' || tabKey === 'shortlist' || tabKey === 'documents' || tabKey === 'photos') {
                 activeHomeTab = tabKey;
                 daysContainer.querySelectorAll('.home-tabnav__tab').forEach(t => {
                     /** @type {HTMLElement} */ (t).classList.toggle('is-active', /** @type {HTMLElement} */ (t).dataset.homeTab === activeHomeTab);
@@ -2059,11 +2265,21 @@ export function renderHome() {
             const journalBtn = /** @type {HTMLElement | null} */ (target.closest('.day-journaling-btn'));
             if (journalBtn?.dataset.dayId) { openJournalingModal(journalBtn.dataset.dayId); return; }
 
-            const photosBtn = /** @type {HTMLElement | null} */ (target.closest('.day-photos-btn'));
-            if (photosBtn?.dataset.dayId) { openPhotosModal(photosBtn.dataset.dayId); return; }
-
-            const docsBtn = /** @type {HTMLElement | null} */ (target.closest('.day-documents-btn'));
-            if (docsBtn?.dataset.dayId) { openDocumentsModal(docsBtn.dataset.dayId); return; }
+            // Day-level "Photos →" and "Documents →" buttons jump to
+            // the trip-wide tabs (the canonical home for both stores).
+            // Per-day add modals were retired — see the tab views.
+            const goPhotosBtn = /** @type {HTMLElement | null} */ (target.closest('.day-go-photos-btn'));
+            if (goPhotosBtn?.dataset.dayId) {
+                activeHomeTab = 'photos';
+                navigate('home');
+                return;
+            }
+            const goDocsBtn = /** @type {HTMLElement | null} */ (target.closest('.day-go-documents-btn'));
+            if (goDocsBtn?.dataset.dayId) {
+                activeHomeTab = 'documents';
+                navigate('home');
+                return;
+            }
 
             // "Set as search center" — toggle this day as the pill-
             // search epicenter for the active trip. Click an active
@@ -2094,6 +2310,67 @@ export function renderHome() {
                 return;
             }
 
+            // Documents tab — Gmail search button (visible to all members).
+            if (target.closest('#searchGmailDocsBtn') && activeTrip) {
+                const url = buildGmailTripSearchUrl(activeTrip);
+                if (url) window.open(url, '_blank', 'noopener,noreferrer');
+                return;
+            }
+            // Documents tab — Add document button (planner-only).
+            if (target.closest('#addDocBtn') && activeTrip && tripIsEditable) {
+                openAddTripDocumentModal(activeTrip);
+                return;
+            }
+            // Documents tab — per-row remove.
+            const docRemoveBtn = /** @type {HTMLElement | null} */ (target.closest('.trip-doc-remove-btn'));
+            if (docRemoveBtn?.dataset.docId && activeTrip && tripIsEditable) {
+                const removed = removeTripDocument(activeTrip, docRemoveBtn.dataset.docId);
+                if (removed) {
+                    emit('state:changed');
+                    if (removed === 'trip') upsertTrip(activeTrip);
+                    else {
+                        // Legacy day.tickets path — find the day and upsert it.
+                        const dayId = (docRemoveBtn.dataset.docId || '').split('#')[0];
+                        const day = STATE.tripDays.find(d => d.id === dayId);
+                        if (day) upsertDay(day);
+                    }
+                    navigate('home');
+                }
+                return;
+            }
+            // Photos tab — Add photos button (planner-only). Triggers
+            // the hidden file input which the change listener below
+            // handles.
+            if (target.closest('#addPhotosBtn') && activeTrip && tripIsEditable) {
+                /** @type {HTMLInputElement | null} */
+                (div.querySelector('#addPhotosInput'))?.click();
+                return;
+            }
+            // Photos tab — per-thumbnail remove.
+            const photoRemoveBtn = /** @type {HTMLElement | null} */ (target.closest('.trip-photo-remove-btn'));
+            if (photoRemoveBtn?.dataset.photoId && activeTrip && tripIsEditable) {
+                photoRemoveBtn.dataset.cancel = '1'; // hint to thumbnail click below
+                const removed = removeTripPhoto(activeTrip, photoRemoveBtn.dataset.photoId);
+                if (removed) {
+                    emit('state:changed');
+                    if (removed === 'trip') upsertTrip(activeTrip);
+                    else {
+                        const dayId = (photoRemoveBtn.dataset.photoId || '').split('#')[0];
+                        const day = STATE.tripDays.find(d => d.id === dayId);
+                        if (day) upsertDay(day);
+                    }
+                    navigate('home');
+                }
+                return;
+            }
+            // Photos tab — thumbnail click → lightbox.
+            const photoCard = /** @type {HTMLElement | null} */ (target.closest('.trip-photo-card'));
+            if (photoCard?.dataset.photoId && activeTrip && !target.closest('.trip-photo-remove-btn')) {
+                const photo = getAllTripPhotos(activeTrip).find(p => p.id === photoCard.dataset.photoId);
+                if (photo) openPhotoLightbox(photo.src);
+                return;
+            }
+
             const delDayBtn = /** @type {HTMLElement | null} */ (target.closest('.day-delete-btn'));
             if (delDayBtn?.dataset.dayId) { deleteDay(delDayBtn.dataset.dayId); return; }
 
@@ -2111,6 +2388,47 @@ export function renderHome() {
         // when the user closed the modal without saving. The AI flow's
         // dropdowns live in the AI panel and are still authoritative
         // for that path because the prompt needs explicit assignments.)
+
+        // Documents tab: per-row dayId reassignment via the dropdown.
+        // Only available for trip-level entries (legacy day.tickets
+        // entries can't be moved without re-creating them).
+        daysContainer.addEventListener('change', (ev) => {
+            const sel = /** @type {HTMLSelectElement | null} */ (
+                /** @type {HTMLElement | null} */ (ev.target)?.closest('.trip-doc-day-select')
+            );
+            if (sel?.dataset.docId && activeTrip && tripIsEditable) {
+                setDocumentDay(activeTrip, sel.dataset.docId, sel.value || null);
+                emit('state:changed');
+                upsertTrip(activeTrip);
+                navigate('home');
+            }
+        });
+
+        // Photos tab: file input change → upload via uploadMedia, then
+        // append each result to trip.photos. Multi-select supported;
+        // each upload runs serially to avoid clobbering uploadMedia's
+        // shared state.
+        const photoInput = /** @type {HTMLInputElement | null} */ (div.querySelector('#addPhotosInput'));
+        if (photoInput) {
+            photoInput.addEventListener('change', async () => {
+                const files = Array.from(photoInput.files || []);
+                if (files.length === 0 || !activeTrip) return;
+                showLiquidAlert(`Uploading ${files.length} photo${files.length === 1 ? '' : 's'}…`);
+                for (const file of files) {
+                    try {
+                        const url = await uploadMedia(file);
+                        if (url) addTripPhoto(activeTrip, { src: url, dayId: null });
+                    } catch (e) {
+                        console.error('Photo upload failed:', e);
+                    }
+                }
+                photoInput.value = ''; // reset so the same file can be picked again
+                emit('state:changed');
+                await upsertTrip(activeTrip);
+                showLiquidAlert('Photos added.');
+                navigate('home');
+            });
+        }
 
         setTimeout(() => {
             const addBtn = /** @type {HTMLButtonElement | null} */ (div.querySelector('#addDayBtn'));
@@ -2251,186 +2569,101 @@ const openJournalingModal = (dayId) => {
     };
 };
 
-const openPhotosModal = (dayId) => {
-    const day = STATE.tripDays.find(d => d.id === dayId);
-    if (!day) return;
-    if (!day.photos) day.photos = [];
+// ── Trip-level Documents/Photos modals ───────────────────────
+// The Documents and Photos tabs on Home each open a small modal for
+// adding new entries. Both stores live on the trip object directly
+// (trip.documents, trip.photos); legacy day-level openPhotosModal /
+// openDocumentsModal were retired with this commit — see the tab
+// views, which present a UNION over trip-level entries and any
+// legacy day.tickets / day.photos data so old trips don't disappear.
+
+/** @param {any} trip */
+const openAddTripDocumentModal = (trip) => {
+    if (!trip) return;
+    const numberedDays = (STATE.tripDays || [])
+        .filter(d => d.tripId === trip.id && d.dayNumber > 0)
+        .sort((a, b) => a.dayNumber - b.dayNumber);
     const { root, close } = showModal({
         variant: 'glass-light',
-        cardStyle: 'width: 500px;',
+        cardStyle: 'width: 480px; max-width: calc(100vw - 32px);',
         innerHTML: `
-            <h2 class="h2-display">Photo Gallery</h2>
-            <p class="text-subtitle">Add images that define your Day ${day.dayNumber}</p>
-            <div id="photoList" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-3); margin-bottom: var(--space-6); max-height: 300px; overflow-y: auto; padding: var(--space-1);">
-                ${day.photos.length === 0 ? '<p style="grid-column: 1/-1; text-align: center; color: var(--text-secondary); padding: var(--space-10);">No photos added yet.</p>' :
-                    day.photos.map((p, idx) => `
-                        <div style="position: relative; aspect-ratio: 1; border-radius: var(--radius-lg); overflow: hidden; border: 1px solid rgba(0,0,0,0.05);">
-                            <img src="${p}" alt="Trip photo" style="width: 100%; height: 100%; object-fit: cover;">
-                            <button class="remove-photo-btn" data-day-id="${dayId}" data-photo-idx="${idx}" aria-label="Remove photo" style="position: absolute; top: 4px; right: 4px; width: 24px; height: 24px; border-radius: 50%; background: rgba(255,59,48,0.8); color: white; border: none; font-size: var(--font-2xs); font-weight: 800; cursor: pointer;">✕</button>
-                        </div>
-                    `).join('')
-                }
-            </div>
-            <div style="display: flex; flex-direction: column; gap: var(--space-3); margin-bottom: var(--space-6);">
-                <label class="upload-dropzone" id="uploadLabel">
-                    <span id="uploadStatusText">📤 Upload Photo</span>
-                    <input type="file" id="photoUpload" accept="image/*" style="display: none;">
-                </label>
-                <div style="display: flex; gap: var(--space-2); align-items: center;">
-                    <div class="divider-h"></div>
-                    <span style="font-size: var(--font-2xs); color: var(--text-secondary); font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;">OR</span>
-                    <div class="divider-h"></div>
-                </div>
+            <h2 class="h2-display">Add document</h2>
+            <p class="text-subtitle">Booking confirmation, hotel voucher, ticket — link or upload.</p>
+            <div style="display: flex; flex-direction: column; gap: var(--space-3); margin: var(--space-4) 0 var(--space-6);">
+                <label style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-secondary);">Name</label>
+                <input type="text" id="newDocName" class="glass-input" placeholder="e.g. Flight to Lisbon — Confirmation 7AB22Q" style="padding: var(--space-3); border-radius: 12px;">
+                <label style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-secondary); margin-top:8px;">Link or URL</label>
                 <div style="display: flex; gap: var(--space-2);">
-                    <input type="text" id="photoUrl" class="glass-input" placeholder="Paste image URL here..." style="flex: 1; padding: var(--space-3); border-radius: 14px; font-size: var(--font-base);">
-                    <button id="addPhotoBtn" class="btn-primary" style="padding: var(--space-3) var(--space-5);">Add</button>
+                    <input type="text" id="newDocUrl" class="glass-input" placeholder="https://..." style="flex: 1; padding: var(--space-3); border-radius: 12px;">
+                    <label class="btn-primary" style="padding: var(--space-3) var(--space-4); cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
+                        📤 Upload
+                        <input type="file" id="newDocUpload" style="display: none;">
+                    </label>
                 </div>
+                <div id="newDocStatus" style="font-size:0.72rem; color:var(--text-secondary); min-height:1em; font-weight:600;"></div>
+                <label style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-secondary); margin-top:8px;">Tie to a day (optional)</label>
+                <select id="newDocDay" class="glass-input" style="padding: var(--space-3); border-radius: 12px; background:white;">
+                    <option value="">Trip-wide (passport, multi-day hotel, return flight…)</option>
+                    ${numberedDays.map(d => `<option value="${esc(d.id)}">Day ${d.dayNumber}${d.date ? ` — ${formatDayDate(d.date) || d.date}` : ''}</option>`).join('')}
+                </select>
             </div>
-            <button id="closePhotosBtn" class="btn-neutral" style="width: 100%; border-radius: var(--radius-lg);">Done</button>
+            <div style="display:flex; gap: var(--space-3);">
+                <button id="newDocCancelBtn" class="btn-neutral" style="flex:1; border-radius: var(--radius-lg);">Cancel</button>
+                <button id="newDocSaveBtn" class="btn-primary" style="flex:2; border-radius: var(--radius-lg);">Add</button>
+            </div>
         `,
     });
-    const fileInput = /** @type {HTMLInputElement} */ (q(root, '#photoUpload'));
-    fileInput.onchange = async (e) => {
-        const file = /** @type {HTMLInputElement} */ (e.target).files?.[0];
+    const nameEl = /** @type {HTMLInputElement} */ (q(root, '#newDocName'));
+    const urlEl = /** @type {HTMLInputElement} */ (q(root, '#newDocUrl'));
+    const dayEl = /** @type {HTMLSelectElement} */ (q(root, '#newDocDay'));
+    const statusEl = /** @type {HTMLElement} */ (q(root, '#newDocStatus'));
+    const fileEl = /** @type {HTMLInputElement} */ (q(root, '#newDocUpload'));
+    fileEl.addEventListener('change', async () => {
+        const file = fileEl.files?.[0];
         if (!file) return;
-        const status = q(root, '#uploadStatusText');
-        status.textContent = "⌛ Uploading...";
-        const res = await uploadMedia(file);
-        if (res && res.url) {
-            day.photos.push(res.url);
-            emit('state:changed');
-            await upsertDay(day);
-            close();
-            openPhotosModal(dayId);
-        } else {
-            status.textContent = "❌ Failed. Try again.";
-        }
-    };
-    /** @param {string} dId @param {number} idx */
-    const removePhoto = async (dId, idx) => {
-        day.photos.splice(idx, 1);
-        emit('state:changed');
-        await upsertDay(day);
-        close();
-        openPhotosModal(dId);
-    };
-    // Delegated handler for the per-photo "✕" buttons in the gallery grid.
-    root.addEventListener('click', (e) => {
-        const removeBtn = /** @type {HTMLElement | null} */ (
-            /** @type {HTMLElement | null} */ (e.target)?.closest('.remove-photo-btn')
-        );
-        if (removeBtn?.dataset.dayId && removeBtn.dataset.photoIdx) {
-            removePhoto(removeBtn.dataset.dayId, parseInt(removeBtn.dataset.photoIdx, 10));
+        statusEl.textContent = '⌛ Uploading…';
+        try {
+            const res = await uploadMedia(file);
+            if (res && res.url) {
+                urlEl.value = res.url;
+                if (!nameEl.value) nameEl.value = res.name || file.name;
+                statusEl.textContent = '✓ Uploaded — click Add to attach.';
+            } else {
+                statusEl.textContent = '❌ Upload failed.';
+            }
+        } catch (e) {
+            statusEl.textContent = '❌ Upload failed.';
         }
     });
-    /** @type {HTMLButtonElement} */ (q(root, '#addPhotoBtn')).onclick = async () => {
-        const url = /** @type {HTMLInputElement} */ (q(root, '#photoUrl')).value;
-        if (url) {
-            day.photos.push(url);
-            emit('state:changed');
-            await upsertDay(day);
-            close();
-            openPhotosModal(dayId);
+    /** @type {HTMLButtonElement} */ (q(root, '#newDocCancelBtn')).onclick = () => close();
+    /** @type {HTMLButtonElement} */ (q(root, '#newDocSaveBtn')).onclick = async () => {
+        const name = nameEl.value.trim();
+        const url = urlEl.value.trim();
+        if (!name || !url) {
+            statusEl.textContent = 'Both name and URL are required.';
+            return;
         }
-    };
-    /** @type {HTMLButtonElement} */ (q(root, '#closePhotosBtn')).onclick = () => {
+        addTripDocument(trip, { name, url, dayId: dayEl.value || null });
+        emit('state:changed');
+        await upsertTrip(trip);
         close();
-        navigate('home', null, true);
+        showLiquidAlert('Document added.');
+        navigate('home');
     };
 };
 
-const openDocumentsModal = (dayId) => {
-    const day = STATE.tripDays.find(d => d.id === dayId);
-    if (!day) return;
-    if (!day.documents) day.documents = [];
+/** Lightweight image lightbox — single src, click anywhere to close.
+ *  Reuses the showModal infra so Esc + backdrop dismissal "just work". */
+const openPhotoLightbox = (src) => {
+    if (!src) return;
     const { root, close } = showModal({
-        variant: 'glass-light',
-        cardStyle: 'width: 460px;',
-        innerHTML: `
-            <h2 class="h2-display">Documents</h2>
-            <p class="text-subtitle">Tickets, bookings, and important info</p>
-            <div id="docList" style="display: flex; flex-direction: column; gap: var(--space-2); margin-bottom: var(--space-6); max-height: 250px; overflow-y: auto;">
-                ${day.documents.length === 0 ? '<p style="text-align: center; color: var(--text-secondary); padding: var(--space-8);">No documents linked.</p>' :
-                    day.documents.map((d, idx) => `
-                        <div style="display: flex; align-items: center; justify-content: space-between; padding: var(--space-3) var(--space-4); background: white; border-radius: var(--radius-md); border: 1px solid rgba(0,0,0,0.05);">
-                            <div style="display: flex; align-items: center; gap: var(--space-2); overflow: hidden;">
-                                <span style="font-size: 1.2rem;">📄</span>
-                                <a href="${d.url}" target="_blank" style="color: var(--accent-blue); text-decoration: none; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${d.name}</a>
-                            </div>
-                            <button class="remove-doc-btn" data-day-id="${dayId}" data-doc-idx="${idx}" aria-label="Remove document" style="background: none; border: none; color: #ff3b30; font-weight: 800; cursor: pointer;">✕</button>
-                        </div>
-                    `).join('')
-                }
-            </div>
-            <div style="display: flex; flex-direction: column; gap: var(--space-3); margin-bottom: var(--space-6);">
-                <label class="upload-dropzone" id="uploadDocLabel">
-                    <span id="uploadDocStatusText">📤 Upload Document</span>
-                    <input type="file" id="docUpload" style="display: none;">
-                </label>
-                <div style="display: flex; gap: var(--space-2); align-items: center;">
-                    <div class="divider-h"></div>
-                    <span style="font-size: var(--font-xs); color: var(--text-secondary); font-weight: 800;">OR</span>
-                    <div class="divider-h"></div>
-                </div>
-                <input type="text" id="docName" class="glass-input" placeholder="Document Name (e.g. Flight Ticket)" style="padding: var(--space-3); border-radius: var(--radius-md);">
-                <div style="display: flex; gap: var(--space-2);">
-                    <input type="text" id="docUrl" class="glass-input" placeholder="Link to document (Google Drive, URL...)" style="flex: 1; padding: var(--space-3); border-radius: var(--radius-md);">
-                    <button id="addDocBtn" class="btn-primary" style="padding: var(--space-3) var(--space-5);">Add</button>
-                </div>
-            </div>
-            <button id="closeDocsBtn" class="btn-neutral" style="width: 100%; border-radius: var(--radius-lg);">Close</button>
-        `,
+        cardClass: 'card glass',
+        cardStyle: 'background: transparent; border: 0; padding: 0; max-width: 92vw; max-height: 92vh;',
+        innerHTML: `<img src="${esc(src)}" alt="Trip photo" style="display:block; max-width: 92vw; max-height: 92vh; border-radius: 18px; object-fit: contain; box-shadow: 0 30px 80px rgba(0,0,0,0.4);">`,
     });
-    // day.documents is initialized to [] above this block; capture into a
-    // local non-undefined ref so the closures below see the narrowed type.
-    const docs = day.documents;
-    const docInput = /** @type {HTMLInputElement} */ (q(root, '#docUpload'));
-    docInput.onchange = async (e) => {
-        const file = /** @type {HTMLInputElement} */ (e.target).files?.[0];
-        if (!file) return;
-        const status = q(root, '#uploadDocStatusText');
-        status.textContent = "⌛ Uploading...";
-        const res = await uploadMedia(file);
-        if (res && res.url) {
-            docs.push({ name: res.name || file.name, url: res.url });
-            emit('state:changed');
-            await upsertDay(day);
-            close();
-            openDocumentsModal(dayId);
-        } else {
-            status.textContent = "❌ Failed. Try again.";
-        }
-    };
-    /** @param {string} dId @param {number} idx */
-    const removeDoc = async (dId, idx) => {
-        docs.splice(idx, 1);
-        emit('state:changed');
-        await upsertDay(day);
-        close();
-        openDocumentsModal(dId);
-    };
-    // Delegated handler for the per-doc "✕" buttons.
-    root.addEventListener('click', (e) => {
-        const removeBtn = /** @type {HTMLElement | null} */ (
-            /** @type {HTMLElement | null} */ (e.target)?.closest('.remove-doc-btn')
-        );
-        if (removeBtn?.dataset.dayId && removeBtn.dataset.docIdx) {
-            removeDoc(removeBtn.dataset.dayId, parseInt(removeBtn.dataset.docIdx, 10));
-        }
-    });
-    /** @type {HTMLButtonElement} */ (q(root, '#addDocBtn')).onclick = async () => {
-        const name = /** @type {HTMLInputElement} */ (q(root, '#docName')).value;
-        const url = /** @type {HTMLInputElement} */ (q(root, '#docUrl')).value;
-        if (name && url) {
-            docs.push({ name, url });
-            emit('state:changed');
-            await upsertDay(day);
-            close();
-            openDocumentsModal(dayId);
-        }
-    };
-    /** @type {HTMLButtonElement} */ (q(root, '#closeDocsBtn')).onclick = () => close();
+    root.addEventListener('click', () => close());
 };
+
 
 /** Read-only modal for viewing a day's plan. Used in two places:
  *  1. Archived trip detail (collections.js) where every day is frozen.
@@ -2443,8 +2676,31 @@ const openDocumentsModal = (dayId) => {
  */
 export const openDayView = (day) => {
     if (!day) return;
-    const photos = Array.isArray(day.photos) ? day.photos : [];
-    const docs = Array.isArray(day.tickets) ? day.tickets : [];
+    // Pull this day's photos and documents from BOTH the new trip-
+    // level stores (filtered by dayId) AND the legacy day.photos /
+    // day.tickets arrays. This keeps archived-trip views consistent
+    // with the new tab views, and old archived data continues to
+    // surface even if its trip never got the trip.photos/documents
+    // backfill on the server side.
+    //
+    // The trip the day belongs to:
+    //   - Active trip: STATE.trips
+    //   - Archived trip: nested in STATE.archivedTrips (where this
+    //     function gets called from collections.js — the archived
+    //     trip carries its own trip.photos/documents post-archive,
+    //     so we look there first).
+    const trip = (STATE.trips || []).find(t => t.id === day.tripId)
+        || (STATE.archivedTrips || []).find(t => t.id === day.tripId);
+    /** @type {string[]} */
+    const photoSrcs = [
+        ...(Array.isArray(day.photos) ? day.photos : []),
+        ...((trip?.photos || []).filter(p => p.dayId === day.id).map(p => p.src)),
+    ];
+    /** @type {{name: string, url: string}[]} */
+    const docs = [
+        ...(Array.isArray(day.tickets) ? day.tickets : []),
+        ...((trip?.documents || []).filter(d => d.dayId === day.id).map(d => ({ name: d.name, url: d.url }))),
+    ];
     const renderParagraph = (text) => {
         if (!text || !text.trim()) {
             return `<p style="margin:0; color:var(--text-secondary); font-style:italic;">Nothing planned.</p>`;
@@ -2494,12 +2750,12 @@ export const openDayView = (day) => {
                          line. Days with content get a thumbnail grid /
                          link list as before. -->
                     <div style="background: rgba(52,199,89,0.04); padding: var(--space-6); border-radius: 24px; border: 1px solid rgba(52,199,89,0.15);">
-                        <h4 class="text-tag" style="--accent: 52,199,89;">Photos${photos.length > 0 ? ` (${photos.length})` : ''}</h4>
-                        ${photos.length > 0 ? `
+                        <h4 class="text-tag" style="--accent: 52,199,89;">Photos${photoSrcs.length > 0 ? ` (${photoSrcs.length})` : ''}</h4>
+                        ${photoSrcs.length > 0 ? `
                             <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 8px;">
-                                ${photos.slice(0, 9).map(src => `<div style="aspect-ratio:1; background-image:url(${esc(src)}); background-size:cover; background-position:center; border-radius:10px;"></div>`).join('')}
+                                ${photoSrcs.slice(0, 9).map(src => `<div style="aspect-ratio:1; background-image:url(${esc(src)}); background-size:cover; background-position:center; border-radius:10px;"></div>`).join('')}
                             </div>
-                            ${photos.length > 9 ? `<div style="font-size:0.75rem; color:var(--text-secondary); margin-top:6px;">+${photos.length - 9} more</div>` : ''}
+                            ${photoSrcs.length > 9 ? `<div style="font-size:0.75rem; color:var(--text-secondary); margin-top:6px;">+${photoSrcs.length - 9} more</div>` : ''}
                         ` : `<p style="margin: 6px 0 0; color: var(--text-secondary); font-style: italic; font-size: 0.85rem;">No photos for this day.</p>`}
                     </div>
                     <div style="background: rgba(88,86,214,0.04); padding: var(--space-6); border-radius: 24px; border: 1px solid rgba(88,86,214,0.15);">

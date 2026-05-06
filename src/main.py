@@ -244,8 +244,9 @@ def sync_data():
             cursor.execute('''
                 INSERT INTO trips (id, user_id, name, country, is_archived, is_public,
                                    place_id, lat, lng, viewport_json, place_types, country_code,
-                                   companions_json, marked_places_json)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                   companions_json, marked_places_json,
+                                   documents_json, photos_json)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     name=excluded.name,
                     country=excluded.country,
@@ -258,7 +259,9 @@ def sync_data():
                     place_types=excluded.place_types,
                     country_code=excluded.country_code,
                     companions_json=excluded.companions_json,
-                    marked_places_json=excluded.marked_places_json
+                    marked_places_json=excluded.marked_places_json,
+                    documents_json=excluded.documents_json,
+                    photos_json=excluded.photos_json
             ''', (t['id'], user_id, t['name'], t['country'],
                   1 if t.get('is_archived') else 0,
                   1 if t.get('isPublic') else 0,
@@ -269,7 +272,9 @@ def sync_data():
                   json.dumps(t['placeTypes']) if t.get('placeTypes') else None,
                   t.get('countryCode'),
                   json.dumps(t['companions']) if isinstance(t.get('companions'), list) else None,
-                  json.dumps(t['markedPlaces']) if isinstance(t.get('markedPlaces'), list) else None))
+                  json.dumps(t['markedPlaces']) if isinstance(t.get('markedPlaces'), list) else None,
+                  json.dumps(t['documents']) if isinstance(t.get('documents'), list) else None,
+                  json.dumps(t['photos']) if isinstance(t.get('photos'), list) else None))
             _ensure_owner_member_row(cursor, t['id'], user_id)
 
         # Sync Archived Trips — same ownership gate.
@@ -283,8 +288,9 @@ def sync_data():
             cursor.execute('''
                 INSERT INTO trips (id, user_id, name, country, is_archived, is_public,
                                    place_id, lat, lng, viewport_json, place_types, country_code,
-                                   companions_json, marked_places_json)
-                VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                   companions_json, marked_places_json,
+                                   documents_json, photos_json)
+                VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     name=excluded.name,
                     country=excluded.country,
@@ -297,7 +303,9 @@ def sync_data():
                     place_types=excluded.place_types,
                     country_code=excluded.country_code,
                     companions_json=excluded.companions_json,
-                    marked_places_json=excluded.marked_places_json
+                    marked_places_json=excluded.marked_places_json,
+                    documents_json=excluded.documents_json,
+                    photos_json=excluded.photos_json
             ''', (t['id'], user_id, t['name'], t['country'],
                   1 if t.get('isPublic') else 0,
                   t.get('placeId'),
@@ -307,7 +315,9 @@ def sync_data():
                   json.dumps(t['placeTypes']) if t.get('placeTypes') else None,
                   t.get('countryCode'),
                   json.dumps(t['companions']) if isinstance(t.get('companions'), list) else None,
-                  json.dumps(t['markedPlaces']) if isinstance(t.get('markedPlaces'), list) else None))
+                  json.dumps(t['markedPlaces']) if isinstance(t.get('markedPlaces'), list) else None,
+                  json.dumps(t['documents']) if isinstance(t.get('documents'), list) else None,
+                  json.dumps(t['photos']) if isinstance(t.get('photos'), list) else None))
             _ensure_owner_member_row(cursor, t['id'], user_id)
 
             # Expenses inside archived trips — gate per-row by role on the
@@ -495,8 +505,9 @@ def upsert_trip():
         cursor.execute('''
             INSERT INTO trips (id, user_id, name, country, is_archived, is_public,
                                place_id, lat, lng, viewport_json, place_types, country_code,
-                               companions_json, marked_places_json)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                               companions_json, marked_places_json,
+                               documents_json, photos_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 name=excluded.name,
                 country=excluded.country,
@@ -509,7 +520,9 @@ def upsert_trip():
                 place_types=excluded.place_types,
                 country_code=excluded.country_code,
                 companions_json=excluded.companions_json,
-                marked_places_json=excluded.marked_places_json
+                marked_places_json=excluded.marked_places_json,
+                documents_json=excluded.documents_json,
+                photos_json=excluded.photos_json
         ''', (t['id'], owner_id, t['name'], t.get('country', ''),
               1 if t.get('isArchived') else 0,
               1 if t.get('isPublic') else 0,
@@ -520,7 +533,9 @@ def upsert_trip():
               json.dumps(t['placeTypes']) if t.get('placeTypes') else None,
               t.get('countryCode'),
               json.dumps(t['companions']) if isinstance(t.get('companions'), list) else None,
-              json.dumps(t['markedPlaces']) if isinstance(t.get('markedPlaces'), list) else None))
+              json.dumps(t['markedPlaces']) if isinstance(t.get('markedPlaces'), list) else None,
+              json.dumps(t['documents']) if isinstance(t.get('documents'), list) else None,
+              json.dumps(t['photos']) if isinstance(t.get('photos'), list) else None))
         _ensure_owner_member_row(cursor, t['id'], owner_id)
         conn.commit()
     return jsonify({"status": "ok"})
@@ -1303,6 +1318,10 @@ def get_data():
             t['companions'] = json.loads(companions_raw) if companions_raw else []
             marked_raw = t.pop('marked_places_json', None)
             t['markedPlaces'] = json.loads(marked_raw) if marked_raw else []
+            documents_raw = t.pop('documents_json', None)
+            t['documents'] = json.loads(documents_raw) if documents_raw else []
+            photos_raw = t.pop('photos_json', None)
+            t['photos'] = json.loads(photos_raw) if photos_raw else []
 
             # Per-user archive + role come from THIS user's trip_members row.
             # Owners may not have a row yet on legacy data — fall back to the
