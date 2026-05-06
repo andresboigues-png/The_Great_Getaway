@@ -12,7 +12,7 @@ export function renderCollections() {
 
     div.innerHTML = `
         <div class="ai-page-header">
-            <h1 class="gradient-text" style="--g-from: #1a6b3c; --g-to: #34c759;">Collections</h1>
+            <h1 class="gradient-text" style="--g-from: #007aff; --g-to: #5856d6;">Collections</h1>
             <p>Your completed travel memories and trip photos.</p>
         </div>
         
