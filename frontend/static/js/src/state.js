@@ -56,11 +56,16 @@ export const STATE = {
      *    compat with any existing snapshots).
      *  - `poiFilters` holds per-category filter overrides for the
      *    home-map Places search. Shape: { [pillKey]: { minRating } }.
-     *    Empty / missing keys fall back to the category's defaultMinRating
-     *    in POI_CATEGORIES (see pages/home.js). */
+     *    Empty / missing keys fall back to the category's
+     *    defaultMinRating in POI_CATEGORIES (see pages/home.js).
+     *  - `pillEpicenters` holds the search center the user picked per
+     *    trip. Shape: { [tripId]: dayId }. Falls back to the trip's
+     *    genesis day when unset. The user toggles this from the day
+     *    actions panel ("Set as search center"). */
     preferences: {
         mapDefaultPois: ['sights', 'parks', 'transit'],
         poiFilters: {},
+        pillEpicenters: {},
     },
 };
 
@@ -91,12 +96,15 @@ export function loadState() {
     if (!STATE.savedFormats) STATE.savedFormats = [];
     if (!STATE.tripDays) STATE.tripDays = [];
     if (!STATE.archivedTrips) STATE.archivedTrips = [];
-    if (!STATE.preferences) STATE.preferences = { mapDefaultPois: ['sights', 'parks', 'transit'], poiFilters: {} };
+    if (!STATE.preferences) STATE.preferences = { mapDefaultPois: ['sights', 'parks', 'transit'], poiFilters: {}, pillEpicenters: {} };
     if (!Array.isArray(STATE.preferences.mapDefaultPois)) {
         STATE.preferences.mapDefaultPois = ['sights', 'parks', 'transit'];
     }
     if (!STATE.preferences.poiFilters || typeof STATE.preferences.poiFilters !== 'object') {
         STATE.preferences.poiFilters = {};
+    }
+    if (!STATE.preferences.pillEpicenters || typeof STATE.preferences.pillEpicenters !== 'object') {
+        STATE.preferences.pillEpicenters = {};
     }
 
     // Per-trip companions used to be `string[]` of names. Promote any

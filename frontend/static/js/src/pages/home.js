@@ -37,38 +37,41 @@ let activeHomeTab = 'days'; // Sub-tab on the home trip view (Days timeline vs C
  *   - the Settings → General tab (renders the per-pill filter UI)
  *
  *  `placesType`: one Google Places API type for nearbySearch.
- *    Places API doesn't accept arrays — pick the most representative
- *    type per category. `null` = pure styles-toggle pill (Roads & traffic).
- *  `defaultMinRating`: rating floor applied client-side after the
- *    Places search. Restaurants/Hotels default to 4★ so the user gets
- *    only proven good ones; others default to 0 (show everything)
- *    since a "4★ supermarket" filter would hide real ones. User can
- *    override per-pill in Settings → General.
+ *    `null` = pure styles-toggle pill (Roads & traffic).
+ *  `searchStrategy`: how to query the API.
+ *    'distance' → rankBy:DISTANCE, no radius, returns 60 CLOSEST.
+ *      Right for dense urban categories (restaurants, hotels,
+ *      supermarkets) where a wide-radius prominence search would
+ *      surface only the most-famous big-name spots and miss small
+ *      local 4★+ places.
+ *    'wide' → radius:50000 (50 km) + default prominence ranking.
+ *      Right for sparse categories (hospitals, parks, churches,
+ *      schools, govt, transit, sights) where 60 results comfortably
+ *      cover a metro area and you actually WANT prominence — the
+ *      "main hospital" and "biggest park" should land first.
+ *  `defaultMinRating`: rating floor applied client-side. Restaurants
+ *    and Hotels default to 4★; others default to 0. Customisable
+ *    per-pill in Settings → General.
  *  `color`: marker fill color so the user can read the pill→pin
  *    visual link at a glance.
  *
- *  Cross-category bleed (a hotel surfacing under "Restaurants" because
- *  Google tags it with both `lodging` and `restaurant`) is handled by
- *  isPrimaryMatch() below, NOT a per-category exclude list. Reason:
- *  most real hotels carry `restaurant` for their on-site dining, so
- *  blanket-excluding `restaurant` from the Hotels pill was hiding the
- *  hotels themselves. Looking at types[0] (the API's "general primary
- *  type") gets it right without false negatives.
+ *  Cross-category bleed (hotel surfacing under "Restaurants" because
+ *  Google tags it with both) is handled by isPrimaryMatch() below.
  *
- *  @type {{key: string, placesType: string|null, icon: string, label: string, color: string, defaultMinRating: number, tooltip: string}[]} */
+ *  @type {{key: string, placesType: string|null, searchStrategy: 'distance'|'wide', icon: string, label: string, color: string, defaultMinRating: number, tooltip: string}[]} */
 export const POI_CATEGORIES = [
-    { key: 'restaurants', placesType: 'restaurant',         icon: '🍽️', label: 'Restaurants',     color: '#ff9500', defaultMinRating: 4, tooltip: 'Nearby restaurants — defaults to 4★+, tweak in Settings → General' },
-    { key: 'supermarkets',placesType: 'supermarket',        icon: '🛒', label: 'Supermarkets',    color: '#34c759', defaultMinRating: 0, tooltip: 'Nearby supermarkets and grocery stores' },
-    { key: 'hotels',      placesType: 'lodging',            icon: '🛏️', label: 'Hotels',          color: '#5856d6', defaultMinRating: 4, tooltip: 'Nearby hotels and lodging — defaults to 4★+' },
-    { key: 'sights',      placesType: 'tourist_attraction', icon: '🏖️', label: 'Sights',          color: '#a460ed', defaultMinRating: 0, tooltip: 'Nearby tourist attractions, museums, monuments' },
-    { key: 'parks',       placesType: 'park',               icon: '🌳', label: 'Parks',           color: '#1a6b3c', defaultMinRating: 0, tooltip: 'Nearby parks and gardens' },
-    { key: 'medical',     placesType: 'hospital',           icon: '🏥', label: 'Medical',         color: '#ff3b30', defaultMinRating: 0, tooltip: 'Nearby hospitals + clinics' },
-    { key: 'worship',     placesType: 'church',             icon: '⛪', label: 'Worship',         color: '#a460ed', defaultMinRating: 0, tooltip: 'Nearby churches and places of worship' },
-    { key: 'schools',     placesType: 'school',             icon: '🎓', label: 'Schools',         color: '#0071e3', defaultMinRating: 0, tooltip: 'Nearby schools and universities' },
-    { key: 'sports',      placesType: 'stadium',            icon: '🏟️', label: 'Sports',          color: '#ff2d55', defaultMinRating: 0, tooltip: 'Nearby stadiums and gyms' },
-    { key: 'govt',        placesType: 'city_hall',          icon: '🏛️', label: 'Govt',            color: '#8e8e93', defaultMinRating: 0, tooltip: 'Nearby government buildings + embassies' },
-    { key: 'transit',     placesType: 'transit_station',    icon: '🚆', label: 'Public transit',  color: '#0a3d6b', defaultMinRating: 0, tooltip: 'Nearby train / metro / bus stations' },
-    { key: 'traffic',     placesType: null,                 icon: '🛣️', label: 'Roads & traffic', color: '#0a3d6b', defaultMinRating: 0, tooltip: 'Highway / arterial road names + live Google traffic congestion' },
+    { key: 'restaurants', placesType: 'restaurant',         searchStrategy: 'distance', icon: '🍽️', label: 'Restaurants',     color: '#ff9500', defaultMinRating: 4, tooltip: 'Closest restaurants (≤60) to the search center — defaults to 4★+, tweak in Settings → General' },
+    { key: 'supermarkets',placesType: 'supermarket',        searchStrategy: 'distance', icon: '🛒', label: 'Supermarkets',    color: '#34c759', defaultMinRating: 0, tooltip: 'Closest supermarkets and grocery stores' },
+    { key: 'hotels',      placesType: 'lodging',            searchStrategy: 'distance', icon: '🛏️', label: 'Hotels',          color: '#5856d6', defaultMinRating: 4, tooltip: 'Closest hotels and lodging — defaults to 4★+' },
+    { key: 'sights',      placesType: 'tourist_attraction', searchStrategy: 'wide',     icon: '🏖️', label: 'Sights',          color: '#a460ed', defaultMinRating: 0, tooltip: 'Tourist attractions across the wider trip area (50 km)' },
+    { key: 'parks',       placesType: 'park',               searchStrategy: 'wide',     icon: '🌳', label: 'Parks',           color: '#1a6b3c', defaultMinRating: 0, tooltip: 'Parks and gardens across the wider trip area' },
+    { key: 'medical',     placesType: 'hospital',           searchStrategy: 'wide',     icon: '🏥', label: 'Medical',         color: '#ff3b30', defaultMinRating: 0, tooltip: 'Hospitals + clinics across the wider trip area' },
+    { key: 'worship',     placesType: 'church',             searchStrategy: 'wide',     icon: '⛪', label: 'Worship',         color: '#a460ed', defaultMinRating: 0, tooltip: 'Churches and places of worship across the wider trip area' },
+    { key: 'schools',     placesType: 'school',             searchStrategy: 'wide',     icon: '🎓', label: 'Schools',         color: '#0071e3', defaultMinRating: 0, tooltip: 'Schools and universities across the wider trip area' },
+    { key: 'sports',      placesType: 'stadium',            searchStrategy: 'wide',     icon: '🏟️', label: 'Sports',          color: '#ff2d55', defaultMinRating: 0, tooltip: 'Stadiums and gyms across the wider trip area' },
+    { key: 'govt',        placesType: 'city_hall',          searchStrategy: 'wide',     icon: '🏛️', label: 'Govt',            color: '#8e8e93', defaultMinRating: 0, tooltip: 'Government buildings + embassies across the wider trip area' },
+    { key: 'transit',     placesType: 'transit_station',    searchStrategy: 'wide',     icon: '🚆', label: 'Public transit',  color: '#0a3d6b', defaultMinRating: 0, tooltip: 'Train / metro / bus stations across the wider trip area' },
+    { key: 'traffic',     placesType: null,                 searchStrategy: 'wide',     icon: '🛣️', label: 'Roads & traffic', color: '#0a3d6b', defaultMinRating: 0, tooltip: 'Highway / arterial road names + live Google traffic congestion' },
 ];
 
 /** Returns true if this category claims the place as primarily its
@@ -575,24 +578,40 @@ export function renderHome() {
                  *  total) when available so the bigger search radius
                  *  doesn't get artificially capped at 20 results.
                  */
+                /** Resolve the search center for this trip's pill
+                 *  searches. Order of preference:
+                 *    1. STATE.preferences.pillEpicenters[tripId] →
+                 *       the day the user explicitly chose
+                 *    2. Genesis day (dayNumber === 0)
+                 *    3. activeTrip.lat/lng as a defensive last resort
+                 *  Cache-key callers also need the resolved dayId
+                 *  (or 'genesis') so changing epicenter properly
+                 *  cache-misses. */
+                const resolveSearchCenter = () => {
+                    const tripId = activeTrip?.id || '';
+                    const userPickId = STATE.preferences?.pillEpicenters?.[tripId];
+                    if (userPickId) {
+                        const d = currentTripDays.find(d2 => d2.id === userPickId && d2.lat);
+                        if (d) return { center: { lat: d.lat, lng: d.lng || d.lon }, anchorId: d.id };
+                    }
+                    const genesis = currentTripDays.find(d => d.dayNumber === 0 && d.lat);
+                    if (genesis) return { center: { lat: genesis.lat, lng: genesis.lng || genesis.lon }, anchorId: 'genesis' };
+                    if (activeTrip?.lat) return { center: { lat: activeTrip.lat, lng: activeTrip.lng }, anchorId: 'trip' };
+                    return { center: null, anchorId: '' };
+                };
+
                 const fetchPlacesForTrip = (cat) => {
                     const tripId = activeTrip?.id || '';
-                    const key = `${tripId}|${cat.key}`;
-                    // Cached → instant resolve.
+                    const { center, anchorId } = resolveSearchCenter();
+                    // Cache-key includes the anchor + strategy so:
+                    //  - changing epicenter cache-misses (refetches)
+                    //  - toggling between strategies (if we ever swap
+                    //    them per-category) cache-misses
+                    const key = `${tripId}|${cat.key}|${anchorId}|${cat.searchStrategy}`;
                     if (placesCache[key]) return Promise.resolve(placesCache[key]);
-                    // In-flight → return the same promise so concurrent
-                    // toggles share one search instead of duplicating.
                     if (placesPending[key]) return placesPending[key];
 
                     const promise = new Promise((resolve) => {
-                        // Genesis pin (day 0) is the trip's location anchor —
-                        // always set when the trip has a location, falls back
-                        // to the trip's own lat/lng if for some reason day 0
-                        // is missing.
-                        const genesis = currentTripDays.find(d => d.dayNumber === 0 && d.lat);
-                        const center = genesis
-                            ? { lat: genesis.lat, lng: genesis.lng || genesis.lon }
-                            : (activeTrip?.lat ? { lat: activeTrip.lat, lng: activeTrip.lng } : null);
                         if (!center || typeof center.lat !== 'number' || typeof center.lng !== 'number') {
                             resolve([]); return;
                         }
@@ -610,23 +629,32 @@ export function renderHome() {
                                 resolve(all);
                             }
                         };
-                        // rankBy: DISTANCE returns the 60 places CLOSEST
-                        // to the center, regardless of Google's prominence
-                        // ranking. The default `radius` mode ranks by
-                        // prominence — in a metro-wide radius that
-                        // surfaces famous big-name restaurants and hides
-                        // small-but-good local places (the user's
-                        // "Brasa de Sassoeiros" complaint). Distance
-                        // ranking flips that: every result is local to
-                        // the genesis pin, capped only by the 60-result
-                        // hard limit.
-                        // Note: `rankBy: DISTANCE` is incompatible with
-                        // `radius` — the API rejects both. We omit radius.
-                        svc.nearbySearch({
-                            location: center,
-                            rankBy: google.maps.places.RankBy.DISTANCE,
-                            type: cat.placesType,
-                        }, handle);
+
+                        // Two strategies, picked per-category:
+                        //   distance → closest 60. Right for dense
+                        //     urban categories where prominence ranking
+                        //     would surface only big-name spots and miss
+                        //     small local 4★+ ones (e.g. restaurants).
+                        //   wide → 50 km radius + prominence. Right for
+                        //     sparse categories (hospitals, parks,
+                        //     stadiums) where 60 results comfortably
+                        //     cover a metro and prominence is what you
+                        //     want — "main hospital" should land first.
+                        // Note: rankBy: DISTANCE is incompatible with
+                        // `radius`. The API rejects both together.
+                        if (cat.searchStrategy === 'distance') {
+                            svc.nearbySearch({
+                                location: center,
+                                rankBy: google.maps.places.RankBy.DISTANCE,
+                                type: cat.placesType,
+                            }, handle);
+                        } else {
+                            svc.nearbySearch({
+                                location: center,
+                                radius: 50000,
+                                type: cat.placesType,
+                            }, handle);
+                        }
                     });
                     placesPending[key] = promise;
                     promise.then(list => {
@@ -1357,6 +1385,23 @@ export function renderHome() {
                             <span>📄 Documents</span>
                         </button>
 
+                        ${(() => {
+                            // "Set as search center" — only useful on
+                            // pinned days. The button reflects whether
+                            // this day is currently the chosen epicenter
+                            // for the trip's pill searches; clicking
+                            // toggles between this day and the genesis
+                            // default. Hidden on the genesis day itself
+                            // (genesis is already the default).
+                            if (!day.lat || isStartingPoint) return '';
+                            const tripId = activeTrip?.id || '';
+                            const currentEpicenter = STATE.preferences?.pillEpicenters?.[tripId];
+                            const isActive = currentEpicenter === day.id;
+                            const cls = isActive ? 'day-action-btn day-action-btn--success day-set-epicenter-btn' : 'day-action-btn day-action-btn--neutral day-set-epicenter-btn';
+                            const label = isActive ? '🎯 Search center (active)' : '🎯 Set as search center';
+                            return `<button class="${cls}" data-day-id="${day.id}"><span>${label}</span></button>`;
+                        })()}
+
                         <button class="day-action-btn day-action-btn--danger day-delete-btn" data-day-id="${day.id}" style="margin-top: var(--space-1);">
                             <span>🗑️ Delete Day</span>
                         </button>
@@ -1477,6 +1522,22 @@ export function renderHome() {
 
             const docsBtn = /** @type {HTMLElement | null} */ (target.closest('.day-documents-btn'));
             if (docsBtn?.dataset.dayId) { openDocumentsModal(docsBtn.dataset.dayId); return; }
+
+            // "Set as search center" — toggle this day as the pill-
+            // search epicenter for the active trip. Click an active
+            // one again to clear (genesis becomes the default again).
+            const epicenterBtn = /** @type {HTMLElement | null} */ (target.closest('.day-set-epicenter-btn'));
+            if (epicenterBtn?.dataset.dayId && activeTrip) {
+                const dayId = epicenterBtn.dataset.dayId;
+                if (!STATE.preferences) STATE.preferences = { mapDefaultPois: ['sights','parks','transit'], poiFilters: {}, pillEpicenters: {} };
+                if (!STATE.preferences.pillEpicenters) STATE.preferences.pillEpicenters = {};
+                const currentlyActive = STATE.preferences.pillEpicenters[activeTrip.id] === dayId;
+                if (currentlyActive) delete STATE.preferences.pillEpicenters[activeTrip.id];
+                else STATE.preferences.pillEpicenters[activeTrip.id] = dayId;
+                emit('state:changed');
+                navigate('home'); // re-render so the button label updates
+                return;
+            }
 
             const delDayBtn = /** @type {HTMLElement | null} */ (target.closest('.day-delete-btn'));
             if (delDayBtn?.dataset.dayId) { deleteDay(delDayBtn.dataset.dayId); return; }
