@@ -535,7 +535,7 @@
             </div>
         `:``}
 
-        <div class="home-tab-content${H===`days`?` is-active`:``}" data-home-tab="days" style="display: flex; flex-direction: column; gap: 32px; position: relative; padding-left: 20px;">
+        <div class="home-tab-content${H===`days`?` is-active`:``}" data-home-tab="days" style="display: flex; flex-direction: column; gap: 12px; position: relative; padding-left: 20px;">
             <!-- Subtle Timeline Line -->
             <div style="position: absolute; left: 10px; top: 10px; bottom: 10px; width: 2px; background: linear-gradient(180deg, var(--accent-blue) 0%, rgba(0,113,227,0.05) 100%); border-radius: 1px; opacity: 0.3;"></div>
 
