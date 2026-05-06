@@ -450,6 +450,30 @@
                 ${t?`<p>You have <strong>${n.length}</strong> expenses recorded for ${t.name}.</p>`:`<p>Welcome! Start by creating your first trip.</p>`}
             </div>
             
+            <!-- Map search banner. Sits ABOVE the map (in normal flow,
+                 not floated over it) so the map view is unobstructed.
+                 The suggestion dropdown uses position:absolute relative
+                 to the wrapper so it can extend down over the map's
+                 first row of pixels without pushing layout. -->
+            <div id="homeMapSearchWrap" style="position:relative; max-width: 720px; margin: 16px auto 12px; z-index: 5;">
+                <div style="display:flex; align-items:center; gap:10px; background:rgba(255,255,255,0.94); backdrop-filter: blur(20px) saturate(160%); -webkit-backdrop-filter: blur(20px) saturate(160%); border:1px solid rgba(0,0,0,0.08); border-radius:999px; padding:10px 16px; box-shadow: 0 8px 24px rgba(0,45,91,0.10);">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#002d5b" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0;">
+                        <circle cx="11" cy="11" r="7"></circle>
+                        <path d="M21 21l-4.35-4.35"></path>
+                    </svg>
+                    <input id="homeMapSearchInput" type="search" autocomplete="off" placeholder="Search any place on the map…"
+                        style="flex:1; min-width:0; border:0; outline:0; background:transparent; padding:6px 0; font-size:0.95rem; color:#002d5b; font-weight:600;">
+                    <button id="homeMapSearchClear" type="button" title="Clear" aria-label="Clear search"
+                        style="display:none; background:rgba(0,0,0,0.05); border:0; color:rgba(0,0,0,0.5); width:24px; height:24px; border-radius:999px; cursor:pointer; font-size:0.8rem; line-height:1; flex-shrink:0;">✕</button>
+                </div>
+                <!-- Dropdown is absolutely positioned so it overlays the
+                     map slightly when results are open, but doesn't shift
+                     the map down on every keystroke. -->
+                <div id="homeMapSearchResults"
+                    style="display:none; position:absolute; top:calc(100% + 6px); left:0; right:0; background:rgba(255,255,255,0.98); backdrop-filter: blur(22px) saturate(160%); -webkit-backdrop-filter: blur(22px) saturate(160%); border:1px solid rgba(0,0,0,0.08); border-radius:18px; box-shadow: 0 18px 44px rgba(0,45,91,0.18); overflow:hidden; max-height:320px; overflow-y:auto;">
+                </div>
+            </div>
+
             <div class="card glass cover-card cover-card--md">
                 <div id="homeHeroMap" style="width: 100%; height: 100%; position: absolute; inset: 0; z-index: 0;"></div>
                 <div class="cover-card__gradient" style="pointer-events: none; z-index: 1;"></div>
@@ -457,29 +481,6 @@
                     <p id="homeQuote" class="cover-card__quote">
                         ${a[0]||``}
                     </p>
-                </div>
-
-                <!-- Map search banner. Floats over the map, top-centered.
-                     Uses Google's AutocompleteService for predictions and
-                     PlacesService.getDetails to drop a marker + open the
-                     standard Mark-for-AI / Shortlist InfoWindow on the
-                     selected place. pointer-events:auto on the wrapper
-                     so the input is clickable through the gradient overlay
-                     above it. -->
-                <div id="homeMapSearchWrap" style="position:absolute; top:14px; left:50%; transform:translateX(-50%); z-index:6; width: min(560px, calc(100% - 28px)); pointer-events:auto;">
-                    <div style="display:flex; align-items:center; gap:10px; background:rgba(255,255,255,0.94); backdrop-filter: blur(20px) saturate(160%); -webkit-backdrop-filter: blur(20px) saturate(160%); border:1px solid rgba(0,0,0,0.06); border-radius:999px; padding:8px 14px 8px 16px; box-shadow: 0 10px 28px rgba(0,45,91,0.16);">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#002d5b" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0;">
-                            <circle cx="11" cy="11" r="7"></circle>
-                            <path d="M21 21l-4.35-4.35"></path>
-                        </svg>
-                        <input id="homeMapSearchInput" type="search" autocomplete="off" placeholder="Search any place on the map…"
-                            style="flex:1; min-width:0; border:0; outline:0; background:transparent; padding:6px 0; font-size:0.95rem; color:#002d5b; font-weight:600;">
-                        <button id="homeMapSearchClear" type="button" title="Clear" aria-label="Clear search"
-                            style="display:none; background:rgba(0,0,0,0.05); border:0; color:rgba(0,0,0,0.5); width:24px; height:24px; border-radius:999px; cursor:pointer; font-size:0.8rem; line-height:1; flex-shrink:0;">✕</button>
-                    </div>
-                    <div id="homeMapSearchResults"
-                        style="display:none; margin-top:8px; background:rgba(255,255,255,0.97); backdrop-filter: blur(22px) saturate(160%); -webkit-backdrop-filter: blur(22px) saturate(160%); border:1px solid rgba(0,0,0,0.08); border-radius:18px; box-shadow: 0 18px 44px rgba(0,45,91,0.18); overflow:hidden; max-height:300px; overflow-y:auto;">
-                    </div>
                 </div>
             </div>
 
