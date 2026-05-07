@@ -1,4 +1,3 @@
-// @ts-check
 // feed.js — Activity feed page. Pulls /api/feed (mostly synthesised
 // server-side from trips + friends + trip_members; explicit shares and
 // reposts come from `feed_posts`) and renders a vertical list of "your
@@ -37,8 +36,7 @@ const LIKE_COUNT_THRESHOLD = 3;
 // Per-card expanded state for aggregated bundles. Module-level so the
 // expand state survives a paintList re-render (filter toggle, tab
 // switch). Keyed by the bundle's stable id (see `bundleEvents`).
-/** @type {Set<string>} */
-const expandedBundles = new Set();
+const expandedBundles: Set<string> = new Set();
 
 /** Pull the YYYY-MM-DD calendar day out of an ISO/SQLite timestamp.
  *  Used as part of the bundle key so events from different days never
@@ -68,10 +66,8 @@ function dayKey(iso) {
  *  @returns {Array<FeedEvent | {bundled: true, id: string, type: string, actor: Actor, when: string|null, members: FeedEvent[]}>}
  */
 function bundleEvents(events) {
-    /** @type {Map<string, FeedEvent[]>} */
-    const groups = new Map();
-    /** @type {Array<FeedEvent | {bundled: true, id: string, type: string, actor: Actor, when: string|null, members: FeedEvent[]}>} */
-    const out = [];
+        const groups: Map<string, FeedEvent[]> = new Map();
+        const out: Array<FeedEvent | {bundled: true, id: string, type: string, actor: Actor, when: string|null, members: FeedEvent[]}> = [];
     // First pass: group bundleable events by (actor, type, day); keep
     // ordering of first-occurrence so the result reads in the same
     // chronological flow as the input.
@@ -90,15 +86,15 @@ function bundleEvents(events) {
             // Reserve slot in `out` so the bundle lands at the position
             // of its first-seen event. Slot becomes the placeholder we
             // resolve in the second pass.
-            out.push(/** @type {any} */ ({ __slot: key }));
+            out.push(({ __slot: key } as any));
         }
         bucket.push(ev);
     }
     // Second pass: replace each placeholder with either the lone event
     // (group size 1) or a synthesised bundle (group size ≥2).
     return out.map(slot => {
-        const slotKey = /** @type {any} */ (slot).__slot;
-        if (!slotKey) return /** @type {FeedEvent} */ (slot);  // already a Post
+        const slotKey = (slot as any).__slot;
+        if (!slotKey) return (slot as FeedEvent);  // already a Post
         const members = groups.get(slotKey) || [];
         if (members.length === 1) return members[0];
         return {
@@ -135,42 +131,40 @@ function bundleLine(bundle) {
     }
 }
 
-/** @typedef {{id:string,name:string,picture?:string|null}} Actor */
-/** @typedef {{id:string,name:string,country?:string|null}} TripRef */
-/** @typedef {{
- *   id: string,
- *   type: 'friend_created_trip'|'friend_archived_trip'|'friend_joined_trip'|'new_friendship'|'friend_shared_trip'|'friend_reposted_trip',
- *   actor: Actor,
- *   trip?: TripRef,
- *   original_sharer?: Actor,
- *   post_id?: number,
- *   caption?: string|null,
- *   when: string|null,
- *   like_count?: number,
- *   is_liked?: boolean,
- *   is_bookmarked?: boolean,
- *   comment_count?: number,
- * }} FeedEvent */
-/** @typedef {{ id: number, author: Actor, body: string, when: string }} FeedComment */
+interface Actor { id: string; name: string; picture?: string | null }
+interface TripRef { id: string; name: string; country?: string | null }
+interface FeedEvent {
+    id: string;
+    type: 'friend_created_trip' | 'friend_archived_trip' | 'friend_joined_trip'
+        | 'new_friendship' | 'friend_shared_trip' | 'friend_reposted_trip';
+    actor: Actor;
+    trip?: TripRef;
+    original_sharer?: Actor;
+    post_id?: number;
+    caption?: string | null;
+    when: string | null;
+    like_count?: number;
+    is_liked?: boolean;
+    is_bookmarked?: boolean;
+    comment_count?: number;
+}
+interface FeedComment { id: number; author: Actor; body: string; when: string }
 
 // Module-level cache survives navigation away and back, so the second
 // visit paints from cache before the network call returns.
-/** @type {FeedEvent[]} */
-let cachedEvents = [];
+let cachedEvents: FeedEvent[] = [];
 // Per-event comment cache. Lazy-populated when the user expands a thread,
 // then re-used on collapse + re-expand within the same session so we
 // don't refetch on every click. Cleared whenever the feed itself is
 // refreshed from the server (cachedEvents replacement clears stale
 // counts; the thread cache becomes stale-but-still-readable, which is
 // fine — the next expand re-fetches anyway).
-/** @type {Object<string, FeedComment[]>} */
-const cachedThreads = {};
+const cachedThreads: Record<string, FeedComment[]> = {};
 
 // Feed view state. Persists across renders so a tab switch + page-leave +
 // page-return restores you to where you were. Defaults: Posts tab,
 // bookmark filter off.
-/** @type {'posts' | 'actions'} */
-let activeFeedTab = 'posts';
+let activeFeedTab: 'posts' | 'actions' = 'posts';
 let bookmarkedOnly = false;
 
 // Event-type → tab membership. Posts are user-initiated, interactionable
@@ -370,7 +364,7 @@ function actionButton(opts) {
     const threshold = opts.countThreshold ?? 1;
     // typeof guard narrows opts.count to number for the comparison below.
     const showChip = typeof opts.count === 'number';
-    const chipText = showChip && /** @type {number} */ (opts.count) >= threshold
+    const chipText = showChip && (opts.count as number) >= threshold
         ? String(opts.count)
         : '';
     return `
@@ -605,7 +599,7 @@ export function renderFeed() {
                 ctaLabel = 'Show all';
                 ctaAction = () => {
                     bookmarkedOnly = false;
-                    const toggleInput = /** @type {HTMLInputElement | null} */ (div.querySelector('#feedBookmarkToggle .apple-toggle__input'));
+                    const toggleInput = (div.querySelector('#feedBookmarkToggle .apple-toggle__input') as HTMLInputElement | null);
                     if (toggleInput) toggleInput.checked = false;
                     paintList();
                 };
@@ -616,7 +610,7 @@ export function renderFeed() {
                 ctaAction = () => {
                     activeFeedTab = 'actions';
                     paintList();
-                    div.querySelectorAll('.home-tabnav__tab').forEach(b => b.classList.toggle('is-active', /** @type {HTMLElement} */ (b).dataset.feedTab === 'actions'));
+                    div.querySelectorAll('.home-tabnav__tab').forEach(b => b.classList.toggle('is-active', (b as HTMLElement).dataset.feedTab === 'actions'));
                 };
             } else {
                 title = 'Quiet over here';
@@ -633,7 +627,7 @@ export function renderFeed() {
                 </div>
             `;
             const btn = listEl.querySelector('#feedEmptyCtaBtn');
-            if (btn) /** @type {HTMLButtonElement} */ (btn).onclick = ctaAction;
+            if (btn) (btn as HTMLButtonElement).onclick = ctaAction;
             return;
         }
 
@@ -645,8 +639,8 @@ export function renderFeed() {
         // exactly what's bundled.
         const renderedItems = bundleEvents(visible);
         listEl.innerHTML = renderedItems.map(item => {
-            if (/** @type {any} */ (item).bundled) {
-                const bundle = /** @type {{bundled: true, id: string, type: string, actor: Actor, when: string|null, members: FeedEvent[]}} */ (item);
+            if ((item as any).bundled) {
+                const bundle = (item as {bundled: true, id: string, type: string, actor: Actor, when: string|null, members: FeedEvent[]});
                 const accent = eventAccent(bundle.type);
                 const time = relativeTime(bundle.when);
                 const isExpanded = expandedBundles.has(bundle.id);
@@ -684,7 +678,7 @@ export function renderFeed() {
                     </div>
                 `;
             }
-            const ev = /** @type {FeedEvent} */ (item);
+            const ev = (item as FeedEvent);
             const accent = eventAccent(ev.type);
             const time = relativeTime(ev.when);
             // Caption block — only on shares/reposts that have one.
@@ -771,12 +765,12 @@ export function renderFeed() {
     // Tab nav: clicking a pill switches `activeFeedTab` + toggles
     // is-active classes + repaints the list.
     div.querySelectorAll('.home-tabnav__tab[data-feed-tab]').forEach(btn => {
-        /** @type {HTMLButtonElement} */ (btn).onclick = () => {
-            const tab = /** @type {'posts' | 'actions'} */ (/** @type {HTMLElement} */ (btn).dataset.feedTab);
+        (btn as HTMLButtonElement).onclick = () => {
+            const tab = (btn as HTMLElement).dataset.feedTab as 'posts' | 'actions' | undefined;
             if (!tab || activeFeedTab === tab) return;
             activeFeedTab = tab;
             div.querySelectorAll('.home-tabnav__tab[data-feed-tab]').forEach(b => {
-                b.classList.toggle('is-active', /** @type {HTMLElement} */ (b).dataset.feedTab === tab);
+                b.classList.toggle('is-active', (b as HTMLElement).dataset.feedTab === tab);
             });
             paintList();
         };
@@ -785,9 +779,7 @@ export function renderFeed() {
     // Bookmarked toggle: persists across tab switches via the module-
     // level `bookmarkedOnly`. Native checkbox change event so keyboard
     // (space) and click both fire.
-    const bookmarkToggleInput = /** @type {HTMLInputElement | null} */ (
-        div.querySelector('#feedBookmarkToggle .apple-toggle__input')
-    );
+    const bookmarkToggleInput = div.querySelector('#feedBookmarkToggle .apple-toggle__input') as HTMLInputElement | null;
     if (bookmarkToggleInput) {
         bookmarkToggleInput.addEventListener('change', () => {
             bookmarkedOnly = !!bookmarkToggleInput.checked;
@@ -799,7 +791,7 @@ export function renderFeed() {
     // Single click handler covers like / repost / bookmark — cheaper than
     // re-attaching per-card after every render.
     div.addEventListener('click', async (e) => {
-        const target = /** @type {HTMLElement | null} */ (e.target);
+        const target = (e.target as HTMLElement | null);
         if (!target) return;
 
         // Avatar click → friend profile. Wraps event-actor avatars
@@ -809,7 +801,7 @@ export function renderFeed() {
         // inside the card body for shares; without this guard a
         // click on the avatar would also trigger like / repost
         // depending on what's nested where).
-        const avatarBtn = /** @type {HTMLElement | null} */ (target.closest('.feed-avatar-btn'));
+        const avatarBtn = (target.closest('.feed-avatar-btn') as HTMLElement | null);
         if (avatarBtn?.dataset.feedAvatarUserId) {
             navigate('profile', { userId: avatarBtn.dataset.feedAvatarUserId });
             return;
@@ -821,13 +813,13 @@ export function renderFeed() {
         // (synchronous, from STATE) and foreign trips (async fetch
         // from /api/public-trip), so the click works whether the
         // shared trip belongs to the viewer or to a friend.
-        const tripCard = /** @type {HTMLElement | null} */ (target.closest('.feed-trip-card'));
+        const tripCard = (target.closest('.feed-trip-card') as HTMLElement | null);
         if (tripCard?.dataset.tripId) {
             viewArchivedDetails(tripCard.dataset.tripId);
             return;
         }
 
-        const likeBtn = /** @type {HTMLButtonElement | null} */ (target.closest('.feed-like-btn'));
+        const likeBtn = (target.closest('.feed-like-btn') as HTMLButtonElement | null);
         if (likeBtn?.dataset.eventId) {
             const eventId = likeBtn.dataset.eventId;
             const wasLiked = likeBtn.dataset.liked === '1';
@@ -847,7 +839,7 @@ export function renderFeed() {
             likeBtn.dataset.liked = newLiked ? '1' : '0';
             likeBtn.style.setProperty('--accent', newLiked ? ACTION_ACCENTS.like : ACTION_ACCENTS.muted);
             likeBtn.innerHTML = actionIconSvg('heart', newLiked);
-            const countEl = /** @type {HTMLElement | null} */ (likeBtn.parentElement?.querySelector('.feed-action-count'));
+            const countEl = (likeBtn.parentElement?.querySelector('.feed-action-count') as HTMLElement | null);
             const renderCount = (n) => (n >= LIKE_COUNT_THRESHOLD ? String(n) : '');
             if (countEl && ev) countEl.textContent = renderCount(ev.like_count);
             // Server reconcile.
@@ -860,7 +852,7 @@ export function renderFeed() {
             return;
         }
 
-        const bookmarkBtn = /** @type {HTMLButtonElement | null} */ (target.closest('.feed-bookmark-btn'));
+        const bookmarkBtn = (target.closest('.feed-bookmark-btn') as HTMLButtonElement | null);
         if (bookmarkBtn?.dataset.eventId) {
             const eventId = bookmarkBtn.dataset.eventId;
             const wasBookmarked = bookmarkBtn.dataset.bookmarked === '1';
@@ -884,7 +876,7 @@ export function renderFeed() {
         // Bundle expand/collapse — toggles `expandedBundles` set and
         // repaints. The set is module-level so the state survives
         // tab switches + bookmark filter toggles.
-        const bundleToggle = /** @type {HTMLElement | null} */ (target.closest('.feed-bundle-toggle'));
+        const bundleToggle = (target.closest('.feed-bundle-toggle') as HTMLElement | null);
         if (bundleToggle?.dataset.bundleId) {
             const id = bundleToggle.dataset.bundleId;
             if (expandedBundles.has(id)) expandedBundles.delete(id);
@@ -897,11 +889,11 @@ export function renderFeed() {
         // open/closed under the card. First open lazy-fetches the
         // comments via /api/feed/comments; subsequent toggles re-use
         // the cached array so opening + closing is instant.
-        const commentBtn = /** @type {HTMLElement | null} */ (target.closest('.feed-comment-btn'));
+        const commentBtn = (target.closest('.feed-comment-btn') as HTMLElement | null);
         if (commentBtn?.dataset.eventId) {
             const eventId = commentBtn.dataset.eventId;
             const card = commentBtn.closest('.feed-event');
-            const threadEl = /** @type {HTMLElement | null} */ (card?.querySelector('.feed-thread'));
+            const threadEl = (card?.querySelector('.feed-thread') as HTMLElement | null);
             if (!threadEl) return;
             const isOpen = threadEl.style.display !== 'none';
             if (isOpen) {
@@ -920,19 +912,19 @@ export function renderFeed() {
             }
             // Auto-focus the input so the user can type immediately.
             const input = threadEl.querySelector('input[name="body"]');
-            if (input) /** @type {HTMLInputElement} */ (input).focus();
+            if (input) (input as HTMLInputElement).focus();
             return;
         }
 
         // Comment delete — author-only ✕ on a row.
-        const commentDeleteBtn = /** @type {HTMLElement | null} */ (target.closest('.feed-comment-delete-btn'));
+        const commentDeleteBtn = (target.closest('.feed-comment-delete-btn') as HTMLElement | null);
         if (commentDeleteBtn?.dataset.commentId) {
             const commentId = Number(commentDeleteBtn.dataset.commentId);
             const row = commentDeleteBtn.closest('.feed-comment-row');
-            const threadEl = /** @type {HTMLElement | null} */ (commentDeleteBtn.closest('.feed-thread'));
+            const threadEl = (commentDeleteBtn.closest('.feed-thread') as HTMLElement | null);
             const eventId = threadEl?.dataset.eventId;
             // Optimistic remove from DOM + cache.
-            if (row) /** @type {HTMLElement} */ (row).remove();
+            if (row) (row as HTMLElement).remove();
             if (eventId && cachedThreads[eventId]) {
                 cachedThreads[eventId] = cachedThreads[eventId].filter(c => c.id !== commentId);
             }
@@ -943,7 +935,7 @@ export function renderFeed() {
                 // comment button inside the same wrapper span.
                 const card = threadEl?.closest('.feed-event');
                 const btn = card?.querySelector('.feed-comment-btn');
-                const countEl = /** @type {HTMLElement | null} */ (btn?.parentElement?.querySelector('.feed-action-count'));
+                const countEl = (btn?.parentElement?.querySelector('.feed-action-count') as HTMLElement | null);
                 if (countEl) countEl.textContent = ev.comment_count > 0 ? String(ev.comment_count) : '';
             }
             const result = await deleteFeedComment(commentId);
@@ -958,7 +950,7 @@ export function renderFeed() {
         // the share from every friend's feed AND cascade-removes any
         // reposts of it (server-side). Confirm modal before firing
         // since this is destructive and can't be undone.
-        const unshareBtn = /** @type {HTMLButtonElement | null} */ (target.closest('.feed-unshare-btn'));
+        const unshareBtn = (target.closest('.feed-unshare-btn') as HTMLButtonElement | null);
         if (unshareBtn?.dataset.postId) {
             const postId = Number(unshareBtn.dataset.postId);
             showConfirmModal({
@@ -984,7 +976,7 @@ export function renderFeed() {
             return;
         }
 
-        const repostBtn = /** @type {HTMLButtonElement | null} */ (target.closest('.feed-repost-btn'));
+        const repostBtn = (target.closest('.feed-repost-btn') as HTMLButtonElement | null);
         if (repostBtn?.dataset.postId) {
             const postId = Number(repostBtn.dataset.postId);
             // Disable + nudge --accent to a "pending" tone while the
@@ -1020,15 +1012,15 @@ export function renderFeed() {
     // it to the thread + cache, and bumps the count chip. Optimistic:
     // input clears immediately so the user can keep typing follow-ups.
     div.addEventListener('submit', async (e) => {
-        const form = /** @type {HTMLFormElement | null} */ (e.target);
+        const form = (e.target as HTMLFormElement | null);
         if (!form?.classList?.contains('feed-comment-form')) return;
         e.preventDefault();
         const eventId = form.dataset.eventId;
         if (!eventId) return;
-        const input = /** @type {HTMLInputElement | null} */ (form.querySelector('input[name="body"]'));
+        const input = (form.querySelector('input[name="body"]') as HTMLInputElement | null);
         const body = input?.value.trim();
         if (!body) return;
-        const submitBtn = /** @type {HTMLButtonElement | null} */ (form.querySelector('.feed-comment-submit'));
+        const submitBtn = (form.querySelector('.feed-comment-submit') as HTMLButtonElement | null);
         if (input) input.value = '';
         if (submitBtn) submitBtn.disabled = true;
         const result = await postFeedComment(eventId, body);
@@ -1040,20 +1032,20 @@ export function renderFeed() {
             return;
         }
         // Append to cache + DOM, bump the count chip.
-        const newComment = /** @type {FeedComment} */ (result.body.comment);
+        const newComment = (result.body.comment as FeedComment);
         if (!cachedThreads[eventId]) cachedThreads[eventId] = [];
         cachedThreads[eventId].push(newComment);
-        const threadEl = /** @type {HTMLElement | null} */ (form.closest('.feed-thread'));
+        const threadEl = (form.closest('.feed-thread') as HTMLElement | null);
         if (threadEl) renderThread(threadEl, eventId, cachedThreads[eventId]);
         // Re-focus the new (re-rendered) input so the user can keep typing.
         const refocus = threadEl?.querySelector('input[name="body"]');
-        if (refocus) /** @type {HTMLInputElement} */ (refocus).focus();
+        if (refocus) (refocus as HTMLInputElement).focus();
         const ev = cachedEvents.find(e => e.id === eventId);
         if (ev) {
             ev.comment_count = (ev.comment_count || 0) + 1;
             const card = threadEl?.closest('.feed-event');
             const btn = card?.querySelector('.feed-comment-btn');
-            const countEl = /** @type {HTMLElement | null} */ (btn?.parentElement?.querySelector('.feed-action-count'));
+            const countEl = (btn?.parentElement?.querySelector('.feed-action-count') as HTMLElement | null);
             if (countEl) countEl.textContent = String(ev.comment_count);
         }
     });

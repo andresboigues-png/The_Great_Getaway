@@ -1,4 +1,3 @@
-// @ts-check
 import { STATE, emit } from '../state.js';
 import { showConfirmModal, formatHome, esc, shortPlaceName, showLiquidAlert } from '../utils.js';
 import { navigate } from '../router.js';
@@ -10,8 +9,7 @@ import { openDayView, openPdfPreview, looksLikePdfUrl, openShareToFeedModal, upd
 // Module-level so the user's pick survives navigation away and back.
 // Not persisted to localStorage on purpose — defaults are friendly
 // enough that fresh sessions don't surprise people.
-/** @type {'recent' | 'oldest' | 'tripStartDesc' | 'tripStartAsc' | 'nameAsc' | 'nameDesc' | 'spentDesc' | 'daysDesc'} */
-let collectionsSort = 'recent';
+let collectionsSort: 'recent' | 'oldest' | 'tripStartDesc' | 'tripStartAsc' | 'nameAsc' | 'nameDesc' | 'spentDesc' | 'daysDesc' = 'recent';
 let collectionsFilterYear = '';        // empty string = "all years"
 let collectionsFilterDestination = ''; // empty string = "all destinations"
 let collectionsSearchText = '';
@@ -280,21 +278,21 @@ export function renderCollections() {
 
     // Delegated handlers for the per-trip cards in the archived list.
     div.addEventListener('click', (e) => {
-        const target = /** @type {HTMLElement | null} */ (e.target);
+        const target = (e.target as HTMLElement | null);
         if (!target) return;
-        const restoreBtn = /** @type {HTMLElement | null} */ (target.closest('.restore-trip-btn'));
+        const restoreBtn = (target.closest('.restore-trip-btn') as HTMLElement | null);
         if (restoreBtn?.dataset.tripId) { restoreTrip(restoreBtn.dataset.tripId); return; }
-        const delBtn = /** @type {HTMLElement | null} */ (target.closest('.delete-archived-btn'));
+        const delBtn = (target.closest('.delete-archived-btn') as HTMLElement | null);
         if (delBtn?.dataset.tripId) { deleteArchivedTrip(delBtn.dataset.tripId); return; }
         // Hint banner — clicking an active-trip pill switches to it on Home.
-        const gotoBtn = /** @type {HTMLElement | null} */ (target.closest('.goto-active-trip-btn'));
+        const gotoBtn = (target.closest('.goto-active-trip-btn') as HTMLElement | null);
         if (gotoBtn?.dataset.tripId) {
             STATE.activeTripId = gotoBtn.dataset.tripId;
             emit('state:changed');
             navigate('home');
             return;
         }
-        const card = /** @type {HTMLElement | null} */ (target.closest('.archived-trip-card'));
+        const card = (target.closest('.archived-trip-card') as HTMLElement | null);
         if (card?.dataset.tripId) { viewArchivedDetails(card.dataset.tripId); return; }
         // Sort + filter — Clear filters chip resets all three.
         if (target.closest('#colClearFiltersBtn')) {
@@ -306,26 +304,26 @@ export function renderCollections() {
         }
     });
     div.addEventListener('change', (e) => {
-        const target = /** @type {HTMLElement | null} */ (e.target);
-        const toggle = /** @type {HTMLInputElement | null} */ (target?.closest('.trip-privacy-toggle'));
+        const target = (e.target as HTMLElement | null);
+        const toggle = (target?.closest('.trip-privacy-toggle') as HTMLInputElement | null);
         if (toggle?.dataset.tripId) {
             toggleTripPrivacy(toggle.dataset.tripId, toggle.checked);
             return;
         }
         // Sort + filter dropdowns — re-render to reflect the new view.
-        const sortSel = /** @type {HTMLSelectElement | null} */ (target?.closest('#colSortSelect'));
+        const sortSel = (target?.closest('#colSortSelect') as HTMLSelectElement | null);
         if (sortSel) {
-            collectionsSort = /** @type {any} */ (sortSel.value);
+            collectionsSort = (sortSel.value as any);
             navigate('collections');
             return;
         }
-        const yearSel = /** @type {HTMLSelectElement | null} */ (target?.closest('#colYearSelect'));
+        const yearSel = (target?.closest('#colYearSelect') as HTMLSelectElement | null);
         if (yearSel) {
             collectionsFilterYear = yearSel.value;
             navigate('collections');
             return;
         }
-        const destSel = /** @type {HTMLSelectElement | null} */ (target?.closest('#colDestSelect'));
+        const destSel = (target?.closest('#colDestSelect') as HTMLSelectElement | null);
         if (destSel) {
             collectionsFilterDestination = destSel.value;
             navigate('collections');
@@ -335,9 +333,8 @@ export function renderCollections() {
     // Search input — debounced re-render so each keystroke doesn't
     // tear down + reflow the entire grid (felt janky on a long
     // archived list).
-    /** @type {ReturnType<typeof setTimeout> | null} */
-    let searchTimer = null;
-    const searchInput = /** @type {HTMLInputElement | null} */ (div.querySelector('#colSearchInput'));
+        let searchTimer: ReturnType<typeof setTimeout> | null = null;
+    const searchInput = (div.querySelector('#colSearchInput') as HTMLInputElement | null);
     if (searchInput) {
         searchInput.addEventListener('input', () => {
             if (searchTimer) clearTimeout(searchTimer);
@@ -584,8 +581,8 @@ export function renderArchivedTripDetail(tripIdOrTrip) {
 
             // Build the union document list (trip-level + legacy
             // day.tickets) sorted Trip-wide → Day 1 → Day 2 …
-            /** @type {{name:string, url:string, dayId:string|null, source:'trip'|'day', _key:string}[]} */
-            const allDocs = [];
+            interface UnionDoc { name: string; url: string; dayId: string | null; source: 'trip' | 'day'; _key: string }
+            const allDocs: UnionDoc[] = [];
             tripDocs.forEach(d => allDocs.push({
                 name: d.name || 'Document', url: d.url || '', dayId: d.dayId || null,
                 source: 'trip', _key: d.id || `${d.name}-${d.url}`,
@@ -604,8 +601,8 @@ export function renderArchivedTripDetail(tripIdOrTrip) {
             allDocs.sort((a, b) => dayOrder(a.dayId) - dayOrder(b.dayId));
 
             // Same union for photos.
-            /** @type {{src:string, dayId:string|null, source:'trip'|'day', _key:string}[]} */
-            const allPhotos = [];
+            interface UnionPhoto { src: string; dayId: string | null; source: 'trip' | 'day'; _key: string }
+            const allPhotos: UnionPhoto[] = [];
             tripPhotos.forEach(p => allPhotos.push({
                 src: p.src || '', dayId: p.dayId || null,
                 source: 'trip', _key: p.id || p.src,
@@ -676,7 +673,7 @@ export function renderArchivedTripDetail(tripIdOrTrip) {
     // click opens the caption modal; clicks on an already-shared button
     // open the unshare confirm. Same flow that lived on the home page,
     // moved here so it's gated on the public flag.
-    const shareBtnEl = /** @type {HTMLElement | null} */ (div.querySelector('#shareToFeedBtn'));
+    const shareBtnEl = (div.querySelector('#shareToFeedBtn') as HTMLElement | null);
     if (shareBtnEl) {
         fetchShareStatus(trip.id).then(status => {
             if (!status?.shared) return;
@@ -687,12 +684,12 @@ export function renderArchivedTripDetail(tripIdOrTrip) {
     }
 
     div.addEventListener('click', (e) => {
-        const target = /** @type {HTMLElement | null} */ (e.target);
-        const restoreBtn = /** @type {HTMLElement | null} */ (target?.closest('.restore-trip-btn'));
+        const target = (e.target as HTMLElement | null);
+        const restoreBtn = (target?.closest('.restore-trip-btn') as HTMLElement | null);
         if (restoreBtn?.dataset.tripId) { restoreTrip(restoreBtn.dataset.tripId); return; }
 
         // Share-to-feed click handler (mirrors the old home.js flow).
-        const shareBtn = /** @type {HTMLElement | null} */ (target?.closest('#shareToFeedBtn'));
+        const shareBtn = (target?.closest('#shareToFeedBtn') as HTMLElement | null);
         if (shareBtn) {
             const alreadyShared = shareBtn.dataset.shared === '1';
             if (alreadyShared) {
@@ -742,9 +739,9 @@ export function renderArchivedTripDetail(tripIdOrTrip) {
         // power users can force a new tab. Same logic as the active
         // Documents tab — kept here as the archived view doesn't
         // share its DOM with home.js.
-        const docAnchor = /** @type {HTMLAnchorElement | null} */ (target?.closest('a[href]'));
+        const docAnchor = (target?.closest('a[href]') as HTMLAnchorElement | null);
         if (docAnchor && looksLikePdfUrl(docAnchor.href)) {
-            const ev = /** @type {MouseEvent} */ (e);
+            const ev = (e as MouseEvent);
             if (!ev.metaKey && !ev.ctrlKey && !ev.shiftKey && ev.button !== 1) {
                 ev.preventDefault();
                 const name = docAnchor.querySelector('span')?.textContent?.trim() || 'Document';
@@ -756,7 +753,7 @@ export function renderArchivedTripDetail(tripIdOrTrip) {
         // an archived trip live on `trip.tripDays`, not in STATE.tripDays
         // (the restore flow at restoreTrip() splats them back into the
         // global list), so we look them up off the trip object directly.
-        const dayBlock = /** @type {HTMLElement | null} */ (target?.closest('.archived-day-block'));
+        const dayBlock = (target?.closest('.archived-day-block') as HTMLElement | null);
         if (dayBlock?.dataset.dayId) {
             const day = (trip.tripDays || []).find(d => d.id === dayBlock.dataset.dayId);
             if (day) openDayView(day);
@@ -764,9 +761,8 @@ export function renderArchivedTripDetail(tripIdOrTrip) {
         }
     });
     div.addEventListener('change', (e) => {
-        const toggle = /** @type {HTMLInputElement | null} */ (
-            /** @type {HTMLElement | null} */ (e.target)?.closest('.trip-privacy-toggle')
-        );
+        const target = e.target as HTMLElement | null;
+        const toggle = target?.closest('.trip-privacy-toggle') as HTMLInputElement | null;
         if (toggle?.dataset.tripId) toggleTripPrivacy(toggle.dataset.tripId, toggle.checked);
     });
 

@@ -1,4 +1,3 @@
-// @ts-check
 // pages/settlement.js
 //
 // Trip settlement page — calculates per-person balances on the active
@@ -20,9 +19,8 @@ import { getTripCompanionNames } from '../companions.js';
 import { canEditExpenses } from '../permissions.js';
 import { showModal } from '../components/Modal.js';
 
-/** @type {'trip' | 'history' | 'global'} */
-let activeSettlementTab = 'trip';
-let currentTripId = /** @type {string | null} */ (null);
+let activeSettlementTab: 'trip' | 'history' | 'global' = 'trip';
+let currentTripId = (null as string | null);
 
 // ── Pure helpers ──────────────────────────────────────────────────────
 // Pulled out so the per-trip and cross-trip views share one
@@ -41,8 +39,7 @@ function computeTripBalances(trip) {
             tripExps.flatMap(e => [e.who, ...Object.keys(e.splits || {})]).filter(Boolean)
         ));
 
-    /** @type {Record<string, number>} */
-    const balances = {};
+        const balances: Record<string, number> = {};
     roster.forEach(p => balances[p] = 0);
 
     for (const exp of tripExps) {
@@ -61,18 +58,22 @@ function computeTripBalances(trip) {
     return { balances, roster, expenses: tripExps };
 }
 
+/** A single debt → creditor settlement edge produced by simplifyDebts. */
+export interface SettlementDebt { from: string; to: string; amount: number }
+interface BalanceEntry { person: string; amount: number }
+
 /** Greedy minimal-payments list. Pairs largest debtor with largest
  *  creditor, settles the smaller of the two, repeats. */
-function simplifyDebts(balances) {
-    const creditors = [];
-    const debtors = [];
+function simplifyDebts(balances: Record<string, number>): SettlementDebt[] {
+    const creditors: BalanceEntry[] = [];
+    const debtors: BalanceEntry[] = [];
     for (const [person, balance] of Object.entries(balances)) {
         if (balance > 0.01) creditors.push({ person, amount: balance });
         else if (balance < -0.01) debtors.push({ person, amount: Math.abs(balance) });
     }
     creditors.sort((a, b) => b.amount - a.amount);
     debtors.sort((a, b) => b.amount - a.amount);
-    const debts = [];
+    const debts: SettlementDebt[] = [];
     let i = 0, j = 0;
     while (i < debtors.length && j < creditors.length) {
         const pay = Math.min(debtors[i].amount, creditors[j].amount);
@@ -89,8 +90,7 @@ function simplifyDebts(balances) {
  *  one, but seeded with every name from every trip's roster (active
  *  + archived) and accumulated over EVERY expense. */
 function computeGlobalBalances() {
-    /** @type {Record<string, number>} */
-    const globalBalances = {};
+        const globalBalances: Record<string, number> = {};
     for (const t of [...STATE.trips, ...(STATE.archivedTrips || [])]) {
         for (const name of getTripCompanionNames(t)) {
             if (!(name in globalBalances)) globalBalances[name] = 0;
@@ -99,8 +99,7 @@ function computeGlobalBalances() {
     const archivedExps = (STATE.archivedTrips || []).flatMap(t => t.expenses || []);
     const allExpenses = [...STATE.expenses, ...archivedExps];
 
-    /** @type {Record<string, string[]>} */
-    const tripCompanionsById = {};
+        const tripCompanionsById: Record<string, string[]> = {};
     for (const t of [...STATE.trips, ...(STATE.archivedTrips || [])]) {
         tripCompanionsById[t.id] = getTripCompanionNames(t);
     }
@@ -131,8 +130,7 @@ function computeLeaderboard(trip) {
     if (!trip) return [];
     const exps = (STATE.expenses || []).filter(e => e.tripId === trip.id);
     const roster = getTripCompanionNames(trip);
-    /** @type {Record<string, {paid: number, share: number}>} */
-    const board = {};
+        const board: Record<string, {paid: number, share: number}> = {};
     roster.forEach(p => board[p] = { paid: 0, share: 0 });
     for (const exp of exps) {
         const amount = exp.euroValue || exp.value || 0;
@@ -174,11 +172,11 @@ export function renderSettlement() {
 
     // ── Delegated handlers ────────────────────────────────────────
     div.addEventListener('click', (e) => {
-        const target = /** @type {HTMLElement | null} */ (e.target);
+        const target = (e.target as HTMLElement | null);
         if (!target) return;
 
         // Trip card (top strip) — switch the active trip.
-        const tripCard = /** @type {HTMLElement | null} */ (target.closest('.settlement-trip-pill'));
+        const tripCard = (target.closest('.settlement-trip-pill') as HTMLElement | null);
         if (tripCard?.dataset.tripId) {
             currentTripId = tripCard.dataset.tripId;
             div.innerHTML = buildPageHtml(
@@ -189,9 +187,9 @@ export function renderSettlement() {
         }
 
         // Tab switch.
-        const tabBtn = /** @type {HTMLElement | null} */ (target.closest('.settle-tab'));
+        const tabBtn = (target.closest('.settle-tab') as HTMLElement | null);
         if (tabBtn?.dataset.tab) {
-            activeSettlementTab = /** @type {any} */ (tabBtn.dataset.tab);
+            activeSettlementTab = (tabBtn.dataset.tab as any);
             div.innerHTML = buildPageHtml(
                 STATE.trips.find(t => t.id === currentTripId) || null,
                 canEditExpenses(STATE.trips.find(t => t.id === currentTripId)),
@@ -201,7 +199,7 @@ export function renderSettlement() {
 
         // One-click "Settle" — idempotency guard prevents double-tap
         // duplicates by disabling the button for 1.5s after the click.
-        const settleBtn = /** @type {HTMLButtonElement | null} */ (target.closest('.settle-debt-btn'));
+        const settleBtn = (target.closest('.settle-debt-btn') as HTMLButtonElement | null);
         if (settleBtn?.dataset.tripId && settleBtn.dataset.from && settleBtn.dataset.to && settleBtn.dataset.amount && !settleBtn.disabled) {
             settleBtn.disabled = true;
             settleBtn.textContent = 'Recording…';
@@ -216,19 +214,19 @@ export function renderSettlement() {
             return;
         }
 
-        const manualBtn = /** @type {HTMLElement | null} */ (target.closest('.open-manual-settle-btn'));
+        const manualBtn = (target.closest('.open-manual-settle-btn') as HTMLElement | null);
         if (manualBtn?.dataset.tripId) {
             openManualSettleModal(manualBtn.dataset.tripId, div);
             return;
         }
 
-        const editBtn = /** @type {HTMLElement | null} */ (target.closest('.edit-settlement-btn'));
+        const editBtn = (target.closest('.edit-settlement-btn') as HTMLElement | null);
         if (editBtn?.dataset.settlementId) {
             openEditSettlementModal(editBtn.dataset.settlementId, div);
             return;
         }
 
-        const unsettleBtn = /** @type {HTMLElement | null} */ (target.closest('.unsettle-settlement-btn'));
+        const unsettleBtn = (target.closest('.unsettle-settlement-btn') as HTMLElement | null);
         if (unsettleBtn?.dataset.settlementId && unsettleBtn.dataset.tripId) {
             deleteSettlement(unsettleBtn.dataset.settlementId, unsettleBtn.dataset.tripId, div);
             return;
@@ -310,7 +308,7 @@ function renderTripsStrip() {
 
 function renderTabsNav(trip) {
     const settlementsCount = (STATE.expenses || []).filter(e => e.tripId === trip.id && e.isSettlement).length;
-    const tab = (key, label, badge) => `
+    const tab = (key: string, label: string, badge?: number) => `
         <button class="settle-tab${activeSettlementTab === key ? ' is-active' : ''}" data-tab="${key}" type="button"
             style="background:none; border:0; padding:12px 4px; font-size:0.95rem; font-weight:${activeSettlementTab === key ? '800' : '600'}; color:${activeSettlementTab === key ? 'var(--accent-blue)' : 'var(--text-secondary)'}; cursor:pointer; border-bottom:2px solid ${activeSettlementTab === key ? 'var(--accent-blue)' : 'transparent'}; margin-bottom:-1px; letter-spacing:-0.01em; transition: color 0.2s, border-color 0.2s;">
             ${label}${badge !== undefined && badge > 0 ? ` <span style="background:rgba(0,113,227,0.12); color:var(--accent-blue); padding:1px 6px; border-radius:999px; font-size:0.7rem; font-weight:800; margin-left:2px;">${badge}</span>` : ''}
@@ -458,8 +456,7 @@ function renderHistoryTab(trip, tripIsEditable) {
     // Group settlements by date so the timeline reads like a feed
     // ("Today · 3 settlements", "Yesterday", "Mar 14, 2025"). Easier to
     // scan than a flat list when there are many settlements.
-    /** @type {Record<string, typeof past>} */
-    const groupedByDate = {};
+        const groupedByDate: Record<string, typeof past> = {};
     for (const s of past) {
         const key = s.date || 'undated';
         if (!groupedByDate[key]) groupedByDate[key] = [];
@@ -738,12 +735,12 @@ function openManualSettleModal(tripId, root) {
             </form>
         `,
     });
-    /** @type {HTMLButtonElement} */ (q(modalRoot, '#cancelManualSettleBtn')).onclick = () => close();
-    /** @type {HTMLFormElement} */ (q(modalRoot, '#manualSettleForm')).onsubmit = (evt) => {
+    (q(modalRoot, '#cancelManualSettleBtn') as HTMLButtonElement).onclick = () => close();
+    (q(modalRoot, '#manualSettleForm') as HTMLFormElement).onsubmit = (evt) => {
         evt.preventDefault();
-        const from = /** @type {HTMLSelectElement} */ (q(modalRoot, '#manualSettleFrom')).value;
-        const to = /** @type {HTMLSelectElement} */ (q(modalRoot, '#manualSettleTo')).value;
-        const amount = parseFloat(/** @type {HTMLInputElement} */ (q(modalRoot, '#manualSettleAmount')).value);
+        const from = (q(modalRoot, '#manualSettleFrom') as HTMLSelectElement).value;
+        const to = (q(modalRoot, '#manualSettleTo') as HTMLSelectElement).value;
+        const amount = parseFloat((q(modalRoot, '#manualSettleAmount') as HTMLInputElement).value);
         if (from === to) {
             showLiquidAlert('Sender and receiver must be different.');
             return;
@@ -784,13 +781,13 @@ function openEditSettlementModal(id, root) {
             </form>
         `,
     });
-    /** @type {HTMLButtonElement} */ (q(modalRoot, '#cancelEditSettleBtn')).onclick = () => close();
-    /** @type {HTMLFormElement} */ (q(modalRoot, '#editSettlementForm')).onsubmit = (evt) => {
+    (q(modalRoot, '#cancelEditSettleBtn') as HTMLButtonElement).onclick = () => close();
+    (q(modalRoot, '#editSettlementForm') as HTMLFormElement).onsubmit = (evt) => {
         evt.preventDefault();
-        const from = /** @type {HTMLSelectElement} */ (q(modalRoot, '#editSettleFrom')).value;
-        const to = /** @type {HTMLSelectElement} */ (q(modalRoot, '#editSettleTo')).value;
-        const amount = parseFloat(/** @type {HTMLInputElement} */ (q(modalRoot, '#editSettleAmount')).value);
-        const date = /** @type {HTMLInputElement} */ (q(modalRoot, '#editSettleDate')).value;
+        const from = (q(modalRoot, '#editSettleFrom') as HTMLSelectElement).value;
+        const to = (q(modalRoot, '#editSettleTo') as HTMLSelectElement).value;
+        const amount = parseFloat((q(modalRoot, '#editSettleAmount') as HTMLInputElement).value);
+        const date = (q(modalRoot, '#editSettleDate') as HTMLInputElement).value;
         if (from === to) {
             showLiquidAlert('Sender and receiver must be different.');
             return;

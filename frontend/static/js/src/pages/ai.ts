@@ -1,4 +1,3 @@
-// @ts-check
 import { STATE, emit } from '../state.js';
 import { q, esc, formatDayDate } from '../utils.js';
 import { openNewTripModal } from '../modals.js';
@@ -11,10 +10,8 @@ import { getMarkedPlaces, setMarkedPlaceAssignment } from '../markedPlaces.js';
 import { showModal } from '../components/Modal.js';
 import { navigate } from '../router.js';
 
-/** @type {any} */
-let googleMap = null;
-/** @type {any[]} */
-let mapMarkers = [];
+let googleMap: any = null;
+let mapMarkers: any[] = [];
 
 export function renderAI() {
     const div = document.createElement('div');
@@ -272,7 +269,7 @@ export function renderAI() {
                 });
             }
 
-            const badge = /** @type {HTMLElement | null} */ (div.querySelector('#aiZoomBadge'));
+            const badge = (div.querySelector('#aiZoomBadge') as HTMLElement | null);
             if (badge) badge.onclick = () => {
                 const aiTripMapKey = activeTrip.id + '_ai';
                 if (STATE.mapViews && STATE.mapViews[aiTripMapKey]) delete STATE.mapViews[aiTripMapKey];
@@ -342,7 +339,7 @@ export function renderAI() {
                 ${tripIsEditable ? `<div style="display:flex;gap:12px;margin-top:24px;"><button id="acceptPlanBtn" class="btn" style="flex:2;background:var(--accent-blue);color:white;padding:16px;font-size:1.1rem;border-radius:16px;font-weight:700;box-shadow:0 10px 20px rgba(0,122,255,0.2);cursor:pointer;">Accept Plan & Add to Trip</button></div>` : ''}`;
 
             const daysContainer = q(outputEl, '#itineraryDays');
-            const dayDivs = [];
+            const dayDivs: HTMLDivElement[] = [];
 
             itinerary.forEach((/** @type {any} */ day, /** @type {number} */ _i) => {
                 const dayDiv = document.createElement('div');
@@ -442,7 +439,7 @@ export function renderAI() {
                 itinerary.forEach((day, i) => setTimeout(() => geocodeAndMark(day, i), i * 500));
             }
 
-            const acceptBtn = /** @type {HTMLButtonElement | null} */ (document.getElementById('acceptPlanBtn'));
+            const acceptBtn = (document.getElementById('acceptPlanBtn') as HTMLButtonElement | null);
             if (acceptBtn) acceptBtn.onclick = () => {
                 if (!itinerary) return;
                 // Replace existing numbered days (dayNumber > 0) for this
@@ -500,7 +497,7 @@ export function renderAI() {
          *  separate "selected" set of its own. Re-rendered after every
          *  user action so day/time changes refresh the dropdowns. */
         const renderTodoListPanel = () => {
-            const panel = /** @type {HTMLElement | null} */ (div.querySelector('#aiTodoListPanel'));
+            const panel = (div.querySelector('#aiTodoListPanel') as HTMLElement | null);
             if (!panel) return;
             const allTodo = getMarkedPlaces(activeTrip).filter(p => p.forManual);
             const tickedItems = allTodo.filter(p => p.forAI);
@@ -517,7 +514,7 @@ export function renderAI() {
                         <button id="aiGoToTodoBtn" class="btn-primary" style="padding: 10px 18px; border-radius: 999px; font-size:0.85rem;">Open To do list 📋</button>
                     </div>
                 `;
-                /** @type {HTMLButtonElement | null} */ (panel.querySelector('#aiGoToTodoBtn'))?.addEventListener('click', () => navigate('todo'));
+                (panel.querySelector('#aiGoToTodoBtn') as HTMLButtonElement | null)?.addEventListener('click', () => navigate('todo'));
                 return;
             }
 
@@ -536,12 +533,12 @@ export function renderAI() {
                         <button id="aiGoToTodoBtn" class="btn-primary" style="padding: 10px 18px; border-radius: 999px; font-size:0.85rem;">Tick items in To do list 📋</button>
                     </div>
                 `;
-                /** @type {HTMLButtonElement | null} */ (panel.querySelector('#aiGoToTodoBtn'))?.addEventListener('click', () => navigate('todo'));
+                (panel.querySelector('#aiGoToTodoBtn') as HTMLButtonElement | null)?.addEventListener('click', () => navigate('todo'));
                 return;
             }
 
-            const dateFromEl = /** @type {HTMLInputElement | null} */ (div.querySelector('#aiDateFrom'));
-            const dateToEl = /** @type {HTMLInputElement | null} */ (div.querySelector('#aiDateTo'));
+            const dateFromEl = (div.querySelector('#aiDateFrom') as HTMLInputElement | null);
+            const dateToEl = (div.querySelector('#aiDateTo') as HTMLInputElement | null);
             const datesSet = !!(dateFromEl?.value && dateToEl?.value);
             // Build day options from existing tripDays (numbered) when
             // dates are set. Falls back to no-options message when not.
@@ -601,23 +598,23 @@ export function renderAI() {
                 </div>
             `;
 
-            /** @type {HTMLButtonElement | null} */ (panel.querySelector('#aiManageTodoBtn'))?.addEventListener('click', () => navigate('todo'));
+            (panel.querySelector('#aiManageTodoBtn') as HTMLButtonElement | null)?.addEventListener('click', () => navigate('todo'));
             // Per-card day/time select changes — write through to the
             // marked place + persist. No more tick/remove handlers
             // here; those live on /todo now.
             panel.querySelectorAll('.marked-day-select, .marked-time-select').forEach(sel => {
-                /** @type {HTMLSelectElement} */ (sel).onchange = () => {
-                    const pid = /** @type {HTMLElement} */ (sel).dataset.placeId;
+                (sel as HTMLSelectElement).onchange = () => {
+                    const pid = (sel as HTMLElement).dataset.placeId;
                     if (!pid) return;
                     const card = panel.querySelector(`.ai-marked-card[data-place-id="${pid}"]`);
                     if (!card) return;
-                    const daySel = /** @type {HTMLSelectElement | null} */ (card.querySelector('.marked-day-select'));
-                    const timeSel = /** @type {HTMLSelectElement | null} */ (card.querySelector('.marked-time-select'));
+                    const daySel = (card.querySelector('.marked-day-select') as HTMLSelectElement | null);
+                    const timeSel = (card.querySelector('.marked-time-select') as HTMLSelectElement | null);
                     setMarkedPlaceAssignment(
                         activeTrip,
                         pid,
                         daySel?.value || null,
-                        /** @type {any} */ (timeSel?.value) || null
+                        (timeSel?.value as any) || null
                     );
                     emit('state:changed');
                     upsertTrip(activeTrip);
@@ -628,10 +625,10 @@ export function renderAI() {
 
         if (generatedItinerary) renderItineraryOutput(generatedItinerary, savedNumDays, tripCountry);
 
-        const contextInput = /** @type {HTMLTextAreaElement | null} */ (div.querySelector('#aiExtraContext'));
+        const contextInput = (div.querySelector('#aiExtraContext') as HTMLTextAreaElement | null);
         if (contextInput) {
             contextInput.oninput = (e) => {
-                activeTrip.aiContext = /** @type {HTMLTextAreaElement} */ (e.target).value;
+                activeTrip.aiContext = (e.target as HTMLTextAreaElement).value;
                 emit('state:changed');
             };
         }
@@ -640,10 +637,10 @@ export function renderAI() {
         // Wire the masked input, the 👁 eye toggle, and the (i) help
         // button. Persistence rides on emit('state:changed') →
         // saveState → localStorage. No dedicated request/network here.
-        const keyInput = /** @type {HTMLInputElement | null} */ (div.querySelector('#aiKeyInput'));
-        const keyToggleBtn = /** @type {HTMLButtonElement | null} */ (div.querySelector('#aiKeyToggleBtn'));
-        const keyHelpBtn = /** @type {HTMLButtonElement | null} */ (div.querySelector('#aiKeyHelpBtn'));
-        const keyStatusEl = /** @type {HTMLElement | null} */ (div.querySelector('#aiKeyStatus'));
+        const keyInput = (div.querySelector('#aiKeyInput') as HTMLInputElement | null);
+        const keyToggleBtn = (div.querySelector('#aiKeyToggleBtn') as HTMLButtonElement | null);
+        const keyHelpBtn = (div.querySelector('#aiKeyHelpBtn') as HTMLButtonElement | null);
+        const keyStatusEl = (div.querySelector('#aiKeyStatus') as HTMLElement | null);
 
         const renderKeyStatus = () => {
             if (!keyStatusEl) return;
@@ -735,8 +732,8 @@ export function renderAI() {
                         </div>
                     `,
                 });
-                /** @type {HTMLButtonElement | null} */ (helpRoot.querySelector('#aiKeyHelpClose'))?.addEventListener('click', closeHelp);
-                /** @type {HTMLButtonElement | null} */ (helpRoot.querySelector('#aiKeyHelpDone'))?.addEventListener('click', closeHelp);
+                (helpRoot.querySelector('#aiKeyHelpClose') as HTMLButtonElement | null)?.addEventListener('click', closeHelp);
+                (helpRoot.querySelector('#aiKeyHelpDone') as HTMLButtonElement | null)?.addEventListener('click', closeHelp);
             });
         }
 
@@ -744,15 +741,15 @@ export function renderAI() {
         // date inputs — this is what reveals the day/time-of-day
         // dropdowns once dates are set.
         ['#aiDateFrom', '#aiDateTo'].forEach(sel => {
-            const el = /** @type {HTMLInputElement | null} */ (div.querySelector(sel));
+            const el = (div.querySelector(sel) as HTMLInputElement | null);
             if (el) el.addEventListener('change', () => renderTodoListPanel());
         });
 
         div.querySelector('#generateBtn')?.addEventListener('click', async () => {
             const outputEl = q(div, '#itineraryOutput');
-            const dateFrom = /** @type {HTMLInputElement} */ (q(div, '#aiDateFrom')).value;
-            const dateTo = /** @type {HTMLInputElement} */ (q(div, '#aiDateTo')).value;
-            const ctxInput = /** @type {HTMLTextAreaElement | null} */ (document.getElementById('aiExtraContext'));
+            const dateFrom = (q(div, '#aiDateFrom') as HTMLInputElement).value;
+            const dateTo = (q(div, '#aiDateTo') as HTMLInputElement).value;
+            const ctxInput = (document.getElementById('aiExtraContext') as HTMLTextAreaElement | null);
             const userContext = ctxInput?.value ?? '';
             if (!dateFrom || !dateTo) { alert('Please select your travel dates.'); return; }
             const from = new Date(dateFrom), to = new Date(dateTo);
@@ -804,7 +801,7 @@ export function renderAI() {
                 renderItineraryOutput(generatedItinerary, numDays, tripCountry);
                 outputEl.scrollIntoView({ behavior: 'smooth' });
             } catch (e) {
-                outputEl.innerHTML = `<div class="card glass" style="text-align:center;padding:40px;"><h2 style="color:#ff3b30;">Generation Failed</h2><p>${/** @type {Error} */ (e).message}</p></div>`;
+                outputEl.innerHTML = `<div class="card glass" style="text-align:center;padding:40px;"><h2 style="color:#ff3b30;">Generation Failed</h2><p>${(e as Error).message}</p></div>`;
             }
         });
     }, 0);
