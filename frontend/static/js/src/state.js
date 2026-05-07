@@ -182,6 +182,11 @@ export function loadState() {
         // trip-wide bucket.
         if (!Array.isArray(trip.documents)) trip.documents = [];
         if (!Array.isArray(trip.photos)) trip.photos = [];
+        // Trip checklist — packing / errands / pre-trip tasks. Surfaced
+        // as a Genesis option (Genesis is the trip's central hub).
+        // Each item: { id, body, done, created_at }. Always-array
+        // shape so read sites can drop the `(trip.checklist || [])` dance.
+        if (!Array.isArray(trip.checklist)) trip.checklist = [];
         const genesisId = findGenesisId(trip.id, STATE.tripDays || []);
         if (genesisId) {
             for (const d of trip.documents) {
@@ -201,6 +206,7 @@ export function loadState() {
         }
         if (!Array.isArray(trip.documents)) trip.documents = [];
         if (!Array.isArray(trip.photos)) trip.photos = [];
+        if (!Array.isArray(trip.checklist)) trip.checklist = [];
         // Archived trips carry their tripDays nested on the trip
         // object (see collections.js restoreTrip), so Genesis lookup
         // pulls from there rather than STATE.tripDays.

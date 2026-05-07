@@ -2047,7 +2047,9 @@ export function renderHome() {
                     const isGenesis = (id) => !!id && id === genesisDay?.id;
                     const dayChip = (id) => {
                         if (isGenesis(id)) {
-                            return `<span style="background:rgba(52,199,89,0.12); color:#1a6b3c; padding:2px 8px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">⭐ Genesis</span>`;
+                            // Gold tint matches the Path-tab Genesis theme
+                            // (#e8b923 → #8b6e0c) — used to be green pre-recolor.
+                            return `<span style="background:rgba(212,160,23,0.14); color:#8b6e0c; padding:2px 8px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">⭐ Genesis</span>`;
                         }
                         const lbl = dayLabel(id);
                         return lbl
@@ -2112,7 +2114,7 @@ export function renderHome() {
                                 const groupLabel = orphan
                                     ? 'Unsorted'
                                     : (isGen ? '⭐ Trip Genesis · trip-wide' : (dayLabel(key) || 'Unknown day'));
-                                const accent = orphan ? 'rgba(0,0,0,0.45)' : (isGen ? '#1a6b3c' : 'var(--accent-blue)');
+                                const accent = orphan ? 'rgba(0,0,0,0.45)' : (isGen ? '#8b6e0c' : 'var(--accent-blue)');
                                 return `
                                     <div>
                                         <h4 style="margin:0 0 8px; font-size:0.7rem; font-weight:800; text-transform:uppercase; letter-spacing:0.1em; color:${accent};">${esc(groupLabel)}</h4>
@@ -2229,11 +2231,11 @@ export function renderHome() {
                                     // the static chip.
                                     const canEditDay = tripIsEditable && p._source === 'trip';
                                     const staticChipFor = (label, bg) => `<div style="position:absolute; top:6px; left:6px; background: ${bg}; color:white; padding:2px 8px; border-radius:999px; font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; backdrop-filter: blur(6px); pointer-events:none;">${esc(label)}</div>`;
-                                    // Genesis = green; numbered days = dark;
+                                    // Genesis = gold; numbered days = dark;
                                     // orphan (rare, legacy null dayId post-
                                     // migration) = neutral grey "Unsorted".
                                     const chipBg = isGenesisPhoto(p.dayId)
-                                        ? 'rgba(52,199,89,0.85)'
+                                        ? 'rgba(140,110,12,0.85)'
                                         : (p.dayId ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0.45)');
                                     const dayBadge = canEditDay
                                         ? `<select class="trip-photo-day-select" data-photo-id="${esc(p.id)}" title="Move to Trip Genesis or a numbered day"
@@ -2242,7 +2244,7 @@ export function renderHome() {
                                                 ${numberedDaysForPhotos.map(nd => `<option value="${esc(nd.id)}" ${p.dayId === nd.id ? 'selected' : ''}>Day ${nd.dayNumber}</option>`).join('')}
                                             </select>`
                                         : (isGenesisPhoto(p.dayId)
-                                            ? staticChipFor('⭐ Genesis', 'rgba(52,199,89,0.85)')
+                                            ? staticChipFor('⭐ Genesis', 'rgba(140,110,12,0.85)')
                                             : (p.dayId
                                                 ? staticChipFor(dayLabel(p.dayId) || '', 'rgba(0,0,0,0.55)')
                                                 : staticChipFor('Unsorted', 'rgba(0,0,0,0.45)')));
@@ -2309,7 +2311,7 @@ export function renderHome() {
          */
         const buildDayCardBody = (day, { isGenesis, isSelected }) => {
             const badge = isGenesis
-                ? `<div style="background: linear-gradient(135deg, #34c759, #30b350); color: white; width: 48px; height: 48px; border-radius: 50%; border: 3px solid white; display: flex; align-items: center; justify-content: center; flex-shrink:0; box-shadow: 0 8px 18px rgba(52,199,89,0.18);">
+                ? `<div style="background: linear-gradient(135deg, #e8b923, #8b6e0c); color: white; width: 48px; height: 48px; border-radius: 50%; border: 3px solid white; display: flex; align-items: center; justify-content: center; flex-shrink:0; box-shadow: 0 8px 18px rgba(212,160,23,0.28);">
                        <svg width="26" height="26" viewBox="0 0 48 48" aria-hidden="true">
                            <path d="M 24,11 L 27.06,18.96 L 35.55,19.49 L 28.92,24.92 L 31.0,33.16 L 24,28.6 L 17,33.16 L 19.08,24.92 L 12.45,19.49 L 20.94,18.96 Z" fill="white"/>
                        </svg>
@@ -2396,9 +2398,18 @@ export function renderHome() {
                 const label = isActive ? '🎯 Search center (active)' : '🎯 Set as search center';
                 buttons.push(`<button class="${cls}" data-day-id="${esc(day.id)}"><span>${label}</span></button>`);
             }
-            // Journaling — separate notes-only modal. Available for
-            // every editable day including Genesis.
-            buttons.push(`<button class="day-action-btn day-action-btn--neutral day-journaling-btn" data-day-id="${esc(day.id)}"><span>✍️ Journaling</span></button>`);
+            if (isGenesis) {
+                // Genesis — central hub. Trip checklist (free-form
+                // packing/errand tasks) replaces the per-day Journaling
+                // button here. Numbered days still get Journaling
+                // (notes-focused modal); Genesis's notes/journal still
+                // live in the day-detail modal accessed via Open Full Plan.
+                buttons.push(`<button class="day-action-btn day-action-btn--neutral path-checklist-btn" data-day-id="${esc(day.id)}"><span>📝 Trip checklist</span></button>`);
+            } else {
+                // Journaling — separate notes-only modal. Numbered days
+                // only; Genesis swaps this for the Trip checklist.
+                buttons.push(`<button class="day-action-btn day-action-btn--neutral day-journaling-btn" data-day-id="${esc(day.id)}"><span>✍️ Journaling</span></button>`);
+            }
             // Delete — only on non-Genesis days. Genesis is structurally
             // permanent (anchors the trip).
             if (!isGenesis) {
@@ -2736,6 +2747,14 @@ export function renderHome() {
 
             const journalBtn = /** @type {HTMLElement | null} */ (target.closest('.day-journaling-btn'));
             if (journalBtn?.dataset.dayId) { openJournalingModal(journalBtn.dataset.dayId); return; }
+
+            // Genesis: Trip checklist option (free-form packing/errand
+            // tasks). Distinct from /todo (places list) and from
+            // Journaling (notes modal).
+            if (target.closest('.path-checklist-btn') && activeTrip) {
+                openTripChecklistModal(activeTrip);
+                return;
+            }
 
             // (Day-level Photos/Documents buttons were removed
             //  entirely. Both stores live at trip scope now and are
@@ -3193,6 +3212,215 @@ function openShareToFeedModal(trip, onSubmit, seedCaption = '') {
         await onSubmit(caption);
     });
 }
+
+// ── Trip checklist (Genesis option) ─────────────────────────────────
+// Free-form to-do list scoped to the whole trip — packing, errands,
+// pre-trip tasks. Surfaced as a Genesis option (Genesis is the trip's
+// central hub). Stored as `trip.checklist` (array of {id, body, done,
+// created_at}); persisted via upsertTrip + the new checklist_json
+// column. Distinct from /todo (places-to-visit list) — checklist is
+// tasks, /todo is places.
+//
+// The modal stays open across mutations so the user can rip through
+// "add 5 tasks at once" without re-opening; everything is optimistic
+// + persisted in the background. Failures are silent for v1 (the
+// next sync reconciles).
+
+/** @param {any} trip */
+const openTripChecklistModal = (trip) => {
+    if (!trip) return;
+    if (!Array.isArray(trip.checklist)) trip.checklist = [];
+
+    const editable = canEdit(trip);
+
+    /** Persist + paint. Called after every add/toggle/edit/delete. */
+    const persist = () => {
+        emit('state:changed');
+        upsertTrip(trip);
+    };
+
+    const renderItemRow = (item) => {
+        const id = esc(item.id);
+        const done = !!item.done;
+        const editingMarker = item._editing ? ' is-editing' : '';
+        const bodyHtml = item._editing
+            ? `<input type="text" class="checklist-edit-input" data-item-id="${id}" value="${esc(item.body || '')}" maxlength="200" autocomplete="off"
+                style="flex:1; min-width:0; padding:6px 10px; border:1.5px solid var(--accent-blue); border-radius:8px; font-size:0.92rem; font-family:inherit; background:white; color:#002d5b;">`
+            : `<button type="button" class="checklist-item-text" data-item-id="${id}" ${editable ? '' : 'disabled'}
+                style="flex:1; min-width:0; text-align:left; padding:0; background:transparent; border:0; cursor:${editable ? 'pointer' : 'default'}; font-size:0.92rem; line-height:1.45; color:#002d5b; ${done ? 'color:rgba(0,45,91,0.4); text-decoration:line-through;' : ''}">${esc(item.body || '')}</button>`;
+        const actionsHtml = editable
+            ? (item._editing
+                ? `<button type="button" class="checklist-save-btn" data-item-id="${id}" title="Save" aria-label="Save"
+                       style="background:rgba(212,160,23,0.12); border:1px solid rgba(212,160,23,0.32); color:#8b6e0c; border-radius:8px; padding:4px 10px; font-size:0.78rem; font-weight:800; cursor:pointer; flex-shrink:0;">Save</button>`
+                : `<button type="button" class="checklist-delete-btn" data-item-id="${id}" title="Delete" aria-label="Delete"
+                       style="background:rgba(255,59,48,0.08); border:1px solid rgba(255,59,48,0.22); color:#ff3b30; border-radius:8px; padding:4px 10px; font-size:0.78rem; font-weight:800; cursor:pointer; flex-shrink:0;">✕</button>`)
+            : '';
+        return `
+            <div class="checklist-row${editingMarker}" data-item-id="${id}" style="display:flex; align-items:center; gap:10px; padding:10px 12px; background:white; border:1px solid rgba(0,45,91,0.06); border-radius:12px;">
+                <button type="button" class="checklist-toggle-btn" data-item-id="${id}" ${editable ? '' : 'disabled'} aria-pressed="${done}" title="${done ? 'Mark not done' : 'Mark done'}"
+                    style="flex-shrink:0; width:22px; height:22px; border-radius:50%; border:2px solid ${done ? '#8b6e0c' : 'rgba(0,113,227,0.3)'}; background:${done ? 'linear-gradient(135deg, #e8b923, #8b6e0c)' : 'white'}; color:white; cursor:${editable ? 'pointer' : 'default'}; display:inline-flex; align-items:center; justify-content:center; padding:0;">
+                    ${done ? `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>` : ''}
+                </button>
+                ${bodyHtml}
+                ${actionsHtml}
+            </div>
+        `;
+    };
+
+    const renderBody = () => {
+        const items = trip.checklist;
+        const remaining = items.filter(i => !i.done).length;
+        const summary = items.length === 0
+            ? 'No tasks yet — add the first one below.'
+            : `${remaining} of ${items.length} left`;
+        return `
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom: 16px;">
+                <div>
+                    <h2 style="margin:0 0 4px; font-size:1.5rem; color:#002d5b; font-weight:800; letter-spacing:-0.02em;">📝 Trip checklist</h2>
+                    <p style="margin:0; color:var(--text-secondary); font-size:0.85rem;">${esc(trip.name)} · packing, errands, anything to tick off</p>
+                </div>
+                <button id="checklistModalClose" class="close-x-btn" aria-label="Close">✕</button>
+            </div>
+            ${editable ? `
+                <form id="checklistAddForm" style="display:flex; gap:8px; margin-bottom:14px;">
+                    <input id="checklistAddInput" type="text" placeholder="Add a task — e.g. Charge power bank" maxlength="200" autocomplete="off"
+                        style="flex:1; min-width:0; padding:10px 14px; border:1px solid rgba(0,45,91,0.12); border-radius:999px; font-size:0.92rem; font-family:inherit; background:rgba(0,113,227,0.04); color:#002d5b;">
+                    <button type="submit" class="btn-primary" style="padding:10px 18px; border-radius:999px; font-size:0.85rem;">Add</button>
+                </form>
+            ` : ''}
+            <div id="checklistRows" style="display:flex; flex-direction:column; gap:8px;">
+                ${items.length === 0
+                    ? `<div style="font-size:0.85rem; color:var(--text-secondary); padding:20px; text-align:center; background:rgba(212,160,23,0.04); border:1.5px dashed rgba(212,160,23,0.32); border-radius:14px;">No tasks yet — your first one goes above.</div>`
+                    : items.map(renderItemRow).join('')}
+            </div>
+            <div style="margin-top:14px; font-size:0.78rem; color:var(--text-secondary); font-weight:700; text-transform:uppercase; letter-spacing:0.06em; text-align:center;">${esc(summary)}</div>
+        `;
+    };
+
+    const { root, close } = showModal({
+        cardClass: 'card glass',
+        cardStyle: 'width: 540px; max-width: calc(100vw - 32px); max-height: 85vh; overflow:hidden; padding: 26px 28px; border-radius: 28px; background: white; display:flex; flex-direction:column;',
+        innerHTML: '',
+    });
+
+    /** Re-render the modal contents in place (preserves scroll within
+     *  the rows region by re-using the same container). */
+    const repaint = () => {
+        root.innerHTML = renderBody();
+        wire();
+    };
+
+    /** Wire all delegated handlers. Re-attached on every repaint. */
+    const wire = () => {
+        /** @type {HTMLButtonElement | null} */
+        const closeBtn = root.querySelector('#checklistModalClose');
+        if (closeBtn) closeBtn.onclick = close;
+
+        const form = /** @type {HTMLFormElement | null} */ (root.querySelector('#checklistAddForm'));
+        if (form) {
+            form.onsubmit = (e) => {
+                e.preventDefault();
+                const input = /** @type {HTMLInputElement | null} */ (root.querySelector('#checklistAddInput'));
+                const body = (input?.value || '').trim();
+                if (!body) return;
+                trip.checklist.push({
+                    id: generateId(),
+                    body: body.slice(0, 200),
+                    done: false,
+                    created_at: new Date().toISOString(),
+                });
+                if (input) input.value = '';
+                persist();
+                repaint();
+                // Re-focus input so chains of additions feel natural.
+                const refocus = /** @type {HTMLInputElement | null} */ (root.querySelector('#checklistAddInput'));
+                if (refocus) refocus.focus();
+            };
+        }
+
+        // Toggle done.
+        root.querySelectorAll('.checklist-toggle-btn').forEach(btn => {
+            /** @type {HTMLButtonElement} */ (btn).onclick = () => {
+                const id = /** @type {HTMLElement} */ (btn).dataset.itemId;
+                const item = trip.checklist.find(i => i.id === id);
+                if (!item) return;
+                item.done = !item.done;
+                persist();
+                repaint();
+            };
+        });
+        // Click text → enter inline edit mode.
+        root.querySelectorAll('.checklist-item-text').forEach(btn => {
+            /** @type {HTMLButtonElement} */ (btn).onclick = () => {
+                const id = /** @type {HTMLElement} */ (btn).dataset.itemId;
+                const item = trip.checklist.find(i => i.id === id);
+                if (!item || !editable) return;
+                // Clear any other in-flight edits so only one row is
+                // editing at a time (keeps the UI legible).
+                trip.checklist.forEach(i => { if (i._editing && i.id !== id) delete i._editing; });
+                item._editing = true;
+                repaint();
+                const input = /** @type {HTMLInputElement | null} */ (root.querySelector(`.checklist-edit-input[data-item-id="${id}"]`));
+                if (input) {
+                    input.focus();
+                    input.select();
+                }
+            };
+        });
+        // Save edit (button or Enter key).
+        const commitEdit = (id) => {
+            const item = trip.checklist.find(i => i.id === id);
+            if (!item) return;
+            const input = /** @type {HTMLInputElement | null} */ (root.querySelector(`.checklist-edit-input[data-item-id="${id}"]`));
+            if (input) {
+                const next = input.value.trim().slice(0, 200);
+                if (next) item.body = next;  // empty input → silently keep old text
+            }
+            delete item._editing;
+            persist();
+            repaint();
+        };
+        root.querySelectorAll('.checklist-save-btn').forEach(btn => {
+            /** @type {HTMLButtonElement} */ (btn).onclick = () => {
+                const id = /** @type {HTMLElement} */ (btn).dataset.itemId;
+                if (id) commitEdit(id);
+            };
+        });
+        root.querySelectorAll('.checklist-edit-input').forEach(inp => {
+            /** @type {HTMLInputElement} */ (inp).onkeydown = (e) => {
+                const k = /** @type {KeyboardEvent} */ (e).key;
+                if (k === 'Enter') {
+                    e.preventDefault();
+                    const id = /** @type {HTMLElement} */ (inp).dataset.itemId;
+                    if (id) commitEdit(id);
+                } else if (k === 'Escape') {
+                    e.preventDefault();
+                    const id = /** @type {HTMLElement} */ (inp).dataset.itemId;
+                    const item = trip.checklist.find(i => i.id === id);
+                    if (item) { delete item._editing; repaint(); }
+                }
+            };
+        });
+        // Delete.
+        root.querySelectorAll('.checklist-delete-btn').forEach(btn => {
+            /** @type {HTMLButtonElement} */ (btn).onclick = () => {
+                const id = /** @type {HTMLElement} */ (btn).dataset.itemId;
+                trip.checklist = trip.checklist.filter(i => i.id !== id);
+                persist();
+                repaint();
+            };
+        });
+    };
+
+    repaint();
+    // Auto-focus the add-input on first open so the user can start
+    // typing straight away (the most common gesture when opening the
+    // modal is "I want to add a task").
+    setTimeout(() => {
+        const input = /** @type {HTMLInputElement | null} */ (root.querySelector('#checklistAddInput'));
+        if (input) input.focus();
+    }, 80);
+};
 
 // The Documents and Photos tabs on Home each open a small modal for
 // adding new entries. Both stores live on the trip object directly

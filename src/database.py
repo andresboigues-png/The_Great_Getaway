@@ -106,6 +106,14 @@ def init_db():
             # { id, src, dayId?, addedAt? }. Same shape rules as
             # documents — dayId optional. See the Photos tab on Home.
             ("photos_json", "ALTER TABLE trips ADD COLUMN photos_json TEXT"),
+            # JSON-encoded trip checklist — packing / errands / pre-trip
+            # tasks the user wants to tick off. Lives at trip scope
+            # (one checklist per trip, surfaced as a Genesis option
+            # since Genesis is the trip's central hub). Each item:
+            # { id, body, done, created_at }. Distinct from the
+            # /todo page (which is the per-trip list of PLACES from
+            # the home map) — checklist is free-form tasks.
+            ("checklist_json", "ALTER TABLE trips ADD COLUMN checklist_json TEXT"),
         ]:
             try:
                 cursor.execute(ddl)

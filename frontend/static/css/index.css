@@ -2559,10 +2559,11 @@ h1 {
    strong accent-blue border across the board so the active card still
    reads as selected. */
 
-/* Genesis — the trip's location anchor. Green to mirror the green
-   star avatar on the same card. */
+/* Genesis — the trip's location anchor. Gold to mirror the gold
+   star avatar on the same card. (Recoloured from green to fit the
+   "central hub / premium anchor" identity Genesis carries.) */
 .day-card--genesis {
-    border-color: rgba(52, 199, 89, 0.5) !important;
+    border-color: rgba(212, 160, 23, 0.55) !important;
 }
 .day-card--genesis.is-open {
     border-color: var(--accent-blue) !important;
@@ -3517,18 +3518,24 @@ h1 {
     transform: scale(1.18);
     box-shadow: 0 0 0 3px white, 0 6px 14px rgba(0, 113, 227, 0.32);
 }
+/* Genesis = trip headquarters; styled gold across the board (chips,
+   card, primary button) so it visually outranks numbered days and
+   reads as the trip's anchor / central hub. The gold palette
+   (#e8b923 → #8b6e0c) was picked to sit between the existing
+   accent-blue and the sidebar's #ff9500 orange so it doesn't get
+   mistaken for either. */
 .path-chip--genesis {
-    border-color: #34c759;
-    color: #1a6b3c;
+    border-color: #c89a18;
+    color: #8b6e0c;
 }
 .path-chip--genesis:hover {
-    background: rgba(52, 199, 89, 0.06);
+    background: rgba(212, 160, 23, 0.08);
 }
 .path-chip--genesis.is-selected {
-    background: linear-gradient(135deg, #34c759, #1a6b3c);
+    background: linear-gradient(135deg, #e8b923, #8b6e0c);
     color: white;
-    border-color: #1a6b3c;
-    box-shadow: 0 0 0 3px white, 0 6px 14px rgba(52, 199, 89, 0.32);
+    border-color: #8b6e0c;
+    box-shadow: 0 0 0 3px white, 0 6px 14px rgba(212, 160, 23, 0.4);
 }
 .path-chip--add {
     border-style: dashed;
@@ -3610,12 +3617,12 @@ h1 {
     transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
 .path-card--genesis {
-    border-color: rgba(52, 199, 89, 0.3);
-    background: linear-gradient(180deg, rgba(52, 199, 89, 0.04), white);
+    border-color: rgba(212, 160, 23, 0.32);
+    background: linear-gradient(180deg, rgba(212, 160, 23, 0.05), white);
 }
 .path-card--genesis.is-selected {
-    border-color: #1a6b3c;
-    box-shadow: 0 8px 22px rgba(52, 199, 89, 0.18);
+    border-color: #8b6e0c;
+    box-shadow: 0 8px 22px rgba(212, 160, 23, 0.22);
 }
 .path-card--selected {
     border-color: rgba(0, 113, 227, 0.22);
@@ -3653,11 +3660,11 @@ h1 {
     box-shadow: 0 8px 18px rgba(0, 113, 227, 0.3);
 }
 .path-options-stack .path-primary-btn--genesis {
-    background: linear-gradient(135deg, #34c759, #1a6b3c);
-    box-shadow: 0 6px 14px rgba(52, 199, 89, 0.22);
+    background: linear-gradient(135deg, #e8b923, #8b6e0c);
+    box-shadow: 0 6px 14px rgba(212, 160, 23, 0.28);
 }
 .path-options-stack .path-primary-btn--genesis:hover {
-    box-shadow: 0 8px 18px rgba(52, 199, 89, 0.3);
+    box-shadow: 0 8px 18px rgba(212, 160, 23, 0.36);
 }
 
 /* `home-tabnav--centered` modifier — used by the Feed page so the
