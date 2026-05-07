@@ -615,17 +615,38 @@
         </div>
 
         ${t?`
-            <!-- Trip tab nav. Used to also include Documents + Photos
-                 tabs; both moved to Genesis options (per user) so the
-                 nav stays focused on the two structural views — the
-                 trip's days vs. the trip's people. The Documents and
-                 Photos PANELS still render below (gated by
-                 activeHomeTab) — they're just reached from Genesis
-                 options now and have their own back-to-Path header. -->
-            <nav class="home-tabnav" role="tablist">
-                <button class="home-tabnav__tab${B===`days`?` is-active`:``}" data-home-tab="days" role="tab">Path</button>
-                <button class="home-tabnav__tab${B===`companions`?` is-active`:``}" data-home-tab="companions" role="tab">Companions</button>
-            </nav>
+            <!-- Trip tab nav. Used to be a horizontal underline tab
+                 row reusing .home-tabnav (feed.js style); with only
+                 two tabs that read sparse + the underline visually
+                 echoed the day-wheel timeline below. Now a centered
+                 segmented-capsule toggle (.trip-tabnav) — a single
+                 glass pill with two interior pills, the active one
+                 carrying the blue→purple gradient that matches the
+                 Day badges. Each tab gets a small icon so the
+                 segmented control reads as more than just two words.
+                 The Documents and Photos panels still render below
+                 (gated by activeHomeTab) but are reached from
+                 Genesis options modals now. -->
+            <div class="trip-tabnav-wrap">
+                <nav class="trip-tabnav" role="tablist" aria-label="Trip view">
+                    <button class="trip-tabnav__tab${B===`days`?` is-active`:``}" data-home-tab="days" role="tab" aria-selected="${B===`days`?`true`:`false`}">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                            <circle cx="12" cy="10" r="3"></circle>
+                        </svg>
+                        <span>Path</span>
+                    </button>
+                    <button class="trip-tabnav__tab${B===`companions`?` is-active`:``}" data-home-tab="companions" role="tab" aria-selected="${B===`companions`?`true`:`false`}">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="9" cy="7" r="4"></circle>
+                            <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                        </svg>
+                        <span>Companions</span>
+                    </button>
+                </nav>
+            </div>
         `:``}
 
         <!-- Companions tab content. Render order matters: this sits ABOVE
@@ -723,7 +744,7 @@
                 </div>
                 <div class="path-summary">${L(u)}</div>
                 <div class="path-cards-row">${_.join(``)}</div>
-            `},a=w.querySelector(`#pathTabInner`),o=()=>{if(!a)return;a.innerHTML=i();let e=a.querySelector(`.path-chip.is-selected`);e&&e.scrollIntoView({behavior:`smooth`,inline:`center`,block:`nearest`})};at=o,o();let s=e=>{let n=[...(b.tripDays||[]).filter(e=>e.tripId===t.id)].sort((e,t)=>e.dayNumber-t.dayNumber),r=it(t,n),i=n[n.findIndex(e=>e.id===r)+e];i&&rt(t.id,i.id)},c=null;w.addEventListener(`touchstart`,e=>{let t=e.touches?.[0];t&&e.target instanceof Element&&e.target.closest(`.path-cards-row`)&&(c=t.clientX)},{passive:!0}),w.addEventListener(`touchend`,e=>{if(c==null)return;let t=e.changedTouches?.[0],n=c;if(c=null,!t)return;let r=t.clientX-n;Math.abs(r)<40||s(r<0?1:-1)},{passive:!0}),document.addEventListener(`keydown`,e=>{if(B!==`days`||e.key!==`ArrowLeft`&&e.key!==`ArrowRight`)return;let t=e.target&&e.target.tagName||``;t===`INPUT`||t===`TEXTAREA`||t===`SELECT`||s(e.key===`ArrowLeft`?-1:1)}),w.addEventListener(`click`,async e=>{let n=e.target;if(!n)return;if(n.closest(`#resetMapViewBtn`)){let e=window.activeMap;if(!e||!t)return;let n=google,r=new n.maps.LatLngBounds;typeof t.lat==`number`&&typeof t.lng==`number`&&r.extend({lat:t.lat,lng:t.lng});let i=(b.tripDays||[]).filter(e=>e.tripId===t.id);for(let e of i)typeof e.lat==`number`&&r.extend({lat:e.lat,lng:e.lon||e.lng});if(!r.isEmpty()){let i=r.getNorthEast(),a=r.getSouthWest(),o=Math.abs(i.lat()-a.lat()),s=Math.abs(i.lng()-a.lng()),c=o<.001&&s<.001;if(c&&t.viewport){let r=t.viewport;e.fitBounds(new n.maps.LatLngBounds({lat:r.south,lng:r.west},{lat:r.north,lng:r.east}))}else c?(e.setCenter(i),e.setZoom(12)):e.fitBounds(r,80)}else if(t.viewport){let r=t.viewport;e.fitBounds(new n.maps.LatLngBounds({lat:r.south,lng:r.west},{lat:r.north,lng:r.east}))}return}let r=e=>{B=e,w.querySelectorAll(`.home-tabnav__tab`).forEach(e=>{e.classList.toggle(`is-active`,e.dataset.homeTab===B)}),w.querySelectorAll(`.home-tab-content`).forEach(e=>{e.classList.toggle(`is-active`,e.dataset.homeTab===B)})},i=n.closest(`.home-tabnav__tab`)?.dataset.homeTab;if(i===`days`||i===`companions`){r(i);return}if(n.closest(`.path-documents-btn`)&&t){xt(t);return}if(n.closest(`.path-photos-btn`)&&t){St(t);return}if(n.closest(`#editTripBtn`)){Oe(t);return}let a=n.closest(`#silenceTripBtn`);if(a&&t){let e=a.dataset.silenced===`1`,n=!e;t.actionsHidden=n,_t(a,n),T(`state:changed`);let r=await Tr(t.id,n);if(!r||!r.ok){t.actionsHidden=e,_t(a,e),T(`state:changed`),N(r?.status===403?`Only the trip owner can silence trip actions.`:`Couldn't update — try again in a moment.`);return}N(n?`Trip actions silenced — hidden from friends' feeds.`:`Trip actions visible again.`);return}if(n.closest(`#tripCompanionsBtn`)||n.closest(`#tripMembersPanel`)){Ce(t)?Ae(t.id):je(t.id);return}let o=n.closest(`.day-pin-save-btn`);if(o?.dataset.dayId){ft(o.dataset.dayId);return}let c=n.closest(`.day-pin-delete-btn`);if(c?.dataset.dayId){pt(c.dataset.dayId);return}let l=n.closest(`.day-pin-toggle-btn`);if(l?.dataset.dayId){let e=l.dataset.dayId;b.tripDays.find(t=>t.id===e)?.lat?dt(e):ut(e);return}let u=n.closest(`.day-journaling-btn`);if(u?.dataset.dayId){gt(u.dataset.dayId);return}if(n.closest(`.path-checklist-btn`)&&t){bt(t);return}let d=n.closest(`.day-delete-btn`);if(d?.dataset.dayId){mt(d.dataset.dayId);return}let f=n.closest(`.day-detail-btn`);if(f?.dataset.dayId){At(f.dataset.dayId);return}if(n.closest(`#pathAddDayChip`)){ke();return}if(n.closest(`#pathPrevBtn`)){s(-1);return}if(n.closest(`#pathNextBtn`)){s(1);return}let p=n.closest(`.path-chip[data-path-chip-day-id]`);if(p?.dataset.pathChipDayId&&t){rt(t.id,p.dataset.pathChipDayId);return}let m=n.closest(`.path-card[data-day-id]`);if(m?.dataset.dayId&&t){rt(t.id,m.dataset.dayId);return}})}if(b.hideQuickAccess!==!1){let t=document.createElement(`div`);t.style.textAlign=`center`,t.style.marginTop=`40px`,t.innerHTML=`
+            `},a=w.querySelector(`#pathTabInner`),o=()=>{if(!a)return;a.innerHTML=i();let e=a.querySelector(`.path-chip.is-selected`);e&&e.scrollIntoView({behavior:`smooth`,inline:`center`,block:`nearest`})};at=o,o();let s=e=>{let n=[...(b.tripDays||[]).filter(e=>e.tripId===t.id)].sort((e,t)=>e.dayNumber-t.dayNumber),r=it(t,n),i=n[n.findIndex(e=>e.id===r)+e];i&&rt(t.id,i.id)},c=null;w.addEventListener(`touchstart`,e=>{let t=e.touches?.[0];t&&e.target instanceof Element&&e.target.closest(`.path-cards-row`)&&(c=t.clientX)},{passive:!0}),w.addEventListener(`touchend`,e=>{if(c==null)return;let t=e.changedTouches?.[0],n=c;if(c=null,!t)return;let r=t.clientX-n;Math.abs(r)<40||s(r<0?1:-1)},{passive:!0}),document.addEventListener(`keydown`,e=>{if(B!==`days`||e.key!==`ArrowLeft`&&e.key!==`ArrowRight`)return;let t=e.target&&e.target.tagName||``;t===`INPUT`||t===`TEXTAREA`||t===`SELECT`||s(e.key===`ArrowLeft`?-1:1)}),w.addEventListener(`click`,async e=>{let n=e.target;if(!n)return;if(n.closest(`#resetMapViewBtn`)){let e=window.activeMap;if(!e||!t)return;let n=google,r=new n.maps.LatLngBounds;typeof t.lat==`number`&&typeof t.lng==`number`&&r.extend({lat:t.lat,lng:t.lng});let i=(b.tripDays||[]).filter(e=>e.tripId===t.id);for(let e of i)typeof e.lat==`number`&&r.extend({lat:e.lat,lng:e.lon||e.lng});if(!r.isEmpty()){let i=r.getNorthEast(),a=r.getSouthWest(),o=Math.abs(i.lat()-a.lat()),s=Math.abs(i.lng()-a.lng()),c=o<.001&&s<.001;if(c&&t.viewport){let r=t.viewport;e.fitBounds(new n.maps.LatLngBounds({lat:r.south,lng:r.west},{lat:r.north,lng:r.east}))}else c?(e.setCenter(i),e.setZoom(12)):e.fitBounds(r,80)}else if(t.viewport){let r=t.viewport;e.fitBounds(new n.maps.LatLngBounds({lat:r.south,lng:r.west},{lat:r.north,lng:r.east}))}return}let r=e=>{B=e,w.querySelectorAll(`.trip-tabnav__tab`).forEach(e=>{let t=e,n=t.dataset.homeTab===B;t.classList.toggle(`is-active`,n),t.setAttribute(`aria-selected`,n?`true`:`false`)}),w.querySelectorAll(`.home-tab-content`).forEach(e=>{e.classList.toggle(`is-active`,e.dataset.homeTab===B)})},i=n.closest(`.trip-tabnav__tab`)?.dataset.homeTab;if(i===`days`||i===`companions`){r(i);return}if(n.closest(`.path-documents-btn`)&&t){xt(t);return}if(n.closest(`.path-photos-btn`)&&t){St(t);return}if(n.closest(`#editTripBtn`)){Oe(t);return}let a=n.closest(`#silenceTripBtn`);if(a&&t){let e=a.dataset.silenced===`1`,n=!e;t.actionsHidden=n,_t(a,n),T(`state:changed`);let r=await Tr(t.id,n);if(!r||!r.ok){t.actionsHidden=e,_t(a,e),T(`state:changed`),N(r?.status===403?`Only the trip owner can silence trip actions.`:`Couldn't update — try again in a moment.`);return}N(n?`Trip actions silenced — hidden from friends' feeds.`:`Trip actions visible again.`);return}if(n.closest(`#tripCompanionsBtn`)||n.closest(`#tripMembersPanel`)){Ce(t)?Ae(t.id):je(t.id);return}let o=n.closest(`.day-pin-save-btn`);if(o?.dataset.dayId){ft(o.dataset.dayId);return}let c=n.closest(`.day-pin-delete-btn`);if(c?.dataset.dayId){pt(c.dataset.dayId);return}let l=n.closest(`.day-pin-toggle-btn`);if(l?.dataset.dayId){let e=l.dataset.dayId;b.tripDays.find(t=>t.id===e)?.lat?dt(e):ut(e);return}let u=n.closest(`.day-journaling-btn`);if(u?.dataset.dayId){gt(u.dataset.dayId);return}if(n.closest(`.path-checklist-btn`)&&t){bt(t);return}let d=n.closest(`.day-delete-btn`);if(d?.dataset.dayId){mt(d.dataset.dayId);return}let f=n.closest(`.day-detail-btn`);if(f?.dataset.dayId){At(f.dataset.dayId);return}if(n.closest(`#pathAddDayChip`)){ke();return}if(n.closest(`#pathPrevBtn`)){s(-1);return}if(n.closest(`#pathNextBtn`)){s(1);return}let p=n.closest(`.path-chip[data-path-chip-day-id]`);if(p?.dataset.pathChipDayId&&t){rt(t.id,p.dataset.pathChipDayId);return}let m=n.closest(`.path-card[data-day-id]`);if(m?.dataset.dayId&&t){rt(t.id,m.dataset.dayId);return}})}if(b.hideQuickAccess!==!1){let t=document.createElement(`div`);t.style.textAlign=`center`,t.style.marginTop=`40px`,t.innerHTML=`
             <button class="btn-glass-light">
                 🧭 Show Quick Access
             </button>

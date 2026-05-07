@@ -2050,17 +2050,38 @@ export function renderHome() {
         </div>
 
         ${activeTrip ? `
-            <!-- Trip tab nav. Used to also include Documents + Photos
-                 tabs; both moved to Genesis options (per user) so the
-                 nav stays focused on the two structural views — the
-                 trip's days vs. the trip's people. The Documents and
-                 Photos PANELS still render below (gated by
-                 activeHomeTab) — they're just reached from Genesis
-                 options now and have their own back-to-Path header. -->
-            <nav class="home-tabnav" role="tablist">
-                <button class="home-tabnav__tab${activeHomeTab === 'days' ? ' is-active' : ''}" data-home-tab="days" role="tab">Path</button>
-                <button class="home-tabnav__tab${activeHomeTab === 'companions' ? ' is-active' : ''}" data-home-tab="companions" role="tab">Companions</button>
-            </nav>
+            <!-- Trip tab nav. Used to be a horizontal underline tab
+                 row reusing .home-tabnav (feed.js style); with only
+                 two tabs that read sparse + the underline visually
+                 echoed the day-wheel timeline below. Now a centered
+                 segmented-capsule toggle (.trip-tabnav) — a single
+                 glass pill with two interior pills, the active one
+                 carrying the blue→purple gradient that matches the
+                 Day badges. Each tab gets a small icon so the
+                 segmented control reads as more than just two words.
+                 The Documents and Photos panels still render below
+                 (gated by activeHomeTab) but are reached from
+                 Genesis options modals now. -->
+            <div class="trip-tabnav-wrap">
+                <nav class="trip-tabnav" role="tablist" aria-label="Trip view">
+                    <button class="trip-tabnav__tab${activeHomeTab === 'days' ? ' is-active' : ''}" data-home-tab="days" role="tab" aria-selected="${activeHomeTab === 'days' ? 'true' : 'false'}">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                            <circle cx="12" cy="10" r="3"></circle>
+                        </svg>
+                        <span>Path</span>
+                    </button>
+                    <button class="trip-tabnav__tab${activeHomeTab === 'companions' ? ' is-active' : ''}" data-home-tab="companions" role="tab" aria-selected="${activeHomeTab === 'companions' ? 'true' : 'false'}">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="9" cy="7" r="4"></circle>
+                            <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                        </svg>
+                        <span>Companions</span>
+                    </button>
+                </nav>
+            </div>
         ` : ''}
 
         <!-- Companions tab content. Render order matters: this sits ABOVE
@@ -2505,17 +2526,22 @@ export function renderHome() {
             // To-do list moved to its own top-level /todo page;
             // Documents + Photos moved to Genesis options (clicked
             // via .path-documents-btn / .path-photos-btn below) and
-            // are reached via the same activeHomeTab swap.
+            // are reached via the same activeHomeTab swap. Selector
+            // is .trip-tabnav__tab (the segmented-capsule design);
+            // .home-tabnav still exists but is feed.js's tabs.
             const setActiveHomeTab = (key) => {
                 activeHomeTab = key;
-                daysContainer.querySelectorAll('.home-tabnav__tab').forEach(t => {
-                    /** @type {HTMLElement} */ (t).classList.toggle('is-active', /** @type {HTMLElement} */ (t).dataset.homeTab === activeHomeTab);
+                daysContainer.querySelectorAll('.trip-tabnav__tab').forEach(t => {
+                    const el = /** @type {HTMLElement} */ (t);
+                    const isActive = el.dataset.homeTab === activeHomeTab;
+                    el.classList.toggle('is-active', isActive);
+                    el.setAttribute('aria-selected', isActive ? 'true' : 'false');
                 });
                 daysContainer.querySelectorAll('.home-tab-content').forEach(c => {
                     /** @type {HTMLElement} */ (c).classList.toggle('is-active', /** @type {HTMLElement} */ (c).dataset.homeTab === activeHomeTab);
                 });
             };
-            const tabBtn = /** @type {HTMLElement | null} */ (target.closest('.home-tabnav__tab'));
+            const tabBtn = /** @type {HTMLElement | null} */ (target.closest('.trip-tabnav__tab'));
             const tabKey = tabBtn?.dataset.homeTab;
             if (tabKey === 'days' || tabKey === 'companions') {
                 setActiveHomeTab(tabKey);

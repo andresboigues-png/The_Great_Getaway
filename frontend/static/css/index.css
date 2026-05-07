@@ -3475,6 +3475,69 @@ h1 {
    as the expenses-tabnav so both pages share a consistent rhythm. The
    active tab sits ON the baseline via a 2px bottom-border that overlaps
    the parent's 1px line. */
+/* Trip tab nav — Path / Companions toggle on the Home page.
+   Segmented-capsule design: one rounded-full glass container with
+   two interior pills. Active pill carries the Day-badge gradient
+   (blue → purple), inactive pills are transparent text. Replaces
+   an underline-style two-tab row that read sparse with so few
+   options + visually echoed the day-wheel timeline below.
+   Distinct from .home-tabnav (still used by feed.js for its
+   Actions / Posts toggle, which has more tabs + a different
+   aesthetic). */
+.trip-tabnav-wrap {
+    display: flex;
+    justify-content: center;
+    margin: var(--space-5) 0 var(--space-6);
+}
+.trip-tabnav {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px;
+    background: rgba(255, 255, 255, 0.72);
+    backdrop-filter: blur(14px) saturate(160%);
+    -webkit-backdrop-filter: blur(14px) saturate(160%);
+    border: 1px solid rgba(0, 45, 91, 0.08);
+    border-radius: 999px;
+    box-shadow: 0 4px 14px rgba(0, 45, 91, 0.06);
+}
+.trip-tabnav__tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 22px;
+    border: 0;
+    background: transparent;
+    border-radius: 999px;
+    font-size: 0.84rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    cursor: pointer;
+    letter-spacing: -0.01em;
+    transition: background 0.2s ease, color 0.2s ease,
+                box-shadow 0.2s ease, transform 0.18s ease;
+}
+.trip-tabnav__tab svg {
+    flex-shrink: 0;
+    opacity: 0.75;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.trip-tabnav__tab:hover:not(.is-active) {
+    color: var(--accent-blue);
+    background: rgba(0, 113, 227, 0.06);
+}
+.trip-tabnav__tab:hover:not(.is-active) svg { opacity: 1; }
+.trip-tabnav__tab.is-active {
+    color: white;
+    background: linear-gradient(135deg, var(--accent-blue), #5856d6);
+    box-shadow: 0 4px 12px rgba(0, 113, 227, 0.28);
+    font-weight: 800;
+}
+.trip-tabnav__tab.is-active svg {
+    opacity: 1;
+    transform: scale(1.05);
+}
+
 .home-tabnav {
     display: flex;
     gap: 36px;
