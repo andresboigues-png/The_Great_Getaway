@@ -2180,13 +2180,19 @@ export function renderHome() {
 
         /** Build the vertical options stack that sits under each card.
          *  Each card "owns" its own actions visually — Genesis gets a
-         *  slim set (Open + Edit anchor pin + Journaling); a numbered
-         *  day gets the full set: Open Full Plan (primary) + Edit Pin
-         *  + Set as search center (when applicable) + Journaling +
-         *  Delete. When the user is mid pin-edit (editingDayId), the
-         *  pin button morphs into Save + ✕ as before. Buttons stretch
-         *  the column width via the `.path-options-stack .day-action-btn`
-         *  CSS rule. */
+         *  slim set (Trip checklist primary + Edit anchor pin +
+         *  Documents + Photos); a numbered day gets Open Full Plan
+         *  (primary) + Edit Pin + Journaling + Delete. When the user
+         *  is mid pin-edit (editingDayId), the pin button morphs into
+         *  Save + ✕ as before. Buttons stretch the column width via
+         *  the `.path-options-stack .day-action-btn` CSS rule.
+         *
+         *  The day-level "Set as search center" toggle that used to
+         *  sit on pinned numbered days was removed (per user). The
+         *  read-side logic at line ~994 still honours any
+         *  pillEpicenters value already in storage; the entry point
+         *  to set/clear it will move into the pin-edit options in a
+         *  future pass. */
         const buildOptionsStack = (day, { isGenesis }) => {
             if (!day || !tripIsEditable) return '';
             const buttons = [];
@@ -2226,16 +2232,13 @@ export function renderHome() {
                 buttons.push(`<button class="day-action-btn day-action-btn--neutral path-photos-btn" data-day-id="${esc(day.id)}"><span>📸 Photos</span></button>`);
             } else {
                 // Numbered-day-only options.
-                if (day.lat) {
-                    // Set as search center — only on pinned days.
-                    // Genesis is the implicit default epicenter so it
-                    // doesn't get this control.
-                    const tripId = activeTrip?.id || '';
-                    const isActive = STATE.preferences?.pillEpicenters?.[tripId] === day.id;
-                    const cls = isActive ? 'day-action-btn day-action-btn--success day-set-epicenter-btn' : 'day-action-btn day-action-btn--neutral day-set-epicenter-btn';
-                    const label = isActive ? '🎯 Search center (active)' : '🎯 Set as search center';
-                    buttons.push(`<button class="${cls}" data-day-id="${esc(day.id)}"><span>${label}</span></button>`);
-                }
+                // (The "🎯 Set as search center" toggle lived here
+                //  before — removed per user. The pillEpicenters
+                //  state + the POI-search read-side logic stay
+                //  intact; the entry point will move into the pin-
+                //  edit options in a future pass. For now there's
+                //  no way to flip a numbered day's epicenter from
+                //  the UI; existing values keep working.)
                 // Journaling — separate notes-only modal. Numbered
                 // days only; Genesis swaps this for the Trip checklist
                 // (now its primary button at the top).
@@ -2608,21 +2611,12 @@ export function renderHome() {
             //  entirely. Both stores live at trip scope now and are
             //  managed from the Documents + Photos tabs on Home.)
 
-            // "Set as search center" — toggle this day as the pill-
-            // search epicenter for the active trip. Click an active
-            // one again to clear (genesis becomes the default again).
-            const epicenterBtn = /** @type {HTMLElement | null} */ (target.closest('.day-set-epicenter-btn'));
-            if (epicenterBtn?.dataset.dayId && activeTrip) {
-                const dayId = epicenterBtn.dataset.dayId;
-                if (!STATE.preferences) STATE.preferences = { mapDefaultPois: ['sights','parks','transit'], poiFilters: {}, pillEpicenters: {} };
-                if (!STATE.preferences.pillEpicenters) STATE.preferences.pillEpicenters = {};
-                const currentlyActive = STATE.preferences.pillEpicenters[activeTrip.id] === dayId;
-                if (currentlyActive) delete STATE.preferences.pillEpicenters[activeTrip.id];
-                else STATE.preferences.pillEpicenters[activeTrip.id] = dayId;
-                emit('state:changed');
-                navigate('home'); // re-render so the button label updates
-                return;
-            }
+            // ("Set as search center" toggle handler used to live
+            //  here. Removed with the day-level button — see
+            //  buildOptionsStack. The pillEpicenters state itself
+            //  is preserved and read-side (see line ~994) still
+            //  honours any existing values; the entry point will
+            //  move into the pin-edit options in a future pass.)
 
             // The shortlist remove handler used to live here; the
             // to-do list moved to /todo so this button no longer
