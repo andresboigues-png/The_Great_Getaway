@@ -16,6 +16,7 @@ import { getMediaForTrip, showLiquidAlert, formatDayDate, q, showConfirmModal, g
 // + locally so the trip's create/archive/join events stop bleeding
 // into friends' Actions feeds.
 import { upsertDay, uploadMedia, deleteDayOnServer, upsertTrip, setTripActionsHidden } from '../api.js';
+import { fetchTimeZone, formatLocalTime, fetchWeatherForecast, pickDaySummary, streetViewUrl } from '../googleMapsServices.js';
 import { navigate } from '../router.js';
 import { showPersTab } from './settings.js';
 import { openNewTripModal, openAddDayModal, openEditTripModal, openCompanionPickerModal, openTripMembersModal } from '../modals.js';
@@ -49,6 +50,13 @@ let activeMapClickListener = null; // Reference to the active map click handler
 // every home render so stacked timers can't leak when the user
 // flips trips, navigates away, or just re-renders the page.
 let _dayRouteAnimationFrame = null;
+
+// setInterval id for the trip-header local-time clock. The clock
+// reads from a cached time-zone offset and updates every 30s so
+// the displayed local time stays correct without re-fetching the
+// Time Zone API. Cleared on every home render for the same
+// leak-prevention reason as the rAF above.
+let _localTimeClockInterval = null;
 
 // Cache for the road-following polyline path keyed by trip + day
 // coordinates. Directions API costs per request — without this,
@@ -93,8 +101,101 @@ let _directionsHintLogged = false;
  * @param {{lat:number,lng:number}[]} legs - day pins in order
  * @returns {Promise<{path:{lat:number,lng:number}[], success:number} | null>}
  */
+/**
+ * Routes API attempt — newer Google Maps Platform endpoint that
+ * handles the WHOLE trip in a single HTTP call (origin →
+ * intermediates → destination). Beats the legacy Directions API
+ * on:
+ *   - Cost: one billed request vs. one per leg.
+ *   - Latency: one network round trip.
+ *   - Future features: Routes supports waypoint optimization
+ *     ("rearrange days into the most efficient order") which
+ *     legacy Directions doesn't.
+ *
+ * Returns the same {path, success, totalDurationSec,
+ * totalDistanceM} shape as the Directions fallback so the caller
+ * can swap them transparently. Returns null on any failure
+ * (Routes API not enabled, request error, no path returned) so
+ * the caller falls through to Directions.
+ *
+ * @param {{lat:number,lng:number}[]} legs
+ * @returns {Promise<{path:{lat:number,lng:number}[], success:number, totalDurationSec:number, totalDistanceM:number} | null>}
+ */
+async function fetchTripRouteViaRoutes(legs) {
+    const key = /** @type {any} */ (window).googleMapsApiKey || '';
+    if (!key || !Array.isArray(legs) || legs.length < 2) return null;
+    const origin = legs[0];
+    const destination = legs[legs.length - 1];
+    const intermediates = legs.slice(1, -1).map(p => ({
+        location: { latLng: { latitude: p.lat, longitude: p.lng } },
+    }));
+    const body = {
+        origin: { location: { latLng: { latitude: origin.lat, longitude: origin.lng } } },
+        destination: { location: { latLng: { latitude: destination.lat, longitude: destination.lng } } },
+        intermediates,
+        travelMode: 'DRIVE',
+        polylineQuality: 'HIGH_QUALITY',
+        polylineEncoding: 'GEO_JSON_LINESTRING',
+    };
+    try {
+        const res = await fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Goog-Api-Key': key,
+                // Field mask is required — without it the API
+                // returns INVALID_ARGUMENT. Listing only what we
+                // use keeps the response small + cost low (Routes
+                // bills by SKU based on requested fields).
+                'X-Goog-FieldMask': 'routes.duration,routes.distanceMeters,routes.polyline.geoJsonLinestring',
+            },
+            body: JSON.stringify(body),
+        });
+        if (!res.ok) {
+            // 403 = API not enabled / key restriction / billing
+            // missing. Surface the hint once per session.
+            if (res.status === 403 && !_directionsHintLogged) {
+                _directionsHintLogged = true;
+                console.warn(
+                    '[GG] Routes API request was denied (HTTP 403). '
+                    + 'If you want road-following routes via the newer Routes API, '
+                    + 'enable "Routes API" on the Google Cloud project tied to your '
+                    + 'Maps API key. Falling back to legacy Directions API for now.',
+                );
+            }
+            return null;
+        }
+        const data = await res.json();
+        const route = data?.routes?.[0];
+        const coords = route?.polyline?.geoJsonLinestring?.coordinates || [];
+        if (!route || coords.length < 2) return null;
+        // GeoJSON coordinates are [lng, lat]; convert to {lat, lng}.
+        const path = coords.map(c => ({ lat: c[1], lng: c[0] }));
+        // Duration is a protobuf string like "12345s" — strip the
+        // 's' suffix and coerce to number.
+        const durStr = String(route.duration || '0s');
+        const totalDurationSec = Number(durStr.replace(/s$/, '')) || 0;
+        const totalDistanceM = Number(route.distanceMeters) || 0;
+        return {
+            path,
+            success: legs.length - 1,
+            totalDurationSec,
+            totalDistanceM,
+        };
+    } catch (e) {
+        console.warn('[GG] fetchTripRouteViaRoutes failed:', e);
+        return null;
+    }
+}
+
 async function fetchDayRoutePath(legs) {
     if (!Array.isArray(legs) || legs.length < 2) return null;
+    // Try Routes API first — single network round trip for the
+    // whole trip, lower per-call cost. Falls back to legacy
+    // Directions API (per-leg) when Routes isn't enabled, returns
+    // an error, or can't compute a route.
+    const viaRoutes = await fetchTripRouteViaRoutes(legs);
+    if (viaRoutes) return viaRoutes;
     if (typeof google === 'undefined' || !google.maps?.DirectionsService) return null;
     const service = new google.maps.DirectionsService();
     /** @type {{lat:number,lng:number}[]} */
@@ -221,11 +322,26 @@ try {
  *  with the chip strip on the left. */
 function setSelectedDay(tripId, dayId) {
     if (!tripId || !dayId) return;
+    const prev = selectedDayByTrip[tripId];
+    if (prev === dayId) return;
     selectedDayByTrip[tripId] = dayId;
     try {
         localStorage.setItem('home_path_selected_day_by_trip', JSON.stringify(selectedDayByTrip));
     } catch (_) { /* localStorage full or disabled — fine */ }
     if (typeof _repaintPathTab === 'function') _repaintPathTab();
+    // Notify the active home map so any active POI pills can
+    // re-fetch with the new search center (the selected day's
+    // pin → Genesis fallback). See _onSelectedDayChange comment
+    // for the full rationale. Wrapped in try/catch because the
+    // callback closes over the home renderer's local state; if
+    // the user has navigated away (e.g. to /collections) since
+    // the home was last rendered, that state may reference
+    // detached DOM. We don't want a navigation away to break
+    // the wheel chip click in the collections-archive view.
+    if (typeof _onSelectedDayChange === 'function') {
+        try { _onSelectedDayChange(); }
+        catch (e) { console.warn('[GG] _onSelectedDayChange threw — likely stale home closure:', e); }
+    }
     // Map sync — pan to the selected day's pin (or, for Genesis with
     // no day-pin, the trip's anchor lat/lng). window.activeMap is set
     // by the map-init block when the home map mounts; if the user is
@@ -281,6 +397,16 @@ function resolveSelectedDayId(activeTrip, sortedDays) {
  *  Reset to null when home unmounts. */
 /** @type {(() => void) | null} */
 let _repaintPathTab = null;
+
+/** Set by renderHome → called whenever the wheel selection changes
+ *  so the home map's active POI pills can re-fetch with the new
+ *  search center. Pills follow whichever day the user is browsing
+ *  (Day 3 selected → pills search around Day 3's pin); without
+ *  this hook, pill markers would freeze on the previous day's
+ *  center until the user toggled the pill off+on. Reset on
+ *  unmount. */
+/** @type {(() => void) | null} */
+let _onSelectedDayChange = null;
 // The "To do list" sub-tab was promoted to a top-level /todo page so
 // the to-do list now has its own banner-style surface (see pages/todo.js
 // + the navbar entry between Home and Plan with AI). The data still
@@ -853,6 +979,32 @@ export function renderHome() {
         // previous no-trip render keeps cycling on top of the map.
         stopHomeSlideshow();
 
+        // Local-time chip wiring. One Time Zone API call per render
+        // (cached by coords inside googleMapsServices), then a 30s
+        // setInterval keeps the displayed clock fresh without
+        // refetching. Clear any prior interval first so re-renders
+        // don't stack tickers — same hygiene as the route-line rAF.
+        if (_localTimeClockInterval !== null) {
+            clearInterval(_localTimeClockInterval);
+            _localTimeClockInterval = null;
+        }
+        if (activeTrip && typeof activeTrip.lat === 'number' && typeof activeTrip.lng === 'number') {
+            fetchTimeZone(activeTrip.lat, activeTrip.lng).then(tz => {
+                if (!tz) return;
+                const chip = document.getElementById('homeTripLocalTimeChip');
+                if (!chip) return;
+                const paint = () => {
+                    const { time, offsetLabel } = formatLocalTime(tz);
+                    chip.innerHTML = `<span class="trip-local-time-chip__icon">🕐</span>`
+                        + `<span class="trip-local-time-chip__time">${time}</span>`
+                        + `<span class="trip-local-time-chip__offset">${offsetLabel}</span>`;
+                    chip.style.display = 'inline-flex';
+                };
+                paint();
+                _localTimeClockInterval = setInterval(paint, 30 * 1000);
+            });
+        }
+
         setTimeout(() => {
             // (Share-button bootstrap moved out — the share entry
             // point lives on the public-trip detail page in
@@ -1135,24 +1287,44 @@ export function renderHome() {
                  */
                 /** Resolve the search center for this trip's pill
                  *  searches. Order of preference:
-                 *    1. STATE.preferences.pillEpicenters[tripId] →
-                 *       the day the user explicitly chose
-                 *       (skipped when `forceGenesis: true` is passed,
-                 *        which categories like transit use to always
-                 *        cover the trip's full area)
-                 *    2. Genesis day (dayNumber === 0)
-                 *    3. activeTrip.lat/lng as a defensive last resort
+                 *    1. The day currently selected on the wheel
+                 *       (resolved via resolveSelectedDayId). This
+                 *       is the "follow the wheel" behavior — when
+                 *       the user is browsing Day 3, pills search
+                 *       around Day 3's pin. If the selected day
+                 *       has no pin yet, fall through.
+                 *    2. Genesis day (dayNumber === 0) with a pin.
+                 *    3. activeTrip.lat/lng as a defensive last
+                 *       resort (Genesis without an explicit pin
+                 *       still sits at the trip's anchor).
+                 *  Skipped paths fall to the next; categories that
+                 *  set `forceGenesis: true` (like transit) skip
+                 *  step 1 entirely and always anchor to Genesis so
+                 *  they cover the trip's full area.
                  *  Cache-key callers also need the resolved dayId
-                 *  (or 'genesis') so changing epicenter properly
-                 *  cache-misses.
+                 *  (or 'genesis' / 'trip') so changing epicenter
+                 *  properly cache-misses.
                  *  @param {boolean} [forceGenesis=false] */
                 const resolveSearchCenter = (forceGenesis = false) => {
-                    const tripId = activeTrip?.id || '';
-                    if (!forceGenesis) {
-                        const userPickId = STATE.preferences?.pillEpicenters?.[tripId];
-                        if (userPickId) {
-                            const d = currentTripDays.find(d2 => d2.id === userPickId && d2.lat);
-                            if (d) return { center: { lat: d.lat, lng: d.lng || d.lon }, anchorId: d.id };
+                    if (!forceGenesis && activeTrip) {
+                        // Read selection FRESH each call — wheel
+                        // chip clicks don't trigger a full home
+                        // re-render, so currentTripDays is stale
+                        // for selection purposes. Reading from
+                        // STATE.tripDays + selectedDayByTrip
+                        // catches the live selection.
+                        const sortedDays = [...(STATE.tripDays || [])]
+                            .filter(d => d.tripId === activeTrip.id)
+                            .sort((a, b) => a.dayNumber - b.dayNumber);
+                        const selectedId = resolveSelectedDayId(activeTrip, sortedDays);
+                        if (selectedId) {
+                            const sel = sortedDays.find(d => d.id === selectedId);
+                            if (sel && sel.lat != null) {
+                                return {
+                                    center: { lat: sel.lat, lng: sel.lng || sel.lon },
+                                    anchorId: sel.id,
+                                };
+                            }
                         }
                     }
                     const genesis = currentTripDays.find(d => d.dayNumber === 0 && d.lat);
@@ -1488,6 +1660,29 @@ export function renderHome() {
                     });
                 }
 
+                // Wire selection-change → re-fetch active pills.
+                // When the user clicks Day 3 on the wheel, any
+                // currently-active POI pill should re-fetch around
+                // Day 3's pin (the search center moves with the
+                // wheel). We do this by hiding then re-showing
+                // each active pill, which clears its old markers
+                // and runs a fresh nearbySearch via the standard
+                // setPlacesPillVisible flow. Cache hits per
+                // (tripId, pillKey, anchorId) keep the second
+                // toggle of the same day instant.
+                _onSelectedDayChange = () => {
+                    if (enabledPois.size === 0) return;
+                    enabledPois.forEach(key => {
+                        // Skip categories that always anchor to
+                        // Genesis (transit etc.) — their results
+                        // don't depend on the selected day.
+                        const cat = POI_CATEGORIES.find(c => c.key === key);
+                        if (cat && shouldForceGenesis(cat)) return;
+                        setPlacesPillVisible(key, false);
+                        setPlacesPillVisible(key, true);
+                    });
+                };
+
                 // ── Map search banner ──────────────────────────────────
                 // Free-form search of the Google Places database for the
                 // home map. The user types, AutocompleteService returns
@@ -1767,11 +1962,63 @@ export function renderHome() {
                         } else {
                             marker.addListener('click', () => {
                                 map.panTo(marker.getPosition());
-                                map.setZoom(12);
+                                if (typeof map.getZoom === 'function' && map.getZoom() < 13) map.setZoom(13);
+                                // Open a shared InfoWindow with a
+                                // Street View thumb. Single shared
+                                // window so opening another pin
+                                // closes the previous one (Google
+                                // Maps standard pattern).
+                                openDayPinInfoWindow(marker, day);
                             });
                         }
                     }
                 });
+
+                /** Single shared InfoWindow for day pins — opens
+                 *  with a Street View Static thumbnail of the
+                 *  pinned spot + the day's number / name. The
+                 *  thumbnail URL is built lazily (no network round
+                 *  trip until the InfoWindow opens), and Google
+                 *  serves a "no imagery available" placeholder
+                 *  when there's no street-view coverage so we
+                 *  don't need to pre-probe. The user gets a tiny
+                 *  visual sense of WHAT's at this pin without
+                 *  leaving the map. */
+                /** @type {any | null} */
+                let dayPinInfoWindow = null;
+                /** @param {any} marker
+                 *  @param {any} day */
+                const openDayPinInfoWindow = (marker, day) => {
+                    if (!dayPinInfoWindow) dayPinInfoWindow = new google.maps.InfoWindow();
+                    const lat = day.lat;
+                    const lng = day.lng || day.lon;
+                    const url = streetViewUrl({ lat, lng }, { width: 280, height: 160, fov: 90 });
+                    const isStartingPoint = day.dayNumber === 0;
+                    const headerLabel = isStartingPoint
+                        ? '⭐ Trip Genesis'
+                        : `Day ${day.dayNumber}`;
+                    const dayNameHtml = day.name && !isStartingPoint
+                        ? `<div style="font-size:0.78rem; color:rgba(0,45,91,0.6); margin-top:2px;">${esc(day.name)}</div>`
+                        : '';
+                    const dateHtml = day.date && !isStartingPoint
+                        ? `<div style="font-size:0.7rem; color:var(--accent-blue); font-weight:700; margin-top:2px;">📅 ${esc(formatDayDate(day.date) || day.date)}</div>`
+                        : '';
+                    const imgHtml = url
+                        ? `<img src="${esc(url)}" alt="Street view of ${esc(headerLabel)}"
+                            referrerpolicy="no-referrer"
+                            style="display:block; width:100%; height:160px; object-fit:cover; border-radius:10px; margin-bottom:10px; background:rgba(0,0,0,0.05);">`
+                        : '';
+                    const html = `
+                        <div style="font-family:-apple-system,BlinkMacSystemFont,sans-serif; min-width:240px; max-width:300px; padding:4px 4px 6px;">
+                            ${imgHtml}
+                            <div style="font-weight:800; color:#002d5b; font-size:0.95rem;">${esc(headerLabel)}</div>
+                            ${dayNameHtml}
+                            ${dateHtml}
+                        </div>
+                    `;
+                    dayPinInfoWindow.setContent(html);
+                    dayPinInfoWindow.open({ map, anchor: marker });
+                };
 
                 // Day-to-day route line — connects consecutive
                 // numbered day pins (Day 1 → Day 2 → … → Day N) so
@@ -2366,7 +2613,15 @@ export function renderHome() {
                     ` : ''}
                 ` : ''}
             </div>
-            <p style="font-size: 0.95rem; color: var(--text-secondary); margin: 6px 0 0; font-weight: 500;">${tripDays.length} Day${tripDays.length !== 1 ? 's' : ''} of adventure</p>
+            <p style="font-size: 0.95rem; color: var(--text-secondary); margin: 6px 0 0; font-weight: 500; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                <span>${tripDays.length} Day${tripDays.length !== 1 ? 's' : ''} of adventure</span>
+                <!-- Local-time chip — populated async by the
+                     fetchTimeZone hook below when the trip has a
+                     lat/lng (almost all do). Hidden until the data
+                     lands; updates every 30s while the user is on
+                     the page so the clock stays correct. -->
+                <span id="homeTripLocalTimeChip" class="trip-local-time-chip" style="display:none;"></span>
+            </p>
         </div>
 
         ${activeTrip ? `
@@ -2496,6 +2751,13 @@ export function renderHome() {
                 subtitleParts.push(`📅 ${formatDayDate(day.date) || 'Set date'}`);
                 if (day.lat) subtitleParts.push(`<span style="color: var(--accent-blue);">📍 Location set</span>`);
                 else subtitleParts.push(`<span class="day-card__pin-hint">📌 Pin this day</span>`);
+                // Weather slot — populated async by applyWeatherChips()
+                // after the trip's forecast lands. Empty by default
+                // so days that have no forecast (past dates, beyond
+                // the API's 10-day window) just don't show a chip.
+                if (day.date) {
+                    subtitleParts.push(`<span class="day-card__weather" data-weather-date="${esc(day.date)}"></span>`);
+                }
             }
             // Notes preview only on the bigger (selected) card — Genesis
             // is condensed by design, no preview body.
@@ -2712,9 +2974,59 @@ export function renderHome() {
             pathTabInner.innerHTML = buildPathTabHtml();
             const sel = pathTabInner.querySelector('.path-chip.is-selected');
             if (sel) /** @type {HTMLElement} */ (sel).scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+            // Re-paint weather chips after every Path-tab repaint
+            // (chip clicks rebuild the day cards, so the chip slot
+            // elements are fresh and need re-population from the
+            // cached forecast).
+            applyWeatherChips();
         };
         _repaintPathTab = repaintPath;
         repaintPath();
+
+        // Weather forecast — one fetch per home render, cached in
+        // googleMapsServices by rounded coords. Populates the
+        // .day-card__weather slots inside subtitleParts. Days
+        // outside the 10-day forecast window (past trips, far-
+        // future trips) get no chip at all — leaving the slot
+        // empty rather than showing "no data".
+        /** @type {any[] | null} */
+        let _weatherForecast = null;
+        function applyWeatherChips() {
+            if (!_weatherForecast || !pathTabInner) return;
+            // Index forecastDays by YYYY-MM-DD for O(1) lookups.
+            const byDate = new Map();
+            for (const fd of _weatherForecast) {
+                const dd = fd?.displayDate || fd?.interval?.startTime?.slice(0, 10);
+                if (!dd) continue;
+                // displayDate is a structured {year, month, day}
+                // object on some endpoints. Normalise to ISO.
+                const iso = (typeof dd === 'string')
+                    ? dd
+                    : `${dd.year}-${String(dd.month).padStart(2, '0')}-${String(dd.day).padStart(2, '0')}`;
+                byDate.set(iso, fd);
+            }
+            pathTabInner.querySelectorAll('.day-card__weather').forEach(el => {
+                const date = /** @type {HTMLElement} */ (el).dataset.weatherDate;
+                if (!date) return;
+                const fd = byDate.get(date);
+                const summary = fd ? pickDaySummary(fd) : null;
+                if (!summary || summary.tempC == null) {
+                    /** @type {HTMLElement} */ (el).innerHTML = '';
+                    return;
+                }
+                /** @type {HTMLElement} */ (el).innerHTML = `
+                    <span class="day-card__weather-icon" title="${esc(summary.label)}">${summary.icon}</span>
+                    <span class="day-card__weather-temp">${summary.tempC}°</span>
+                `;
+            });
+        }
+        if (activeTrip && typeof activeTrip.lat === 'number' && typeof activeTrip.lng === 'number') {
+            fetchWeatherForecast(activeTrip.lat, activeTrip.lng).then(forecast => {
+                if (!forecast || forecast.length === 0) return;
+                _weatherForecast = forecast;
+                applyWeatherChips();
+            });
+        }
 
         // Step the selection by ±1 in the sorted-day list. No wrap so
         // the user feels the ends of the list (the disabled prev/next

@@ -3632,6 +3632,66 @@ h1 {
 }
 .path-chips::-webkit-scrollbar { height: 0; width: 0; }
 
+/* Weather chip on each Day card subtitle. Renders an icon
+   (☀️/⛅/🌧/etc.) + the day's average temp in Celsius. Empty
+   when no forecast is available (past trips, beyond the API's
+   10-day window) — the span is rendered but stays blank. */
+.day-card__weather {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 700;
+    color: #002d5b;
+}
+.day-card__weather:empty {
+    display: none;
+}
+.day-card__weather-icon {
+    font-size: 0.92rem;
+    line-height: 1;
+}
+.day-card__weather-temp {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+}
+
+/* Local-time chip — sits inline next to "N Days of adventure"
+   in the trip header. Glass surface, soft border, monospaced
+   time so the digits don't jiggle as they tick. The offset
+   label sits on a tinted pill inside the chip so users can
+   read "2pm" + "UTC+1" at a glance even while travelling. */
+.trip-local-time-chip {
+    align-items: center;
+    gap: 7px;
+    padding: 4px 11px;
+    background: rgba(0, 113, 227, 0.08);
+    border: 1px solid rgba(0, 113, 227, 0.20);
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #002d5b;
+    line-height: 1;
+}
+.trip-local-time-chip__icon {
+    font-size: 0.82rem;
+    line-height: 1;
+    opacity: 0.85;
+}
+.trip-local-time-chip__time {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+}
+.trip-local-time-chip__offset {
+    font-size: 0.66rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    background: rgba(0, 113, 227, 0.14);
+    color: var(--accent-blue);
+    padding: 2px 7px;
+    border-radius: 999px;
+}
+
 /* Trip-travel stats chip — sits in the top-right of the home
    map, surfaces the duration + distance pulled from the
    Directions response that powers the route polyline. Glass
