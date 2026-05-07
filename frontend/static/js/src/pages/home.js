@@ -49,6 +49,76 @@ let activeMapClickListener = null; // Reference to the active map click handler
 // every home render so stacked timers can't leak when the user
 // flips trips, navigates away, or just re-renders the page.
 let _dayRouteAnimationFrame = null;
+
+// Cache for the road-following polyline path keyed by trip + day
+// coordinates. Directions API costs per request — without this,
+// every home re-render (which is many; tab switches, day pin
+// edits, etc.) would re-fetch routes that haven't changed. Key
+// includes the rounded coords so a tiny drag moves the cache
+// entry but the SAME route doesn't re-fetch on identical pins.
+const _dayRoutePathCache = new Map();
+
+/**
+ * Fetch a road-following path connecting consecutive day pins via
+ * the Directions API. Returns an array of {lat, lng} or null when
+ * directions aren't available (no Maps SDK, single point, etc.).
+ *
+ * Strategy: one call per leg (Day N → Day N+1). Legs that fail
+ * (international flights with no driving route, or quota errors)
+ * fall back to a straight segment for THAT leg only — the rest of
+ * the trip still gets road-followed. This keeps the line useful
+ * for a "Paris → Lyon → Tokyo" trip: Paris→Lyon follows roads,
+ * Lyon→Tokyo cuts straight across the ocean.
+ *
+ * @param {{lat:number,lng:number}[]} legs - day pins in order
+ * @returns {Promise<{lat:number,lng:number}[] | null>}
+ */
+async function fetchDayRoutePath(legs) {
+    if (!Array.isArray(legs) || legs.length < 2) return null;
+    if (typeof google === 'undefined' || !google.maps?.DirectionsService) return null;
+    const service = new google.maps.DirectionsService();
+    /** @type {{lat:number,lng:number}[]} */
+    const out = [];
+    for (let i = 0; i < legs.length - 1; i++) {
+        const origin = legs[i];
+        const dest = legs[i + 1];
+        try {
+            // Promisify the callback API. Wrap in a 6s timeout so a
+            // hung request doesn't block subsequent legs.
+            const result = await Promise.race([
+                new Promise((resolve, reject) => {
+                    service.route({
+                        origin,
+                        destination: dest,
+                        travelMode: google.maps.TravelMode.DRIVING,
+                    }, (response, status) => {
+                        if (status === 'OK' && response) resolve(response);
+                        else reject(new Error(String(status)));
+                    });
+                }),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 6000)),
+            ]);
+            const route = /** @type {any} */ (result).routes?.[0];
+            const overview = route?.overview_path?.map(p => ({ lat: p.lat(), lng: p.lng() })) || [];
+            if (overview.length > 0) {
+                // Skip the first point on subsequent legs — it's the
+                // same as the previous leg's end, would just create
+                // a duplicate vertex.
+                if (out.length > 0) out.push(...overview.slice(1));
+                else out.push(...overview);
+                continue;
+            }
+        } catch (_) {
+            // fall through to straight segment
+        }
+        // Failed leg (or empty overview) — straight from origin to
+        // dest. Keeps the line continuous so the visual stays
+        // intact even when one leg is unroutable.
+        if (out.length === 0) out.push(origin);
+        out.push(dest);
+    }
+    return out.length >= 2 ? out : null;
+}
 /** @type {'days' | 'companions' | 'documents' | 'photos'} */
 let activeHomeTab = 'days'; // Sub-tab on the home trip view (Path / Companions / Documents / Photos)
 
@@ -1660,6 +1730,12 @@ export function renderHome() {
                     // route stays visually adjacent to the rest of
                     // the trip-blue palette (just brighter).
                     const NEON = '#00e5ff';
+                    // Initial path: straight segments between day
+                    // pins (instant — renders before any network
+                    // call returns). The road-following path is
+                    // fetched async below; when it resolves, we
+                    // setPath on all three layers and the line
+                    // gracefully snaps onto roads.
                     const haloLine = new google.maps.Polyline({
                         path: dayPath,
                         map: map,
@@ -1701,6 +1777,33 @@ export function renderHome() {
                             repeat: '20px',
                         }],
                     });
+                    // Road-follow upgrade. Cache by tripId + the
+                    // exact pin coords (rounded to 4dp ≈ 11m so we
+                    // don't re-fetch on every micro-drag). On cache
+                    // hit, swap paths immediately. On miss, kick off
+                    // the Directions API call and swap when it
+                    // resolves; failed legs fall back to straight
+                    // segments inside fetchDayRoutePath. If the user
+                    // navigates away mid-fetch the polylines are
+                    // already detached from the map, so the setPath
+                    // calls become no-ops — no cleanup needed.
+                    const routeKey = `${activeTrip?.id || ''}:` + dayPath.map(p => `${p.lat.toFixed(4)},${p.lng.toFixed(4)}`).join('|');
+                    const applyRoutedPath = (routedPath) => {
+                        if (!routedPath || routedPath.length < 2) return;
+                        haloLine.setPath(routedPath);
+                        glowLine.setPath(routedPath);
+                        coreLine.setPath(routedPath);
+                    };
+                    if (_dayRoutePathCache.has(routeKey)) {
+                        applyRoutedPath(_dayRoutePathCache.get(routeKey));
+                    } else {
+                        fetchDayRoutePath(dayPath).then(routedPath => {
+                            if (routedPath) {
+                                _dayRoutePathCache.set(routeKey, routedPath);
+                                applyRoutedPath(routedPath);
+                            }
+                        }).catch(() => { /* keep straight-line fallback */ });
+                    }
                     // Animation. Uses requestAnimationFrame for
                     // smoothness + automatic pause when the tab is
                     // backgrounded (vs setInterval which keeps
