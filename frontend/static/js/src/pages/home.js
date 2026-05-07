@@ -2088,293 +2088,15 @@ export function renderHome() {
                  a top-level page — the data and the day-detail modal's
                  "From your to-do list" block both still work. -->
 
-            <!-- Documents tab — trip-wide and day-tagged booking
-                 confirmations, hotel vouchers, etc. The list is the
-                 UNION of trip.documents (new canonical store) and any
-                 legacy day.tickets entries; tripMedia.getAllTripDocuments
-                 hides that distinction. Only planners see the add /
-                 delete affordances. The Gmail-search button at the
-                 top opens Gmail in a new tab with a smart query
-                 pre-filled (Path A from the rollout plan). -->
-            <div class="home-tab-content${activeHomeTab === 'documents' ? ' is-active' : ''}" data-home-tab="documents">
-                ${(() => {
-                    const docs = getAllTripDocuments(activeTrip);
-                    const genesisDay = (STATE.tripDays || [])
-                        .find(d => d.tripId === activeTrip.id && Number(d.dayNumber) === 0);
-                    const numberedDays = (STATE.tripDays || [])
-                        .filter(d => d.tripId === activeTrip.id && d.dayNumber > 0)
-                        .sort((a, b) => a.dayNumber - b.dayNumber);
-                    /** Genesis day = trip-wide bucket; numbered days = day-
-                     *  specific. dayLabel returns "⭐ Genesis" for Day 0 and
-                     *  "Day N" for numbered days; null only for orphans
-                     *  (legacy data with no matching tripDay). */
-                    const dayLabel = (id) => {
-                        if (!id) return null;
-                        const day = (STATE.tripDays || []).find(d => d.id === id);
-                        if (!day) return null;
-                        return Number(day.dayNumber) === 0 ? '⭐ Genesis' : `Day ${day.dayNumber}`;
-                    };
-                    const isGenesis = (id) => !!id && id === genesisDay?.id;
-                    const dayChip = (id) => {
-                        if (isGenesis(id)) {
-                            // Gold tint matches the Path-tab Genesis theme
-                            // (#e8b923 → #8b6e0c) — used to be green pre-recolor.
-                            return `<span style="background:rgba(212,160,23,0.14); color:#8b6e0c; padding:2px 8px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">⭐ Genesis</span>`;
-                        }
-                        const lbl = dayLabel(id);
-                        return lbl
-                            ? `<span style="background:rgba(0,113,227,0.08); color:var(--accent-blue); padding:2px 8px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">${esc(lbl)}</span>`
-                            : `<span style="background:rgba(0,0,0,0.05); color:rgba(0,0,0,0.45); padding:2px 8px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">Unsorted</span>`;
-                    };
-
-                    // Group by dayId. Genesis first (it's day 0, the
-                    // trip-wide bucket), then numbered days in order,
-                    // then any orphan / unmatched-id rows last.
-                    /** @type {Map<string, any[]>} */
-                    const groups = new Map();
-                    docs.forEach(d => {
-                        const key = d.dayId || '__orphan__';
-                        if (!groups.has(key)) groups.set(key, []);
-                        groups.get(key).push(d);
-                    });
-                    const sortedKeys = [...groups.keys()].sort((a, b) => {
-                        if (a === '__orphan__') return 1;
-                        if (b === '__orphan__') return -1;
-                        const da = (STATE.tripDays || []).find(d => d.id === a);
-                        const db = (STATE.tripDays || []).find(d => d.id === b);
-                        return (da?.dayNumber ?? 999) - (db?.dayNumber ?? 999);
-                    });
-
-                    const headerRow = `
-                        <!-- Back-to-Path strip — Documents tab moved
-                             from the trip tab nav into Genesis options
-                             (per user). Without the tab, the panel
-                             needs its own way back to Path; this
-                             header pill handles it. -->
-                        <div style="display:flex; align-items:center; gap:14px; margin-bottom:6px;">
-                            <button class="home-back-to-path-btn" type="button" title="Back to Path"
-                                style="background:rgba(0,0,0,0.04); border:1px solid rgba(0,0,0,0.08); color:#002d5b; padding:6px 14px; border-radius:999px; font-weight:700; font-size:0.78rem; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"></polyline></svg>
-                                Back to Path
-                            </button>
-                            <h3 style="margin:0; font-size:1.1rem; font-weight:800; color:#002d5b; letter-spacing:-0.01em; display:inline-flex; align-items:center; gap:8px;">
-                                <span style="font-size:1.1rem;">📎</span> Documents
-                            </h3>
-                        </div>
-                        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                            ${tripIsEditable ? `
-                                <button id="addDocBtn" type="button"
-                                    style="background:var(--accent-blue); color:white; border:0; padding:9px 16px; border-radius:999px; font-weight:800; font-size:0.82rem; cursor:pointer; box-shadow: 0 4px 12px rgba(0,113,227,0.22);">
-                                    ➕ Add document
-                                </button>
-                            ` : ''}
-                            <button id="searchGmailDocsBtn" type="button"
-                                style="background:white; color:#002d5b; border:1px solid rgba(0,0,0,0.1); padding:9px 16px; border-radius:999px; font-weight:800; font-size:0.82rem; cursor:pointer;">
-                                📧 Search Gmail for bookings
-                            </button>
-                            <span style="margin-left:auto; font-size:0.78rem; color:var(--text-secondary); font-weight:600;">${docs.length} ${docs.length === 1 ? 'document' : 'documents'}</span>
-                        </div>
-                    `;
-
-                    if (docs.length === 0) {
-                        return `
-                            <div style="display:flex; flex-direction:column; gap:14px; flex:1; min-width:0;">
-                                ${headerRow}
-                                <div class="card glass" style="padding: 28px; border-radius: 18px; border: 1.5px dashed rgba(88,86,214,0.32); background: rgba(88,86,214,0.04); text-align:center;">
-                                    <div style="font-size:2rem; margin-bottom:8px;">📎</div>
-                                    <h3 style="margin:0 0 6px; color:#5856d6; font-weight:800;">No documents yet</h3>
-                                    <p style="margin:0; color:var(--text-secondary); font-size:0.9rem;">Click <strong>📧 Search Gmail for bookings</strong> to find your confirmation emails, then drop the PDFs / links in via <strong>➕ Add document</strong>. Trip-wide docs (passport, multi-day hotel) live on <strong>⭐ Trip Genesis</strong>; day-specific ones (museum ticket) tag to a numbered day.</p>
-                                </div>
-                            </div>
-                        `;
-                    }
-
-                    return `
-                        <div style="display:flex; flex-direction:column; gap:14px; flex:1; min-width:0;">
-                            ${headerRow}
-                            ${sortedKeys.map(key => {
-                                const items = groups.get(key) || [];
-                                const orphan = key === '__orphan__';
-                                const isGen = !orphan && isGenesis(key);
-                                const groupLabel = orphan
-                                    ? 'Unsorted'
-                                    : (isGen ? '⭐ Trip Genesis · trip-wide' : (dayLabel(key) || 'Unknown day'));
-                                const accent = orphan ? 'rgba(0,0,0,0.45)' : (isGen ? '#8b6e0c' : 'var(--accent-blue)');
-                                return `
-                                    <div>
-                                        <h4 style="margin:0 0 8px; font-size:0.7rem; font-weight:800; text-transform:uppercase; letter-spacing:0.1em; color:${accent};">${esc(groupLabel)}</h4>
-                                        <div style="display:flex; flex-direction:column; gap:8px;">
-                                            ${items.map(d => `
-                                                <div class="trip-doc-card" data-doc-id="${esc(d.id)}" style="display:flex; align-items:center; gap:12px; background:white; border:1px solid rgba(0,0,0,0.07); border-radius:14px; padding:12px 14px; box-shadow: 0 2px 8px rgba(0,45,91,0.04);">
-                                                    <span style="font-size:1.3rem; line-height:1; flex-shrink:0;">📎</span>
-                                                    <div style="flex:1; min-width:0;">
-                                                        <div style="display:flex; align-items:center; gap:8px; margin-bottom:2px;">
-                                                            <a href="${esc(d.url || '#')}" target="_blank" rel="noreferrer" class="trip-doc-link" style="font-weight:800; color:#002d5b; font-size:0.92rem; text-decoration:none; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(d.name || 'Document')}</a>
-                                                            ${dayChip(d.dayId)}
-                                                        </div>
-                                                        ${d.url ? `<div style="font-size:0.7rem; color:var(--text-secondary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(d.url)}</div>` : ''}
-                                                    </div>
-                                                    ${tripIsEditable ? `
-                                                        ${d._source === 'trip' && (genesisDay || numberedDays.length > 0) ? `
-                                                            <select class="trip-doc-day-select" data-doc-id="${esc(d.id)}"
-                                                                style="padding:6px 8px; border-radius:8px; border:1px solid rgba(0,0,0,0.1); font-size:0.75rem; background:white; max-width:160px;">
-                                                                ${genesisDay ? `<option value="${esc(genesisDay.id)}" ${d.dayId === genesisDay.id ? 'selected' : ''}>⭐ Genesis</option>` : ''}
-                                                                ${numberedDays.map(nd => `
-                                                                    <option value="${esc(nd.id)}" ${d.dayId === nd.id ? 'selected' : ''}>Day ${nd.dayNumber}</option>
-                                                                `).join('')}
-                                                            </select>
-                                                        ` : ''}
-                                                        <button type="button" class="trip-doc-edit-btn" data-doc-id="${esc(d.id)}" title="Rename / change link" aria-label="Edit ${esc(d.name)}"
-                                                            style="background: rgba(0,113,227,0.08); border: 1px solid rgba(0,113,227,0.22); color:var(--accent-blue); border-radius: 8px; padding: 4px 8px; font-size:0.75rem; font-weight:800; cursor:pointer; flex-shrink:0;">✎</button>
-                                                        <button type="button" class="trip-doc-remove-btn" data-doc-id="${esc(d.id)}" title="Remove" aria-label="Remove ${esc(d.name)}"
-                                                            style="background: rgba(255,59,48,0.08); border: 1px solid rgba(255,59,48,0.25); color:#ff3b30; border-radius: 8px; padding: 4px 8px; font-size:0.75rem; font-weight:800; cursor:pointer; flex-shrink:0;">✕</button>
-                                                    ` : ''}
-                                                </div>
-                                            `).join('')}
-                                        </div>
-                                    </div>
-                                `;
-                            }).join('')}
-                        </div>
-                    `;
-                })()}
-            </div>
-
-            <!-- Photos tab — same union pattern as Documents but for
-                 imagery: trip.photos (canonical) + legacy day.photos.
-                 The grid lays out as a masonry-ish auto-fill 140px
-                 minimum; clicking a thumbnail opens a lightbox. -->
-            <div class="home-tab-content${activeHomeTab === 'photos' ? ' is-active' : ''}" data-home-tab="photos">
-                ${(() => {
-                    const photos = getAllTripPhotos(activeTrip);
-                    const genesisDayForPhotos = (STATE.tripDays || [])
-                        .find(d => d.tripId === activeTrip.id && Number(d.dayNumber) === 0);
-                    const numberedDaysForPhotos = (STATE.tripDays || [])
-                        .filter(d => d.tripId === activeTrip.id && d.dayNumber > 0)
-                        .sort((a, b) => a.dayNumber - b.dayNumber);
-                    const dayLabel = (id) => {
-                        if (!id) return null;
-                        const day = (STATE.tripDays || []).find(d => d.id === id);
-                        if (!day) return null;
-                        return Number(day.dayNumber) === 0 ? '⭐ Genesis' : `Day ${day.dayNumber}`;
-                    };
-                    const isGenesisPhoto = (id) => !!id && id === genesisDayForPhotos?.id;
-
-                    const headerRow = `
-                        <!-- Back-to-Path strip — see Documents
-                             header above for context (same pattern,
-                             different surface). -->
-                        <div style="display:flex; align-items:center; gap:14px; margin-bottom:6px;">
-                            <button class="home-back-to-path-btn" type="button" title="Back to Path"
-                                style="background:rgba(0,0,0,0.04); border:1px solid rgba(0,0,0,0.08); color:#002d5b; padding:6px 14px; border-radius:999px; font-weight:700; font-size:0.78rem; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"></polyline></svg>
-                                Back to Path
-                            </button>
-                            <h3 style="margin:0; font-size:1.1rem; font-weight:800; color:#002d5b; letter-spacing:-0.01em; display:inline-flex; align-items:center; gap:8px;">
-                                <span style="font-size:1.1rem;">📸</span> Photos
-                            </h3>
-                        </div>
-                        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                            ${tripIsEditable ? `
-                                <button id="addPhotosBtn" type="button" title="Upload photos from your device"
-                                    style="background:#34c759; color:white; border:0; padding:9px 16px; border-radius:999px; font-weight:800; font-size:0.82rem; cursor:pointer; box-shadow: 0 4px 12px rgba(52,199,89,0.22);">
-                                    📤 Upload photos
-                                </button>
-                                <input id="addPhotosInput" type="file" accept="image/*" multiple style="display:none;">
-                                <button id="addPhotoUrlBtn" type="button" title="Paste a link to a Google Drive / Dropbox / hosted image album"
-                                    style="background:white; color:#002d5b; border:1px solid rgba(0,0,0,0.1); padding:9px 16px; border-radius:999px; font-weight:800; font-size:0.82rem; cursor:pointer;">
-                                    🔗 Add by link
-                                </button>
-                            ` : ''}
-                            <span style="margin-left:auto; font-size:0.78rem; color:var(--text-secondary); font-weight:600;">${photos.length} ${photos.length === 1 ? 'photo' : 'photos'}</span>
-                        </div>
-                    `;
-
-                    if (photos.length === 0) {
-                        return `
-                            <div style="display:flex; flex-direction:column; gap:14px; flex:1; min-width:0;">
-                                ${headerRow}
-                                <div class="card glass" style="padding: 28px; border-radius: 18px; border: 1.5px dashed rgba(52,199,89,0.32); background: rgba(52,199,89,0.04); text-align:center;">
-                                    <div style="font-size:2rem; margin-bottom:8px;">📸</div>
-                                    <h3 style="margin:0 0 6px; color:#1a6b3c; font-weight:800;">No photos yet</h3>
-                                    <p style="margin:0; color:var(--text-secondary); font-size:0.9rem;">Use <strong>📤 Upload photos</strong> for files on your device, or <strong>🔗 Add by link</strong> for a Drive / Dropbox / iCloud share. New photos go to <strong>⭐ Trip Genesis</strong> (the trip-wide bucket); you can re-tag any of them to a specific day from the dropdown on each card.</p>
-                                </div>
-                            </div>
-                        `;
-                    }
-
-                    return `
-                        <div style="display:flex; flex-direction:column; gap:14px; flex:1; min-width:0;">
-                            ${headerRow}
-                            <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:10px;">
-                                ${photos.map(p => {
-                                    // Direct image vs share-link card.
-                                    // We can't render most cross-origin
-                                    // share pages as a thumbnail, so we
-                                    // detect by URL shape (data: prefix
-                                    // or known image extension) and
-                                    // fall back to a coloured "open link"
-                                    // card for everything else.
-                                    const isImage = /^data:image\//i.test(p.src || '')
-                                        || /\.(jpe?g|png|gif|webp|avif|heic|heif|bmp|tiff?|svg)(\?.*)?$/i.test(p.src || '');
-                                    // For trip-level photos AND when the
-                                    // user is a planner: render the day
-                                    // label as a tiny interactive <select>
-                                    // so the user can reassign trip-wide
-                                    // ↔ Day N without leaving the grid.
-                                    // Legacy day.photos entries (immutable
-                                    // — they can't be reassigned without
-                                    // losing the legacy index reference)
-                                    // and non-planner views fall back to
-                                    // the static chip.
-                                    const canEditDay = tripIsEditable && p._source === 'trip';
-                                    const staticChipFor = (label, bg) => `<div style="position:absolute; top:6px; left:6px; background: ${bg}; color:white; padding:2px 8px; border-radius:999px; font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; backdrop-filter: blur(6px); pointer-events:none;">${esc(label)}</div>`;
-                                    // Genesis = gold; numbered days = dark;
-                                    // orphan (rare, legacy null dayId post-
-                                    // migration) = neutral grey "Unsorted".
-                                    const chipBg = isGenesisPhoto(p.dayId)
-                                        ? 'rgba(140,110,12,0.85)'
-                                        : (p.dayId ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0.45)');
-                                    const dayBadge = canEditDay
-                                        ? `<select class="trip-photo-day-select" data-photo-id="${esc(p.id)}" title="Move to Trip Genesis or a numbered day"
-                                                style="position:absolute; top:6px; left:6px; background: ${chipBg}; color:white; border:0; padding:2px 22px 2px 10px; border-radius:999px; font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; backdrop-filter: blur(6px); cursor:pointer; appearance:none; -webkit-appearance:none; background-image: url('data:image/svg+xml;utf8,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;10&quot; height=&quot;10&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;white&quot; stroke-width=&quot;3&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;><polyline points=&quot;6 9 12 15 18 9&quot;/></svg>'); background-repeat:no-repeat; background-position: right 7px center; background-size: 8px;">
-                                                ${genesisDayForPhotos ? `<option value="${esc(genesisDayForPhotos.id)}" ${p.dayId === genesisDayForPhotos.id ? 'selected' : ''}>⭐ Genesis</option>` : ''}
-                                                ${numberedDaysForPhotos.map(nd => `<option value="${esc(nd.id)}" ${p.dayId === nd.id ? 'selected' : ''}>Day ${nd.dayNumber}</option>`).join('')}
-                                            </select>`
-                                        : (isGenesisPhoto(p.dayId)
-                                            ? staticChipFor('⭐ Genesis', 'rgba(140,110,12,0.85)')
-                                            : (p.dayId
-                                                ? staticChipFor(dayLabel(p.dayId) || '', 'rgba(0,0,0,0.55)')
-                                                : staticChipFor('Unsorted', 'rgba(0,0,0,0.45)')));
-                                    const removeBtn = tripIsEditable
-                                        ? `<button type="button" class="trip-photo-remove-btn" data-photo-id="${esc(p.id)}" title="Remove" aria-label="Remove photo"
-                                            style="position:absolute; top:6px; right:6px; background:rgba(0,0,0,0.55); border:0; color:white; width:24px; height:24px; border-radius:50%; cursor:pointer; font-size:0.75rem; line-height:1; backdrop-filter: blur(6px); z-index:1;">✕</button>`
-                                        : '';
-                                    if (isImage) {
-                                        return `
-                                            <div class="trip-photo-card" data-photo-id="${esc(p.id)}" data-photo-kind="image" style="position:relative; aspect-ratio:1; border-radius:14px; overflow:hidden; background-image:url(${esc(p.src)}); background-size:cover; background-position:center; box-shadow: 0 4px 12px rgba(0,0,0,0.06); cursor:pointer; border:1px solid rgba(0,0,0,0.06);">
-                                                ${dayBadge}
-                                                ${removeBtn}
-                                            </div>
-                                        `;
-                                    }
-                                    // Link-style card: gradient background,
-                                    // 🔗 icon, truncated URL, opens in new
-                                    // tab on click.
-                                    return `
-                                        <div class="trip-photo-card" data-photo-id="${esc(p.id)}" data-photo-kind="link" style="position:relative; aspect-ratio:1; border-radius:14px; overflow:hidden; background: linear-gradient(135deg, #0071e3, #5856d6); box-shadow: 0 4px 12px rgba(0,113,227,0.18); cursor:pointer; border:1px solid rgba(0,0,0,0.06); display:flex; flex-direction:column; align-items:center; justify-content:center; padding:14px; text-align:center; color:white;">
-                                            ${dayBadge}
-                                            ${removeBtn}
-                                            <div style="font-size:1.8rem; line-height:1; margin-bottom:8px;">🔗</div>
-                                            <div style="font-size:0.7rem; font-weight:800; opacity:0.9; word-break:break-all; overflow:hidden; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical;">${esc(p.src.replace(/^https?:\/\//, ''))}</div>
-                                        </div>
-                                    `;
-                                }).join('')}
-                            </div>
-                        </div>
-                    `;
-                })()}
-            </div>
+            <!-- Documents + Photos tabs USED to live here as inline
+                 panels gated by activeHomeTab swaps. Both moved to
+                 popup modals (openTripDocumentsModal /
+                 openTripPhotosModal) opened from Genesis options —
+                 see those functions for the actual rendering. The
+                 inline panels became dead weight after the move
+                 (still reachable only via direct activeHomeTab=
+                 documents / photos, which nothing now sets) so we
+                 deleted them entirely. -->
         ` : ''}
 
         <div class="home-tab-content${activeHomeTab === 'days' ? ' is-active' : ''}" data-home-tab="days" style="display: flex; flex-direction: column; gap: 4px;">
@@ -2796,17 +2518,14 @@ export function renderHome() {
                 setActiveHomeTab(tabKey);
                 return;
             }
-            // Genesis options → Documents / Photos surfaces. Same
-            // tab-swap mechanism as the nav buttons used to use
-            // (the surfaces still live in the DOM, just unreachable
-            // from the now-trimmed tab bar). Both buttons live on
-            // the Genesis option stack with `data-day-id` set, so
-            // we use the closest match.
-            if (target.closest('.path-documents-btn')) { setActiveHomeTab('documents'); return; }
-            if (target.closest('.path-photos-btn')) { setActiveHomeTab('photos'); return; }
-            // Back-to-Path header pill on Documents / Photos
-            // surfaces — replaces the old tab-bar return path.
-            if (target.closest('.home-back-to-path-btn')) { setActiveHomeTab('days'); return; }
+            // Genesis options → open the Documents / Photos popup
+            // modals. Used to do an in-page tab swap (which left
+            // users on a "weird" content view instead of a popup);
+            // now opens proper modals via openTripDocumentsModal /
+            // openTripPhotosModal so the experience reads as
+            // "click → popup", consistent with Trip checklist.
+            if (target.closest('.path-documents-btn') && activeTrip) { openTripDocumentsModal(activeTrip); return; }
+            if (target.closest('.path-photos-btn') && activeTrip) { openTripPhotosModal(activeTrip); return; }
 
             // Edit-trip pencil — owner-only, hidden when !manageable.
             if (target.closest('#editTripBtn')) { openEditTripModal(activeTrip); return; }
@@ -2909,112 +2628,9 @@ export function renderHome() {
             // to-do list moved to /todo so this button no longer
             // renders on home. The /todo page owns its own remove.
 
-            // Documents tab — clicking a doc-link with a .pdf URL
-            // intercepts the default <a target="_blank"> behavior and
-            // opens the in-app PDF previewer instead. Honour Cmd-click
-            // / Ctrl-click / middle-click / right-click so the user
-            // can still force a new tab (those events don't reach
-            // this handler the same way; the `event.metaKey` /
-            // `ctrlKey` check is belt-and-braces). Non-PDF URLs fall
-            // through to the anchor's default behavior (new tab).
-            const docLink = /** @type {HTMLAnchorElement | null} */ (target.closest('.trip-doc-link'));
-            if (docLink && looksLikePdfUrl(docLink.href)) {
-                const ev = /** @type {MouseEvent} */ (e);
-                if (!ev.metaKey && !ev.ctrlKey && !ev.shiftKey && ev.button !== 1) {
-                    ev.preventDefault();
-                    const card = docLink.closest('.trip-doc-card');
-                    const name = card?.querySelector('a')?.textContent?.trim() || 'Document';
-                    openPdfPreview(docLink.href, name);
-                    return;
-                }
-            }
-            // Documents tab — Gmail search button (visible to all members).
-            if (target.closest('#searchGmailDocsBtn') && activeTrip) {
-                const url = buildGmailTripSearchUrl(activeTrip);
-                if (url) window.open(url, '_blank', 'noopener,noreferrer');
-                return;
-            }
-            // Documents tab — Add document button (planner-only).
-            if (target.closest('#addDocBtn') && activeTrip && tripIsEditable) {
-                openAddTripDocumentModal(activeTrip);
-                return;
-            }
-            // Documents tab — per-row Edit (rename / change link).
-            const docEditBtn = /** @type {HTMLElement | null} */ (target.closest('.trip-doc-edit-btn'));
-            if (docEditBtn?.dataset.docId && activeTrip && tripIsEditable) {
-                openEditTripDocumentModal(activeTrip, docEditBtn.dataset.docId);
-                return;
-            }
-            // Documents tab — per-row remove.
-            const docRemoveBtn = /** @type {HTMLElement | null} */ (target.closest('.trip-doc-remove-btn'));
-            if (docRemoveBtn?.dataset.docId && activeTrip && tripIsEditable) {
-                const removed = removeTripDocument(activeTrip, docRemoveBtn.dataset.docId);
-                if (removed) {
-                    emit('state:changed');
-                    if (removed === 'trip') upsertTrip(activeTrip);
-                    else {
-                        // Legacy day.tickets path — find the day and upsert it.
-                        const dayId = (docRemoveBtn.dataset.docId || '').split('#')[0];
-                        const day = STATE.tripDays.find(d => d.id === dayId);
-                        if (day) upsertDay(day);
-                    }
-                    navigate('home');
-                }
-                return;
-            }
-            // Photos tab — Add photos button (planner-only). Triggers
-            // the hidden file input which the change listener below
-            // handles.
-            if (target.closest('#addPhotosBtn') && activeTrip && tripIsEditable) {
-                /** @type {HTMLInputElement | null} */
-                (div.querySelector('#addPhotosInput'))?.click();
-                return;
-            }
-            // Photos tab — Add by link button (planner-only). Opens a
-            // small modal asking for a URL (Google Drive, Dropbox,
-            // hosted image, etc.) plus optional day-tie. Same pattern
-            // as the document-add modal.
-            if (target.closest('#addPhotoUrlBtn') && activeTrip && tripIsEditable) {
-                openAddTripPhotoUrlModal(activeTrip);
-                return;
-            }
-            // Photos tab — per-thumbnail remove.
-            const photoRemoveBtn = /** @type {HTMLElement | null} */ (target.closest('.trip-photo-remove-btn'));
-            if (photoRemoveBtn?.dataset.photoId && activeTrip && tripIsEditable) {
-                photoRemoveBtn.dataset.cancel = '1'; // hint to thumbnail click below
-                const removed = removeTripPhoto(activeTrip, photoRemoveBtn.dataset.photoId);
-                if (removed) {
-                    emit('state:changed');
-                    if (removed === 'trip') upsertTrip(activeTrip);
-                    else {
-                        const dayId = (photoRemoveBtn.dataset.photoId || '').split('#')[0];
-                        const day = STATE.tripDays.find(d => d.id === dayId);
-                        if (day) upsertDay(day);
-                    }
-                    navigate('home');
-                }
-                return;
-            }
-            // Photos tab — thumbnail click. Image-kind cards open
-            // the lightbox; link-kind cards open the share URL in a
-            // new tab so Drive / Dropbox / iCloud links work.
-            // Skip the click if the user actually clicked the day-
-            // select dropdown (otherwise opening it would also
-            // trigger lightbox / link-open).
-            const photoCard = /** @type {HTMLElement | null} */ (target.closest('.trip-photo-card'));
-            if (photoCard?.dataset.photoId && activeTrip
-                && !target.closest('.trip-photo-remove-btn')
-                && !target.closest('.trip-photo-day-select')) {
-                const photo = getAllTripPhotos(activeTrip).find(p => p.id === photoCard.dataset.photoId);
-                if (photo) {
-                    if (photoCard.dataset.photoKind === 'link') {
-                        window.open(photo.src, '_blank', 'noopener,noreferrer');
-                    } else {
-                        openPhotoLightbox(photo.src);
-                    }
-                }
-                return;
-            }
+            // (Documents + Photos handlers moved out — they
+            //  now live inside openTripDocumentsModal /
+            //  openTripPhotosModal, scoped to the modal root.)
 
             const delDayBtn = /** @type {HTMLElement | null} */ (target.closest('.day-delete-btn'));
             if (delDayBtn?.dataset.dayId) { deleteDay(delDayBtn.dataset.dayId); return; }
@@ -3053,74 +2669,14 @@ export function renderHome() {
         // dropdowns live in the AI panel and are still authoritative
         // for that path because the prompt needs explicit assignments.)
 
-        // Documents + Photos tabs: per-row dayId reassignment via
-        // the inline dropdown. Only available for trip-level entries
-        // (legacy day.tickets / day.photos entries can't be moved
-        // without re-creating them).
-        daysContainer.addEventListener('change', (ev) => {
-            const target = /** @type {HTMLElement | null} */ (ev.target);
-            if (!target || !activeTrip || !tripIsEditable) return;
-            const docSel = /** @type {HTMLSelectElement | null} */ (target.closest('.trip-doc-day-select'));
-            if (docSel?.dataset.docId) {
-                setDocumentDay(activeTrip, docSel.dataset.docId, docSel.value || null);
-                emit('state:changed');
-                upsertTrip(activeTrip);
-                navigate('home');
-                return;
-            }
-            const photoSel = /** @type {HTMLSelectElement | null} */ (target.closest('.trip-photo-day-select'));
-            if (photoSel?.dataset.photoId) {
-                setPhotoDay(activeTrip, photoSel.dataset.photoId, photoSel.value || null);
-                emit('state:changed');
-                upsertTrip(activeTrip);
-                navigate('home');
-                return;
-            }
-        });
+        // (Documents + Photos day-select change handler moved
+        //  to the modal openers — see openTripDocumentsModal /
+        //  openTripPhotosModal.)
 
-        // Photos tab: file input change → upload via uploadMedia, then
-        // append each result to trip.photos. Multi-select supported;
-        // each upload runs serially to avoid clobbering uploadMedia's
-        // shared state.
-        const photoInput = /** @type {HTMLInputElement | null} */ (div.querySelector('#addPhotosInput'));
-        if (photoInput) {
-            photoInput.addEventListener('change', async () => {
-                const files = Array.from(photoInput.files || []);
-                if (files.length === 0 || !activeTrip) return;
-                showLiquidAlert(`Uploading ${files.length} photo${files.length === 1 ? '' : 's'}…`);
-                // Quick-upload default: Trip Genesis (the trip-wide
-                // bucket). User can re-tag any photo to a numbered
-                // day from the dropdown chip on its tile.
-                const genesisDay = (STATE.tripDays || [])
-                    .find(d => d.tripId === activeTrip.id && Number(d.dayNumber) === 0);
-                const defaultDayId = genesisDay ? genesisDay.id : null;
-                let added = 0;
-                for (const file of files) {
-                    try {
-                        // uploadMedia returns { url, name, ... } (or null)
-                        // — NOT a bare URL string. Earlier I treated the
-                        // whole object as the src, which silently stored
-                        // nothing useful and the photo never appeared.
-                        const res = await uploadMedia(file);
-                        if (res?.url) {
-                            addTripPhoto(activeTrip, { src: res.url, dayId: defaultDayId });
-                            added++;
-                        }
-                    } catch (e) {
-                        console.error('Photo upload failed:', e);
-                    }
-                }
-                photoInput.value = ''; // reset so the same file can be picked again
-                if (added > 0) {
-                    emit('state:changed');
-                    await upsertTrip(activeTrip);
-                    showLiquidAlert(`${added} photo${added === 1 ? '' : 's'} added.`);
-                    navigate('home');
-                } else {
-                    showLiquidAlert('Upload failed — please try again.');
-                }
-            });
-        }
+        // (addPhotosInput file-upload change listener moved
+        //  to openTripPhotosModal — wired inside the modal
+        //  via wireFileInput() so it reattaches after each
+        //  body repaint.)
 
         // The legacy `#addDayBtn` (vertical-timeline footer) was retired
         // when the Path tab moved to the chip-strip layout — `+ Add Day`
@@ -3610,12 +3166,453 @@ const openTripChecklistModal = (trip) => {
     }, 80);
 };
 
-// The Documents and Photos tabs on Home each open a small modal for
-// adding new entries. Both stores live on the trip object directly
-// (trip.documents, trip.photos); legacy day-level openPhotosModal /
-// openDocumentsModal were retired with this commit — see the tab
-// views, which present a UNION over trip-level entries and any
-// legacy day.tickets / day.photos data so old trips don't disappear.
+// Documents + Photos used to live as inline tabs in the trip nav;
+// they moved to Genesis options + got their own popup modals so the
+// tab nav stays focused on Path / Companions and the trip-wide
+// media live where they conceptually belong (under Genesis). The
+// modals reuse the existing add/edit/remove sub-modals + action
+// helpers — only the panel-list view itself is duplicated here.
+
+/** Documents popup modal — opened from Genesis option button.
+ *  Renders the full doc list grouped by day, with add / edit /
+ *  remove / day-reassign affordances. Sub-modals (add doc / edit
+ *  doc) close THIS modal first since they trigger navigate('home')
+ *  on save (which would leave this modal stale otherwise).
+ *  In-modal mutations (remove, day-reassign) repaint the body in
+ *  place so the user can keep working.
+ *
+ *  @param {any} trip
+ */
+const openTripDocumentsModal = (trip) => {
+    if (!trip) return;
+    const tripIsEditable = canEdit(trip);
+
+    /** Build the docs-list body. Same structural shape as the
+     *  retired inline tab panel: header row (Add / Gmail-search /
+     *  count) + day-grouped doc cards. Genesis bucket first, then
+     *  numbered days, then orphans. */
+    const renderBody = () => {
+        const docs = getAllTripDocuments(trip);
+        const genesisDay = (STATE.tripDays || [])
+            .find(d => d.tripId === trip.id && Number(d.dayNumber) === 0);
+        const numberedDays = (STATE.tripDays || [])
+            .filter(d => d.tripId === trip.id && d.dayNumber > 0)
+            .sort((a, b) => a.dayNumber - b.dayNumber);
+        const dayLabel = (id) => {
+            if (!id) return null;
+            const day = (STATE.tripDays || []).find(d => d.id === id);
+            if (!day) return null;
+            return Number(day.dayNumber) === 0 ? '⭐ Genesis' : `Day ${day.dayNumber}`;
+        };
+        const isGenesisDoc = (id) => !!id && id === genesisDay?.id;
+        const dayChip = (id) => {
+            if (isGenesisDoc(id)) return `<span style="background:rgba(212,160,23,0.14); color:#8b6e0c; padding:2px 8px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">⭐ Genesis</span>`;
+            const lbl = dayLabel(id);
+            return lbl
+                ? `<span style="background:rgba(0,113,227,0.08); color:var(--accent-blue); padding:2px 8px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">${esc(lbl)}</span>`
+                : `<span style="background:rgba(0,0,0,0.05); color:rgba(0,0,0,0.45); padding:2px 8px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">Unsorted</span>`;
+        };
+        /** @type {Map<string, any[]>} */
+        const groups = new Map();
+        docs.forEach(d => {
+            const key = d.dayId || '__orphan__';
+            if (!groups.has(key)) groups.set(key, []);
+            groups.get(key).push(d);
+        });
+        const sortedKeys = [...groups.keys()].sort((a, b) => {
+            if (a === '__orphan__') return 1;
+            if (b === '__orphan__') return -1;
+            const da = (STATE.tripDays || []).find(d => d.id === a);
+            const db = (STATE.tripDays || []).find(d => d.id === b);
+            return (da?.dayNumber ?? 999) - (db?.dayNumber ?? 999);
+        });
+        const headerRow = `
+            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:14px;">
+                ${tripIsEditable ? `
+                    <button id="addDocBtn" type="button"
+                        style="background:var(--accent-blue); color:white; border:0; padding:9px 16px; border-radius:999px; font-weight:800; font-size:0.82rem; cursor:pointer; box-shadow: 0 4px 12px rgba(0,113,227,0.22);">
+                        ➕ Add document
+                    </button>
+                ` : ''}
+                <button id="searchGmailDocsBtn" type="button"
+                    style="background:white; color:#002d5b; border:1px solid rgba(0,0,0,0.1); padding:9px 16px; border-radius:999px; font-weight:800; font-size:0.82rem; cursor:pointer;">
+                    📧 Search Gmail for bookings
+                </button>
+                <span style="margin-left:auto; font-size:0.78rem; color:var(--text-secondary); font-weight:600;">${docs.length} ${docs.length === 1 ? 'document' : 'documents'}</span>
+            </div>
+        `;
+        if (docs.length === 0) {
+            return `
+                ${headerRow}
+                <div class="card glass" style="padding: 28px; border-radius: 18px; border: 1.5px dashed rgba(88,86,214,0.32); background: rgba(88,86,214,0.04); text-align:center;">
+                    <div style="font-size:2rem; margin-bottom:8px;">📎</div>
+                    <h3 style="margin:0 0 6px; color:#5856d6; font-weight:800;">No documents yet</h3>
+                    <p style="margin:0; color:var(--text-secondary); font-size:0.9rem;">Click <strong>📧 Search Gmail for bookings</strong> to find your confirmation emails, then drop the PDFs / links in via <strong>➕ Add document</strong>. Trip-wide docs (passport, multi-day hotel) live on <strong>⭐ Trip Genesis</strong>; day-specific ones (museum ticket) tag to a numbered day.</p>
+                </div>
+            `;
+        }
+        return `
+            ${headerRow}
+            <div style="display:flex; flex-direction:column; gap:14px;">
+                ${sortedKeys.map(key => {
+                    const items = groups.get(key) || [];
+                    const orphan = key === '__orphan__';
+                    const isGen = !orphan && isGenesisDoc(key);
+                    const groupLabel = orphan ? 'Unsorted' : (isGen ? '⭐ Trip Genesis · trip-wide' : (dayLabel(key) || 'Unknown day'));
+                    const accent = orphan ? 'rgba(0,0,0,0.45)' : (isGen ? '#8b6e0c' : 'var(--accent-blue)');
+                    return `
+                        <div>
+                            <h4 style="margin:0 0 8px; font-size:0.7rem; font-weight:800; text-transform:uppercase; letter-spacing:0.1em; color:${accent};">${esc(groupLabel)}</h4>
+                            <div style="display:flex; flex-direction:column; gap:8px;">
+                                ${items.map(d => `
+                                    <div class="trip-doc-card" data-doc-id="${esc(d.id)}" style="display:flex; align-items:center; gap:12px; background:white; border:1px solid rgba(0,0,0,0.07); border-radius:14px; padding:12px 14px; box-shadow: 0 2px 8px rgba(0,45,91,0.04);">
+                                        <span style="font-size:1.3rem; line-height:1; flex-shrink:0;">📎</span>
+                                        <div style="flex:1; min-width:0;">
+                                            <div style="display:flex; align-items:center; gap:8px; margin-bottom:2px;">
+                                                <a href="${esc(d.url || '#')}" target="_blank" rel="noreferrer" class="trip-doc-link" style="font-weight:800; color:#002d5b; font-size:0.92rem; text-decoration:none; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(d.name || 'Document')}</a>
+                                                ${dayChip(d.dayId)}
+                                            </div>
+                                            ${d.url ? `<div style="font-size:0.7rem; color:var(--text-secondary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(d.url)}</div>` : ''}
+                                        </div>
+                                        ${tripIsEditable ? `
+                                            ${d._source === 'trip' && (genesisDay || numberedDays.length > 0) ? `
+                                                <select class="trip-doc-day-select" data-doc-id="${esc(d.id)}"
+                                                    style="padding:6px 8px; border-radius:8px; border:1px solid rgba(0,0,0,0.1); font-size:0.75rem; background:white; max-width:160px;">
+                                                    ${genesisDay ? `<option value="${esc(genesisDay.id)}" ${d.dayId === genesisDay.id ? 'selected' : ''}>⭐ Genesis</option>` : ''}
+                                                    ${numberedDays.map(nd => `<option value="${esc(nd.id)}" ${d.dayId === nd.id ? 'selected' : ''}>Day ${nd.dayNumber}</option>`).join('')}
+                                                </select>
+                                            ` : ''}
+                                            <button type="button" class="trip-doc-edit-btn" data-doc-id="${esc(d.id)}" title="Rename / change link" aria-label="Edit ${esc(d.name)}"
+                                                style="background: rgba(0,113,227,0.08); border: 1px solid rgba(0,113,227,0.22); color:var(--accent-blue); border-radius: 8px; padding: 4px 8px; font-size:0.75rem; font-weight:800; cursor:pointer; flex-shrink:0;">✎</button>
+                                            <button type="button" class="trip-doc-remove-btn" data-doc-id="${esc(d.id)}" title="Remove" aria-label="Remove ${esc(d.name)}"
+                                                style="background: rgba(255,59,48,0.08); border: 1px solid rgba(255,59,48,0.25); color:#ff3b30; border-radius: 8px; padding: 4px 8px; font-size:0.75rem; font-weight:800; cursor:pointer; flex-shrink:0;">✕</button>
+                                        ` : ''}
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `;
+                }).join('')}
+            </div>
+        `;
+    };
+
+    const { root, close } = showModal({
+        cardClass: 'card glass',
+        cardStyle: 'width: min(880px, 92vw); max-height: 88vh; overflow-y: auto; padding: 28px; border-radius: 28px; background: white;',
+        innerHTML: `
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 18px;">
+                <h2 style="margin:0; font-size:1.4rem; color:#002d5b; font-weight:800; letter-spacing:-0.02em; display:inline-flex; align-items:center; gap:10px;">
+                    <span style="font-size:1.4rem;">📎</span> Documents
+                </h2>
+                <button id="closeDocsModalBtn" class="close-x-btn" aria-label="Close">✕</button>
+            </div>
+            <div id="tripDocsBody">${renderBody()}</div>
+        `,
+    });
+
+    /** In-place repaint after a destructive change (remove / day-
+     *  reassign). The delegated click + change handlers live on
+     *  `root` so they survive innerHTML swaps inside #tripDocsBody. */
+    const repaint = () => {
+        const body = root.querySelector('#tripDocsBody');
+        if (body) body.innerHTML = renderBody();
+    };
+
+    /** @type {HTMLButtonElement | null} */
+    (root.querySelector('#closeDocsModalBtn'))?.addEventListener('click', close);
+
+    root.addEventListener('click', (ev) => {
+        const target = /** @type {HTMLElement | null} */ (ev.target);
+        if (!target) return;
+        // PDF link → in-app preview (Cmd/Ctrl/Shift/middle-click
+        // still escape to a new tab).
+        const docLink = /** @type {HTMLAnchorElement | null} */ (target.closest('a.trip-doc-link'));
+        if (docLink && looksLikePdfUrl(docLink.href)) {
+            const me = /** @type {MouseEvent} */ (ev);
+            if (!me.metaKey && !me.ctrlKey && !me.shiftKey && me.button !== 1) {
+                me.preventDefault();
+                const card = docLink.closest('.trip-doc-card');
+                const name = card?.querySelector('a')?.textContent?.trim() || 'Document';
+                openPdfPreview(docLink.href, name);
+                return;
+            }
+        }
+        if (target.closest('#searchGmailDocsBtn')) {
+            const url = buildGmailTripSearchUrl(trip);
+            if (url) window.open(url, '_blank', 'noopener,noreferrer');
+            return;
+        }
+        if (target.closest('#addDocBtn') && tripIsEditable) {
+            // Sub-modal closes this one first (its save-flow calls
+            // navigate('home') which would leave the docs modal
+            // stranded over a freshly-rebuilt page).
+            close();
+            openAddTripDocumentModal(trip);
+            return;
+        }
+        const docEditBtn = /** @type {HTMLElement | null} */ (target.closest('.trip-doc-edit-btn'));
+        if (docEditBtn?.dataset.docId && tripIsEditable) {
+            close();
+            openEditTripDocumentModal(trip, docEditBtn.dataset.docId);
+            return;
+        }
+        const docRemoveBtn = /** @type {HTMLElement | null} */ (target.closest('.trip-doc-remove-btn'));
+        if (docRemoveBtn?.dataset.docId && tripIsEditable) {
+            const removed = removeTripDocument(trip, docRemoveBtn.dataset.docId);
+            if (removed) {
+                emit('state:changed');
+                if (removed === 'trip') upsertTrip(trip);
+                else {
+                    const dayId = (docRemoveBtn.dataset.docId || '').split('#')[0];
+                    const day = STATE.tripDays.find(d => d.id === dayId);
+                    if (day) upsertDay(day);
+                }
+                repaint();
+            }
+            return;
+        }
+    });
+
+    root.addEventListener('change', (ev) => {
+        const target = /** @type {HTMLElement | null} */ (ev.target);
+        const docSel = /** @type {HTMLSelectElement | null} */ (target?.closest('.trip-doc-day-select'));
+        if (docSel?.dataset.docId && tripIsEditable) {
+            setDocumentDay(trip, docSel.dataset.docId, docSel.value || null);
+            emit('state:changed');
+            upsertTrip(trip);
+            // Repaint so the doc card moves to its new day-group
+            // header — without it the visual would be out of sync.
+            repaint();
+        }
+    });
+};
+
+/** Photos popup modal — opened from Genesis option button. Same
+ *  pattern as openTripDocumentsModal: full grid view with upload /
+ *  add-by-link / day-reassign / remove. File-input upload is
+ *  handled inline (re-wire after each repaint since the input
+ *  element gets recreated). Lightbox / external-link click goes
+ *  through the existing helpers.
+ *
+ *  @param {any} trip
+ */
+const openTripPhotosModal = (trip) => {
+    if (!trip) return;
+    const tripIsEditable = canEdit(trip);
+
+    const renderBody = () => {
+        const photos = getAllTripPhotos(trip);
+        const genesisDayForPhotos = (STATE.tripDays || [])
+            .find(d => d.tripId === trip.id && Number(d.dayNumber) === 0);
+        const numberedDaysForPhotos = (STATE.tripDays || [])
+            .filter(d => d.tripId === trip.id && d.dayNumber > 0)
+            .sort((a, b) => a.dayNumber - b.dayNumber);
+        const dayLabel = (id) => {
+            if (!id) return null;
+            const day = (STATE.tripDays || []).find(d => d.id === id);
+            if (!day) return null;
+            return Number(day.dayNumber) === 0 ? '⭐ Genesis' : `Day ${day.dayNumber}`;
+        };
+        const isGenesisPhoto = (id) => !!id && id === genesisDayForPhotos?.id;
+        const headerRow = `
+            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:14px;">
+                ${tripIsEditable ? `
+                    <button id="addPhotosBtn" type="button" title="Upload photos from your device"
+                        style="background:#34c759; color:white; border:0; padding:9px 16px; border-radius:999px; font-weight:800; font-size:0.82rem; cursor:pointer; box-shadow: 0 4px 12px rgba(52,199,89,0.22);">
+                        📤 Upload photos
+                    </button>
+                    <input id="addPhotosInput" type="file" accept="image/*" multiple style="display:none;">
+                    <button id="addPhotoUrlBtn" type="button" title="Paste a link to a Google Drive / Dropbox / hosted image album"
+                        style="background:white; color:#002d5b; border:1px solid rgba(0,0,0,0.1); padding:9px 16px; border-radius:999px; font-weight:800; font-size:0.82rem; cursor:pointer;">
+                        🔗 Add by link
+                    </button>
+                ` : ''}
+                <span style="margin-left:auto; font-size:0.78rem; color:var(--text-secondary); font-weight:600;">${photos.length} ${photos.length === 1 ? 'photo' : 'photos'}</span>
+            </div>
+        `;
+        if (photos.length === 0) {
+            return `
+                ${headerRow}
+                <div class="card glass" style="padding: 28px; border-radius: 18px; border: 1.5px dashed rgba(52,199,89,0.32); background: rgba(52,199,89,0.04); text-align:center;">
+                    <div style="font-size:2rem; margin-bottom:8px;">📸</div>
+                    <h3 style="margin:0 0 6px; color:#1a6b3c; font-weight:800;">No photos yet</h3>
+                    <p style="margin:0; color:var(--text-secondary); font-size:0.9rem;">Use <strong>📤 Upload photos</strong> for files on your device, or <strong>🔗 Add by link</strong> for a Drive / Dropbox / iCloud share. New photos go to <strong>⭐ Trip Genesis</strong> (the trip-wide bucket); you can re-tag any of them to a specific day from the dropdown on each card.</p>
+                </div>
+            `;
+        }
+        return `
+            ${headerRow}
+            <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:10px;">
+                ${photos.map(p => {
+                    const isImage = /^data:image\//i.test(p.src || '')
+                        || /\.(jpe?g|png|gif|webp|avif|heic|heif|bmp|tiff?|svg)(\?.*)?$/i.test(p.src || '');
+                    const canEditDay = tripIsEditable && p._source === 'trip';
+                    const staticChipFor = (label, bg) => `<div style="position:absolute; top:6px; left:6px; background: ${bg}; color:white; padding:2px 8px; border-radius:999px; font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; backdrop-filter: blur(6px); pointer-events:none;">${esc(label)}</div>`;
+                    const chipBg = isGenesisPhoto(p.dayId)
+                        ? 'rgba(140,110,12,0.85)'
+                        : (p.dayId ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0.45)');
+                    const dayBadge = canEditDay
+                        ? `<select class="trip-photo-day-select" data-photo-id="${esc(p.id)}" title="Move to Trip Genesis or a numbered day"
+                                style="position:absolute; top:6px; left:6px; background: ${chipBg}; color:white; border:0; padding:2px 22px 2px 10px; border-radius:999px; font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; backdrop-filter: blur(6px); cursor:pointer; appearance:none; -webkit-appearance:none; background-image: url('data:image/svg+xml;utf8,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;10&quot; height=&quot;10&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;white&quot; stroke-width=&quot;3&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;><polyline points=&quot;6 9 12 15 18 9&quot;/></svg>'); background-repeat:no-repeat; background-position: right 7px center; background-size: 8px;">
+                                ${genesisDayForPhotos ? `<option value="${esc(genesisDayForPhotos.id)}" ${p.dayId === genesisDayForPhotos.id ? 'selected' : ''}>⭐ Genesis</option>` : ''}
+                                ${numberedDaysForPhotos.map(nd => `<option value="${esc(nd.id)}" ${p.dayId === nd.id ? 'selected' : ''}>Day ${nd.dayNumber}</option>`).join('')}
+                            </select>`
+                        : (isGenesisPhoto(p.dayId)
+                            ? staticChipFor('⭐ Genesis', 'rgba(140,110,12,0.85)')
+                            : (p.dayId ? staticChipFor(dayLabel(p.dayId) || '', 'rgba(0,0,0,0.55)') : staticChipFor('Unsorted', 'rgba(0,0,0,0.45)')));
+                    const removeBtn = tripIsEditable
+                        ? `<button type="button" class="trip-photo-remove-btn" data-photo-id="${esc(p.id)}" title="Remove" aria-label="Remove photo"
+                            style="position:absolute; top:6px; right:6px; background:rgba(0,0,0,0.55); border:0; color:white; width:24px; height:24px; border-radius:50%; cursor:pointer; font-size:0.75rem; line-height:1; backdrop-filter: blur(6px); z-index:1;">✕</button>`
+                        : '';
+                    if (isImage) {
+                        return `
+                            <div class="trip-photo-card" data-photo-id="${esc(p.id)}" data-photo-kind="image" style="position:relative; aspect-ratio:1; border-radius:14px; overflow:hidden; background-image:url(${esc(p.src)}); background-size:cover; background-position:center; box-shadow: 0 4px 12px rgba(0,0,0,0.06); cursor:pointer; border:1px solid rgba(0,0,0,0.06);">
+                                ${dayBadge}
+                                ${removeBtn}
+                            </div>
+                        `;
+                    }
+                    return `
+                        <div class="trip-photo-card" data-photo-id="${esc(p.id)}" data-photo-kind="link" style="position:relative; aspect-ratio:1; border-radius:14px; overflow:hidden; background: linear-gradient(135deg, #0071e3, #5856d6); box-shadow: 0 4px 12px rgba(0,113,227,0.18); cursor:pointer; border:1px solid rgba(0,0,0,0.06); display:flex; flex-direction:column; align-items:center; justify-content:center; padding:14px; text-align:center; color:white;">
+                            ${dayBadge}
+                            ${removeBtn}
+                            <div style="font-size:1.8rem; line-height:1; margin-bottom:8px;">🔗</div>
+                            <div style="font-size:0.7rem; font-weight:800; opacity:0.9; word-break:break-all; overflow:hidden; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical;">${esc(p.src.replace(/^https?:\/\//, ''))}</div>
+                        </div>
+                    `;
+                }).join('')}
+            </div>
+        `;
+    };
+
+    const { root, close } = showModal({
+        cardClass: 'card glass',
+        cardStyle: 'width: min(880px, 92vw); max-height: 88vh; overflow-y: auto; padding: 28px; border-radius: 28px; background: white;',
+        innerHTML: `
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 18px;">
+                <h2 style="margin:0; font-size:1.4rem; color:#002d5b; font-weight:800; letter-spacing:-0.02em; display:inline-flex; align-items:center; gap:10px;">
+                    <span style="font-size:1.4rem;">📸</span> Photos
+                </h2>
+                <button id="closePhotosModalBtn" class="close-x-btn" aria-label="Close">✕</button>
+            </div>
+            <div id="tripPhotosBody">${renderBody()}</div>
+        `,
+    });
+
+    /** Re-wire the file input after each repaint — the input
+     *  element gets recreated when innerHTML swaps. Without this,
+     *  uploading once then deleting + re-uploading would silently
+     *  no-op on the second try. */
+    const wireFileInput = () => {
+        const input = /** @type {HTMLInputElement | null} */ (root.querySelector('#addPhotosInput'));
+        if (!input) return;
+        input.addEventListener('change', async () => {
+            const files = Array.from(input.files || []);
+            if (files.length === 0) return;
+            showLiquidAlert(`Uploading ${files.length} photo${files.length === 1 ? '' : 's'}…`);
+            const genesisDay = (STATE.tripDays || [])
+                .find(d => d.tripId === trip.id && Number(d.dayNumber) === 0);
+            const defaultDayId = genesisDay ? genesisDay.id : null;
+            let added = 0;
+            for (const file of files) {
+                try {
+                    const res = await uploadMedia(file);
+                    if (res?.url) {
+                        addTripPhoto(trip, { src: res.url, dayId: defaultDayId });
+                        added++;
+                    }
+                } catch (e) {
+                    console.error('Photo upload failed:', e);
+                }
+            }
+            input.value = '';
+            if (added > 0) {
+                emit('state:changed');
+                await upsertTrip(trip);
+                showLiquidAlert(`${added} photo${added === 1 ? '' : 's'} added.`);
+                repaint();
+            } else {
+                showLiquidAlert('Upload failed — please try again.');
+            }
+        });
+    };
+
+    const repaint = () => {
+        const body = root.querySelector('#tripPhotosBody');
+        if (body) body.innerHTML = renderBody();
+        wireFileInput();
+    };
+
+    /** @type {HTMLButtonElement | null} */
+    (root.querySelector('#closePhotosModalBtn'))?.addEventListener('click', close);
+
+    root.addEventListener('click', (ev) => {
+        const target = /** @type {HTMLElement | null} */ (ev.target);
+        if (!target) return;
+        if (target.closest('#addPhotosBtn') && tripIsEditable) {
+            /** @type {HTMLInputElement | null} */
+            (root.querySelector('#addPhotosInput'))?.click();
+            return;
+        }
+        if (target.closest('#addPhotoUrlBtn') && tripIsEditable) {
+            close();
+            openAddTripPhotoUrlModal(trip);
+            return;
+        }
+        const photoRemoveBtn = /** @type {HTMLElement | null} */ (target.closest('.trip-photo-remove-btn'));
+        if (photoRemoveBtn?.dataset.photoId && tripIsEditable) {
+            const removed = removeTripPhoto(trip, photoRemoveBtn.dataset.photoId);
+            if (removed) {
+                emit('state:changed');
+                if (removed === 'trip') upsertTrip(trip);
+                else {
+                    const dayId = (photoRemoveBtn.dataset.photoId || '').split('#')[0];
+                    const day = STATE.tripDays.find(d => d.id === dayId);
+                    if (day) upsertDay(day);
+                }
+                repaint();
+            }
+            return;
+        }
+        const photoCard = /** @type {HTMLElement | null} */ (target.closest('.trip-photo-card'));
+        if (photoCard?.dataset.photoId
+            && !target.closest('.trip-photo-remove-btn')
+            && !target.closest('.trip-photo-day-select')) {
+            const photo = getAllTripPhotos(trip).find(p => p.id === photoCard.dataset.photoId);
+            if (photo) {
+                if (photoCard.dataset.photoKind === 'link') {
+                    window.open(photo.src, '_blank', 'noopener,noreferrer');
+                } else {
+                    openPhotoLightbox(photo.src);
+                }
+            }
+            return;
+        }
+    });
+
+    root.addEventListener('change', (ev) => {
+        const target = /** @type {HTMLElement | null} */ (ev.target);
+        const photoSel = /** @type {HTMLSelectElement | null} */ (target?.closest('.trip-photo-day-select'));
+        if (photoSel?.dataset.photoId && tripIsEditable) {
+            setPhotoDay(trip, photoSel.dataset.photoId, photoSel.value || null);
+            emit('state:changed');
+            upsertTrip(trip);
+            // No repaint — chip is purely visual on a photo, the
+            // select already shows the new value.
+        }
+    });
+
+    wireFileInput();
+};
+
+// The Documents and Photos modal openers above use these per-row
+// add/edit/url sub-modals for individual entries. Both stores live
+// on the trip object directly (trip.documents, trip.photos);
+// legacy day-level openPhotosModal / openDocumentsModal were
+// retired — see getAllTripDocuments / getAllTripPhotos which
+// present a UNION over trip-level entries and any legacy
+// day.tickets / day.photos data so old trips don't disappear.
 
 /** @param {any} trip */
 const openAddTripDocumentModal = (trip) => {
