@@ -2019,26 +2019,19 @@ export function renderHome() {
             <p style="font-size: 0.95rem; color: var(--text-secondary); margin: 6px 0 0; font-weight: 500;">${tripDays.length} Day${tripDays.length !== 1 ? 's' : ''} of adventure</p>
         </div>
 
-        ${activeTrip ? (() => {
-            // Tab badge counters — built once so the JSX (template
-            // string) reads less noisy, and so we can reuse the same
-            // counts in tab body rendering below. The to-do count
-            // moved to the dedicated /todo page header.
-            const docsCount = getAllTripDocuments(activeTrip).length;
-            const photosCount = getAllTripPhotos(activeTrip).length;
-            /** Small chip rendered next to a tab label when count > 0. */
-            const badge = (n, color) => n > 0
-                ? ` <span style="background:${color.bg}; color:${color.fg}; padding:1px 6px; border-radius:999px; font-size:0.7rem; font-weight:800; margin-left:2px;">${n}</span>`
-                : '';
-            return `
+        ${activeTrip ? `
+            <!-- Trip tab nav. Used to also include Documents + Photos
+                 tabs; both moved to Genesis options (per user) so the
+                 nav stays focused on the two structural views — the
+                 trip's days vs. the trip's people. The Documents and
+                 Photos PANELS still render below (gated by
+                 activeHomeTab) — they're just reached from Genesis
+                 options now and have their own back-to-Path header. -->
             <nav class="home-tabnav" role="tablist">
                 <button class="home-tabnav__tab${activeHomeTab === 'days' ? ' is-active' : ''}" data-home-tab="days" role="tab">Path</button>
                 <button class="home-tabnav__tab${activeHomeTab === 'companions' ? ' is-active' : ''}" data-home-tab="companions" role="tab">Companions</button>
-                <button class="home-tabnav__tab${activeHomeTab === 'documents' ? ' is-active' : ''}" data-home-tab="documents" role="tab">Documents${badge(docsCount, { bg: 'rgba(88,86,214,0.15)', fg: '#5856d6' })}</button>
-                <button class="home-tabnav__tab${activeHomeTab === 'photos' ? ' is-active' : ''}" data-home-tab="photos" role="tab">Photos${badge(photosCount, { bg: 'rgba(52,199,89,0.15)', fg: '#1a6b3c' })}</button>
             </nav>
-            `;
-        })() : ''}
+        ` : ''}
 
         <!-- Companions tab content. Render order matters: this sits ABOVE
              the Days tab in source so the timeline stays the document
@@ -2123,6 +2116,21 @@ export function renderHome() {
                     });
 
                     const headerRow = `
+                        <!-- Back-to-Path strip — Documents tab moved
+                             from the trip tab nav into Genesis options
+                             (per user). Without the tab, the panel
+                             needs its own way back to Path; this
+                             header pill handles it. -->
+                        <div style="display:flex; align-items:center; gap:14px; margin-bottom:6px;">
+                            <button class="home-back-to-path-btn" type="button" title="Back to Path"
+                                style="background:rgba(0,0,0,0.04); border:1px solid rgba(0,0,0,0.08); color:#002d5b; padding:6px 14px; border-radius:999px; font-weight:700; font-size:0.78rem; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                                Back to Path
+                            </button>
+                            <h3 style="margin:0; font-size:1.1rem; font-weight:800; color:#002d5b; letter-spacing:-0.01em; display:inline-flex; align-items:center; gap:8px;">
+                                <span style="font-size:1.1rem;">📎</span> Documents
+                            </h3>
+                        </div>
                         <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
                             ${tripIsEditable ? `
                                 <button id="addDocBtn" type="button"
@@ -2223,6 +2231,19 @@ export function renderHome() {
                     const isGenesisPhoto = (id) => !!id && id === genesisDayForPhotos?.id;
 
                     const headerRow = `
+                        <!-- Back-to-Path strip — see Documents
+                             header above for context (same pattern,
+                             different surface). -->
+                        <div style="display:flex; align-items:center; gap:14px; margin-bottom:6px;">
+                            <button class="home-back-to-path-btn" type="button" title="Back to Path"
+                                style="background:rgba(0,0,0,0.04); border:1px solid rgba(0,0,0,0.08); color:#002d5b; padding:6px 14px; border-radius:999px; font-weight:700; font-size:0.78rem; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                                Back to Path
+                            </button>
+                            <h3 style="margin:0; font-size:1.1rem; font-weight:800; color:#002d5b; letter-spacing:-0.01em; display:inline-flex; align-items:center; gap:8px;">
+                                <span style="font-size:1.1rem;">📸</span> Photos
+                            </h3>
+                        </div>
                         <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
                             ${tripIsEditable ? `
                                 <button id="addPhotosBtn" type="button" title="Upload photos from your device"
@@ -2417,13 +2438,17 @@ export function renderHome() {
         const buildOptionsStack = (day, { isGenesis }) => {
             if (!day || !tripIsEditable) return '';
             const buttons = [];
-            // Primary — Open Full Plan opens the day-detail modal (same
-            // modal Genesis uses for its trip-wide notes/photos). Custom
-            // primary class so it visually outranks the chip-style
-            // `.day-action-btn` siblings below it; Genesis variant
-            // matches the column's green theme.
-            const primaryCls = isGenesis ? 'path-primary-btn path-primary-btn--genesis' : 'path-primary-btn';
-            buttons.push(`<button class="${primaryCls} day-detail-btn" data-day-id="${esc(day.id)}">📋 Open Full Plan</button>`);
+            // Primary button — different identity per day type.
+            // Genesis: Trip checklist takes the gold-gradient primary
+            // slot (per user). The "Open Full Plan" entry was dropped
+            // from Genesis entirely — Genesis is the trip's hub, not
+            // a calendar day, so a "full day plan" CTA didn't fit.
+            // Numbered days: Open Full Plan stays the primary action.
+            if (isGenesis) {
+                buttons.push(`<button class="path-primary-btn path-primary-btn--genesis path-checklist-btn" data-day-id="${esc(day.id)}">📝 Trip checklist</button>`);
+            } else {
+                buttons.push(`<button class="path-primary-btn day-detail-btn" data-day-id="${esc(day.id)}">📋 Open Full Plan</button>`);
+            }
             if (editingDayId === day.id) {
                 // Mid pin-edit: present save + cancel as the next two
                 // buttons (the pin row in the old layout did the same
@@ -2436,30 +2461,35 @@ export function renderHome() {
                     : (isGenesis ? '📍 Set anchor pin' : '📍 Add pin');
                 buttons.push(`<button class="day-action-btn day-action-btn--neutral day-pin-toggle-btn" data-day-id="${esc(day.id)}"><span>${pinLabel}</span></button>`);
             }
-            // Set as search center — only on pinned non-Genesis days
-            // (Genesis is the implicit default epicenter).
-            if (!isGenesis && day.lat) {
-                const tripId = activeTrip?.id || '';
-                const isActive = STATE.preferences?.pillEpicenters?.[tripId] === day.id;
-                const cls = isActive ? 'day-action-btn day-action-btn--success day-set-epicenter-btn' : 'day-action-btn day-action-btn--neutral day-set-epicenter-btn';
-                const label = isActive ? '🎯 Search center (active)' : '🎯 Set as search center';
-                buttons.push(`<button class="${cls}" data-day-id="${esc(day.id)}"><span>${label}</span></button>`);
-            }
             if (isGenesis) {
-                // Genesis — central hub. Trip checklist (free-form
-                // packing/errand tasks) replaces the per-day Journaling
-                // button here. Numbered days still get Journaling
-                // (notes-focused modal); Genesis's notes/journal still
-                // live in the day-detail modal accessed via Open Full Plan.
-                buttons.push(`<button class="day-action-btn day-action-btn--neutral path-checklist-btn" data-day-id="${esc(day.id)}"><span>📝 Trip checklist</span></button>`);
+                // Documents + Photos used to be top-level trip tabs;
+                // moved here (per user) so the trip tab nav stays
+                // focused on Path / Companions and the trip-wide
+                // media live where they conceptually belong — under
+                // the Genesis hub. Clicking either swaps the
+                // home-tab content surface; the panels themselves
+                // get a "Back to Path" header so the user can
+                // return without a tab to click.
+                buttons.push(`<button class="day-action-btn day-action-btn--neutral path-documents-btn" data-day-id="${esc(day.id)}"><span>📎 Documents</span></button>`);
+                buttons.push(`<button class="day-action-btn day-action-btn--neutral path-photos-btn" data-day-id="${esc(day.id)}"><span>📸 Photos</span></button>`);
             } else {
-                // Journaling — separate notes-only modal. Numbered days
-                // only; Genesis swaps this for the Trip checklist.
+                // Numbered-day-only options.
+                if (day.lat) {
+                    // Set as search center — only on pinned days.
+                    // Genesis is the implicit default epicenter so it
+                    // doesn't get this control.
+                    const tripId = activeTrip?.id || '';
+                    const isActive = STATE.preferences?.pillEpicenters?.[tripId] === day.id;
+                    const cls = isActive ? 'day-action-btn day-action-btn--success day-set-epicenter-btn' : 'day-action-btn day-action-btn--neutral day-set-epicenter-btn';
+                    const label = isActive ? '🎯 Search center (active)' : '🎯 Set as search center';
+                    buttons.push(`<button class="${cls}" data-day-id="${esc(day.id)}"><span>${label}</span></button>`);
+                }
+                // Journaling — separate notes-only modal. Numbered
+                // days only; Genesis swaps this for the Trip checklist
+                // (now its primary button at the top).
                 buttons.push(`<button class="day-action-btn day-action-btn--neutral day-journaling-btn" data-day-id="${esc(day.id)}"><span>✍️ Journaling</span></button>`);
-            }
-            // Delete — only on non-Genesis days. Genesis is structurally
-            // permanent (anchors the trip).
-            if (!isGenesis) {
+                // Delete — only on non-Genesis days. Genesis is
+                // structurally permanent (anchors the trip).
                 buttons.push(`<button class="day-action-btn day-action-btn--danger day-delete-btn" data-day-id="${esc(day.id)}"><span>🗑️ Delete day</span></button>`);
             }
             return `<div class="path-options-stack">${buttons.join('')}</div>`;
@@ -2710,23 +2740,40 @@ export function renderHome() {
                 return;
             }
 
-            // Home sub-tabs (Path / Companions / Documents / Photos) —
-            // toggle the active block via class swap; all tabs stay in
-            // the DOM so nothing has to remount on switch (preserves
-            // per-day delegated handlers and timeline animation state).
-            // The To-do list moved to its own top-level /todo page.
-            const tabBtn = /** @type {HTMLElement | null} */ (target.closest('.home-tabnav__tab'));
-            const tabKey = tabBtn?.dataset.homeTab;
-            if (tabKey === 'days' || tabKey === 'companions' || tabKey === 'documents' || tabKey === 'photos') {
-                activeHomeTab = tabKey;
+            // Home sub-tabs (Path / Companions) — toggle the active
+            // block via class swap; all tabs stay in the DOM so
+            // nothing has to remount on switch (preserves per-day
+            // delegated handlers and timeline animation state). The
+            // To-do list moved to its own top-level /todo page;
+            // Documents + Photos moved to Genesis options (clicked
+            // via .path-documents-btn / .path-photos-btn below) and
+            // are reached via the same activeHomeTab swap.
+            const setActiveHomeTab = (key) => {
+                activeHomeTab = key;
                 daysContainer.querySelectorAll('.home-tabnav__tab').forEach(t => {
                     /** @type {HTMLElement} */ (t).classList.toggle('is-active', /** @type {HTMLElement} */ (t).dataset.homeTab === activeHomeTab);
                 });
                 daysContainer.querySelectorAll('.home-tab-content').forEach(c => {
                     /** @type {HTMLElement} */ (c).classList.toggle('is-active', /** @type {HTMLElement} */ (c).dataset.homeTab === activeHomeTab);
                 });
+            };
+            const tabBtn = /** @type {HTMLElement | null} */ (target.closest('.home-tabnav__tab'));
+            const tabKey = tabBtn?.dataset.homeTab;
+            if (tabKey === 'days' || tabKey === 'companions') {
+                setActiveHomeTab(tabKey);
                 return;
             }
+            // Genesis options → Documents / Photos surfaces. Same
+            // tab-swap mechanism as the nav buttons used to use
+            // (the surfaces still live in the DOM, just unreachable
+            // from the now-trimmed tab bar). Both buttons live on
+            // the Genesis option stack with `data-day-id` set, so
+            // we use the closest match.
+            if (target.closest('.path-documents-btn')) { setActiveHomeTab('documents'); return; }
+            if (target.closest('.path-photos-btn')) { setActiveHomeTab('photos'); return; }
+            // Back-to-Path header pill on Documents / Photos
+            // surfaces — replaces the old tab-bar return path.
+            if (target.closest('.home-back-to-path-btn')) { setActiveHomeTab('days'); return; }
 
             // Edit-trip pencil — owner-only, hidden when !manageable.
             if (target.closest('#editTripBtn')) { openEditTripModal(activeTrip); return; }
