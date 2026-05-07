@@ -598,12 +598,32 @@ export function renderHome() {
                 ${activeTrip ? `<p>You have <strong>${tripExpenses.length}</strong> expenses recorded for ${activeTrip.name}.</p>` : `<p>Welcome! Start by creating your first trip.</p>`}
             </div>
             
+            <!-- "Discover places nearby" toggle — compact pill that
+                 sits ABOVE the search bar (used to live below the map
+                 next to a heavy "Discover…" bar). Clicking it
+                 reveals the POI category pills as a FLOATING overlay
+                 panel on top of the map (see #homeMapPoiToggles
+                 inside .cover-card below). Compass icon swap from the
+                 old magnifying glass — discovery, not search. -->
+            <div style="display:flex; justify-content:center; margin: 12px auto 8px; max-width: 720px;">
+                <button type="button" id="homePoiToggleBtn" class="map-poi-toggle-bar" aria-expanded="false" aria-controls="homeMapPoiToggles">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <circle cx="12" cy="12" r="9"></circle>
+                        <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon>
+                    </svg>
+                    <span class="map-poi-toggle-bar__label">Discover places nearby</span>
+                    <svg class="map-poi-toggle-bar__chevron" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                </button>
+            </div>
+
             <!-- Map search banner. Sits ABOVE the map (in normal flow,
                  not floated over it) so the map view is unobstructed.
                  The suggestion dropdown uses position:absolute relative
                  to the wrapper so it can extend down over the map's
                  first row of pixels without pushing layout. -->
-            <div id="homeMapSearchWrap" style="position:relative; max-width: 720px; margin: 16px auto 12px; z-index: 5;">
+            <div id="homeMapSearchWrap" style="position:relative; max-width: 720px; margin: 4px auto 12px; z-index: 5;">
                 <div style="display:flex; align-items:center; gap:10px; background:rgba(255,255,255,0.94); backdrop-filter: blur(20px) saturate(160%); -webkit-backdrop-filter: blur(20px) saturate(160%); border:1px solid rgba(0,0,0,0.08); border-radius:999px; padding:10px 16px; box-shadow: 0 8px 24px rgba(0,45,91,0.10);">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#002d5b" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0;">
                         <circle cx="11" cy="11" r="7"></circle>
@@ -630,33 +650,23 @@ export function renderHome() {
                         ${displayQuotes[0] || ''}
                     </p>
                 </div>
-            </div>
 
-            <!-- POI filter pills — sit BELOW the map and stay HIDDEN
-                 by default. The pill row used to sit always-on under
-                 the map, which felt heavy when the user just wanted
-                 to glance at the map. A small toggle bar above it
-                 reveals/hides the pills; the user's preference
-                 persists in localStorage so the choice sticks across
-                 reloads. Settings → General can still hide individual
-                 pills via poiVisible[key] === false; that filtering
-                 happens here too. -->
-            <div id="homePoiSection" class="map-poi-section${(() => {
-                let visible = false;
-                try { visible = localStorage.getItem('home_pills_visible') === '1'; } catch (_) {}
-                return visible ? ' is-expanded' : '';
-            })()}">
-                <button type="button" id="homePoiToggleBtn" class="map-poi-toggle-bar" aria-expanded="false">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <circle cx="11" cy="11" r="7"></circle>
-                        <path d="M21 21l-4.35-4.35"></path>
-                    </svg>
-                    <span class="map-poi-toggle-bar__label">Discover places nearby</span>
-                    <svg class="map-poi-toggle-bar__chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <polyline points="6 9 12 15 18 9"></polyline>
-                    </svg>
-                </button>
-                <div id="homeMapPoiToggles" class="map-poi-toggles map-poi-toggles--below">
+                <!-- POI category pills — overlay panel pinned at the
+                     top of the map. Hidden by default; visibility is
+                     toggled by #homePoiToggleBtn above the search
+                     bar. The container ALWAYS exists in the DOM (the
+                     pill click handler at line ~1264 listens here);
+                     the .is-visible class controls display. The
+                     user's preference persists in localStorage so
+                     the choice sticks across reloads. Settings →
+                     General hides individual pills via
+                     poiVisible[key] === false; that filtering
+                     happens here too. -->
+                <div id="homeMapPoiToggles" class="map-poi-toggles map-poi-toggles--overlay${(() => {
+                    let visible = false;
+                    try { visible = localStorage.getItem('home_pills_visible') === '1'; } catch (_) {}
+                    return visible ? ' is-visible' : '';
+                })()}" aria-hidden="true">
                     ${POI_CATEGORIES
                         .filter(c => STATE.preferences?.poiVisible?.[c.key] !== false)
                         .map(c => `
@@ -1242,22 +1252,31 @@ export function renderHome() {
                     emit('state:changed');
                 };
 
-                // POI section show/hide toggle. Visibility persists in
-                // localStorage so the user's preference (collapsed by
-                // default — pills are hidden until they ask) sticks
-                // across reloads. The `is-expanded` class on the
-                // section drives both the chevron rotation and the
-                // pill row's display.
-                const poiSection = document.getElementById('homePoiSection');
+                // POI overlay show/hide toggle. The toggle button
+                // sits ABOVE the search bar; the pills overlay sits
+                // INSIDE the cover-card (absolute over the map). Both
+                // are decoupled — `.is-expanded` on the button drives
+                // its own pressed/chevron state; `.is-visible` on the
+                // pills container drives whether the panel renders.
+                // Visibility persists in localStorage so the user's
+                // preference (hidden by default — pills are off until
+                // they ask) sticks across reloads.
                 const poiToggleBar = /** @type {HTMLButtonElement | null} */ (document.getElementById('homePoiToggleBtn'));
-                if (poiSection && poiToggleBar) {
-                    // Sync aria-expanded with the initial DOM state.
-                    poiToggleBar.setAttribute('aria-expanded', poiSection.classList.contains('is-expanded') ? 'true' : 'false');
+                const poiOverlay = /** @type {HTMLElement | null} */ (document.getElementById('homeMapPoiToggles'));
+                if (poiToggleBar && poiOverlay) {
+                    // Sync initial state (the inline render decides
+                    // visibility from localStorage; mirror it here).
+                    const startVisible = poiOverlay.classList.contains('is-visible');
+                    poiToggleBar.classList.toggle('is-expanded', startVisible);
+                    poiToggleBar.setAttribute('aria-expanded', startVisible ? 'true' : 'false');
+                    poiOverlay.setAttribute('aria-hidden', startVisible ? 'false' : 'true');
                     poiToggleBar.addEventListener('click', () => {
-                        const willExpand = !poiSection.classList.contains('is-expanded');
-                        poiSection.classList.toggle('is-expanded', willExpand);
-                        poiToggleBar.setAttribute('aria-expanded', willExpand ? 'true' : 'false');
-                        try { localStorage.setItem('home_pills_visible', willExpand ? '1' : '0'); } catch (_) {}
+                        const willShow = !poiOverlay.classList.contains('is-visible');
+                        poiOverlay.classList.toggle('is-visible', willShow);
+                        poiOverlay.setAttribute('aria-hidden', willShow ? 'false' : 'true');
+                        poiToggleBar.classList.toggle('is-expanded', willShow);
+                        poiToggleBar.setAttribute('aria-expanded', willShow ? 'true' : 'false');
+                        try { localStorage.setItem('home_pills_visible', willShow ? '1' : '0'); } catch (_) {}
                     });
                 }
 
@@ -2481,18 +2500,35 @@ export function renderHome() {
                 : (selectedDay
                     ? `Day ${selectedDay.dayNumber} of ${totalDays}`
                     : `${totalDays} day${totalDays === 1 ? '' : 's'} planned`);
+            // Today's local date in YYYY-MM-DD — used to flag the day
+            // chip that matches the user's actual calendar today so it
+            // visually "stands" out from the rest of the wheel. Built
+            // once per render, not per chip.
+            const todayStr = (() => {
+                const t = new Date();
+                const y = t.getFullYear();
+                const m = String(t.getMonth() + 1).padStart(2, '0');
+                const dd = String(t.getDate()).padStart(2, '0');
+                return `${y}-${m}-${dd}`;
+            })();
             // Chip strip — Genesis chip first, then numbered days, then
             // a `+` chip (only for editable trips) that opens the
             // Add-Day modal. Each chip's `title` carries the day's name
             // + date so hovering surfaces context the chip itself can't
-            // fit (per Q3 — numbers visible, titles in tooltip).
+            // fit (per Q3 — numbers visible, titles in tooltip). Chips
+            // matching today's date get `path-chip--today` so the
+            // user sees where they "are" on the timeline at a glance —
+            // selected stays the highest emphasis (it's where the user
+            // explicitly is) but today is bumped above the resting
+            // size so it pops even when the user is browsing other days.
             const chipsHtml = sortedDays.map(d => {
                 const isSel = d.id === selectedId;
                 const isGen = d.dayNumber === 0;
-                const cls = `path-chip${isGen ? ' path-chip--genesis' : ''}${isSel ? ' is-selected' : ''}`;
+                const isToday = !isGen && d.date === todayStr;
+                const cls = `path-chip${isGen ? ' path-chip--genesis' : ''}${isToday ? ' path-chip--today' : ''}${isSel ? ' is-selected' : ''}`;
                 const tooltip = isGen
                     ? 'Trip Genesis — your trip\'s anchor'
-                    : `Day ${d.dayNumber}${d.name ? ' — ' + d.name : ''}${d.date ? ' · ' + (formatDayDate(d.date) || d.date) : ''}`;
+                    : `${isToday ? 'Today · ' : ''}Day ${d.dayNumber}${d.name ? ' — ' + d.name : ''}${d.date ? ' · ' + (formatDayDate(d.date) || d.date) : ''}`;
                 const inner = isGen
                     ? `<svg width="14" height="14" viewBox="0 0 48 48" aria-hidden="true"><path d="M 24,11 L 27.06,18.96 L 35.55,19.49 L 28.92,24.92 L 31.0,33.16 L 24,28.6 L 17,33.16 L 19.08,24.92 L 12.45,19.49 L 20.94,18.96 Z" fill="currentColor"/></svg>`
                     : String(d.dayNumber);
@@ -3994,16 +4030,35 @@ const openDayDetail = (dayId) => {
         </div>
     `;
 
+    // Section that surfaces all shortlisted places so the user can
+    // drop them into AM/PM/Eve. Used to render as a single tall
+    // column — a 20-item list ate 80% of the modal vertical space
+    // and pushed the AM/PM/Eve textareas above out of view. Now:
+    //   - 2-column auto-fit grid (modal is ~700px content-wide,
+    //     fits two ~330px rows comfortably)
+    //   - max-height + scroll so the section never exceeds ~380px
+    //     no matter how many rows
+    //   - count chip in header so the user sees the total at a
+    //     glance
+    //   - lazy filter input (only shown above 6 items — pointless
+    //     for short lists) that filters rows live by name/address
     const shortlistSectionHtml = allShortlist.length > 0 ? `
-        <div style="margin-top: var(--space-10); padding: var(--space-6); background: rgba(155, 89, 182, 0.04); border: 1px solid rgba(155, 89, 182, 0.2); border-radius: 24px;">
-            <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px;">
+        <div class="day-shortlist-section" style="margin-top: var(--space-10); padding: var(--space-6); background: rgba(155, 89, 182, 0.04); border: 1px solid rgba(155, 89, 182, 0.2); border-radius: 24px;">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px; flex-wrap:wrap;">
                 <span style="font-size: 1.2rem;">📋</span>
                 <h4 style="margin:0; color:#9b59b6; font-weight:800; letter-spacing:-0.01em;">From your to-do list</h4>
-                <span style="margin-left:auto; font-size:0.78rem; color:var(--text-secondary);">Click AM / PM / Eve to drop a place into the matching textarea above. ✓ shows where it currently lives.</span>
+                <span class="day-shortlist-count" style="background: rgba(155,89,182,0.12); color:#9b59b6; padding: 2px 10px; border-radius:999px; font-size:0.72rem; font-weight:800;">${allShortlist.length}</span>
+                ${allShortlist.length > 6 ? `
+                    <input type="search" id="dayShortlistFilter" placeholder="Filter…" autocomplete="off"
+                        style="margin-left:auto; max-width: 200px; padding:6px 12px; border:1px solid rgba(155,89,182,0.25); background:white; border-radius:999px; font-size:0.78rem; color:#002d5b; outline:none; font-family: inherit;">
+                ` : ''}
             </div>
-            <div style="display:flex; flex-direction:column; gap:8px;">
+            <p style="margin:0 0 12px; font-size:0.74rem; color:var(--text-secondary); line-height:1.4;">Tap AM / PM / Eve to drop into the matching textarea — tap again to remove it. ✓ shows where it currently lives.</p>
+            <div id="dayShortlistRows" class="day-shortlist-rows"
+                style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:8px; max-height: 360px; overflow-y: auto; padding-right: 4px;">
                 ${allShortlist.map(shortlistRowHtml).join('')}
             </div>
+            <div id="dayShortlistEmpty" style="display:none; padding: 16px 8px; text-align:center; color:var(--text-secondary); font-size:0.84rem;">No matches.</div>
         </div>
     ` : '';
 
@@ -4341,6 +4396,12 @@ const openDayDetail = (dayId) => {
             btn.style.background = isThere
                 ? (time === 'morning' ? 'rgba(0,113,227,0.22)' : time === 'afternoon' ? 'rgba(255,149,0,0.22)' : 'rgba(88,86,214,0.22)')
                 : (time === 'morning' ? 'rgba(0,113,227,0.08)' : time === 'afternoon' ? 'rgba(255,149,0,0.08)' : 'rgba(88,86,214,0.08)');
+            // Title flips so the user knows the button is a toggle —
+            // first click adds, re-click removes the line. Without
+            // this the tooltip stays "Add to Morning" forever and the
+            // remove behavior reads as a surprise.
+            const slot = time === 'morning' ? 'Morning' : time === 'afternoon' ? 'Afternoon' : 'Evening';
+            btn.title = isThere ? `Remove from ${slot}` : `Add to ${slot}`;
         });
     };
 
@@ -4356,11 +4417,14 @@ const openDayDetail = (dayId) => {
     });
     notesTextarea?.addEventListener('input', () => { queueSave(); });
 
-    // Wire shortlist "Add to AM/PM/Eve" buttons. Each click appends
-    // "- {name}" on a new line to the matching textarea, syncs the
-    // day from inputs, and persists immediately (no debounce — the
-    // user expects the click to "stick"). Re-render the ✓ markers
-    // so the just-clicked button shows ✓ right away.
+    // Wire shortlist "Add to AM/PM/Eve" buttons. The button is a
+    // toggle: first click APPENDS "- {name}" on a new line to the
+    // matching textarea; second click REMOVES the first line that
+    // mentions the place (case-insensitive substring — forgiving to
+    // user edits like "had dinner at La Brasa"). Either way we
+    // persist immediately (no debounce — the click is an explicit
+    // save signal) and re-render the ✓ markers so the toggled
+    // button's visual state is correct right away.
     root.addEventListener('click', (ev) => {
         const target = /** @type {HTMLElement | null} */ (ev.target);
         const btn = target?.closest('.day-shortlist-add-btn');
@@ -4373,23 +4437,60 @@ const openDayDetail = (dayId) => {
         const ta = /** @type {HTMLTextAreaElement | null} */
             (root.querySelector(`textarea.plan-input[data-time="${time}"]`));
         if (!ta) return;
-        const line = `- ${place.name}`;
-        // Don't double-add: if the name is already in this section,
-        // bail out silently. The visual ✓ already conveys "it's there".
-        if (ta.value.toLowerCase().includes(place.name.toLowerCase())) {
-            // Tiny shake-feedback so the user knows we noticed the click.
-            /** @type {HTMLButtonElement} */ (btn).animate(
-                [{ transform: 'translateX(0)' }, { transform: 'translateX(-3px)' }, { transform: 'translateX(3px)' }, { transform: 'translateX(0)' }],
-                { duration: 220, easing: 'ease-out' }
-            );
-            return;
+        const needle = place.name.toLowerCase();
+        const isThere = ta.value.toLowerCase().includes(needle);
+        if (isThere) {
+            // Remove mode — strip the FIRST line containing the
+            // place name. Splitting on '\n' so we work line-by-line;
+            // case-insensitive match so user edits don't trap the
+            // line. Filter is once-only (find index, splice) to
+            // preserve duplicates the user may have intentionally
+            // kept (rare, but safer than .filter which removes all).
+            const lines = ta.value.split('\n');
+            const idx = lines.findIndex(l => l.toLowerCase().includes(needle));
+            if (idx >= 0) lines.splice(idx, 1);
+            // Collapse leading/trailing empties + any blank-line gap
+            // the splice left behind, but keep meaningful blank lines
+            // between sentences if the user added them mid-text.
+            const next = lines.join('\n').replace(/\n{3,}/g, '\n\n').replace(/^\n+|\n+$/g, '');
+            ta.value = next;
+        } else {
+            // Add mode — append on its own line. Trim trailing space
+            // so we don't accumulate empty lines between adds.
+            const line = `- ${place.name}`;
+            ta.value = ta.value.trim().length > 0 ? `${ta.value.trim()}\n${line}` : line;
         }
-        ta.value = ta.value.trim().length > 0 ? `${ta.value.trim()}\n${line}` : line;
-        // Persist now (no debounce wait) — the user's click is an
-        // explicit save signal.
         persistNow();
         refreshShortlistButtons();
     });
+
+    // Lazy filter for the to-do list section — only present when the
+    // list is long enough (>6 items) for filtering to matter. Live
+    // case-insensitive substring match against name + address. Hides
+    // non-matching rows with display:none (cheaper than re-rendering)
+    // and toggles an "No matches." placeholder when nothing's left.
+    const filterInput = /** @type {HTMLInputElement | null} */ (root.querySelector('#dayShortlistFilter'));
+    if (filterInput) {
+        const rowsContainer = /** @type {HTMLElement | null} */ (root.querySelector('#dayShortlistRows'));
+        const emptyEl = /** @type {HTMLElement | null} */ (root.querySelector('#dayShortlistEmpty'));
+        filterInput.addEventListener('input', () => {
+            const query = filterInput.value.trim().toLowerCase();
+            let visible = 0;
+            root.querySelectorAll('.day-shortlist-row').forEach(rowEl => {
+                const row = /** @type {HTMLElement} */ (rowEl);
+                const pid = row.dataset.placeId;
+                const place = allShortlist.find(p => p.placeId === pid);
+                if (!place) return;
+                const matches = !query
+                    || place.name.toLowerCase().includes(query)
+                    || (place.address || '').toLowerCase().includes(query);
+                row.style.display = matches ? '' : 'none';
+                if (matches) visible++;
+            });
+            if (emptyEl) emptyEl.style.display = visible === 0 ? 'block' : 'none';
+            if (rowsContainer) rowsContainer.style.display = visible === 0 ? 'none' : 'grid';
+        });
+    }
 
     /** @type {HTMLButtonElement} */ (q(root, '#closeDetailBtn')).onclick = async () => {
         // Flush any pending debounce so closing-while-typing doesn't drop

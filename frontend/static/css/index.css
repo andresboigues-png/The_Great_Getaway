@@ -1599,59 +1599,82 @@ h1 {
     background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 60%);
 }
 
-/* POI filter section — pill row + the toggle-bar that
-   shows/hides it. Hidden by default (was always-on, felt heavy);
-   click the toggle-bar to reveal. The expanded state persists in
-   localStorage so the choice sticks across reloads. */
-.map-poi-section {
-    margin-top: var(--space-4);
-    margin-bottom: var(--space-4);
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
+/* "Discover places nearby" toggle — sits ABOVE the search bar as a
+   compact centered pill. Clicking it reveals the POI category pills
+   as a floating overlay panel pinned to the top of the map (see
+   .map-poi-toggles--overlay below). Decoupled from a wrapper
+   section so the toggle and the overlay can live in separate parts
+   of the DOM. The expanded/visible state persists in localStorage
+   so the choice sticks across reloads. */
 .map-poi-toggle-bar {
-    align-self: flex-start;
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    padding: 8px 14px;
-    background: rgba(255, 255, 255, 0.85);
-    backdrop-filter: blur(8px);
-    border: 1px solid rgba(0, 113, 227, 0.18);
+    padding: 7px 14px;
+    background: rgba(255, 255, 255, 0.94);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(0, 113, 227, 0.2);
     color: var(--accent-blue);
     font-weight: 700;
-    font-size: 0.78rem;
+    font-size: 0.76rem;
+    letter-spacing: 0.01em;
     border-radius: 999px;
     cursor: pointer;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
-    transition: background 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+    box-shadow: 0 2px 6px rgba(0, 45, 91, 0.06);
+    transition: background 0.18s ease, transform 0.18s ease,
+                box-shadow 0.18s ease, border-color 0.18s ease;
 }
 .map-poi-toggle-bar:hover {
     background: rgba(255, 255, 255, 1);
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(0, 113, 227, 0.12);
+    box-shadow: 0 4px 12px rgba(0, 113, 227, 0.14);
 }
 .map-poi-toggle-bar__chevron {
     transition: transform 0.2s ease;
+    opacity: 0.7;
 }
-.map-poi-section.is-expanded .map-poi-toggle-bar {
-    background: rgba(0, 113, 227, 0.08);
-    border-color: rgba(0, 113, 227, 0.32);
+.map-poi-toggle-bar.is-expanded {
+    background: linear-gradient(135deg, rgba(0, 113, 227, 0.12), rgba(155, 89, 182, 0.12));
+    border-color: rgba(0, 113, 227, 0.38);
+    box-shadow: 0 4px 12px rgba(0, 113, 227, 0.18);
 }
-.map-poi-section.is-expanded .map-poi-toggle-bar__chevron {
+.map-poi-toggle-bar.is-expanded .map-poi-toggle-bar__chevron {
     transform: rotate(180deg);
 }
 
-/* The pill row itself — only visible when the section carries
-   `.is-expanded`. Same flex-row layout as before; just hidden by
-   default so the map area reads cleaner on first load. */
+/* The pill row itself — base styles. Two variants:
+   - .map-poi-toggles--overlay: absolutely positioned floating panel
+     over the top of the map. Hidden by default; .is-visible flips
+     it on. Used by the home map (current layout).
+   - (No legacy .map-poi-toggles--below variant — the always-on
+     in-flow layout was retired when the overlay variant landed.) */
 .map-poi-toggles {
     display: none;
     flex-wrap: wrap;
     gap: 6px;
 }
-.map-poi-section.is-expanded .map-poi-toggles {
+.map-poi-toggles--overlay {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    right: 12px;
+    z-index: 4;
+    background: rgba(255, 255, 255, 0.96);
+    backdrop-filter: blur(20px) saturate(160%);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    padding: 10px 12px;
+    border-radius: 16px;
+    box-shadow: 0 12px 28px rgba(0, 45, 91, 0.18);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    /* Capped so a long pill list doesn't drown the map; scrolls
+       horizontally inside the panel if it would otherwise wrap into
+       a tall block obscuring half the map. */
+    max-height: 96px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+}
+.map-poi-toggles--overlay.is-visible {
     display: flex;
 }
 .map-poi-toggle {
@@ -3502,10 +3525,19 @@ h1 {
 .path-chips {
     display: flex;
     align-items: center;
+    /* Center the chip group within the strip so Genesis + the days
+       sit at the visual middle of the wheel as you add days, instead
+       of left-anchored. `safe center` falls back to flex-start when
+       the chips overflow the available width — that prevents the
+       leading chips from being clipped behind the prev arrow on
+       narrow strips. */
+    justify-content: safe center;
     gap: 14px;                /* gap between circles — line shows in the gap */
     overflow-x: auto;
     scroll-behavior: smooth;
-    padding: 10px 4px;
+    /* Vertical padding leaves room for the scaled-up Today/Selected
+       chips and the "Today" dot underneath without clipping. */
+    padding: 14px 4px 18px;
     flex: 1;
     min-width: 0;
     position: relative;       /* anchor for the ::before line */
@@ -3516,7 +3548,11 @@ h1 {
 /* The horizontal "timeline line" — same gradient-fade-to-transparent
    look the old vertical line had, just rotated 90°. Sits behind the
    circles; the white circle backgrounds visually break the line at
-   each day so it reads as a string-of-beads. */
+   each day so it reads as a string-of-beads. Now SYMMETRIC fade
+   (transparent → solid → transparent) because the chips are
+   center-justified — without symmetric fade you get a hard line
+   trailing off into the empty space past the last chip on one
+   side. */
 .path-chips::before {
     content: '';
     position: absolute;
@@ -3526,8 +3562,8 @@ h1 {
     transform: translateY(-50%);
     height: 2px;
     background: linear-gradient(90deg,
-        rgba(0, 113, 227, 0.4) 0%,
-        rgba(0, 113, 227, 0.18) 60%,
+        rgba(0, 113, 227, 0.05) 0%,
+        rgba(0, 113, 227, 0.4) 50%,
         rgba(0, 113, 227, 0.05) 100%);
     border-radius: 1px;
     z-index: 0;
@@ -3566,8 +3602,41 @@ h1 {
 .path-chip.is-selected {
     background: var(--accent-blue);
     color: white;
-    transform: scale(1.18);
+    transform: scale(1.3);
     box-shadow: 0 0 0 3px white, 0 6px 14px rgba(0, 113, 227, 0.32);
+}
+
+/* Today modifier — flags the chip whose .date matches the user's
+   actual calendar today. Bumped above the resting size + thicker
+   border + a small dot underneath so the user can see "I'm here
+   today" at a glance. Selected stacks ON TOP (selected outranks
+   today): a today chip the user is currently viewing scales the
+   most. The dot uses ::after; positioned in the strip's bottom
+   padding (we widened that earlier so it isn't clipped). */
+.path-chip--today {
+    transform: scale(1.18);
+    border-width: 3px;
+    box-shadow: 0 0 0 3px white, 0 4px 10px rgba(0, 113, 227, 0.18);
+}
+.path-chip--today::after {
+    content: '';
+    position: absolute;
+    bottom: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--accent-blue);
+    box-shadow: 0 0 0 2px white;
+}
+.path-chip--today.is-selected {
+    /* Today + selected — biggest. */
+    transform: scale(1.42);
+}
+.path-chip--today.is-selected::after {
+    background: white;
+    box-shadow: 0 0 0 2px var(--accent-blue);
 }
 /* Genesis = trip headquarters; styled gold across the board (chips,
    card, primary button) so it visually outranks numbered days and
