@@ -7,6 +7,110 @@ Newest entry at the top.
 
 ---
 
+## Session N+5 — 2026-05-08 — Phase B big strokes (B2/A4 + B3 + B4 done)
+
+**Goal**: keep moving through Phase B while Phase A's safety net
+catches anything that breaks. Hit B2, A4 (closure of A's last open
+item, riding on B2), B3 (partial), and **B4 in full**. B1 (home.ts
+split) remains — biggest piece, parked for a future session.
+
+**B2 — components preview**: the existing `/components` page already
+covered 14 sections (buttons / forms / cards / chips / tables /
+typography / etc.); closeout added section 15 — Trip-header chips +
+pickers — covering the gaps the roadmap explicitly listed:
+local-time chip, weather chip, member chips (planner / budgeteer /
+relaxer / pending), segmented capsule tabs, POI pill row, place-
+picker autocomplete dropdown. All synthetic — zero STATE dependency,
+deterministic for screenshot tests. Every preview-section now
+carries an `id` attribute so visual tests can anchor on individual
+sections.
+
+**A4 — visual regression baseline**: `tests/e2e/visual.spec.js`
+parametrises `toHaveScreenshot()` over 10 sections at both
+chromium-desktop AND chromium-mobile = 20 baselines. Defensive setup
+disables animations + transitions, awaits `document.fonts.ready`,
+and uses `maxDiffPixelRatio: 0.01`. Cross-platform note in the spec
+header — first CI run after this lands needs a one-time
+`--update-snapshots` on the Linux runner to seed Linux baselines.
+
+**B3 — design tokens (partial)**: added the gradient / glass-variant
+/ named-shadow tokens the roadmap explicitly listed:
+`--gradient-day`, `--gradient-genesis`, `--gradient-neon`,
+`--surface-glass`, `--surface-glass-light`, `--shadow-card`,
+`--shadow-chip`, `--shadow-pulse`. Plus `.has-hover-affordance`
+utility class for the `:hover, :active, :focus-visible` trio touch
+devices need. New tokens are unused so render is byte-identical to
+before — visual regression 20/20 stayed green, locking the swap-
+forward path.
+NOT done: bulk inline-rgba replacement across the JS pages (100+
+sites of patterns like `rgba(0,0,0,0.06)`, each needing a context-
+aware token name). Filed as Phase B3 follow-up.
+
+**B4 — Flask Blueprints — DONE**: src/main.py went from 2,705 lines
+to 201 (-93%, hit roadmap target of ~150 lines for "app factory +
+bootstrap"). 13 blueprints registered, 41 routes total, all gated
+through the shared helpers in src/helpers.py.
+
+src/extensions.py — Limiter (deferred-init pattern)
+src/helpers.py — ensure*owner_member_row,
+trip_member_role, can_edit_trip,
+can_edit_expenses, is_trip_owner,
+ensure_user_exists,
+unwrap_legacy_plan_text
+src/routes/auth.py — /api/user-status, /api/auth/google
+(incl. test-mode bypass)
+src/routes/budgets.py — /api/budgets, /api/budgets/<id>
+src/routes/data.py — /api/sync, /api/data,
+/api/user-data, /api/trips/share
+src/routes/days.py — /api/days, /api/days/<id>
+src/routes/expenses.py — /api/expenses, /api/expenses/<id>
+src/routes/feed.py — 10 routes (feed/share/repost/like/
+bookmark/comments) + 2 helpers
+(\_post_owner_for_event,
+\_fire_engagement_notification)
+src/routes/friends.py — search/add/accept/pending/reject/
+remove/list (7 routes)
+src/routes/integrations.py — /api/config, /api/generate_itinerary
+src/routes/media.py — /api/upload + ALLOWED_UPLOAD*\*
+constants
+src/routes/notifications.py — list/read/trip_public
+src/routes/public.py — /api/public-trip,
+/api/public-profile
+src/routes/settings.py — /api/categories,
+/api/profile/update
+src/routes/trips.py — 8 routes (CRUD + silence/archive/
+unarchive + invite/respond +
+members/remove)
+
+Method note: pytest's 77 tests caught regressions instantly during
+every extraction. Each blueprint extraction = read range, write
+blueprint file, register in main.py, delete originals, run pytest.
+Total: 7 commits, all shipped to main one batch at a time so each
+is independently revertable.
+
+**Verified at end of session**: typecheck (0), lint (0/0), build
+(585.69 kB), pytest 77/77 with 64% coverage, e2e 22 pass / 12 skip,
+visual regression 20/20, Flask boots clean.
+
+**What's left in Phase B**:
+
+- **B1 — split `home.ts`** (5,386 lines into 8-9 modules). The
+  biggest remaining chunk; needs careful surgery because home.ts has
+  tightly coupled closures (map setup, day cards, weather chips,
+  pill markers all share state via closure refs around the
+  `renderHome` body). Multi-session effort. Per the roadmap: extract
+  one slice at a time, run all tests after each, no file >800 lines.
+
+- **B3 follow-up** — bulk inline-rgba replacement once the tokens
+  the roadmap calls for are in place. Visual regression catches
+  drift instantly so the sweep is low-risk.
+
+- **A2.3 follow-up** — the 2 skipped Playwright tests (companion +
+  expense flows) re-enable cleanly once B1's home-split makes the
+  companions card and expense form deterministically reachable.
+
+---
+
 ## Session N+4 — 2026-05-07 — Phase A closeout (A1 strict, A2 pytest, A3 Playwright, A5 zod)
 
 **Goal**: re-baselined against the literal Phase A in `ROADMAP.md`
