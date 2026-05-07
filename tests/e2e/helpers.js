@@ -103,36 +103,65 @@ export async function openFreshApp(page) {
 
 /**
  * Create a trip via the +New Trip modal in the navbar.
+ *
+ * The destination input is wired to Google Places Autocomplete in
+ * production. modals.ts:_wirePlacePicker has a manual-fallback path
+ * that kicks in when `google.maps.places` isn't available — typing
+ * into `#tripPlaceInput` directly sets the "picked place" with the
+ * typed text. We force that path by stubbing `google` to `undefined`
+ * before opening the modal so the test doesn't have to drive a real
+ * Google Places dropdown (which requires a valid API key + works
+ * against a real Google service the CI env doesn't have).
+ *
  * @param {import('@playwright/test').Page} page
  * @param {{ name: string; country: string }} options
  */
 export async function createTrip(page, { name, country }) {
+    await page.evaluate(() => {
+        /** @type {any} */ (window).google = undefined;
+    });
     await page.click('#newTripBtn');
     await page.fill('#tripName', name);
-    // The country input is a custom autocomplete — type, then click matching item.
-    await page.fill('#tripCountryInput', country);
-    await page.locator(`#tripCountryList .dropdown-item[data-value="${country}"]`).click();
-    await page.click('#newTripForm button[type="submit"]');
-    // Trip should now be in the selector, marked active.
+    await page.fill('#tripPlaceInput', country);
+    // Wait for the manual-fallback to enable the submit button.
+    await page.locator('#newTripSubmitBtn:not([disabled])').waitFor({ timeout: 5000 });
+    await page.click('#newTripSubmitBtn');
     await expect(page.locator('#tripSelector')).toContainText(name);
 }
 
 /**
- * Add a companion via the personalization page.
- * Navigates by clicking the sidebar — `page.goto('/#x')` is unreliable when
- * the SPA's `isInternalNav` flag is set (router.js suppresses the next
- * hashchange after every internal navigate).
+ * Add an unlinked companion to the active trip via the trip-header
+ * companion picker. Companions moved per-trip post-Phase-G — there's no
+ * longer an account-wide companion roster, so this helper assumes the
+ * caller has already created a trip (the picker button only appears on
+ * the trip header).
  * @param {import('@playwright/test').Page} page
  * @param {string} name
  */
 export async function addCompanion(page, name) {
-    await page.click('#hamburgerBtn');
-    await page.click('.sidebar-item[data-page="personalization"]');
-    await page.waitForSelector('#persMenu', { state: 'visible' });
-    await page.click('.pers-tab-card[data-tab="companions"]');
-    await page.waitForSelector('#newPerson', { state: 'visible' });
-    await page.fill('#newPerson', name);
-    await page.click('#addPersonBtn');
+    // Close the sidebar overlay if it's still up — it intercepts clicks
+    // on the trip header. Idempotent (no-op if already closed).
+    await page.evaluate(() => {
+        document.getElementById('sidebar')?.classList.remove('open');
+        document.getElementById('sidebarOverlay')?.classList.remove('open');
+    });
+    // The companions card lives lower on the home page; the trip-cards
+    // row above it pushes it past the initial viewport. Scroll the
+    // edit-companions button into view so playwright can click it.
+    const btn = page.locator('#tripCompanionsBtn');
+    await btn.scrollIntoViewIfNeeded();
+    await btn.click();
+    await page.waitForSelector('#companionPickerAddInput', { state: 'visible' });
+    await page.fill('#companionPickerAddInput', name);
+    await page.click('#companionPickerAddForm button[type="submit"]');
+    // Wait for the new row to appear inside the picker before closing —
+    // refreshList() re-renders the row list synchronously, so this only
+    // takes one event loop tick.
+    await page.locator(`.companion-row[data-name="${name}"]`).waitFor({ timeout: 3000 });
+    // Close the picker — the close handler triggers navigate('home') so
+    // give the re-render a moment before subsequent assertions.
+    await page.click('#companionPickerCloseBtn');
+    await page.waitForLoadState('domcontentloaded');
 }
 
 /**
