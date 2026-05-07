@@ -1,4 +1,3 @@
-// @ts-check
 // Rows — repeated list-row patterns. Returns HTML strings to fit the
 // existing template-literal innerHTML pipeline.
 //

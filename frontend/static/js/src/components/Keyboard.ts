@@ -1,4 +1,3 @@
-// @ts-check
 // Keyboard — small helper for wiring Enter/Space keyboard activation on
 // elements with role="button" + tabindex="0".
 //
@@ -26,9 +25,9 @@
 export function wireRoleButtonKeys(root) {
     root.addEventListener('keydown', (e) => {
         if (e.key !== 'Enter' && e.key !== ' ') return;
-        const target = /** @type {HTMLElement | null} */ (e.target);
+        const target = (e.target as HTMLElement | null);
         if (!target) return;
-        const btn = /** @type {HTMLElement | null} */ (target.closest('[role="button"]'));
+        const btn = (target.closest('[role="button"]') as HTMLElement | null);
         if (!btn) return;
         // Don't swallow keys aimed at real form controls inside the card
         // (input, button, select, textarea, a). Those should keep their

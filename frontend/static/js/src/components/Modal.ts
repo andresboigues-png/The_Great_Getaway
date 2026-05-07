@@ -1,4 +1,3 @@
-// @ts-check
 // Modal — single helper that closes ~700 lines of duplicated modal scaffolding.
 // Every existing modal site rebuilt the same overlay+card+backdropFilter
 // boilerplate; almost none had escape-key dismissal, backdrop-click close,
@@ -50,7 +49,7 @@ export function showModal(opts) {
         onClose,
     } = opts;
 
-    const previouslyFocused = /** @type {HTMLElement | null} */ (document.activeElement);
+    const previouslyFocused = (document.activeElement as HTMLElement | null);
     const cardClass = explicitCardClass ?? VARIANT_CLASS[variant];
 
     const overlay = document.createElement('div');
@@ -80,11 +79,11 @@ export function showModal(opts) {
             return;
         }
         if (e.key === 'Tab') {
-            const focusables = /** @type {HTMLElement[]} */ (Array.from(overlay.querySelectorAll(FOCUSABLE)));
+            const focusables = (Array.from(overlay.querySelectorAll(FOCUSABLE)) as HTMLElement[]);
             if (focusables.length === 0) return;
             const first = focusables[0];
             const last = focusables[focusables.length - 1];
-            const active = /** @type {HTMLElement} */ (document.activeElement);
+            const active = (document.activeElement as HTMLElement);
             if (e.shiftKey && active === first) {
                 e.preventDefault();
                 last.focus();
@@ -106,9 +105,9 @@ export function showModal(opts) {
 
     // Focus the [autofocus] element if any, else the first focusable.
     queueMicrotask(() => {
-        const autoEl = /** @type {HTMLElement | null} */ (overlay.querySelector('[autofocus]'));
+        const autoEl = (overlay.querySelector('[autofocus]') as HTMLElement | null);
         if (autoEl) { autoEl.focus(); return; }
-        const first = /** @type {HTMLElement | null} */ (overlay.querySelector(FOCUSABLE));
+        const first = (overlay.querySelector(FOCUSABLE) as HTMLElement | null);
         first?.focus();
     });
 

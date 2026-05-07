@@ -1,4 +1,3 @@
-// @ts-check
 // Form — thin helpers that return HTML strings for glass-styled inputs +
 // selects. The existing render pipeline is template-literal innerHTML, so
 // these mirror that shape (string in → string out) instead of returning

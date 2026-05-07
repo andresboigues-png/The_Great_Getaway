@@ -7,6 +7,115 @@ Newest entry at the top.
 
 ---
 
+## Session N+3 — 2026-05-07 — Phase A1 .js → .ts conversion COMPLETE
+
+**Goal**: Finish what Session N+2 started — migrate every source file
+from JSDoc + @ts-check to real TypeScript. By end of session, the
+`src/` tree contains zero .js files.
+
+**Method**: Rename in batches, lean on a Python regex pass to convert
+JSDoc casts (`/** @type {X} */ (expr)`) to TS `as` casts at scale,
+then handle the residuals manually. After Stage 2c the regex learned
+to skip multi-line cast bodies (these tripped on profile.ts /
+expenses.ts in 2b — the rewritten output was syntactically valid but
+TS's parser treats `(expr\n   as Type)` as two statements).
+
+**Stages shipped this session**:
+
+- Stage 1b — `state` / `api` / `permissions` / `companions` to .ts.
+  STATE annotated `: AppState` (the `@type` JSDoc on declarations
+  stops being honoured in .ts mode); emit/subscribe promoted to TS
+  function signatures (the `[payload]` JSDoc optional-marker
+  syntax doesn't carry, so 30+ `emit('state:changed')` callers were
+  tripping arity errors); `_postJson` got an `ApiJsonResult`
+  interface to stop `body` inferring as `null` and cascading into
+  ~9 `'never'` errors across feed/collections.
+
+- Stage 1c — `markedPlaces` / `googleMapsServices` / `tripMedia` /
+  `router` / `modals` to .ts. router's `let pageEl = null` was
+  inferring `null` (so every assignment failed); typed
+  `HTMLElement | null`. modals.ts `_wirePlacePicker` and
+  `_scaffoldTripDays` promoted from JSDoc to native TS signatures.
+  PickedPlace + FriendListEntry typedefs lifted to interfaces;
+  cachedFriends pulls FriendListEntry from api.ts.
+
+- Stage 1d — `main.ts` + `vite.config.js` input flipped to
+  `main.ts`. **Stage 1 milestone** — every utility file at src/
+  root migrated. Shipped to `main` via fast-forward push of the
+  branch's first 4 commits (typecheck + build green at the time;
+  Flask smoke test confirmed `/` returns 200 and the bundle
+  loads cleanly).
+
+- Stage 2a — `todo` / `insights` / `budgets` / `friends`.
+  insights.ts spenderTotals / catTotals / catCounts typed as
+  `Record<string, number>` (untyped `{}` was breaking arithmetic on
+  the sortedSpenders aggregations). friends.ts FriendRow interface
+  lifted from two duplicate JSDoc shapes; userCard's options bag
+  promoted to UserCardOpts.
+
+- Stage 2b — `upload` / `profile` / `settings` / `expenses`. 114
+  JSDoc casts converted in one pass. expenses.ts ExpensesFilters
+  interface; profile.ts renderProfile param widened to
+  `string | null | undefined`; ProfileFriend lifted out of JSDoc.
+  upload.ts mappings array typed, expense object materialised as a
+  real `const expense: Expense = {...}` (was an inline JSDoc cast).
+
+- Stage 2c — `settlement` / `ai` / `collections` / `feed`. 102
+  casts. settlement.ts SettlementDebt + BalanceEntry interfaces
+  cleaned up the debt-graph types; `tab(key, label, badge?)` made
+  badge optional to match the 2-arg call sites. feed.ts
+  Actor / TripRef / FeedEvent / FeedComment promoted from JSDoc
+  typedefs to TS interfaces (typedefs were resolved by the .js
+  checker but TS in .ts mode loses them); `Object<string, X>`
+  bogus JSDoc type translated to `Record<string, X>`. collections.ts
+  UnionDoc / UnionPhoto interfaces lifted.
+
+- Stage 2d — `home.ts` (5,386 lines). 181 casts — 145 inline
+  conversions, 27 declaration annotations, 2 multi-line skipped.
+  home module-level state typed: `_slideshowTimer` /
+  `_localTimeClockInterval` as `ReturnType<typeof setInterval> | null`,
+  `_dayRouteAnimationFrame` as `number | null`, `editingDayId` as
+  `string | null`, `activeMapClickListener` as `((e: any) => void) | null`,
+  `selectedDayByTrip` as `Record<...>` (was the bogus
+  `Object<string, string>`). Local arrays (out / pairs /
+  displayImages / displayQuotes / subtitleParts / buttons / columns
+  / deduped) all got explicit element types. fetchPlacesForTrip
+  return-typed `Promise<any[]>` so the await down-line narrows.
+
+- Stage 2e — `components/` (Form / Keyboard / Modal / Rows). Tiny
+  cleanup pass; 7 inline casts total.
+
+**End-of-session state**:
+
+- 0 .js files in `frontend/static/js/src/` (was 18 in Session N+2).
+- typecheck (0 errors), lint (0 errors / 0 warnings), build
+  (522.91 kB / gzip 124.51 kB) all green.
+- Flask smoke test: `/` returns HTTP 200, bundle returns HTTP 200,
+  no errors in server log.
+
+**What's still left in Phase A1**:
+
+- Stage 3 — enable `"strict": true`, `"noUnusedLocals": true`,
+  `"noImplicitReturns": true` in tsconfig and fix the surfaced
+  errors at root. Expected to surface a few hundred more errors
+  the relaxed config let through; these are the real
+  craftsman-grade type cleanup. No `any` escape hatches.
+
+- Stage 4 — pre-commit hook (`tsc --noEmit` blocks the commit if
+  it fails) and CI gate (already running typecheck per
+  `.github/workflows/ci.yml` — verify it actually fails on a
+  type error and that branch protection requires the check).
+
+**Method note that paid off**: the Python regex script went through
+~470 cast conversions in this session with zero hand edits. The
+"skip multi-line cast bodies" guard added in Stage 2c after the
+profile/expenses incident saved the home.ts pass — would have hit
+~10 syntax errors otherwise. The pattern for future migrations:
+batch rename → run the script → diff the residuals → fix the
+shape-level errors by hand.
+
+---
+
 ## Session N+2 — 2026-05-07 — Phase A1 begins (type-net + first 3 .ts files)
 
 **Goal**: Start Phase A1 — real TypeScript pipeline. Old setup was JSDoc +
