@@ -91,6 +91,53 @@
     --z-modal: 10000;
     --z-toast: 99999;
     --z-pac: 100000;
+
+    /* ── Phase B3 design tokens ──────────────────────────────────────────────
+       Named gradients + named shadows + glass surface variants. The values
+       below match the most-repeated inline-style strings across the JS pages
+       so a future pass can mechanically replace them without changing pixels.
+       Visual regression baselines (tests/e2e/visual.spec.js) verify the
+       swap doesn't drift. */
+
+    /* Gradients — three brand surfaces that recur dozens of times in
+       inline styles: day badges / day-pins / route polylines (blue→purple),
+       Trip-genesis card surfaces (gold), and the road-following polyline
+       pulse (neon cyan). */
+    --gradient-day: linear-gradient(135deg, #007aff, #5856d6);
+    --gradient-genesis: linear-gradient(135deg, #ffd700, #ff9500);
+    --gradient-neon: linear-gradient(135deg, #00e5ff, #00b8d4);
+
+    /* Glass surfaces — alongside the existing --glass-bg + --glass-fill-*.
+       --surface-glass is the dark-frosted modal backdrop; --surface-glass-light
+       is the white-translucent card-on-white variant used in trip cards. */
+    --surface-glass: rgba(18, 22, 30, 0.96);
+    --surface-glass-light: rgba(255, 255, 255, 0.85);
+
+    /* Named shadow scale — alongside --shadow-sm/md/lg/xl/modal/button-blue.
+       --shadow-card is the standard card lift; --shadow-chip is the smaller
+       lift used on chips and pills; --shadow-pulse is the glow under the
+       neon-pulse polyline animation. */
+    --shadow-card: 0 2px 8px rgba(0, 45, 91, 0.05);
+    --shadow-chip: 0 1px 4px rgba(0, 45, 91, 0.08);
+    --shadow-pulse: 0 0 16px rgba(0, 229, 255, 0.4);
+}
+
+/* ── Touch-device focus pattern ─────────────────────────────────────────────
+   Phase B3 requirement: replace `:hover`-only affordances with the trio
+   `:hover, :active, :focus-visible` so touch devices (no hover state) and
+   keyboard users still get the affordance. Applied here as a baseline rule
+   for any element with .has-hover-affordance — components opt in by adding
+   this class instead of hand-rolling the trio everywhere. Existing
+   `.btn-primary:hover` etc. style blocks stay untouched (they target
+   button-specific elements with their own hover/active/focus styles); this
+   rule covers the generic case. */
+.has-hover-affordance:hover,
+.has-hover-affordance:active,
+.has-hover-affordance:focus-visible {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+    transition: transform var(--duration-fast) var(--easing-smooth),
+                box-shadow var(--duration-fast) var(--easing-smooth);
 }
 
 /* Dark Mode Support */
