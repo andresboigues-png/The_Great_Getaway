@@ -1,6 +1,10 @@
-// @ts-check
+// router.ts — Hash-based SPA router. The PageName union from
+// constants.ts typechecks every navigate() call so typos like
+// 'collectons' fail at edit time instead of silently falling through
+// to the default branch.
+
 import { STATE } from './state.js';
-import { PAGES } from './constants.js';
+import { PAGES, type PageName } from './constants.js';
 import { renderHome, stopHomeSlideshow } from './pages/home.js';
 import { renderExpenses, setExpensesTab } from './pages/expenses.js';
 import { renderInsights } from './pages/insights.js';
@@ -19,18 +23,21 @@ let isInternalNav = false;
  *  and went somewhere new" (scroll-to-top is correct) from "the page
  *  re-rendered itself after a mutation" (scroll-to-top is annoying —
  *  the user was just interacting halfway down the list). */
-let currentPage = /** @type {import('./constants.js').PageName | null} */ (null);
+let currentPage: PageName | null = null;
 
-/**
- * Navigate to a known page. The PageName union from constants.js typechecks
- * the input — typos like 'collectons' fail at edit time instead of silently
- * falling through to the default branch and rendering home.
- *
- * @param {import('./constants.js').PageName} page
- * @param {{ userId?: string } | null} [params]
- * @param {boolean} [preserveScroll]
- */
-export function navigate(page, params = null, preserveScroll = false) {
+/** Optional second argument to `navigate()` — currently only the
+ *  profile route reads any field (`userId`), but routes are free to
+ *  add their own keys here as new params land. */
+export interface NavigateParams {
+    userId?: string;
+}
+
+/** Navigate to a known page. */
+export function navigate(
+    page: PageName,
+    params: NavigateParams | null = null,
+    preserveScroll = false,
+): void {
     const content = document.getElementById('app-container');
     if (!content) return;
 
@@ -40,7 +47,7 @@ export function navigate(page, params = null, preserveScroll = false) {
     stopHomeSlideshow();
 
     content.innerHTML = '';
-    let pageEl = null;
+    let pageEl: HTMLElement | null = null;
 
     // Mandatory login — every route renders the login wall while signed
     // out. Lifts the dual code paths (anonymous-then-logged-in) out of
@@ -116,9 +123,7 @@ window.onhashchange = () => {
     // Validate the hash against known pages so a malformed deep link
     // (e.g. someone shares a URL with #profle) lands on home rather than
     // tripping the default branch with an unknown name.
-    const known = /** @type {string[]} */ (Object.values(PAGES));
-    const page = /** @type {import('./constants.js').PageName} */ (
-        known.includes(hash) ? hash : PAGES.HOME
-    );
+    const known: readonly string[] = Object.values(PAGES);
+    const page: PageName = (known.includes(hash) ? hash : PAGES.HOME) as PageName;
     navigate(page);
 };

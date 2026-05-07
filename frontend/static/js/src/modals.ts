@@ -1,8 +1,7 @@
-// @ts-check
-// modals.js — Trip-level modal helpers shared between home.js + ai.js.
+// modals.ts — Trip-level modal helpers shared between home.ts + ai.ts.
 //
-// Lives outside pages/ to avoid the home.js ↔ ai.js circular that would
-// otherwise form via router.js.
+// Lives outside pages/ to avoid the home ↔ ai circular that would
+// otherwise form via router.
 
 import { STATE, emit } from './state.js';
 import { generateId, showLiquidAlert, q, esc } from './utils.js';
@@ -14,6 +13,7 @@ import {
     respondTripInvite,
     removeTripMember,
     pullFromServer,
+    type FriendListEntry,
 } from './api.js';
 import { navigate } from './router.js';
 import {
@@ -24,12 +24,18 @@ import {
 import { ROLE_PLANNER, ROLE_BUDGETEER, ROLE_RELAXER, canManageRoster } from './permissions.js';
 import { showModal } from './components/Modal.js';
 
-/**
- * @typedef {{ placeId: string, name: string, lat: number, lng: number,
- *             viewport: {south:number,west:number,north:number,east:number}|null,
- *             types: string[],
- *             countryCode: string|null }} PickedPlace
- */
+/** A place pulled from Google Places Autocomplete. The picker normalises
+ *  it down to just the fields the trip schema needs (placeId for stable
+ *  identity, viewport for map zoom, countryCode for ISO-keyed lookups). */
+interface PickedPlace {
+    placeId: string;
+    name: string;
+    lat: number;
+    lng: number;
+    viewport: { south: number; west: number; north: number; east: number } | null;
+    types: string[];
+    countryCode: string | null;
+}
 
 /** Generate one trip-day per date in [startDate, endDate] inclusive,
  *  starting from `startDayNumber`. Each generated day has lat/lng=null
@@ -40,15 +46,16 @@ import { showModal } from './components/Modal.js';
  *  Returns the IDs of the inserted days (so the caller can sync them).
  *  No-ops if dates are invalid or end < start.
  *
- *  @param {string} tripId
- *  @param {string} startDate - 'YYYY-MM-DD'
- *  @param {string} endDate   - 'YYYY-MM-DD'
- *  @param {number} startDayNumber
- *  @returns {import('./types').TripDay[]}
+ *  @param startDate - 'YYYY-MM-DD'
+ *  @param endDate - 'YYYY-MM-DD'
  */
-function _scaffoldTripDays(tripId, startDate, endDate, startDayNumber) {
-    /** @type {import('./types').TripDay[]} */
-    const created = [];
+function _scaffoldTripDays(
+    tripId: string,
+    startDate: string,
+    endDate: string,
+    startDayNumber: number,
+): import('./types').TripDay[] {
+        const created: import('./types').TripDay[] = [];
     if (!startDate || !endDate) return created;
     const start = new Date(startDate + 'T00:00:00');
     const end = new Date(endDate + 'T00:00:00');
@@ -82,16 +89,18 @@ function _scaffoldTripDays(tripId, startDate, endDate, startDayNumber) {
  * the picker behavior (validation, hint state, fallback for failed Maps load)
  * stays in one place.
  *
- * @param {object} opts
- * @param {HTMLInputElement} opts.placeInput
- * @param {HTMLElement} opts.hint
- * @param {HTMLButtonElement} opts.submitBtn
- * @param {PickedPlace | null} [opts.initialPlace] - pre-fills the input + starts with submit enabled (edit mode).
- * @returns {{ getPicked: () => PickedPlace | null }}
+ * `initialPlace` pre-fills the input + starts with submit enabled (edit mode).
  */
-function _wirePlacePicker({ placeInput, hint, submitBtn, initialPlace = null }) {
-    /** @type {PickedPlace | null} */
-    let pickedPlace = initialPlace;
+interface WirePlacePickerOpts {
+    placeInput: HTMLInputElement;
+    hint: HTMLElement;
+    submitBtn: HTMLButtonElement;
+    initialPlace?: PickedPlace | null;
+}
+function _wirePlacePicker(
+    { placeInput, hint, submitBtn, initialPlace = null }: WirePlacePickerOpts,
+): { getPicked: () => PickedPlace | null } {
+        let pickedPlace: PickedPlace | null = initialPlace;
 
     // Visual state lives in CSS — `.btn-primary:disabled` already handles
     // opacity/cursor, and `.form-hint--success/--warn` modifier classes
@@ -219,14 +228,14 @@ export const openNewTripModal = () => {
         `,
     });
 
-    const placeInput = /** @type {HTMLInputElement} */ (q(root, '#tripPlaceInput'));
+    const placeInput = (q(root, '#tripPlaceInput') as HTMLInputElement);
     const hint = q(root, '#tripPlaceHint');
-    const submitBtn = /** @type {HTMLButtonElement} */ (q(root, '#newTripSubmitBtn'));
+    const submitBtn = (q(root, '#newTripSubmitBtn') as HTMLButtonElement);
 
     const { getPicked } = _wirePlacePicker({ placeInput, hint, submitBtn });
 
-    /** @type {HTMLButtonElement} */ (q(root, '#cancelTripBtn')).onclick = () => close();
-    /** @type {HTMLFormElement} */ (q(root, '#newTripForm')).onsubmit = (e) => {
+    (q(root, '#cancelTripBtn') as HTMLButtonElement).onclick = () => close();
+    (q(root, '#newTripForm') as HTMLFormElement).onsubmit = (e) => {
         e.preventDefault();
         const pickedPlace = getPicked();
         if (!pickedPlace) {
@@ -234,7 +243,7 @@ export const openNewTripModal = () => {
             return;
         }
         const id = generateId();
-        const name = /** @type {HTMLInputElement} */ (q(root, '#tripName')).value;
+        const name = (q(root, '#tripName') as HTMLInputElement).value;
 
         // `country` is kept populated with the human-readable place name so
         // every legacy display site (collections card, expense default, AI
@@ -303,8 +312,8 @@ export const openNewTripModal = () => {
         // "needs a pin" hint. The user fills in places + plans later.
         // Day numbering starts at 1 since the trip-genesis day (day 0)
         // is created elsewhere as the trip's location anchor.
-        const startDate = /** @type {HTMLInputElement} */ (q(root, '#tripStartDate')).value;
-        const endDate = /** @type {HTMLInputElement} */ (q(root, '#tripEndDate')).value;
+        const startDate = (q(root, '#tripStartDate') as HTMLInputElement).value;
+        const endDate = (q(root, '#tripEndDate') as HTMLInputElement).value;
         const scaffolded = _scaffoldTripDays(id, startDate, endDate, 1);
         if (scaffolded.length > 0) {
             STATE.tripDays.push(...scaffolded);
@@ -364,7 +373,7 @@ export const openEditTripModal = (trip) => {
         `,
     });
 
-    const nameInput = /** @type {HTMLInputElement} */ (q(root, '#editTripName'));
+    const nameInput = (q(root, '#editTripName') as HTMLInputElement);
     nameInput.value = trip.name || '';
 
     // Pre-fill date inputs from existing days when the trip already has
@@ -374,8 +383,8 @@ export const openEditTripModal = (trip) => {
     const numberedDays = (STATE.tripDays || [])
         .filter(d => d.tripId === trip.id && d.dayNumber > 0)
         .sort((a, b) => a.dayNumber - b.dayNumber);
-    const startInput = /** @type {HTMLInputElement} */ (q(root, '#editTripStartDate'));
-    const endInput = /** @type {HTMLInputElement} */ (q(root, '#editTripEndDate'));
+    const startInput = (q(root, '#editTripStartDate') as HTMLInputElement);
+    const endInput = (q(root, '#editTripEndDate') as HTMLInputElement);
     const dateHint = q(root, '#editTripDateHint');
     if (numberedDays.length > 0) {
         startInput.value = numberedDays[0].date || '';
@@ -385,12 +394,11 @@ export const openEditTripModal = (trip) => {
         dateHint.textContent = "If you fill these in, we'll create one empty Path day per date — you can pin places later.";
     }
 
-    const placeInput = /** @type {HTMLInputElement} */ (q(root, '#editTripPlaceInput'));
+    const placeInput = (q(root, '#editTripPlaceInput') as HTMLInputElement);
     const hint = q(root, '#editTripPlaceHint');
-    const submitBtn = /** @type {HTMLButtonElement} */ (q(root, '#editTripSubmitBtn'));
+    const submitBtn = (q(root, '#editTripSubmitBtn') as HTMLButtonElement);
 
-    /** @type {PickedPlace | null} */
-    const initialPlace = trip.placeId || trip.lat
+    const initialPlace: PickedPlace | null = trip.placeId || trip.lat
         ? {
             placeId: trip.placeId || '',
             name: trip.country || '',
@@ -404,8 +412,8 @@ export const openEditTripModal = (trip) => {
 
     const { getPicked } = _wirePlacePicker({ placeInput, hint, submitBtn, initialPlace });
 
-    /** @type {HTMLButtonElement} */ (q(root, '#cancelEditTripBtn')).onclick = () => close();
-    /** @type {HTMLFormElement} */ (q(root, '#editTripForm')).onsubmit = (e) => {
+    (q(root, '#cancelEditTripBtn') as HTMLButtonElement).onclick = () => close();
+    (q(root, '#editTripForm') as HTMLFormElement).onsubmit = (e) => {
         e.preventDefault();
         const newName = nameInput.value.trim();
         if (!newName) {
@@ -460,8 +468,8 @@ export const openEditTripModal = (trip) => {
         //     trip just shifts on the calendar. End-date input is
         //     informational here; we don't add/remove days.
         //  c. No date change → no-op.
-        let scaffolded = /** @type {import('./types').TripDay[]} */ ([]);
-        const rebased = /** @type {import('./types').TripDay[]} */ ([]);
+        let scaffolded = ([] as import('./types').TripDay[]);
+        const rebased = ([] as import('./types').TripDay[]);
         if (numberedDays.length === 0) {
             scaffolded = _scaffoldTripDays(trip.id, startInput.value, endInput.value, 1);
             if (scaffolded.length > 0) STATE.tripDays.push(...scaffolded);
@@ -556,12 +564,12 @@ export const openAddDayModal = () => {
     // capture it into a local const so the async closure below sees the
     // narrowed type.
     const activeTripId = STATE.activeTripId;
-    /** @type {HTMLButtonElement} */ (q(root, '#cancelDayBtn')).onclick = () => close();
-    /** @type {HTMLFormElement} */ (q(root, '#addDayForm')).onsubmit = async (e) => {
+    (q(root, '#cancelDayBtn') as HTMLButtonElement).onclick = () => close();
+    (q(root, '#addDayForm') as HTMLFormElement).onsubmit = async (e) => {
         e.preventDefault();
         const id = generateId();
-        const name = /** @type {HTMLInputElement} */ (q(root, '#dayName')).value;
-        const date = /** @type {HTMLInputElement} */ (q(root, '#dayDate')).value;
+        const name = (q(root, '#dayName') as HTMLInputElement).value;
+        const date = (q(root, '#dayDate') as HTMLInputElement).value;
         /** @type {import('./types').TripDay} */
         const newDay = {
             id,
@@ -629,8 +637,7 @@ export const openCompanionPickerModal = (tripId) => {
     // role badges on linked rows.
     const membersByUserId = new Map((trip.members || []).map(m => [m.userId, m]));
 
-    /** @type {{id: string, name: string, email: string, picture: string}[]} */
-    let cachedFriends = [];
+    let cachedFriends: FriendListEntry[] = [];
 
     /** Pretty role label. */
     const roleLabel = (/** @type {string} */ r) =>
@@ -729,10 +736,10 @@ export const openCompanionPickerModal = (tripId) => {
         `,
     });
 
-    const listEl = /** @type {HTMLElement} */ (q(root, '#companionPickerList'));
-    const friendSheet = /** @type {HTMLElement} */ (q(root, '#companionPickerFriendSheet'));
-    const friendListEl = /** @type {HTMLElement} */ (q(root, '#companionPickerFriendList'));
-    const addInput = /** @type {HTMLInputElement} */ (q(root, '#companionPickerAddInput'));
+    const listEl = (q(root, '#companionPickerList') as HTMLElement);
+    const friendSheet = (q(root, '#companionPickerFriendSheet') as HTMLElement);
+    const friendListEl = (q(root, '#companionPickerFriendList') as HTMLElement);
+    const addInput = (q(root, '#companionPickerAddInput') as HTMLInputElement);
 
     const refreshList = () => { listEl.innerHTML = renderRows(); };
 
@@ -766,7 +773,7 @@ export const openCompanionPickerModal = (tripId) => {
         `).join('');
     };
 
-    /** @type {HTMLButtonElement} */ (q(root, '#companionPickerCloseBtn')).onclick = () => {
+    (q(root, '#companionPickerCloseBtn') as HTMLButtonElement).onclick = () => {
         close();
         // Re-render home so the companions panel picks up any
         // adds / removes / links done inside the picker. Without
@@ -777,11 +784,11 @@ export const openCompanionPickerModal = (tripId) => {
         // the home page body.
         navigate('home', null, true);
     };
-    /** @type {HTMLButtonElement} */ (q(root, '#companionPickerFriendCancel')).onclick = () => {
+    (q(root, '#companionPickerFriendCancel') as HTMLButtonElement).onclick = () => {
         friendSheet.hidden = true;
     };
 
-    /** @type {HTMLButtonElement} */ (q(root, '#companionPickerAddFriendBtn')).onclick = async () => {
+    (q(root, '#companionPickerAddFriendBtn') as HTMLButtonElement).onclick = async () => {
         friendSheet.hidden = false;
         if (cachedFriends.length === 0) cachedFriends = await fetchAcceptedFriends();
         buildFriendList();
@@ -789,7 +796,7 @@ export const openCompanionPickerModal = (tripId) => {
 
     // Inline plain-name add — UNLINKED companion (e.g. for non-app travellers,
     // upload auto-rows). Just types into trip.companions, no server invite.
-    /** @type {HTMLFormElement} */ (q(root, '#companionPickerAddForm')).onsubmit = (ev) => {
+    (q(root, '#companionPickerAddForm') as HTMLFormElement).onsubmit = (ev) => {
         ev.preventDefault();
         const newName = addInput.value.trim();
         if (!newName) return;
@@ -808,11 +815,11 @@ export const openCompanionPickerModal = (tripId) => {
 
     // Delegated clicks inside the modal — handle remove, link, friend add.
     root.addEventListener('click', async (ev) => {
-        const target = /** @type {HTMLElement | null} */ (ev.target);
+        const target = (ev.target as HTMLElement | null);
         if (!target) return;
 
         // Remove a companion (unlinked → just drop; linked → kick member too).
-        const removeBtn = /** @type {HTMLElement | null} */ (target.closest('.picker-remove-btn'));
+        const removeBtn = (target.closest('.picker-remove-btn') as HTMLElement | null);
         if (removeBtn?.dataset.name) {
             const name = removeBtn.dataset.name;
             const companion = findTripCompanion(trip, name);
@@ -828,7 +835,7 @@ export const openCompanionPickerModal = (tripId) => {
         }
 
         // Promote an unlinked entry → friend picker scoped to "link this name".
-        const linkBtn = /** @type {HTMLElement | null} */ (target.closest('.picker-link-btn'));
+        const linkBtn = (target.closest('.picker-link-btn') as HTMLElement | null);
         if (linkBtn?.dataset.name) {
             friendSheet.hidden = false;
             friendSheet.dataset.linkTargetName = linkBtn.dataset.name;
@@ -838,13 +845,13 @@ export const openCompanionPickerModal = (tripId) => {
         }
 
         // Add-friend → adds a NEW linked companion to the trip + invites.
-        const addBtn = /** @type {HTMLElement | null} */ (target.closest('.picker-friend-add-btn'));
+        const addBtn = (target.closest('.picker-friend-add-btn') as HTMLElement | null);
         if (addBtn) {
-            const row = /** @type {HTMLElement | null} */ (addBtn.closest('.picker-friend-row'));
+            const row = (addBtn.closest('.picker-friend-row') as HTMLElement | null);
             if (!row?.dataset.friendId) return;
             const friendId = row.dataset.friendId;
             const friendName = row.dataset.friendName || 'Friend';
-            const select = /** @type {HTMLSelectElement | null} */ (row.querySelector('.picker-friend-role-select'));
+            const select = (row.querySelector('.picker-friend-role-select') as HTMLSelectElement | null);
             const role = select?.value || ROLE_RELAXER;
 
             // Check whether we're "promoting an existing unlinked row" or
@@ -925,7 +932,7 @@ export const openTripMembersModal = (tripId) => {
             </div>
         `,
     });
-    /** @type {HTMLButtonElement} */ (q(root, '#tripMembersCloseBtn')).onclick = () => close();
+    (q(root, '#tripMembersCloseBtn') as HTMLButtonElement).onclick = () => close();
 };
 
 /** Accept/decline an incoming trip invitation. Shown when the user clicks
@@ -962,7 +969,7 @@ export const openTripInviteResponseModal = (notification) => {
         `,
     });
 
-    /** @type {HTMLButtonElement} */ (q(root, '#tripInviteAcceptBtn')).onclick = async () => {
+    (q(root, '#tripInviteAcceptBtn') as HTMLButtonElement).onclick = async () => {
         const result = await respondTripInvite(tripId, true);
         if (!result || !result.ok) {
             showLiquidAlert("This trip invitation is no longer valid");
@@ -985,7 +992,7 @@ export const openTripInviteResponseModal = (notification) => {
         showLiquidAlert("Joined the trip");
         navigate('home');
     };
-    /** @type {HTMLButtonElement} */ (q(root, '#tripInviteDeclineBtn')).onclick = async () => {
+    (q(root, '#tripInviteDeclineBtn') as HTMLButtonElement).onclick = async () => {
         const result = await respondTripInvite(tripId, false);
         if (!result || !result.ok) {
             showLiquidAlert("This invitation is no longer active");

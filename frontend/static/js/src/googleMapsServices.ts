@@ -1,4 +1,3 @@
-// @ts-check
 // googleMapsServices.js — thin wrappers around the Google Maps
 // Platform REST APIs we don't reach via the JS SDK. Centralised so
 // the home + AI pages can share the same helpers + cache.
@@ -171,7 +170,7 @@ export function pickDaySummary(forecastDay) {
     const glyph = _WEATHER_GLYPH[conditionType] || { icon: '☁️', label: conditionType.replace(/_/g, ' ').toLowerCase() || 'Forecast' };
     const maxC = forecastDay?.maxTemperature?.degrees;
     const minC = forecastDay?.minTemperature?.degrees;
-    let tempC = null;
+    let tempC: number | null = null;
     if (typeof maxC === 'number' && typeof minC === 'number') tempC = Math.round((maxC + minC) / 2);
     else if (typeof maxC === 'number') tempC = Math.round(maxC);
     return {
@@ -190,12 +189,11 @@ export function pickDaySummary(forecastDay) {
 // broken image). The metadata endpoint can pre-check coverage if
 // we ever care to swap to a different fallback.
 
-/** Build a Street View Static API image URL.
- *  @param {{lat: number, lng: number}} pos
- *  @param {{width?: number, height?: number, fov?: number, heading?: number, pitch?: number}} [opts]
- *  @returns {string | null}
- */
-export function streetViewUrl(pos, opts = {}) {
+/** Build a Street View Static API image URL. */
+export function streetViewUrl(
+    pos: { lat: number; lng: number } | null | undefined,
+    opts: { width?: number; height?: number; fov?: number; heading?: number; pitch?: number } = {},
+): string | null {
     const key = _apiKey();
     if (!key || !pos || typeof pos.lat !== 'number' || typeof pos.lng !== 'number') return null;
     const { width = 240, height = 160, fov = 80, heading, pitch = 0 } = opts;

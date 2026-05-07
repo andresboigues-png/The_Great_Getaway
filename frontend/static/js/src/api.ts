@@ -426,9 +426,19 @@ export function deleteExpenseOnServer(expenseId) {
     return _delete(`/api/expenses/${expenseId}`, {});
 }
 
+/** Shape of a friend row returned by /api/friends/list. The picker
+ *  needs id (to add as linked companion + invite), name (display),
+ *  email (secondary line on the row), picture (avatar). */
+export interface FriendListEntry {
+    id: string;
+    name: string;
+    email: string;
+    picture: string;
+}
+
 /** Fetch the user's accepted friends. Used by the trip companions
  *  picker to surface friend candidates that aren't already on the trip. */
-export async function fetchAcceptedFriends() {
+export async function fetchAcceptedFriends(): Promise<FriendListEntry[]> {
     if (!STATE.user) return [];
     try {
         const res = await apiFetch('/api/friends/list');

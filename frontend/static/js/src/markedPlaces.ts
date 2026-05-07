@@ -1,4 +1,3 @@
-// @ts-check
 // markedPlaces.js — Helpers for the per-trip "marked places" list.
 //
 // A MarkedPlace is a Google Place the user has stamped from the home

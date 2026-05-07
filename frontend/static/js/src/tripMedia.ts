@@ -1,4 +1,3 @@
-// @ts-check
 // tripMedia.js — Helpers for the per-trip "documents" and "photos"
 // stores plus the legacy day-level tickets/photos arrays.
 //
@@ -22,9 +21,13 @@
 
 import { STATE } from './state.js';
 import { generateId } from './utils.js';
+import type { TripDocument as BaseTripDocument, TripPhoto as BaseTripPhoto } from './types';
 
-/** @typedef {{id?: string, name: string, url: string, dayId?: string|null, addedAt?: string, _source?: 'trip'|'day'}} TripDocument */
-/** @typedef {{id?: string, src: string, dayId?: string|null, addedAt?: string, _source?: 'trip'|'day'}} TripPhoto */
+/** Same as `TripDocument` from types but with an extra `_source` tag the
+ *  union view (getAllTripDocuments) attaches so delete handlers know
+ *  whether to splice the trip-level or legacy day-level array. */
+type TripDocument = BaseTripDocument & { _source?: 'trip' | 'day' };
+type TripPhoto = BaseTripPhoto & { _source?: 'trip' | 'day' };
 
 /** Pull every document tied to this trip — both trip-level entries AND
  *  legacy day.tickets entries surfaced as if they had `dayId` set. */
@@ -83,15 +86,14 @@ export function getPhotosForDay(trip, dayId) {
 }
 
 /** Append a new trip-level document. Returns the appended entry so
- *  callers can use the assigned id for follow-up actions.
- *  @param {import('./types').Trip} trip
- *  @param {{ name: string, url: string, dayId?: string | null }} entry
- */
-export function addTripDocument(trip, { name, url, dayId = null }) {
+ *  callers can use the assigned id for follow-up actions. */
+export function addTripDocument(
+    trip: import('./types').Trip | null | undefined,
+    { name, url, dayId = null }: { name: string; url: string; dayId?: string | null },
+): TripDocument | null {
     if (!trip || !name || !url) return null;
     if (!Array.isArray(trip.documents)) trip.documents = [];
-    /** @type {TripDocument} */
-    const entry = {
+    const entry: TripDocument = {
         id: `doc-${generateId()}`,
         name,
         url,
@@ -102,15 +104,14 @@ export function addTripDocument(trip, { name, url, dayId = null }) {
     return entry;
 }
 
-/** Append a new trip-level photo.
- *  @param {import('./types').Trip} trip
- *  @param {{ src: string, dayId?: string | null }} entry
- */
-export function addTripPhoto(trip, { src, dayId = null }) {
+/** Append a new trip-level photo. */
+export function addTripPhoto(
+    trip: import('./types').Trip | null | undefined,
+    { src, dayId = null }: { src: string; dayId?: string | null },
+): TripPhoto | null {
     if (!trip || !src) return null;
     if (!Array.isArray(trip.photos)) trip.photos = [];
-    /** @type {TripPhoto} */
-    const entry = {
+    const entry: TripPhoto = {
         id: `photo-${generateId()}`,
         src,
         dayId: dayId || null,
@@ -269,8 +270,7 @@ function gmailQuote(term) {
  *  "USA - California" entries), and the full country if it has no
  *  ambiguous separators. De-duplicates and drops empties. */
 function locationAlternatives(trip) {
-    /** @type {string[]} */
-    const out = [];
+        const out: string[] = [];
     const push = (s) => {
         const v = (s || '').trim();
         if (v && !out.includes(v)) out.push(v);
@@ -298,8 +298,7 @@ function locationAlternatives(trip) {
 export function buildGmailTripSearchUrl(trip) {
     if (!trip) return null;
     const locations = locationAlternatives(trip);
-    /** @type {string[]} */
-    const parts = [];
+        const parts: string[] = [];
     if (locations.length > 0) {
         parts.push(`(${locations.map(gmailQuote).join(' OR ')})`);
     }
