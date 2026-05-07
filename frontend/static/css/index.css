@@ -3688,7 +3688,12 @@ h1 {
     width: 100%;
     padding: 10px 16px;
     border-radius: 12px;
-    background: var(--accent-blue);
+    /* Gradient matches the day-number badge on the path card
+       (linear-gradient(135deg, var(--accent-blue), #9b59b6)) so the
+       "Open Full Plan" button reads as the action belonging to the
+       same day card sitting above it. Genesis variant overrides this
+       below with the gold gradient that matches its star badge. */
+    background: linear-gradient(135deg, var(--accent-blue), #9b59b6);
     color: white;
     font-weight: 800;
     font-size: 0.85rem;

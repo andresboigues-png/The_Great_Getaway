@@ -1495,12 +1495,10 @@ def get_feed():
     with get_db() as conn:
         cursor = conn.cursor()
 
-        # 1) Pull the caller's accepted friend list — Action-class
-        # events (created/archived/joined/friendships) are gated on
-        # the actor being a friend (own actions stay out of own feed
-        # by design — the feed is "what your friends are up to").
-        # Posts (shares + reposts) DO include the caller's own so
-        # the user sees their share land alongside friends' shares.
+        # 1) Pull the caller's accepted friend list. Both Action and
+        # Posts queries include the caller alongside friends — the
+        # feed is "what your friends + you have done lately", consistent
+        # across both tabs. The user-id set + lookup is shared.
         cursor.execute('''
             SELECT u.id, u.name, u.picture
             FROM users u
@@ -1511,24 +1509,20 @@ def get_feed():
         friend_ids = [f["id"] for f in friend_rows]
         friend_lookup = {f["id"]: f for f in friend_rows}
 
-        # Pull the caller's own row + build a wider lookup for the
-        # Posts queries that include own posts.
+        # Pull the caller's own row + build the actor lookup. Always
+        # includes the caller so own actions/posts surface alongside
+        # friends'; never empty so no sentinel-value dance needed.
         cursor.execute("SELECT id, name, picture FROM users WHERE id = ?", (user_id,))
         me_row = cursor.fetchone()
         me_lookup = dict(me_row) if me_row else {"id": user_id, "name": "You", "picture": None}
-        post_actor_lookup = {**friend_lookup, user_id: me_lookup}
-        post_actor_ids = list(set(friend_ids + [user_id]))
-        post_placeholders = ",".join(["?"] * len(post_actor_ids))
-
-        # Build IN-list params with a non-matching sentinel when the
-        # underlying list is empty — SQLite chokes on `IN ()` syntax,
-        # so when the caller has no friends we substitute a UUID-shaped
-        # string nothing matches. Yields zero rows for Action queries
-        # cleanly without an outer if-block. Posts queries always have
-        # at least the caller themselves in post_actor_ids so they
-        # never need this dance.
-        action_ids = friend_ids if friend_ids else ["__no_friends_sentinel__"]
-        placeholders = ",".join(["?"] * len(action_ids))
+        actor_lookup = {**friend_lookup, user_id: me_lookup}
+        actor_ids = list(set(friend_ids + [user_id]))
+        placeholders = ",".join(["?"] * len(actor_ids))
+        # Aliased so the existing query 6/7 callsites that read the
+        # `post_*` names keep compiling — same data, just a second
+        # binding to avoid a churning rename in this same patch.
+        post_actor_ids = actor_ids
+        post_placeholders = placeholders
 
         # 2) friend_created_trip — friend is the trip's owner, created
         # in last 30 days. Excludes archived trips (those get their own
@@ -1540,9 +1534,9 @@ def get_feed():
               AND COALESCE(is_archived, 0) = 0
               AND created_at >= datetime('now', '-30 days')
             ORDER BY created_at DESC
-        ''', action_ids)
+        ''', actor_ids)
         for row in cursor.fetchall():
-            actor = friend_lookup.get(row["user_id"])
+            actor = actor_lookup.get(row["user_id"])
             if not actor:
                 continue
             events.append({
@@ -1566,9 +1560,9 @@ def get_feed():
               AND COALESCE(is_archived, 0) = 1
               AND created_at >= datetime('now', '-30 days')
             ORDER BY created_at DESC
-        ''', action_ids)
+        ''', actor_ids)
         for row in cursor.fetchall():
-            actor = friend_lookup.get(row["user_id"])
+            actor = actor_lookup.get(row["user_id"])
             if not actor:
                 continue
             events.append({
@@ -1579,30 +1573,29 @@ def get_feed():
                 "when": row["created_at"],
             })
 
-        # 4) friend_joined_trip — your friend was added to ANY trip
-        # (even one whose owner you don't know). Earlier this was gated
-        # on the caller also being on the trip, but the user wants the
-        # feed to surface all friend activity, not just co-travel.
-        # Excludes the trips your friend OWNS (that's `friend_created_trip`)
-        # and excludes your own membership rows (you're not your own feed).
-        # trip_members has no join timestamp; we use trip.created_at as a
-        # best-effort proxy.
+        # 4) friend_joined_trip — anyone in the actor set was added to
+        # a trip they DON'T own (joining your own trip is already the
+        # `friend_created_trip` event, so we keep `tm.user_id != t.user_id`).
+        # The previous "exclude caller" constraint was dropped — own
+        # joined-trip events ("You joined the trip XYZ") now show in
+        # the Actions tab so own actions match own posts in symmetry.
+        # trip_members has no join timestamp; we use trip.created_at
+        # as a best-effort proxy.
         cursor.execute(f'''
-            SELECT tm.trip_id, tm.user_id AS friend_id, t.name, t.country, t.created_at
+            SELECT tm.trip_id, tm.user_id AS joiner_id, t.name, t.country, t.created_at
             FROM trip_members tm
             JOIN trips t ON t.id = tm.trip_id
             WHERE tm.user_id IN ({placeholders})
               AND tm.invitation_status = 'accepted'
               AND tm.user_id != t.user_id
-              AND tm.user_id != ?
               AND t.created_at >= datetime('now', '-30 days')
-        ''', [*action_ids, user_id])
+        ''', actor_ids)
         for row in cursor.fetchall():
-            actor = friend_lookup.get(row["friend_id"])
+            actor = actor_lookup.get(row["joiner_id"])
             if not actor:
                 continue
             events.append({
-                "id": f"trip_joined_{row['trip_id']}_{row['friend_id']}",
+                "id": f"trip_joined_{row['trip_id']}_{row['joiner_id']}",
                 "type": "friend_joined_trip",
                 "actor": actor,
                 "trip": {"id": row["trip_id"], "name": row["name"], "country": row["country"]},
