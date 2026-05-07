@@ -58,20 +58,40 @@ let _dayRouteAnimationFrame = null;
 // entry but the SAME route doesn't re-fetch on identical pins.
 const _dayRoutePathCache = new Map();
 
+// Whether we've already logged the "Directions API not enabled"
+// hint this session. Without this guard we'd spam the console on
+// every render of every trip.
+let _directionsHintLogged = false;
+
 /**
  * Fetch a road-following path connecting consecutive day pins via
- * the Directions API. Returns an array of {lat, lng} or null when
- * directions aren't available (no Maps SDK, single point, etc.).
+ * the Directions API. Returns:
+ *   - { path, success } where success is the count of legs that
+ *     actually got a route from the API. Zero successes means the
+ *     caller should NOT update the polyline (the returned path is
+ *     just the straight-line fallback, identical to what's already
+ *     shown).
+ *   - null when prerequisites aren't met (no Maps SDK, single
+ *     point, etc.).
  *
  * Strategy: one call per leg (Day N → Day N+1). Legs that fail
- * (international flights with no driving route, or quota errors)
- * fall back to a straight segment for THAT leg only — the rest of
- * the trip still gets road-followed. This keeps the line useful
- * for a "Paris → Lyon → Tokyo" trip: Paris→Lyon follows roads,
- * Lyon→Tokyo cuts straight across the ocean.
+ * (international flights with no driving route, quota errors,
+ * Directions API not enabled on the project) fall back to a
+ * straight segment for THAT leg only — the rest of the trip
+ * still gets road-followed. So a "Paris → Lyon → Tokyo" trip's
+ * Paris→Lyon leg follows roads even though Lyon→Tokyo can't.
+ *
+ * Common gotcha worth surfacing: the Directions API is a
+ * SEPARATE API from Maps JavaScript / Places. It needs to be
+ * explicitly enabled in the Google Cloud Console + the API key
+ * needs Directions in its allowed-API restriction list. If
+ * neither is set up, every leg returns REQUEST_DENIED and the
+ * line silently stays straight. We log a one-shot hint to the
+ * console (gated by _directionsHintLogged) so a developer can
+ * spot it without it spamming on every render.
  *
  * @param {{lat:number,lng:number}[]} legs - day pins in order
- * @returns {Promise<{lat:number,lng:number}[] | null>}
+ * @returns {Promise<{path:{lat:number,lng:number}[], success:number} | null>}
  */
 async function fetchDayRoutePath(legs) {
     if (!Array.isArray(legs) || legs.length < 2) return null;
@@ -79,6 +99,9 @@ async function fetchDayRoutePath(legs) {
     const service = new google.maps.DirectionsService();
     /** @type {{lat:number,lng:number}[]} */
     const out = [];
+    let success = 0;
+    /** @type {string | null} */
+    let firstFailureStatus = null;
     for (let i = 0; i < legs.length - 1; i++) {
         const origin = legs[i];
         const dest = legs[i + 1];
@@ -101,23 +124,35 @@ async function fetchDayRoutePath(legs) {
             const route = /** @type {any} */ (result).routes?.[0];
             const overview = route?.overview_path?.map(p => ({ lat: p.lat(), lng: p.lng() })) || [];
             if (overview.length > 0) {
-                // Skip the first point on subsequent legs — it's the
-                // same as the previous leg's end, would just create
-                // a duplicate vertex.
                 if (out.length > 0) out.push(...overview.slice(1));
                 else out.push(...overview);
+                success++;
                 continue;
             }
-        } catch (_) {
-            // fall through to straight segment
+        } catch (err) {
+            const status = err instanceof Error ? err.message : String(err);
+            if (!firstFailureStatus) firstFailureStatus = status;
         }
-        // Failed leg (or empty overview) — straight from origin to
-        // dest. Keeps the line continuous so the visual stays
-        // intact even when one leg is unroutable.
+        // Failed leg (or empty overview) — straight segment.
         if (out.length === 0) out.push(origin);
         out.push(dest);
     }
-    return out.length >= 2 ? out : null;
+    // One-shot console hint when we suspect the Directions API
+    // isn't enabled. REQUEST_DENIED is the canonical signal; we
+    // also flag a 100%-failure rate as suspicious so the user
+    // gets feedback even if Google returns a different status
+    // for misconfigured projects.
+    if (!_directionsHintLogged && success === 0 && legs.length >= 2) {
+        _directionsHintLogged = true;
+        console.warn(
+            '[GG] Day-route line stayed straight — Directions API may not be enabled.\n'
+            + 'Status from first leg: ' + (firstFailureStatus || 'unknown') + '\n'
+            + 'Fix: enable "Directions API" on the Google Cloud project '
+            + 'tied to your Maps API key, and add Directions to the key\'s '
+            + 'allowed-API restriction list if you have one set.'
+        );
+    }
+    return out.length >= 2 ? { path: out, success } : null;
 }
 /** @type {'days' | 'companions' | 'documents' | 'photos'} */
 let activeHomeTab = 'days'; // Sub-tab on the home trip view (Path / Companions / Documents / Photos)
@@ -1797,10 +1832,19 @@ export function renderHome() {
                     if (_dayRoutePathCache.has(routeKey)) {
                         applyRoutedPath(_dayRoutePathCache.get(routeKey));
                     } else {
-                        fetchDayRoutePath(dayPath).then(routedPath => {
-                            if (routedPath) {
-                                _dayRoutePathCache.set(routeKey, routedPath);
-                                applyRoutedPath(routedPath);
+                        fetchDayRoutePath(dayPath).then(result => {
+                            // Only cache + apply if at least one leg
+                            // got a real route. When success === 0
+                            // the path is just straight segments
+                            // (Directions API misconfigured / quota
+                            // hit / etc.) — caching that would lock
+                            // the line to straight forever even if
+                            // the user fixes the API later this
+                            // session. Skipping the cache means a
+                            // future render can retry the API.
+                            if (result && result.success > 0) {
+                                _dayRoutePathCache.set(routeKey, result.path);
+                                applyRoutedPath(result.path);
                             }
                         }).catch(() => { /* keep straight-line fallback */ });
                     }
