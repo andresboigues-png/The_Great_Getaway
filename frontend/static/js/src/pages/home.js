@@ -4877,19 +4877,54 @@ const openDayDetail = (dayId) => {
         </div>
     `;
 
-    // Numbered-day body: existing AM/PM/Eve trio (unchanged).
+    // Numbered-day body — Morning / Afternoon / Evening as a
+    // tab strip. Used to be three stacked subcards; in narrow
+    // modals they read cramped and the user had to scroll
+    // through them. Now: one tab strip up top with a count chip
+    // per slot (number of non-empty lines — gives a glance preview
+    // of the day's fullness without switching), plus a single
+    // bigger textarea below that swaps content via .is-active
+    // class swap. All three textareas stay in the DOM so the
+    // existing autosave + day-shortlist-add-btn handlers
+    // (queryselected by data-time) keep working unchanged. The
+    // colour accent on the active tab matches each slot's
+    // existing identity (blue / orange / purple).
+    const _countLines = (s) => (s || '').split('\n').filter(l => l.trim().length > 0).length;
+    const _slotIcon = { morning: '🌅', afternoon: '☀️', evening: '🌙' };
+    const _slotLabel = { morning: 'Morning', afternoon: 'Afternoon', evening: 'Evening' };
+    const _slotAccent = { morning: '0,113,227', afternoon: '255,149,0', evening: '88,86,214' };
+    const _slotPlaceholder = { morning: 'Morning plans…', afternoon: 'Afternoon plans…', evening: 'Evening plans…' };
+    const _slots = ['morning', 'afternoon', 'evening'];
+    const _initialSlot = 'morning';
+    const _renderTab = (slot) => {
+        const count = _countLines(day.plan?.[slot]);
+        const isActive = slot === _initialSlot;
+        return `
+            <button type="button" class="day-plan-tab${isActive ? ' is-active' : ''}" data-plan-tab="${slot}"
+                style="--accent: ${_slotAccent[slot]};"
+                role="tab" aria-selected="${isActive ? 'true' : 'false'}">
+                <span class="day-plan-tab__icon">${_slotIcon[slot]}</span>
+                <span class="day-plan-tab__label">${_slotLabel[slot]}</span>
+                <span class="day-plan-tab__count" data-plan-tab-count="${slot}">${count > 0 ? count : ''}</span>
+            </button>
+        `;
+    };
+    const _renderPane = (slot) => {
+        const isActive = slot === _initialSlot;
+        return `
+            <div class="day-plan-pane${isActive ? ' is-active' : ''}" data-plan-pane="${slot}" style="--accent: ${_slotAccent[slot]};">
+                <textarea class="plain-textarea plan-input" data-time="${slot}" placeholder="${_slotPlaceholder[slot]}">${esc(day.plan?.[slot] || '')}</textarea>
+            </div>
+        `;
+    };
     const numberedDayLeftHtml = `
-        <div class="subcard-soft">
-            <h4 class="text-tag">Morning</h4>
-            <textarea class="plain-textarea plan-input" data-time="morning" placeholder="Morning plans...">${day.plan?.morning || ''}</textarea>
-        </div>
-        <div class="subcard-soft">
-            <h4 class="text-tag" style="--accent: 255,149,0;">Afternoon</h4>
-            <textarea class="plain-textarea plan-input" data-time="afternoon" placeholder="Afternoon plans...">${day.plan?.afternoon || ''}</textarea>
-        </div>
-        <div class="subcard-soft">
-            <h4 class="text-tag" style="--accent: 88,86,214;">Evening</h4>
-            <textarea class="plain-textarea plan-input" data-time="evening" placeholder="Evening plans...">${day.plan?.evening || ''}</textarea>
+        <div class="day-plan-tabs">
+            <div class="day-plan-tabnav" role="tablist" aria-label="Day plan time slots">
+                ${_slots.map(_renderTab).join('')}
+            </div>
+            <div class="day-plan-panes">
+                ${_slots.map(_renderPane).join('')}
+            </div>
         </div>
     `;
     // Trip checklist panel — surfaces the Genesis-level checklist on
@@ -5189,11 +5224,64 @@ const openDayDetail = (dayId) => {
     // Initial paint so reopening a day with prior plans shows ✓ at once.
     refreshShortlistButtons();
 
+    // Update the per-tab count chip ("Morning 3" / "Afternoon 0" /
+    // …) so it stays in sync with the textarea content. Called on
+    // every input event AND on every shortlist toggle so the
+    // glance-preview never lies. Empty count → empty chip (the
+    // CSS hides it when empty).
+    const refreshPlanTabCounts = () => {
+        root.querySelectorAll('[data-plan-tab-count]').forEach(el => {
+            const slot = /** @type {HTMLElement} */ (el).dataset.planTabCount;
+            const ta = /** @type {HTMLTextAreaElement | null} */
+                (root.querySelector(`textarea.plan-input[data-time="${slot}"]`));
+            const value = ta?.value || '';
+            const count = value.split('\n').filter(l => l.trim().length > 0).length;
+            el.textContent = count > 0 ? String(count) : '';
+        });
+    };
+
+    /** Switch the active plan tab — flips .is-active on tab +
+     *  pane in tandem and focuses the now-active textarea so the
+     *  user can start typing immediately. Also called from the
+     *  shortlist Add-to-AM/PM/Eve click handler so toggling a
+     *  to-do entry surfaces the slot it was added to. */
+    const switchPlanTab = (slot) => {
+        if (!['morning', 'afternoon', 'evening'].includes(slot)) return;
+        root.querySelectorAll('.day-plan-tab').forEach(tab => {
+            const el = /** @type {HTMLElement} */ (tab);
+            const isActive = el.dataset.planTab === slot;
+            el.classList.toggle('is-active', isActive);
+            el.setAttribute('aria-selected', isActive ? 'true' : 'false');
+        });
+        root.querySelectorAll('.day-plan-pane').forEach(pane => {
+            const el = /** @type {HTMLElement} */ (pane);
+            el.classList.toggle('is-active', el.dataset.planPane === slot);
+        });
+        // Focus the freshly-revealed textarea so the user keeps
+        // typing without an extra click. Defer one tick so the
+        // CSS class swap has applied before the focus call (some
+        // browsers refuse to focus a still-hidden element).
+        setTimeout(() => {
+            const ta = /** @type {HTMLTextAreaElement | null} */
+                (root.querySelector(`.day-plan-pane.is-active textarea.plan-input`));
+            ta?.focus();
+        }, 0);
+    };
+
+    // Tab strip click handler.
+    root.querySelectorAll('.day-plan-tab').forEach(tab => {
+        /** @type {HTMLButtonElement} */ (tab).onclick = () => {
+            const slot = /** @type {HTMLElement} */ (tab).dataset.planTab;
+            if (slot) switchPlanTab(slot);
+        };
+    });
+
     // Wire input events on every editable textarea.
     planTextareas.forEach(ta => {
         ta.addEventListener('input', () => {
             queueSave();
             refreshShortlistButtons();
+            refreshPlanTabCounts();
         });
     });
     notesTextarea?.addEventListener('input', () => { queueSave(); });
@@ -5256,8 +5344,14 @@ const openDayDetail = (dayId) => {
             ? '0 0 0 2px rgba(255,59,48,0.35)'
             : '0 0 0 2px rgba(0,113,227,0.35)';
         setTimeout(() => { ta.style.boxShadow = taPrevOutline; }, 280);
+        // Reveal the tab the change landed in. Without this, a
+        // toggle on a hidden slot would visibly do nothing (the
+        // line gets added/removed in the right textarea, but the
+        // user is staring at a different tab and sees no change).
+        switchPlanTab(time);
         persistNow();
         refreshShortlistButtons();
+        refreshPlanTabCounts();
     });
 
     // Lazy filter for the to-do list section — only present when the

@@ -3632,6 +3632,115 @@ h1 {
 }
 .path-chips::-webkit-scrollbar { height: 0; width: 0; }
 
+/* Day-plan tabs — replaces the three stacked subcards (Morning /
+   Afternoon / Evening) with a tab strip + single pane. Each tab
+   carries its own --accent (blue / orange / purple) so the
+   active state is colour-coded to its time slot, matching the
+   existing icon language. The count chip on each tab shows the
+   number of non-empty lines in that slot's textarea — gives a
+   glance preview of "where the day is full" without switching
+   tabs. The active pane gets the full vertical space the user
+   used to share across three subcards, so editing feels less
+   cramped. All three textareas stay mounted (display swap, not
+   detach) so the existing autosave + shortlist-toggle handlers
+   keep working unchanged. */
+.day-plan-tabs {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    background: rgba(0, 113, 227, 0.04);
+    border: 1px solid rgba(0, 113, 227, 0.10);
+    border-radius: 24px;
+    padding: 6px;
+}
+.day-plan-tabnav {
+    display: flex;
+    gap: 4px;
+    padding: 0;
+    background: rgba(255, 255, 255, 0.55);
+    border-radius: 18px;
+}
+.day-plan-tab {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    padding: 10px 12px;
+    border: 0;
+    background: transparent;
+    border-radius: 14px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    cursor: pointer;
+    letter-spacing: -0.01em;
+    transition: background 0.18s ease, color 0.18s ease,
+                box-shadow 0.18s ease, transform 0.18s ease;
+    position: relative;
+}
+.day-plan-tab:hover:not(.is-active) {
+    color: rgb(var(--accent));
+    background: rgba(var(--accent), 0.06);
+}
+.day-plan-tab.is-active {
+    background: rgb(var(--accent));
+    color: white;
+    box-shadow: 0 4px 12px rgba(var(--accent), 0.32);
+}
+.day-plan-tab__icon {
+    font-size: 0.95rem;
+    line-height: 1;
+}
+.day-plan-tab__label {
+    font-weight: 800;
+}
+/* Count chip — empty when the slot has zero lines (rule below
+   collapses it so the tab doesn't carry an empty pill). */
+.day-plan-tab__count {
+    font-size: 0.66rem;
+    font-weight: 800;
+    line-height: 1;
+    padding: 2px 6px;
+    border-radius: 999px;
+    min-width: 18px;
+    text-align: center;
+    background: rgba(var(--accent), 0.16);
+    color: rgb(var(--accent));
+    transition: background 0.18s ease, color 0.18s ease;
+}
+.day-plan-tab.is-active .day-plan-tab__count {
+    background: rgba(255, 255, 255, 0.25);
+    color: white;
+}
+.day-plan-tab__count:empty {
+    display: none;
+}
+.day-plan-panes {
+    margin-top: 6px;
+    padding: 14px 12px 10px;
+}
+.day-plan-pane {
+    display: none;
+}
+.day-plan-pane.is-active {
+    display: block;
+}
+.day-plan-pane textarea.plan-input {
+    width: 100%;
+    box-sizing: border-box;
+    /* Bigger than the old subcard textarea — we have the room
+       now that all three slots aren't fighting for it. ~6 lines
+       visible by default; auto-grows from there for longer
+       plans without a scroll bar inside the modal. */
+    min-height: 180px;
+    border-color: rgba(var(--accent), 0.22);
+}
+.day-plan-pane textarea.plan-input:focus {
+    border-color: rgb(var(--accent));
+    box-shadow: 0 0 0 3px rgba(var(--accent), 0.16);
+}
+
 /* Weather chip on each Day card subtitle. Renders an icon
    (☀️/⛅/🌧/etc.) + the day's average temp in Celsius. Empty
    when no forecast is available (past trips, beyond the API's
