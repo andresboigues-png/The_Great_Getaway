@@ -7,10 +7,11 @@ from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
-from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from database import get_db, init_db
 from auth import issue_token, current_user_id, require_auth
+from extensions import limiter
+from routes.media import bp as media_bp
 
 # Load environment variables
 load_dotenv()
@@ -32,27 +33,10 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 # Upload limits — Flask itself will refuse anything over MAX_CONTENT_LENGTH
-# with a 413 before a single byte hits disk. Per-extension allowlist below
-# narrows the actual saved set.
+# with a 413 before a single byte hits disk. Per-extension + magic-number
+# checks live in routes/media.py alongside the upload handler.
 MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10 MB
 app.config['MAX_CONTENT_LENGTH'] = MAX_UPLOAD_SIZE
-ALLOWED_UPLOAD_EXTENSIONS = {
-    # images
-    '.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic', '.heif',
-    # documents (trip tickets, bookings)
-    '.pdf',
-}
-# Magic-number prefixes for the formats we accept. Spoofing the extension
-# without spoofing these bytes is much harder, so we sniff the first few
-# bytes as a second-line defense against `bomb.exe` renamed `bomb.jpg`.
-ALLOWED_UPLOAD_SIGNATURES = (
-    b'\xff\xd8\xff',                 # JPEG
-    b'\x89PNG\r\n\x1a\n',            # PNG
-    b'GIF87a', b'GIF89a',            # GIF
-    b'RIFF',                         # WebP (RIFF...WEBP)
-    b'%PDF-',                        # PDF
-    b'\x00\x00\x00',                 # HEIC/HEIF (ftyp box header — coarse but sufficient)
-)
 
 # E2E test mode shares the env-gate with the test-login bypass: Playwright
 # runs 30+ tests against the same Flask process, each calling
@@ -67,13 +51,19 @@ if os.getenv("GG_ALLOW_TEST_LOGIN") == "1":
 # auth lands. In-memory storage is fine for single-process dev — production
 # should set RATELIMIT_STORAGE_URI=redis://... so limits survive restarts
 # and apply across worker processes.
-limiter = Limiter(
-    get_remote_address,
-    app=app,
-    default_limits=["200 per minute"],
-    storage_uri=os.getenv("RATELIMIT_STORAGE_URI", "memory://"),
-    headers_enabled=True,
-)
+#
+# `limiter` is instantiated in src/extensions.py so route blueprints can
+# import it without a circular dependency on this module. We bind it to
+# the app via init_app (deferred-init pattern); the storage URI is read
+# from app.config (Flask-Limiter standard).
+app.config["RATELIMIT_STORAGE_URI"] = os.getenv("RATELIMIT_STORAGE_URI", "memory://")
+limiter.init_app(app)
+
+# ── Blueprint registration ──────────────────────────────────────────────────
+# Phase B4 splits each domain (media / auth / trips / feed / ...) into its
+# own routes/<domain>.py blueprint. Add new blueprints to this list as the
+# split progresses; main.py shrinks accordingly.
+app.register_blueprint(media_bp)
 
 # Ensure DB is initialized
 init_db()
@@ -2606,52 +2596,6 @@ def update_profile():
         cursor.execute(f"UPDATE users SET {', '.join(fields)} WHERE id = ?", values)
         conn.commit()
     return jsonify({"status": "updated"})
-
-@app.route("/api/upload", methods=["POST"])
-@limiter.limit("30 per minute")
-@require_auth
-def upload_file():
-    """Handle file uploads (photos, documents). Hardened in three ways:
-    1. Auth — JWT-gated; anonymous traffic gets 401.
-    2. Extension allowlist — only image / PDF extensions are saved.
-       secure_filename strips path traversal but does NOT validate the
-       extension, so `bomb.exe` would have been accepted before.
-    3. MIME sniff — the file's first bytes are checked against known
-       magic numbers, so renaming `bomb.exe` to `bomb.jpg` still fails.
-    Size is bounded by app.config['MAX_CONTENT_LENGTH'] (10 MB); Flask
-    refuses bigger uploads with 413 before they hit this handler."""
-    user_id = current_user_id()
-
-    if 'file' not in request.files:
-        return jsonify({"error": "No file part"}), 400
-
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({"error": "No selected file"}), 400
-
-    # Extension allowlist
-    ext = os.path.splitext(file.filename)[1].lower()
-    if ext not in ALLOWED_UPLOAD_EXTENSIONS:
-        return jsonify({"error": f"Unsupported file type: {ext}"}), 400
-
-    # Magic-number sniff. Read the first 16 bytes, then rewind so .save()
-    # writes the full file from offset 0.
-    head = file.stream.read(16)
-    file.stream.seek(0)
-    if not any(head.startswith(sig) for sig in ALLOWED_UPLOAD_SIGNATURES):
-        return jsonify({"error": "File contents don't match expected format"}), 400
-
-    filename = secure_filename(file.filename)
-    # Add timestamp to avoid collisions
-    import time
-    filename = f"{int(time.time())}_{filename}"
-    file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-
-    # Return the relative path for frontend
-    return jsonify({
-        "url": f"/static/uploads/{filename}",
-        "name": file.filename
-    })
 
 @app.route("/api/user-data", methods=["DELETE"])
 @require_auth
