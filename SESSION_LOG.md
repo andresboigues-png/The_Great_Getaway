@@ -93,6 +93,35 @@ TS's parser treats `(expr\n   as Type)` as two statements).
 - Flask smoke test: `/` returns HTTP 200, bundle returns HTTP 200,
   no errors in server log.
 
+**Phase A2.1 also landed this session — the e2e auth path**:
+
+The 5 Playwright smoke tests have been broken since the post-Phase-G
+login wall added `STATE.user`-required gates. Restored the auth path:
+
+- `src/main.py` `/api/auth/google` accepts a `test:<user_id>` token
+  shortcut when `GG_ALLOW_TEST_LOGIN=1`. Mints the same `{token, user}`
+  envelope a real Google sign-in returns; user row is upserted on
+  first use. Env-gated so production deploys can never accidentally
+  enable this — the var is set by `playwright.config.js`'s webServer
+  block, not in the dev `.env`.
+- `tests/e2e/helpers.js` gets a `loginAsTestUser(page, userId?)`
+  helper that POSTs the test token, then seeds `gg_auth_token` +
+  a fully-shaped `theGreatEscapeState` (matching state.ts's initial
+    - AppPreferences) into localStorage so schemas.ts's
+      validateLoadedState ACCEPTS the snapshot. `openFreshApp` calls it
+      before the second `page.goto`.
+- GSI_LOGGER added to the console-error ignore list (Google Identity
+  Services warns about origin mismatch on localhost; we sign in via
+  the test shortcut anyway).
+
+**State after A2.1**: 1 of 5 smoke tests passes (the "no console
+errors" one — auth works, sidebar renders, app boots cleanly). The
+remaining 4 fail on UI that drifted post-Phase G — `#tripCountryInput`
+became Google Places autocomplete, the Personalization companions
+sub-tab was removed when companions went per-trip, etc. Rewriting
+them properly is Phase A2.2 (next session) — wants real flows
+against the current UI.
+
 **Phase A1 Stages 3 + 4 also shipped this session**:
 
 - Stage 3 — `"strict": true` + `"noImplicitReturns": true` in

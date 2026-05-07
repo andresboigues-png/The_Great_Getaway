@@ -211,14 +211,57 @@ def google_auth():
     # Support both 'token' and 'credential' keys
     token = request.json.get("token") or request.json.get("credential")
     client_id = os.getenv("CLIENT_ID_GOOGLE_AUTH")
-    
+
+    # ── Test-mode bypass ──────────────────────────────────────────────
+    # When GG_ALLOW_TEST_LOGIN=1 (set by the Playwright test runner,
+    # never in production), accept tokens shaped `test:<user_id>` and
+    # mint a session for them without going through Google. The user
+    # row is upserted on first use so /api/data and friends don't 404
+    # for the test identity.
+    #
+    # The env-gate is the ONLY check here — any deploy that doesn't
+    # set the var refuses test-login bodies entirely.
+    if (
+        os.getenv("GG_ALLOW_TEST_LOGIN") == "1"
+        and isinstance(token, str)
+        and token.startswith("test:")
+    ):
+        user_id = token[len("test:"):] or "test-user-1"
+        email = f"{user_id}@test.local"
+        name = request.json.get("name") or "Test User"
+        picture = ""
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                INSERT INTO users (id, email, name, picture)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET name=excluded.name
+                """,
+                (user_id, email, name, picture),
+            )
+            conn.commit()
+        return jsonify({
+            "status": "success",
+            "token": issue_token(user_id),
+            "user": {
+                "id": user_id,
+                "name": name,
+                "email": email,
+                "picture": picture,
+                "bio": "",
+                "status": "",
+                "homeCurrency": None,
+            },
+        })
+
     if not token or not client_id:
         return jsonify({"error": "Missing token or Client ID"}), 400
 
     try:
         # Verify the token
         idinfo = id_token.verify_oauth2_token(token, google_requests.Request(), client_id)
-        
+
         user_id = idinfo['sub']
         email = idinfo['email']
         name = idinfo['name']

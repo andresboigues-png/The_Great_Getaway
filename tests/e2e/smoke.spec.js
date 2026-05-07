@@ -26,7 +26,7 @@ test.describe('The Great Getaway — smoke', () => {
 
         // Empty home: shows the inspirational hero.
         await expect(page.locator('#homeHeroImg')).toBeVisible();
-        await expect(page.locator('#homeCreateFirstTripBtn')).toContainText('Create First Trip');
+        await expect(page.locator('#homeCreateFirstTripBtn')).toContainText('Create Trip');
 
         // Filter the well-known noise (Google Maps + auth scripts that don't
         // load offline, missing favicon variants, etc). If anything else
@@ -41,6 +41,11 @@ test.describe('The Great Getaway — smoke', () => {
             // network — we don't want test runs gated on it.
             /sentry-cdn/i,
             /sentry\.io/i,
+            // Google Identity Services boot warning when running on
+            // localhost (the configured origin doesn't include it).
+            // The test signs in via the test-mode shortcut anyway, so
+            // GSI's warning is irrelevant.
+            /GSI_LOGGER/i,
         ];
         const real = errors.filter((e) => !ignored.some((re) => re.test(e)));
         expect(real, 'unexpected console errors').toEqual([]);

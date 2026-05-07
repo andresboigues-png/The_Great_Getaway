@@ -1,19 +1,103 @@
 // @ts-check
 // Shared helpers for the smoke suite. Each test starts from a known empty
-// state by clearing localStorage before navigating.
+// state by clearing localStorage and signing in via the test-mode auth
+// shortcut, so the post-Phase-G login wall doesn't gate the sidebar.
 
 import { expect } from '@playwright/test';
 
 /**
- * Open the app at a clean state. Clears localStorage, then navigates to '/'.
+ * Sign the page in as a deterministic test user. Hits /api/auth/google
+ * with the `test:<user_id>` token shortcut (gated by GG_ALLOW_TEST_LOGIN
+ * which playwright.config.js sets when booting the dev server). On
+ * success we seed the JWT + a default-shaped STATE object into
+ * localStorage so the app boots straight into the authenticated home.
+ *
+ * @param {import('@playwright/test').Page} page
+ * @param {string} [userId]
+ */
+export async function loginAsTestUser(page, userId = 'test-user-1') {
+    const res = await page.request.post('/api/auth/google', {
+        data: { token: `test:${userId}`, name: 'Test User' },
+    });
+    if (!res.ok()) {
+        throw new Error(`test login failed: ${res.status()} ${await res.text()}`);
+    }
+    const body = await res.json();
+
+    // Mirror the post-login STATE that profile.ts's handleGoogleLogin
+    // would set up. Keeping this in lock-step with state.ts's
+    // initialiser is what lets schemas.ts's validateLoadedState ACCEPT
+    // the snapshot — a partial / mis-shaped object would be rejected
+    // and the app would boot back into anonymous mode.
+    await page.evaluate((auth) => {
+        localStorage.clear();
+        localStorage.setItem('gg_auth_token', auth.token);
+        const state = {
+            trips: [],
+            activeTripId: null,
+            categories: [
+                { id: 'c1', name: 'Food', icon: '🍔', color: '#ff3b30' },
+                { id: 'c2', name: 'Transport', icon: '✈️', color: '#007aff' },
+                { id: 'c3', name: 'Accommodation', icon: '🏨', color: '#5856d6' },
+            ],
+            expenses: [],
+            draftExpense: {
+                who: '',
+                categoryId: '',
+                label: '',
+                date: '',
+                country: '',
+                value: '',
+                currency: 'EUR',
+                euroValue: '',
+            },
+            insightCurrency: 'EUR',
+            rateMode: 'at_trip',
+            rateCache: {},
+            user: auth.user,
+            hasLoggedInBefore: true,
+            geminiApiKey: '',
+            excelMapping: {
+                who: 'Who',
+                categoryId: 'Category',
+                label: 'Label',
+                date: 'Date',
+                country: 'Country',
+                value: 'Value',
+                currency: 'Currency',
+                euroValue: 'Euro Value',
+            },
+            activities: [],
+            photos: [],
+            budgets: [],
+            savedFormats: [],
+            tripDays: [],
+            archivedTrips: [],
+            activeDetailId: null,
+            notifications: [],
+            preferences: {
+                mapDefaultPois: ['sights', 'parks', 'transit'],
+                poiFilters: {},
+                pillEpicenters: {},
+                poiAnchoring: {},
+                poiVisible: {},
+                enabledPois: {},
+            },
+        };
+        localStorage.setItem('theGreatEscapeState', JSON.stringify(state));
+    }, body);
+}
+
+/**
+ * Open the app at a clean state, signed in as the test user. Two
+ * navigations: the first lets us touch localStorage on the right
+ * origin, the second is the actual app boot under the seeded session.
  * @param {import('@playwright/test').Page} page
  */
 export async function openFreshApp(page) {
-    // navigate first so localStorage is accessible
     await page.goto('/');
-    await page.evaluate(() => localStorage.clear());
+    await loginAsTestUser(page);
     await page.goto('/');
-    // Wait for the main app shell to render — sidebar nav is always present.
     await expect(page.locator('#sidebar')).toBeVisible();
 }
 

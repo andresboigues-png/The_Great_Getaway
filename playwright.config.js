@@ -35,5 +35,14 @@ export default defineConfig({
         reuseExistingServer: !process.env.CI,
         stdout: 'ignore',
         stderr: 'pipe',
+        // GG_ALLOW_TEST_LOGIN unlocks the /api/auth/google
+        // `test:<user_id>` shortcut that helpers.js's loginAsTestUser
+        // hits. Off by default — production deploys would never set
+        // this; the dev server on a developer's box also doesn't
+        // unless they're explicitly running e2e tests.
+        env: {
+            ...process.env,
+            GG_ALLOW_TEST_LOGIN: '1',
+        },
     },
 });
