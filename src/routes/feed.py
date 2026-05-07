@@ -1,0 +1,602 @@
+"""Activity feed — synthesised events + explicit shares + reposts +
+likes/bookmarks/comments.
+
+Most events are read-synthesised from existing tables (created /
+archived / joined trip, new friendship) so they don't need a backfill.
+Two event types live in their own table (`feed_posts`): explicit
+shares and reposts, which are user-initiated and therefore can't be
+derived from passive activity.
+
+Shared-engagement helpers live in this module rather than helpers.py
+because they're feed-specific (they read feed_posts and resolve
+event_ids of the form `share_<id>` / `repost_<id>`).
+"""
+
+from flask import Blueprint, jsonify, request
+
+from auth import current_user_id, require_auth
+from database import get_db
+from extensions import limiter
+
+
+bp = Blueprint("feed", __name__)
+
+
+def _post_owner_for_event(cursor, event_id):
+    """Resolve the user_id of the feed_posts row that backs a synthesised
+    event_id of the form 'share_<id>' or 'repost_<id>'. Returns None for
+    Action-type event ids (no underlying post) or unknown shapes — the
+    caller should treat None as "no notification target" and skip.
+    """
+    if not isinstance(event_id, str):
+        return None
+    for prefix in ("share_", "repost_"):
+        if event_id.startswith(prefix):
+            try:
+                pid = int(event_id[len(prefix):])
+            except ValueError:
+                return None
+            cursor.execute("SELECT user_id FROM feed_posts WHERE id = ?", (pid,))
+            row = cursor.fetchone()
+            return row["user_id"] if row else None
+    return None
+
+
+def _fire_engagement_notification(cursor, recipient_id, actor_id, kind):
+    """Drop a row into the existing notifications table when someone
+    engages with a user's share. Skips self-notifications (you don't
+    need to be told you liked your own post). `kind` is one of
+    'share_liked' / 'share_commented' / 'share_reposted'.
+    """
+    if not recipient_id or recipient_id == actor_id:
+        return
+    cursor.execute("SELECT name FROM users WHERE id = ?", (actor_id,))
+    row = cursor.fetchone()
+    actor_name = row["name"] if row else "Someone"
+    verb = {
+        "share_liked":     "liked your share",
+        "share_commented": "commented on your share",
+        "share_reposted":  "reposted your share",
+    }.get(kind, "engaged with your share")
+    title = {
+        "share_liked":     "New like",
+        "share_commented": "New comment",
+        "share_reposted":  "New repost",
+    }.get(kind, "Feed activity")
+    msg = f"{actor_name} {verb}."
+    cursor.execute(
+        "INSERT INTO notifications (user_id, type, title, related_id, message, is_read) "
+        "VALUES (?, ?, ?, ?, ?, 0)",
+        (recipient_id, kind, title, actor_id, msg),
+    )
+
+
+@bp.route("/api/feed", methods=["GET"])
+@require_auth
+@limiter.limit("60/minute")
+def get_feed():
+    """Activity feed — friends + own. See module docstring for the full
+    event-type list and window/cap rules."""
+    user_id = current_user_id()
+    events = []
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # 1) Friend list + actor lookup. Both Action and Posts queries
+        # include the caller alongside friends — the feed is "what your
+        # friends + you have done lately".
+        cursor.execute('''
+            SELECT u.id, u.name, u.picture
+            FROM users u
+            JOIN friends f ON u.id = f.friend_id
+            WHERE f.user_id = ? AND f.status = 'accepted'
+        ''', (user_id,))
+        friend_rows = [dict(r) for r in cursor.fetchall()]
+        friend_ids = [f["id"] for f in friend_rows]
+        friend_lookup = {f["id"]: f for f in friend_rows}
+
+        cursor.execute("SELECT id, name, picture FROM users WHERE id = ?", (user_id,))
+        me_row = cursor.fetchone()
+        me_lookup = dict(me_row) if me_row else {"id": user_id, "name": "You", "picture": None}
+        actor_lookup = {**friend_lookup, user_id: me_lookup}
+        actor_ids = list(set(friend_ids + [user_id]))
+        placeholders = ",".join(["?"] * len(actor_ids))
+        post_actor_ids = actor_ids
+        post_placeholders = placeholders
+
+        # 2) friend_created_trip — actor is owner, last 30 days, not
+        # archived, not silenced.
+        cursor.execute(f'''
+            SELECT id, user_id, name, country, created_at
+            FROM trips
+            WHERE user_id IN ({placeholders})
+              AND COALESCE(is_archived, 0) = 0
+              AND COALESCE(actions_hidden, 0) = 0
+              AND created_at >= datetime('now', '-30 days')
+            ORDER BY created_at DESC
+        ''', actor_ids)
+        for row in cursor.fetchall():
+            actor = actor_lookup.get(row["user_id"])
+            if not actor:
+                continue
+            events.append({
+                "id": f"trip_created_{row['id']}",
+                "type": "friend_created_trip",
+                "actor": actor,
+                "trip": {"id": row["id"], "name": row["name"], "country": row["country"]},
+                "when": row["created_at"],
+            })
+
+        # 3) friend_archived_trip — actor's trip got archived (= they
+        # marked it complete). Falls back to created_at since we don't
+        # have an archived_at column.
+        cursor.execute(f'''
+            SELECT id, user_id, name, country, created_at
+            FROM trips
+            WHERE user_id IN ({placeholders})
+              AND COALESCE(is_archived, 0) = 1
+              AND COALESCE(actions_hidden, 0) = 0
+              AND created_at >= datetime('now', '-30 days')
+            ORDER BY created_at DESC
+        ''', actor_ids)
+        for row in cursor.fetchall():
+            actor = actor_lookup.get(row["user_id"])
+            if not actor:
+                continue
+            events.append({
+                "id": f"trip_archived_{row['id']}",
+                "type": "friend_archived_trip",
+                "actor": actor,
+                "trip": {"id": row["id"], "name": row["name"], "country": row["country"]},
+                "when": row["created_at"],
+            })
+
+        # 4) friend_joined_trip — actor was added to a trip they DON'T
+        # own. trip_members has no join timestamp; we use the trip's
+        # created_at as a best-effort proxy.
+        cursor.execute(f'''
+            SELECT tm.trip_id, tm.user_id AS joiner_id, t.name, t.country, t.created_at
+            FROM trip_members tm
+            JOIN trips t ON t.id = tm.trip_id
+            WHERE tm.user_id IN ({placeholders})
+              AND tm.invitation_status = 'accepted'
+              AND tm.user_id != t.user_id
+              AND COALESCE(t.actions_hidden, 0) = 0
+              AND t.created_at >= datetime('now', '-30 days')
+        ''', actor_ids)
+        for row in cursor.fetchall():
+            actor = actor_lookup.get(row["joiner_id"])
+            if not actor:
+                continue
+            events.append({
+                "id": f"trip_joined_{row['trip_id']}_{row['joiner_id']}",
+                "type": "friend_joined_trip",
+                "actor": actor,
+                "trip": {"id": row["trip_id"], "name": row["name"], "country": row["country"]},
+                "when": row["created_at"],
+            })
+
+        # 5) new_friendship. Wrapped in try/except as a backstop against
+        # schema-drift (a buggy ALTER once left created_at un-added on
+        # legacy dbs and 500'd /api/feed entirely).
+        try:
+            cursor.execute(f'''
+                SELECT u.id, u.name, u.picture, f.created_at
+                FROM friends f
+                JOIN users u ON u.id = f.friend_id
+                WHERE f.user_id = ?
+                  AND f.status = 'accepted'
+                  AND f.created_at IS NOT NULL
+                  AND f.created_at >= datetime('now', '-30 days')
+                ORDER BY f.created_at DESC
+            ''', (user_id,))
+            for row in cursor.fetchall():
+                events.append({
+                    "id": f"friendship_{user_id}_{row['id']}",
+                    "type": "new_friendship",
+                    "actor": {"id": row["id"], "name": row["name"], "picture": row["picture"]},
+                    "when": row["created_at"],
+                })
+        except Exception as e:
+            print(f"[feed] new_friendship query failed (skipping): {e}")
+
+        # 6) friend_shared_trip — explicit shares (repost_of_post_id NULL).
+        cursor.execute(f'''
+            SELECT fp.id, fp.user_id AS sharer_id, fp.trip_id, fp.created_at, fp.caption,
+                   u.name AS sharer_name, u.picture AS sharer_picture,
+                   t.name AS trip_name, t.country AS trip_country
+            FROM feed_posts fp
+            JOIN users u ON u.id = fp.user_id
+            JOIN trips t ON t.id = fp.trip_id
+            WHERE fp.user_id IN ({post_placeholders})
+              AND fp.repost_of_post_id IS NULL
+              AND fp.created_at >= datetime('now', '-30 days')
+            ORDER BY fp.created_at DESC
+        ''', post_actor_ids)
+        for row in cursor.fetchall():
+            events.append({
+                "id": f"share_{row['id']}",
+                "type": "friend_shared_trip",
+                "actor": {"id": row['sharer_id'], "name": row['sharer_name'], "picture": row['sharer_picture']},
+                "trip": {"id": row['trip_id'], "name": row['trip_name'], "country": row['trip_country']},
+                "post_id": row['id'],
+                "caption": row['caption'],
+                "when": row['created_at'],
+            })
+
+        # 7) friend_reposted_trip. Original-sharer info also pulled so
+        # the card can render "Reposted X's share" with the original
+        # blurb visible.
+        cursor.execute(f'''
+            SELECT fp.id, fp.user_id AS reposter_id, fp.trip_id, fp.created_at,
+                   u.name AS reposter_name, u.picture AS reposter_picture,
+                   t.name AS trip_name, t.country AS trip_country,
+                   orig.user_id AS original_sharer_id, orig.caption AS original_caption,
+                   ou.name AS original_sharer_name, ou.picture AS original_sharer_picture
+            FROM feed_posts fp
+            JOIN users u ON u.id = fp.user_id
+            JOIN trips t ON t.id = fp.trip_id
+            JOIN feed_posts orig ON orig.id = fp.repost_of_post_id
+            JOIN users ou ON ou.id = orig.user_id
+            WHERE fp.user_id IN ({post_placeholders})
+              AND fp.repost_of_post_id IS NOT NULL
+              AND fp.created_at >= datetime('now', '-30 days')
+            ORDER BY fp.created_at DESC
+        ''', post_actor_ids)
+        for row in cursor.fetchall():
+            events.append({
+                "id": f"repost_{row['id']}",
+                "type": "friend_reposted_trip",
+                "actor": {"id": row['reposter_id'], "name": row['reposter_name'], "picture": row['reposter_picture']},
+                "original_sharer": {"id": row['original_sharer_id'], "name": row['original_sharer_name'], "picture": row['original_sharer_picture']},
+                "trip": {"id": row['trip_id'], "name": row['trip_name'], "country": row['trip_country']},
+                "post_id": row['id'],
+                "caption": row['original_caption'],
+                "when": row['created_at'],
+            })
+
+        # Sort + cap before attaching like/bookmark/comment counts.
+        events.sort(key=lambda e: e.get("when") or "", reverse=True)
+        events = events[:100]
+
+        # Like/bookmark/comment attach. Three batched queries scoped to
+        # the surfaced event_ids.
+        if events:
+            event_ids = [e['id'] for e in events]
+            id_placeholders = ",".join(["?"] * len(event_ids))
+            cursor.execute(
+                f"SELECT event_id, COUNT(*) AS c FROM feed_likes "
+                f"WHERE event_id IN ({id_placeholders}) GROUP BY event_id",
+                event_ids,
+            )
+            likes_count = {r['event_id']: r['c'] for r in cursor.fetchall()}
+            cursor.execute(
+                f"SELECT event_id FROM feed_likes "
+                f"WHERE user_id = ? AND event_id IN ({id_placeholders})",
+                [user_id, *event_ids],
+            )
+            liked_by_me = {r['event_id'] for r in cursor.fetchall()}
+            cursor.execute(
+                f"SELECT event_id FROM feed_bookmarks "
+                f"WHERE user_id = ? AND event_id IN ({id_placeholders})",
+                [user_id, *event_ids],
+            )
+            bookmarked_by_me = {r['event_id'] for r in cursor.fetchall()}
+            cursor.execute(
+                f"SELECT event_id, COUNT(*) AS c FROM feed_comments "
+                f"WHERE event_id IN ({id_placeholders}) GROUP BY event_id",
+                event_ids,
+            )
+            comments_count = {r['event_id']: r['c'] for r in cursor.fetchall()}
+            for e in events:
+                e['like_count'] = likes_count.get(e['id'], 0)
+                e['is_liked'] = e['id'] in liked_by_me
+                e['is_bookmarked'] = e['id'] in bookmarked_by_me
+                e['comment_count'] = comments_count.get(e['id'], 0)
+
+    return jsonify(events)
+
+
+@bp.route("/api/feed/share", methods=["POST"])
+@require_auth
+@limiter.limit("30/minute")
+def share_trip_to_feed():
+    """Create a feed_post (original share — repost_of_post_id NULL) for
+    the caller's trip. Idempotent: re-sharing returns the existing
+    post_id rather than creating a duplicate. Optional caption (≤280
+    chars) is rendered above the trip card."""
+    user_id = current_user_id()
+    data = request.json or {}
+    trip_id = data.get("trip_id")
+    caption = (data.get("caption") or "").strip()
+    if caption:
+        caption = caption[:280]
+    else:
+        caption = None
+    if not trip_id:
+        return jsonify({"error": "Missing trip_id"}), 400
+    with get_db() as conn:
+        cursor = conn.cursor()
+        # Membership gate: caller must own the trip OR be an accepted
+        # member. The archive gate was dropped — archived public trips
+        # are a perfectly reasonable thing to share.
+        cursor.execute(
+            "SELECT 1 FROM trips WHERE id = ? AND user_id = ?",
+            (trip_id, user_id),
+        )
+        is_owner = cursor.fetchone() is not None
+        if not is_owner:
+            cursor.execute(
+                "SELECT 1 FROM trip_members WHERE trip_id = ? "
+                "AND user_id = ? AND invitation_status = 'accepted'",
+                (trip_id, user_id),
+            )
+            if not cursor.fetchone():
+                return jsonify({"error": "Forbidden"}), 403
+        cursor.execute(
+            "SELECT id FROM feed_posts WHERE user_id = ? AND trip_id = ? "
+            "AND repost_of_post_id IS NULL",
+            (user_id, trip_id),
+        )
+        existing = cursor.fetchone()
+        if existing:
+            # Update caption on a re-share so the user can edit their
+            # message without unsharing first.
+            if caption is not None:
+                cursor.execute(
+                    "UPDATE feed_posts SET caption = ? WHERE id = ?",
+                    (caption, existing['id']),
+                )
+                conn.commit()
+            return jsonify({"status": "already_shared", "post_id": existing['id']})
+        cursor.execute(
+            "INSERT INTO feed_posts (user_id, trip_id, repost_of_post_id, caption) "
+            "VALUES (?, ?, NULL, ?)",
+            (user_id, trip_id, caption),
+        )
+        post_id = cursor.lastrowid
+        conn.commit()
+    return jsonify({"status": "shared", "post_id": post_id})
+
+
+@bp.route("/api/feed/share/status/<trip_id>", methods=["GET"])
+@require_auth
+@limiter.limit("120/minute")
+def share_status_for_trip(trip_id):
+    """Lets the home page render the Share-to-feed button in its
+    correct initial state without a write call. Only the original-share
+    row counts (repost_of_post_id IS NULL); reposts of someone else's
+    share don't toggle the home button."""
+    user_id = current_user_id()
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, caption FROM feed_posts "
+            "WHERE user_id = ? AND trip_id = ? AND repost_of_post_id IS NULL",
+            (user_id, trip_id),
+        )
+        row = cursor.fetchone()
+    if not row:
+        return jsonify({"shared": False, "post_id": None, "caption": None})
+    return jsonify({"shared": True, "post_id": row["id"], "caption": row["caption"]})
+
+
+@bp.route("/api/feed/share/<int:post_id>", methods=["DELETE"])
+@require_auth
+@limiter.limit("30/minute")
+def unshare_feed_post(post_id):
+    """Delete the caller's own share (and cascade-delete any reposts of
+    it). Author-only — silently no-ops on someone else's post
+    (idempotent DELETE)."""
+    user_id = current_user_id()
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT user_id FROM feed_posts WHERE id = ?",
+            (post_id,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"status": "ok"})
+        if row["user_id"] != user_id:
+            return jsonify({"error": "Forbidden"}), 403
+        # Cascade: delete reposts pointing at this post first, then the
+        # post itself.
+        cursor.execute("DELETE FROM feed_posts WHERE repost_of_post_id = ?", (post_id,))
+        cursor.execute("DELETE FROM feed_posts WHERE id = ?", (post_id,))
+        conn.commit()
+    return jsonify({"status": "unshared"})
+
+
+@bp.route("/api/feed/repost/<int:post_id>", methods=["POST"])
+@require_auth
+@limiter.limit("30/minute")
+def repost_feed_post(post_id):
+    """Repost an existing feed_post. Creates a new feed_post pointing
+    at the original via repost_of_post_id. Idempotent per (caller,
+    original_post). Drops a `share_reposted` notification on the
+    immediate parent."""
+    user_id = current_user_id()
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT trip_id, user_id FROM feed_posts WHERE id = ?", (post_id,))
+        original = cursor.fetchone()
+        if not original:
+            return jsonify({"error": "Post not found"}), 404
+        if original['user_id'] == user_id:
+            # Reposting your own original is meaningless.
+            return jsonify({"status": "same_user", "post_id": post_id})
+        trip_id = original['trip_id']
+        cursor.execute(
+            "SELECT id FROM feed_posts WHERE user_id = ? AND repost_of_post_id = ?",
+            (user_id, post_id),
+        )
+        existing = cursor.fetchone()
+        if existing:
+            return jsonify({"status": "already_reposted", "post_id": existing['id']})
+        cursor.execute(
+            "INSERT INTO feed_posts (user_id, trip_id, repost_of_post_id) "
+            "VALUES (?, ?, ?)",
+            (user_id, trip_id, post_id),
+        )
+        new_post_id = cursor.lastrowid
+        _fire_engagement_notification(cursor, original['user_id'], user_id, "share_reposted")
+        conn.commit()
+    return jsonify({"status": "reposted", "post_id": new_post_id})
+
+
+@bp.route("/api/feed/like/<event_id>", methods=["POST"])
+@require_auth
+@limiter.limit("120/minute")
+def toggle_feed_like(event_id):
+    """Toggle the caller's like on a feed event. Returns the new state
+    + the new global count. Notification fires only on the +1
+    transition (no notification on unlike)."""
+    user_id = current_user_id()
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT 1 FROM feed_likes WHERE user_id = ? AND event_id = ?",
+            (user_id, event_id),
+        )
+        existed = cursor.fetchone() is not None
+        if existed:
+            cursor.execute(
+                "DELETE FROM feed_likes WHERE user_id = ? AND event_id = ?",
+                (user_id, event_id),
+            )
+        else:
+            cursor.execute(
+                "INSERT OR IGNORE INTO feed_likes (user_id, event_id) VALUES (?, ?)",
+                (user_id, event_id),
+            )
+            owner_id = _post_owner_for_event(cursor, event_id)
+            _fire_engagement_notification(cursor, owner_id, user_id, "share_liked")
+        cursor.execute(
+            "SELECT COUNT(*) AS c FROM feed_likes WHERE event_id = ?",
+            (event_id,),
+        )
+        count = cursor.fetchone()['c']
+        conn.commit()
+    return jsonify({"status": "ok", "liked": not existed, "count": count})
+
+
+@bp.route("/api/feed/bookmark/<event_id>", methods=["POST"])
+@require_auth
+@limiter.limit("120/minute")
+def toggle_feed_bookmark(event_id):
+    """Toggle the caller's bookmark on a feed event. Personal — there's
+    no global count exposed (deliberate; bookmarks are private)."""
+    user_id = current_user_id()
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT 1 FROM feed_bookmarks WHERE user_id = ? AND event_id = ?",
+            (user_id, event_id),
+        )
+        existed = cursor.fetchone() is not None
+        if existed:
+            cursor.execute(
+                "DELETE FROM feed_bookmarks WHERE user_id = ? AND event_id = ?",
+                (user_id, event_id),
+            )
+        else:
+            cursor.execute(
+                "INSERT OR IGNORE INTO feed_bookmarks (user_id, event_id) VALUES (?, ?)",
+                (user_id, event_id),
+            )
+        conn.commit()
+    return jsonify({"status": "ok", "bookmarked": not existed})
+
+
+@bp.route("/api/feed/comments/<event_id>", methods=["GET"])
+@require_auth
+@limiter.limit("120/minute")
+def list_feed_comments(event_id):
+    """Return all comments on a feed event, oldest-first."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT c.id, c.user_id, c.body, c.created_at,
+                   u.name AS user_name, u.picture AS user_picture
+            FROM feed_comments c
+            LEFT JOIN users u ON u.id = c.user_id
+            WHERE c.event_id = ?
+            ORDER BY c.created_at ASC, c.id ASC
+        ''', (event_id,))
+        rows = cursor.fetchall()
+    return jsonify([
+        {
+            "id": r["id"],
+            "author": {"id": r["user_id"], "name": r["user_name"], "picture": r["user_picture"]},
+            "body": r["body"],
+            "when": r["created_at"],
+        }
+        for r in rows
+    ])
+
+
+@bp.route("/api/feed/comment/<event_id>", methods=["POST"])
+@require_auth
+@limiter.limit("60/minute")
+def add_feed_comment(event_id):
+    """Append a comment to a feed event. body capped at 500 chars
+    (silently truncated, not 400'd, so a copy-paste of a giant message
+    still posts something). Returns the inserted row so the frontend
+    can append without an extra GET."""
+    user_id = current_user_id()
+    data = request.json or {}
+    body = (data.get("body") or "").strip()
+    if not body:
+        return jsonify({"error": "Empty comment"}), 400
+    body = body[:500]
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO feed_comments (event_id, user_id, body) VALUES (?, ?, ?)",
+            (event_id, user_id, body),
+        )
+        comment_id = cursor.lastrowid
+        cursor.execute(
+            "SELECT c.id, c.created_at, u.name, u.picture "
+            "FROM feed_comments c LEFT JOIN users u ON u.id = c.user_id "
+            "WHERE c.id = ?",
+            (comment_id,),
+        )
+        row = cursor.fetchone()
+        owner_id = _post_owner_for_event(cursor, event_id)
+        _fire_engagement_notification(cursor, owner_id, user_id, "share_commented")
+        conn.commit()
+    return jsonify({
+        "status": "ok",
+        "comment": {
+            "id": row["id"],
+            "author": {"id": user_id, "name": row["name"], "picture": row["picture"]},
+            "body": body,
+            "when": row["created_at"],
+        },
+    })
+
+
+@bp.route("/api/feed/comment/<int:comment_id>", methods=["DELETE"])
+@require_auth
+@limiter.limit("60/minute")
+def delete_feed_comment(comment_id):
+    """Delete a comment. Author-only — silently no-ops on someone else's
+    comment to keep DELETE idempotent."""
+    user_id = current_user_id()
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT user_id, event_id FROM feed_comments WHERE id = ?",
+            (comment_id,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"status": "ok", "event_id": None})
+        if row["user_id"] != user_id:
+            return jsonify({"error": "Forbidden"}), 403
+        event_id = row["event_id"]
+        cursor.execute("DELETE FROM feed_comments WHERE id = ?", (comment_id,))
+        conn.commit()
+    return jsonify({"status": "ok", "event_id": event_id})
