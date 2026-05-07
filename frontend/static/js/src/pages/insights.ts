@@ -1,4 +1,3 @@
-// @ts-check
 import { STATE, emit } from '../state.js';
 import { CONVERSION_RATES } from '../constants.js';
 import { fetchHistoricalRates } from '../api.js';
@@ -77,14 +76,15 @@ export function renderInsights() {
     const totalDisplay = convertedExps.reduce((sum, e) => sum + e.displayValue, 0);
     const totalCount = convertedExps.length;
 
-    let highestExpense = null;
+    type ConvertedExpense = (typeof convertedExps)[number];
+    let highestExpense: ConvertedExpense | null = null;
     if (convertedExps.length > 0) {
         highestExpense = convertedExps.reduce((max, e) => e.displayValue > max.displayValue ? e : max, convertedExps[0]);
     }
 
-    const spenderTotals = {};
-    const catTotals = {};
-    const dateTotals = {};
+    const spenderTotals: Record<string, number> = {};
+    const catTotals: Record<string, number> = {};
+    const dateTotals: Record<string, number> = {};
 
     convertedExps.forEach(e => {
         if (!catTotals[e.categoryId]) catTotals[e.categoryId] = 0;
@@ -113,7 +113,7 @@ export function renderInsights() {
     `).join('');
 
     // Category Frequencies
-    const catCounts = {};
+    const catCounts: Record<string, number> = {};
     tripExps.forEach(e => {
         catCounts[e.categoryId] = (catCounts[e.categoryId] || 0) + 1;
     });
@@ -135,9 +135,9 @@ export function renderInsights() {
         `;
     }).join('');
 
-    const pieLabels = [];
-    const pieData = [];
-    const pieColors = [];
+    const pieLabels: string[] = [];
+    const pieData: number[] = [];
+    const pieColors: string[] = [];
     Object.keys(catTotals).forEach(catId => {
         const cat = STATE.categories.find(c => c.id === catId);
         if (cat) {
@@ -240,7 +240,7 @@ export function renderInsights() {
 
     setTimeout(() => {
         div.querySelectorAll('.rate-mode-btn').forEach((btn) => {
-            const b = /** @type {HTMLElement} */ (btn);
+            const b = (btn as HTMLElement);
             b.addEventListener('click', () => {
                 const mode = b.dataset.mode;
                 if (mode === 'at_trip' || mode === 'today') STATE.rateMode = mode;
@@ -250,7 +250,7 @@ export function renderInsights() {
         });
 
         div.querySelector('#insightCurrencySelector')?.addEventListener('change', (e) => {
-            STATE.insightCurrency = /** @type {HTMLSelectElement} */ (e.target).value;
+            STATE.insightCurrency = (e.target as HTMLSelectElement).value;
             emit('state:changed');
             navigate('insights');
         });

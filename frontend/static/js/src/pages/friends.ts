@@ -1,4 +1,3 @@
-// @ts-check
 import { STATE } from '../state.js';
 import { showLiquidAlert, showConfirmModal, q, esc } from '../utils.js';
 import { navigate } from '../router.js';
@@ -9,10 +8,14 @@ import { wireRoleButtonKeys } from '../components/Keyboard.js';
 // updateFriendsList runs async on first paint and on every action; we
 // stash the latest results so the next renderFriends() can paint the
 // stat chips and lists from cache before the network call returns.
-/** @type {{id:string,name:string,email:string,picture?:string}[]} */
-let cachedFriends = [];
-/** @type {{id:string,name:string,email:string,picture?:string}[]} */
-let cachedPending = [];
+interface FriendRow {
+    id: string;
+    name: string;
+    email: string;
+    picture?: string;
+}
+let cachedFriends: FriendRow[] = [];
+let cachedPending: FriendRow[] = [];
 
 // ── Helpers ───────────────────────────────────────────────────────────
 
@@ -35,7 +38,13 @@ function avatar(user, size = 44) {
 
 /** Friend list-row card. Variant flips visual cue (accepted = neutral
  *  glass, pending = amber tint, search-result = blue tint). */
-function userCard(user, opts = {}) {
+interface UserCardOpts {
+    variant?: 'neutral' | 'pending' | 'search';
+    clickable?: boolean;
+    rightSide?: string;
+    rowClass?: string;
+}
+function userCard(user: FriendRow, opts: UserCardOpts = {}) {
     const { variant = 'neutral', clickable = false, rightSide = '', rowClass = '' } = opts;
     const bg = variant === 'pending' ? 'rgba(255,159,10,0.06)'
         : variant === 'search'  ? 'rgba(0,113,227,0.04)'
@@ -88,7 +97,7 @@ export function renderFriends() {
     /** Repaint just the lists from the current cached arrays. */
     const paintLists = () => {
         const friendsContainer = div.querySelector('#friendsList');
-        const pendingSection = /** @type {HTMLElement | null} */ (div.querySelector('#pendingSection'));
+        const pendingSection = (div.querySelector('#pendingSection') as HTMLElement | null);
         const pendingContainer = div.querySelector('#pendingList');
 
         if (friendsContainer) {
@@ -150,7 +159,7 @@ export function renderFriends() {
     /** Repaint just the stat chips in the hero row (count of friends
      *  + pending). Called on initial render + after every refresh. */
     const paintStatChips = () => {
-        const chip = /** @type {HTMLElement | null} */ (div.querySelector('#friendsStatChips'));
+        const chip = (div.querySelector('#friendsStatChips') as HTMLElement | null);
         if (!chip) return;
         chip.innerHTML = `
             <span style="display:inline-flex; align-items:center; gap:8px; background:rgba(0,113,227,0.08); color:var(--accent-blue); padding:6px 14px; border-radius:999px; font-size:0.82rem; font-weight:800;">
@@ -171,9 +180,9 @@ export function renderFriends() {
      *  query by clearing the result panel rather than searching for "". */
     const searchForFriend = async () => {
         if (!STATE.user) return;
-        const queryEl = /** @type {HTMLInputElement} */ (q(div, '#friendSearchInput'));
+        const queryEl = (q(div, '#friendSearchInput') as HTMLInputElement);
         const query = queryEl.value.trim();
-        const resultsContainer = /** @type {HTMLElement} */ (q(div, '#searchResults'));
+        const resultsContainer = (q(div, '#searchResults') as HTMLElement);
         if (!query) {
             resultsContainer.innerHTML = '';
             return;
@@ -228,8 +237,8 @@ export function renderFriends() {
             });
             const data = await res.json();
             if (data.status === 'success') {
-                /** @type {HTMLInputElement} */ (q(div, '#friendSearchInput')).value = '';
-                /** @type {HTMLElement} */ (q(div, '#searchResults')).innerHTML = `<div style="text-align:center; padding:14px; font-size:0.85rem; color:#1a6b3c; font-weight:800; background: rgba(52,199,89,0.08); border-radius: 14px; border: 1px solid rgba(52,199,89,0.22);">✓ Request sent!</div>`;
+                (q(div, '#friendSearchInput') as HTMLInputElement).value = '';
+                (q(div, '#searchResults') as HTMLElement).innerHTML = `<div style="text-align:center; padding:14px; font-size:0.85rem; color:#1a6b3c; font-weight:800; background: rgba(52,199,89,0.08); border-radius: 14px; border: 1px solid rgba(52,199,89,0.22);">✓ Request sent!</div>`;
                 updateFriendsList();
             } else if (data.status === 'error') {
                 showLiquidAlert(data.message || 'Failed to send request.');
@@ -400,7 +409,7 @@ export function renderFriends() {
 
     div.querySelector('#friendSearchBtn')?.addEventListener('click', searchForFriend);
     div.querySelector('#friendSearchInput')?.addEventListener('keyup', (e) => {
-        if (/** @type {KeyboardEvent} */ (e).key === 'Enter') searchForFriend();
+        if ((e as KeyboardEvent).key === 'Enter') searchForFriend();
     });
 
     // Delegated handler for dynamically rendered rows in #friendsList,
@@ -409,23 +418,23 @@ export function renderFriends() {
     // row click so clicking ✕ Remove doesn't also navigate to the
     // user's profile underneath.
     div.addEventListener('click', (e) => {
-        const target = /** @type {HTMLElement | null} */ (e.target);
+        const target = (e.target as HTMLElement | null);
         if (!target) return;
-        const acceptBtn = /** @type {HTMLElement | null} */ (target.closest('.accept-friend-btn'));
+        const acceptBtn = (target.closest('.accept-friend-btn') as HTMLElement | null);
         if (acceptBtn?.dataset.userId) { acceptFriendRequest(acceptBtn.dataset.userId); return; }
-        const rejectBtn = /** @type {HTMLElement | null} */ (target.closest('.reject-friend-btn'));
+        const rejectBtn = (target.closest('.reject-friend-btn') as HTMLElement | null);
         if (rejectBtn?.dataset.userId) {
             rejectFriendRequest(rejectBtn.dataset.userId, rejectBtn.dataset.userName || 'this person');
             return;
         }
-        const removeBtn = /** @type {HTMLElement | null} */ (target.closest('.remove-friend-btn'));
+        const removeBtn = (target.closest('.remove-friend-btn') as HTMLElement | null);
         if (removeBtn?.dataset.userId) {
             removeFriend(removeBtn.dataset.userId, removeBtn.dataset.userName || 'this friend');
             return;
         }
-        const sendBtn = /** @type {HTMLElement | null} */ (target.closest('.send-friend-btn'));
+        const sendBtn = (target.closest('.send-friend-btn') as HTMLElement | null);
         if (sendBtn?.dataset.userId) { sendFriendRequest(sendBtn.dataset.userId); return; }
-        const friendRow = /** @type {HTMLElement | null} */ (target.closest('.friend-row'));
+        const friendRow = (target.closest('.friend-row') as HTMLElement | null);
         if (friendRow?.dataset.userId) { navigate('profile', { userId: friendRow.dataset.userId }); return; }
     });
     wireRoleButtonKeys(div);

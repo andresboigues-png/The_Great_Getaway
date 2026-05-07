@@ -1,4 +1,3 @@
-// @ts-check
 // todo.js — top-level "To do list" page. Owns two responsibilities for
 // the active trip's marked-places list:
 //
@@ -73,8 +72,8 @@ export function renderTodo() {
         // helper the AI page used to call; the AI page now just READS
         // forAI and renders the day/time controls for the ticked items.
         div.querySelectorAll('.todo-ai-tick').forEach(box => {
-            /** @type {HTMLInputElement} */ (box).onchange = () => {
-                const pid = /** @type {HTMLElement} */ (box).dataset.placeId;
+            (box as HTMLInputElement).onchange = () => {
+                const pid = (box as HTMLElement).dataset.placeId;
                 if (!pid) return;
                 toggleMarkedPlaceForAI(activeTrip, pid);
                 emit('state:changed');
@@ -87,8 +86,8 @@ export function renderTodo() {
         // Remove (✕) — drops the entry entirely. Both flags fall to false
         // by removal, so the AI page also stops considering it.
         div.querySelectorAll('.todo-remove-btn').forEach(btn => {
-            /** @type {HTMLButtonElement} */ (btn).onclick = () => {
-                const pid = /** @type {HTMLElement} */ (btn).dataset.placeId;
+            (btn as HTMLButtonElement).onclick = () => {
+                const pid = (btn as HTMLElement).dataset.placeId;
                 if (!pid) return;
                 removeMarkedPlace(activeTrip, pid);
                 emit('state:changed');

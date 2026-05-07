@@ -1,4 +1,3 @@
-// @ts-check
 import { STATE, emit } from '../state.js';
 import { CONVERSION_RATES } from '../constants.js';
 import { generateId, q, formatHome, getHomeCurrency, esc, showLiquidAlert, showConfirmModal } from '../utils.js';
@@ -48,8 +47,7 @@ let budgetsFilterTrip = '';
  *  no hint of its scope. Now every dimension renders explicitly so
  *  the user can see exactly what each card targets. */
 function budgetTitle(b) {
-    /** @type {string[]} */
-    const parts = [];
+        const parts: string[] = [];
     if (b.tripId && b.tripId !== 'all') {
         const trip = (STATE.trips || []).find(t => t.id === b.tripId);
         const archived = (STATE.archivedTrips || []).find(t => t.id === b.tripId);
@@ -153,17 +151,17 @@ const openCreateBudgetModal = () => {
             </div>
         `,
     });
-    const statusEl = /** @type {HTMLElement} */ (q(root, '#newBudStatus'));
-    /** @type {HTMLButtonElement} */ (q(root, '#newBudCancelBtn')).onclick = () => close();
-    /** @type {HTMLButtonElement} */ (q(root, '#newBudSaveBtn')).onclick = async () => {
-        const amtRaw = /** @type {HTMLInputElement} */ (q(root, '#newBudAmt')).value;
+    const statusEl = (q(root, '#newBudStatus') as HTMLElement);
+    (q(root, '#newBudCancelBtn') as HTMLButtonElement).onclick = () => close();
+    (q(root, '#newBudSaveBtn') as HTMLButtonElement).onclick = async () => {
+        const amtRaw = (q(root, '#newBudAmt') as HTMLInputElement).value;
         const amt = parseFloat(amtRaw);
         if (!Number.isFinite(amt) || amt <= 0) {
             statusEl.textContent = 'Enter a valid positive amount.';
             statusEl.style.color = '#ff9500';
             return;
         }
-        const curr = /** @type {HTMLSelectElement} */ (q(root, '#newBudCurr')).value;
+        const curr = (q(root, '#newBudCurr') as HTMLSelectElement).value;
         // Validate currency — used to silently default to 1:1 which
         // would lock in a budget at the wrong scale. Now we reject
         // unknown codes outright.
@@ -178,9 +176,9 @@ const openCreateBudgetModal = () => {
         /** @type {import('../types').Budget} */
         const budget = {
             id: generateId(),
-            tripId: /** @type {HTMLSelectElement} */ (q(root, '#newBudTrip')).value,
-            categoryId: /** @type {HTMLSelectElement} */ (q(root, '#newBudCat')).value,
-            user: /** @type {HTMLSelectElement} */ (q(root, '#newBudUser')).value,
+            tripId: (q(root, '#newBudTrip') as HTMLSelectElement).value,
+            categoryId: (q(root, '#newBudCat') as HTMLSelectElement).value,
+            user: (q(root, '#newBudUser') as HTMLSelectElement).value,
             amount: eurAmt,
             originalAmount: amt,
             originalCurrency: curr,
@@ -199,7 +197,7 @@ const openCreateBudgetModal = () => {
             // a duplicate entry.
             STATE.budgets = STATE.budgets.filter(b => b.id !== budget.id);
             emit('state:changed');
-            statusEl.textContent = `Save failed (${/** @type {Error} */ (err).message}). Try again.`;
+            statusEl.textContent = `Save failed (${(err as Error).message}). Try again.`;
             statusEl.style.color = '#ff3b30';
         }
     };
@@ -363,19 +361,19 @@ export function renderBudgets() {
 
     // Delegated handlers — single click listener on the page root.
     div.addEventListener('click', (e) => {
-        const target = /** @type {HTMLElement | null} */ (e.target);
+        const target = (e.target as HTMLElement | null);
         if (!target) return;
         if (target.closest('#createBudgetBtn')) {
             openCreateBudgetModal();
             return;
         }
-        const tripChip = /** @type {HTMLElement | null} */ (target.closest('.bud-trip-chip'));
+        const tripChip = (target.closest('.bud-trip-chip') as HTMLElement | null);
         if (tripChip) {
             budgetsFilterTrip = tripChip.dataset.trip || '';
             navigate('budgets');
             return;
         }
-        const delBtn = /** @type {HTMLElement | null} */ (target.closest('.delete-budget-btn'));
+        const delBtn = (target.closest('.delete-budget-btn') as HTMLElement | null);
         if (delBtn?.dataset.budgetId) {
             deleteBudget(delBtn.dataset.budgetId);
             return;
