@@ -2356,49 +2356,55 @@ export function renderHome() {
             `;
         };
 
-        /** Build the action row that sits under either Genesis or the
-         *  selected day card. Genesis gets a slim row (Open + Edit
-         *  anchor pin); a numbered day gets the full set: Open Full
-         *  Plan (primary) + Edit Pin / Search center / Journaling /
-         *  Delete (chips). When the user is mid pin-edit (editingDayId),
-         *  the pin button morphs into Save + ✕ as before. */
-        const buildOptionsRow = (day, { isGenesis }) => {
-            if (!day) return '';
-            const editable = tripIsEditable;
+        /** Build the vertical options stack that sits under each card.
+         *  Each card "owns" its own actions visually — Genesis gets a
+         *  slim set (Open + Edit anchor pin + Journaling); a numbered
+         *  day gets the full set: Open Full Plan (primary) + Edit Pin
+         *  + Set as search center (when applicable) + Journaling +
+         *  Delete. When the user is mid pin-edit (editingDayId), the
+         *  pin button morphs into Save + ✕ as before. Buttons stretch
+         *  the column width via the `.path-options-stack .day-action-btn`
+         *  CSS rule. */
+        const buildOptionsStack = (day, { isGenesis }) => {
+            if (!day || !tripIsEditable) return '';
             const buttons = [];
-            // Primary action — Open Full Plan opens the day-detail modal
-            // (same modal Genesis uses for its trip-wide notes/photos).
-            buttons.push(`
-                <button class="btn-primary day-detail-btn" data-day-id="${esc(day.id)}" style="padding: 9px 18px; font-size: 0.85rem; border-radius: 999px;">
-                    📋 Open Full Plan
-                </button>
-            `);
-            if (editable) {
-                if (editingDayId === day.id) {
-                    buttons.push(`<button class="day-action-btn day-action-btn--success day-pin-save-btn" data-day-id="${esc(day.id)}">Save Pin</button>`);
-                    buttons.push(`<button class="day-action-btn day-action-btn--danger-fill day-pin-delete-btn" data-day-id="${esc(day.id)}">✕</button>`);
-                } else {
-                    buttons.push(`<button class="day-action-btn day-action-btn--neutral day-pin-toggle-btn" data-day-id="${esc(day.id)}"><span>${day.lat ? '📍 Edit pin' : '📍 Add pin'}</span></button>`);
-                }
-                // Set as search center — only on pinned non-Genesis days.
-                if (!isGenesis && day.lat) {
-                    const tripId = activeTrip?.id || '';
-                    const isActive = STATE.preferences?.pillEpicenters?.[tripId] === day.id;
-                    const cls = isActive ? 'day-action-btn day-action-btn--success day-set-epicenter-btn' : 'day-action-btn day-action-btn--neutral day-set-epicenter-btn';
-                    const label = isActive ? '🎯 Search center (active)' : '🎯 Set as search center';
-                    buttons.push(`<button class="${cls}" data-day-id="${esc(day.id)}"><span>${label}</span></button>`);
-                }
-                // Journaling — separate notes-only modal. Available for
-                // every editable day including Genesis (Genesis's notes
-                // serve as trip-wide journal entries).
-                buttons.push(`<button class="day-action-btn day-action-btn--neutral day-journaling-btn" data-day-id="${esc(day.id)}"><span>✍️ Journaling</span></button>`);
-                // Delete — only on non-Genesis days. Genesis is
-                // structurally permanent (anchors the trip).
-                if (!isGenesis) {
-                    buttons.push(`<button class="day-action-btn day-action-btn--danger day-delete-btn" data-day-id="${esc(day.id)}"><span>🗑️ Delete</span></button>`);
-                }
+            // Primary — Open Full Plan opens the day-detail modal (same
+            // modal Genesis uses for its trip-wide notes/photos). Custom
+            // primary class so it visually outranks the chip-style
+            // `.day-action-btn` siblings below it; Genesis variant
+            // matches the column's green theme.
+            const primaryCls = isGenesis ? 'path-primary-btn path-primary-btn--genesis' : 'path-primary-btn';
+            buttons.push(`<button class="${primaryCls} day-detail-btn" data-day-id="${esc(day.id)}">📋 Open Full Plan</button>`);
+            if (editingDayId === day.id) {
+                // Mid pin-edit: present save + cancel as the next two
+                // buttons (the pin row in the old layout did the same
+                // — save is wide, cancel is narrow ✕). Stacked here.
+                buttons.push(`<button class="day-action-btn day-action-btn--success day-pin-save-btn" data-day-id="${esc(day.id)}">Save pin</button>`);
+                buttons.push(`<button class="day-action-btn day-action-btn--danger-fill day-pin-delete-btn" data-day-id="${esc(day.id)}">Cancel pin edit</button>`);
+            } else {
+                const pinLabel = day.lat
+                    ? (isGenesis ? '📍 Edit anchor pin' : '📍 Edit pin')
+                    : (isGenesis ? '📍 Set anchor pin' : '📍 Add pin');
+                buttons.push(`<button class="day-action-btn day-action-btn--neutral day-pin-toggle-btn" data-day-id="${esc(day.id)}"><span>${pinLabel}</span></button>`);
             }
-            return `<div class="path-options-row">${buttons.join('')}</div>`;
+            // Set as search center — only on pinned non-Genesis days
+            // (Genesis is the implicit default epicenter).
+            if (!isGenesis && day.lat) {
+                const tripId = activeTrip?.id || '';
+                const isActive = STATE.preferences?.pillEpicenters?.[tripId] === day.id;
+                const cls = isActive ? 'day-action-btn day-action-btn--success day-set-epicenter-btn' : 'day-action-btn day-action-btn--neutral day-set-epicenter-btn';
+                const label = isActive ? '🎯 Search center (active)' : '🎯 Set as search center';
+                buttons.push(`<button class="${cls}" data-day-id="${esc(day.id)}"><span>${label}</span></button>`);
+            }
+            // Journaling — separate notes-only modal. Available for
+            // every editable day including Genesis.
+            buttons.push(`<button class="day-action-btn day-action-btn--neutral day-journaling-btn" data-day-id="${esc(day.id)}"><span>✍️ Journaling</span></button>`);
+            // Delete — only on non-Genesis days. Genesis is structurally
+            // permanent (anchors the trip).
+            if (!isGenesis) {
+                buttons.push(`<button class="day-action-btn day-action-btn--danger day-delete-btn" data-day-id="${esc(day.id)}"><span>🗑️ Delete day</span></button>`);
+            }
+            return `<div class="path-options-stack">${buttons.join('')}</div>`;
         };
 
         /** The top-level Path tab content — chip strip + cards + options.
@@ -2447,24 +2453,36 @@ export function renderHome() {
             const idx = sortedDays.findIndex(d => d.id === selectedId);
             const prevDisabled = idx <= 0;
             const nextDisabled = idx < 0 || idx >= sortedDays.length - 1;
-            // Cards row — Genesis always present (when it exists);
-            // selected day shown alongside ONLY when it's a numbered
-            // day (otherwise Genesis IS the selected card and we
-            // collapse to one card).
-            let cardsHtml = '';
+            // Cards row — two columns side-by-side, each "owning"
+            // its own card + vertical options stack so there's no
+            // ambiguity about which actions apply to which card.
+            // Genesis column always renders (when Genesis exists);
+            // the selected-day column renders only when the selected
+            // day is a numbered day (when Genesis is the selected
+            // card, the right column collapses and Genesis stretches
+            // to fill).
+            const columns = [];
             if (genesis) {
                 const genesisIsSelected = selectedDay?.id === genesis.id;
-                cardsHtml += `<div class="path-card path-card--genesis${genesisIsSelected ? ' path-card--selected' : ''}" data-day-id="${esc(genesis.id)}">${buildDayCardBody(genesis, { isGenesis: true, isSelected: genesisIsSelected })}</div>`;
+                columns.push(`
+                    <div class="path-column path-column--genesis">
+                        <div class="path-card path-card--genesis${genesisIsSelected ? ' is-selected' : ''}" data-day-id="${esc(genesis.id)}">
+                            ${buildDayCardBody(genesis, { isGenesis: true, isSelected: genesisIsSelected })}
+                        </div>
+                        ${buildOptionsStack(genesis, { isGenesis: true })}
+                    </div>
+                `);
             }
             if (selectedDay && selectedDay.dayNumber > 0) {
-                cardsHtml += `<div class="path-card path-card--selected" data-day-id="${esc(selectedDay.id)}">${buildDayCardBody(selectedDay, { isGenesis: false, isSelected: true })}</div>`;
+                columns.push(`
+                    <div class="path-column path-column--selected">
+                        <div class="path-card path-card--selected" data-day-id="${esc(selectedDay.id)}">
+                            ${buildDayCardBody(selectedDay, { isGenesis: false, isSelected: true })}
+                        </div>
+                        ${buildOptionsStack(selectedDay, { isGenesis: false })}
+                    </div>
+                `);
             }
-            // Options below — Genesis options OR selected day options
-            // depending on which card the user is focused on. Genesis
-            // gets a slim variant; numbered days get the full set.
-            const optionsHtml = selectedDay
-                ? buildOptionsRow(selectedDay, { isGenesis: selectedIsGenesis })
-                : '';
             return `
                 <div class="path-strip">
                     <button type="button" class="path-nav-btn" id="pathPrevBtn" title="Previous day" aria-label="Previous day" ${prevDisabled ? 'disabled' : ''}>
@@ -2479,8 +2497,7 @@ export function renderHome() {
                     </button>
                 </div>
                 <div class="path-summary">${esc(summaryText)}</div>
-                <div class="path-cards-row">${cardsHtml}</div>
-                ${optionsHtml}
+                <div class="path-cards-row">${columns.join('')}</div>
             `;
         };
 

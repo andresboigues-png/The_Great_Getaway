@@ -3438,75 +3438,102 @@ h1 {
    The vertical day-by-day timeline was replaced with a horizontal
    "wheel": Genesis pinned on the left, the user-selected day on the
    right, with a clickable numbered chip strip above for jumping to
-   any day directly. Keeps the path discoverable without scrolling
-   12+ day cards. */
+   any day directly. Visual aesthetic mirrors the OLD vertical
+   timeline — circles strung along a thin gradient line — just rotated
+   90° so the same line+dots metaphor reads horizontally. */
 .path-strip {
     display: flex;
     align-items: center;
-    gap: 8px;
-    margin: 12px 0 12px;
+    gap: 10px;
+    margin: 14px 0 6px;
 }
 .path-chips {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 14px;                /* gap between circles — line shows in the gap */
     overflow-x: auto;
     scroll-behavior: smooth;
-    padding: 6px 2px;
+    padding: 10px 4px;
     flex: 1;
     min-width: 0;
-    /* Hide the scrollbar visually — the chip strip is meant to look
-       like a control row, not a scroll surface (still scrolls via
-       wheel/trackpad/swipe). */
-    scrollbar-width: none;
+    position: relative;       /* anchor for the ::before line */
+    scrollbar-width: none;    /* hide scrollbar — feels like a control row */
 }
 .path-chips::-webkit-scrollbar { height: 0; width: 0; }
+
+/* The horizontal "timeline line" — same gradient-fade-to-transparent
+   look the old vertical line had, just rotated 90°. Sits behind the
+   circles; the white circle backgrounds visually break the line at
+   each day so it reads as a string-of-beads. */
+.path-chips::before {
+    content: '';
+    position: absolute;
+    left: 14px;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    height: 2px;
+    background: linear-gradient(90deg,
+        rgba(0, 113, 227, 0.4) 0%,
+        rgba(0, 113, 227, 0.18) 60%,
+        rgba(0, 113, 227, 0.05) 100%);
+    border-radius: 1px;
+    z-index: 0;
+    pointer-events: none;
+}
+
+/* The chip itself — small circle on the line, number/letter inside.
+   Selected state: filled accent + grow + halo shadow. Mirrors the
+   old vertical-timeline dot but big enough to be touch-friendly and
+   to fit a number/letter. */
 .path-chip {
+    position: relative;
+    z-index: 1;
     flex-shrink: 0;
-    min-width: 32px;
+    width: 32px;
     height: 32px;
-    padding: 0 10px;
-    border-radius: 999px;
-    border: 1.5px solid rgba(0, 113, 227, 0.2);
+    padding: 0;
+    border-radius: 50%;
+    border: 2px solid var(--accent-blue);
     background: white;
     color: var(--accent-blue);
     cursor: pointer;
-    font-weight: 700;
+    font-weight: 800;
     font-size: 0.78rem;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    transition: background 0.15s ease, transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+    transition: background 0.18s ease, transform 0.18s ease,
+                border-color 0.18s ease, box-shadow 0.18s ease,
+                color 0.18s ease;
+    box-shadow: 0 0 0 3px white;  /* "knock out" the line behind the circle */
 }
 .path-chip:hover {
     background: rgba(0, 113, 227, 0.06);
-    transform: translateY(-1px);
 }
 .path-chip.is-selected {
     background: var(--accent-blue);
     color: white;
-    border-color: var(--accent-blue);
-    box-shadow: 0 4px 12px rgba(0, 113, 227, 0.28);
-    transform: translateY(-1px);
+    transform: scale(1.18);
+    box-shadow: 0 0 0 3px white, 0 6px 14px rgba(0, 113, 227, 0.32);
 }
 .path-chip--genesis {
-    width: 32px;
-    padding: 0;
-    background: linear-gradient(135deg, #34c759, #1a6b3c);
-    color: white;
-    border-color: rgba(26, 107, 60, 0.5);
+    border-color: #34c759;
+    color: #1a6b3c;
 }
 .path-chip--genesis:hover {
-    background: linear-gradient(135deg, #34c759, #128a3a);
+    background: rgba(52, 199, 89, 0.06);
 }
 .path-chip--genesis.is-selected {
-    box-shadow: 0 0 0 3px rgba(52, 199, 89, 0.28), 0 4px 12px rgba(52, 199, 89, 0.3);
+    background: linear-gradient(135deg, #34c759, #1a6b3c);
+    color: white;
+    border-color: #1a6b3c;
+    box-shadow: 0 0 0 3px white, 0 6px 14px rgba(52, 199, 89, 0.32);
 }
 .path-chip--add {
     border-style: dashed;
-    border-color: rgba(0, 113, 227, 0.3);
+    border-color: rgba(0, 113, 227, 0.35);
     color: rgba(0, 113, 227, 0.55);
-    background: transparent;
     font-size: 1rem;
 }
 .path-chip--add:hover {
@@ -3514,6 +3541,7 @@ h1 {
     color: var(--accent-blue);
     background: rgba(0, 113, 227, 0.04);
 }
+
 .path-nav-btn {
     flex-shrink: 0;
     width: 32px;
@@ -3545,11 +3573,30 @@ h1 {
     letter-spacing: 0.08em;
     margin-bottom: 14px;
 }
+
+/* Cards row: each "column" is a card + its OWN vertically-stacked
+   options below. Genesis owns the left column with its own slim
+   set; the selected day owns the right column with the full set.
+   No more shared-options-row ambiguity (each option clearly belongs
+   to the card directly above it). */
 .path-cards-row {
     display: flex;
     gap: 16px;
-    align-items: stretch;
+    align-items: flex-start;
 }
+.path-column {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 0;
+}
+.path-column--genesis { flex: 0 0 32%; }
+.path-column--selected { flex: 1 1 auto; }
+@media (max-width: 720px) {
+    .path-cards-row { flex-direction: column; }
+    .path-column--genesis { flex: 0 0 auto; }
+}
+
 .path-card {
     border-radius: 24px;
     padding: 18px 20px;
@@ -3559,27 +3606,58 @@ h1 {
     display: flex;
     flex-direction: column;
     gap: 10px;
+    cursor: pointer;
+    transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
 .path-card--genesis {
-    flex: 0 0 32%;
     border-color: rgba(52, 199, 89, 0.3);
     background: linear-gradient(180deg, rgba(52, 199, 89, 0.04), white);
 }
+.path-card--genesis.is-selected {
+    border-color: #1a6b3c;
+    box-shadow: 0 8px 22px rgba(52, 199, 89, 0.18);
+}
 .path-card--selected {
-    flex: 1 1 auto;
     border-color: rgba(0, 113, 227, 0.22);
     background: linear-gradient(180deg, rgba(0, 113, 227, 0.03), white);
+    box-shadow: 0 8px 22px rgba(0, 113, 227, 0.1);
 }
-@media (max-width: 720px) {
-    .path-cards-row { flex-direction: column; }
-    .path-card--genesis { flex: 0 0 auto; }
-}
-.path-options-row {
+
+/* Per-card vertical options stack — buttons stretch the column width
+   and sit one above the other. Same `.day-action-btn` style the old
+   right-side panel used, so the visual language carries over. */
+.path-options-stack {
     display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 12px;
-    align-items: center;
+    flex-direction: column;
+    gap: 6px;
+}
+.path-options-stack .day-action-btn {
+    width: 100%;
+    justify-content: center;
+}
+.path-options-stack .path-primary-btn {
+    width: 100%;
+    padding: 10px 16px;
+    border-radius: 12px;
+    background: var(--accent-blue);
+    color: white;
+    font-weight: 800;
+    font-size: 0.85rem;
+    border: 0;
+    cursor: pointer;
+    box-shadow: 0 6px 14px rgba(0, 113, 227, 0.22);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.path-options-stack .path-primary-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 18px rgba(0, 113, 227, 0.3);
+}
+.path-options-stack .path-primary-btn--genesis {
+    background: linear-gradient(135deg, #34c759, #1a6b3c);
+    box-shadow: 0 6px 14px rgba(52, 199, 89, 0.22);
+}
+.path-options-stack .path-primary-btn--genesis:hover {
+    box-shadow: 0 8px 18px rgba(52, 199, 89, 0.3);
 }
 
 /* `home-tabnav--centered` modifier — used by the Feed page so the
