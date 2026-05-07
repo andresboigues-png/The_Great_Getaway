@@ -17,6 +17,58 @@ import io
 import sys
 
 
+# ── /api/auth/google (test-mode bypass) ──────────────────────────────────────
+# Pin the GG_ALLOW_TEST_LOGIN env-gate that the e2e suite relies on.
+# This is the ONLY way the `test:<user_id>` shortcut is honoured —
+# without the env var set, the endpoint must reject test tokens.
+
+def test_auth_google_test_mode_disabled_by_default(client, monkeypatch):
+    """Without GG_ALLOW_TEST_LOGIN, `test:<id>` tokens fall through to
+    the real Google verification (which fails for synthetic input).
+    Production deploys MUST land in this branch — anything else is a
+    security regression."""
+    monkeypatch.delenv("GG_ALLOW_TEST_LOGIN", raising=False)
+    res = client.post("/api/auth/google", json={"token": "test:test-user-1"})
+    # Falls through to real Google verification path; either 400 (no
+    # CLIENT_ID_GOOGLE_AUTH set) or 401 (bad token) is fine — both
+    # mean the test bypass did NOT fire.
+    assert res.status_code in (400, 401)
+
+
+def test_auth_google_test_mode_when_enabled(client, monkeypatch):
+    """With GG_ALLOW_TEST_LOGIN=1, the `test:<id>` shortcut mints a JWT
+    and upserts the user row. This is the exact path the Playwright
+    smoke suite hits via tests/e2e/helpers.js's loginAsTestUser."""
+    monkeypatch.setenv("GG_ALLOW_TEST_LOGIN", "1")
+    res = client.post(
+        "/api/auth/google",
+        json={"token": "test:test-user-99", "name": "Pytest Bot"},
+    )
+    assert res.status_code == 200
+    body = res.get_json()
+    assert body["status"] == "success"
+    assert body["user"]["id"] == "test-user-99"
+    assert body["user"]["name"] == "Pytest Bot"
+    assert body["token"]  # JWT issued
+
+    # Sanity: that JWT can hit a gated endpoint.
+    res = client.get(
+        "/api/user-status",
+        headers={"Authorization": f"Bearer {body['token']}"},
+    )
+    assert res.status_code == 200
+    assert res.get_json()["logged_in"] is True
+
+
+def test_auth_google_test_mode_only_accepts_test_prefix(client, monkeypatch):
+    """Even with the env-gate enabled, tokens that don't start with
+    `test:` still go through the real Google path. Stops a malicious
+    deploy with the env var leaked from accepting arbitrary input."""
+    monkeypatch.setenv("GG_ALLOW_TEST_LOGIN", "1")
+    res = client.post("/api/auth/google", json={"token": "real.google.token"})
+    assert res.status_code in (400, 401)  # falls through to Google verify
+
+
 # ── /api/user-status ─────────────────────────────────────────────────────────
 
 def test_user_status_logged_out_without_token(client):

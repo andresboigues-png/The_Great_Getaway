@@ -142,6 +142,26 @@ Two tests `test.skip`'d with comments pointing at the real fix:
 
 End-of-session: 3 passed, 2 skipped, 0 failed.
 
+**Phase A5 also landed — pytest CI gate + test-mode auth coverage**:
+
+Discovery: tests/test_api.py already had 22 tests covering auth +
+trips + expenses + days + friends + upload + data + rate-limiting.
+The roadmap entry "pytest coverage on every API route shipped
+post-Phase G" overstated the gap — the gap was specifically that
+the suite never ran in CI, so a regression could land without anyone
+noticing.
+
+- `.github/workflows/ci.yml` now has a `pytest API suite` job that
+  installs requirements + pytest, then runs `python -m pytest
+tests/test_api.py -v` on every push and PR. Parallel with the
+  existing lint / typecheck / build / e2e jobs.
+- 3 new tests pin the GG_ALLOW_TEST_LOGIN env-gate I added in A2.1:
+  one verifies the bypass is OFF without the var (production safety),
+  one verifies it works WITH the var (matches what the e2e suite
+  hits), one verifies even with the var on, only `test:`-prefixed
+  tokens are honoured (so a leaked env var can't accept arbitrary
+  Google tokens). 25/25 pytest passing locally.
+
 **Phase A1 Stages 3 + 4 also shipped this session**:
 
 - Stage 3 — `"strict": true` + `"noImplicitReturns": true` in
