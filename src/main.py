@@ -680,6 +680,42 @@ def archive_trip(trip_id):
     return jsonify({"status": "archived"})
 
 
+@app.route("/api/trips/<trip_id>/silence", methods=["POST"])
+@require_auth
+def silence_trip_actions(trip_id):
+    """Toggle the per-trip Actions-feed silencing. When `hidden=True`,
+    /api/feed's Actions queries (joined-trip / added-day /
+    archived-trip) skip events for this trip across all viewers —
+    owner included. Privacy escape hatch for users who don't want
+    their trip activity bleeding into friends' feeds.
+
+    Owner-only: only the trip's creator can flip this. Members
+    (relaxers / planners that aren't the owner) get 403 — silencing
+    is a privacy decision the trip owner makes for themselves and
+    everyone else on the trip.
+
+    Doesn't touch the Posts side. Explicit shares stay shared
+    (managed via the share toggle on the public-trip detail page);
+    silencing only affects the implicit-action surface.
+
+    Request: { hidden: bool }  (omitted = treated as True for safety)
+    Response: { status: 'ok', hidden: bool }
+    """
+    user_id = current_user_id()
+    payload = request.json or {}
+    hidden = bool(payload.get("hidden", True))
+    with get_db() as conn:
+        cursor = conn.cursor()
+        if not _is_trip_owner(cursor, trip_id, user_id):
+            return jsonify({"error": "Forbidden"}), 403
+        cursor.execute(
+            "UPDATE trips SET actions_hidden = ? WHERE id = ?",
+            (1 if hidden else 0, trip_id),
+        )
+        conn.commit()
+    return jsonify({"status": "ok", "hidden": hidden})
+
+
 @app.route("/api/trips/<trip_id>/unarchive", methods=["POST"])
 @require_auth
 def unarchive_trip(trip_id):
@@ -1526,12 +1562,15 @@ def get_feed():
 
         # 2) friend_created_trip — friend is the trip's owner, created
         # in last 30 days. Excludes archived trips (those get their own
-        # event below).
+        # event below). Also excludes trips the owner has silenced
+        # via the trip-header Mute button (actions_hidden = 1) — that
+        # privacy flag mutes ALL Actions queries for the trip.
         cursor.execute(f'''
             SELECT id, user_id, name, country, created_at
             FROM trips
             WHERE user_id IN ({placeholders})
               AND COALESCE(is_archived, 0) = 0
+              AND COALESCE(actions_hidden, 0) = 0
               AND created_at >= datetime('now', '-30 days')
             ORDER BY created_at DESC
         ''', actor_ids)
@@ -1558,6 +1597,7 @@ def get_feed():
             FROM trips
             WHERE user_id IN ({placeholders})
               AND COALESCE(is_archived, 0) = 1
+              AND COALESCE(actions_hidden, 0) = 0
               AND created_at >= datetime('now', '-30 days')
             ORDER BY created_at DESC
         ''', actor_ids)
@@ -1588,6 +1628,7 @@ def get_feed():
             WHERE tm.user_id IN ({placeholders})
               AND tm.invitation_status = 'accepted'
               AND tm.user_id != t.user_id
+              AND COALESCE(t.actions_hidden, 0) = 0
               AND t.created_at >= datetime('now', '-30 days')
         ''', actor_ids)
         for row in cursor.fetchall():
@@ -2206,6 +2247,10 @@ def get_data():
             t['photos'] = json.loads(photos_raw) if photos_raw else []
             checklist_raw = t.pop('checklist_json', None)
             t['checklist'] = json.loads(checklist_raw) if checklist_raw else []
+            # Privacy flag — read at trip scope (one bool per trip,
+            # set by the owner). Frontend uses it to render the
+            # silence-toggle button in its on/off state on mount.
+            t['actionsHidden'] = bool(t.pop('actions_hidden', 0))
 
             # Per-user archive + role come from THIS user's trip_members row.
             # Owners may not have a row yet on legacy data — fall back to the

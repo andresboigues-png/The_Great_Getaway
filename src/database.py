@@ -114,6 +114,19 @@ def init_db():
             # /todo page (which is the per-trip list of PLACES from
             # the home map) — checklist is free-form tasks.
             ("checklist_json", "ALTER TABLE trips ADD COLUMN checklist_json TEXT"),
+            # Per-trip privacy flag for the Actions feed. When 1, the
+            # /api/feed Actions queries (joined-trip / added-day /
+            # archived-trip) skip events for this trip across ALL
+            # viewers — owner included. Toggled from a button on the
+            # trip header (where the share-to-feed button used to
+            # live before that moved to the public-trip detail
+            # page). Default 0 — actions visible.
+            #
+            # Scope notes: this only silences the Actions tab.
+            # Posts (explicit shares + reposts) keep their separate
+            # opt-in flow on the public-trip detail page; silencing
+            # a trip doesn't unshare it.
+            ("actions_hidden", "ALTER TABLE trips ADD COLUMN actions_hidden INTEGER DEFAULT 0"),
         ]:
             try:
                 cursor.execute(ddl)

@@ -233,6 +233,31 @@ export function shareTripToFeed(tripId, caption) {
     return _postJson('/api/feed/share', { trip_id: tripId, caption });
 }
 
+/** Toggle the per-trip Actions-feed silencing flag. When `hidden=true`,
+ *  the trip's create / archive / join events disappear from every
+ *  viewer's Actions feed (owner included). Owner-only on the server —
+ *  non-owner callers get 403 and we surface that as a non-ok result.
+ *  Doesn't affect Posts (explicit shares stay shared).
+ *  @param {string} tripId
+ *  @param {boolean} hidden
+ */
+export async function setTripActionsHidden(tripId, hidden) {
+    if (!STATE.user) return { ok: false, status: 0, body: null };
+    try {
+        const res = await apiFetch(`/api/trips/${encodeURIComponent(tripId)}/silence`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ hidden: !!hidden }),
+        });
+        let payload = null;
+        try { payload = await res.json(); } catch { /* not JSON */ }
+        return { ok: res.ok, status: res.status, body: payload };
+    } catch (e) {
+        console.error('setTripActionsHidden failed:', e);
+        return { ok: false, status: 0, body: null };
+    }
+}
+
 /** Check whether the caller has already shared this trip (and read back
  *  the caption + post_id if so). Used by the home page on mount to set
  *  the Share-to-feed button's initial state without a needless write. */

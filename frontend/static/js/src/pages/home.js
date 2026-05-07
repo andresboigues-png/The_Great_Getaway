@@ -9,7 +9,13 @@ import { getMediaForTrip, showLiquidAlert, formatDayDate, q, showConfirmModal, g
 // button to collections.js (renderArchivedTripDetail). The
 // share-modal helper itself (openShareToFeedModal) is still defined
 // here and re-exported so collections.js can drive it.
-import { upsertDay, uploadMedia, deleteDayOnServer, upsertTrip } from '../api.js';
+//
+// setTripActionsHidden powers the new silence/mute toggle button
+// in the trip header (where the share button used to live), per
+// the user's privacy ask — flips trip.actionsHidden server-side
+// + locally so the trip's create/archive/join events stop bleeding
+// into friends' Actions feeds.
+import { upsertDay, uploadMedia, deleteDayOnServer, upsertTrip, setTripActionsHidden } from '../api.js';
 import { navigate } from '../router.js';
 import { showPersTab } from './settings.js';
 import { openNewTripModal, openAddDayModal, openEditTripModal, openCompanionPickerModal, openTripMembersModal } from '../modals.js';
@@ -2003,14 +2009,38 @@ export function renderHome() {
                             </a>
                         `;
                     })()}
-                    <!-- Share-to-feed button used to live here, on every
-                         active trip. Moved (per user) to the public-trip
-                         detail page in Collections / Profile so only
-                         trips the user has explicitly marked Public can
-                         be shared. The feed event payload + flow is
-                         unchanged; the entry point is just the trip
-                         detail's Share button now. See
-                         renderArchivedTripDetail in collections.js. -->
+                    <!-- Share-to-feed used to live here; moved to the
+                         public-trip detail page (collections / profile)
+                         so only Public-flagged trips are shareable.
+                         This slot now hosts the Silence Actions
+                         toggle (owner-only) — flips trip.actionsHidden
+                         so create / archive / join events for THIS
+                         trip stop appearing in friends' Actions feeds.
+                         Pure privacy escape hatch; doesn't affect
+                         already-shared posts (those have their own
+                         unshare control). -->
+                    ${tripIsManageable ? `
+                        <button id="silenceTripBtn" class="icon-btn-circle" data-silenced="${activeTrip.actionsHidden ? '1' : '0'}"
+                            style="--accent: ${activeTrip.actionsHidden ? '255,59,48' : '127,140,156'};${activeTrip.actionsHidden ? ' background:#ff3b30; color:white; border-color:#ff3b30;' : ''}"
+                            title="${activeTrip.actionsHidden ? 'Trip actions are silenced — click to make them visible in friends\' Actions feeds' : 'Silence trip actions — hide create / archive / join events from friends\' Actions feeds'}"
+                            aria-label="${activeTrip.actionsHidden ? 'Unsilence trip actions' : 'Silence trip actions'}"
+                            aria-pressed="${activeTrip.actionsHidden ? 'true' : 'false'}">
+                            ${activeTrip.actionsHidden ? `
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                                    <path d="M18.63 13A17.89 17.89 0 0 1 18 8"></path>
+                                    <path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"></path>
+                                    <path d="M18 8a6 6 0 0 0-9.33-5"></path>
+                                    <line x1="1" y1="1" x2="23" y2="23"></line>
+                                </svg>
+                            ` : `
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path>
+                                    <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                                </svg>
+                            `}
+                        </button>
+                    ` : ''}
                     ${!tripIsEditable ? `
                         <span class="trip-role-badge trip-role-badge--relaxer" title="You're a Relaxer on this trip — view-only">👁 Relaxer</span>
                     ` : ''}
@@ -2675,7 +2705,10 @@ export function renderHome() {
         // Delegated handler — per-day rows are dynamic; inner action buttons are
         // checked first so the outer card click (toggleDayMenu) only fires when
         // the user clicked the card body itself, not an action button.
-        daysContainer.addEventListener('click', (e) => {
+        // Dispatcher is async because the silence-trip handler awaits
+        // setTripActionsHidden — addEventListener ignores the returned
+        // promise, so this is just sugar that keeps await available.
+        daysContainer.addEventListener('click', async (e) => {
             const target = /** @type {HTMLElement | null} */ (e.target);
             if (!target) return;
 
@@ -2781,6 +2814,38 @@ export function renderHome() {
             // (Share-to-feed click handler moved to collections.js —
             // the button only renders on public-trip detail pages
             // now, see renderArchivedTripDetail.)
+
+            // Silence-trip toggle — owner-only privacy control. Flips
+            // trip.actionsHidden on the server + locally and patches
+            // the button's visual state without a full re-render so
+            // the click feels instant. Failed network = revert the
+            // visual flip + toast so the user knows nothing changed.
+            const silenceBtn = /** @type {HTMLElement | null} */ (target.closest('#silenceTripBtn'));
+            if (silenceBtn && activeTrip) {
+                const wasSilenced = silenceBtn.dataset.silenced === '1';
+                const willSilence = !wasSilenced;
+                // Optimistic local + visual flip.
+                activeTrip.actionsHidden = willSilence;
+                applySilenceBtnVisual(silenceBtn, willSilence);
+                emit('state:changed');
+                const result = await setTripActionsHidden(activeTrip.id, willSilence);
+                if (!result || !result.ok) {
+                    // Roll back on failure (403 = relaxer/non-owner; 5xx
+                    // = transient). Either way, revert the optimistic
+                    // flip so the button doesn't lie about server state.
+                    activeTrip.actionsHidden = wasSilenced;
+                    applySilenceBtnVisual(silenceBtn, wasSilenced);
+                    emit('state:changed');
+                    showLiquidAlert(result?.status === 403
+                        ? "Only the trip owner can silence trip actions."
+                        : "Couldn't update — try again in a moment.");
+                    return;
+                }
+                showLiquidAlert(willSilence
+                    ? "Trip actions silenced — hidden from friends' feeds."
+                    : "Trip actions visible again.");
+                return;
+            }
 
             // Companions / Members button OR the inline member-chip panel —
             // both route through the same dispatcher: owner picks roster,
@@ -3204,6 +3269,51 @@ const openJournalingModal = (dayId) => {
 //   data-shared     '1' → already on the user's feed (filled style)
 //                   '0' → not shared yet (outline style)
 //   data-post-id    feed_posts.id when shared, used for the Unshare flow
+
+/** Flip the Silence-trip button between outline and filled states.
+ *  Outline (silenced=false) shows a normal bell on a muted gray
+ *  border — "actions are visible". Filled (silenced=true) goes
+ *  solid red with a bell-off icon — "trip is muted". Also swaps
+ *  the SVG so the icon itself reflects the state, not just the
+ *  color. Used by the click handler to repaint without a full
+ *  re-render of the trip header.
+ *
+ *  Kept inline (not exported) because this button only lives in
+ *  one place — the trip header. */
+function applySilenceBtnVisual(btn, silenced) {
+    if (!btn) return;
+    btn.dataset.silenced = silenced ? '1' : '0';
+    btn.setAttribute('aria-pressed', silenced ? 'true' : 'false');
+    btn.style.setProperty('--accent', silenced ? '255,59,48' : '127,140,156');
+    if (silenced) {
+        btn.style.background = '#ff3b30';
+        btn.style.color = 'white';
+        btn.style.borderColor = '#ff3b30';
+        btn.title = "Trip actions are silenced — click to make them visible in friends' Actions feeds";
+        btn.setAttribute('aria-label', 'Unsilence trip actions');
+        btn.innerHTML = `
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                <path d="M18.63 13A17.89 17.89 0 0 1 18 8"></path>
+                <path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"></path>
+                <path d="M18 8a6 6 0 0 0-9.33-5"></path>
+                <line x1="1" y1="1" x2="23" y2="23"></line>
+            </svg>
+        `;
+    } else {
+        btn.style.background = '';
+        btn.style.color = '';
+        btn.style.borderColor = '';
+        btn.title = "Silence trip actions — hide create / archive / join events from friends' Actions feeds";
+        btn.setAttribute('aria-label', 'Silence trip actions');
+        btn.innerHTML = `
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path>
+                <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+            </svg>
+        `;
+    }
+}
 
 /** Flip the Share button between outline and filled states. Outline
  *  state inherits the standard `.icon-btn-circle` look (subtle purple
