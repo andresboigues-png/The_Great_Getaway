@@ -1599,18 +1599,60 @@ h1 {
     background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 60%);
 }
 
-/* POI filter pills — render BELOW the home map so they don't cover
-   the satellite view. Each pill toggles a Places-API search; the
-   "+ More" pill expands the labels in/out (icons-only by default). */
-.map-poi-toggles {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
+/* POI filter section — pill row + the toggle-bar that
+   shows/hides it. Hidden by default (was always-on, felt heavy);
+   click the toggle-bar to reveal. The expanded state persists in
+   localStorage so the choice sticks across reloads. */
+.map-poi-section {
     margin-top: var(--space-4);
     margin-bottom: var(--space-4);
-    /* No pointer-events:none here — the row sits in normal flow now,
-       not overlaid on the map, so it doesn't need to "let clicks
-       through" anywhere. */
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.map-poi-toggle-bar {
+    align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(0, 113, 227, 0.18);
+    color: var(--accent-blue);
+    font-weight: 700;
+    font-size: 0.78rem;
+    border-radius: 999px;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+    transition: background 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+}
+.map-poi-toggle-bar:hover {
+    background: rgba(255, 255, 255, 1);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 113, 227, 0.12);
+}
+.map-poi-toggle-bar__chevron {
+    transition: transform 0.2s ease;
+}
+.map-poi-section.is-expanded .map-poi-toggle-bar {
+    background: rgba(0, 113, 227, 0.08);
+    border-color: rgba(0, 113, 227, 0.32);
+}
+.map-poi-section.is-expanded .map-poi-toggle-bar__chevron {
+    transform: rotate(180deg);
+}
+
+/* The pill row itself — only visible when the section carries
+   `.is-expanded`. Same flex-row layout as before; just hidden by
+   default so the map area reads cleaner on first load. */
+.map-poi-toggles {
+    display: none;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.map-poi-section.is-expanded .map-poi-toggles {
+    display: flex;
 }
 .map-poi-toggle {
     background: rgba(255, 255, 255, 0.85);

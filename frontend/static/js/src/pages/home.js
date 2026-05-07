@@ -632,17 +632,37 @@ export function renderHome() {
                 </div>
             </div>
 
-            <!-- POI filter pills — sit BELOW the map so they don't cover
-                 anything. Each pill renders with its label by default
-                 since the row fits on a single line at typical viewport
-                 widths. Pills the user has hidden in Settings → General
-                 (poiVisible[key] === false) are filtered out here. -->
-            <div id="homeMapPoiToggles" class="map-poi-toggles map-poi-toggles--below">
-                ${POI_CATEGORIES
-                    .filter(c => STATE.preferences?.poiVisible?.[c.key] !== false)
-                    .map(c => `
-                        <button type="button" class="map-poi-toggle" data-poi="${c.key}" aria-pressed="false" title="${esc(c.tooltip)}">${c.icon} <span>${esc(c.label)}</span></button>
-                    `).join('')}
+            <!-- POI filter pills — sit BELOW the map and stay HIDDEN
+                 by default. The pill row used to sit always-on under
+                 the map, which felt heavy when the user just wanted
+                 to glance at the map. A small toggle bar above it
+                 reveals/hides the pills; the user's preference
+                 persists in localStorage so the choice sticks across
+                 reloads. Settings → General can still hide individual
+                 pills via poiVisible[key] === false; that filtering
+                 happens here too. -->
+            <div id="homePoiSection" class="map-poi-section${(() => {
+                let visible = false;
+                try { visible = localStorage.getItem('home_pills_visible') === '1'; } catch (_) {}
+                return visible ? ' is-expanded' : '';
+            })()}">
+                <button type="button" id="homePoiToggleBtn" class="map-poi-toggle-bar" aria-expanded="false">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <circle cx="11" cy="11" r="7"></circle>
+                        <path d="M21 21l-4.35-4.35"></path>
+                    </svg>
+                    <span class="map-poi-toggle-bar__label">Discover places nearby</span>
+                    <svg class="map-poi-toggle-bar__chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                </button>
+                <div id="homeMapPoiToggles" class="map-poi-toggles map-poi-toggles--below">
+                    ${POI_CATEGORIES
+                        .filter(c => STATE.preferences?.poiVisible?.[c.key] !== false)
+                        .map(c => `
+                            <button type="button" class="map-poi-toggle" data-poi="${c.key}" aria-pressed="false" title="${esc(c.tooltip)}">${c.icon} <span>${esc(c.label)}</span></button>
+                        `).join('')}
+                </div>
             </div>
         `;
 
@@ -1221,6 +1241,25 @@ export function renderHome() {
                         .map(c => c.key);
                     emit('state:changed');
                 };
+
+                // POI section show/hide toggle. Visibility persists in
+                // localStorage so the user's preference (collapsed by
+                // default — pills are hidden until they ask) sticks
+                // across reloads. The `is-expanded` class on the
+                // section drives both the chevron rotation and the
+                // pill row's display.
+                const poiSection = document.getElementById('homePoiSection');
+                const poiToggleBar = /** @type {HTMLButtonElement | null} */ (document.getElementById('homePoiToggleBtn'));
+                if (poiSection && poiToggleBar) {
+                    // Sync aria-expanded with the initial DOM state.
+                    poiToggleBar.setAttribute('aria-expanded', poiSection.classList.contains('is-expanded') ? 'true' : 'false');
+                    poiToggleBar.addEventListener('click', () => {
+                        const willExpand = !poiSection.classList.contains('is-expanded');
+                        poiSection.classList.toggle('is-expanded', willExpand);
+                        poiToggleBar.setAttribute('aria-expanded', willExpand ? 'true' : 'false');
+                        try { localStorage.setItem('home_pills_visible', willExpand ? '1' : '0'); } catch (_) {}
+                    });
+                }
 
                 const poiTogglesEl = document.getElementById('homeMapPoiToggles');
                 if (poiTogglesEl) {
@@ -3967,6 +4006,91 @@ const openDayDetail = (dayId) => {
     /** @type {(() => void) | null} */
     let flushPendingOnExit = null;
 
+    // Genesis is the trip's central hub, not a calendar day with a
+    // morning/afternoon/evening schedule. Render a Genesis-specific
+    // body that swaps the AM/PM/Eve trio for ONE big "Trip notes /
+    // journal" textarea + quick-link chips to the surfaces Genesis
+    // really anchors (Trip checklist, Photos, Documents). Numbered
+    // days keep the existing AM/PM/Eve layout.
+    const isGenesis = Number(day.dayNumber) === 0;
+
+    // Header label varies — numbered days show "Day N", Genesis shows
+    // a gold "⭐ Trip Genesis" chip to match the Path tab styling.
+    const headerChipHtml = isGenesis
+        ? `<div style="background: linear-gradient(135deg, #e8b923, #8b6e0c); color: white; padding: var(--space-1) var(--space-3); border-radius: var(--radius-sm); font-weight: 800; font-size: var(--font-xs); text-transform: uppercase; letter-spacing: 0.06em;">⭐ Trip Genesis</div>`
+        : `<div style="background: var(--accent-blue); color: white; padding: var(--space-1) var(--space-3); border-radius: var(--radius-sm); font-weight: 800; font-size: var(--font-xs); text-transform: uppercase;">Day ${day.dayNumber}</div>`;
+    const headerSubtitle = isGenesis
+        ? (trip?.country ? esc(shortPlaceName(trip.country)) : 'Where the trip begins')
+        : esc(formatDayDate(day.date));
+    const headerTitle = isGenesis ? 'Trip Genesis' : esc(day.name);
+
+    // Genesis body: quick-links row + single "Trip notes" textarea on
+    // the left; Expert Tip + Done on the right. No AM/PM/Eve, no
+    // "From your to-do list" drop section (no time slots to drop into).
+    const genesisQuickLinksHtml = `
+        <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom: var(--space-6);">
+            <button type="button" class="genesis-quicklink-btn" data-target="checklist"
+                style="display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:999px; background:rgba(212,160,23,0.1); border:1px solid rgba(212,160,23,0.3); color:#8b6e0c; font-weight:700; font-size:0.82rem; cursor:pointer;">
+                📝 Trip checklist
+            </button>
+            <button type="button" class="genesis-quicklink-btn" data-target="documents"
+                style="display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:999px; background:rgba(88,86,214,0.08); border:1px solid rgba(88,86,214,0.25); color:#5856d6; font-weight:700; font-size:0.82rem; cursor:pointer;">
+                📎 Documents
+            </button>
+            <button type="button" class="genesis-quicklink-btn" data-target="photos"
+                style="display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:999px; background:rgba(52,199,89,0.08); border:1px solid rgba(52,199,89,0.25); color:#1a6b3c; font-weight:700; font-size:0.82rem; cursor:pointer;">
+                📸 Photos
+            </button>
+        </div>
+    `;
+    const genesisLeftHtml = `
+        ${genesisQuickLinksHtml}
+        <div class="subcard-soft" style="flex:1; display:flex; flex-direction:column;">
+            <h4 class="text-tag" style="--accent: 212,160,23;">Trip notes & journal</h4>
+            <textarea id="detailNotes" class="plain-textarea" placeholder="What this trip is about, highlights, things to remember…" style="flex:1; min-height: 320px;">${esc(day.notes || '')}</textarea>
+        </div>
+    `;
+    const genesisRightHtml = `
+        <div style="background: #000; padding: var(--space-6); border-radius: 24px; color: white;">
+            <h4 class="text-tag" style="--accent: 212,160,23;">Trip tip</h4>
+            <p style="margin: 0; font-size: var(--font-md); line-height: 1.5; opacity: 0.9;">${esc(day.tip || "Genesis is your trip's central hub — use Trip notes for the big-picture story, and the quick links above for prep tasks, photos and documents.")}</p>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:6px;">
+            <button id="saveDetailBtn" class="btn-primary" style="width: 100%; padding: var(--space-5); border-radius: var(--radius-xl); font-size: var(--font-xl);">Done</button>
+            <div id="autosaveStatus" style="text-align:center; font-size:0.7rem; color:var(--text-secondary); font-weight:600; min-height:1em;">Changes save automatically</div>
+        </div>
+    `;
+
+    // Numbered-day body: existing AM/PM/Eve trio (unchanged).
+    const numberedDayLeftHtml = `
+        <div class="subcard-soft">
+            <h4 class="text-tag">Morning</h4>
+            <textarea class="plain-textarea plan-input" data-time="morning" placeholder="Morning plans...">${day.plan?.morning || ''}</textarea>
+        </div>
+        <div class="subcard-soft">
+            <h4 class="text-tag" style="--accent: 255,149,0;">Afternoon</h4>
+            <textarea class="plain-textarea plan-input" data-time="afternoon" placeholder="Afternoon plans...">${day.plan?.afternoon || ''}</textarea>
+        </div>
+        <div class="subcard-soft">
+            <h4 class="text-tag" style="--accent: 88,86,214;">Evening</h4>
+            <textarea class="plain-textarea plan-input" data-time="evening" placeholder="Evening plans...">${day.plan?.evening || ''}</textarea>
+        </div>
+    `;
+    const numberedDayRightHtml = `
+        <div style="flex: 1; background: rgba(0,113,227,0.05); padding: var(--space-6); border-radius: 24px; border: 1px solid rgba(0,113,227,0.1);">
+            <h4 class="text-tag">Personal Notes</h4>
+            <textarea id="detailNotes" class="plain-textarea plain-textarea--no-resize" style="height: 200px;" placeholder="Private thoughts about this day...">${esc(day.notes || '')}</textarea>
+        </div>
+        <div style="background: #000; padding: var(--space-6); border-radius: 24px; color: white;">
+            <h4 class="text-tag" style="--accent: 52,199,89;">Expert Tip</h4>
+            <p style="margin: 0; font-size: var(--font-md); line-height: 1.5; opacity: 0.9;">${esc(day.tip || "Always keep a portable charger and a small bottle of water in your bag for long exploration days.")}</p>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:6px;">
+            <button id="saveDetailBtn" class="btn-primary" style="width: 100%; padding: var(--space-5); border-radius: var(--radius-xl); font-size: var(--font-xl);">Done</button>
+            <div id="autosaveStatus" style="text-align:center; font-size:0.7rem; color:var(--text-secondary); font-weight:600; min-height:1em;">Changes save automatically</div>
+        </div>
+    `;
+
     const { root, close } = showModal({
         cardClass: 'card glass',
         cardStyle: 'width: 800px; max-height: 90vh; overflow-y: auto; padding: var(--space-12); border-radius: 48px; background: white; border: 1px solid rgba(0,0,0,0.1);',
@@ -3974,47 +4098,43 @@ const openDayDetail = (dayId) => {
             <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: var(--space-10);">
                 <div>
                     <div style="display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-2);">
-                        <div style="background: var(--accent-blue); color: white; padding: var(--space-1) var(--space-3); border-radius: var(--radius-sm); font-weight: 800; font-size: var(--font-xs); text-transform: uppercase;">Day ${day.dayNumber}</div>
-                        <div style="color: var(--text-secondary); font-weight: 600; font-size: var(--font-base);">${formatDayDate(day.date)}</div>
+                        ${headerChipHtml}
+                        <div style="color: var(--text-secondary); font-weight: 600; font-size: var(--font-base);">${headerSubtitle}</div>
                     </div>
-                    <h2 style="font-size: 2.5rem; color: #002d5b; font-weight: 800; letter-spacing: -0.04em; margin: 0;">${esc(day.name)}</h2>
+                    <h2 style="font-size: 2.5rem; color: #002d5b; font-weight: 800; letter-spacing: -0.04em; margin: 0;">${headerTitle}</h2>
                 </div>
                 <button id="closeDetailBtn" class="close-x-btn" aria-label="Close">✕</button>
             </div>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-10);">
                 <div style="display: flex; flex-direction: column; gap: var(--space-6);">
-                    <div class="subcard-soft">
-                        <h4 class="text-tag">Morning</h4>
-                        <textarea class="plain-textarea plan-input" data-time="morning" placeholder="Morning plans...">${day.plan?.morning || ''}</textarea>
-                    </div>
-                    <div class="subcard-soft">
-                        <h4 class="text-tag" style="--accent: 255,149,0;">Afternoon</h4>
-                        <textarea class="plain-textarea plan-input" data-time="afternoon" placeholder="Afternoon plans...">${day.plan?.afternoon || ''}</textarea>
-                    </div>
-                    <div class="subcard-soft">
-                        <h4 class="text-tag" style="--accent: 88,86,214;">Evening</h4>
-                        <textarea class="plain-textarea plan-input" data-time="evening" placeholder="Evening plans...">${day.plan?.evening || ''}</textarea>
-                    </div>
+                    ${isGenesis ? genesisLeftHtml : numberedDayLeftHtml}
                 </div>
                 <div style="display: flex; flex-direction: column; gap: var(--space-6);">
-                    <div style="flex: 1; background: rgba(0,113,227,0.05); padding: var(--space-6); border-radius: 24px; border: 1px solid rgba(0,113,227,0.1);">
-                        <h4 class="text-tag">Personal Notes</h4>
-                        <textarea id="detailNotes" class="plain-textarea plain-textarea--no-resize" style="height: 200px;" placeholder="Private thoughts about this day...">${esc(day.notes || '')}</textarea>
-                    </div>
-                    <div style="background: #000; padding: var(--space-6); border-radius: 24px; color: white;">
-                        <h4 class="text-tag" style="--accent: 52,199,89;">Expert Tip</h4>
-                        <p style="margin: 0; font-size: var(--font-md); line-height: 1.5; opacity: 0.9;">${esc(day.tip || "Always keep a portable charger and a small bottle of water in your bag for long exploration days.")}</p>
-                    </div>
-                    <div style="display:flex; flex-direction:column; gap:6px;">
-                        <button id="saveDetailBtn" class="btn-primary" style="width: 100%; padding: var(--space-5); border-radius: var(--radius-xl); font-size: var(--font-xl);">Done</button>
-                        <div id="autosaveStatus" style="text-align:center; font-size:0.7rem; color:var(--text-secondary); font-weight:600; min-height:1em;">Changes save automatically</div>
-                    </div>
+                    ${isGenesis ? genesisRightHtml : numberedDayRightHtml}
                 </div>
             </div>
-            ${shortlistSectionHtml}
+            ${isGenesis ? '' : shortlistSectionHtml}
         `,
         onClose: () => flushPendingOnExit?.(),
     });
+
+    // Genesis quick-links — clicking a chip closes the modal and
+    // routes to the right surface. Trip checklist gets the modal
+    // we built earlier; Documents/Photos switch to those Home tabs.
+    if (isGenesis) {
+        root.querySelectorAll('.genesis-quicklink-btn').forEach(btn => {
+            /** @type {HTMLButtonElement} */ (btn).onclick = () => {
+                const target = /** @type {HTMLElement} */ (btn).dataset.target;
+                close();
+                if (target === 'checklist') {
+                    if (trip) openTripChecklistModal(trip);
+                } else if (target === 'documents' || target === 'photos') {
+                    activeHomeTab = target;
+                    navigate('home', null, true);
+                }
+            };
+        });
+    }
 
     // ── Auto-save plumbing ─────────────────────────────────────────
     // Why: the user used to lose plan edits if they closed the modal
@@ -4038,11 +4158,19 @@ const openDayDetail = (dayId) => {
     };
 
     // Pull the current textarea values into `day`. Pure DOM->state read.
+    // Genesis renders WITHOUT the AM/PM/Eve textareas (no schedule —
+    // it's the trip's central hub, not a calendar day). Guard so we
+    // don't blast `day.plan` with empty strings on every keystroke
+    // for Genesis — that would silently wipe any legacy plan data
+    // and break round-tripping.
     const syncDayFromInputs = () => {
-        const morning = /** @type {HTMLTextAreaElement} */ (root.querySelector('textarea.plan-input[data-time="morning"]'))?.value ?? '';
-        const afternoon = /** @type {HTMLTextAreaElement} */ (root.querySelector('textarea.plan-input[data-time="afternoon"]'))?.value ?? '';
-        const evening = /** @type {HTMLTextAreaElement} */ (root.querySelector('textarea.plan-input[data-time="evening"]'))?.value ?? '';
-        day.plan = { morning, afternoon, evening };
+        const morningEl = /** @type {HTMLTextAreaElement | null} */ (root.querySelector('textarea.plan-input[data-time="morning"]'));
+        if (morningEl) {
+            const morning = morningEl.value;
+            const afternoon = /** @type {HTMLTextAreaElement} */ (root.querySelector('textarea.plan-input[data-time="afternoon"]')).value;
+            const evening = /** @type {HTMLTextAreaElement} */ (root.querySelector('textarea.plan-input[data-time="evening"]')).value;
+            day.plan = { morning, afternoon, evening };
+        }
         day.notes = notesTextarea?.value ?? '';
     };
 

@@ -465,9 +465,14 @@ def sync_data():
                     lat=excluded.lat,
                     lng=excluded.lng
             ''', (d['id'], d['tripId'], d.get('dayNumber'), d.get('date'), d.get('name'),
-                  json.dumps(d.get('morning', d.get('plan', {}).get('morning', ''))),
-                  json.dumps(d.get('afternoon', d.get('plan', {}).get('afternoon', ''))),
-                  json.dumps(d.get('evening', d.get('plan', {}).get('evening', ''))),
+                  # Plain text — NOT json.dumps. Legacy code wrapped these
+                  # with json.dumps which round-tripped empty strings as
+                  # the literal characters '""' and non-empty strings as
+                  # '"go to museum"' (extra quotes), surfacing as garbage
+                  # in the day-plan textareas.
+                  d.get('morning', d.get('plan', {}).get('morning', '')) or '',
+                  d.get('afternoon', d.get('plan', {}).get('afternoon', '')) or '',
+                  d.get('evening', d.get('plan', {}).get('evening', '')) or '',
                   d.get('tip', d.get('notes', '')),
                   d.get('lat'),
                   # The frontend writes `lon` and `lng` interchangeably for
@@ -490,6 +495,28 @@ def sync_data():
 # 'pending' and flip to 'accepted' on respond. `role` is intentionally
 # stringly-typed at this layer so adding new roles later doesn't require
 # a schema migration.
+
+def _unwrap_legacy_plan_text(s):
+    """Some legacy trip_days rows have morning/afternoon/evening stored
+    as JSON-encoded strings (`'""'` for empty, `'"foo"'` for non-empty)
+    because the old write path wrapped plain text with json.dumps.
+    This detects that pattern and unwraps so the frontend sees clean
+    text. Idempotent — passes through plain strings unchanged."""
+    if not isinstance(s, str):
+        return s or ''
+    # Cheap shape check before json.loads — only attempt parse when
+    # the string looks like a JSON-quoted scalar (starts AND ends
+    # with double-quote). Avoids paying for the parse on the common
+    # already-clean path.
+    if len(s) >= 2 and s[0] == '"' and s[-1] == '"':
+        try:
+            parsed = json.loads(s)
+            if isinstance(parsed, str):
+                return parsed
+        except Exception:
+            pass
+    return s
+
 
 def _ensure_owner_member_row(cursor, trip_id, owner_id):
     """Idempotent: makes sure the trip's owner has a planner-role member
@@ -1013,9 +1040,10 @@ def upsert_day():
                 lat=excluded.lat,
                 lng=excluded.lng
         ''', (d['id'], d.get('tripId'), d.get('dayNumber'), d.get('date'), d.get('name'),
-              json.dumps(d.get('morning', d.get('plan', {}).get('morning', ''))),
-              json.dumps(d.get('afternoon', d.get('plan', {}).get('afternoon', ''))),
-              json.dumps(d.get('evening', d.get('plan', {}).get('evening', ''))),
+              # Plain text — see /api/sync above for the json.dumps fix.
+              d.get('morning', d.get('plan', {}).get('morning', '')) or '',
+              d.get('afternoon', d.get('plan', {}).get('afternoon', '')) or '',
+              d.get('evening', d.get('plan', {}).get('evening', '')) or '',
               d.get('tip', d.get('notes', '')),
               d.get('lat'),
               d.get('lng') or d.get('lon')))
@@ -2230,11 +2258,17 @@ def get_data():
             day['dayNumber'] = day.pop('day_number')
             day['lon'] = day.pop('lng')
             
-            # Map plan sub-object
+            # Map plan sub-object. _unwrap_legacy_plan_text undoes a
+            # buggy json.dumps wrapper the old write path applied to
+            # plain text — empty strings landed in the DB as the
+            # literal '""', non-empty as '"foo"'. The defensive
+            # unwrap here means even legacy rows return clean text;
+            # new writes (post-fix) skip the wrap entirely so they
+            # round-trip unchanged.
             day['plan'] = {
-                'morning': day.pop('morning', ''),
-                'afternoon': day.pop('afternoon', ''),
-                'evening': day.pop('evening', '')
+                'morning': _unwrap_legacy_plan_text(day.pop('morning', '')),
+                'afternoon': _unwrap_legacy_plan_text(day.pop('afternoon', '')),
+                'evening': _unwrap_legacy_plan_text(day.pop('evening', ''))
             }
             
             # Deserialize JSON fields
