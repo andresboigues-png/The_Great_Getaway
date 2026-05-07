@@ -95,7 +95,7 @@ export const POI_CATEGORIES = [
     // trip" is the question being asked — locking to a single day
     // pin would just mean missing the obvious ones two
     // neighborhoods over. Always anchored on genesis.
-    { key: 'medical',     placesType: 'hospital',           extraPlacesTypes: ['pharmacy'], searchStrategy: 'wide', useGenesisAlways: true, icon: '🏥', label: 'Medical',         color: '#ff3b30', defaultMinRating: 0, tooltip: 'Hospitals, doctors, pharmacies, clinics across the wider trip area. Vets are excluded — they live on the Pets pill.' },
+    { key: 'medical',     placesType: 'hospital',           extraPlacesTypes: ['pharmacy'], extraKeywords: ['pharmacy', 'drugstore'], searchStrategy: 'wide', useGenesisAlways: true, icon: '🏥', label: 'Medical',         color: '#ff3b30', defaultMinRating: 0, tooltip: 'Hospitals, doctors, pharmacies, drugstores and clinics across the wider trip area. Vets are excluded — they live on the Pets pill.' },
     { key: 'pets',        placesType: 'veterinary_care',    extraPlacesTypes: ['pet_store'], searchStrategy: 'wide', useGenesisAlways: true, icon: '🐾', label: 'Pets',           color: '#a460ed', defaultMinRating: 0, tooltip: 'Vets and pet stores across the wider trip area' },
     { key: 'schools',     placesType: 'school',             searchStrategy: 'wide', useGenesisAlways: true, icon: '🎓', label: 'Schools',         color: '#0071e3', defaultMinRating: 0, tooltip: 'Schools and universities. Always searches the wider trip area.' },
     { key: 'sports',      placesType: 'stadium',            searchStrategy: 'wide', useGenesisAlways: true, icon: '🏟️', label: 'Sports',          color: '#ff2d55', defaultMinRating: 0, tooltip: 'Stadiums and gyms. Always searches the wider trip area — they\'re landmarks, you want them all.' },
@@ -133,8 +133,12 @@ export const POI_CATEGORIES = [
  */
 function pickPlaceIcon(cat, place) {
     const types = Array.isArray(place?.types) ? place.types : [];
+    const lowerName = (place?.name || '').toLowerCase();
     if (cat.key === 'medical') {
-        if (types.includes('pharmacy'))      return '💊';
+        // Name takes precedence on the pharmacy hint set so chain
+        // drugstores tagged `convenience_store` still get the 💊 pin.
+        const pharmacyByName = lowerName && PHARMACY_NAME_HINTS.some(h => lowerName.includes(h));
+        if (types.includes('pharmacy') || pharmacyByName) return '💊';
         if (types.includes('hospital'))      return '🏥';
         if (types.includes('doctor'))        return '🩺';
         if (types.includes('dentist'))       return '🦷';
@@ -147,7 +151,30 @@ function pickPlaceIcon(cat, place) {
     return cat.icon;
 }
 
-function isPrimaryMatch(categoryKey, types) {
+/** Lowercase substrings that strongly imply a place is a pharmacy /
+ *  drugstore even when Google's `types[]` doesn't carry the
+ *  `pharmacy` tag. Major chains often arrive with `convenience_store`
+ *  or just `store` first (post-Places-API-rewrite quirk), so the
+ *  type-only filter would silently drop them. We test
+ *  `place.name.toLowerCase()` against this list as a fallback in
+ *  isPrimaryMatch('medical', ...) so CVS / Walgreens / Boots / Rite
+ *  Aid all pass through. The list is intentionally simple — false
+ *  positives ("Pharmacy Square Bistro") are rare and harmless. */
+const PHARMACY_NAME_HINTS = [
+    'pharmacy', 'drugstore', 'drug store', 'chemist',
+    'cvs', 'walgreens', 'rite aid', 'boots', 'apotheke', 'farmacia', 'pharmacie',
+];
+
+function isPrimaryMatch(categoryKey, types, name) {
+    // Name-based override for the medical pill: any place whose name
+    // matches one of the pharmacy hints above is treated as a primary
+    // match, regardless of what `types[]` says. This catches chain
+    // drugstores that Google sometimes tags primarily as
+    // `convenience_store` rather than `pharmacy`.
+    if (categoryKey === 'medical' && typeof name === 'string' && name) {
+        const lowerName = name.toLowerCase();
+        if (PHARMACY_NAME_HINTS.some(h => lowerName.includes(h))) return true;
+    }
     if (!Array.isArray(types) || types.length === 0) return true;
     const isRestaurant = (t) => t === 'restaurant' || t.endsWith('_restaurant')
         || t === 'cafe' || t === 'bar'
@@ -859,16 +886,6 @@ export function renderHome() {
                         if (!svc) { resolve([]); return; }
                         /** @type {any[]} */
                         const all = [];
-                        const handle = (results, status, pagination) => {
-                            const ok = status === google.maps.places.PlacesServiceStatus.OK
-                                || status === google.maps.places.PlacesServiceStatus.ZERO_RESULTS;
-                            if (ok && Array.isArray(results)) all.push(...results);
-                            if (pagination && pagination.hasNextPage && all.length < 60) {
-                                setTimeout(() => pagination.nextPage(), 200);
-                            } else {
-                                resolve(all);
-                            }
-                        };
 
                         // Two strategies, picked per-category:
                         //   distance → closest 60. Right for dense
@@ -883,38 +900,59 @@ export function renderHome() {
                         // Note: rankBy: DISTANCE is incompatible with
                         // `radius`. The API rejects both together.
                         //
-                        // Multi-type categories (cat.extraPlacesTypes)
-                        // run one search per type and pool the results.
-                        // Places API takes a single `type` per call, so
-                        // a pill like "Pets" (vets + pet stores) needs
-                        // multiple round-trips to cover both.
+                        // Multi-source pill searches. Two parallel families:
+                        //   - cat.extraPlacesTypes: extra Places API types
+                        //     (e.g. ['pharmacy'] alongside the primary
+                        //     'hospital' for medical)
+                        //   - cat.extraKeywords: free-text keyword searches
+                        //     (e.g. ['pharmacy', 'drugstore'] to catch
+                        //     name-tagged places like CVS / Walgreens that
+                        //     Google's `type: 'pharmacy'` legacy filter
+                        //     sometimes misses since the Places API rewrite)
+                        // Places API takes a single `type` (or single
+                        // `keyword`) per call so each entry below is its
+                        // own round-trip; we pool + dedupe at the end.
                         const typesToSearch = [cat.placesType, ...(cat.extraPlacesTypes || [])];
-                        let pendingSearches = typesToSearch.length;
+                        const keywordsToSearch = cat.extraKeywords || [];
+                        let pendingSearches = typesToSearch.length + keywordsToSearch.length;
                         const sharedHandle = (results, status, pagination) => {
                             const ok = status === google.maps.places.PlacesServiceStatus.OK
                                 || status === google.maps.places.PlacesServiceStatus.ZERO_RESULTS;
                             if (ok && Array.isArray(results)) all.push(...results);
+                            // Surface non-OK statuses (other than the
+                            // expected ZERO_RESULTS) in DevTools so a
+                            // silent "API key denied" / "INVALID_REQUEST"
+                            // doesn't leave the user staring at an empty
+                            // map without a clue.
+                            if (!ok) {
+                                console.warn(`[POI ${cat.key}] Places search status=${status}`);
+                            }
                             if (pagination && pagination.hasNextPage && all.length < 60) {
                                 setTimeout(() => pagination.nextPage(), 200);
                             } else if (--pendingSearches === 0) {
-                                resolve(all);
+                                // Dedupe by place_id — the same place
+                                // can come back from multiple parallel
+                                // queries (CVS via type='pharmacy' AND
+                                // keyword='pharmacy'), and twin markers
+                                // would clutter the map.
+                                const seen = new Set();
+                                const deduped = [];
+                                for (const p of all) {
+                                    if (!p?.place_id || seen.has(p.place_id)) continue;
+                                    seen.add(p.place_id);
+                                    deduped.push(p);
+                                }
+                                resolve(deduped);
                             }
                         };
-                        typesToSearch.forEach(t => {
-                            if (cat.searchStrategy === 'distance') {
-                                svc.nearbySearch({
-                                    location: center,
-                                    rankBy: google.maps.places.RankBy.DISTANCE,
-                                    type: t,
-                                }, sharedHandle);
-                            } else {
-                                svc.nearbySearch({
-                                    location: center,
-                                    radius: 50000,
-                                    type: t,
-                                }, sharedHandle);
-                            }
-                        });
+                        const runSearch = (extra) => {
+                            const base = cat.searchStrategy === 'distance'
+                                ? { location: center, rankBy: google.maps.places.RankBy.DISTANCE }
+                                : { location: center, radius: 50000 };
+                            svc.nearbySearch({ ...base, ...extra }, sharedHandle);
+                        };
+                        typesToSearch.forEach(t => runSearch({ type: t }));
+                        keywordsToSearch.forEach(kw => runSearch({ keyword: kw }));
                     });
                     placesPending[key] = promise;
                     promise.then(list => {
@@ -977,7 +1015,7 @@ export function renderHome() {
                         // '*_restaurant'). Categories without a matcher
                         // (parks, medical, worship, etc.) keep every
                         // result Google's nearbySearch returns.
-                        if (!isPrimaryMatch(cat.key, place.types)) return;
+                        if (!isPrimaryMatch(cat.key, place.types, place.name)) return;
                         const rating = typeof place.rating === 'number' ? place.rating : 0;
                         if (rating < minRating) return;
                         const m = dropPlaceMarker(cat, place);
