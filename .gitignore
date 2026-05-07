@@ -45,3 +45,8 @@ scratch/algeria.json
 # Playwright artifacts
 test-results/
 playwright-report/
+
+# pytest-cov binary data + html report (regenerated on every CI run)
+.coverage
+htmlcov/
+.pytest_cache/
