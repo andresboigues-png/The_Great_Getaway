@@ -1,5 +1,4 @@
-// @ts-check
-// schemas.js — Hand-rolled validators for app boundaries (server data + localStorage).
+// schemas.ts — Hand-rolled validators for app boundaries (server data + localStorage).
 //
 // Goal: bad data fails loudly with a useful message at the boundary, instead
 // of silently corrupting STATE and crashing 5 levels deep with a cryptic

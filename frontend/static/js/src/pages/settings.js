@@ -579,7 +579,7 @@ export function renderSettings() {
      *  validateLoadedState. */
     function ensurePoiPrefs() {
         if (!STATE.preferences) {
-            STATE.preferences = { mapDefaultPois: ['sights', 'parks', 'transit'], poiFilters: {}, pillEpicenters: {}, poiAnchoring: {}, poiVisible: {} };
+            STATE.preferences = { mapDefaultPois: ['sights', 'parks', 'transit'], poiFilters: {}, pillEpicenters: {}, poiAnchoring: {}, poiVisible: {}, enabledPois: {} };
         }
         if (!STATE.preferences.poiFilters || typeof STATE.preferences.poiFilters !== 'object') {
             STATE.preferences.poiFilters = {};

@@ -17,6 +17,6 @@
         "allowSyntheticDefaultImports": true,
         "esModuleInterop": true
     },
-    "include": ["frontend/static/js/src/**/*.js", "frontend/static/js/src/**/*.d.ts"],
+    "include": ["frontend/static/js/src/**/*.js", "frontend/static/js/src/**/*.ts", "frontend/static/js/src/**/*.d.ts"],
     "exclude": ["node_modules", "frontend/static/js/app.bundle.js", "scratch", "tests"]
 }

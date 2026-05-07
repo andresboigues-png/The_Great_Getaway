@@ -116,6 +116,25 @@ export interface Trip {
      *  users can tick items off while planning each day. Source of
      *  truth — toggling done on a day modal writes to the same array. */
     checklist?: TripChecklistItem[];
+    /** Owner-only privacy toggle. When true, future create / archive /
+     *  join events on this trip are NOT broadcast to friends' Actions
+     *  feeds. Mirrored on the server. */
+    actionsHidden?: boolean;
+    /** ISO timestamp when this trip was archived. Set in main.js when
+     *  the user archives; persisted server-side. */
+    archivedAt?: string;
+    /** Trip-wide saved places. Each entry pairs a Google Place identity
+     *  with To-do / AI-shortlist tickboxes — the consolidated list
+     *  replaces the older split between manual + AI lists. */
+    markedPlaces?: MarkedPlace[];
+    /** Trip-wide documents store. Each entry has an optional `dayId`;
+     *  trip-wide entries carry `dayId === Trip Genesis`. The Documents
+     *  tab presents a UNION of these + legacy day.tickets via
+     *  tripMedia.js's getAllTripDocuments(). */
+    documents?: TripDocument[];
+    /** Trip-wide photos store. Same union model as `documents` (see
+     *  tripMedia.js). */
+    photos?: TripPhoto[];
 }
 
 /** Single row in `Trip.checklist`. `id` is a stable client-generated
@@ -155,11 +174,63 @@ export interface TripDay {
 export interface Ticket {
     name: string;
     url: string;
+    /** Stable id when present; legacy entries lack one and tripMedia.js
+     *  synthesises a `${dayId}#${index}` fallback for delete handlers. */
+    id?: string;
+    /** ISO timestamp when the ticket was added. Optional — legacy rows
+     *  have none and the UI hides the "added Xd ago" label in that case. */
+    addedAt?: string;
 }
 
 export interface Document {
     name: string;
     url: string;
+    id?: string;
+    addedAt?: string;
+}
+
+/** Trip-wide document entry (new canonical store). Surfaced UNION-style
+ *  with legacy day.tickets via tripMedia.js. `dayId` of Trip Genesis
+ *  means trip-wide; any other day id means scoped to that day. */
+export interface TripDocument {
+    id?: string;
+    name: string;
+    url: string;
+    dayId?: string | null;
+    addedAt?: string;
+}
+
+/** Trip-wide photo entry. Same shape rules as TripDocument — the
+ *  payload field is `src` (the image URL) instead of `url` + `name`. */
+export interface TripPhoto {
+    id?: string;
+    src: string;
+    dayId?: string | null;
+    addedAt?: string;
+}
+
+/** A place the user has marked on the trip — surfaced in the To-do tab
+ *  (`forManual`) and the AI planner's shortlist (`forAI`). Both flags
+ *  can be true on the same entry. */
+export interface MarkedPlace {
+    id?: string;
+    /** Human-readable name. */
+    name?: string;
+    /** Reverse-geocoded street address — populated post-pick when
+     *  available; the To-do detail card and place modal use it. */
+    address?: string;
+    /** Google Place identifier when available — used to ground AI plans. */
+    placeId?: string;
+    lat?: number;
+    lng?: number;
+    /** Visible in the manual To-do shortlist tab. */
+    forManual?: boolean;
+    /** Considered by the AI planner when generating itineraries. */
+    forAI?: boolean;
+    /** Optional category emoji / icon for legend pinning. */
+    icon?: string;
+    /** ISO timestamp when added. */
+    addedAt?: string;
 }
 
 export interface Expense {
@@ -280,6 +351,51 @@ export interface AppState {
     guideAllDone?: boolean;
     /** Collapses the home-page Quick Access bar. */
     hideQuickAccess?: boolean;
+    /** User's personal Gemini API key for the AI planner. Bring-your-own
+     *  so we don't burn a shared host key on friends/family rollouts.
+     *  Empty string = use server fallback (GEMINI_API_KEY env var). */
+    geminiApiKey?: string;
+    /** The most recent bulk-import batch, captured so the user can undo
+     *  it from the Expenses → History tab. Replaced (not appended to)
+     *  on every fresh import — only one batch is undoable at a time.
+     *  null after the user has undone or after the batch has been
+     *  cleared. */
+    lastImportBatch?: { tripId: string; expenseIds: string[]; importedAt: string } | null;
+    /** User preferences for the home-page POI pill row + Places search.
+     *  Non-optional: state.js's initializer guarantees presence, and
+     *  loadState() runs `ensurePoiPrefs()`-style backfills on the
+     *  loaded snapshot before any consumer reads. Sub-fields are also
+     *  non-optional for the same reason — read sites can index into
+     *  them directly without `?.` chains. */
+    preferences: AppPreferences;
+}
+
+/** Shape of `AppState.preferences`. Every sub-record is keyed by the
+ *  POI category key (`restaurants`, `sights`, etc.) defined in
+ *  pages/home.js's POI_CATEGORIES.
+ *  - `mapDefaultPois` — legacy seed for "default-on" pills (kept for
+ *    backward compat; all pills are visible by default now).
+ *  - `poiFilters` — per-pill filter overrides. Currently only
+ *    `minRating` is consumed; missing entries fall back to the pill's
+ *    `defaultMinRating` from POI_CATEGORIES.
+ *  - `pillEpicenters` — per-trip search-center anchor. Shape:
+ *    { [tripId]: dayId }. Falls back to the trip's Genesis day.
+ *  - `poiAnchoring` — per-pill override of "always genesis" vs
+ *    "follow user-picked epicenter". Empty / missing = use the pill's
+ *    `useGenesisAlways` flag from POI_CATEGORIES.
+ *  - `poiVisible` — which pills appear in the home pill row. Missing
+ *    key OR true = visible; false = hidden. Default {} = "all pills
+ *    visible".
+ *  - `enabledPois` — per-trip persistence of which pills the user had
+ *    toggled ON. Restored on render so navigation doesn't drop the
+ *    user's pill set. */
+export interface AppPreferences {
+    mapDefaultPois: string[];
+    poiFilters: Record<string, { minRating?: number }>;
+    pillEpicenters: Record<string, string>;
+    poiAnchoring: Record<string, 'epicenter' | 'genesis'>;
+    poiVisible: Record<string, boolean>;
+    enabledPois: Record<string, string[]>;
 }
 
 /** Event names emitted via state.emit / subscribed via state.subscribe. */
@@ -293,11 +409,54 @@ declare global {
         googleMapsApiKey?: string;
         isGoogleAuthenticated?: boolean;
         activeMap?: unknown;
+        /** Optional API base override injected at build time (used for
+         *  preview / staging deployments). Read by constants.ts to
+         *  decide whether `_post` etc. hit a non-default origin. */
+        __GG_API_BASE__?: string;
         /** Google Identity SDK on window once gsi/client loads. */
         google?: any;
+        /** Google Identity callback registered by profile.js — referenced
+         *  from the GIS button's `data-callback` attribute. */
+        handleGoogleLogin?: (response: unknown) => void;
+        /** Last-used Settings → General sub-tab. Kept on window so the
+         *  re-render preserves "I was on the Pins sub-tab" without
+         *  routing through STATE. */
+        __ggGeneralSubTab?: string;
     }
-    /** Loaded via <script> from Google Identity / Maps. */
+    /** Loaded via <script> from Google Identity / Maps. The `google`
+     *  variable is `any` for runtime ergonomics; the nested `google.maps`
+     *  namespace below gives type-position usages (`google.maps.Marker`)
+     *  a place to resolve to without pulling in @types/google.maps. */
     const google: any;
+    namespace google {
+        namespace maps {
+            // Everything `any` — we don't model the Maps API here, we
+            // just need the namespace to exist so JSDoc type annotations
+            // like `@type {google.maps.Marker | null}` resolve cleanly.
+            type Map = any;
+            type Marker = any;
+            type Polyline = any;
+            type LatLng = any;
+            type LatLngLiteral = any;
+            type LatLngBounds = any;
+            type LatLngBoundsLiteral = any;
+            type MapOptions = any;
+            type MarkerOptions = any;
+            type InfoWindow = any;
+            type Geocoder = any;
+            type DirectionsService = any;
+            type DirectionsRenderer = any;
+            type Data = any;
+            namespace places {
+                type Autocomplete = any;
+                type AutocompleteService = any;
+                type AutocompletionRequest = any;
+                type PlacesService = any;
+                type PlaceResult = any;
+                type AutocompletePrediction = any;
+            }
+        }
+    }
     /** Loaded via chart.js CDN. */
     const Chart: any;
     /** Loaded via SheetJS CDN. */

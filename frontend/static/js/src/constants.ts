@@ -1,39 +1,36 @@
-// @ts-check
-// src/constants.js
+// src/constants.ts
 
 // ── App-wide route + event keys ────────────────────────────────────────────
 // Canonical names for everything stringly-typed across the app — page routes
-// (consumed by router.js) and pub/sub event names (consumed by state.js).
+// (consumed by router.ts) and pub/sub event names (consumed by state.ts).
 // `emit`/`subscribe`/`navigate` are typed against these so a typo like
 // PAGES.HOMEX or EVENTS.STATE_CHANGD fails typecheck instead of silently
 // no-oping at runtime. Plain string literals matching the values still pass
 // (back-compat — no need for a sweeping refactor of every call site).
 
-/**
- * @typedef {'home'|'expenses'|'upload'|'insights'|'settings'|'personalization'|'budgets'|'collections'|'ai'|'settlement'|'friends'|'profile'|'feed'|'todo'} PageName
- */
 export const PAGES = {
-    HOME: /** @type {PageName} */ ('home'),
-    EXPENSES: /** @type {PageName} */ ('expenses'),
-    UPLOAD: /** @type {PageName} */ ('upload'),
-    INSIGHTS: /** @type {PageName} */ ('insights'),
-    SETTINGS: /** @type {PageName} */ ('settings'),
-    PERSONALIZATION: /** @type {PageName} */ ('personalization'),
-    BUDGETS: /** @type {PageName} */ ('budgets'),
-    COLLECTIONS: /** @type {PageName} */ ('collections'),
-    AI: /** @type {PageName} */ ('ai'),
-    SETTLEMENT: /** @type {PageName} */ ('settlement'),
-    FRIENDS: /** @type {PageName} */ ('friends'),
-    PROFILE: /** @type {PageName} */ ('profile'),
-    FEED: /** @type {PageName} */ ('feed'),
-    TODO: /** @type {PageName} */ ('todo'),
-};
+    HOME: 'home',
+    EXPENSES: 'expenses',
+    UPLOAD: 'upload',
+    INSIGHTS: 'insights',
+    SETTINGS: 'settings',
+    PERSONALIZATION: 'personalization',
+    BUDGETS: 'budgets',
+    COLLECTIONS: 'collections',
+    AI: 'ai',
+    SETTLEMENT: 'settlement',
+    FRIENDS: 'friends',
+    PROFILE: 'profile',
+    FEED: 'feed',
+    TODO: 'todo',
+} as const;
+export type PageName = typeof PAGES[keyof typeof PAGES];
 
-/** @typedef {'state:changed'|'notifications:changed'} EventName */
 export const EVENTS = {
-    STATE_CHANGED: /** @type {EventName} */ ('state:changed'),
-    NOTIFICATIONS_CHANGED: /** @type {EventName} */ ('notifications:changed'),
-};
+    STATE_CHANGED: 'state:changed',
+    NOTIFICATIONS_CHANGED: 'notifications:changed',
+} as const;
+export type EventName = typeof EVENTS[keyof typeof EVENTS];
 
 // ── API base URL ──────────────────────────────────────────────────────────
 // Empty string by default — fetches resolve relative to the current origin,
@@ -41,8 +38,8 @@ export const EVENTS = {
 // hit `localhost`, so they set `window.__GG_API_BASE__` at app-boot time
 // (e.g. in the Capacitor wrapper config) to point at the deployed backend.
 // Read once, frozen — there's no use case for changing it after init.
-export const API_BASE_URL = (typeof window !== 'undefined' && /** @type {any} */ (window).__GG_API_BASE__)
-    ? /** @type {string} */ (/** @type {any} */ (window).__GG_API_BASE__)
+export const API_BASE_URL: string = (typeof window !== 'undefined' && window.__GG_API_BASE__)
+    ? window.__GG_API_BASE__
     : '';
 
 export const COUNTRIES = [

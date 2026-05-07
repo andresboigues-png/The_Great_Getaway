@@ -1,5 +1,4 @@
-// @ts-check
-// src/utils.js
+// src/utils.ts
 
 import { TRAVEL_DATA_DEFAULT, DESTINATION_DATA, CONVERSION_RATES, CURRENCY_SYMBOLS, LOCALE_TO_CURRENCY } from './constants.js';
 import { STATE } from './state.js';
@@ -106,8 +105,7 @@ const DEST_ALIASES = {
     'sao tome and principe': 'Sao Tome And Principe',
 };
 const _destLookup = (() => {
-    /** @type {Record<string, string>} */
-    const map = {};
+    const map: Record<string, string> = {};
     for (const key of Object.keys(DESTINATION_DATA)) {
         map[key.toLowerCase()] = key;
     }
@@ -228,17 +226,20 @@ function resolveDestinationData(countryStr) {
     return null;
 }
 
-const _imgUrl = (id) => `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=1600&q=80`;
+const _imgUrl = (id: string) => `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=1600&q=80`;
 
 /**
- * @param {import('./types').Trip | null | undefined} trip
- * @param {string[]} [extraCountryCodes] - additional ISO codes discovered
- *   beyond the trip's primary one. Used by the home page to widen the
- *   slideshow's quote/fact roster once polygons reveal that the trip
- *   touches multiple countries (e.g. Castro Marim + a day pin in Spain).
- * @returns {{ quotes: string[]; images: string[]; facts: string[] }}
+ * Pull the slideshow roster (quotes / images / facts) for a trip.
+ *
+ * @param extraCountryCodes - additional ISO codes discovered beyond the
+ *   trip's primary one. Used by the home page to widen the slideshow's
+ *   quote/fact roster once polygons reveal that the trip touches multiple
+ *   countries (e.g. Castro Marim + a day pin in Spain).
  */
-export function getMediaForTrip(trip, extraCountryCodes = []) {
+export function getMediaForTrip(
+    trip: import('./types').Trip | null | undefined,
+    extraCountryCodes: string[] = [],
+): { quotes: string[]; images: string[]; facts: string[] } {
     if (!trip) return { quotes: [TRAVEL_DATA_DEFAULT.q], images: [_imgUrl(TRAVEL_DATA_DEFAULT.i)], facts: [TRAVEL_DATA_DEFAULT.f] };
 
     // Build a unique list of ISO codes most-specific first. Trip's own
@@ -246,9 +247,9 @@ export function getMediaForTrip(trip, extraCountryCodes = []) {
     // extras (typically discovered later via reverse-geocoded day-pin
     // outliers). Order matters: the slideshow shows entries in the order
     // we return them.
-    const codes = [];
-    const seenCodes = new Set();
-    const pushCode = (c) => {
+    const codes: string[] = [];
+    const seenCodes = new Set<string>();
+    const pushCode = (c: string | null | undefined) => {
         const up = (c || '').toUpperCase();
         if (up && !seenCodes.has(up)) {
             seenCodes.add(up);
@@ -258,8 +259,7 @@ export function getMediaForTrip(trip, extraCountryCodes = []) {
     pushCode(trip.countryCode);
     for (const c of extraCountryCodes) pushCode(c);
 
-    /** @type {{q:string,i:string,f:string}[]} */
-    const entries = [];
+    const entries: {q: string, i: string, f: string}[] = [];
     for (const code of codes) {
         const data = resolveByCountryCode(code);
         if (data) entries.push(data);
@@ -308,7 +308,19 @@ export function showLiquidAlert(msg) {
     }, 3000);
 }
 
-export function showConfirmModal(options = {}) {
+interface ConfirmModalOptions {
+    title?: string;
+    message?: string;
+    confirmText?: string;
+    confirmColor?: string;
+    /** When set, the confirm button stays disabled until the user types
+     *  this exact string into a safety input. The string also appears as
+     *  the prompt label, so pass a short uppercase word ("DELETE"). */
+    requireInput?: string | false;
+    onConfirm?: () => void;
+}
+
+export function showConfirmModal(options: ConfirmModalOptions = {}) {
     const {
         title = "Are you sure?",
         message = "This action cannot be undone.",
@@ -342,13 +354,14 @@ export function showConfirmModal(options = {}) {
         `,
     });
 
-    const confirmBtn = /** @type {HTMLButtonElement} */ (root.querySelector('#modalConfirmBtn'));
-    const cancelBtn = /** @type {HTMLButtonElement} */ (root.querySelector('#modalCancelBtn'));
-    const input = /** @type {HTMLInputElement | null} */ (root.querySelector('#safetyInput'));
+    const confirmBtn = root.querySelector('#modalConfirmBtn') as HTMLButtonElement | null;
+    const cancelBtn = root.querySelector('#modalCancelBtn') as HTMLButtonElement | null;
+    const input = root.querySelector('#safetyInput') as HTMLInputElement | null;
+    if (!confirmBtn || !cancelBtn) return;
 
     if (requireInput && input) {
         input.oninput = (e) => {
-            const target = /** @type {HTMLInputElement} */ (e.target);
+            const target = e.target as HTMLInputElement;
             const isMatch = target.value.trim().toUpperCase() === requireInput.toUpperCase();
             // .btn-primary:disabled handles opacity/cursor — just toggle the
             // disabled attr. Keep the per-state shadow tweak inline since
@@ -374,15 +387,10 @@ export function generateId() {
 // Typed querySelector for elements the caller knows it just inserted.
 // Returns HTMLElement (so .style/.onclick are accessible) and throws on miss.
 // For inputs/buttons that need .value/.disabled, cast inline at the call site.
-/**
- * @param {ParentNode} parent
- * @param {string} selector
- * @returns {HTMLElement}
- */
-export function q(parent, selector) {
+export function q(parent: ParentNode, selector: string): HTMLElement {
     const el = parent.querySelector(selector);
     if (!el) throw new Error(`Element not found: ${selector}`);
-    return /** @type {HTMLElement} */ (el);
+    return el as HTMLElement;
 }
 
 /** HTML-escape a user-controlled string before splicing it into a template

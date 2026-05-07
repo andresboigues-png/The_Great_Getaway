@@ -83,14 +83,16 @@ function bundleEvents(events) {
             continue;
         }
         const key = `${ev.actor?.id || 'anon'}|${ev.type}|${dayKey(ev.when)}`;
-        if (!groups.has(key)) {
-            groups.set(key, []);
+        let bucket = groups.get(key);
+        if (!bucket) {
+            bucket = [];
+            groups.set(key, bucket);
             // Reserve slot in `out` so the bundle lands at the position
             // of its first-seen event. Slot becomes the placeholder we
             // resolve in the second pass.
             out.push(/** @type {any} */ ({ __slot: key }));
         }
-        groups.get(key).push(ev);
+        bucket.push(ev);
     }
     // Second pass: replace each placeholder with either the lone event
     // (group size 1) or a synthesised bundle (group size ≥2).
@@ -365,9 +367,12 @@ function actionIconSvg(name, filled = false) {
  */
 function actionButton(opts) {
     const wrapStyle = `display:inline-flex; align-items:center; gap:6px;${opts.marginLeftAuto ? ' margin-left:auto;' : ''}`;
-    const showChip = typeof opts.count === 'number';
     const threshold = opts.countThreshold ?? 1;
-    const chipText = showChip && opts.count >= threshold ? String(opts.count) : '';
+    // typeof guard narrows opts.count to number for the comparison below.
+    const showChip = typeof opts.count === 'number';
+    const chipText = showChip && /** @type {number} */ (opts.count) >= threshold
+        ? String(opts.count)
+        : '';
     return `
         <span style="${wrapStyle}">
             <button type="button" class="icon-btn-circle ${opts.className}" style="--accent: ${opts.accent};" ${opts.dataAttrs || ''} title="${opts.title}" aria-label="${opts.title}">

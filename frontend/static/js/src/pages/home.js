@@ -403,7 +403,7 @@ let _onSelectedDayChange = null;
  *  Cross-category bleed (hotel surfacing under "Restaurants" because
  *  Google tags it with both) is handled by isPrimaryMatch() below.
  *
- *  @type {{key: string, placesType: string|null, searchStrategy: 'distance'|'wide', icon: string, label: string, color: string, defaultMinRating: number, tooltip: string}[]} */
+ *  @type {{key: string, placesType: string|null, searchStrategy: 'distance'|'wide', icon: string, label: string, color: string, defaultMinRating: number, tooltip: string, useGenesisAlways?: boolean, extraPlacesTypes?: string[], extraKeywords?: string[]}[]} */
 export const POI_CATEGORIES = [
     { key: 'restaurants', placesType: 'restaurant',         searchStrategy: 'distance', icon: '🍽️', label: 'Restaurants',     color: '#ff9500', defaultMinRating: 4, tooltip: 'Closest restaurants (≤60) to the search center — defaults to 4★+, tweak in Settings → General' },
     { key: 'supermarkets',placesType: 'supermarket',        searchStrategy: 'distance', icon: '🛒', label: 'Supermarkets',    color: '#34c759', defaultMinRating: 0, tooltip: 'Closest supermarkets and grocery stores' },
@@ -453,7 +453,7 @@ export const POI_CATEGORIES = [
  *  hospital pin and pharmacies were indistinguishable from hospitals
  *  on the map.
  *  @param {{key: string, icon: string}} cat
- *  @param {{types?: string[]}} place
+ *  @param {{types?: string[], name?: string}} place
  *  @returns {string}
  */
 function pickPlaceIcon(cat, place) {
@@ -1066,7 +1066,10 @@ export function renderHome() {
                  *  promise instead of firing duplicate searches —
                  *  fixes the race where rapid on/off/on left orphan
                  *  markers from the first fetch on top of the second.
-                 *  @type {Record<string, Promise<any[]>>} */
+                 *  Sparse — keys are only present while a fetch is in
+                 *  flight (deleted in the .finally below), so reads
+                 *  must treat missing keys explicitly.
+                 *  @type {Record<string, Promise<any[]> | undefined>} */
                 const placesPending = {};
 
                 /** Single shared InfoWindow — reused across every Places
@@ -1993,10 +1996,11 @@ export function renderHome() {
                     cancelAnimationFrame(_dayRouteAnimationFrame);
                     _dayRouteAnimationFrame = null;
                 }
+                /** @type {{lat: number, lng: number}[]} */
                 const dayPath = currentTripDays
                     .filter(d => d.dayNumber > 0 && d.lat != null && (d.lon != null || d.lng != null))
                     .sort((a, b) => a.dayNumber - b.dayNumber)
-                    .map(d => ({ lat: d.lat, lng: d.lon || d.lng }));
+                    .map(d => ({ lat: Number(d.lat), lng: Number(d.lon ?? d.lng) }));
                 if (dayPath.length >= 2) {
                     // Electric cyan reads as classic neon. Falls in
                     // the same blue family as the day badges so the
@@ -3835,8 +3839,12 @@ const openTripDocumentsModal = (trip) => {
         const groups = new Map();
         docs.forEach(d => {
             const key = d.dayId || '__orphan__';
-            if (!groups.has(key)) groups.set(key, []);
-            groups.get(key).push(d);
+            let bucket = groups.get(key);
+            if (!bucket) {
+                bucket = [];
+                groups.set(key, bucket);
+            }
+            bucket.push(d);
         });
         const sortedKeys = [...groups.keys()].sort((a, b) => {
             if (a === '__orphan__') return 1;
@@ -4528,7 +4536,7 @@ const openPhotoLightbox = (src) => {
  *  /api/upload/...) always work.
  *
  *  @param {string} url
- *  @param {string} [name] — display name in the modal header
+ *  @param {string} [name] - display name in the modal header
  */
 export const openPdfPreview = (url, name) => {
     if (!url) return;
@@ -5180,7 +5188,7 @@ const openDayDetail = (dayId) => {
             const time = /** @type {'morning' | 'afternoon' | 'evening'} */ (btn.dataset.time);
             if (!pid || !time) return;
             const place = allShortlist.find(p => p.placeId === pid);
-            if (!place) return;
+            if (!place || !place.name) return;
             const isThere = planVals[time].includes(place.name.toLowerCase());
             // Restore the canonical label, then prefix with ✓ if present.
             const label = time === 'morning' ? '🌅 AM' : time === 'afternoon' ? '☀️ PM' : '🌙 Eve';
@@ -5278,7 +5286,7 @@ const openDayDetail = (dayId) => {
         const time = /** @type {HTMLElement} */ (btn).dataset.time;
         if (!pid || !time || !trip) return;
         const place = allShortlist.find(p => p.placeId === pid);
-        if (!place) return;
+        if (!place || !place.name) return;
         const ta = /** @type {HTMLTextAreaElement | null} */
             (root.querySelector(`textarea.plan-input[data-time="${time}"]`));
         if (!ta) return;
@@ -5348,7 +5356,7 @@ const openDayDetail = (dayId) => {
                 const place = allShortlist.find(p => p.placeId === pid);
                 if (!place) return;
                 const matches = !query
-                    || place.name.toLowerCase().includes(query)
+                    || (place.name || '').toLowerCase().includes(query)
                     || (place.address || '').toLowerCase().includes(query);
                 row.style.display = matches ? '' : 'none';
                 if (matches) visible++;

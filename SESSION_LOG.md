@@ -7,6 +7,125 @@ Newest entry at the top.
 
 ---
 
+## Session N+2 — 2026-05-07 — Phase A1 begins (type-net + first 3 .ts files)
+
+**Goal**: Start Phase A1 — real TypeScript pipeline. Old setup was JSDoc +
+`@ts-check` on 18 source files, no .ts. Replace it stepwise so each
+batch ships green.
+
+**Stage 0 done — drove the type-net to zero errors before renaming
+anything**. Baseline was 118 typecheck errors with `allowJs: true,
+strictNullChecks: true`. Fixed via:
+
+- **`types.d.ts` backfill** for fields the runtime uses but the type
+  defs had drifted away from:
+    - `AppState.preferences` (now non-optional, fully shaped via new
+      exported `AppPreferences` interface — `mapDefaultPois`,
+      `poiFilters`, `pillEpicenters`, `poiAnchoring`, `poiVisible`,
+      `enabledPois`, all non-optional). state.js's initialiser already
+      guarantees presence; `ensurePoiPrefs()`-style backfills become
+      belt-and-suspenders.
+    - `AppState.geminiApiKey`, `AppState.lastImportBatch` (the
+      bulk-import undo handle).
+    - `Trip.actionsHidden` (the privacy silence toggle), `Trip.archivedAt`
+      (ISO timestamp), `Trip.markedPlaces`, `Trip.documents`, `Trip.photos`.
+    - New exported types: `MarkedPlace`, `TripDocument`, `TripPhoto`.
+    - `Ticket.id`, `Ticket.addedAt` (synthesised id fallback in tripMedia).
+    - `Window.handleGoogleLogin`, `Window.__ggGeneralSubTab`, `Window.__GG_API_BASE__`.
+    - Minimal `namespace google.maps` declaration so JSDoc type
+      annotations like `@type {google.maps.Marker | null}` resolve
+      cleanly without pulling in `@types/google.maps`.
+- **Real source bugs fixed at root** (not silenced):
+    - `pages/home.js`: POI category JSDoc widened to allow
+      `useGenesisAlways?`, `extraPlacesTypes?`, `extraKeywords?`;
+      `pickPlaceIcon` JSDoc widened to include `name?`; em-dash in JSDoc
+      `@param` description replaced with hyphen-minus (TS1127 invalid
+      char in JSDoc parser); `dayPath` mapper explicitly coerces to
+      `Number(...)` and types result as `{lat: number, lng: number}[]`;
+      `groups.get(key).push(d)` rewritten to bind a `bucket` ref so TS
+      doesn't have to track the post-`set` invariant; three `place.name`
+      sites null-guarded; `placesPending` typed as
+      `Record<string, Promise<any[]> | undefined>` so the existence
+      check actually narrows.
+    - `pages/budgets.js`: `deleteBudgetOnServer(id).catch(...)` was
+      going to TypeError when `STATE.user` is null (the helper returns
+      `undefined` in that path). Added an `if (p)` guard.
+    - `pages/feed.js`: same `groups.get(key).push(ev)` pattern as home
+      — bound a local `bucket`. Tightened the `opts.count >= threshold`
+      comparison after the `typeof === 'number'` guard.
+    - `tripMedia.js`: `addTripPhoto` / `addTripDocument` parameter
+      JSDoc widened to accept `string | null` for `dayId` (was
+      inferring `null | undefined` from the `= null` default).
+- **Defensive ensures aligned with the new non-optional shape**:
+  the loadState ensure block in `state.js` and `ensurePoiPrefs()` in
+  `pages/settings.js` now create the full preferences object
+  (including `poiVisible` and `enabledPois`), matching the
+  `AppPreferences` contract. TS now sees the if-fallback branch as
+  satisfying the type rather than producing a partial.
+
+Net: **118 → 0 typecheck errors with no `any` escape hatches and no
+silenced warnings**.
+
+**Stage 1 partial — first 3 utility files migrated to real `.ts`**:
+
+- `constants.js → constants.ts`. Removed `// @ts-check` (no-op in
+  `.ts`); converted `@typedef` → `export type` via `as const` +
+  `typeof PAGES[keyof typeof PAGES]` pattern; removed the
+  triple-`@type` cast soup around the `__GG_API_BASE__` read (`Window`
+  type now declares the field).
+- `utils.js → utils.ts`. Converted 7 JSDoc casts to TS `as` casts;
+  promoted `getMediaForTrip` and helper signatures to native TS
+  parameter types (the `@param` JSDoc was being silently dropped once
+  TS saw a `= []` default and inferred `never[]`); added a
+  `ConfirmModalOptions` interface for the previously-untyped
+  `showConfirmModal({...})` argument; added explicit `string[]` /
+  `Set<string>` annotations on `codes` / `seenCodes` so push targets
+  carry the right type.
+- `schemas.js → schemas.ts`. Header tweak only — the file is pure
+  hand-rolled validators with no JSDoc casts.
+- `tsconfig.json`: `include` widened to accept both `.js` and `.ts`
+  during the transition (some files are still `.js`; rename-by-rename
+  pace is intentional).
+
+**Verified green at end of session**: typecheck (0), lint (0 errors,
+1 pre-existing unused-var warning in `insights.js` carried over from
+a prior session), build (522.91 kB gzip 124.51 kB).
+
+**E2E pre-existing breakage acknowledged**: all 5 Playwright smoke
+tests fail at this commit AND at the base commit `dafc2e7` (verified
+via stash). The login wall added during the post-Phase-G feature
+stretch hides `#sidebar` until the user authenticates; the smoke
+helper clears localStorage and expects the sidebar to render. Not a
+regression from this session's work — picked up cleanly as Phase A2
+work (Playwright suite to ~20 tests covering authenticated flows).
+
+**State at end of session** — `claude/optimistic-bell-9d70a4` branch:
+
+- Stage 0 complete — type-net is green at zero errors.
+- Stage 1 done: `constants.ts`, `utils.ts`, `schemas.ts`.
+- Stage 1 remaining (~10 utility files): `state.js`, `api.js`,
+  `permissions.js`, `companions.js`, `markedPlaces.js`,
+  `googleMapsServices.js`, `tripMedia.js`, `router.js`, `modals.js`,
+  `main.js` (last — also requires updating `vite.config.js` input
+  path).
+- Stage 2 (~14 page files in `pages/`, plus `components/`): smallest
+  first (`insights`, `todo`, `friends`, `budgets`), `home.js` last.
+- Stage 3: enable `"strict": true`, `"noUnusedLocals": true`,
+  `"noImplicitReturns": true` and fix the surfaced errors at root.
+- Stage 4: pre-commit hook + CI gate on typecheck.
+
+**Method note for the next session**: each `.js → .ts` rename
+typically surfaces 5–15 new errors (JSDoc casts that don't carry
+across to `.ts` mode, `never[]` from `[]` defaults without
+annotations, JSDoc on parameters with default values being silently
+dropped). The fix per file is mechanical: convert
+`/** @type {X} */ (expr)` → `expr as X`, add explicit param types to
+functions with default-value parameters, add explicit annotations to
+empty arrays/sets that get pushed into. Aim for one batch per session
+(3–5 files), verify typecheck + build green, commit, move on.
+
+---
+
 ## Session N+1 — 2026-05-07 — Roadmap re-rewrite (priority shift)
 
 **Context**: The previous roadmap (committed earlier today, `26b9c84`)

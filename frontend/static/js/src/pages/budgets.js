@@ -89,7 +89,11 @@ const deleteBudget = (id) => {
             // delete already rendered. If the server rejects we have a
             // mild ghost-budget on next sync, but the UI told the user
             // it's gone so we don't block here.
-            deleteBudgetOnServer(id).catch(err => console.error('Delete budget failed:', err));
+            // deleteBudgetOnServer is a no-op + returns undefined when the
+            // user is logged out; guard before chaining .catch to avoid a
+            // TypeError on the rare logged-out delete path.
+            const p = deleteBudgetOnServer(id);
+            if (p) p.catch(err => console.error('Delete budget failed:', err));
             showLiquidAlert('Budget deleted.');
             navigate('budgets');
         },

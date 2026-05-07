@@ -83,7 +83,10 @@ export function getPhotosForDay(trip, dayId) {
 }
 
 /** Append a new trip-level document. Returns the appended entry so
- *  callers can use the assigned id for follow-up actions. */
+ *  callers can use the assigned id for follow-up actions.
+ *  @param {import('./types').Trip} trip
+ *  @param {{ name: string, url: string, dayId?: string | null }} entry
+ */
 export function addTripDocument(trip, { name, url, dayId = null }) {
     if (!trip || !name || !url) return null;
     if (!Array.isArray(trip.documents)) trip.documents = [];
@@ -99,7 +102,10 @@ export function addTripDocument(trip, { name, url, dayId = null }) {
     return entry;
 }
 
-/** Append a new trip-level photo. */
+/** Append a new trip-level photo.
+ *  @param {import('./types').Trip} trip
+ *  @param {{ src: string, dayId?: string | null }} entry
+ */
 export function addTripPhoto(trip, { src, dayId = null }) {
     if (!trip || !src) return null;
     if (!Array.isArray(trip.photos)) trip.photos = [];
