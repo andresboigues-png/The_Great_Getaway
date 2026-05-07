@@ -3801,42 +3801,6 @@ h1 {
     border-radius: 999px;
 }
 
-/* Trip-travel stats chip — sits in the top-right of the home
-   map, surfaces the duration + distance pulled from the
-   Directions response that powers the route polyline. Glass
-   look + neon-cyan accent so it visually pairs with the route
-   line itself. Only rendered when the Directions call returns
-   useful numbers; the inline display:none default keeps it
-   hidden until populated. */
-.route-stats-chip {
-    position: absolute;
-    top: 14px;
-    right: 14px;
-    z-index: 5;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 14px;
-    background: rgba(0, 25, 50, 0.55);
-    backdrop-filter: blur(20px) saturate(140%);
-    -webkit-backdrop-filter: blur(20px) saturate(140%);
-    border: 1px solid rgba(0, 229, 255, 0.45);
-    border-radius: 999px;
-    color: #ffffff;
-    font-size: 0.78rem;
-    font-weight: 800;
-    letter-spacing: 0.01em;
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18),
-                0 0 12px rgba(0, 229, 255, 0.25);
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
-    pointer-events: none;
-}
-.route-stats-chip__icon {
-    font-size: 0.92rem;
-    line-height: 1;
-    filter: drop-shadow(0 0 6px rgba(0, 229, 255, 0.6));
-}
-
 /* The horizontal "timeline line" — same gradient-fade-to-transparent
    look the old vertical line had, just rotated 90°. Sits behind the
    circles; the white circle backgrounds visually break the line at

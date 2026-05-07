@@ -101,6 +101,7 @@ let _directionsHintLogged = false;
  * @param {{lat:number,lng:number}[]} legs - day pins in order
  * @returns {Promise<{path:{lat:number,lng:number}[], success:number} | null>}
  */
+
 /**
  * Routes API attempt — newer Google Maps Platform endpoint that
  * handles the WHOLE trip in a single HTTP call (origin →
@@ -112,14 +113,13 @@ let _directionsHintLogged = false;
  *     ("rearrange days into the most efficient order") which
  *     legacy Directions doesn't.
  *
- * Returns the same {path, success, totalDurationSec,
- * totalDistanceM} shape as the Directions fallback so the caller
- * can swap them transparently. Returns null on any failure
- * (Routes API not enabled, request error, no path returned) so
- * the caller falls through to Directions.
+ * Returns {path, success} matching the Directions fallback shape.
+ * Returns null on any failure (Routes API not enabled, request
+ * error, no path returned) so the caller falls through to
+ * Directions.
  *
  * @param {{lat:number,lng:number}[]} legs
- * @returns {Promise<{path:{lat:number,lng:number}[], success:number, totalDurationSec:number, totalDistanceM:number} | null>}
+ * @returns {Promise<{path:{lat:number,lng:number}[], success:number} | null>}
  */
 async function fetchTripRouteViaRoutes(legs) {
     const key = /** @type {any} */ (window).googleMapsApiKey || '';
@@ -147,7 +147,7 @@ async function fetchTripRouteViaRoutes(legs) {
                 // returns INVALID_ARGUMENT. Listing only what we
                 // use keeps the response small + cost low (Routes
                 // bills by SKU based on requested fields).
-                'X-Goog-FieldMask': 'routes.duration,routes.distanceMeters,routes.polyline.geoJsonLinestring',
+                'X-Goog-FieldMask': 'routes.polyline.geoJsonLinestring',
             },
             body: JSON.stringify(body),
         });
@@ -171,17 +171,7 @@ async function fetchTripRouteViaRoutes(legs) {
         if (!route || coords.length < 2) return null;
         // GeoJSON coordinates are [lng, lat]; convert to {lat, lng}.
         const path = coords.map(c => ({ lat: c[1], lng: c[0] }));
-        // Duration is a protobuf string like "12345s" — strip the
-        // 's' suffix and coerce to number.
-        const durStr = String(route.duration || '0s');
-        const totalDurationSec = Number(durStr.replace(/s$/, '')) || 0;
-        const totalDistanceM = Number(route.distanceMeters) || 0;
-        return {
-            path,
-            success: legs.length - 1,
-            totalDurationSec,
-            totalDistanceM,
-        };
+        return { path, success: legs.length - 1 };
     } catch (e) {
         console.warn('[GG] fetchTripRouteViaRoutes failed:', e);
         return null;
@@ -203,12 +193,6 @@ async function fetchDayRoutePath(legs) {
     let success = 0;
     /** @type {string | null} */
     let firstFailureStatus = null;
-    // Free-with-the-call stats — Directions responses already
-    // carry per-leg duration + distance. Aggregating here means
-    // the "total trip travel" chip on the map costs zero extra
-    // API hits (no Distance Matrix call needed).
-    let totalDurationSec = 0;
-    let totalDistanceM = 0;
     for (let i = 0; i < legs.length - 1; i++) {
         const origin = legs[i];
         const dest = legs[i + 1];
@@ -230,12 +214,6 @@ async function fetchDayRoutePath(legs) {
             ]);
             const route = /** @type {any} */ (result).routes?.[0];
             const overview = route?.overview_path?.map(p => ({ lat: p.lat(), lng: p.lng() })) || [];
-            // Sum per-leg duration + distance from the route's
-            // first DirectionsLeg (we only request a single leg
-            // per call, so legs[0] is the whole thing).
-            const leg0 = route?.legs?.[0];
-            if (leg0?.duration?.value) totalDurationSec += leg0.duration.value;
-            if (leg0?.distance?.value) totalDistanceM += leg0.distance.value;
             if (overview.length > 0) {
                 if (out.length > 0) out.push(...overview.slice(1));
                 else out.push(...overview);
@@ -265,34 +243,9 @@ async function fetchDayRoutePath(legs) {
             + 'allowed-API restriction list if you have one set.'
         );
     }
-    return out.length >= 2
-        ? { path: out, success, totalDurationSec, totalDistanceM }
-        : null;
+    return out.length >= 2 ? { path: out, success } : null;
 }
 
-/** Format a duration in seconds as a human chip ("4h 32m" / "47m"
- *  / "1d 6h"). Mirrors the units users already see in mapping
- *  apps. Below 60s falls back to "1m" (a 0m chip would read as
- *  broken). */
-function formatDurationChip(sec) {
-    if (!sec || sec < 60) return '1m';
-    const days = Math.floor(sec / 86400);
-    const hours = Math.floor((sec % 86400) / 3600);
-    const minutes = Math.floor((sec % 3600) / 60);
-    if (days > 0) return `${days}d ${hours}h`;
-    if (hours > 0) return `${hours}h ${minutes}m`;
-    return `${minutes}m`;
-}
-
-/** Format meters as a human distance chip. Switches to km above
- *  1000m; uses one decimal until 100km, then drops the decimal so
- *  long-haul totals don't read as "1234.7 km". */
-function formatDistanceChip(m) {
-    if (!m) return '0 m';
-    if (m < 1000) return `${Math.round(m)} m`;
-    const km = m / 1000;
-    return km < 100 ? `${km.toFixed(1)} km` : `${Math.round(km)} km`;
-}
 /** @type {'days' | 'companions' | 'documents' | 'photos'} */
 let activeHomeTab = 'days'; // Sub-tab on the home trip view (Path / Companions / Documents / Photos)
 
@@ -957,17 +910,6 @@ export function renderHome() {
                     <p id="homeQuote" class="cover-card__quote">
                         ${displayQuotes[0] || ''}
                     </p>
-                </div>
-                <!-- Trip-travel stats chip — populated by the
-                     route-line fetcher when Directions returns
-                     duration + distance. Hidden by default; the
-                     async branch below flips display:flex when
-                     numbers are ready. Styled to match the neon
-                     route line so the chip feels like a label
-                     attached to it. -->
-                <div id="homeRouteStats" class="route-stats-chip" style="display:none;">
-                    <span class="route-stats-chip__icon">🚗</span>
-                    <span id="homeRouteStatsText"></span>
                 </div>
             </div>
         `;
@@ -2125,24 +2067,8 @@ export function renderHome() {
                         glowLine.setPath(routedPath);
                         coreLine.setPath(routedPath);
                     };
-                    /** Show the duration + distance stats chip
-                     *  overlaid on the map. Falls back silently if
-                     *  the chip element isn't in the DOM (e.g.,
-                     *  during a hot reload mid-render). */
-                    const applyRouteStats = (durationSec, distanceM) => {
-                        if (!durationSec) return;
-                        const chip = document.getElementById('homeRouteStats');
-                        const text = document.getElementById('homeRouteStatsText');
-                        if (!chip || !text) return;
-                        text.textContent = `${formatDurationChip(durationSec)} · ${formatDistanceChip(distanceM)}`;
-                        chip.style.display = 'inline-flex';
-                    };
                     if (_dayRoutePathCache.has(routeKey)) {
-                        const cached = _dayRoutePathCache.get(routeKey);
-                        applyRoutedPath(cached.path || cached);
-                        if (cached.totalDurationSec) {
-                            applyRouteStats(cached.totalDurationSec, cached.totalDistanceM);
-                        }
+                        applyRoutedPath(_dayRoutePathCache.get(routeKey));
                     } else {
                         fetchDayRoutePath(dayPath).then(result => {
                             // Only cache + apply if at least one leg
@@ -2155,9 +2081,8 @@ export function renderHome() {
                             // session. Skipping the cache means a
                             // future render can retry the API.
                             if (result && result.success > 0) {
-                                _dayRoutePathCache.set(routeKey, result);
+                                _dayRoutePathCache.set(routeKey, result.path);
                                 applyRoutedPath(result.path);
-                                applyRouteStats(result.totalDurationSec, result.totalDistanceM);
                             }
                         }).catch(() => { /* keep straight-line fallback */ });
                     }
