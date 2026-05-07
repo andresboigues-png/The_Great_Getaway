@@ -3632,15 +3632,14 @@ h1 {
 }
 .path-chips::-webkit-scrollbar { height: 0; width: 0; }
 
-/* The horizontal "timeline line" — connects the day chips. The old
-   version was a faded gradient (5% → 40% → 5% blue) that read more
-   as ambient mist than an actual line; per user this needed to be
-   an unambiguous DRAWN line between days. Now it's a solid blue
-   stroke at a usable opacity, 3px tall, with rounded ends. The
-   white circle backgrounds (box-shadow on .path-chip) still knock
-   out the line at each chip so it reads as a string-of-beads, and
-   the two short fade tails at the very edges keep the line from
-   ending in a hard cut against the strip background. */
+/* The horizontal "timeline line" — same gradient-fade-to-transparent
+   look the old vertical line had, just rotated 90°. Sits behind the
+   circles; the white circle backgrounds visually break the line at
+   each day so it reads as a string-of-beads. SYMMETRIC fade
+   (transparent → solid → transparent) because the chips are
+   center-justified — without symmetric fade you get a hard line
+   trailing off into the empty space past the last chip on one
+   side. */
 .path-chips::before {
     content: '';
     position: absolute;
@@ -3648,13 +3647,12 @@ h1 {
     right: 14px;
     top: 50%;
     transform: translateY(-50%);
-    height: 3px;
+    height: 2px;
     background: linear-gradient(90deg,
-        rgba(0, 113, 227, 0) 0%,
-        rgba(0, 113, 227, 0.55) 8%,
-        rgba(0, 113, 227, 0.55) 92%,
-        rgba(0, 113, 227, 0) 100%);
-    border-radius: 2px;
+        rgba(0, 113, 227, 0.05) 0%,
+        rgba(0, 113, 227, 0.4) 50%,
+        rgba(0, 113, 227, 0.05) 100%);
+    border-radius: 1px;
     z-index: 0;
     pointer-events: none;
 }

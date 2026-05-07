@@ -1615,6 +1615,44 @@ export function renderHome() {
                     }
                 });
 
+                // Day-to-day route line — connects consecutive
+                // numbered day pins (Day 1 → Day 2 → … → Day N) so
+                // the trip's journey reads at a glance on the map.
+                // Skips Genesis (dayNumber === 0) — Genesis is a
+                // trip-wide anchor, not a calendar position, so
+                // including it as the route's "Day 0" would imply
+                // travel from the hub to Day 1 which isn't a real
+                // travel leg. Dashed stroke + 55% opacity so it
+                // doesn't compete with the day pins themselves but
+                // still draws the eye along the path. Standard
+                // dashed-polyline technique for Google Maps:
+                // strokeOpacity:0 hides the solid stroke, then a
+                // repeating short-segment icon paints the dashes.
+                const dayPath = currentTripDays
+                    .filter(d => d.dayNumber > 0 && d.lat != null && (d.lon != null || d.lng != null))
+                    .sort((a, b) => a.dayNumber - b.dayNumber)
+                    .map(d => ({ lat: d.lat, lng: d.lon || d.lng }));
+                if (dayPath.length >= 2) {
+                    new google.maps.Polyline({
+                        path: dayPath,
+                        map: map,
+                        geodesic: true,
+                        strokeOpacity: 0,
+                        icons: [{
+                            icon: {
+                                path: 'M 0,-1 0,1',
+                                strokeOpacity: 0.55,
+                                strokeColor: '#0071e3',
+                                strokeWeight: 3,
+                                scale: 4,
+                            },
+                            offset: '0',
+                            repeat: '14px',
+                        }],
+                        zIndex: 50,
+                    });
+                }
+
                 // Re-attach map click listener if we are in the middle of pinning
                 if (activeMapClickListener) {
                     map.addListener('click', (e) => activeMapClickListener({ latlng: { lat: e.latLng.lat(), lng: e.latLng.lng() } }));
