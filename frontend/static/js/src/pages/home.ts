@@ -15,7 +15,9 @@ import { getMediaForTrip, showLiquidAlert, formatDayDate, q, showConfirmModal, g
 // + locally so the trip's create/archive/join events stop bleeding
 // into friends' Actions feeds.
 import { upsertDay, uploadMedia, deleteDayOnServer, upsertTrip, setTripActionsHidden } from '../api.js';
-import { fetchTimeZone, formatLocalTime, fetchWeatherForecast, pickDaySummary, streetViewUrl } from '../googleMapsServices.js';
+import { fetchTimeZone, formatLocalTime, streetViewUrl } from '../googleMapsServices.js';
+import { paintWeatherChips, loadAndPaintWeather, type WeatherForecast } from './home/weather.js';
+import { renderDayRoutePolyline } from './home/routePolyline.js';
 import { navigate } from '../router.js';
 import { showPersTab } from './settings.js';
 import { openNewTripModal, openAddDayModal, openEditTripModal, openCompanionPickerModal, openTripMembersModal } from '../modals.js';
@@ -45,204 +47,14 @@ export function stopHomeSlideshow() {
 let activeMarkers: Record<string, any> = {}; // Cache of Leaflet markers by day ID
 let editingDayId: string | null = null; // ID of the day currently being geolocated/pinned
 let activeMapClickListener: ((e: any) => void) | null = null; // Reference to the active map click handler
-// rAF id for the day-route polyline pulse animation. Cleared on
-// every home render so stacked timers can't leak when the user
-// flips trips, navigates away, or just re-renders the page.
-let _dayRouteAnimationFrame: number | null = null;
 
 // setInterval id for the trip-header local-time clock. The clock
 // reads from a cached time-zone offset and updates every 30s so
 // the displayed local time stays correct without re-fetching the
-// Time Zone API. Cleared on every home render for the same
-// leak-prevention reason as the rAF above.
+// Time Zone API. Cleared on every home render so a stacked
+// interval can't leak when the user flips trips, navigates away,
+// or just re-renders the page.
 let _localTimeClockInterval: ReturnType<typeof setInterval> | null = null;
-
-// Cache for the road-following polyline path keyed by trip + day
-// coordinates. Directions API costs per request — without this,
-// every home re-render (which is many; tab switches, day pin
-// edits, etc.) would re-fetch routes that haven't changed. Key
-// includes the rounded coords so a tiny drag moves the cache
-// entry but the SAME route doesn't re-fetch on identical pins.
-const _dayRoutePathCache = new Map();
-
-// Whether we've already logged the "Directions API not enabled"
-// hint this session. Without this guard we'd spam the console on
-// every render of every trip.
-let _directionsHintLogged = false;
-
-/**
- * Fetch a road-following path connecting consecutive day pins via
- * the Directions API. Returns:
- *   - { path, success } where success is the count of legs that
- *     actually got a route from the API. Zero successes means the
- *     caller should NOT update the polyline (the returned path is
- *     just the straight-line fallback, identical to what's already
- *     shown).
- *   - null when prerequisites aren't met (no Maps SDK, single
- *     point, etc.).
- *
- * Strategy: one call per leg (Day N → Day N+1). Legs that fail
- * (international flights with no driving route, quota errors,
- * Directions API not enabled on the project) fall back to a
- * straight segment for THAT leg only — the rest of the trip
- * still gets road-followed. So a "Paris → Lyon → Tokyo" trip's
- * Paris→Lyon leg follows roads even though Lyon→Tokyo can't.
- *
- * Common gotcha worth surfacing: the Directions API is a
- * SEPARATE API from Maps JavaScript / Places. It needs to be
- * explicitly enabled in the Google Cloud Console + the API key
- * needs Directions in its allowed-API restriction list. If
- * neither is set up, every leg returns REQUEST_DENIED and the
- * line silently stays straight. We log a one-shot hint to the
- * console (gated by _directionsHintLogged) so a developer can
- * spot it without it spamming on every render.
- *
- * @param {{lat:number,lng:number}[]} legs - day pins in order
- * @returns {Promise<{path:{lat:number,lng:number}[], success:number} | null>}
- */
-
-/**
- * Routes API attempt — newer Google Maps Platform endpoint that
- * handles the WHOLE trip in a single HTTP call (origin →
- * intermediates → destination). Beats the legacy Directions API
- * on:
- *   - Cost: one billed request vs. one per leg.
- *   - Latency: one network round trip.
- *   - Future features: Routes supports waypoint optimization
- *     ("rearrange days into the most efficient order") which
- *     legacy Directions doesn't.
- *
- * Returns {path, success} matching the Directions fallback shape.
- * Returns null on any failure (Routes API not enabled, request
- * error, no path returned) so the caller falls through to
- * Directions.
- *
- * @param {{lat:number,lng:number}[]} legs
- * @returns {Promise<{path:{lat:number,lng:number}[], success:number} | null>}
- */
-async function fetchTripRouteViaRoutes(legs) {
-    const key = (window as any).googleMapsApiKey || '';
-    if (!key || !Array.isArray(legs) || legs.length < 2) return null;
-    const origin = legs[0];
-    const destination = legs[legs.length - 1];
-    const intermediates = legs.slice(1, -1).map(p => ({
-        location: { latLng: { latitude: p.lat, longitude: p.lng } },
-    }));
-    const body = {
-        origin: { location: { latLng: { latitude: origin.lat, longitude: origin.lng } } },
-        destination: { location: { latLng: { latitude: destination.lat, longitude: destination.lng } } },
-        intermediates,
-        travelMode: 'DRIVE',
-        polylineQuality: 'HIGH_QUALITY',
-        polylineEncoding: 'GEO_JSON_LINESTRING',
-    };
-    try {
-        const res = await fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Goog-Api-Key': key,
-                // Field mask is required — without it the API
-                // returns INVALID_ARGUMENT. Listing only what we
-                // use keeps the response small + cost low (Routes
-                // bills by SKU based on requested fields).
-                'X-Goog-FieldMask': 'routes.polyline.geoJsonLinestring',
-            },
-            body: JSON.stringify(body),
-        });
-        if (!res.ok) {
-            // 403 = API not enabled / key restriction / billing
-            // missing. Surface the hint once per session.
-            if (res.status === 403 && !_directionsHintLogged) {
-                _directionsHintLogged = true;
-                console.warn(
-                    '[GG] Routes API request was denied (HTTP 403). '
-                    + 'If you want road-following routes via the newer Routes API, '
-                    + 'enable "Routes API" on the Google Cloud project tied to your '
-                    + 'Maps API key. Falling back to legacy Directions API for now.',
-                );
-            }
-            return null;
-        }
-        const data = await res.json();
-        const route = data?.routes?.[0];
-        const coords = route?.polyline?.geoJsonLinestring?.coordinates || [];
-        if (!route || coords.length < 2) return null;
-        // GeoJSON coordinates are [lng, lat]; convert to {lat, lng}.
-        const path = coords.map(c => ({ lat: c[1], lng: c[0] }));
-        return { path, success: legs.length - 1 };
-    } catch (e) {
-        console.warn('[GG] fetchTripRouteViaRoutes failed:', e);
-        return null;
-    }
-}
-
-async function fetchDayRoutePath(legs) {
-    if (!Array.isArray(legs) || legs.length < 2) return null;
-    // Try Routes API first — single network round trip for the
-    // whole trip, lower per-call cost. Falls back to legacy
-    // Directions API (per-leg) when Routes isn't enabled, returns
-    // an error, or can't compute a route.
-    const viaRoutes = await fetchTripRouteViaRoutes(legs);
-    if (viaRoutes) return viaRoutes;
-    if (typeof google === 'undefined' || !google.maps?.DirectionsService) return null;
-    const service = new google.maps.DirectionsService();
-    /** @type {{lat:number,lng:number}[]} */
-    const out: { lat: number; lng: number }[] = [];
-    let success = 0;
-        let firstFailureStatus: string | null = null;
-    for (let i = 0; i < legs.length - 1; i++) {
-        const origin = legs[i];
-        const dest = legs[i + 1];
-        try {
-            // Promisify the callback API. Wrap in a 6s timeout so a
-            // hung request doesn't block subsequent legs.
-            const result = await Promise.race([
-                new Promise((resolve, reject) => {
-                    service.route({
-                        origin,
-                        destination: dest,
-                        travelMode: google.maps.TravelMode.DRIVING,
-                    }, (response, status) => {
-                        if (status === 'OK' && response) resolve(response);
-                        else reject(new Error(String(status)));
-                    });
-                }),
-                new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 6000)),
-            ]);
-            const route = (result as any).routes?.[0];
-            const overview = route?.overview_path?.map(p => ({ lat: p.lat(), lng: p.lng() })) || [];
-            if (overview.length > 0) {
-                if (out.length > 0) out.push(...overview.slice(1));
-                else out.push(...overview);
-                success++;
-                continue;
-            }
-        } catch (err) {
-            const status = err instanceof Error ? err.message : String(err);
-            if (!firstFailureStatus) firstFailureStatus = status;
-        }
-        // Failed leg (or empty overview) — straight segment.
-        if (out.length === 0) out.push(origin);
-        out.push(dest);
-    }
-    // One-shot console hint when we suspect the Directions API
-    // isn't enabled. REQUEST_DENIED is the canonical signal; we
-    // also flag a 100%-failure rate as suspicious so the user
-    // gets feedback even if Google returns a different status
-    // for misconfigured projects.
-    if (!_directionsHintLogged && success === 0 && legs.length >= 2) {
-        _directionsHintLogged = true;
-        console.warn(
-            '[GG] Day-route line stayed straight — Directions API may not be enabled.\n'
-            + 'Status from first leg: ' + (firstFailureStatus || 'unknown') + '\n'
-            + 'Fix: enable "Directions API" on the Google Cloud project '
-            + 'tied to your Maps API key, and add Directions to the key\'s '
-            + 'allowed-API restriction list if you have one set.'
-        );
-    }
-    return out.length >= 2 ? { path: out, success } : null;
-}
 
 let activeHomeTab: 'days' | 'companions' | 'documents' | 'photos' = 'days'; // Sub-tab on the home trip view (Path / Companions / Documents / Photos)
 
@@ -1946,148 +1758,14 @@ export function renderHome() {
                 // Day-to-day route line — connects consecutive
                 // numbered day pins (Day 1 → Day 2 → … → Day N) so
                 // the trip's journey reads at a glance on the map.
-                // Skips Genesis (dayNumber === 0) — Genesis is a
-                // trip-wide anchor, not a calendar position, so
-                // including it as the route's "Day 0" would imply
-                // travel from the hub to Day 1 which isn't a real
-                // travel leg.
-                //
-                // Visual: a neon stack — three Polylines layered to
-                // simulate a glow, all the same path:
-                //   1. wide soft halo (weight 14, ~10% opacity)
-                //   2. medium glow (weight 7, ~30% opacity)
-                //   3. crisp core (weight 2.5, ~95% opacity) — flows
-                //      via animated icon offset for a "current
-                //      running through the line" feel
-                // Then a single rAF loop animates the opacity on the
-                // halo + glow with a 1.6s sine wave so the line
-                // breathes. The core's dash offset shifts at a
-                // constant rate ("marching ants") which gives it
-                // direction — Day 1 → Day N, never reversed.
-                //
-                // Cleanup: cancel any prior animation frame before
-                // starting a new one. Without this, every home
-                // re-render would stack a new pulser on top of the
-                // old, and after a few navigations the page would
-                // be running 5+ pulse loops in parallel.
-                if (_dayRouteAnimationFrame !== null) {
-                    cancelAnimationFrame(_dayRouteAnimationFrame);
-                    _dayRouteAnimationFrame = null;
-                }
-                /** @type {{lat: number, lng: number}[]} */
-                const dayPath = currentTripDays
-                    .filter(d => d.dayNumber > 0 && d.lat != null && (d.lon != null || d.lng != null))
-                    .sort((a, b) => a.dayNumber - b.dayNumber)
-                    .map(d => ({ lat: Number(d.lat), lng: Number(d.lon ?? d.lng) }));
-                if (dayPath.length >= 2) {
-                    // Electric cyan reads as classic neon. Falls in
-                    // the same blue family as the day badges so the
-                    // route stays visually adjacent to the rest of
-                    // the trip-blue palette (just brighter).
-                    const NEON = '#00e5ff';
-                    // Initial path: straight segments between day
-                    // pins (instant — renders before any network
-                    // call returns). The road-following path is
-                    // fetched async below; when it resolves, we
-                    // setPath on all three layers and the line
-                    // gracefully snaps onto roads.
-                    const haloLine = new google.maps.Polyline({
-                        path: dayPath,
-                        map: map,
-                        geodesic: true,
-                        strokeColor: NEON,
-                        strokeOpacity: 0.10,
-                        strokeWeight: 14,
-                        zIndex: 48,
-                    });
-                    const glowLine = new google.maps.Polyline({
-                        path: dayPath,
-                        map: map,
-                        geodesic: true,
-                        strokeColor: NEON,
-                        strokeOpacity: 0.32,
-                        strokeWeight: 7,
-                        zIndex: 49,
-                    });
-                    const coreLine = new google.maps.Polyline({
-                        path: dayPath,
-                        map: map,
-                        geodesic: true,
-                        strokeColor: NEON,
-                        strokeOpacity: 0.95,
-                        strokeWeight: 2.5,
-                        zIndex: 50,
-                        // The icon below is a tiny vertical stroke
-                        // repeated along the path; offset shifting
-                        // makes it flow.
-                        icons: [{
-                            icon: {
-                                path: 'M 0,-1 0,1',
-                                strokeOpacity: 0,  // dashes are invisible — we just need the offset to walk
-                                strokeColor: NEON,
-                                strokeWeight: 0,
-                                scale: 0,
-                            },
-                            offset: '0',
-                            repeat: '20px',
-                        }],
-                    });
-                    // Road-follow upgrade. Cache by tripId + the
-                    // exact pin coords (rounded to 4dp ≈ 11m so we
-                    // don't re-fetch on every micro-drag). On cache
-                    // hit, swap paths immediately. On miss, kick off
-                    // the Directions API call and swap when it
-                    // resolves; failed legs fall back to straight
-                    // segments inside fetchDayRoutePath. If the user
-                    // navigates away mid-fetch the polylines are
-                    // already detached from the map, so the setPath
-                    // calls become no-ops — no cleanup needed.
-                    const routeKey = `${activeTrip?.id || ''}:` + dayPath.map(p => `${p.lat.toFixed(4)},${p.lng.toFixed(4)}`).join('|');
-                    const applyRoutedPath = (routedPath) => {
-                        if (!routedPath || routedPath.length < 2) return;
-                        haloLine.setPath(routedPath);
-                        glowLine.setPath(routedPath);
-                        coreLine.setPath(routedPath);
-                    };
-                    if (_dayRoutePathCache.has(routeKey)) {
-                        applyRoutedPath(_dayRoutePathCache.get(routeKey));
-                    } else {
-                        fetchDayRoutePath(dayPath).then(result => {
-                            // Only cache + apply if at least one leg
-                            // got a real route. When success === 0
-                            // the path is just straight segments
-                            // (Directions API misconfigured / quota
-                            // hit / etc.) — caching that would lock
-                            // the line to straight forever even if
-                            // the user fixes the API later this
-                            // session. Skipping the cache means a
-                            // future render can retry the API.
-                            if (result && result.success > 0) {
-                                _dayRoutePathCache.set(routeKey, result.path);
-                                applyRoutedPath(result.path);
-                            }
-                        }).catch(() => { /* keep straight-line fallback */ });
-                    }
-                    // Animation. Uses requestAnimationFrame for
-                    // smoothness + automatic pause when the tab is
-                    // backgrounded (vs setInterval which keeps
-                    // burning CPU). Phase increments by ~0.06rad per
-                    // frame at 60fps → roughly 1.7s per pulse, slow
-                    // enough to feel alive without distracting.
-                    const start = performance.now();
-                    const tick = (now) => {
-                        const t = (now - start) / 1000; // seconds
-                        const sine = Math.sin(t * (2 * Math.PI / 1.6)); // 1.6s pulse
-                        const breathe = 0.5 + 0.5 * sine; // 0..1
-                        // Halo + glow swing wider; core just hums up
-                        // and down a bit so it never blacks out.
-                        haloLine.setOptions({ strokeOpacity: 0.06 + 0.10 * breathe });
-                        glowLine.setOptions({ strokeOpacity: 0.20 + 0.20 * breathe });
-                        coreLine.setOptions({ strokeOpacity: 0.85 + 0.10 * breathe });
-                        _dayRouteAnimationFrame = requestAnimationFrame(tick);
-                    };
-                    _dayRouteAnimationFrame = requestAnimationFrame(tick);
-                }
+                // Genesis (dayNumber === 0) is filtered out inside
+                // the helper. The function paints a neon three-stack
+                // polyline (halo / glow / core), upgrades to road-
+                // following via fetchDayRoutePath when the API
+                // resolves, and runs a 1.6s breathe rAF loop. It
+                // also cancels any prior pulse so re-renders don't
+                // stack timers.
+                renderDayRoutePolyline(map, currentTripDays, activeTrip);
 
                 // Re-attach map click listener if we are in the middle of pinning
                 if (activeMapClickListener) {
@@ -2913,45 +2591,14 @@ export function renderHome() {
          *  the selected day. After the swap, scroll the selected chip
          *  into view so off-screen chips don't strand the user. */
         const pathTabInner = (daysContainer.querySelector('#pathTabInner') as HTMLElement | null);
-        // Weather forecast state + paint helper — DECLARED BEFORE
-        // repaintPath because repaintPath calls applyWeatherChips,
-        // and `let _weatherForecast` (block-scoped, TDZ in strict-
-        // mode modules) would throw if accessed via the call below
-        // before its declaration runs. Original ordering had the
-        // declaration after `repaintPath()` was invoked, which broke
-        // the entire home render with a ReferenceError on every
-        // initial load. The fetch + assignment stays after the
-        // first repaint — only the declaration moved earlier.
-                let _weatherForecast: any[] | null = null;
-        function applyWeatherChips() {
-            if (!_weatherForecast || !pathTabInner) return;
-            // Index forecastDays by YYYY-MM-DD for O(1) lookups.
-            const byDate = new Map();
-            for (const fd of _weatherForecast) {
-                const dd = fd?.displayDate || fd?.interval?.startTime?.slice(0, 10);
-                if (!dd) continue;
-                // displayDate is a structured {year, month, day}
-                // object on some endpoints. Normalise to ISO.
-                const iso = (typeof dd === 'string')
-                    ? dd
-                    : `${dd.year}-${String(dd.month).padStart(2, '0')}-${String(dd.day).padStart(2, '0')}`;
-                byDate.set(iso, fd);
-            }
-            pathTabInner.querySelectorAll('.day-card__weather').forEach(el => {
-                const date = (el as HTMLElement).dataset.weatherDate;
-                if (!date) return;
-                const fd = byDate.get(date);
-                const summary = fd ? pickDaySummary(fd) : null;
-                if (!summary || summary.tempC == null) {
-                    (el as HTMLElement).innerHTML = '';
-                    return;
-                }
-                (el as HTMLElement).innerHTML = `
-                    <span class="day-card__weather-icon" title="${esc(summary.label)}">${summary.icon}</span>
-                    <span class="day-card__weather-temp">${summary.tempC}°</span>
-                `;
-            });
-        }
+        // Weather forecast state. Declared BEFORE repaintPath because
+        // the closure below calls paintWeatherChips with this
+        // reference, and `let` (TDZ in strict-mode modules) would
+        // throw if accessed before its declaration runs. The forecast
+        // arrives async and gets assigned in the .then() below; the
+        // initial repaint just paints empty chip slots, then the
+        // post-fetch repaint fills them in.
+        let _weatherForecast: WeatherForecast = null;
 
         const repaintPath = () => {
             if (!pathTabInner) return;
@@ -2962,16 +2609,14 @@ export function renderHome() {
             // (chip clicks rebuild the day cards, so the chip slot
             // elements are fresh and need re-population from the
             // cached forecast).
-            applyWeatherChips();
+            paintWeatherChips(_weatherForecast, pathTabInner);
         };
         _repaintPathTab = repaintPath;
         repaintPath();
 
         if (activeTrip && typeof activeTrip.lat === 'number' && typeof activeTrip.lng === 'number') {
-            fetchWeatherForecast(activeTrip.lat, activeTrip.lng).then(forecast => {
-                if (!forecast || forecast.length === 0) return;
+            loadAndPaintWeather(activeTrip.lat, activeTrip.lng, pathTabInner).then((forecast) => {
                 _weatherForecast = forecast;
-                applyWeatherChips();
             });
         }
 
