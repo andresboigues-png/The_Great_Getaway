@@ -7,6 +7,74 @@ Newest entry at the top.
 
 ---
 
+## Session N+1 — 2026-05-07 — Roadmap re-rewrite (priority shift)
+
+**Context**: The previous roadmap (committed earlier today, `26b9c84`)
+optimized for "ship to stores fast." User clarified the actual goal is
+the OPPOSITE — _not_ shipping fast, but having a craftsman-grade platform
+that the founder uses, friends use, and a future co-founder can walk
+into. Quality is the only metric; speed is irrelevant.
+
+**Rewrote `ROADMAP.md` from scratch** with that as the optimization
+target. Time estimates removed entirely. Phases re-ordered to maximize
+safety:
+
+1. **Phase A — Safety net.** Real TypeScript pipeline (was JSDoc +
+   @ts-check), pytest coverage on every API route shipped post-Phase G,
+   Playwright suite to ~20 tests covering critical user flows, visual
+   regression baseline, schema validation at boundaries (zod). Nothing
+   else happens without this — every later refactor + migration lives
+   under this net.
+
+2. **Phase B — Foundation.** Split `pages/home.js` (5,378 lines) into
+   `pages/home/` modules; build the `/components` preview route; design
+   tokens + CSS architecture; split `src/main.py` (2,653 lines) into
+   Flask Blueprints. Refactor with the safety net's protection.
+
+3. **Phase C — TypeScript + React migration.** Strangler-pattern,
+   leaf-up topology starting with `insights.ts` (smallest), ending with
+   `home.ts` (biggest, last). Each migration: build .tsx version, mount
+   via existing router, all tests green, zero pixel diff vs vanilla
+   version, then delete old file. No big-bang rewrite ever.
+
+4. **Phase D — Quality polish.** Mobile-first responsive, dark mode,
+   accessibility, animations, performance, i18n scaffold. Affordable
+   only because Phase C made the codebase React + tokens.
+
+5. **Phase E — Production deploy + observability.** IONOS, Gunicorn,
+   structured logging, Sentry production tier, automated backups with
+   _verification_, uptime monitor, deploy automation, rollback plan.
+
+6. **Phase F — PWA polish.** Installable, offline, app icon set,
+   Lighthouse PWA ≥90.
+
+7. **Phase G — Maps Grounding for AI accuracy.** Independent (⤴), can
+   slot anywhere after Phase A.
+
+8. **Phase H — Documentation + onboarding kit.** README, ARCHITECTURE,
+   CONTRIBUTING, DECISIONS (ADRs), TESTING, per-component docs,
+   walkthrough video, day-one onboarding checklist. Done when "real
+   engineer clones the repo cold, has app running in 15 min, ships a
+   non-trivial change in their first day."
+
+9. **Future / Optional**: Capacitor + App Store. Out of the main flow.
+   PWA covers every stated goal.
+
+**Key decisions logged**:
+
+- Framework migration moves into the main flow (was deferred).
+- Real TypeScript replaces JSDoc + @ts-check (was the right call when
+  scrappy, wrong call for co-founder-ready).
+- Native app deferred indefinitely — distribution-only play.
+
+**State at end of session**: code shipped through `dbd0bb5` last session
+(companions panel re-render + center). The new roadmap pushes next
+session toward Phase A1 — migrating from `.js` to `.ts` strict-mode
+pipeline. The safety-net work compounds: every later phase becomes
+substantially less risky once A is complete.
+
+---
+
 ## Session N — 2026-05-07 — Roadmap rewrite (post Phase G)
 
 **Why this entry**: a long stretch of feature work happened after Phase G

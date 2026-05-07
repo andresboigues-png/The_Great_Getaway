@@ -1,35 +1,41 @@
 # The Great Getaway — Roadmap
 
-The plan from "MVP we demo to friends" → "live on a real domain" → "iOS/Android
-in the stores" → "polished product that scales", without the codebase rotting.
-Each phase ships independently — the app keeps working at every checkpoint.
+The plan from "MVP we demo to friends" → "craftsman-grade platform a co-founder
+can walk into" → "live on a real domain that friends + the founder use every
+week."
 
-See `VISION.md` for the product north star and `SESSION_LOG.md` for end-of-session
-recaps.
+The single optimization target is **safety + correctness + craftsmanship**, not
+speed. Every phase is sized to "do it right." Each one ends with green tests,
+working app, no regressions, and a codebase strictly stronger than it was
+before.
 
-Last revised: 2026-05-07 — after the social/feed layer, the Maps Platform
-integrations (Routes / Weather / Time Zone / Street View), the day-route
-neon polyline, and the home/path/companions UI overhaul.
+See `VISION.md` for the product north star and `SESSION_LOG.md` for end-of-
+session recaps.
+
+Last revised: 2026-05-07 — after the priority shift away from store-shipping
+toward "perfect platform, eventually co-founder-ready."
 
 ---
 
 ## How this document works
 
-- **Phases are sized for ~1–3 sessions each** (a session ≈ one ~3-hour Claude
-  Max block). Some phases are intentionally larger and span multiple sessions.
-- **Definition of done** at the bottom of each phase. Don't move on until the
-  bullets are checked.
-- **`SESSION_LOG.md` gets an entry every session** so the next one opens cold
-  and continues warm.
-- **Order matters where one phase unblocks another.** Independent phases
-  carry an ⤴ tag and can be picked up in any order.
-- **The cross-cutting principles** at the very bottom apply to every phase.
+- **Phases run in order.** A few are flagged ⤴ — independent, can be picked up
+  whenever. Everything else has a real dependency on what came before.
+- **No time estimates.** Each phase takes as long as it takes to do safely.
+  The trade-off is always quality over throughput.
+- **Definition of done** at the end of each phase. Don't move on until every
+  bullet checks.
+- **`SESSION_LOG.md` gets an entry every session.** New sessions open by
+  reading this + `SESSION_LOG.md` + `VISION.md`.
+- **The cross-cutting principles at the bottom apply to every phase.** They
+  are non-negotiable: the safety net that makes the rest of the roadmap
+  achievable without breaking the app.
 
 ---
 
 ## Where we are (snapshot, 2026-05-07)
 
-### Already done — historical
+### Already shipped — historical
 
 | #          | Phase                                                    | Status |
 | ---------- | -------------------------------------------------------- | ------ |
@@ -45,142 +51,314 @@ neon polyline, and the home/path/companions UI overhaul.
 
 ### Done since Phase G but never roadmap-tracked
 
-These shipped in working sessions; they're "done" but were not formally listed
-as phases. Capturing them so the new roadmap reflects reality.
+These shipped in working sessions; capturing here so the new roadmap reflects
+reality.
 
-- **Social / feed layer**: feed posts (`feed_posts`), comments
-  (`feed_comments`), likes (`feed_likes`), bookmarks (`feed_bookmarks`),
-  reposts, share-to-feed flow, unshare flow, per-trip Silence Actions
-  toggle, trip card on share/repost events with View click-through to the
-  read-only public-trip detail page.
-- **Public-trip detail page**: shared `renderArchivedTripDetail` accepts
-  trip ID OR trip object so feed-shared trips from non-friends render via
-  `GET /api/public-trip/<id>`.
+- **Social / feed layer**: feed posts, comments, likes, bookmarks, reposts,
+  share-to-feed flow, unshare flow, per-trip Silence Actions toggle, trip
+  card on share/repost events with View click-through to the read-only
+  public-trip detail page.
+- **Public-trip detail page**: shared `renderArchivedTripDetail` accepts trip
+  ID OR trip object; foreign trips fetch via `GET /api/public-trip/<id>`.
 - **Maps Platform integrations**: Routes API (single-call road-following
-  polyline), Directions fallback, Time Zone (header local-clock chip),
+  polyline with Directions fallback), Time Zone (header local-clock chip),
   Weather Forecast (per-day chips on the wheel), Street View Static (pin
-  InfoWindow thumbnails), Geocoding (country geocoder fallback already
-  used).
-- **Day wheel + path overhaul**: Genesis pinned, selected-day cards,
-  centered chip strip with `safe center`, today chip with orange accent +
-  "TODAY" badge, neon-cyan pulsating route polyline (`requestAnimationFrame`
-  driven, road-following).
-- **Pill epicenter follows wheel**: POI pills now anchor on the wheel-
-  selected day's pin (Genesis fallback). Active pills re-fetch on
-  selection change via `_onSelectedDayChange` callback.
-- **Home modal redesigns**: day-detail modal split into AM/PM/Eve tab
-  strip (with line-count chips), Trip Checklist panel, Done as proper
-  footer; Documents + Photos moved out of trip tab nav into Genesis-option
-  popup modals.
+  InfoWindow thumbnails), Geocoding (country geocoder fallback).
+- **Day wheel + path overhaul**: Genesis pinned, selected-day cards, centered
+  chip strip with `safe center`, today chip with orange accent + "TODAY"
+  badge, neon-cyan pulsating route polyline (`requestAnimationFrame`-driven,
+  road-following).
+- **Pill epicenter follows wheel**: POI pills anchor on the wheel-selected
+  day's pin (Genesis fallback). Active pills re-fetch on selection change.
+- **Home modal redesigns**: day-detail modal with AM/PM/Eve tab strip,
+  Trip Checklist panel, Done as proper footer; Documents + Photos as
+  Genesis-option popup modals.
 - **Trip tab nav redesign**: capsule-style segmented toggle (Path /
-  Companions) with blue→purple active gradient, replaced underline tabs.
-- **Companions card**: full glass card with gradient header + role-aware
-  CTA, replacing the old single-pill layout.
+  Companions) with blue→purple active gradient.
+- **Companions card**: full glass card with gradient header + role-aware CTA.
 - **AI planner**: bullet-list output (`items: string[]`) replacing prose
-  descriptions; date sync with edit-trip modal so changing dates rebases
-  existing days.
+  descriptions; date sync with edit-trip modal.
 - **Profile + collections**: country-color map matches by ISO `countryCode`
-  first (falls back to name), GG-style InfoWindow with gradient header,
-  literal footprint glyph, archived-trip detail re-stamps `tripDays` /
-  `expenses` on every pull.
-- **Settings**: General → tabbed sub-nav (Map pills + placeholder for
-  future tabs); categories table → card list with color stripes;
-  format-mapping table → card list with gradient column chips and
-  mandatory-variable stripes; saved-format rows redesigned.
-- **Demo bug-fix batch**: dates rebase on edit, profile pic
-  `referrerpolicy=no-referrer`, `Apr 6` date format, footprint country
-  match by ISO, archived days populated on pull, neon route polyline,
-  Bullet AI plans, day-route line follows roads via Routes API.
-- **Notification dropdown**: ~96% opaque (was 82%, hard to read).
-- **Feed avatars**: clickable → user profile.
-- **Phase H1 (partial)**: pytest + Alembic + rate limiting were
-  scaffolded with Phase G; smoke e2e tests still at 5.
+  first; GG-style InfoWindow with gradient header; literal footprint glyph.
+- **Settings**: General → tabbed sub-nav; categories table → card list;
+  format-mapping table → card list with gradient column chips.
+- **Demo bug-fix batch**: dates rebase on edit, profile pic referrer policy,
+  `Apr 6` date format, archived days populated on pull, Bullet AI plans.
+- **Notification dropdown** at 96% opacity (was 82%).
+- **Feed avatars** clickable → user profile.
 
 ### Tech debt accumulated, not yet addressed
 
-- **`pages/home.js` is 5,378 lines.** Still readable but at the edge of
-  what one file should be.
-- **`src/main.py` is 2,653 lines.** Same issue — every endpoint lives in
-  one Flask module.
-- **CSS file is 5,032 lines.** Mostly fine because it's organized by
-  section, but no design-token discipline yet (still many ad-hoc `rgba`
-  values inline).
+- **`pages/home.js` is 5,378 lines.** Edge of bearable.
+- **`src/main.py` is 2,653 lines.** Same shape — every endpoint in one file.
+- **`index.css` is 5,032 lines.** Organized but no token discipline yet —
+  many ad-hoc `rgba` values and gradients inline in JS.
+- **Test coverage is shallow.** 5 Playwright smokes, partial pytest. No
+  visual-regression. No tests at all on much of the social layer.
+- **No real type system.** JSDoc + `// @ts-check` is "type hints"; not
+  the same as a real TypeScript pipeline. ~30 latent type-drift warnings
+  from `tsc --noEmit` (most pre-existing, none crashing — but the warnings
+  prove the type contracts are slipping).
+- **Frontend renders via template literals + `innerHTML`.** Works, but is
+  the wrong substrate for a co-founder to walk into.
 - **No production deploy.** App runs only on localhost.
-- **No dark mode.** Some surfaces look great in white-on-blue; others
-  would benefit from a dark variant for travel evenings / phone reading.
-- **PWA stub never finished** (Phase L was deferred): manifest exists,
-  service worker is a no-op, no app icons in proper sizes, no offline
-  story.
-- **No native app.** Stretch goal but on the roadmap.
+- **No dark mode.** No full accessibility pass.
+- **PWA stub never finished.** Manifest exists, service worker is a no-op,
+  no app icon set, no offline story.
 
 ---
 
-## The big picture
+## The optimization principle
+
+Every decision in this roadmap weighs the same way:
+
+> **Will this make the codebase safer, more correct, easier for a co-founder
+> to walk into, and harder to break?**
+
+If yes, it goes in. If no, it doesn't. **Speed is not the metric.** A phase
+that takes twice as long but adds zero regressions and ships a measurably
+better codebase wins over a fast phase that ships features but accumulates
+debt.
+
+The shape of the roadmap reflects this:
 
 ```
-NOW ─────────► PRODUCTION ─────────► REAL APP ─────────► SCALE
-              (this month)        (this quarter)        (next year)
-
-Phase 1   Foundation hardening    Mobile + offline      Native shell
-Phase 2   Production deploy       Refactor pass         Modules + grounding
-Phase 3   Domain + backups        PWA polish            Store submission
-Phase 4   Feature backlog drip    Capacitor             Growth + monetization
+NOW
+ │
+ ├─ Phase A: Safety net (tests + types)
+ │     ─ Make every later change risk-free.
+ │
+ ├─ Phase B: Foundation (split + tokens)
+ │     ─ Refactor the monoliths under the safety net's protection.
+ │
+ ├─ Phase C: TypeScript + React migration
+ │     ─ The substrate co-founders expect; happens AFTER the
+ │       refactor so we migrate clean modules, not 5,000-line files.
+ │
+ ├─ Phase D: Quality polish (mobile, dark mode, a11y, perf)
+ │     ─ Now affordable because the platform is React + tokens.
+ │
+ ├─ Phase E: Production deploy + observability
+ │     ─ Friends finally use it on a real URL.
+ │
+ ├─ Phase F: PWA polish (installable, offline)
+ │     ─ As good as a native app for our purposes.
+ │
+ ├─ Phase G: Maps Grounding for AI accuracy
+ │     ─ Independent quality win; can be done earlier if scheduling
+ │       allows.
+ │
+ ├─ Phase H: Documentation + onboarding kit
+ │     ─ The "co-founder lands and ships in week one" deliverable.
+ │
+ └─ Future / Optional: native app via Capacitor + App Store
+       ─ Not needed for the stated goals. Skip unless distribution
+         changes the calculus.
 ```
 
-The roadmap below splits into **four tracks**:
+The order maximizes safety: **tests first**, then refactor under that net,
+then migrate to React with the refactor's clean modules, then polish the
+result, then ship it.
 
-1. **Foundation** — code organization, tests, observability, docs (Phase 1).
-2. **Production** — IONOS deploy, real domain, backups, monitoring
-   (Phase 2–3).
-3. **Mobile + native** — PWA polish → Capacitor → store submission
-   (Phase 4–6).
-4. **Feature work** — the backlog from `FUTURE_FEATURES.md` and `VISION.md`,
-   plus the strategic discovery / business-module layer (Phase 7+).
-
-Foundation is **always blocking**. Everything else parallelizes around it.
+Reordering is dangerous. The first three phases compound — if you skip
+Phase A and refactor without tests, regressions pile up; if you skip Phase B
+and migrate to React on a 5,000-line monolith, the React port inherits the
+mess; if you skip Phase C and try to polish a vanilla codebase, you're
+throwing labor at the wrong abstraction.
 
 ---
 
-## Phase 1 — Foundation hardening (~10–14h, 4–5 sessions)
+## Phase A — Safety net
 
-The current code works but won't scale to the next year of feature work
-without a clean-up pass. This phase is the "make it boring to work in"
-investment. Nothing user-visible changes; everything downstream gets
-faster.
+**Why this is first.** Every later phase touches code that already works.
+Tests + types are the only thing standing between "deliberate change" and
+"silent regression." Without this phase, every refactor in B and every
+migration in C is a coin-flip.
 
-### 1A — Split `home.js` (~3h)
+### A1 — Real TypeScript pipeline ⤴
 
-`pages/home.js` is at 5,378 lines. Currently bearable, but the next
-big feature (e.g. adding waypoint optimization, or a new map layer) will
-push it past 6,000 and trigger the same "monolithic app.js" problem we
-fixed in Phase 1 long ago.
+JSDoc + `@ts-check` was the right call when we had no team. For a
+co-founder-ready codebase, real `.ts` / `.tsx` is the standard. Most of the
+work is mechanical: rename, fix the `tsc --noEmit` warnings as we go.
+
+- [ ] Rename `frontend/static/js/src/**/*.js` → `**/*.ts` (or `.tsx` for
+      anything with JSX after Phase C).
+- [ ] Update Vite config to consume `.ts`. Update `tsconfig.json`:
+      `"strict": true`, `"noUnusedLocals": true`,
+      `"noImplicitReturns": true`, `"noFallthroughCasesInSwitch": true`.
+- [ ] Walk every existing `tsc` warning and fix root cause. The
+      ~30 pre-existing drift warnings (`AppState.preferences`,
+      `Trip.documents`, etc.) become hard errors and get fixed properly,
+      not silenced.
+- [ ] Add `npm run typecheck` to the pre-commit hook — pre-commit blocks
+      on type errors, not just lint.
+- [ ] CI runs typecheck on every push.
+
+**Done when**: every `.ts` file compiles strict-mode green, no `any`
+escape hatches added by the migration, pre-commit + CI block on type
+errors.
+
+### A2 — Pytest coverage to the routes shipped post-Phase G
+
+Phase G scaffolded pytest. Every endpoint shipped after that has zero
+test coverage today.
+
+- [ ] One happy-path + one error case per route, minimum. Routes to
+      cover:
+    - `/api/feed`, `/api/feed/share`, `/api/feed/share/<post_id>`
+      (DELETE), `/api/feed/share/status/<trip_id>`,
+      `/api/feed/repost`, `/api/feed/comments/<event_id>`
+      (GET + POST + DELETE), `/api/feed/like/<event_id>`,
+      `/api/feed/bookmark/<event_id>`.
+    - `/api/public-trip/<trip_id>`, `/api/public-profile/<user_id>`.
+    - `/api/trips/<trip_id>/silence`,
+      `/api/trips/<trip_id>/archive`, `/api/trips/<trip_id>/unarchive`.
+    - `/api/trips/invite`, `/api/trips/invite/respond`,
+      `/api/trips/members/remove`.
+    - `/api/friends/*`.
+    - `/api/notifications/*`.
+- [ ] Auth fixtures: helpers that issue a real JWT for a synthetic user
+      (no mocking the auth layer — test the real gate).
+- [ ] DB fixtures: each test runs against a fresh SQLite in-memory DB so
+      tests are hermetic + parallel-safe.
+- [ ] Coverage report (`pytest-cov`). CI fails if backend coverage drops
+      below an agreed floor (start at 60%, raise as it grows).
+
+**Done when**: every API route has tests, CI runs them on every push, an
+intentional regression in any route turns CI red.
+
+### A3 — Playwright suite to ~20 tests covering critical user flows
+
+The 5 smoke tests prove the app boots. They don't prove anything works.
+
+- [ ] Add tests for: create trip, edit trip, archive + unarchive, add
+      day, add expense, edit expense, settle expenses, add companion
+      (linked + unlinked), accept/reject friend, share trip to feed,
+      unshare, comment on a feed event, like, bookmark, route polyline
+      renders, day-detail modal AM/PM/Eve toggle.
+- [ ] Each test starts from a known empty state (`localStorage.clear()` + fresh server DB).
+- [ ] Critical-path tests run on multiple viewports (375 × 812 mobile,
+      1280 × 800 desktop) so layout regressions surface.
+
+**Done when**: every flow a user can hit has at least one e2e test, CI
+runs the suite in <2 minutes, a CSS regression in the home page turns CI
+red.
+
+### A4 — Visual regression baseline
+
+- [ ] Set up Playwright `toHaveScreenshot()` against the components
+      preview page (Phase B2 dependency — preview page must exist
+      first).
+- [ ] Per-flow screenshot diffs in critical-path tests.
+- [ ] Failed screenshots upload to GitHub Actions artifacts so the diff
+      is one click away from the PR.
+
+**Done when**: a CSS edit that changes a button's color turns CI red
+within 30 seconds, with a side-by-side diff visible.
+
+### A5 — Schema validation at boundaries
+
+- [ ] Zod (or similar) validators for `/api/data` response and
+      `localStorage` load. Bad data fails loudly with a useful error
+      message instead of breaking 5 levels deep.
+- [ ] Validators co-located with their `types.d.ts` definitions so the
+      shape lives in one place.
+- [ ] Sentry-tagged errors when validation fails — high-signal alert
+      on the day a backend change drifts.
+
+**Done when**: a malformed `/api/data` payload (or a corrupted
+localStorage) produces a clear error in Sentry instead of a ghost UI
+state.
+
+**Phase A done when**: type-strict, every API route + critical user flow
+has a test, visual regressions auto-detect, schema drift fails loudly.
+Every later phase happens under this safety net.
+
+---
+
+## Phase B — Foundation (split + tokens)
+
+**Why this is second.** Now that we have tests + types, refactor without
+fear. Splitting `home.js` and `main.py` and adding design tokens makes the
+code addressable for the React migration in Phase C.
+
+### B1 — Split `pages/home.js`
+
+5,378 lines. Refactor into focused files. The pattern that worked for
+`modals.js` in the original Phase 4 is the playbook.
 
 Target structure:
 
 ```
 pages/home/
-  index.js                  // orchestrator + renderHome export
-  hero.js                   // active-trip header (silence, edit, badge)
-  homeMap.js                // map setup, markers, polyline, pills
-  pathTab.js                // chip strip + Genesis card + selected-day
-  companionsTab.js          // companions card + chips
-  dayDetailModal.js         // the big AM/PM/Eve modal
-  shortlistSection.js       // "From your to-do list" panel
+  index.ts                  // orchestrator, exports renderHome
+  hero.ts                   // active-trip header (silence, edit, badge,
+                            //   local-time chip, members chips)
+  homeMap.ts                // map setup, markers, polyline, pills,
+                            //   street-view InfoWindow
+  pathTab.ts                // chip strip + Genesis card + selected-day
+                            //   card + options stack
+  companionsTab.ts          // companions card
+  dayDetailModal.ts         // the AM/PM/Eve modal + checklist + footer
+  shortlistSection.ts       // "From your to-do list" panel
+  weather.ts                // forecast fetch + chip painting
+  routePolyline.ts          // road-follow + neon pulse animation
 ```
 
-Apply the same split philosophy that worked for `modals.js` in Phase 4 —
-each file <800 lines, exports clear primitives, unit-testable.
+- [ ] Identify the 8–9 natural boundaries inside `home.js`.
+- [ ] Extract one slice at a time. After each extraction:
+    - Tests green (pytest + Playwright).
+    - Bundle builds.
+    - Manual smoke (open the app, navigate every route).
+    - Commit.
+- [ ] Re-export `renderHome` through `pages/home/index.ts` so the router
+      and other callers don't have to know about the new structure.
+- [ ] Delete dead imports / closure references the split exposes.
+- [ ] No file >800 lines after the split.
 
-- [ ] Identify the 6–7 natural boundaries inside `home.js`.
-- [ ] Extract one slice at a time, building + smoke-testing after each.
-- [ ] Re-export through `pages/home.js` so the router and other callers
-      don't have to know about the new structure.
-- [ ] Remove dead imports / closure references the split exposes.
+### B2 — Components preview route
 
-### 1B — Split `main.py` (~2h)
+Originally Phase D2; never finished. Required for Phase A4 (visual
+regression) to have a stable target.
 
-Same problem on the backend. 2,653 lines in one Flask file. Recommended
-split:
+- [ ] Add a `/components` Flask route that renders every UI primitive in
+      every state — buttons (default, hover, disabled, loading, danger,
+      ghost), cards (glass, glow, danger), modal headers, autocompletes,
+      day cards, expense rows, member chips, route polyline, pill
+      buttons, segmented tabs, weather chip, local-time chip.
+- [ ] Renders at iPhone-SE width AND desktop side-by-side.
+- [ ] Zero feature data — no STATE dependency. Everything synthetic so
+      the page is deterministic for screenshot tests.
+
+### B3 — Design tokens + CSS architecture
+
+The single biggest "code feels good to work in" investment. Today many
+gradients / shadows / colors are inline `rgba(...)` strings duplicated
+across files.
+
+- [ ] Audit `index.css` for the most-repeated patterns. Likely:
+    - Glass card surface
+    - Blue→purple gradient (Day badge / day-pin / route line)
+    - Genesis gold gradient
+    - Standard shadows (card / modal / chip)
+    - Radius scale (already partial)
+    - Spacing scale (already done — `--space-N`)
+- [ ] Move into CSS variables in `:root`. Add: `--gradient-day`,
+      `--gradient-genesis`, `--gradient-neon`, `--surface-glass`,
+      `--surface-glass-light`, `--shadow-card`, `--shadow-modal`,
+      `--shadow-chip`, `--shadow-pulse`.
+- [ ] Replace inline `style="background: rgba..."` strings in JS pages
+      with token references.
+- [ ] Mobile-first tokens: `--tap-min: 44px` (touch-target floor),
+      safe-area inset awareness, all units in `rem` (Dynamic Type
+      compatible).
+- [ ] Replace `:hover`-only affordances with `:hover, :active,
+    :focus-visible` — touch devices have no hover state.
+
+### B4 — Split `src/main.py`
+
+2,653 lines, every endpoint in one file. Move to Flask Blueprints — one
+per concern.
 
 ```
 src/
@@ -190,460 +368,616 @@ src/
     trips.py                // /api/trips, /api/trips/<id>/*
     days.py                 // /api/days, /api/days/<id>
     expenses.py             // /api/expenses, /api/expenses/<id>
-    feed.py                 // /api/feed, /api/feed/share/*
+    feed.py                 // /api/feed, /api/feed/share/*,
+                            //   /api/feed/comments, /api/feed/like, etc.
     public.py               // /api/public-profile, /api/public-trip
     media.py                // /api/upload
-    settings.py             // /api/profile/update, /api/categories, etc.
+    settings.py             // /api/profile/update, /api/categories
     integrations.py         // /api/generate_itinerary
   services/
     feed_service.py         // event-synthesis logic from /api/feed
     auth_service.py         // jwt + google id token
-    place_service.py        // public-trip shaping (used by 2 routes)
+    trip_service.py         // trip-row shaping, used by /api/data + /api/public-trip
 ```
 
-- [ ] Use Flask Blueprints (one per `routes/` file).
+- [ ] One Blueprint per `routes/` file.
 - [ ] Move shared helpers (`_unwrap_legacy_plan_text`,
-      `_ensure_owner_member_row`, `current_user_id`, etc.) into
-      `services/` or a new `helpers.py`.
-- [ ] Verify `init_db()` still runs on app boot (currently in main.py).
-- [ ] All existing tests + Playwright smokes pass unchanged.
+      `_ensure_owner_member_row`, `current_user_id` etc.) into
+      `services/` or `helpers.py`.
+- [ ] All pytest tests pass unchanged (the safety net catches a
+      regression instantly).
 
-### 1C — Design tokens + CSS architecture (~3h)
-
-Touched in Phase D originally; never finished. Today many surfaces use
-ad-hoc `rgba(0,113,227,0.X)` and inline styles.
-
-- [ ] Audit `index.css` for the most-repeated patterns. Likely candidates:
-    - Glass card surface (`background: rgba(255,255,255,0.94)` +
-      `backdrop-filter: blur(...)`)
-    - Blue→purple gradient (used 20+ places)
-    - The day-badge gradient (used another 10+ places)
-    - Common shadows
-- [ ] Move them into CSS variables in `:root` (already partially done with
-      `--accent-blue`, `--space-N`).
-- [ ] Add new tokens: `--gradient-day`, `--gradient-genesis`,
-      `--gradient-neon`, `--shadow-card`, `--shadow-modal`,
-      `--surface-glass`, `--surface-glass-light`.
-- [ ] Replace inline `style="background: rgba..."` strings in the JS
-      pages with token references where safe.
-
-### 1D — Schema validation at boundaries (~2h) ⤴
-
-- [ ] `zod` (or hand-rolled) validators for `/api/data` response and
-      `localStorage` load. Bad data fails loudly.
-- [ ] Type-export the validators so the frontend uses the SAME shape
-      definition as the backend reads (single source of truth).
-
-### 1E — Tests expanded (~2–3h) ⤴
-
-- [ ] Pytest: cover the routes that landed since Phase G —
-      `/api/feed/*`, `/api/public-trip/<id>`, `/api/trips/<id>/silence`.
-- [ ] Playwright: add tests for `add expense`, `archive trip`,
-      `share trip`, `feed comment + delete`, `route polyline appears`.
-- [ ] Visual regression: `toHaveScreenshot()` on the components
-      preview page (Phase D2 dependency — needs `/components` route built
-      first; mark blocked until then).
-
-**Done when**: every page module is under 800 lines, every Flask route
-file is one Blueprint, design tokens cover ≥ 80% of inline color/spacing
-usage, malformed `/api/data` payloads fail with a useful message, and the
-test count is roughly doubled.
+**Phase B done when**: every page module is <800 lines, every Flask
+route file is one Blueprint, design tokens cover ≥80% of inline
+color/gradient/shadow usage, the components preview page renders every
+primitive, every test still green.
 
 ---
 
-## Phase 2 — Going live on IONOS (~6–9h, 2–3 sessions)
+## Phase C — TypeScript + React migration
 
-You've researched IONOS at €12/year (probably their "Webhosting Essential"
-or similar). For a Flask app with SQLite + static assets that's enough to
-start. This phase gets the app live on a real domain, with a real cert,
-real backups, and real monitoring.
+**Why third, not first.** Migrating to React on a 5,000-line monolith
+inherits the monolith. After Phases A + B, every page is small + tested +
+type-safe. _Now_ the migration is mechanical, low-risk, and produces a
+genuinely clean React codebase.
 
-**Important early decision**: which IONOS product?
+The strategy is the **strangler pattern** — never a big-bang rewrite.
+Both worlds coexist during the transition; tests cover both.
 
-- **Webhosting (cheapest, ~€12/yr)** — shared hosting; PHP-friendly.
-  Flask might NOT run there directly. Verify the plan supports Python /
-  WSGI before committing.
-- **VPS / Cloud Server (~€36+/yr)** — full Linux box, you install
-  Python, Flask, nginx, certbot. The most flexibility; what most Python
-  apps run on.
-- **Deploy Now** — IONOS's managed deploy product, has Python templates.
-  Worth checking pricing.
+### C1 — Set up the React stack
 
-Recommendation: **start on a small VPS** unless the €12 product genuinely
-runs Flask + Gunicorn (call IONOS support before subscribing). The €12
-saving is wiped out by one weekend lost to "why won't my app start."
+- [ ] Add React + ReactDOM to the bundle. Use Vite's React plugin (the
+      build pipeline is already Vite-based).
+- [ ] Decide state management: **don't add Redux yet.** The current
+      `STATE` + `emit('state:changed')` pattern works fine. Wrap it in a
+      React context with a `useStore()` hook so React components can
+      subscribe. Migration to Zustand or Redux Toolkit happens only if
+      the context gets unwieldy.
+- [ ] Decide component library: **none.** Components are bespoke
+      already; importing Material/Chakra/etc. introduces a new design
+      language that fights TGG's voice. Build primitives in-house using
+      Phase B3 tokens.
+- [ ] Decide router: **keep the existing custom `router.js`** for now.
+      It already supports route params + hash-based navigation. Wrap it
+      in a `useNavigate()` hook for React components. Swap to React
+      Router only if needed (TanStack Router if migration justifies).
+- [ ] CI: ensure the bundle builds + every existing test still passes
+      with React in the picture (zero React components yet).
 
-### 2A — Production-ready backend (~3h)
+### C2 — Migrate the smallest leaf page first
 
-- [ ] **Replace Flask dev server with Gunicorn**. The dev server is a
-      development-only single-threaded toy; Gunicorn is the standard
-      production WSGI runner.
-- [ ] **Switch from SQLite to Postgres**, or stay on SQLite + lock down
-      with WAL mode + automated backups. Decision branch:
-    - **SQLite**: cheap, simple, works for ≤ 10k users on a single VPS
-      with WAL + nightly backup. Recommended for launch.
-    - **Postgres**: needed if you ever go horizontal (>1 server).
-      Decide year 2 if growth justifies.
-- [ ] **Environment-based config**: `.env.production` with secrets
-      (Google client ID, Gemini key fallback, Maps key, JWT secret) read
-      via `python-dotenv`. No secrets in the codebase.
-- [ ] **Configurable `API_BASE_URL`** (Phase C originally). Today the
-      frontend hard-assumes same-origin. Capacitor and any future
-      subdomain split need this.
-- [ ] **CORS**: tighten to allow only your domain (and `localhost` for
-      dev). Currently open.
-- [ ] **HTTPS-only cookies / secure JWT**: when on `https://`, set
-      `secure` flag on any cookies, ensure JWT is sent only over HTTPS.
+Pick **`pages/insights.ts`** (340 lines) — it's small, mostly
+read-only, and exercises charts (Chart.js). If it can be migrated
+cleanly + all tests stay green, the pattern works for everything else.
 
-### 2B — Domain + DNS + cert (~1h)
+- [ ] Build `pages/insights/Insights.tsx` as a real React component.
+- [ ] Mount it via the existing router: when the route is `/insights`,
+      `ReactDOM.render` into `#app-container` instead of calling the
+      old `renderInsights()`.
+- [ ] All Playwright tests for /insights pass against the React
+      version.
+- [ ] Visual regression: same screenshot as before. Iterate until pixel
+      diff is zero.
+- [ ] Delete the old `pages/insights.ts` once the React version is
+      proven stable for one full session.
 
-- [ ] Pick the domain. Suggestions: `thegreatgetaway.app`,
-      `thegg.app`, `tggetaway.com`. `.app` requires HTTPS by default —
-      good forcing function.
-- [ ] Buy domain (IONOS or Namecheap/Cloudflare).
-- [ ] Point DNS to the VPS IP.
-- [ ] Issue Let's Encrypt cert via certbot. Auto-renewal cron.
-- [ ] nginx config: TLS, gzip, static-asset caching headers, reverse
-      proxy `/` → Gunicorn on `127.0.0.1:5001`.
+### C3 — Migrate by leaf-up topology
 
-### 2C — Backups + monitoring (~2h)
+Order matters. Migrate small + isolated pages first; pages with the
+most dependencies last.
+
+Order:
+
+1. `insights` ✓ (Phase C2)
+2. `friends`, `todo`, `budgets` — small, mostly list views
+3. `expenses`, `settlement` — table-heavy but isolated
+4. `feed` — important, lots of state, but its data shape is clean
+5. `profile`, `collections` — heavier, more sub-views
+6. `settings` — many sub-tabs
+7. `upload`, `ai` — complex but self-contained
+8. `home` — last because it's the biggest + most-coupled. By the time
+   we get here, every other page is React, every shared component
+   exists, the playbook is iron-clad.
+
+Each page migration follows the same checklist:
+
+- [ ] Build the `.tsx` version.
+- [ ] Wire to the router so it mounts at the same route.
+- [ ] All existing tests pass.
+- [ ] Visual regression: zero pixel diff.
+- [ ] Delete the old file.
+- [ ] Commit.
+
+### C4 — Extract shared components
+
+As pages migrate, extract repeated UI as reusable React components:
+
+- `<GlassCard>` / `<GlassCardModal>`
+- `<DayChip>` / `<DayCard>`
+- `<MemberChip>`
+- `<Pill>` / `<SegmentedTabs>`
+- `<RouteStatsChip>` (oh wait — deleted; skip)
+- `<WeatherChip>` / `<LocalTimeChip>`
+- `<EmptyState>`
+- `<ConfirmModal>`
+- `<Avatar>` (clickable variant for feed)
+
+Each lives in `components/` with a Storybook-style entry on the
+`/components` preview page (Phase B2).
+
+### C5 — TypeScript strict pass on the migration
+
+Once every page is `.tsx`, raise the TS bar:
+
+- [ ] `"strict": true` (already from Phase A1).
+- [ ] `"exactOptionalPropertyTypes": true`.
+- [ ] `"noUncheckedIndexedAccess": true`.
+- [ ] Replace any `any` left over from migration with real types.
+
+**Phase C done when**: every page is React + TypeScript, every shared
+primitive is a real component, the components preview page is the
+single source of design truth, all tests still green, bundle size
+inventoried + understood, no `any` in the source tree.
+
+---
+
+## Phase D — Quality polish
+
+**Why fourth, not earlier.** Polishing in vanilla template literals is
+expensive (every change is a copy-paste across multiple files); polishing
+in React with tokens is cheap (one component, one token). Doing it after
+C means each polish task lands once, in one place, instead of being
+sprinkled across 5,000-line files.
+
+### D1 — Mobile-first responsive sweep
+
+A focused QA pass at 375 × 812 (iPhone SE).
+
+- [ ] Sidebar behavior on mobile (likely: bottom-tab nav for the four
+      most-used pages: Home, Feed, Collections, Profile).
+- [ ] Modals: full-screen sheet variant on mobile for day-detail, AI
+      planner, Edit Trip, companion picker, share-to-feed, trip
+      checklist, documents/photos.
+- [ ] Forms: side-by-side fields stack vertically.
+- [ ] Tables that haven't been converted: expense History → card list.
+- [ ] Touch targets ≥44px audited everywhere.
+- [ ] Sticky headers on long pages, scroll restoration, momentum scrolling.
+
+### D2 — Dark mode
+
+Real dark mode, not just "invert colors." Each surface re-thought.
+
+- [ ] Token-level: every color in `:root` gets a dark counterpart in
+      `:root[data-theme="dark"]`.
+- [ ] Glass treatment in dark mode: backgrounds shift to dark glass with
+      cool light blur (sample: Apple Notification Center on dark
+      wallpaper).
+- [ ] System-preference auto-detection (`prefers-color-scheme`) AND a
+      manual toggle in settings.
+- [ ] The map (Google Maps) has a dark style — apply when in dark mode.
+- [ ] All gradient + shadow tokens have dark variants.
+- [ ] Components preview page exercises both themes side-by-side so
+      regressions surface in visual tests.
+
+### D3 — Accessibility
+
+- [ ] Replace remaining `<div>` buttons with real `<button>`.
+- [ ] ARIA labels for every icon-only button (settings gear, hamburger,
+      bell, silence, etc.).
+- [ ] Keyboard navigation for custom autocompletes (currently
+      mouse-only).
+- [ ] Tab order audited per page.
+- [ ] `npx @axe-core/cli` against the dev server, fix everything it
+      flags, add it to CI.
+- [ ] Screen reader testing on iOS VoiceOver + macOS VoiceOver.
+- [ ] Dynamic Type support: text scales 100%–200% without breaking
+      layout.
+- [ ] Reduced-motion support: respect `prefers-reduced-motion` for the
+      neon route pulse, modal animations, etc.
+
+### D4 — Animations + micro-interactions
+
+The current animations are good but spotty. A coherent motion language
+makes the platform feel premium.
+
+- [ ] Page transitions: fade+slide on route change.
+- [ ] Modal open/close: spring instead of linear.
+- [ ] Day chip selection on the wheel: spring scale to selected size,
+      not snap.
+- [ ] Like / bookmark / share button taps: small haptic-like spring.
+- [ ] Toast / liquid alert: slide-up-and-fade, not pop.
+- [ ] Standardise on Framer Motion (or a lighter alternative like
+      `motion-one`) so animations are declarative, not setTimeout-driven.
+
+### D5 — Performance
+
+- [ ] Bundle analyzer (`rollup-plugin-visualizer`). Inventory the bundle.
+      Mobile target: ≤250 kB minified. Today: ~500 kB.
+- [ ] Per-page code splitting: each page is its own lazy-loaded chunk.
+      Vite + React Router (or our custom router) supports this.
+- [ ] Image hosting: stop hot-linking Unsplash. Move inspirational
+      images to a controlled CDN (Cloudinary free tier OR pre-bundled).
+- [ ] Lighthouse audit. Fix anything below 90 on Performance, Best
+      Practices, Accessibility, SEO. CI runs Lighthouse on every PR.
+
+### D6 — Internationalization scaffold
+
+Not full translation today; just the scaffold so adding a language is
+mechanical later.
+
+- [ ] Wrap user-facing strings in `t('home.welcome')`-style keys.
+- [ ] Single `en.json` + a `pt.json` skeleton (founder's market).
+- [ ] Locale picker in settings; defaults to browser language.
+- [ ] Date / currency formatters use locale.
+
+**Phase D done when**: every page works at 375px and 1920px, dark mode
+is shippable, axe + Lighthouse both pass at ≥90, animations are
+coherent, bundle is under target, i18n scaffold means adding a new
+language is one PR.
+
+---
+
+## Phase E — Production deploy + observability
+
+**Why fifth, not earlier.** Don't deploy until the platform is
+beautiful. The first time friends use it, they form a permanent
+impression. Deploy after the React + polish work is done.
+
+### E1 — Production-ready backend
+
+- [ ] **Replace Flask dev server with Gunicorn** behind nginx. Workers
+      sized for the chosen tier.
+- [ ] **Postgres or SQLite** decision:
+    - SQLite + WAL mode + nightly backup is sufficient for ≤10k users
+      and one VPS. Recommended for launch.
+    - Postgres only if you plan multi-server. Not yet.
+- [ ] **Environment-based config** via `python-dotenv`.
+      `.env.production` outside the repo. Secrets: Google client ID,
+      Gemini API key fallback, Maps API key, JWT secret. Sentry DSN.
+- [ ] **Configurable `API_BASE_URL`** (frontend). Same-origin assumption
+      goes away.
+- [ ] **CORS** locked to the production domain (+ `localhost` for dev).
+- [ ] **HTTPS-only cookies / secure JWT**, `Secure` + `HttpOnly` flags.
+
+### E2 — IONOS provisioning
+
+- [ ] **Confirm IONOS product**. €12/yr Webhosting may not run Flask +
+      Gunicorn — call IONOS support before subscribing. If not
+      supported, jump to a small VPS (~€36/yr).
+- [ ] Provision the box. Keep root-shell access notes in
+      `MAKING_THE_WEBSITE_LIVE.md`.
+- [ ] Buy domain. Suggestions: `thegg.app`, `thegreatgetaway.app`,
+      `tggetaway.com`. `.app` requires HTTPS by default — good forcing
+      function.
+- [ ] Point DNS at the VPS.
+- [ ] Let's Encrypt cert via certbot. Auto-renewal cron.
+- [ ] nginx config: TLS, gzip, static-asset cache headers, reverse
+      proxy `/` → Gunicorn.
+
+### E3 — Backups + monitoring
 
 - [ ] **Automated nightly DB backup** to a second location (S3-compatible
-      storage, or Google Drive via rclone, or just IONOS object storage).
-      14-day retention.
+      or rclone-to-GoogleDrive or IONOS object storage). 14-day retention
+      minimum, longer if cheap.
+- [ ] **Weekly off-site backup verification**: a test job that
+      downloads the latest backup + restores it into a temp DB +
+      runs a query. Catches "the backup is corrupt and nobody noticed."
 - [ ] **Uptime monitor**: Better Stack / Upptime / Cron-job.org pinging
-      `/api/user-status` every minute. Alert email on outage.
-- [ ] **Sentry production environment tag** verified (the loader is
-      already there from Phase A; confirm prod errors land in Sentry's
-      production filter).
-- [ ] **Log retention**: configure nginx + Gunicorn to rotate logs;
-      keep 7 days locally.
+      `/api/user-status` every minute. Alert email + push on outage.
+- [ ] **Sentry production environment** verified — production errors
+      tagged correctly + filterable from dev.
+- [ ] **Structured logging**: replace `print()` with `logging.info(...,
+    extra={"user_id": ..., "trip_id": ...})`. Logs ship to a central
+      sink (Better Stack / Logtail / Papertrail) with 7-day retention.
+- [ ] **Performance monitoring**: Sentry Performance (already loaded
+      from Phase A4 of the original roadmap) — set `tracesSampleRate`
+      to 0.1 in production.
+- [ ] **Health endpoint**: `/api/health` returns DB status + version +
+      uptime. Uptime monitor pings this, not user-status.
 
-### 2D — First-deploy checklist (~1h)
+### E4 — Deploy automation
 
-- [ ] Update `MAKING_THE_WEBSITE_LIVE.md` (already exists in repo) with
-      the actual VPS provisioning steps used.
-- [ ] CI: add a `deploy` job that, on every push to `main`, SSHes into
-      the VPS and pulls + restarts Gunicorn. Or stay manual until traffic
-      justifies automation.
-- [ ] Smoke test against production: open the URL, sign in with Google,
-      create a trip, log an expense. Verify Sentry doesn't fire.
-- [ ] Tell 5 friends. Watch what they break.
+- [ ] CI: `deploy` job that, on every push to `main`, SSHes into the
+      VPS and pulls + restarts Gunicorn. Stays manual until traffic
+      justifies more.
+- [ ] **Migration discipline**: every Alembic migration runs through
+      `alembic upgrade head` in CI's deploy job. No manual `sqlite3`
+      surgery on production.
+- [ ] **Rollback plan**: documented in `MAKING_THE_WEBSITE_LIVE.md`.
+      "If the latest deploy breaks production, here's the one-command
+      rollback."
 
-**Done when**: the app is live at a real HTTPS domain, secrets aren't in
-the repo, the database is backed up nightly, and a 5-minute outage shows
-up in your inbox.
+### E5 — Pre-launch smoke
 
----
+- [ ] Sign in with Google on production. Create a trip. Log an expense.
+      Add a companion. Share to feed. Verify Sentry doesn't fire on the
+      happy path.
+- [ ] Send the URL to 5 friends. Watch what they break in week 1.
+- [ ] Address everything Sentry surfaces in week 1 BEFORE inviting
+      anyone else.
 
-## Phase 3 — Mobile-first responsive overhaul (~6–8h, 2 sessions) ⤴
-
-A focused sweep at 375 × 812 (iPhone SE). This was Phase K originally;
-it's still the right next step before the PWA polish in Phase 4 and
-absolutely required before any Capacitor work.
-
-- [ ] Sidebar behavior on mobile (currently a big slide-out; consider a
-      bottom-tab nav for the 4 most-used pages).
-- [ ] Modals — currently fixed-width 800px+. Need a small-screen variant
-      (full-screen sheet) for: day-detail modal, AI planner, Edit Trip,
-      companion picker, share-to-feed, trip checklist, documents/photos
-      modals.
-- [ ] Forms — side-by-side inputs (AI dates, expense amount/currency)
-      stack vertically.
-- [ ] Tables already-converted to cards (categories, format) — verify on
-      mobile. The expense History table still needs the card-list pass.
-- [ ] Touch targets ≥ 44px audited everywhere. Catches several
-      icon-button-circles that are currently 32–36px.
-- [ ] Sticky headers on long pages (insights, expenses), scroll
-      restoration, momentum scrolling on iOS.
-- [ ] **Day wheel on narrow screens**: the chip strip already scrolls
-      horizontally; verify the cards row also collapses gracefully (the
-      `@media (max-width: 720px)` CSS exists but hasn't been visually
-      QA'd post-redesign).
-
-**Done when**: every page works correctly at 375px wide, no horizontal
-scroll, all tap targets meet HIG, and the design holds up.
+**Phase E done when**: app live at HTTPS domain, secrets out of repo,
+nightly backups verified, 5-minute outage shows in inbox, structured
+logs are searchable, Sentry has zero unresolved errors after a week of
+real friend usage.
 
 ---
 
-## Phase 4 — PWA polish + offline (~5–7h, 2 sessions)
+## Phase F — PWA polish (installable, offline)
 
-After this, the app is **installable from Safari / Chrome** and works
-without a network for read-only browsing of the user's own trips. Phase
-L from the old roadmap, with the offline story baked in.
+**Why sixth.** After Phase E the app is live and friends are using it
+on phones via Safari / Chrome. Adding "Add to Home Screen" + offline
+makes it as good as a native app for the stated goals.
 
-- [ ] **App icon set**: one source SVG → script generates 16 / 32 / 180 /
+- [ ] App icon set: one source SVG → script generates 16 / 32 / 180 /
       192 / 512 + every iOS splash variant. Replace the placeholder
       favicon.
-- [ ] **Splash screens**: every iOS launch size.
-- [ ] **Manifest tuning**: real `theme_color`, `background_color`,
+- [ ] Splash screens: every iOS launch size.
+- [ ] Manifest tuning: real `theme_color`, `background_color`,
       `start_url`, `display: standalone`, `categories`.
-- [ ] **Service worker hardened**: cache-first for static assets,
+- [ ] Service worker hardened: cache-first for static assets,
       network-first for API, offline fallback page.
-- [ ] **Local-first read access**: STATE is already cached in
-      `localStorage` — the SW just needs to ensure the HTML shell + bundle
-      are cached so the app boots offline.
-- [ ] **iOS-specific meta tags**: `apple-mobile-web-app-capable`,
-      `apple-mobile-web-app-status-bar-style`, etc.
-- [ ] **Install prompt** — detect installability + surface a button.
-- [ ] PWA audit (Lighthouse) ≥ 90 across the board.
+- [ ] Local-first read access: STATE is already cached in localStorage
+      — the SW just needs the HTML shell + bundle cached so the app
+      boots offline.
+- [ ] iOS-specific meta tags.
+- [ ] Install prompt — detect installability + surface a button on
+      first open.
+- [ ] Lighthouse PWA audit ≥ 90 across the board (carries over from
+      Phase D5 — verify still green after PWA changes).
 
-**Done when**: the app installs cleanly via "Add to Home Screen" on iOS
-
-- Android, works offline for the user's own trips, and Lighthouse PWA
-  score is ≥ 90.
+**Phase F done when**: app installs cleanly via "Add to Home Screen" on
+iOS + Android, works offline for the user's own trips, Lighthouse PWA
+score ≥ 90.
 
 ---
 
-## Phase 5 — Maps Grounding + AI accuracy (~4–6h) ⤴
+## Phase G — Maps Grounding for AI accuracy ⤴
 
-The single biggest accuracy improvement available. Scoped + planned in
-the previous session as "the most-impactful API integration."
+Independent. Can happen any time after Phase A (so it has tests + types
+to land on). The single biggest accuracy improvement available.
 
-- [ ] Update Gemini API calls in `src/main.py` to use the
-      Maps Grounding tool (`google_search` / `google_maps` tool config).
-- [ ] Replace the schema's freeform text items with **placeId-backed
-      entries** (each AI suggestion comes with a real Google Maps `placeId`).
-- [ ] Pre-fetch place details server-side for the returned IDs so the
-      frontend gets photo URLs / star ratings / addresses without further
-      API calls.
-- [ ] On the AI panel, render each suggestion as a tappable card that
-      opens the Place's full Google Maps page; "Add to to-do list"
-      stamps it with the same placeId so the home POI markers and the
-      AI suggestions share identity.
+- [ ] Update Gemini API calls in `routes/integrations.py` to use the
+      Maps Grounding tool config.
+- [ ] Replace freeform string items with `placeId`-backed entries.
+- [ ] Pre-fetch place details server-side so the frontend gets photo
+      URLs / star ratings / addresses without further API calls.
+- [ ] Render AI suggestions as tappable cards that link to the full
+      Google Maps place page.
+- [ ] "Add to to-do list" stamps the suggestion with the same
+      `placeId` so home POI markers + AI suggestions share identity.
 - [ ] Flag any suggestion the LLM produced WITHOUT a Maps citation
-      (hallucination signal) so the user can see "verified vs. unverified."
+      (hallucination signal) so the user can see "verified vs.
+      unverified."
 
-**Done when**: the AI planner returns Maps-grounded place names by
-default, hallucination rate drops to near zero on common destinations,
-and adding an AI-suggested place to the to-do list links it to the
-real place ID for downstream features.
-
----
-
-## Phase 6 — Native app via Capacitor (~12–18h, multi-session)
-
-When the PWA has been live and stable for at least 2–4 weeks. Capacitor
-wraps the existing web app in a native shell — same codebase, native
-bridges for camera, geolocation, Google Sign-In, etc.
-
-### 6A — Capacitor shell
-
-- [ ] Install Capacitor; generate iOS + Android shells.
-- [ ] Configure `capacitor.config.ts` with `server.url` pointing at the
-      production domain (or a dedicated `app.thegg.app` subdomain).
-- [ ] Status-bar + nav-bar styling.
-- [ ] Test on real devices (simulator lies about touch latency / scroll
-      feel / Safari-vs-WebView quirks).
-
-### 6B — Native plugin migration
-
-- [ ] `@capacitor/camera` for photo upload (replaces `<input type="file">`).
-- [ ] `@capacitor/filesystem` for offline document storage.
-- [ ] `@capacitor/share` for native share sheets.
-- [ ] `@capacitor/push-notifications` for trip-update / friend-request
-      pushes.
-- [ ] `@capacitor/geolocation` for day-pinning via "use my location".
-- [ ] `@codetrix-studio/capacitor-google-auth` for native Google Sign-In
-      (browser flow doesn't work the same in WebView).
-
-### 6C — CI for mobile builds
-
-- [ ] GitHub Actions: macOS runner builds iOS, Linux runner builds Android.
-- [ ] Artifacts uploaded for TestFlight / Play Console internal testing.
-
-**Done when**: TestFlight + Play Console internal builds work, the app
-feels native on real devices, no critical bugs in 1 week of internal
-beta.
+**Done when**: AI returns Maps-grounded place names by default,
+hallucination rate drops to near zero on common destinations, adding an
+AI-suggested place to the to-do list links it to the real place ID.
 
 ---
 
-## Phase 7 — App Store submission (~6–8h + 1–2 weeks review wait)
+## Phase H — Documentation + onboarding kit
 
-The non-coding part. Don't rush this — bad metadata / missing privacy
-labels = rejection.
+**Why this is a phase, not an afterthought.** A co-founder walks in,
+opens the repo, and either:
 
-- [ ] Apple Developer enrollment ($99/yr) + Google Play Console ($25 once).
-- [ ] Privacy policy, terms of service, support URL (required for both).
-- [ ] App store listings: title, subtitle, description, keywords (iOS),
-      screenshots (5 sizes for iOS, 3 for Android), promo video optional.
-- [ ] App icons in store-required formats.
-- [ ] **TestFlight + Play Console internal testing** — beta with friends
-      & family before public release.
-- [ ] **iOS Privacy Nutrition Labels** — every data type listed (location,
-      photos, contacts? friend graph, IP for Sentry). Lying here gets the
-      app pulled.
-- [ ] Submission: code-signing certs, provisioning profiles, app review
-      (1–7 days iOS, ~1 day Android).
+- (a) Reads `README.md` + `ARCHITECTURE.md` + a 30-minute video walkthrough,
+  runs `npm run dev` + `python src/main.py`, has a working dev environment
+  in 15 minutes, and ships their first PR by day three. Or:
+- (b) Asks the founder a hundred questions, can't run anything, and gives
+  up.
 
-**Done when**: TGG is live in both stores, reviewable, downloadable.
+The difference between (a) and (b) is documentation. This phase ensures
+(a).
+
+- [ ] **`README.md` rewrite** — pitch, quick-start, available commands,
+      tech stack, project layout, doc pointers, screenshots. Take
+      <5 minutes to read.
+- [ ] **`ARCHITECTURE.md`** — system overview + diagrams:
+    - Frontend: page-component tree, state flow, router, build pipeline.
+    - Backend: Blueprint structure, request lifecycle, auth flow, DB
+      schema (with ERD), Alembic discipline.
+    - Integrations: Maps APIs (which API does what), Gemini, Sentry.
+    - Deploy: production architecture diagram, secrets, backup flow.
+- [ ] **`CONTRIBUTING.md`** — branch naming, commit-message style, PR
+      template, review checklist, when CI green is enough vs when manual
+      QA is needed.
+- [ ] **`DECISIONS.md`** — Architecture Decision Records (ADRs). Every
+      non-obvious technical decision with its trade-offs and "why we
+      chose X over Y." Existing decision log entries from `VISION.md`
+      and the roadmap merge here.
+- [ ] **`TESTING.md`** — how to run pytest + Playwright + visual
+      regression locally, how to write a new test, how the CI pipeline
+      uses them.
+- [ ] **Per-component docs** — every shared component in `components/`
+      has a JSDoc-style block describing props + a code example.
+- [ ] **Loom-style walkthrough video** (no Loom required, just OBS):
+      30 minutes covering the architecture and the pieces a new
+      contributor's most likely to touch.
+- [ ] **Onboarding checklist**: a markdown file the new contributor
+      checks off in their first day. ("Got dev running, ran tests, made
+      one cosmetic change to a button, opened a PR, got it merged" —
+      proves the loop works.)
+
+**Phase H done when**: a real engineer (not the founder) can clone the
+repo cold, follow the README, have the app running in 15 minutes, and
+ship a non-trivial change in their first day.
 
 ---
 
-## Feature backlog — pick from any time after Phase 1
+## Future / Optional — Native app via Capacitor + App Store
+
+**Not in the main flow.** Only triggered by:
+
+- A specific distribution requirement (e.g. "we need to be in the App
+  Store to qualify for tourism-board partnership X").
+- Or the founder simply wanting it for personal reasons.
+
+The PWA from Phase F covers everything friends + founder + co-founder
+need for "use on phone." Capacitor + stores adds:
+
+- iOS / Android store presence (discoverability, marketing surface).
+- Native bridges (camera, geolocation, push notifications) — but the
+  PWA already supports most of these via web APIs.
+- A $99/yr Apple developer fee + $25 Google fee + 1–7 day app review
+  cycles + iOS Privacy Nutrition Labels + ongoing store-policy
+  compliance.
+
+If/when triggered:
+
+- **Phase F.1**: Capacitor shell, native plugin migration, status-bar
+  styling, real-device testing.
+- **Phase F.2**: TestFlight + Play Console internal testing.
+- **Phase F.3**: App Store + Play Console submission.
+
+Cataloged here so it's a one-decision step when the moment comes,
+without surprise scope.
+
+---
+
+## Feature backlog — pick from any time after Phase A
 
 These don't have a strict order. Pick one when shipping a new feature
-makes sense (e.g. between phases, or as a Saturday session). Each entry
-is sized so it can ship in a single session.
+makes sense (between phases, as a Saturday session). Each entry is sized
+for one focused effort.
 
-### High-leverage / quick wins
+The strict rule: **every new feature lands with the same safety net any
+phase enjoys.** Tests pass. Visual regression unchanged or
+intentionally-changed. Schema validators updated. PR description
+explains the why. No feature work happens before Phase A is complete —
+that's the rule that keeps the codebase from regressing.
 
-- **Currency auto-suggest from country** (~1h) — already speced in
-  `FUTURE_FEATURES.md` #1.
-- **Trip cover photo** (~2–3h) — `FUTURE_FEATURES.md` #2.
-- **Receipts attached to expenses** (~2–3h) — `FUTURE_FEATURES.md` #3.
-- **Search across trips** (~2–4h) — `FUTURE_FEATURES.md` #4.
-- **Trip share-via-link** (~4–6h) — `FUTURE_FEATURES.md` #5. The
-  "Views" counter on the trip detail page is part of this.
+### High-leverage / quick wins (from `FUTURE_FEATURES.md`)
 
-### Social network deepening
+- **Currency auto-suggest from country** — country code → default
+  currency on expense form.
+- **Trip cover photo** — one image per trip transforms the home hero +
+  collections cards.
+- **Receipts attached to expenses** — photo of the receipt next to each
+  expense.
+- **Search across trips** — `cmd-K` style search with grouped results.
+- **Trip share-via-link (read-only)** — public URL with a `share_token`,
+  no auth, includes a "Views" counter.
 
-- **Achievements / badges** for countries visited + per-country trips
-  (counts internal/domestic tourism). Captured in `VISION.md`. Adds
-  gamification + a stickier home page.
-- **Public profiles vs private profiles** (decision in `VISION.md`):
-  introduce a profile-visibility toggle, not just per-trip Public/Private.
-  Affects who can see the country footprint map.
-- **Trip discovery feed** — surface popular public trips to non-friends.
-  Today the feed is friends-only.
-- **Trip cloning** — "I want to do exactly this Lisbon trip my friend
-  did." One-click → all days + pins copied into a new trip.
-- **In-trip messaging / comments** for shared trips with multiple members.
+### Social network deepening (from `VISION.md`)
+
+- **Public vs private profiles** — separate from per-trip Public/Private.
+  Affects the country-color map's audience.
+- **Trip discovery feed** — surface popular public trips beyond friends.
+- **Achievements / badges** — countries visited + per-country trips.
+  Adds gamification + a stickier home page.
+- **Trip cloning** — "I want exactly this Lisbon trip." One click → all
+  days + pins copied into a new trip.
+- **In-trip messaging / comments** for shared multi-member trips.
 
 ### Multi-country trips
 
-- Schema migration: drop the "one country per trip" assumption (already
-  partial — each day can have its own pin).
-- Per-day country tagging for the country-color map; a Lisbon→Tokyo trip
-  highlights both PT and JP.
-- Per-leg currency on expenses (today's expense form already lets the
-  user pick).
+- Schema: drop the "one country per trip" assumption (already partial —
+  per-day pins exist).
+- Per-day country tagging for the country-color map. A Lisbon→Tokyo
+  trip lights up both PT and JP.
+- Per-leg currency reconciliation for expenses.
 
-### Modules platform — the discovery layer
+### Modules platform — discovery layer (Year 2)
 
-This is the business-model piece from `VISION.md`. Probably year 2 territory.
+The business-model piece from `VISION.md`. Defer until consumer side
+has critical mass OR a B2B prospect signs.
 
-- **Business profiles**: hotels, tour operators, ferry companies.
-- **Module embed in the trip** — when the user adds a "boat in Greece"
-  to their trip, it surfaces real bookable modules from registered
-  businesses.
-- **Tourism-company B2B**: white-label TGG for an existing tour operator
-  ("Abreu Viagens uses TGG to share itineraries with their clients").
-  The B2B angle gives early monetization while consumer side grows.
-
-    **Open question** in `VISION.md`: B2C-first or B2B-first? Suggestion:
-    **B2B-first ride alongside B2C**. Pitch one tourism company on a
-    white-label deal (their branding, their clients, your platform); use
-    the relationship to validate features that ALSO benefit B2C. Revenue
-    from one B2B deal funds 12 months of B2C cold-start. Decide once a
-    realistic B2B prospect is identified.
+- Business profiles: hotels, tour operators, ferry companies.
+- Module embeds in trips: when the user adds "boat in Greece" to their
+  trip, real bookable modules from registered businesses surface.
+- Tourism-company B2B (white-label TGG for an existing tour operator).
+  Provides a parallel revenue path while consumer side grows.
 
 ### Polish / nice-to-have
 
-- **Dark mode** — meaningful for evening trip-planning sessions and
-  phones at night. Revisit after Phase 1C tokens land.
-- **Multi-language** (i18n) — EN + PT + ES is a low bar to clear and
-  matches the founder's market.
-- **Aerial View API integration** (already noted) — cinematic 3D
-  fly-through on the public-trip detail hero. Major demo win.
+- **Multi-language** (full translation) — EN + PT + ES post-Phase D6
+  scaffold.
+- **Aerial View API integration** — cinematic 3D fly-through on the
+  public-trip detail hero. Major demo win.
 - **Trip timeline animation** — when viewing a public trip, animate
-  the day pins appearing in order along the polyline. The line is
-  already pulsing neon; this layers on top.
-- **Lighthouse / perf pass** — Phase I from the old roadmap. Bundle is
-  500+ kB now; mobile-bundle target ≤ 250 kB. Code-split per page
-  (Vite supports it, we just haven't enabled it).
+  the day pins appearing in order along the polyline.
 
 ---
 
 ## Cross-cutting principles
 
-These apply to every phase:
+These apply to every phase. Non-negotiable.
 
-### Code-quality discipline
+### Code quality
 
-- **Every file stays under 1,000 lines.** When a file passes 800,
-  start planning the split. Lines aren't a hard rule but the trend tells
-  you when a module has too many responsibilities.
-- **Every commit is shippable.** No half-broken intermediate states get
-  pushed. The lint/typecheck/build/test gate on CI exists for this; don't
-  bypass it with `--no-verify`.
-- **No dead code.** When something gets replaced, delete the old version
-  in the same PR. The codebase has had three "tab content was removed"
-  comment graveyards; we keep them as historical anchors but the actual
-  dead code is gone.
-- **Comments explain WHY, not WHAT.** If a comment paraphrases the next
-  line, delete the comment. If it explains a constraint, a gotcha, or a
-  "we tried X first, here's why it didn't work," keep it.
+- **No file >800 lines** without explicit justification. When a file
+  passes 700, plan the split.
+- **Every commit is shippable.** Lint + typecheck + build + tests must
+  be green. Never bypass with `--no-verify`.
+- **No `any` in TypeScript** without a `// @ts-expect-error` + a
+  comment explaining why. The strict type bar is the safety net's
+  scaffolding.
+- **No dead code.** When something is replaced, delete the old version
+  in the same PR. The codebase has had several "removed; comment kept
+  for context" graveyards — that pattern is fine, but the actual code
+  must be gone.
+- **Comments explain WHY, not WHAT.** A comment that paraphrases the
+  next line gets deleted. A comment that explains a constraint, a
+  gotcha, a "we tried X first, here's why it didn't work" stays.
 
-### Process discipline
+### Process
 
-- **Each phase ships independently.** Stopping after any phase leaves the
-  app strictly better than it was before.
-- **Every session ends with a `SESSION_LOG.md` entry** so the next session
-  opens cold and continues warm.
-- **Big refactors get their own session.** Mixing a refactor with a
-  feature in the same commit makes the diff impossible to review.
-- **The vision (`VISION.md`) is the tiebreaker.** When choosing between
-  options, the one that better serves "social-first travel network with
-  organic discovery" wins.
+- **One concern per commit.** Mixing a refactor + a feature + a bug fix
+  in one commit makes the diff impossible to review.
+- **Every session ends with a `SESSION_LOG.md` entry** so the next
+  session opens cold and continues warm.
+- **Big refactors get their own session.** No mixing refactor with
+  feature in the same session.
+- **PRs over direct commits to `main` once a co-founder lands.** Until
+  then, direct commits to `main` are fine, but every commit still
+  passes the same gates a PR would.
+
+### Testing
+
+- **Every API route has a pytest test.** Adding a route without a test
+  is a regression by definition.
+- **Every user flow has a Playwright test.** Adding a flow without one
+  is a regression.
+- **Visual regression must stay green.** Intentional UI changes update
+  the screenshot baseline as part of the same PR.
+- **CI is the law.** Red CI blocks merge. No "I'll fix it after."
+
+### Decision-making
+
+- **`VISION.md` is the tiebreaker.** When two paths exist, the one
+  better serving "social-first travel network with organic discovery"
+  wins.
 - **Mobile is a first-class concern.** Every CSS rule, every layout
-  decision, every modal — assume it'll run in a 375px webview someday.
+  decision, every modal — assume it'll run on a 375px webview someday.
+- **Friends + the founder use this app every week.** A regression that
+  breaks the founder's actual workflow is treated as a P0, not a TODO.
 
 ### Stop conditions — "perfected"
 
-You're done with the foundation work when:
+The platform is done when:
 
 - A new feature can be added without touching more than 3 files.
-- A redesign of any UI primitive is one CSS edit.
+- A redesign of any UI primitive is one CSS edit (or one component
+  edit).
 - A production bug is in your inbox before a user reports it.
-- A new contributor runs the app in <5 min and ships a fix in <1 hour.
-- The CSS file is the longest in the repo (styling is centralized).
+- A new contributor runs the app in <15 min and ships a fix in <1 hour.
+- The component preview page is the canonical design system, kept
+  current without effort.
 - You can refactor any single function without anxiety.
-- The app feels native on iOS and Android, on real devices.
+- The app feels excellent on mobile + desktop, in light + dark mode,
+  on real devices.
+- The codebase reads as something a senior engineer would call clean.
 
 ---
 
-## Estimated total scope
+## Decision log
 
-| Track                                  | Phases  | Hours      | Sessions   |
-| -------------------------------------- | ------- | ---------- | ---------- |
-| Foundation hardening                   | 1       | 10–14      | 4–5        |
-| Production deploy (IONOS)              | 2       | 6–9        | 2–3        |
-| Mobile responsive sweep                | 3       | 6–8        | 2          |
-| PWA polish + offline                   | 4       | 5–7        | 2          |
-| Maps Grounding + AI                    | 5       | 4–6        | 1–2        |
-| Capacitor (native shell)               | 6       | 12–18      | 4–6        |
-| App Store submission                   | 7       | 6–8        | 2          |
-| Feature backlog (drip, ongoing)        | —       | 30–60+     | 10–20+     |
-| **Total to "shipped on stores"**       | **1–7** | **~50–70** | **~17–22** |
-| **Total including 1 year of features** | **all** | **~110+**  | **~35–45** |
+### Closed
 
-At a steady 2 sessions per week, **shipped on the App Store in
-~10–14 weeks** (excluding the 1–2 weeks of review). Steady-state feature
-work after that, ~1 feature shipped per week.
-
----
-
-## Decision log (open + closed)
-
-### Closed since last roadmap
-
-- **Skip framework migration (was Phase J).** The component-helpers +
-  CSS-extraction + tab redesigns gave us 80% of a framework's wins.
-  Revisit only if hiring a team or hitting a real performance ceiling.
-- **JSDoc + `@ts-check` over full TS rename.** Sufficient for
-  type-safety; cheaper to maintain.
+- **Skip framework migration?** No. After the priority shift toward
+  "co-founder-ready beautiful platform," React + TypeScript moves into
+  the main flow as Phase C.
+- **Skip native app?** Yes, until distribution forces it. PWA covers
+  every stated goal.
+- **JSDoc + `@ts-check` over real TypeScript?** Was the right call when
+  TGG was solo + scrappy. Wrong call now — Phase A1 migrates to real
+  TypeScript.
+- **SQLite vs Postgres for production?** SQLite + WAL + nightly backup
+  for launch. Revisit when concurrent writers regularly exceed 5 or a
+  multi-server topology is on the horizon.
 
 ### Open
 
-- **B2C-first or B2B-first?** (`VISION.md`) — leaning B2C with one
-  parallel B2B pilot, but no signed deal yet. Decide once a tourism-
-  company prospect is identified.
-- **Monetization timing** — `VISION.md` open question. The discovery-
-  layer / business-modules play is year 2. Year 1 is free + invite-only
-  to build the social graph.
-- **SQLite vs Postgres for production** — start SQLite; revisit when
-  one of: > 5 concurrent writers regularly, or planning a second app
-  server. (Decision tied to Phase 2A.)
-- **Mobile nav pattern** — sidebar collapse vs bottom-tabs. Decide in
-  Phase 3 with real-device testing.
+- **Co-founder timeline.** Affects the urgency of Phase H
+  documentation, but not the order of phases. Doc work happens
+  regardless.
+- **B2C-first or B2B-first.** From `VISION.md`. Open until a tourism-
+  company B2B prospect is realistic. Year 1 is consumer-only by default.
+- **Monetization timing.** From `VISION.md`. Tied to the modules-platform
+  feature in the Year 2+ backlog. No urgency to decide.
+- **Mobile nav pattern.** Sidebar collapse vs bottom-tab nav. Decided
+  in Phase D1 with real-device QA, not now.
+- **Component library import.** Currently planning to build in-house in
+  Phase C. Revisit if the in-house component count exceeds ~30 and
+  maintenance becomes a real cost.
