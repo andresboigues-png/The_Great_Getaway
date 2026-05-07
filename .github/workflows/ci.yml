@@ -63,8 +63,24 @@ jobs:
               with:
                   python-version: '3.12'
                   cache: 'pip'
-            - run: pip install -r requirements.txt pytest
-            - run: python -m pytest tests/test_api.py -v
+            - run: pip install -r requirements.txt pytest pytest-cov
+            # `--cov-fail-under=60` is the floor agreed in ROADMAP A2 —
+            # CI fails if backend coverage drops below 60%. Floor will
+            # rise as we add tests; for now it pins the baseline so a
+            # PR can't silently regress coverage by adding code without
+            # tests.
+            - run: |
+                  python -m pytest tests/test_api.py -v \
+                    --cov=src \
+                    --cov-report=term-missing \
+                    --cov-fail-under=60
+            - name: Upload coverage report
+              if: always()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: coverage-report
+                  path: .coverage
+                  retention-days: 7
 
     e2e:
         name: Playwright smoke

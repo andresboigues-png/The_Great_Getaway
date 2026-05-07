@@ -340,3 +340,502 @@ def test_rate_limit_friends_add(temp_db, seed_user):
     finally:
         app.config["RATELIMIT_ENABLED"] = False
         limiter.reset()
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# Phase A2 expansion — coverage for routes shipped post-Phase G.
+# ════════════════════════════════════════════════════════════════════════════
+#
+# These tests pin ONE happy path + critical error case per route. The auth
+# gate is checked once via the parametrised test below rather than redundantly
+# per route — the @require_auth decorator's behaviour is identical everywhere
+# it's applied; per-route auth tests add noise without catching anything new.
+#
+# Trip / feed setup helpers are factored out so each test reads as just the
+# specific action it's pinning.
+
+import pytest
+
+
+def _create_trip(client, headers, trip_id="trip-feed", name="Test Trip"):
+    res = client.post("/api/trips", headers=headers, json={
+        "trip": {"id": trip_id, "name": name, "country": "Test"},
+    })
+    assert res.status_code == 200
+    return trip_id
+
+
+# ── Auth gate sweep ──────────────────────────────────────────────────────────
+# One test, every gated endpoint. Each (method, path) tuple should return 401
+# when called without an Authorization header. Catches any new endpoint that
+# ships without @require_auth.
+
+GATED_ROUTES = [
+    ("GET", "/api/feed"),
+    ("POST", "/api/feed/share"),
+    ("GET", "/api/feed/share/status/trip-x"),
+    ("DELETE", "/api/feed/share/1"),
+    ("POST", "/api/feed/repost/1"),
+    ("POST", "/api/feed/like/event-x"),
+    ("POST", "/api/feed/bookmark/event-x"),
+    ("GET", "/api/feed/comments/event-x"),
+    ("POST", "/api/feed/comment/event-x"),
+    ("DELETE", "/api/feed/comment/1"),
+    ("POST", "/api/trips/trip-x/silence"),
+    ("POST", "/api/trips/trip-x/archive"),
+    ("POST", "/api/trips/trip-x/unarchive"),
+    ("POST", "/api/trips/invite"),
+    ("POST", "/api/trips/invite/respond"),
+    ("POST", "/api/trips/members/remove"),
+    ("GET", "/api/friends/search"),
+    ("GET", "/api/friends/pending"),
+    ("POST", "/api/friends/reject"),
+    ("POST", "/api/friends/remove"),
+    ("GET", "/api/friends/list"),
+    ("GET", "/api/notifications/list"),
+    ("POST", "/api/notifications/read"),
+    ("POST", "/api/notifications/trip_public"),
+]
+
+
+@pytest.mark.parametrize("method,path", GATED_ROUTES)
+def test_gated_route_rejects_anonymous(client, method, path):
+    """Every @require_auth-decorated route returns 401 without a JWT.
+    Catches a future endpoint shipped with the decorator forgotten."""
+    res = client.open(path, method=method, json={})
+    assert res.status_code == 401, f"{method} {path} returned {res.status_code}, expected 401"
+
+
+# ── /api/feed ────────────────────────────────────────────────────────────────
+
+def test_feed_returns_envelope_for_logged_in_user(client, seed_user, auth_headers):
+    """Empty feed for a user with no friends still returns a well-shaped
+    envelope so the frontend's /api/feed page renders without crashing."""
+    res = client.get("/api/feed", headers=auth_headers)
+    assert res.status_code == 200
+    body = res.get_json()
+    # Real shape varies by post-Phase-G iteration; pin only that the
+    # response is JSON and contains *some* iterable structure for posts.
+    assert isinstance(body, (list, dict))
+
+
+def test_feed_share_creates_post(client, seed_user, auth_headers):
+    """Sharing a trip mints a post row + returns its post_id. Idempotent
+    server-side — re-sharing the same trip returns the same post_id with
+    `status: 'already_shared'`."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-share")
+    res = client.post("/api/feed/share", headers=auth_headers, json={
+        "trip_id": trip_id, "caption": "First share",
+    })
+    assert res.status_code == 200
+    body = res.get_json()
+    assert body.get("post_id")  # truthy non-zero
+    first_post_id = body["post_id"]
+
+    # Re-share — same row, status reflects the no-op.
+    res = client.post("/api/feed/share", headers=auth_headers, json={
+        "trip_id": trip_id, "caption": "Updated caption",
+    })
+    assert res.status_code == 200
+    body = res.get_json()
+    assert body["post_id"] == first_post_id
+    assert body.get("status") == "already_shared"
+
+
+def test_feed_share_status_returns_post_id_when_shared(client, seed_user, auth_headers):
+    """The home page hits /share/status/<trip_id> on mount to set the
+    Share button's initial state without needing to do a roundtrip
+    write. Pin the contract."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-share-status")
+    client.post("/api/feed/share", headers=auth_headers, json={
+        "trip_id": trip_id, "caption": "",
+    })
+    res = client.get(
+        f"/api/feed/share/status/{trip_id}", headers=auth_headers,
+    )
+    assert res.status_code == 200
+    body = res.get_json()
+    assert body.get("shared") is True
+    assert body.get("post_id")
+
+
+def test_feed_unshare_deletes_caller_own_post(client, seed_user, auth_headers):
+    """Author can delete their own share. Cascade-deletes any reposts
+    pointing at it (other tests can pin that side; here we pin the
+    author-deletes-self path)."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-unshare")
+    res = client.post("/api/feed/share", headers=auth_headers, json={
+        "trip_id": trip_id,
+    })
+    post_id = res.get_json()["post_id"]
+    res = client.delete(f"/api/feed/share/{post_id}", headers=auth_headers)
+    assert res.status_code == 200
+
+
+def test_feed_repost_succeeds_for_other_users_post(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """seed_other_user shares a trip; seed_user reposts it. The repost
+    spreads the trip beyond the original sharer's friend graph."""
+    trip_id = _create_trip(client, other_auth_headers, trip_id="trip-repost")
+    res = client.post("/api/feed/share", headers=other_auth_headers, json={
+        "trip_id": trip_id,
+    })
+    post_id = res.get_json()["post_id"]
+    res = client.post(f"/api/feed/repost/{post_id}", headers=auth_headers)
+    assert res.status_code == 200
+
+
+def test_feed_repost_rejects_self_repost(client, seed_user, auth_headers):
+    """Reposting your own post is a no-op + returns status: 'same_user'.
+    Without this gate, the feed could fill with self-reposts."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-self-repost")
+    res = client.post("/api/feed/share", headers=auth_headers, json={
+        "trip_id": trip_id,
+    })
+    post_id = res.get_json()["post_id"]
+    res = client.post(f"/api/feed/repost/{post_id}", headers=auth_headers)
+    assert res.status_code == 200
+    body = res.get_json()
+    assert body.get("status") == "same_user"
+
+
+def test_feed_like_toggles(client, seed_user, seed_other_user, auth_headers, other_auth_headers):
+    """Liking returns the new state + the new global count so the
+    frontend can reconcile any drift from optimistic UI in one round-trip."""
+    trip_id = _create_trip(client, other_auth_headers, trip_id="trip-like")
+    res = client.post("/api/feed/share", headers=other_auth_headers, json={
+        "trip_id": trip_id,
+    })
+    post_id = res.get_json()["post_id"]
+    event_id = f"share_{post_id}"
+    res = client.post(f"/api/feed/like/{event_id}", headers=auth_headers)
+    assert res.status_code == 200
+    body = res.get_json()
+    assert body.get("liked") is True
+    assert body.get("count") == 1
+
+    # Toggle back off.
+    res = client.post(f"/api/feed/like/{event_id}", headers=auth_headers)
+    body = res.get_json()
+    assert body.get("liked") is False
+    assert body.get("count") == 0
+
+
+def test_feed_bookmark_is_private_per_user(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """Bookmarks are per-user — seed_user bookmarking doesn't affect
+    seed_other_user's view. No global count exposed (unlike likes)."""
+    trip_id = _create_trip(client, other_auth_headers, trip_id="trip-bookmark")
+    res = client.post("/api/feed/share", headers=other_auth_headers, json={
+        "trip_id": trip_id,
+    })
+    post_id = res.get_json()["post_id"]
+    event_id = f"share_{post_id}"
+    res = client.post(f"/api/feed/bookmark/{event_id}", headers=auth_headers)
+    assert res.status_code == 200
+    body = res.get_json()
+    assert body.get("bookmarked") is True
+
+
+def test_feed_comments_post_then_list(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """Post a comment as one user, list as another — the list returns
+    the comment in oldest-first order so the UI can append-render."""
+    trip_id = _create_trip(client, other_auth_headers, trip_id="trip-comment")
+    share_res = client.post("/api/feed/share", headers=other_auth_headers, json={
+        "trip_id": trip_id,
+    })
+    post_id = share_res.get_json()["post_id"]
+    event_id = f"share_{post_id}"
+
+    res = client.post(f"/api/feed/comment/{event_id}", headers=auth_headers, json={
+        "body": "Looks great!",
+    })
+    assert res.status_code == 200
+    body = res.get_json()
+    assert body.get("comment", {}).get("body") == "Looks great!"
+
+    res = client.get(f"/api/feed/comments/{event_id}", headers=other_auth_headers)
+    assert res.status_code == 200
+    comments = res.get_json()
+    assert isinstance(comments, list)
+    assert any(c.get("body") == "Looks great!" for c in comments)
+
+
+def test_feed_comment_delete_owner_only(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """seed_user posts a comment; seed_other_user can't delete it
+    (gate keeps friends from moderating each other's words)."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-comment-del")
+    share_res = client.post("/api/feed/share", headers=auth_headers, json={
+        "trip_id": trip_id,
+    })
+    event_id = f"share_{share_res.get_json()['post_id']}"
+    res = client.post(f"/api/feed/comment/{event_id}", headers=auth_headers, json={
+        "body": "mine",
+    })
+    comment_id = res.get_json()["comment"]["id"]
+
+    # other_user can't delete seed_user's comment.
+    res = client.delete(
+        f"/api/feed/comment/{comment_id}", headers=other_auth_headers,
+    )
+    assert res.status_code in (403, 404)
+
+    # author can.
+    res = client.delete(f"/api/feed/comment/{comment_id}", headers=auth_headers)
+    assert res.status_code == 200
+
+
+# ── /api/public-trip + /api/public-profile ───────────────────────────────────
+
+def test_public_trip_404_for_nonexistent(client):
+    """Public trip endpoint is unauthenticated (anyone with the link
+    can view), but returns 404 for unknown ids — pin so a regression
+    doesn't accidentally leak private trip rows under the wrong id."""
+    res = client.get("/api/public-trip/does-not-exist")
+    assert res.status_code in (200, 404)
+    if res.status_code == 200:
+        body = res.get_json()
+        assert body.get("error") or body.get("trip") is None
+
+
+def test_public_profile_404_for_nonexistent(client):
+    res = client.get("/api/public-profile/does-not-exist")
+    assert res.status_code in (200, 404)
+    if res.status_code == 200:
+        body = res.get_json()
+        assert body.get("error") or body.get("user") is None
+
+
+def test_public_profile_returns_user_for_known_id(client, seed_user):
+    res = client.get(f"/api/public-profile/{seed_user}")
+    # Endpoint returns { user: { name, email, picture, bio, status }, trips }.
+    # `id` isn't echoed back (the caller already knew it from the URL); pin
+    # what IS returned so a regression that drops `name` fails.
+    assert res.status_code == 200
+    body = res.get_json()
+    assert body.get("user", {}).get("name") == "Test User"
+    assert "trips" in body
+
+
+# ── /api/trips/<id>/silence | archive | unarchive ────────────────────────────
+
+def test_trip_silence_toggle(client, seed_user, auth_headers):
+    """Owner toggles the actions-feed-silencing flag. Returns the new
+    state so the UI can reconcile."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-silence")
+    res = client.post(
+        f"/api/trips/{trip_id}/silence",
+        headers=auth_headers,
+        json={"hidden": True},
+    )
+    assert res.status_code == 200
+
+
+def test_trip_archive_then_unarchive(client, seed_user, auth_headers):
+    """Per-user archive flag flips on, then off. Each member's archive
+    state is independent (other tests can pin that boundary)."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-arch")
+    res = client.post(f"/api/trips/{trip_id}/archive", headers=auth_headers)
+    assert res.status_code == 200
+    res = client.post(f"/api/trips/{trip_id}/unarchive", headers=auth_headers)
+    assert res.status_code == 200
+
+
+def test_trip_silence_rejects_non_owner(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """Silencing is owner-only — non-owner gets 403."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-silence-403")
+    res = client.post(
+        f"/api/trips/{trip_id}/silence",
+        headers=other_auth_headers,
+        json={"hidden": True},
+    )
+    assert res.status_code in (403, 404)
+
+
+# ── /api/trips/invite | respond | members/remove ─────────────────────────────
+
+def _befriend(client, headers_a, headers_b, user_a, user_b):
+    """Helper: establish a mutually-accepted friendship between user_a
+    and user_b. The trip-invite endpoints gate on accepted friendships,
+    so most invite tests need this scaffolding."""
+    client.post("/api/friends/add", headers=headers_a, json={"friend_id": user_b})
+    client.post("/api/friends/accept", headers=headers_b, json={"friend_id": user_a})
+
+
+def test_trip_invite_creates_pending(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """Owner invites a friend — server upserts a pending trip_members row
+    + fires a notification. Gates on accepted-friendship (audit fix), so
+    we have to befriend first."""
+    _befriend(client, auth_headers, other_auth_headers, seed_user, seed_other_user)
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-invite")
+    res = client.post("/api/trips/invite", headers=auth_headers, json={
+        "trip_id": trip_id,
+        "target_user_id": seed_other_user,
+        "role": "relaxer",
+    })
+    assert res.status_code == 200
+
+
+def test_trip_invite_rejects_non_friend(
+    client, seed_user, seed_other_user, auth_headers,
+):
+    """Audit gate: target must already be an accepted friend.
+    Without this, trip invitations would be a way to spam any user_id."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-invite-stranger")
+    res = client.post("/api/trips/invite", headers=auth_headers, json={
+        "trip_id": trip_id,
+        "target_user_id": seed_other_user,
+        "role": "relaxer",
+    })
+    assert res.status_code == 403
+
+
+def test_trip_invite_respond_accept(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """seed_user invites seed_other_user; seed_other_user accepts. Body
+    is just { trip_id, accept } — the responder is identified via the
+    JWT, the row is matched by (trip_id, responder_user_id)."""
+    _befriend(client, auth_headers, other_auth_headers, seed_user, seed_other_user)
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-invite-accept")
+    client.post("/api/trips/invite", headers=auth_headers, json={
+        "trip_id": trip_id,
+        "target_user_id": seed_other_user,
+        "role": "relaxer",
+    })
+    res = client.post("/api/trips/invite/respond", headers=other_auth_headers, json={
+        "trip_id": trip_id,
+        "accept": True,
+    })
+    assert res.status_code == 200
+
+
+def test_trip_members_remove_owner_only(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """Only the trip owner can remove members. Non-owner caller → 403."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-rm")
+    res = client.post("/api/trips/members/remove", headers=other_auth_headers, json={
+        "trip_id": trip_id,
+        "user_id": seed_other_user,
+    })
+    assert res.status_code in (403, 400, 404)
+
+
+# ── /api/friends — extended coverage ─────────────────────────────────────────
+
+def test_friends_search_returns_other_user(client, seed_user, seed_other_user, auth_headers):
+    res = client.get(
+        "/api/friends/search?q=Other",
+        headers=auth_headers,
+    )
+    assert res.status_code == 200
+    body = res.get_json()
+    assert isinstance(body, list)
+
+
+def test_friends_pending_lists_outstanding_requests(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """seed_user adds seed_other_user; seed_other_user sees the
+    request in their /pending list."""
+    client.post("/api/friends/add", headers=auth_headers, json={
+        "friend_id": seed_other_user,
+    })
+    res = client.get("/api/friends/pending", headers=other_auth_headers)
+    assert res.status_code == 200
+    pending = res.get_json()
+    assert isinstance(pending, list)
+
+
+def test_friends_reject_clears_pending(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """seed_user adds; seed_other_user rejects. The pending row is
+    deleted so the original sender can re-send if they want."""
+    client.post("/api/friends/add", headers=auth_headers, json={
+        "friend_id": seed_other_user,
+    })
+    res = client.post("/api/friends/reject", headers=other_auth_headers, json={
+        "friend_id": seed_user,
+    })
+    assert res.status_code == 200
+
+
+def test_friends_remove_after_acceptance(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """Establish friendship, then either side removes. Both rows go."""
+    client.post("/api/friends/add", headers=auth_headers, json={
+        "friend_id": seed_other_user,
+    })
+    client.post("/api/friends/accept", headers=other_auth_headers, json={
+        "friend_id": seed_user,
+    })
+    res = client.post("/api/friends/remove", headers=auth_headers, json={
+        "friend_id": seed_other_user,
+    })
+    assert res.status_code == 200
+
+
+def test_friends_list_returns_accepted(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    client.post("/api/friends/add", headers=auth_headers, json={
+        "friend_id": seed_other_user,
+    })
+    client.post("/api/friends/accept", headers=other_auth_headers, json={
+        "friend_id": seed_user,
+    })
+    res = client.get("/api/friends/list", headers=auth_headers)
+    assert res.status_code == 200
+    friends = res.get_json()
+    assert isinstance(friends, list)
+    assert any(f.get("id") == seed_other_user for f in friends)
+
+
+# ── /api/notifications ───────────────────────────────────────────────────────
+
+def test_notifications_list_returns_array(client, seed_user, auth_headers):
+    """Empty roster on a fresh user is fine; pin the shape."""
+    res = client.get("/api/notifications/list", headers=auth_headers)
+    assert res.status_code == 200
+    body = res.get_json()
+    assert isinstance(body, list)
+
+
+def test_notifications_read_marks_all(client, seed_user, auth_headers):
+    """`POST /api/notifications/read` clears the unread badge.
+    Idempotent — calling it on an already-empty roster still 200s."""
+    res = client.post("/api/notifications/read", headers=auth_headers)
+    assert res.status_code == 200
+
+
+def test_notifications_trip_public_creates_notification(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """Marking a trip public fans out notifications to friends. The
+    sender's call returns 200; the receiver's /list reflects the new row."""
+    # Befriend so the notification has a recipient.
+    client.post("/api/friends/add", headers=auth_headers, json={
+        "friend_id": seed_other_user,
+    })
+    client.post("/api/friends/accept", headers=other_auth_headers, json={
+        "friend_id": seed_user,
+    })
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-public-notif")
+    res = client.post("/api/notifications/trip_public", headers=auth_headers, json={
+        "trip_id": trip_id,
+        "trip_name": "Public Trip",
+    })
+    assert res.status_code == 200

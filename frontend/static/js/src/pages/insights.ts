@@ -121,9 +121,9 @@ export function renderInsights() {
         .sort((a, b) => b[1] - a[1])
         .slice(0, 10);
 
-    const topCatId = sortedCats.length > 0 ? sortedCats[0][0] : null;
-    const topCat = topCatId ? STATE.categories.find(c => c.id === topCatId) : null;
-    const topCatName = topCat ? topCat.icon + " " + topCat.name : "N/A";
+    // Note: an earlier UI iteration surfaced a "top category" headline
+    // computed from sortedCats[0]; that block has been removed but
+    // sortedCats is still needed below for the per-row ranking list.
 
     const catRankingHtml = sortedCats.slice(1).map(([catId, count], index) => {
         const cat = STATE.categories.find(c => c.id === catId);

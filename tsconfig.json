@@ -10,6 +10,7 @@
         "strict": true,
         "noImplicitAny": false,
         "strictNullChecks": true,
+        "noUnusedLocals": true,
         "noImplicitReturns": true,
         "noFallthroughCasesInSwitch": true,
         "forceConsistentCasingInFileNames": true,
