@@ -12,6 +12,8 @@ from database import get_db, init_db
 from auth import issue_token, current_user_id, require_auth
 from extensions import limiter
 from routes.media import bp as media_bp
+from routes.public import bp as public_bp
+from routes.settings import bp as settings_bp
 
 # Load environment variables
 load_dotenv()
@@ -64,6 +66,8 @@ limiter.init_app(app)
 # own routes/<domain>.py blueprint. Add new blueprints to this list as the
 # split progresses; main.py shrinks accordingly.
 app.register_blueprint(media_bp)
+app.register_blueprint(public_bp)
+app.register_blueprint(settings_bp)
 
 # Ensure DB is initialized
 init_db()
@@ -538,26 +542,11 @@ def sync_data():
 # stringly-typed at this layer so adding new roles later doesn't require
 # a schema migration.
 
-def _unwrap_legacy_plan_text(s):
-    """Some legacy trip_days rows have morning/afternoon/evening stored
-    as JSON-encoded strings (`'""'` for empty, `'"foo"'` for non-empty)
-    because the old write path wrapped plain text with json.dumps.
-    This detects that pattern and unwraps so the frontend sees clean
-    text. Idempotent — passes through plain strings unchanged."""
-    if not isinstance(s, str):
-        return s or ''
-    # Cheap shape check before json.loads — only attempt parse when
-    # the string looks like a JSON-quoted scalar (starts AND ends
-    # with double-quote). Avoids paying for the parse on the common
-    # already-clean path.
-    if len(s) >= 2 and s[0] == '"' and s[-1] == '"':
-        try:
-            parsed = json.loads(s)
-            if isinstance(parsed, str):
-                return parsed
-        except Exception:
-            pass
-    return s
+# `_unwrap_legacy_plan_text` lives in src/helpers.py now (Phase B4).
+# Local alias kept so the rest of main.py (this module's other routes)
+# doesn't have to chase the import; new blueprints should import the
+# canonical version directly from helpers.
+from helpers import unwrap_legacy_plan_text as _unwrap_legacy_plan_text
 
 
 def _ensure_owner_member_row(cursor, trip_id, owner_id):
@@ -1028,25 +1017,6 @@ def delete_expense(expense_id):
 def _ensure_user_exists(cursor, user_id):
     cursor.execute("SELECT 1 FROM users WHERE id = ?", (user_id,))
     return cursor.fetchone() is not None
-
-
-@app.route("/api/categories", methods=["POST"])
-@require_auth
-def sync_categories():
-    """Replace the category list for a user."""
-    data = request.json or {}
-    user_id = current_user_id()
-    categories = data.get("categories", [])
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM categories WHERE user_id = ?", (user_id,))
-        for cat in categories:
-            cursor.execute('''
-                INSERT INTO categories (id, user_id, name, icon, color)
-                VALUES (?, ?, ?, ?, ?)
-            ''', (cat['id'], user_id, cat['name'], cat.get('icon', ''), cat.get('color', '#007aff')))
-        conn.commit()
-    return jsonify({"status": "ok"})
 
 
 @app.route("/api/budgets", methods=["POST"])
@@ -2403,199 +2373,6 @@ def get_data():
             "budgets": budgets,
             "tripDays": trip_days,
         })
-
-@app.route("/api/public-trip/<trip_id>", methods=["GET"])
-def get_public_trip(trip_id):
-    """Fetch full trip data for read-only display when the caller doesn't
-    own the trip. Powers the feed-post trip-card click-through and any
-    other surface where a non-member needs to view a friend's trip.
-
-    Gating: returns 404 if the trip doesn't exist OR isn't public AND
-    the caller isn't a member. We intentionally hide private trips behind
-    a 404 (vs 403) so a probing client can't enumerate which trip IDs
-    exist.
-
-    Shape mirrors the archived-trip object the frontend's
-    renderArchivedTripDetail expects: trip metadata + tripDays
-    (with plan/photos/documents inlined) + expenses + owner user info.
-    Companions / markedPlaces / per-trip photos / documents / checklist
-    are all included so the read-only renderer renders the same body
-    a local archive view would."""
-    caller_id = current_user_id()  # may be None if not authed
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM trips WHERE id = ?", (trip_id,))
-        row = cursor.fetchone()
-        if not row:
-            return jsonify({"error": "Not found"}), 404
-        trip = dict(row)
-        is_public = bool(trip.get('is_public'))
-        owner_id = trip.get('user_id')
-
-        # Visibility gate. Public → anyone. Private → caller must be a
-        # member (owner row or accepted trip_members row). We hide
-        # non-visible trips behind 404 to avoid leaking trip-id existence.
-        is_visible = is_public
-        if not is_visible and caller_id:
-            if owner_id == caller_id:
-                is_visible = True
-            else:
-                cursor.execute(
-                    "SELECT 1 FROM trip_members WHERE trip_id = ? AND user_id = ? "
-                    "AND invitation_status = 'accepted' LIMIT 1",
-                    (trip_id, caller_id),
-                )
-                if cursor.fetchone():
-                    is_visible = True
-        if not is_visible:
-            return jsonify({"error": "Not found"}), 404
-
-        # Frontend-shape the trip row. Same field-renaming the main
-        # /api/data path uses; kept inline rather than refactored
-        # because that path is large and tangled — extracting now
-        # would balloon this PR's surface area.
-        trip['ownerId'] = owner_id
-        trip['isPublic'] = is_public
-        trip['placeId'] = trip.pop('place_id', None)
-        viewport_raw = trip.pop('viewport_json', None)
-        trip['viewport'] = json.loads(viewport_raw) if viewport_raw else None
-        types_raw = trip.pop('place_types', None)
-        trip['placeTypes'] = json.loads(types_raw) if types_raw else None
-        trip['countryCode'] = trip.pop('country_code', None)
-        companions_raw = trip.pop('companions_json', None)
-        trip['companions'] = json.loads(companions_raw) if companions_raw else []
-        marked_raw = trip.pop('marked_places_json', None)
-        trip['markedPlaces'] = json.loads(marked_raw) if marked_raw else []
-        documents_raw = trip.pop('documents_json', None)
-        trip['documents'] = json.loads(documents_raw) if documents_raw else []
-        photos_raw = trip.pop('photos_json', None)
-        trip['photos'] = json.loads(photos_raw) if photos_raw else []
-        checklist_raw = trip.pop('checklist_json', None)
-        trip['checklist'] = json.loads(checklist_raw) if checklist_raw else []
-        trip['isArchived'] = bool(trip.pop('is_archived', False))
-        trip.pop('user_id', None)
-
-        # Owner display info (name + picture) so the read-only page can
-        # show "by [Owner]". Kept tiny — just what the renderer needs.
-        cursor.execute("SELECT id, name, picture FROM users WHERE id = ?", (owner_id,))
-        owner_row = cursor.fetchone()
-        owner = dict(owner_row) if owner_row else None
-
-        # Days, expenses, and the day-level photos/documents that the
-        # archived renderer consumes. Mirrors the /api/data shaping so
-        # the same renderer can read this payload without branching.
-        cursor.execute("SELECT * FROM trip_days WHERE trip_id = ?", (trip_id,))
-        trip_days = []
-        for d_row in cursor.fetchall():
-            day = dict(d_row)
-            day['tripId'] = day.pop('trip_id')
-            day['dayNumber'] = day.pop('day_number')
-            day['lon'] = day.pop('lng')
-            day['plan'] = {
-                'morning': _unwrap_legacy_plan_text(day.pop('morning', '')),
-                'afternoon': _unwrap_legacy_plan_text(day.pop('afternoon', '')),
-                'evening': _unwrap_legacy_plan_text(day.pop('evening', '')),
-            }
-            try: day['photos'] = json.loads(day.get('photos') or '[]')
-            except: day['photos'] = []
-            try: day['documents'] = json.loads(day.get('documents') or '[]')
-            except: day['documents'] = []
-            trip_days.append(day)
-
-        cursor.execute("SELECT * FROM expenses WHERE trip_id = ?", (trip_id,))
-        expenses = [dict(r) for r in cursor.fetchall()]
-
-        # Inline tripDays + expenses + members on the trip object. The
-        # archived-trip frontend reads these from `trip.tripDays` and
-        # `trip.expenses` (snapshots stored on archive), not from
-        # global STATE — so embedding them here means the same
-        # renderer works for fetched trips with no extra plumbing.
-        trip['tripDays'] = trip_days
-        trip['expenses'] = expenses
-
-        cursor.execute('''
-            SELECT m.user_id, m.role, u.name AS user_name, u.picture AS user_picture
-            FROM trip_members m
-            LEFT JOIN users u ON u.id = m.user_id
-            WHERE m.trip_id = ? AND m.invitation_status = 'accepted'
-        ''', (trip_id,))
-        trip['members'] = [
-            {
-                'userId': mr['user_id'],
-                'role': mr['role'],
-                'name': mr['user_name'],
-                'picture': mr['user_picture'],
-            }
-            for mr in cursor.fetchall()
-        ]
-
-        return jsonify({"trip": trip, "owner": owner})
-
-
-@app.route("/api/public-profile/<user_id>", methods=["GET"])
-def get_public_profile(user_id):
-    """Fetch public profile data for a user (Name, Bio, Public Trips, etc)."""
-    with get_db() as conn:
-        cursor = conn.cursor()
-        
-        # Get user info
-        cursor.execute("SELECT name, email, picture, bio, status FROM users WHERE id = ?", (user_id,))
-        user_row = cursor.fetchone()
-        if not user_row:
-            return jsonify({"error": "User not found"}), 404
-        
-        # Get public OR archived trips (for the footprint). Include the
-        # is_public / is_archived flags — the friends-map pin filter on the
-        # frontend keys off these, and stripping them silently hid every pin.
-        # Also include place_id/lat/lng/viewport so friends-map pins can render
-        # without a per-country geocoder round-trip.
-        cursor.execute(
-            "SELECT id, name, country, is_public, is_archived, "
-            "place_id, lat, lng, viewport_json, place_types, country_code "
-            "FROM trips WHERE user_id = ? AND (is_public = 1 OR is_archived = 1)",
-            (user_id,),
-        )
-        trips = []
-        for row in cursor.fetchall():
-            t = dict(row)
-            t['isPublic'] = bool(t.pop('is_public'))
-            t['isArchived'] = bool(t.pop('is_archived'))
-            t['placeId'] = t.pop('place_id', None)
-            viewport_raw = t.pop('viewport_json', None)
-            t['viewport'] = json.loads(viewport_raw) if viewport_raw else None
-            types_raw = t.pop('place_types', None)
-            t['placeTypes'] = json.loads(types_raw) if types_raw else None
-            t['countryCode'] = t.pop('country_code', None)
-            trips.append(t)
-
-        return jsonify({
-            "user": dict(user_row),
-            "trips": trips
-        })
-
-@app.route("/api/profile/update", methods=["POST"])
-@require_auth
-def update_profile():
-    """Update user bio, status, and/or home currency. Any field omitted in
-    the payload is left unchanged so callers can patch a single field."""
-    payload = request.json or {}
-    user_id = current_user_id()
-
-    fields = []
-    values = []
-    for key, column in (("bio", "bio"), ("status", "status"), ("homeCurrency", "home_currency")):
-        if key in payload:
-            fields.append(f"{column} = ?")
-            values.append(payload[key])
-    if not fields:
-        return jsonify({"status": "noop"})
-
-    values.append(user_id)
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute(f"UPDATE users SET {', '.join(fields)} WHERE id = ?", values)
-        conn.commit()
-    return jsonify({"status": "updated"})
 
 @app.route("/api/user-data", methods=["DELETE"])
 @require_auth
