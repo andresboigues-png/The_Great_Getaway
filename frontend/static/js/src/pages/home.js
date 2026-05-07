@@ -4799,7 +4799,14 @@ const openDayDetail = (dayId) => {
     //     glance
     //   - lazy filter input (only shown above 6 items — pointless
     //     for short lists) that filters rows live by name/address
-    const shortlistSectionHtml = allShortlist.length > 0 ? `
+    // Always render the panel (even when empty) so users see WHERE
+    // their to-do places will land. Used to be conditional —
+    // `allShortlist.length > 0 ? ... : ''` — which made the whole
+    // section vanish when the trip had zero items, leaving new
+    // users wondering where their to-do list went. The empty-state
+    // body now includes a quick "how to add" hint pointing at the
+    // home map's POI pins → "📋 Add to to-do list" flow.
+    const shortlistSectionHtml = `
         <div class="day-shortlist-section" style="margin-top: var(--space-10); padding: var(--space-6); background: rgba(155, 89, 182, 0.04); border: 1px solid rgba(155, 89, 182, 0.2); border-radius: 24px;">
             <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px; flex-wrap:wrap;">
                 <span style="font-size: 1.2rem;">📋</span>
@@ -4810,14 +4817,20 @@ const openDayDetail = (dayId) => {
                         style="margin-left:auto; max-width: 200px; padding:6px 12px; border:1px solid rgba(155,89,182,0.25); background:white; border-radius:999px; font-size:0.78rem; color:#002d5b; outline:none; font-family: inherit;">
                 ` : ''}
             </div>
-            <p style="margin:0 0 12px; font-size:0.74rem; color:var(--text-secondary); line-height:1.4;">Tap AM / PM / Eve to drop into the matching textarea — tap again to remove it. ✓ shows where it currently lives.</p>
-            <div id="dayShortlistRows" class="day-shortlist-rows"
-                style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:8px; max-height: 360px; overflow-y: auto; padding-right: 4px;">
-                ${allShortlist.map(shortlistRowHtml).join('')}
-            </div>
-            <div id="dayShortlistEmpty" style="display:none; padding: 16px 8px; text-align:center; color:var(--text-secondary); font-size:0.84rem;">No matches.</div>
+            ${allShortlist.length > 0 ? `
+                <p style="margin:0 0 12px; font-size:0.74rem; color:var(--text-secondary); line-height:1.4;">Tap AM / PM / Eve to drop into the matching textarea — tap again to remove it. ✓ shows where it currently lives.</p>
+                <div id="dayShortlistRows" class="day-shortlist-rows"
+                    style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:8px; max-height: 360px; overflow-y: auto; padding-right: 4px;">
+                    ${allShortlist.map(shortlistRowHtml).join('')}
+                </div>
+                <div id="dayShortlistEmpty" style="display:none; padding: 16px 8px; text-align:center; color:var(--text-secondary); font-size:0.84rem;">No matches.</div>
+            ` : `
+                <div style="margin-top:6px; padding: 18px 16px; border:1.5px dashed rgba(155,89,182,0.35); border-radius: 14px; background: rgba(155,89,182,0.03); color: var(--text-secondary); font-size: 0.85rem; line-height: 1.5;">
+                    No places saved yet. Open the map on Home, tap any pin, then click <strong style="color:#9b59b6;">📋 Add to to-do list</strong>. Each saved place lands here with AM / PM / Eve buttons so you can drop it into a time slot for this day in one tap.
+                </div>
+            `}
         </div>
-    ` : '';
+    `;
 
     // Forward-declared so the modal's `onClose` (fired on Esc /
     // backdrop click) can flush a pending debounced save before the

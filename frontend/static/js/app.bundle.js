@@ -1169,7 +1169,7 @@ Fix: enable "Directions API" on the Google Cloud project tied to your Maps API k
                     </div>
                 </div>
             </div>
-        `});R(a,`#closeViewBtn`).onclick=()=>o(),a.addEventListener(`click`,e=>{let t=e.target?.closest(`a[href]`);if(!t||!qt(t.href))return;let n=e;n.metaKey||n.ctrlKey||n.shiftKey||n.button===1||(n.preventDefault(),Kt(t.href,t.textContent?.trim().replace(/^📎\s*/,``)||`Document`))})},Yt=e=>{let t=b.tripDays.find(t=>t.id===e);if(!t)return;let n=b.trips.find(e=>e.id===t.tripId);if(!Ae(n)){Jt(t);return}let r=(n?.markedPlaces||[]).filter(e=>e.forManual),i=r.length>0?`
+        `});R(a,`#closeViewBtn`).onclick=()=>o(),a.addEventListener(`click`,e=>{let t=e.target?.closest(`a[href]`);if(!t||!qt(t.href))return;let n=e;n.metaKey||n.ctrlKey||n.shiftKey||n.button===1||(n.preventDefault(),Kt(t.href,t.textContent?.trim().replace(/^📎\s*/,``)||`Document`))})},Yt=e=>{let t=b.tripDays.find(t=>t.id===e);if(!t)return;let n=b.trips.find(e=>e.id===t.tripId);if(!Ae(n)){Jt(t);return}let r=(n?.markedPlaces||[]).filter(e=>e.forManual),i=`
         <div class="day-shortlist-section" style="margin-top: var(--space-10); padding: var(--space-6); background: rgba(155, 89, 182, 0.04); border: 1px solid rgba(155, 89, 182, 0.2); border-radius: 24px;">
             <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px; flex-wrap:wrap;">
                 <span style="font-size: 1.2rem;">📋</span>
@@ -1180,10 +1180,11 @@ Fix: enable "Directions API" on the Google Cloud project tied to your Maps API k
                         style="margin-left:auto; max-width: 200px; padding:6px 12px; border:1px solid rgba(155,89,182,0.25); background:white; border-radius:999px; font-size:0.78rem; color:#002d5b; outline:none; font-family: inherit;">
                 `:``}
             </div>
-            <p style="margin:0 0 12px; font-size:0.74rem; color:var(--text-secondary); line-height:1.4;">Tap AM / PM / Eve to drop into the matching textarea — tap again to remove it. ✓ shows where it currently lives.</p>
-            <div id="dayShortlistRows" class="day-shortlist-rows"
-                style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:8px; max-height: 360px; overflow-y: auto; padding-right: 4px;">
-                ${r.map(e=>`
+            ${r.length>0?`
+                <p style="margin:0 0 12px; font-size:0.74rem; color:var(--text-secondary); line-height:1.4;">Tap AM / PM / Eve to drop into the matching textarea — tap again to remove it. ✓ shows where it currently lives.</p>
+                <div id="dayShortlistRows" class="day-shortlist-rows"
+                    style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:8px; max-height: 360px; overflow-y: auto; padding-right: 4px;">
+                    ${r.map(e=>`
         <div class="day-shortlist-row" data-place-id="${z(e.placeId)}" style="display:flex; align-items:center; gap:10px; padding:10px 12px; background:white; border:1px solid ${e.color}40; border-left:3px solid ${e.color}; border-radius:10px;">
             <span style="font-size:1.2rem; line-height:1; flex-shrink:0;">${e.icon}</span>
             <div style="flex:1; min-width:0;">
@@ -1200,10 +1201,15 @@ Fix: enable "Directions API" on the Google Cloud project tied to your Maps API k
             </div>
         </div>
     `).join(``)}
-            </div>
-            <div id="dayShortlistEmpty" style="display:none; padding: 16px 8px; text-align:center; color:var(--text-secondary); font-size:0.84rem;">No matches.</div>
+                </div>
+                <div id="dayShortlistEmpty" style="display:none; padding: 16px 8px; text-align:center; color:var(--text-secondary); font-size:0.84rem;">No matches.</div>
+            `:`
+                <div style="margin-top:6px; padding: 18px 16px; border:1.5px dashed rgba(155,89,182,0.35); border-radius: 14px; background: rgba(155,89,182,0.03); color: var(--text-secondary); font-size: 0.85rem; line-height: 1.5;">
+                    No places saved yet. Open the map on Home, tap any pin, then click <strong style="color:#9b59b6;">📋 Add to to-do list</strong>. Each saved place lands here with AM / PM / Eve buttons so you can drop it into a time slot for this day in one tap.
+                </div>
+            `}
         </div>
-    `:``,a=null,o=Number(t.dayNumber)===0,s=o?`<div style="background: linear-gradient(135deg, #e8b923, #8b6e0c); color: white; padding: var(--space-1) var(--space-3); border-radius: var(--radius-sm); font-weight: 800; font-size: var(--font-xs); text-transform: uppercase; letter-spacing: 0.06em;">⭐ Trip Genesis</div>`:`<div style="background: var(--accent-blue); color: white; padding: var(--space-1) var(--space-3); border-radius: var(--radius-sm); font-weight: 800; font-size: var(--font-xs); text-transform: uppercase;">Day ${t.dayNumber}</div>`,c=o?n?.country?z(ie(n.country)):`Where the trip begins`:z(B(t.date)),l=o?`Trip Genesis`:z(t.name),u=`
+    `,a=null,o=Number(t.dayNumber)===0,s=o?`<div style="background: linear-gradient(135deg, #e8b923, #8b6e0c); color: white; padding: var(--space-1) var(--space-3); border-radius: var(--radius-sm); font-weight: 800; font-size: var(--font-xs); text-transform: uppercase; letter-spacing: 0.06em;">⭐ Trip Genesis</div>`:`<div style="background: var(--accent-blue); color: white; padding: var(--space-1) var(--space-3); border-radius: var(--radius-sm); font-weight: 800; font-size: var(--font-xs); text-transform: uppercase;">Day ${t.dayNumber}</div>`,c=o?n?.country?z(ie(n.country)):`Where the trip begins`:z(B(t.date)),l=o?`Trip Genesis`:z(t.name),u=`
         
         <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom: var(--space-6);">
             <button type="button" class="genesis-quicklink-btn" data-target="checklist"
