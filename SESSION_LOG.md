@@ -7,6 +7,60 @@ Newest entry at the top.
 
 ---
 
+## Session N — 2026-05-07 — Roadmap rewrite (post Phase G)
+
+**Why this entry**: a long stretch of feature work happened after Phase G
+that was never tracked as roadmap phases. Today's job was reading where
+we actually are, then writing a roadmap that reflects the next year of
+work — including production deploy on IONOS (€12/yr was the seed
+research), mobile + native via PWA → Capacitor → store submission, and
+a full code-organization pass before any of that.
+
+**What's now in `ROADMAP.md`** (full rewrite):
+
+- **Where we are** — explicit list of everything shipped since Phase G
+  but never tracked: feed/comments/likes/bookmarks/reposts, public-trip
+  detail page, `GET /api/public-trip/<id>` endpoint, Routes/Weather/
+  Time Zone/Street View integrations, neon-cyan pulsating route polyline,
+  Genesis-pinned day wheel, today chip with orange "TODAY" pill, AM/PM/
+  Eve tab strip, Documents+Photos as Genesis-option modals, capsule
+  trip tab nav, companions card with role-aware CTA, AI bullet plans,
+  date sync between trip + AI planner, profile InfoWindow GG style,
+  literal footprint icon, settings card-list rebuilds (categories +
+  format), settings General sub-tab, demo bug-fix batch, notification
+  dropdown opacity, clickable feed avatars.
+- **Tech debt** — `pages/home.js` at 5,378 lines, `src/main.py` at
+  2,653 lines, CSS at 5,032 lines, no production deploy, no dark mode,
+  PWA stub never finished, no native app. Each gets a phase below.
+- **Phase 1** — foundation hardening: split `home.js` and `main.py`,
+  design tokens, schema validation, expanded tests.
+- **Phase 2** — IONOS deploy: Gunicorn, env-based config, DNS + cert,
+  nightly DB backup, uptime monitor. Includes the IONOS product
+  decision tree (Webhosting €12 / VPS / Deploy Now).
+- **Phase 3** — mobile-first responsive sweep at 375 × 812.
+- **Phase 4** — PWA polish + offline + install prompt.
+- **Phase 5** — Maps Grounding for AI accuracy.
+- **Phase 6** — Capacitor (native iOS + Android shell).
+- **Phase 7** — App Store submission.
+- **Feature backlog** — captures `FUTURE_FEATURES.md` items + the social
+  / multi-country / business-modules layer from `VISION.md`.
+
+**Estimated scope**: ~50–70 hours / ~17–22 sessions to "shipped on
+stores"; ~110+ hours / ~35–45 sessions including a year of feature
+work. At 2 sessions/week, on stores in ~10–14 weeks.
+
+**Decisions captured**: skipped framework migration (component helpers
+gave 80% of the win), JSDoc over full TS rename, B2C-first with parallel
+B2B pilot leaning, SQLite for launch, mobile nav decision deferred to
+Phase 3.
+
+**State at end of session**: code is shipped through commit `dbd0bb5`
+(companions panel re-render + center). Next session can open cold by
+reading the new ROADMAP.md → pick Phase 1 (foundation) and start with
+1A — splitting `pages/home.js` into `pages/home/`.
+
+---
+
 ## Session 2 — 2026-04-30 — Phase A + B complete
 
 **Phase B done**: all 7 deferred pages typed in this session
