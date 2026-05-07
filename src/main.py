@@ -1774,16 +1774,29 @@ def share_trip_to_feed():
         return jsonify({"error": "Missing trip_id"}), 400
     with get_db() as conn:
         cursor = conn.cursor()
+        # Membership gate: caller must own the trip OR be an accepted
+        # member. We used to ALSO reject archived trips here, but the
+        # share button moved (frontend) to the public-trip detail page
+        # in collections — which is the ARCHIVED-trip view. That made
+        # the share button impossible to use successfully. Archived
+        # trips that are also Public are a perfectly reasonable thing
+        # to share ("just got back from Lisbon — amazing trip"), so
+        # the archive gate was dropped. The Public flag (gated
+        # client-side) plus the membership gate below are sufficient
+        # to keep this from being abused.
         cursor.execute(
-            "SELECT is_archived FROM trip_members WHERE trip_id = ? "
-            "AND user_id = ? AND invitation_status = 'accepted'",
+            "SELECT 1 FROM trips WHERE id = ? AND user_id = ?",
             (trip_id, user_id),
         )
-        row = cursor.fetchone()
-        if not row:
-            return jsonify({"error": "Forbidden"}), 403
-        if row['is_archived']:
-            return jsonify({"error": "Cannot share an archived trip"}), 400
+        is_owner = cursor.fetchone() is not None
+        if not is_owner:
+            cursor.execute(
+                "SELECT 1 FROM trip_members WHERE trip_id = ? "
+                "AND user_id = ? AND invitation_status = 'accepted'",
+                (trip_id, user_id),
+            )
+            if not cursor.fetchone():
+                return jsonify({"error": "Forbidden"}), 403
         cursor.execute(
             "SELECT id FROM feed_posts WHERE user_id = ? AND trip_id = ? "
             "AND repost_of_post_id IS NULL",

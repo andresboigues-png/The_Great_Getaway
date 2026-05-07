@@ -647,6 +647,30 @@ export function renderHome() {
                 </div>
             </div>
 
+            <!-- POI category pills — IN-FLOW panel that slots in
+                 between the search bar and the map (was an overlay
+                 over the map; the user said pills shouldn't eat
+                 map space). Hidden by default; visibility is
+                 toggled by #homePoiToggleBtn above the search bar.
+                 The container ALWAYS exists in the DOM (the pill
+                 click handler at line ~1264 listens here); the
+                 .is-visible class controls display. The user's
+                 preference persists in localStorage so the choice
+                 sticks across reloads. Settings → General hides
+                 individual pills via poiVisible[key] === false;
+                 that filtering happens here too. -->
+            <div id="homeMapPoiToggles" class="map-poi-toggles map-poi-toggles--inline${(() => {
+                let visible = false;
+                try { visible = localStorage.getItem('home_pills_visible') === '1'; } catch (_) {}
+                return visible ? ' is-visible' : '';
+            })()}" aria-hidden="true">
+                ${POI_CATEGORIES
+                    .filter(c => STATE.preferences?.poiVisible?.[c.key] !== false)
+                    .map(c => `
+                        <button type="button" class="map-poi-toggle" data-poi="${c.key}" aria-pressed="false" title="${esc(c.tooltip)}">${c.icon} <span>${esc(c.label)}</span></button>
+                    `).join('')}
+            </div>
+
             <div class="card glass cover-card cover-card--md">
                 <div id="homeHeroMap" style="width: 100%; height: 100%; position: absolute; inset: 0; z-index: 0;"></div>
                 <div class="cover-card__gradient" style="pointer-events: none; z-index: 1;"></div>
@@ -654,29 +678,6 @@ export function renderHome() {
                     <p id="homeQuote" class="cover-card__quote">
                         ${displayQuotes[0] || ''}
                     </p>
-                </div>
-
-                <!-- POI category pills — overlay panel pinned at the
-                     top of the map. Hidden by default; visibility is
-                     toggled by #homePoiToggleBtn above the search
-                     bar. The container ALWAYS exists in the DOM (the
-                     pill click handler at line ~1264 listens here);
-                     the .is-visible class controls display. The
-                     user's preference persists in localStorage so
-                     the choice sticks across reloads. Settings →
-                     General hides individual pills via
-                     poiVisible[key] === false; that filtering
-                     happens here too. -->
-                <div id="homeMapPoiToggles" class="map-poi-toggles map-poi-toggles--overlay${(() => {
-                    let visible = false;
-                    try { visible = localStorage.getItem('home_pills_visible') === '1'; } catch (_) {}
-                    return visible ? ' is-visible' : '';
-                })()}" aria-hidden="true">
-                    ${POI_CATEGORIES
-                        .filter(c => STATE.preferences?.poiVisible?.[c.key] !== false)
-                        .map(c => `
-                            <button type="button" class="map-poi-toggle" data-poi="${c.key}" aria-pressed="false" title="${esc(c.tooltip)}">${c.icon} <span>${esc(c.label)}</span></button>
-                        `).join('')}
                 </div>
             </div>
         `;
@@ -4053,21 +4054,16 @@ const openDayDetail = (dayId) => {
             </button>
         </div>
     `;
-    const genesisLeftHtml = `
+    // Genesis body — single-column. Used to be split 2-col with the
+    // right column holding ONLY the Done button, which looked awkward
+    // (a wide notes textarea then a tall empty column with a single
+    // button). Done moved to a proper footer below; Genesis now uses
+    // the full modal width for its quick-links + notes textarea.
+    const genesisBodyHtml = `
         ${genesisQuickLinksHtml}
-        <div class="subcard-soft" style="flex:1; display:flex; flex-direction:column;">
+        <div class="subcard-soft" style="display:flex; flex-direction:column;">
             <h4 class="text-tag" style="--accent: 212,160,23;">Trip notes & journal</h4>
-            <textarea id="detailNotes" class="plain-textarea" placeholder="What this trip is about, highlights, things to remember…" style="flex:1; min-height: 320px;">${esc(day.notes || '')}</textarea>
-        </div>
-    `;
-    // Genesis right column — just Done + autosave status. The
-    // "Trip tip" card was removed app-wide; Genesis already has the
-    // Trip checklist quick-link at the top of the left column, so
-    // there's no need to mirror the checklist on the right here.
-    const genesisRightHtml = `
-        <div style="display:flex; flex-direction:column; gap:6px;">
-            <button id="saveDetailBtn" class="btn-primary" style="width: 100%; padding: var(--space-5); border-radius: var(--radius-xl); font-size: var(--font-xl);">Done</button>
-            <div id="autosaveStatus" style="text-align:center; font-size:0.7rem; color:var(--text-secondary); font-weight:600; min-height:1em;">Changes save automatically</div>
+            <textarea id="detailNotes" class="plain-textarea" placeholder="What this trip is about, highlights, things to remember…" style="min-height: 320px;">${esc(day.notes || '')}</textarea>
         </div>
     `;
 
@@ -4130,17 +4126,53 @@ const openDayDetail = (dayId) => {
         `;
     })();
 
+    // Numbered-day right column — Personal Notes on top, Trip
+    // checklist below. The Done button used to live here too but
+    // looked stranded "in the middle of the others" (per user); it
+    // moved to a proper footer below the columns so it reads as the
+    // primary close action, not just another panel.
     const numberedDayRightHtml = `
-        <div style="flex: 1; background: rgba(0,113,227,0.05); padding: var(--space-6); border-radius: 24px; border: 1px solid rgba(0,113,227,0.1);">
+        <div style="background: rgba(0,113,227,0.05); padding: var(--space-6); border-radius: 24px; border: 1px solid rgba(0,113,227,0.1);">
             <h4 class="text-tag">Personal Notes</h4>
             <textarea id="detailNotes" class="plain-textarea plain-textarea--no-resize" style="height: 200px;" placeholder="Private thoughts about this day...">${esc(day.notes || '')}</textarea>
         </div>
         ${checklistPanelHtml}
-        <div style="display:flex; flex-direction:column; gap:6px;">
-            <button id="saveDetailBtn" class="btn-primary" style="width: 100%; padding: var(--space-5); border-radius: var(--radius-xl); font-size: var(--font-xl);">Done</button>
-            <div id="autosaveStatus" style="text-align:center; font-size:0.7rem; color:var(--text-secondary); font-weight:600; min-height:1em;">Changes save automatically</div>
+    `;
+
+    // Footer — single Done button + autosave status, full modal
+    // width, separated from the columns above by a subtle divider.
+    // Reads as "I'm done with this day" rather than yet another
+    // right-column item.
+    const footerHtml = `
+        <div style="margin-top: var(--space-10); padding-top: var(--space-8); border-top: 1px solid rgba(0,45,91,0.08); display:flex; flex-direction:column; align-items:center; gap:8px;">
+            <button id="saveDetailBtn" class="btn-primary" style="min-width: 220px; padding: var(--space-5) var(--space-10); border-radius: var(--radius-xl); font-size: var(--font-lg); font-weight:800; letter-spacing:-0.01em;">Done</button>
+            <div id="autosaveStatus" style="text-align:center; font-size:0.72rem; color:var(--text-secondary); font-weight:600; min-height:1em; letter-spacing:0.02em;">Changes save automatically</div>
         </div>
     `;
+
+    // Body section structure:
+    //  - Genesis: single-column body (used to be 2-col with right
+    //    column = Done button only; awkward).
+    //  - Numbered: 2-column grid (left = AM/PM/Eve, right = Notes +
+    //    Checklist), then the To-do list section spanning full width.
+    //  - Both: shared footer below with Done + autosave status.
+    const bodyHtml = isGenesis
+        ? `
+            <div style="display: flex; flex-direction: column; gap: var(--space-6);">
+                ${genesisBodyHtml}
+            </div>
+        `
+        : `
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-10);">
+                <div style="display: flex; flex-direction: column; gap: var(--space-6);">
+                    ${numberedDayLeftHtml}
+                </div>
+                <div style="display: flex; flex-direction: column; gap: var(--space-6);">
+                    ${numberedDayRightHtml}
+                </div>
+            </div>
+            ${shortlistSectionHtml}
+        `;
 
     const { root, close } = showModal({
         cardClass: 'card glass',
@@ -4156,15 +4188,8 @@ const openDayDetail = (dayId) => {
                 </div>
                 <button id="closeDetailBtn" class="close-x-btn" aria-label="Close">✕</button>
             </div>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-10);">
-                <div style="display: flex; flex-direction: column; gap: var(--space-6);">
-                    ${isGenesis ? genesisLeftHtml : numberedDayLeftHtml}
-                </div>
-                <div style="display: flex; flex-direction: column; gap: var(--space-6);">
-                    ${isGenesis ? genesisRightHtml : numberedDayRightHtml}
-                </div>
-            </div>
-            ${isGenesis ? '' : shortlistSectionHtml}
+            ${bodyHtml}
+            ${footerHtml}
         `,
         onClose: () => flushPendingOnExit?.(),
     });
@@ -4406,6 +4431,21 @@ const openDayDetail = (dayId) => {
             const line = `- ${place.name}`;
             ta.value = ta.value.trim().length > 0 ? `${ta.value.trim()}\n${line}` : line;
         }
+        // Visual confirmation pulse — a tiny scale bounce on the
+        // button so the user has explicit feedback that the click
+        // landed (otherwise removing a line you can't see in a
+        // collapsed textarea reads as "nothing happened"). The
+        // textarea also gets a brief outline flash to draw the eye
+        // to where the change occurred.
+        /** @type {HTMLButtonElement} */ (btn).animate(
+            [{ transform: 'scale(1)' }, { transform: 'scale(1.18)' }, { transform: 'scale(1)' }],
+            { duration: 220, easing: 'ease-out' },
+        );
+        const taPrevOutline = ta.style.boxShadow;
+        ta.style.boxShadow = isThere
+            ? '0 0 0 2px rgba(255,59,48,0.35)'
+            : '0 0 0 2px rgba(0,113,227,0.35)';
+        setTimeout(() => { ta.style.boxShadow = taPrevOutline; }, 280);
         persistNow();
         refreshShortlistButtons();
     });

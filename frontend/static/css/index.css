@@ -1643,38 +1643,31 @@ h1 {
     transform: rotate(180deg);
 }
 
-/* The pill row itself — base styles. Two variants:
-   - .map-poi-toggles--overlay: absolutely positioned floating panel
-     over the top of the map. Hidden by default; .is-visible flips
-     it on. Used by the home map (current layout).
-   - (No legacy .map-poi-toggles--below variant — the always-on
-     in-flow layout was retired when the overlay variant landed.) */
+/* The pill row itself — base styles + the .is-visible inline
+   variant. Renders IN-FLOW between the search bar and the map (was
+   an overlay over the map; pills eating map space was bad UX).
+   Hidden by default; .is-visible flips it on. */
 .map-poi-toggles {
     display: none;
     flex-wrap: wrap;
     gap: 6px;
 }
-.map-poi-toggles--overlay {
-    position: absolute;
-    top: 12px;
-    left: 12px;
-    right: 12px;
-    z-index: 4;
-    background: rgba(255, 255, 255, 0.96);
-    backdrop-filter: blur(20px) saturate(160%);
-    -webkit-backdrop-filter: blur(20px) saturate(160%);
+.map-poi-toggles--inline {
+    /* In-flow position: appears in the gap between the search bar
+       and the cover card (map). Centered with the same max-width
+       as the search bar so the row reads as a paired control. */
+    margin: 0 auto var(--space-4);
+    max-width: 720px;
     padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.94);
+    backdrop-filter: blur(14px) saturate(160%);
+    -webkit-backdrop-filter: blur(14px) saturate(160%);
+    border: 1px solid rgba(0, 113, 227, 0.14);
     border-radius: 16px;
-    box-shadow: 0 12px 28px rgba(0, 45, 91, 0.18);
-    border: 1px solid rgba(255, 255, 255, 0.6);
-    /* Capped so a long pill list doesn't drown the map; scrolls
-       horizontally inside the panel if it would otherwise wrap into
-       a tall block obscuring half the map. */
-    max-height: 96px;
-    overflow-y: auto;
-    scrollbar-width: thin;
+    box-shadow: 0 4px 14px rgba(0, 45, 91, 0.06);
+    justify-content: center;
 }
-.map-poi-toggles--overlay.is-visible {
+.map-poi-toggles--inline.is-visible {
     display: flex;
 }
 .map-poi-toggle {
@@ -3535,9 +3528,10 @@ h1 {
     gap: 14px;                /* gap between circles — line shows in the gap */
     overflow-x: auto;
     scroll-behavior: smooth;
-    /* Vertical padding leaves room for the scaled-up Today/Selected
-       chips and the "Today" dot underneath without clipping. */
-    padding: 14px 4px 18px;
+    /* Vertical padding leaves room for the scaled-up Selected chip
+       and the "TODAY" pill label that sits underneath today's chip
+       without clipping. */
+    padding: 14px 4px 26px;
     flex: 1;
     min-width: 0;
     position: relative;       /* anchor for the ::before line */
@@ -3607,36 +3601,43 @@ h1 {
 }
 
 /* Today modifier — flags the chip whose .date matches the user's
-   actual calendar today. Bumped above the resting size + thicker
-   border + a small dot underneath so the user can see "I'm here
-   today" at a glance. Selected stacks ON TOP (selected outranks
-   today): a today chip the user is currently viewing scales the
-   most. The dot uses ::after; positioned in the strip's bottom
-   padding (we widened that earlier so it isn't clipped). */
-.path-chip--today {
-    transform: scale(1.18);
-    border-width: 3px;
-    box-shadow: 0 0 0 3px white, 0 4px 10px rgba(0, 113, 227, 0.18);
-}
+   actual calendar today. Used to share the same accent-blue as
+   selected state — that meant Day 1 (when today = Day 1) read as
+   "still selected" even after the user navigated to Day 3. Now
+   today uses ORANGE (matches the sidebar's #ff9500), so it visibly
+   means "this is today" and is unambiguous against the blue
+   selection state. No thicker border (kept the resting border
+   width) and a smaller, label-style dot underneath so today is a
+   distinct annotation, not a competing selection signal. Selected
+   still outranks: a today chip the user is currently viewing keeps
+   the today dot but flips to the blue selection visual. */
 .path-chip--today::after {
-    content: '';
+    content: 'TODAY';
     position: absolute;
-    bottom: -10px;
+    bottom: -14px;
     left: 50%;
     transform: translateX(-50%);
-    width: 5px;
-    height: 5px;
-    border-radius: 50%;
-    background: var(--accent-blue);
-    box-shadow: 0 0 0 2px white;
-}
-.path-chip--today.is-selected {
-    /* Today + selected — biggest. */
-    transform: scale(1.42);
-}
-.path-chip--today.is-selected::after {
+    font-size: 0.55rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    color: #ff9500;
+    line-height: 1;
     background: white;
-    box-shadow: 0 0 0 2px var(--accent-blue);
+    padding: 1px 5px;
+    border-radius: 999px;
+    box-shadow: 0 1px 4px rgba(255, 149, 0, 0.18);
+    pointer-events: none;
+}
+/* When today is NOT selected, give it a subtle orange tint on the
+   chip itself (border + text color) so the chip echoes the label
+   underneath. Selected state OVERRIDES (selected wins the visual
+   priority — the user explicitly is on that chip). */
+.path-chip--today:not(.is-selected) {
+    border-color: rgba(255, 149, 0, 0.55);
+    color: #ff9500;
+}
+.path-chip--today:not(.is-selected):hover {
+    background: rgba(255, 149, 0, 0.06);
 }
 /* Genesis = trip headquarters; styled gold across the board (chips,
    card, primary button) so it visually outranks numbered days and
