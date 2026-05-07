@@ -1,14 +1,13 @@
-// @ts-check
-// state.js — Global STATE object and persistence helpers
+// state.ts — Global STATE object and persistence helpers
 
-import { EVENTS } from './constants.js';
+import { EVENTS, type EventName } from './constants.js';
 import { validateLoadedState } from './schemas.js';
 import { normalizeTripCompanions } from './companions.js';
+import type { AppState } from './types';
 
-// api.js helpers are imported at call-site, not here.
+// api.ts helpers are imported at call-site, not here.
 
-/** @type {import('./types').AppState} */
-export const STATE = {
+export const STATE: AppState = {
     trips: [],
     activeTripId: null,
     categories: [
@@ -281,24 +280,20 @@ export function saveState() {
 // `event` is typed against the EventName union so typos like 'state:changd'
 // fail typecheck. Plain literals matching the values still pass — no need
 // to refactor every call site to use the constant.
-const _subscribers = new Map();
+type Subscriber = (payload?: unknown) => void;
+const _subscribers = new Map<EventName, Set<Subscriber>>();
 
-/**
- * @param {import('./constants.js').EventName} event
- * @param {(payload?: any) => void} fn
- * @returns {() => void} unsubscribe
- */
-export function subscribe(event, fn) {
-    if (!_subscribers.has(event)) _subscribers.set(event, new Set());
-    _subscribers.get(event).add(fn);
+export function subscribe(event: EventName, fn: Subscriber): () => void {
+    let bucket = _subscribers.get(event);
+    if (!bucket) {
+        bucket = new Set();
+        _subscribers.set(event, bucket);
+    }
+    bucket.add(fn);
     return () => _subscribers.get(event)?.delete(fn);
 }
 
-/**
- * @param {import('./constants.js').EventName} event
- * @param {any} [payload]
- */
-export function emit(event, payload) {
+export function emit(event: EventName, payload?: unknown): void {
     _subscribers.get(event)?.forEach(fn => {
         try { fn(payload); }
         catch (e) { console.error(`Subscriber for "${event}" threw:`, e); }

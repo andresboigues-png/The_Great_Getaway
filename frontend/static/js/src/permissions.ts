@@ -1,5 +1,4 @@
-// @ts-check
-// permissions.js — Single boundary for role-based UI decisions.
+// permissions.ts — Single boundary for role-based UI decisions.
 //
 // Roles:
 //   planner   — full edit (trip details, days, expenses, can archive own copy)
@@ -14,15 +13,21 @@
 //   server (trip_members.role) → /api/data → trip.myRole → these helpers
 
 import { STATE } from './state.js';
+import type { Trip, TripRole } from './types';
 
 export const ROLE_PLANNER = 'planner';
 export const ROLE_BUDGETEER = 'budgeteer';
 export const ROLE_RELAXER = 'relaxer';
 
+/** Trip subset every helper here actually reads. Some legacy snapshots
+ *  carry an old `user_id` mirror of `ownerId` (server schema lag); we
+ *  accept either. */
+type TripPermInput = (Pick<Trip, 'ownerId' | 'myRole'> & { user_id?: string }) | null | undefined;
+
 /** True when the current user created the trip. Owners have implicit
  *  Planner-tier rights and can additionally manage roster + delete the
  *  trip outright (powers Planners alone do not have). */
-export function isOwner(trip) {
+export function isOwner(trip: TripPermInput): boolean {
     if (!trip) return false;
     const me = STATE.user?.id;
     if (!me) return false;
@@ -32,7 +37,7 @@ export function isOwner(trip) {
 /** Read the current user's role on the trip, or 'planner' for owners as a
  *  defensive fallback (a freshly-created trip might fetch /api/data before
  *  the owner-row backfill lands). */
-export function getMyRole(trip) {
+export function getMyRole(trip: TripPermInput): TripRole | null {
     if (!trip) return null;
     if (isOwner(trip)) return ROLE_PLANNER;
     return trip.myRole ?? null;
@@ -41,14 +46,14 @@ export function getMyRole(trip) {
 /** Can the current user edit trip-level content (rename, days, plan)?
  *  Planner-only. Budgeteers are *NOT* allowed here — they only edit
  *  expenses (see canEditExpenses). */
-export function canEdit(trip) {
+export function canEdit(trip: TripPermInput): boolean {
     return getMyRole(trip) === ROLE_PLANNER;
 }
 
 /** Can the current user add/edit/delete expenses on this trip?
  *  Planners and Budgeteers; Relaxers cannot. Use this on the expense
  *  form, settlement page, and the History tab's edit/delete buttons. */
-export function canEditExpenses(trip) {
+export function canEditExpenses(trip: TripPermInput): boolean {
     const role = getMyRole(trip);
     return role === ROLE_PLANNER || role === ROLE_BUDGETEER;
 }
@@ -56,26 +61,26 @@ export function canEditExpenses(trip) {
 /** Can the current user manage the trip's roster (companions / members /
  *  invitations)? Owners only — sidesteps "two planners both labelled the
  *  same companion differently" naming-conflict for now. */
-export function canManageRoster(trip) {
+export function canManageRoster(trip: TripPermInput): boolean {
     return isOwner(trip);
 }
 
 /** Can the current user delete the entire trip (not archive — actual
  *  destruction)? Owner-only by design; Phase 3 spec is explicit on this. */
-export function canDelete(trip) {
+export function canDelete(trip: TripPermInput): boolean {
     return isOwner(trip);
 }
 
 /** Can the current user invite/kick members? Same as `canManageRoster` for
  *  now; kept as a separate helper so a future "Co-Planner can invite but
  *  can't change roster names" rule is a single-line edit here. */
-export function canInviteMembers(trip) {
+export function canInviteMembers(trip: TripPermInput): boolean {
     return isOwner(trip);
 }
 
 /** Can the current user archive their own copy of the trip? Always true
  *  for any accepted member (incl. relaxers — archive is just a personal
  *  hide flag, not a write to shared trip data). */
-export function canArchive(trip) {
+export function canArchive(trip: TripPermInput): boolean {
     return getMyRole(trip) !== null;
 }

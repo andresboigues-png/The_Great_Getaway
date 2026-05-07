@@ -1,9 +1,8 @@
-// @ts-check
-// api.js — Backend fetch helpers
+// api.ts — Backend fetch helpers
 
 import { STATE, emit } from './state.js';
 import { navigate } from './router.js';
-import { API_BASE_URL, EVENTS, PAGES } from './constants.js';
+import { API_BASE_URL, EVENTS, PAGES, type PageName } from './constants.js';
 import { validateServerData } from './schemas.js';
 import { normalizeTripCompanions } from './companions.js';
 
@@ -29,7 +28,7 @@ export const clearAuthToken = () => localStorage.removeItem(TOKEN_KEY);
 
 /** Merge Authorization: Bearer <token> into an options object's headers,
  *  preserving anything the caller already set. */
-function _withAuth(options = {}) {
+function _withAuth(options: RequestInit = {}): RequestInit {
     const token = getAuthToken();
     if (!token) return options;
     return {
@@ -147,11 +146,9 @@ export async function pullFromServer() {
         await fetchNotifications(); // already emits 'notifications:changed'
 
         // Re-render current page to show new data
-        const known = /** @type {string[]} */ (Object.values(PAGES));
+        const known: readonly string[] = Object.values(PAGES);
         const hash = window.location.hash.replace('#', '');
-        const current = /** @type {import('./constants.js').PageName} */ (
-            known.includes(hash) ? hash : PAGES.HOME
-        );
+        const current: PageName = (known.includes(hash) ? hash : PAGES.HOME) as PageName;
         navigate(current);
     } catch (e) {
         console.error("Pull from server failed:", e);
@@ -178,14 +175,24 @@ const _delete = (url, body) => apiFetch(url, {
  *  invitation (already cancelled, already accepted, deleted trip) should
  *  surface an error message rather than silently optimistically-update
  *  the UI. */
-const _postJson = async (url, body) => {
+/** Result envelope returned by every `_postJson` caller. `body` is `any`
+ *  so each call site can read its own response shape without an extra
+ *  cast — these endpoints are loosely typed; tightening them is a job
+ *  for Phase A4 (zod schema validation at API boundaries). */
+export interface ApiJsonResult {
+    ok: boolean;
+    status: number;
+    body: any;
+}
+
+const _postJson = async (url: string, body: unknown): Promise<ApiJsonResult> => {
     try {
         const res = await apiFetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body),
         });
-        let payload = null;
+        let payload: any = null;
         try { payload = await res.json(); } catch { /* not JSON, ignore */ }
         return { ok: res.ok, status: res.status, body: payload };
     } catch (e) {
@@ -522,14 +529,14 @@ export async function fetchHistoricalRates(dates) {
         const url = `https://api.frankfurter.app/${start}..${end}`;
         const resp = await fetch(url);
         if (resp.ok) {
-            const data = await resp.json();
+            const data: { rates: Record<string, Record<string, number>> } = await resp.json();
             // data.rates is { "YYYY-MM-DD": { "USD": 1.1, ... } }
             Object.entries(data.rates).forEach(([date, rates]) => {
                 Object.entries(rates).forEach(([curr, rate]) => {
                     STATE.rateCache[`${date}_${curr}_EUR`] = 1 / rate; // Store as curr -> EUR
                 });
             });
-            emit('state:changed');
+            emit(EVENTS.STATE_CHANGED);
         }
     } catch (e) {
         console.error("Failed to fetch historical rates:", e);

@@ -1,5 +1,4 @@
-// @ts-check
-// companions.js — Helpers for trip-scoped companions.
+// companions.ts — Helpers for trip-scoped companions.
 //
 // Companions live ONLY inside `Trip.companions` now — there's no
 // account-wide roster. Friends are the only account-level "people"
@@ -9,25 +8,26 @@
 // All helpers take a Trip (or a companion array) explicitly so the
 // caller decides which trip's roster to query.
 
-/**
- * @typedef {{ name: string, linkedUserId?: string }} Companion
- */
+import type { Companion } from './types';
+
+/** Trip-shaped argument accepted by every helper here — we only need
+ *  the `companions` field, so the rest of `Trip` is irrelevant. */
+type TripWithCompanions = { companions?: Companion[] };
 
 /** Idempotent shape upgrade — accepts either the old `string[]` shape or
  *  the new `Companion[]` shape and returns Companion[]. Used at every
  *  boundary where companion data crosses the wire (server → client) or
- *  comes back from older local storage.
- *  @param {Array<string | Companion> | undefined | null} raw
- *  @returns {Companion[]} */
-export function normalizeTripCompanions(raw) {
+ *  comes back from older local storage. */
+export function normalizeTripCompanions(
+    raw: Array<string | Companion> | undefined | null,
+): Companion[] {
     if (!Array.isArray(raw)) return [];
-    /** @type {Companion[]} */
-    const out = [];
+    const out: Companion[] = [];
     for (const item of raw) {
         if (typeof item === 'string') {
             if (item) out.push({ name: item });
         } else if (item && typeof item === 'object' && typeof item.name === 'string' && item.name) {
-            const c = /** @type {Companion} */ ({ name: item.name });
+            const c: Companion = { name: item.name };
             if (item.linkedUserId) c.linkedUserId = item.linkedUserId;
             out.push(c);
         }
@@ -37,53 +37,48 @@ export function normalizeTripCompanions(raw) {
 
 /** Return the names of every companion on the trip — convenience for
  *  call sites that still want a `string[]` (option lists, equal-split
- *  fallbacks, settlement balance roster).
- *  @param {{ companions?: Companion[] } | null | undefined} trip
- *  @returns {string[]} */
-export function getTripCompanionNames(trip) {
+ *  fallbacks, settlement balance roster). */
+export function getTripCompanionNames(trip: TripWithCompanions | null | undefined): string[] {
     return (trip?.companions ?? []).map(c => c.name);
 }
 
-/** @param {{ companions?: Companion[] } | null | undefined} trip @param {string} name */
-export function findTripCompanion(trip, name) {
+export function findTripCompanion(trip: TripWithCompanions | null | undefined, name: string): Companion | undefined {
     if (!name) return undefined;
     return (trip?.companions ?? []).find(c => c.name === name);
 }
 
-/** @param {{ companions?: Companion[] } | null | undefined} trip @param {string} userId */
-export function findTripCompanionByLinkedUser(trip, userId) {
+export function findTripCompanionByLinkedUser(trip: TripWithCompanions | null | undefined, userId: string): Companion | undefined {
     if (!userId) return undefined;
     return (trip?.companions ?? []).find(c => c.linkedUserId === userId);
 }
 
-/** @param {{ companions?: Companion[] } | null | undefined} trip @param {string} name */
-export function tripHasCompanion(trip, name) {
+export function tripHasCompanion(trip: TripWithCompanions | null | undefined, name: string): boolean {
     return findTripCompanion(trip, name) !== undefined;
 }
 
 /** Add a companion to the trip's roster if a row with that name doesn't
  *  already exist. Returns the (existing or newly-created) Companion. The
- *  caller is responsible for persisting the trip via upsertTrip.
- *  @param {{ companions?: Companion[] }} trip @param {string} name @param {string} [linkedUserId]
- *  @returns {Companion} */
-export function addTripCompanion(trip, name, linkedUserId) {
+ *  caller is responsible for persisting the trip via upsertTrip. */
+export function addTripCompanion(
+    trip: TripWithCompanions,
+    name: string,
+    linkedUserId?: string,
+): Companion {
     if (!trip.companions) trip.companions = [];
     const existing = trip.companions.find(c => c.name === name);
     if (existing) {
         if (linkedUserId && !existing.linkedUserId) existing.linkedUserId = linkedUserId;
         return existing;
     }
-    /** @type {Companion} */
-    const c = { name };
+    const c: Companion = { name };
     if (linkedUserId) c.linkedUserId = linkedUserId;
     trip.companions.push(c);
     return c;
 }
 
 /** Remove a companion from the trip's roster by name. Returns `true` if
- *  a row was removed.
- *  @param {{ companions?: Companion[] }} trip @param {string} name */
-export function removeTripCompanion(trip, name) {
+ *  a row was removed. */
+export function removeTripCompanion(trip: TripWithCompanions, name: string): boolean {
     if (!trip.companions) return false;
     const before = trip.companions.length;
     trip.companions = trip.companions.filter(c => c.name !== name);
