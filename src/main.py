@@ -1495,8 +1495,12 @@ def get_feed():
     with get_db() as conn:
         cursor = conn.cursor()
 
-        # 1) Pull the caller's accepted friend list — every event below
-        # is gated on the actor being in this set.
+        # 1) Pull the caller's accepted friend list — Action-class
+        # events (created/archived/joined/friendships) are gated on
+        # the actor being a friend (own actions stay out of own feed
+        # by design — the feed is "what your friends are up to").
+        # Posts (shares + reposts) DO include the caller's own so
+        # the user sees their share land alongside friends' shares.
         cursor.execute('''
             SELECT u.id, u.name, u.picture
             FROM users u
@@ -1506,10 +1510,25 @@ def get_feed():
         friend_rows = [dict(r) for r in cursor.fetchall()]
         friend_ids = [f["id"] for f in friend_rows]
         friend_lookup = {f["id"]: f for f in friend_rows}
-        if not friend_ids:
-            return jsonify([])
 
-        placeholders = ",".join(["?"] * len(friend_ids))
+        # Pull the caller's own row + build a wider lookup for the
+        # Posts queries that include own posts.
+        cursor.execute("SELECT id, name, picture FROM users WHERE id = ?", (user_id,))
+        me_row = cursor.fetchone()
+        me_lookup = dict(me_row) if me_row else {"id": user_id, "name": "You", "picture": None}
+        post_actor_lookup = {**friend_lookup, user_id: me_lookup}
+        post_actor_ids = list(set(friend_ids + [user_id]))
+        post_placeholders = ",".join(["?"] * len(post_actor_ids))
+
+        # Build IN-list params with a non-matching sentinel when the
+        # underlying list is empty — SQLite chokes on `IN ()` syntax,
+        # so when the caller has no friends we substitute a UUID-shaped
+        # string nothing matches. Yields zero rows for Action queries
+        # cleanly without an outer if-block. Posts queries always have
+        # at least the caller themselves in post_actor_ids so they
+        # never need this dance.
+        action_ids = friend_ids if friend_ids else ["__no_friends_sentinel__"]
+        placeholders = ",".join(["?"] * len(action_ids))
 
         # 2) friend_created_trip — friend is the trip's owner, created
         # in last 30 days. Excludes archived trips (those get their own
@@ -1521,7 +1540,7 @@ def get_feed():
               AND COALESCE(is_archived, 0) = 0
               AND created_at >= datetime('now', '-30 days')
             ORDER BY created_at DESC
-        ''', friend_ids)
+        ''', action_ids)
         for row in cursor.fetchall():
             actor = friend_lookup.get(row["user_id"])
             if not actor:
@@ -1547,7 +1566,7 @@ def get_feed():
               AND COALESCE(is_archived, 0) = 1
               AND created_at >= datetime('now', '-30 days')
             ORDER BY created_at DESC
-        ''', friend_ids)
+        ''', action_ids)
         for row in cursor.fetchall():
             actor = friend_lookup.get(row["user_id"])
             if not actor:
@@ -1577,7 +1596,7 @@ def get_feed():
               AND tm.user_id != t.user_id
               AND tm.user_id != ?
               AND t.created_at >= datetime('now', '-30 days')
-        ''', [*friend_ids, user_id])
+        ''', [*action_ids, user_id])
         for row in cursor.fetchall():
             actor = friend_lookup.get(row["friend_id"])
             if not actor:
@@ -1626,6 +1645,9 @@ def get_feed():
         # shares only (repost_of_post_id IS NULL). Trip metadata joined
         # so the card has a name/country to show. caption is the
         # optional sharer-written blurb above the trip card.
+        # Includes the CALLER's own shares too — own posts in the Posts
+        # feed close the loop ("did my share land?"). Own actions stay
+        # out (queries 2-4 only see friends).
         cursor.execute(f'''
             SELECT fp.id, fp.user_id AS sharer_id, fp.trip_id, fp.created_at, fp.caption,
                    u.name AS sharer_name, u.picture AS sharer_picture,
@@ -1633,11 +1655,11 @@ def get_feed():
             FROM feed_posts fp
             JOIN users u ON u.id = fp.user_id
             JOIN trips t ON t.id = fp.trip_id
-            WHERE fp.user_id IN ({placeholders})
+            WHERE fp.user_id IN ({post_placeholders})
               AND fp.repost_of_post_id IS NULL
               AND fp.created_at >= datetime('now', '-30 days')
             ORDER BY fp.created_at DESC
-        ''', friend_ids)
+        ''', post_actor_ids)
         for row in cursor.fetchall():
             events.append({
                 "id": f"share_{row['id']}",
@@ -1654,7 +1676,8 @@ def get_feed():
         # caption so the card can render "Reposted X's share" with the
         # original blurb visible. The original sharer can be a
         # non-friend — that's the whole point: reposts are how trips
-        # propagate beyond your immediate network.
+        # propagate beyond your immediate network. Includes the
+        # CALLER's own reposts (same rationale as query 6).
         cursor.execute(f'''
             SELECT fp.id, fp.user_id AS reposter_id, fp.trip_id, fp.created_at,
                    u.name AS reposter_name, u.picture AS reposter_picture,
@@ -1666,11 +1689,11 @@ def get_feed():
             JOIN trips t ON t.id = fp.trip_id
             JOIN feed_posts orig ON orig.id = fp.repost_of_post_id
             JOIN users ou ON ou.id = orig.user_id
-            WHERE fp.user_id IN ({placeholders})
+            WHERE fp.user_id IN ({post_placeholders})
               AND fp.repost_of_post_id IS NOT NULL
               AND fp.created_at >= datetime('now', '-30 days')
             ORDER BY fp.created_at DESC
-        ''', friend_ids)
+        ''', post_actor_ids)
         for row in cursor.fetchall():
             events.append({
                 "id": f"repost_{row['id']}",

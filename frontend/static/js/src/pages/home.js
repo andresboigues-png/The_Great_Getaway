@@ -3344,11 +3344,17 @@ const openTripChecklistModal = (trip) => {
         cardStyle: 'width: 540px; max-width: calc(100vw - 32px); max-height: 85vh; overflow:hidden; padding: 26px 28px; border-radius: 28px; background: white; display:flex; flex-direction:column;',
         innerHTML: '',
     });
+    // showModal returns the OVERLAY as `root` and wraps innerHTML in a
+    // card div underneath. Repainting via `root.innerHTML = …` would
+    // wipe the card wrapper (taking the cardClass / cardStyle with it)
+    // — the modal would lose its rounded background, padding, etc.
+    // Target the inner card directly so repaints only touch the body.
+    const card = /** @type {HTMLElement} */ (root.firstElementChild);
 
     /** Re-render the modal contents in place (preserves scroll within
      *  the rows region by re-using the same container). */
     const repaint = () => {
-        root.innerHTML = renderBody();
+        card.innerHTML = renderBody();
         wire();
     };
 

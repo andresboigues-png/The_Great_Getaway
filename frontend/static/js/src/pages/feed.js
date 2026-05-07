@@ -219,9 +219,17 @@ function relativeTime(iso) {
 /** Build the human verb line for one event. Kept switch-style so adding
  *  a new event type is one branch — no clever inference. The actor name
  *  is bolded; the trip name (when present) is bolded too so the eye
- *  catches "WHO did WHAT to WHICH trip" at a glance. */
+ *  catches "WHO did WHAT to WHICH trip" at a glance.
+ *  When the actor is the caller themselves (own posts now appear in the
+ *  Posts tab — see /api/feed queries 6-7), the verb flips to second
+ *  person so it reads naturally: "You shared a trip — …" instead of
+ *  "Andrés shared a trip" when Andrés is the caller. */
 function eventLine(ev) {
-    const who = `<strong style="color:#002d5b;">${esc(ev.actor.name)}</strong>`;
+    const meId = STATE.user?.id;
+    const isSelf = !!meId && ev.actor?.id === meId;
+    const who = isSelf
+        ? `<strong style="color:#002d5b;">You</strong>`
+        : `<strong style="color:#002d5b;">${esc(ev.actor.name)}</strong>`;
     const tripName = ev.trip ? `<strong style="color:#002d5b;">${esc(ev.trip.name || ev.trip.country || 'a trip')}</strong>` : '';
     switch (ev.type) {
         case 'friend_created_trip':
@@ -235,10 +243,17 @@ function eventLine(ev) {
         case 'friend_shared_trip':
             return `${who} shared a trip — ${tripName}${ev.trip?.country ? ` (${esc(ev.trip.country)})` : ''}`;
         case 'friend_reposted_trip': {
-            const orig = ev.original_sharer
-                ? `<strong style="color:#002d5b;">${esc(ev.original_sharer.name)}</strong>`
-                : 'someone';
-            return `${who} reposted ${orig}'s trip — ${tripName}${ev.trip?.country ? ` (${esc(ev.trip.country)})` : ''}`;
+            const origIsSelf = !!meId && ev.original_sharer?.id === meId;
+            const orig = !ev.original_sharer
+                ? 'someone'
+                : (origIsSelf
+                    ? `<strong style="color:#002d5b;">your</strong> share`
+                    : `<strong style="color:#002d5b;">${esc(ev.original_sharer.name)}</strong>'s trip`);
+            // origIsSelf path swaps "X's trip" with "your share" so
+            // self-attribution reads naturally; everyone else keeps
+            // the standard possessive form.
+            const verb = origIsSelf ? 'reposted' : 'reposted';
+            return `${who} ${verb} ${orig} — ${tripName}${ev.trip?.country ? ` (${esc(ev.trip.country)})` : ''}`;
         }
         default:
             // Unknown type — render a generic "did something" line
