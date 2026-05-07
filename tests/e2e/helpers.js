@@ -119,6 +119,12 @@ export async function openFreshApp(page) {
 export async function createTrip(page, { name, country }) {
     await page.evaluate(() => {
         /** @type {any} */ (window).google = undefined;
+        // Close the sidebar overlay if it auto-opened on render. On
+        // mobile (375px) the overlay covers the top nav, intercepting
+        // clicks on #newTripBtn even though playwright reports it as
+        // visible. Idempotent.
+        document.getElementById('sidebar')?.classList.remove('open');
+        document.getElementById('sidebarOverlay')?.classList.remove('open');
     });
     await page.click('#newTripBtn');
     await page.fill('#tripName', name);

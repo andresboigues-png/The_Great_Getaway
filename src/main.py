@@ -54,6 +54,15 @@ ALLOWED_UPLOAD_SIGNATURES = (
     b'\x00\x00\x00',                 # HEIC/HEIF (ftyp box header — coarse but sufficient)
 )
 
+# E2E test mode shares the env-gate with the test-login bypass: Playwright
+# runs 30+ tests against the same Flask process, each calling
+# /api/auth/google to sign in, easily tripping the 10/min limit. The flag
+# has to be set BEFORE Limiter() is instantiated (Flask-Limiter snapshots
+# the config at init), so this branch comes ahead of the limiter block
+# below. Pytest disables limits independently in conftest.
+if os.getenv("GG_ALLOW_TEST_LOGIN") == "1":
+    app.config["RATELIMIT_ENABLED"] = False
+
 # Rate limiting. Per-IP for now; will switch to per-user once Phase G's
 # auth lands. In-memory storage is fine for single-process dev — production
 # should set RATELIMIT_STORAGE_URI=redis://... so limits survive restarts

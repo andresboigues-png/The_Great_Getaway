@@ -20,10 +20,29 @@ export default defineConfig({
         video: 'off',
     },
 
+    // Two projects: desktop + mobile-sized viewports. Roadmap A3 calls for
+    // critical-path tests to run on both so a CSS regression that only
+    // breaks one form factor surfaces in CI. Both run sequentially against
+    // the same Flask server because the dev server is single-threaded.
     projects: [
         {
-            name: 'chromium',
-            use: { ...devices['Desktop Chrome'] },
+            name: 'chromium-desktop',
+            use: {
+                ...devices['Desktop Chrome'],
+                viewport: { width: 1280, height: 800 },
+            },
+        },
+        {
+            name: 'chromium-mobile',
+            // iPhone 13 Pro viewport — small enough to surface
+            // mobile-layout regressions, large enough to clear most
+            // hit-target sizes the desktop CSS assumes.
+            use: {
+                ...devices['Desktop Chrome'],
+                viewport: { width: 375, height: 812 },
+                isMobile: true,
+                hasTouch: true,
+            },
         },
     ],
 
