@@ -186,17 +186,30 @@ const ACTIONS_EVENT_TYPES = new Set([
  *  Google profile pictures (lh3.googleusercontent.com) require
  *  referrerpolicy="no-referrer" to load reliably; without it Google
  *  often returns a 403 / blank image. onerror swaps to the initials
- *  fallback if the URL is broken or rate-limited. */
+ *  fallback if the URL is broken or rate-limited.
+ *
+ *  When user.id is set, the avatar is wrapped in a transparent
+ *  button so clicking it navigates to that user's profile.
+ *  Without the id (rare — anonymous events) we render the bare
+ *  avatar with no click affordance. */
 function avatar(user, size = 44) {
     const initial = (user?.name || '?').charAt(0).toUpperCase();
     const fallback = `<div style="width:${size}px; height:${size}px; border-radius:50%; background: linear-gradient(135deg, #007aff, #5856d6); color:white; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:${Math.round(size * 0.4)}px; flex-shrink:0; box-shadow: 0 2px 8px rgba(0,113,227,0.18);">${esc(initial)}</div>`;
-    if (user?.picture) {
-        return `<img src="${esc(user.picture)}" alt="" referrerpolicy="no-referrer"
+    const inner = user?.picture
+        ? `<img src="${esc(user.picture)}" alt="" referrerpolicy="no-referrer"
             onerror="this.outerHTML=this.dataset.fallback;"
             data-fallback="${esc(fallback)}"
-            style="width:${size}px; height:${size}px; border-radius:50%; object-fit:cover; flex-shrink:0; border:2px solid rgba(255,255,255,0.6); box-shadow: 0 2px 8px rgba(0,45,91,0.12);">`;
-    }
-    return fallback;
+            style="width:${size}px; height:${size}px; border-radius:50%; object-fit:cover; flex-shrink:0; border:2px solid rgba(255,255,255,0.6); box-shadow: 0 2px 8px rgba(0,45,91,0.12);">`
+        : fallback;
+    if (!user?.id) return inner;
+    // Wrap in a button so the click semantic + cursor:pointer
+    // come for free + the avatar is keyboard-focusable. Inline
+    // styles keep the button visually invisible: no background,
+    // no border, no padding — the avatar fills it entirely.
+    return `<button type="button" class="feed-avatar-btn" data-feed-avatar-user-id="${esc(user.id)}"
+        title="View ${esc(user.name || 'profile')}"
+        aria-label="View ${esc(user.name || 'profile')}'s profile"
+        style="background:transparent; border:0; padding:0; margin:0; cursor:pointer; line-height:0; flex-shrink:0; border-radius:50%;">${inner}</button>`;
 }
 
 /** Format an ISO timestamp as a relative phrase ("5m ago", "2h ago",
@@ -783,6 +796,19 @@ export function renderFeed() {
     div.addEventListener('click', async (e) => {
         const target = /** @type {HTMLElement | null} */ (e.target);
         if (!target) return;
+
+        // Avatar click → friend profile. Wraps event-actor avatars
+        // (the round headshot top-left of each card) AND comment-
+        // author avatars in the thread. Checked first so the click
+        // doesn't bubble to the card-level handlers (the avatar is
+        // inside the card body for shares; without this guard a
+        // click on the avatar would also trigger like / repost
+        // depending on what's nested where).
+        const avatarBtn = /** @type {HTMLElement | null} */ (target.closest('.feed-avatar-btn'));
+        if (avatarBtn?.dataset.feedAvatarUserId) {
+            navigate('profile', { userId: avatarBtn.dataset.feedAvatarUserId });
+            return;
+        }
 
         // Trip card on share/repost events. Opens the same read-only
         // trip detail page that profile/collections "View" buttons

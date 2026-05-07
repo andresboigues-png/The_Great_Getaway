@@ -2262,6 +2262,25 @@ h1 {
    day-detail modal swapped its "Expert Tip" panel for the Trip
    Checklist panel. Class kept removed to avoid orphan styles.) */
 
+/* Feed avatar button — wraps the round headshot on each event
+   card + each comment row. Visually invisible (no background,
+   no border) so the avatar fills it; on hover the picture lifts
+   slightly and gains a soft ring so users see "this is
+   clickable" without any chrome being added. Click navigates to
+   that user's profile via the feed dispatcher. */
+.feed-avatar-btn {
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+    border-radius: 50%;
+}
+.feed-avatar-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(0, 113, 227, 0.30);
+}
+.feed-avatar-btn:focus-visible {
+    outline: 2px solid var(--accent-blue);
+    outline-offset: 2px;
+}
+
 /* Feed trip card — sits below caption on share/repost events to
    anchor the post to a specific trip. Click navigates to the
    sharer's profile. The transform/shadow already live on the inline
