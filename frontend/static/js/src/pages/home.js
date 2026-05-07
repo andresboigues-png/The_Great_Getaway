@@ -2969,26 +2969,15 @@ export function renderHome() {
          *  the selected day. After the swap, scroll the selected chip
          *  into view so off-screen chips don't strand the user. */
         const pathTabInner = /** @type {HTMLElement | null} */ (daysContainer.querySelector('#pathTabInner'));
-        const repaintPath = () => {
-            if (!pathTabInner) return;
-            pathTabInner.innerHTML = buildPathTabHtml();
-            const sel = pathTabInner.querySelector('.path-chip.is-selected');
-            if (sel) /** @type {HTMLElement} */ (sel).scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
-            // Re-paint weather chips after every Path-tab repaint
-            // (chip clicks rebuild the day cards, so the chip slot
-            // elements are fresh and need re-population from the
-            // cached forecast).
-            applyWeatherChips();
-        };
-        _repaintPathTab = repaintPath;
-        repaintPath();
-
-        // Weather forecast — one fetch per home render, cached in
-        // googleMapsServices by rounded coords. Populates the
-        // .day-card__weather slots inside subtitleParts. Days
-        // outside the 10-day forecast window (past trips, far-
-        // future trips) get no chip at all — leaving the slot
-        // empty rather than showing "no data".
+        // Weather forecast state + paint helper — DECLARED BEFORE
+        // repaintPath because repaintPath calls applyWeatherChips,
+        // and `let _weatherForecast` (block-scoped, TDZ in strict-
+        // mode modules) would throw if accessed via the call below
+        // before its declaration runs. Original ordering had the
+        // declaration after `repaintPath()` was invoked, which broke
+        // the entire home render with a ReferenceError on every
+        // initial load. The fetch + assignment stays after the
+        // first repaint — only the declaration moved earlier.
         /** @type {any[] | null} */
         let _weatherForecast = null;
         function applyWeatherChips() {
@@ -3020,6 +3009,21 @@ export function renderHome() {
                 `;
             });
         }
+
+        const repaintPath = () => {
+            if (!pathTabInner) return;
+            pathTabInner.innerHTML = buildPathTabHtml();
+            const sel = pathTabInner.querySelector('.path-chip.is-selected');
+            if (sel) /** @type {HTMLElement} */ (sel).scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+            // Re-paint weather chips after every Path-tab repaint
+            // (chip clicks rebuild the day cards, so the chip slot
+            // elements are fresh and need re-population from the
+            // cached forecast).
+            applyWeatherChips();
+        };
+        _repaintPathTab = repaintPath;
+        repaintPath();
+
         if (activeTrip && typeof activeTrip.lat === 'number' && typeof activeTrip.lng === 'number') {
             fetchWeatherForecast(activeTrip.lat, activeTrip.lng).then(forecast => {
                 if (!forecast || forecast.length === 0) return;
