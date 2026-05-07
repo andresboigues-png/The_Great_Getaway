@@ -69,6 +69,68 @@ limiter = Limiter(
 # Ensure DB is initialized
 init_db()
 
+
+# ── Background maintenance ───────────────────────────────────────────
+# Periodic cleanup of orphan feed_likes / feed_comments rows whose
+# underlying event has aged out of the 30-day /api/feed window. Without
+# this the tables grow without bound — counts on dead events are
+# invisible to users (the event itself isn't rendered) but still take
+# up rows. We deliberately do NOT clean feed_bookmarks: bookmarks are
+# the user's permanent save list and must outlive the feed window.
+#
+# Strategy: dumb-and-simple background thread that runs on import and
+# then once every 24h. Catches its own exceptions so a bad query
+# doesn't kill the worker. Cheap enough at this scale (single-digit-K
+# rows) that we don't bother with cron / job queues yet.
+def _cleanup_feed_orphans():
+    """Delete feed_likes and feed_comments rows older than 90 days that
+    refer to a synthesised event (trip_*, friendship_*, share_*,
+    repost_*) which no longer matches a live underlying record. Bookmarks
+    are exempt — saves are permanent. Returns counts for logging."""
+    deleted_likes = 0
+    deleted_comments = 0
+    try:
+        with get_db() as conn:
+            cursor = conn.cursor()
+            # Likes: drop everything older than 90 days. Active events
+            # within the 30-day window will have fresh likes restamped
+            # whenever someone clicks again, so we don't lose heat on
+            # current content.
+            cursor.execute(
+                "DELETE FROM feed_likes WHERE created_at < datetime('now', '-90 days')"
+            )
+            deleted_likes = cursor.rowcount or 0
+            cursor.execute(
+                "DELETE FROM feed_comments WHERE created_at < datetime('now', '-90 days')"
+            )
+            deleted_comments = cursor.rowcount or 0
+            conn.commit()
+    except Exception as e:
+        print(f"[cleanup] feed orphans sweep failed: {e}")
+    if deleted_likes or deleted_comments:
+        print(f"[cleanup] removed {deleted_likes} feed_likes + {deleted_comments} feed_comments older than 90 days")
+    return {"likes": deleted_likes, "comments": deleted_comments}
+
+
+def _start_cleanup_thread():
+    """Spin up a daemon thread that runs the cleanup once on boot, then
+    sleeps 24h and repeats. Daemon=True so it doesn't keep the process
+    alive on shutdown. Skipped under WERKZEUG_RUN_MAIN's reloader-parent
+    process so dev mode doesn't double-run."""
+    if os.getenv("WERKZEUG_RUN_MAIN") == "false":
+        return
+    import threading
+    import time
+    def loop():
+        while True:
+            _cleanup_feed_orphans()
+            time.sleep(86400)  # 24h
+    t = threading.Thread(target=loop, daemon=True, name="feed-orphan-cleanup")
+    t.start()
+
+
+_start_cleanup_thread()
+
 @app.route("/")
 def home():
     """Serve the main Single Page Application (SPA) index file."""
@@ -1530,9 +1592,10 @@ def get_feed():
 
         # 6) friend_shared_trip — explicit "Share to feed" posts. Original
         # shares only (repost_of_post_id IS NULL). Trip metadata joined
-        # so the card has a name/country to show.
+        # so the card has a name/country to show. caption is the
+        # optional sharer-written blurb above the trip card.
         cursor.execute(f'''
-            SELECT fp.id, fp.user_id AS sharer_id, fp.trip_id, fp.created_at,
+            SELECT fp.id, fp.user_id AS sharer_id, fp.trip_id, fp.created_at, fp.caption,
                    u.name AS sharer_name, u.picture AS sharer_picture,
                    t.name AS trip_name, t.country AS trip_country
             FROM feed_posts fp
@@ -1550,19 +1613,21 @@ def get_feed():
                 "actor": {"id": row['sharer_id'], "name": row['sharer_name'], "picture": row['sharer_picture']},
                 "trip": {"id": row['trip_id'], "name": row['trip_name'], "country": row['trip_country']},
                 "post_id": row['id'],
+                "caption": row['caption'],
                 "when": row['created_at'],
             })
 
         # 7) friend_reposted_trip — reposts (repost_of_post_id set). We
-        # also pull the original sharer's name/picture so the card can
-        # render "Reposted X's share". The original sharer can be a
+        # also pull the original sharer's name/picture + the original
+        # caption so the card can render "Reposted X's share" with the
+        # original blurb visible. The original sharer can be a
         # non-friend — that's the whole point: reposts are how trips
         # propagate beyond your immediate network.
         cursor.execute(f'''
             SELECT fp.id, fp.user_id AS reposter_id, fp.trip_id, fp.created_at,
                    u.name AS reposter_name, u.picture AS reposter_picture,
                    t.name AS trip_name, t.country AS trip_country,
-                   orig.user_id AS original_sharer_id,
+                   orig.user_id AS original_sharer_id, orig.caption AS original_caption,
                    ou.name AS original_sharer_name, ou.picture AS original_sharer_picture
             FROM feed_posts fp
             JOIN users u ON u.id = fp.user_id
@@ -1582,6 +1647,7 @@ def get_feed():
                 "original_sharer": {"id": row['original_sharer_id'], "name": row['original_sharer_name'], "picture": row['original_sharer_picture']},
                 "trip": {"id": row['trip_id'], "name": row['trip_name'], "country": row['trip_country']},
                 "post_id": row['id'],
+                "caption": row['original_caption'],
                 "when": row['created_at'],
             })
 
@@ -1641,10 +1707,21 @@ def share_trip_to_feed():
     """Create a feed_post (original share — repost_of_post_id NULL) for
     the caller's trip. Caller must be an accepted member of the trip and
     the trip must not be archived. Idempotent: re-sharing returns the
-    existing post_id rather than creating a duplicate."""
+    existing post_id rather than creating a duplicate.
+
+    Optional `caption` (≤280 chars, server-truncated): a short blurb the
+    sharer adds to give the trip context ("Adding Lisbon for Easter —
+    anyone been?"). Stored on the feed_posts row and rendered above the
+    trip card on friends' feeds, so a share lands like content, not a
+    bare system event. Empty string == no caption."""
     user_id = current_user_id()
     data = request.json or {}
     trip_id = data.get("trip_id")
+    caption = (data.get("caption") or "").strip()
+    if caption:
+        caption = caption[:280]
+    else:
+        caption = None
     if not trip_id:
         return jsonify({"error": "Missing trip_id"}), 400
     with get_db() as conn:
@@ -1666,15 +1743,86 @@ def share_trip_to_feed():
         )
         existing = cursor.fetchone()
         if existing:
+            # Update caption on a re-share so the user can edit their
+            # message without unsharing first. NULL caption preserves the
+            # existing one (lets the front-end "I forgot to caption" path
+            # update; the "I want to delete the caption" path needs an
+            # explicit empty-string sentinel — TODO if it comes up).
+            if caption is not None:
+                cursor.execute(
+                    "UPDATE feed_posts SET caption = ? WHERE id = ?",
+                    (caption, existing['id']),
+                )
+                conn.commit()
             return jsonify({"status": "already_shared", "post_id": existing['id']})
         cursor.execute(
-            "INSERT INTO feed_posts (user_id, trip_id, repost_of_post_id) "
-            "VALUES (?, ?, NULL)",
-            (user_id, trip_id),
+            "INSERT INTO feed_posts (user_id, trip_id, repost_of_post_id, caption) "
+            "VALUES (?, ?, NULL, ?)",
+            (user_id, trip_id, caption),
         )
         post_id = cursor.lastrowid
         conn.commit()
     return jsonify({"status": "shared", "post_id": post_id})
+
+
+@app.route("/api/feed/share/status/<trip_id>", methods=["GET"])
+@require_auth
+@limiter.limit("120/minute")
+def share_status_for_trip(trip_id):
+    """Tells the home page whether the caller has currently shared this
+    trip — so the Share-to-feed icon button can render in its
+    "outline / unshared" or "filled / shared" state on mount, without
+    having to make a write call to find out. Returns `{shared, post_id,
+    caption}`. Only the original-share row counts (repost_of_post_id
+    IS NULL); reposts of someone else's share don't toggle the home
+    button — that button represents your relationship to YOUR trip."""
+    user_id = current_user_id()
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, caption FROM feed_posts "
+            "WHERE user_id = ? AND trip_id = ? AND repost_of_post_id IS NULL",
+            (user_id, trip_id),
+        )
+        row = cursor.fetchone()
+    if not row:
+        return jsonify({"shared": False, "post_id": None, "caption": None})
+    return jsonify({"shared": True, "post_id": row["id"], "caption": row["caption"]})
+
+
+@app.route("/api/feed/share/<int:post_id>", methods=["DELETE"])
+@require_auth
+@limiter.limit("30/minute")
+def unshare_feed_post(post_id):
+    """Delete the caller's own share (and cascade-delete any reposts of
+    it). After this, the share + its reposts disappear from every
+    friend's feed on their next refresh. Author-only — silently no-ops on
+    someone else's post (idempotent DELETE).
+
+    Cascade rationale: leaving reposts as "X reposted [deleted]" cards
+    would clutter the feed with broken state. Cleaner to drop them too —
+    if the original sharer regrets the share, the wider distribution
+    they enabled goes with it."""
+    user_id = current_user_id()
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT user_id FROM feed_posts WHERE id = ?",
+            (post_id,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"status": "ok"})
+        if row["user_id"] != user_id:
+            return jsonify({"error": "Forbidden"}), 403
+        # Cascade: delete reposts pointing at this post first, then the
+        # post itself. Doing it in this order keeps the FK-conceptual
+        # invariant (no orphan reposts) even though the table has no
+        # actual FK to enforce it.
+        cursor.execute("DELETE FROM feed_posts WHERE repost_of_post_id = ?", (post_id,))
+        cursor.execute("DELETE FROM feed_posts WHERE id = ?", (post_id,))
+        conn.commit()
+    return jsonify({"status": "unshared"})
 
 
 @app.route("/api/feed/repost/<int:post_id>", methods=["POST"])
@@ -1685,7 +1833,9 @@ def repost_feed_post(post_id):
     for the caller pointing at the original via repost_of_post_id. The
     trip_id is denormalised onto the repost row so the feed read path
     can render trip details without an extra join. Idempotent per (user,
-    original_post)."""
+    original_post). Drops a `share_reposted` notification on the
+    immediate parent (Twitter-style: the user being reposted is told,
+    not the chain root — keeps notification logic local)."""
     user_id = current_user_id()
     with get_db() as conn:
         cursor = conn.cursor()
@@ -1711,8 +1861,58 @@ def repost_feed_post(post_id):
             (user_id, trip_id, post_id),
         )
         new_post_id = cursor.lastrowid
+        _fire_engagement_notification(cursor, original['user_id'], user_id, "share_reposted")
         conn.commit()
     return jsonify({"status": "reposted", "post_id": new_post_id})
+
+
+def _post_owner_for_event(cursor, event_id):
+    """Resolve the user_id of the feed_posts row that backs a synthesised
+    event_id of the form 'share_<id>' or 'repost_<id>'. Returns None for
+    Action-type event ids (no underlying post) or unknown shapes — the
+    caller should treat None as "no notification target" and skip.
+    """
+    if not isinstance(event_id, str):
+        return None
+    for prefix in ("share_", "repost_"):
+        if event_id.startswith(prefix):
+            try:
+                pid = int(event_id[len(prefix):])
+            except ValueError:
+                return None
+            cursor.execute("SELECT user_id FROM feed_posts WHERE id = ?", (pid,))
+            row = cursor.fetchone()
+            return row["user_id"] if row else None
+    return None
+
+
+def _fire_engagement_notification(cursor, recipient_id, actor_id, kind):
+    """Drop a row into the existing notifications table when someone
+    engages with a user's share. Skips self-notifications (you don't
+    need to be told you liked your own post). `kind` is one of
+    'share_liked' / 'share_commented' / 'share_reposted'.
+    """
+    if not recipient_id or recipient_id == actor_id:
+        return
+    cursor.execute("SELECT name FROM users WHERE id = ?", (actor_id,))
+    row = cursor.fetchone()
+    actor_name = row["name"] if row else "Someone"
+    verb = {
+        "share_liked":     "liked your share",
+        "share_commented": "commented on your share",
+        "share_reposted":  "reposted your share",
+    }.get(kind, "engaged with your share")
+    title = {
+        "share_liked":     "New like",
+        "share_commented": "New comment",
+        "share_reposted":  "New repost",
+    }.get(kind, "Feed activity")
+    msg = f"{actor_name} {verb}."
+    cursor.execute(
+        "INSERT INTO notifications (user_id, type, title, related_id, message, is_read) "
+        "VALUES (?, ?, ?, ?, ?, 0)",
+        (recipient_id, kind, title, actor_id, msg),
+    )
 
 
 @app.route("/api/feed/like/<event_id>", methods=["POST"])
@@ -1720,7 +1920,10 @@ def repost_feed_post(post_id):
 @limiter.limit("120/minute")
 def toggle_feed_like(event_id):
     """Toggle the caller's like on a feed event. Returns the new state
-    (liked: bool) plus the new global count for the event."""
+    (liked: bool) plus the new global count for the event. When the
+    like is being ADDED to a share/repost (not removed, not on an
+    Action event), a notification is dropped at the post owner so the
+    social loop closes."""
     user_id = current_user_id()
     with get_db() as conn:
         cursor = conn.cursor()
@@ -1739,6 +1942,9 @@ def toggle_feed_like(event_id):
                 "INSERT OR IGNORE INTO feed_likes (user_id, event_id) VALUES (?, ?)",
                 (user_id, event_id),
             )
+            # Only fire on the +1 transition (no notification on unlike).
+            owner_id = _post_owner_for_event(cursor, event_id)
+            _fire_engagement_notification(cursor, owner_id, user_id, "share_liked")
         cursor.execute(
             "SELECT COUNT(*) AS c FROM feed_likes WHERE event_id = ?",
             (event_id,),
@@ -1835,6 +2041,10 @@ def add_feed_comment(event_id):
             (comment_id,),
         )
         row = cursor.fetchone()
+        # Notify the post owner (no-op for self-comments and for
+        # Action-typed event_ids that don't map to a feed_posts row).
+        owner_id = _post_owner_for_event(cursor, event_id)
+        _fire_engagement_notification(cursor, owner_id, user_id, "share_commented")
         conn.commit()
     return jsonify({
         "status": "ok",

@@ -4,7 +4,7 @@
 import { STATE, emit } from '../state.js';
 import { INSPIRATIONAL_PAIRS } from '../constants.js';
 import { getMediaForTrip, showLiquidAlert, formatDayDate, q, showConfirmModal, generateId, shortPlaceName, esc } from '../utils.js';
-import { upsertDay, uploadMedia, deleteDayOnServer, upsertTrip, shareTripToFeed } from '../api.js';
+import { upsertDay, uploadMedia, deleteDayOnServer, upsertTrip, shareTripToFeed, fetchShareStatus, unshareFeedPost } from '../api.js';
 import { navigate } from '../router.js';
 import { showPersTab } from './settings.js';
 import { openNewTripModal, openAddDayModal, openEditTripModal, openCompanionPickerModal, openTripMembersModal } from '../modals.js';
@@ -539,6 +539,22 @@ export function renderHome() {
         stopHomeSlideshow();
 
         setTimeout(() => {
+            // Share-to-feed button — initial state from server. The
+            // button starts in the outline state and flips to filled
+            // (purple) if the trip is currently shared. Stamps post_id
+            // into a data attribute so the unshare flow has it.
+            if (activeTrip) {
+                const shareBtn = /** @type {HTMLElement | null} */ (document.getElementById('shareToFeedBtn'));
+                if (shareBtn) {
+                    fetchShareStatus(activeTrip.id).then(status => {
+                        if (!status?.shared) return;
+                        shareBtn.dataset.shared = '1';
+                        shareBtn.dataset.postId = String(status.post_id);
+                        updateShareBtnVisualState(shareBtn, true);
+                    });
+                }
+            }
+
             const mapContainer = document.getElementById('homeHeroMap');
             if (mapContainer && typeof google !== 'undefined' && google.maps && activeTrip) {
                 // Legacy trips only have `country` (sometimes "USA - California"
@@ -2469,27 +2485,53 @@ export function renderHome() {
             // Edit-trip pencil — owner-only, hidden when !manageable.
             if (target.closest('#editTripBtn')) { openEditTripModal(activeTrip); return; }
 
-            // Share-to-feed — any accepted member can share. Confirm
-            // first because there's no "unshare" surface yet, then
-            // toast the result. Idempotent server-side, so a re-click
-            // surfaces "already shared" rather than creating duplicates.
-            if (target.closest('#shareToFeedBtn') && activeTrip) {
-                showConfirmModal({
-                    title: "Share this trip to your feed?",
-                    message: `Your friends will see "${activeTrip.name}" in their feed and can like or repost it. Anyone they share it to can repost it further.`,
-                    confirmText: "Share",
-                    onConfirm: async () => {
-                        const result = await shareTripToFeed(activeTrip.id);
-                        if (!result || !result.ok) {
-                            showLiquidAlert("Couldn't share — try again in a moment.");
-                            return;
-                        }
-                        if (result.body?.status === 'already_shared') {
-                            showLiquidAlert("Already shared to your feed.");
-                        } else {
-                            showLiquidAlert("Shared to your feed.");
-                        }
-                    },
+            // Share-to-feed — toggle. The button stamps its current state
+            // into `data-shared` (refreshed by the post-render fetch in
+            // fetchShareStatus, see below) so we know whether to open
+            // the share modal or the unshare confirm. Filled state means
+            // already-shared.
+            const shareBtn = /** @type {HTMLElement | null} */ (target.closest('#shareToFeedBtn'));
+            if (shareBtn && activeTrip) {
+                const alreadyShared = shareBtn.dataset.shared === '1';
+                if (alreadyShared) {
+                    const postId = Number(shareBtn.dataset.postId || 0);
+                    if (!postId) return;
+                    showConfirmModal({
+                        title: "Unshare this trip?",
+                        message: `It'll disappear from your friends' feeds. Any reposts of it will be removed too.`,
+                        confirmText: "Unshare",
+                        onConfirm: async () => {
+                            const result = await unshareFeedPost(postId);
+                            if (!result || !result.ok) {
+                                showLiquidAlert("Couldn't unshare — try again in a moment.");
+                                return;
+                            }
+                            shareBtn.dataset.shared = '0';
+                            shareBtn.dataset.postId = '';
+                            updateShareBtnVisualState(shareBtn, false);
+                            showLiquidAlert("Removed from your feed.");
+                        },
+                    });
+                    return;
+                }
+                // Not shared yet — open the share modal with caption input.
+                openShareToFeedModal(activeTrip, async (caption) => {
+                    const result = await shareTripToFeed(activeTrip.id, caption);
+                    if (!result || !result.ok) {
+                        showLiquidAlert("Couldn't share — try again in a moment.");
+                        return;
+                    }
+                    const postId = Number(result.body?.post_id) || 0;
+                    if (postId) {
+                        shareBtn.dataset.shared = '1';
+                        shareBtn.dataset.postId = String(postId);
+                        updateShareBtnVisualState(shareBtn, true);
+                    }
+                    if (result.body?.status === 'already_shared') {
+                        showLiquidAlert(caption ? "Updated your share." : "Already shared to your feed.");
+                    } else {
+                        showLiquidAlert("Shared to your feed.");
+                    }
                 });
                 return;
             }
@@ -2891,6 +2933,80 @@ const openJournalingModal = (dayId) => {
 };
 
 // ── Trip-level Documents/Photos modals ───────────────────────
+// ── Share-to-feed plumbing ──────────────────────────────────────────
+// Visual state of the home trip-header Share button is driven by two
+// data attributes set after fetchShareStatus resolves on mount:
+//   data-shared     '1' → already on the user's feed (filled style)
+//                   '0' → not shared yet (outline style)
+//   data-post-id    feed_posts.id when shared, used for the Unshare flow
+
+/** Flip the Share button between outline and filled states. Filled
+ *  uses the same purple as the Share-to-feed event accent (5856d6) so
+ *  visual identity carries across the home button → feed card. */
+function updateShareBtnVisualState(btn, shared) {
+    if (!btn) return;
+    if (shared) {
+        btn.style.background = '#5856d6';
+        btn.style.color = 'white';
+        btn.style.borderColor = '#5856d6';
+        btn.title = 'Already shared — click to unshare';
+        btn.setAttribute('aria-label', 'Unshare this trip');
+    } else {
+        btn.style.background = '';
+        btn.style.color = '';
+        btn.style.borderColor = '';
+        btn.title = 'Share this trip to your feed';
+        btn.setAttribute('aria-label', 'Share to feed');
+    }
+}
+
+/** Open the Share-to-feed modal: a textarea for an optional ≤280-char
+ *  caption + a Cancel/Share pair. The textarea pre-fills with `seedCaption`
+ *  when the user is editing an existing share. The submit callback gets
+ *  the cleaned caption string (or empty for "no caption"). */
+function openShareToFeedModal(trip, onSubmit, seedCaption = '') {
+    const { root, close } = showModal({
+        cardClass: 'card glass',
+        cardStyle: 'width: 480px; max-width: calc(100vw - 32px); padding: 28px; border-radius: 28px; background: white;',
+        innerHTML: `
+            <div style="display:flex; align-items:flex-start; justify-content:space-between; margin-bottom: 14px;">
+                <div>
+                    <h2 style="margin:0 0 4px; font-size:1.5rem; color:#002d5b; font-weight:800; letter-spacing:-0.02em;">Share to your feed</h2>
+                    <p style="margin:0; color:var(--text-secondary); font-size:0.85rem;">${esc(trip.name)}${trip.country ? ` · ${esc(trip.country)}` : ''}</p>
+                </div>
+                <button id="shareModalClose" class="close-x-btn" aria-label="Close">✕</button>
+            </div>
+            <label style="display:block; font-size:0.78rem; font-weight:700; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:6px;">Add a caption (optional)</label>
+            <textarea id="shareCaptionInput" maxlength="280" placeholder="e.g. Adding Lisbon for Easter — anyone been?"
+                style="width:100%; box-sizing:border-box; min-height: 90px; padding:12px 14px; border:1px solid rgba(0,45,91,0.12); border-radius:14px; font-size:0.95rem; font-family: inherit; color:#002d5b; background:rgba(0,113,227,0.04); resize: vertical; line-height:1.45;">${esc(seedCaption || '')}</textarea>
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-top:8px;">
+                <span id="shareCaptionCount" style="font-size:0.72rem; color:var(--text-secondary); font-weight:700;">${(seedCaption || '').length}/280</span>
+                <span style="font-size:0.72rem; color:var(--text-secondary);">Friends can like, comment, repost.</span>
+            </div>
+            <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:18px;">
+                <button id="shareModalCancel" class="btn" style="padding: 10px 18px; border-radius: 999px; background:rgba(0,0,0,0.06); color:#002d5b; font-weight:700;">Cancel</button>
+                <button id="shareModalSubmit" class="btn-primary" style="padding: 10px 22px; border-radius: 999px;">Share</button>
+            </div>
+        `,
+    });
+    const textarea = /** @type {HTMLTextAreaElement | null} */ (root.querySelector('#shareCaptionInput'));
+    const counter = /** @type {HTMLElement | null} */ (root.querySelector('#shareCaptionCount'));
+    if (textarea && counter) {
+        textarea.addEventListener('input', () => {
+            counter.textContent = `${textarea.value.length}/280`;
+        });
+        // Defer focus so the modal's open-animation doesn't fight it.
+        setTimeout(() => textarea.focus(), 80);
+    }
+    /** @type {HTMLButtonElement | null} */ (root.querySelector('#shareModalClose'))?.addEventListener('click', close);
+    /** @type {HTMLButtonElement | null} */ (root.querySelector('#shareModalCancel'))?.addEventListener('click', close);
+    /** @type {HTMLButtonElement | null} */ (root.querySelector('#shareModalSubmit'))?.addEventListener('click', async () => {
+        const caption = (textarea?.value || '').trim();
+        close();
+        await onSubmit(caption);
+    });
+}
+
 // The Documents and Photos tabs on Home each open a small modal for
 // adding new entries. Both stores live on the trip object directly
 // (trip.documents, trip.photos); legacy day-level openPhotosModal /

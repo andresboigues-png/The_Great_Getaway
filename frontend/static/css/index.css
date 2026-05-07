@@ -2455,6 +2455,68 @@ h1 {
     transform: scale(1.1);
 }
 
+/* Apple-style toggle switch — track + sliding thumb. Used on the Feed
+   page for the "Bookmarked" filter; intentionally generic so future
+   surfaces can drop one in by markup alone. The `--accent` CSS var on
+   the wrapper picks the on-state colour (defaults to bookmark orange);
+   pass --accent to retint per use-site. The native checkbox is visually
+   hidden but kept in DOM for keyboard + a11y so screen readers still
+   announce "checked / unchecked". */
+.apple-toggle {
+    --accent: 255, 149, 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    user-select: none;
+}
+.apple-toggle__input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+}
+.apple-toggle__track {
+    width: 44px;
+    height: 26px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.16);
+    position: relative;
+    transition: background 0.25s ease;
+    flex-shrink: 0;
+}
+.apple-toggle__thumb {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: white;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.22), 0 0 1px rgba(0, 0, 0, 0.1);
+    transition: transform 0.25s ease;
+}
+.apple-toggle__input:checked + .apple-toggle__track {
+    background: rgb(var(--accent));
+}
+.apple-toggle__input:checked + .apple-toggle__track .apple-toggle__thumb {
+    transform: translateX(18px);
+}
+.apple-toggle__input:focus-visible + .apple-toggle__track {
+    outline: 2px solid rgb(var(--accent));
+    outline-offset: 2px;
+}
+.apple-toggle__label {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    font-weight: 700;
+    letter-spacing: -0.005em;
+}
+.apple-toggle__input:checked ~ .apple-toggle__label {
+    color: rgb(var(--accent));
+}
+
 /* `#sidebarLogoutBtn` — bare icon button that goes red on hover.
    ID-scoped (single instance, in index.html navbar). */
 #sidebarLogoutBtn {

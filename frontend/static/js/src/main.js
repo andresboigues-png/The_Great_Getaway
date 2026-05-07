@@ -46,6 +46,12 @@ function notificationAccent(type) {
         case 'trip_invite_accepted': return '52,199,89';
         case 'trip_invite_declined': return '142,142,147';
         case 'trip_member_removed': return '255,59,48';
+        // Feed engagement: same purple as the share/repost event accent
+        // on the feed page, so the notification visually traces back
+        // to where the engagement happened.
+        case 'share_liked': return '255,59,48';
+        case 'share_commented': return '0,113,227';
+        case 'share_reposted': return '88,86,214';
         case 'friend_request':
         case 'accepted_request':
         default: return '0,113,227';
@@ -62,6 +68,9 @@ function notificationDefaultTitle(type) {
         case 'trip_invite_accepted': return 'Trip invite update';
         case 'trip_invite_declined': return 'Trip invite update';
         case 'trip_member_removed': return 'Removed from trip';
+        case 'share_liked': return 'New like';
+        case 'share_commented': return 'New comment';
+        case 'share_reposted': return 'New repost';
         case 'alert': return 'Alert';
         default: return 'Notification';
     }

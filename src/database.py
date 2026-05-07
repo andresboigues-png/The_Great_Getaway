@@ -278,11 +278,20 @@ def init_db():
                 user_id TEXT NOT NULL,
                 trip_id TEXT NOT NULL,
                 repost_of_post_id INTEGER,
+                caption TEXT,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY(user_id) REFERENCES users(id),
                 FOREIGN KEY(trip_id) REFERENCES trips(id)
             )
         ''')
+        # Add caption column on legacy dbs that pre-date it. NULL allowed
+        # so existing rows just stay caption-less; new shares pass it
+        # explicitly. Standard plain ALTER (no CURRENT_TIMESTAMP-style
+        # default-clause snag).
+        try:
+            cursor.execute("ALTER TABLE feed_posts ADD COLUMN caption TEXT")
+        except Exception:
+            pass
         # feed_likes: social like signal per event. event_id is the
         # synthesised event ID from /api/feed (e.g. "trip_created_<trip>",
         # "share_<post>") so likes survive across event categories. Like

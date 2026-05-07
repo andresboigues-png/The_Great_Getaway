@@ -222,10 +222,47 @@ export function unarchiveTripOnServer(tripId) {
 
 /** Post the user's trip to their feed (their friends' feeds will surface
  *  it as a `friend_shared_trip` event). Idempotent server-side: re-sharing
- *  the same trip returns the existing post id rather than duplicating. */
-export function shareTripToFeed(tripId) {
+ *  the same trip returns the existing post id rather than duplicating;
+ *  re-sharing with a different caption updates the caption on the
+ *  existing row.
+ *  @param {string} tripId
+ *  @param {string} [caption] - optional ≤280-char blurb above the trip
+ */
+export function shareTripToFeed(tripId, caption) {
     if (!STATE.user) return Promise.resolve({ ok: false, status: 0, body: null });
-    return _postJson('/api/feed/share', { trip_id: tripId });
+    return _postJson('/api/feed/share', { trip_id: tripId, caption });
+}
+
+/** Check whether the caller has already shared this trip (and read back
+ *  the caption + post_id if so). Used by the home page on mount to set
+ *  the Share-to-feed button's initial state without a needless write. */
+export async function fetchShareStatus(tripId) {
+    if (!STATE.user) return null;
+    try {
+        const res = await apiFetch(`/api/feed/share/status/${encodeURIComponent(tripId)}`);
+        if (!res.ok) return null;
+        return await res.json();
+    } catch (e) {
+        console.error('fetchShareStatus failed:', e);
+        return null;
+    }
+}
+
+/** Delete one of your own shares. Server cascade-deletes any reposts
+ *  pointing at it so the feed doesn't end up with broken-reference
+ *  cards. Author-only; idempotent — silently no-ops on someone else's
+ *  post or an already-deleted one. */
+export async function unshareFeedPost(postId) {
+    if (!STATE.user) return { ok: false, status: 0, body: null };
+    try {
+        const res = await apiFetch(`/api/feed/share/${postId}`, { method: 'DELETE' });
+        let payload = null;
+        try { payload = await res.json(); } catch { /* not JSON */ }
+        return { ok: res.ok, status: res.status, body: payload };
+    } catch (e) {
+        console.error('unshareFeedPost failed:', e);
+        return { ok: false, status: 0, body: null };
+    }
 }
 
 /** Repost an existing feed post (any user's). Spreads the trip beyond

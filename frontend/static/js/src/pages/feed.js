@@ -20,9 +20,117 @@
 
 import { STATE } from '../state.js';
 import { apiFetch, toggleFeedLike, toggleFeedBookmark, repostFeedPost,
-         fetchFeedComments, postFeedComment, deleteFeedComment } from '../api.js';
-import { esc, q, showLiquidAlert } from '../utils.js';
+         fetchFeedComments, postFeedComment, deleteFeedComment,
+         unshareFeedPost } from '../api.js';
+import { esc, q, showLiquidAlert, showConfirmModal } from '../utils.js';
 import { navigate } from '../router.js';
+
+// Show like-count chips only above this threshold. Below it the heart
+// still fills when YOU've liked it, but the global tally stays hidden —
+// avoids vanity-metric pressure on shares with one or two likes (which
+// would otherwise turn into "your friend got 2 likes" notifications-of-
+// -irrelevance). Picked at 3 = "this got real attention" without
+// raising the bar so high small circles never see counts at all.
+const LIKE_COUNT_THRESHOLD = 3;
+
+// Per-card expanded state for aggregated bundles. Module-level so the
+// expand state survives a paintList re-render (filter toggle, tab
+// switch). Keyed by the bundle's stable id (see `bundleEvents`).
+/** @type {Set<string>} */
+const expandedBundles = new Set();
+
+/** Pull the YYYY-MM-DD calendar day out of an ISO/SQLite timestamp.
+ *  Used as part of the bundle key so events from different days never
+ *  merge even when the actor + type match. */
+function dayKey(iso) {
+    if (!iso) return '';
+    const normalised = typeof iso === 'string' && iso.includes(' ') && !iso.includes('T')
+        ? iso.replace(' ', 'T') + 'Z'
+        : iso;
+    const t = new Date(normalised);
+    if (Number.isNaN(t.getTime())) return '';
+    return t.toISOString().slice(0, 10);
+}
+
+/** Bundle adjacent same-(actor, type, calendar-day) events into single
+ *  cards. Aggregation only kicks in when there are ≥2 candidates in
+ *  the same bucket — a single event renders as it always did, with no
+ *  bundle wrapping.
+ *
+ *  Posts (shares + reposts) are NOT bundled. They're explicit user
+ *  posts and each one deserves its own card (think Twitter — you don't
+ *  see "Anna posted 3 times today" as one card). Only Actions get
+ *  aggregated since they're passive activity logs where 3 trip-creates
+ *  in a day is repetitive noise.
+ *
+ *  @param {FeedEvent[]} events
+ *  @returns {Array<FeedEvent | {bundled: true, id: string, type: string, actor: Actor, when: string|null, members: FeedEvent[]}>}
+ */
+function bundleEvents(events) {
+    /** @type {Map<string, FeedEvent[]>} */
+    const groups = new Map();
+    /** @type {Array<FeedEvent | {bundled: true, id: string, type: string, actor: Actor, when: string|null, members: FeedEvent[]}>} */
+    const out = [];
+    // First pass: group bundleable events by (actor, type, day); keep
+    // ordering of first-occurrence so the result reads in the same
+    // chronological flow as the input.
+    for (const ev of events) {
+        if (POSTS_EVENT_TYPES.has(ev.type)) {
+            // Posts are never bundled; emit as-is, leave a placeholder
+            // in `out` to preserve order.
+            out.push(ev);
+            continue;
+        }
+        const key = `${ev.actor?.id || 'anon'}|${ev.type}|${dayKey(ev.when)}`;
+        if (!groups.has(key)) {
+            groups.set(key, []);
+            // Reserve slot in `out` so the bundle lands at the position
+            // of its first-seen event. Slot becomes the placeholder we
+            // resolve in the second pass.
+            out.push(/** @type {any} */ ({ __slot: key }));
+        }
+        groups.get(key).push(ev);
+    }
+    // Second pass: replace each placeholder with either the lone event
+    // (group size 1) or a synthesised bundle (group size ≥2).
+    return out.map(slot => {
+        const slotKey = /** @type {any} */ (slot).__slot;
+        if (!slotKey) return /** @type {FeedEvent} */ (slot);  // already a Post
+        const members = groups.get(slotKey) || [];
+        if (members.length === 1) return members[0];
+        return {
+            bundled: true,
+            id: `bundle_${slotKey}`,
+            type: members[0].type,
+            actor: members[0].actor,
+            when: members[0].when,
+            members,
+        };
+    });
+}
+
+/** Verb for an aggregated bundle. Mirrors the singular `eventLine`
+ *  shapes but pluralises the trip count. Examples:
+ *    "Andrés started planning 3 new trips"
+ *    "Andrés joined 4 trips"
+ *    "Andrés just completed 2 trips" */
+function bundleLine(bundle) {
+    const who = `<strong style="color:#002d5b;">${esc(bundle.actor.name)}</strong>`;
+    const n = bundle.members.length;
+    const noun = n === 1 ? 'trip' : 'trips';
+    switch (bundle.type) {
+        case 'friend_created_trip':
+            return `${who} started planning <strong style="color:#002d5b;">${n} new ${noun}</strong>`;
+        case 'friend_archived_trip':
+            return `${who} just completed <strong style="color:#002d5b;">${n} ${noun}</strong> 🎉`;
+        case 'friend_joined_trip':
+            return `${who} joined <strong style="color:#002d5b;">${n} ${noun}</strong>`;
+        case 'new_friendship':
+            return `You and <strong style="color:#002d5b;">${n} new people</strong> are now friends 🤝`;
+        default:
+            return `${who} did ${n} new things`;
+    }
+}
 
 /** @typedef {{id:string,name:string,picture?:string|null}} Actor */
 /** @typedef {{id:string,name:string,country?:string|null}} TripRef */
@@ -33,6 +141,7 @@ import { navigate } from '../router.js';
  *   trip?: TripRef,
  *   original_sharer?: Actor,
  *   post_id?: number,
+ *   caption?: string|null,
  *   when: string|null,
  *   like_count?: number,
  *   is_liked?: boolean,
@@ -53,6 +162,22 @@ let cachedEvents = [];
 // fine — the next expand re-fetches anyway).
 /** @type {Object<string, FeedComment[]>} */
 const cachedThreads = {};
+
+// Feed view state. Persists across renders so a tab switch + page-leave +
+// page-return restores you to where you were. Defaults: Posts tab,
+// bookmark filter off.
+/** @type {'posts' | 'actions'} */
+let activeFeedTab = 'posts';
+let bookmarkedOnly = false;
+
+// Event-type → tab membership. Posts are user-initiated, interactionable
+// (like / comment / repost). Actions are passive activity logs — nothing
+// to react to, only to bookmark. New event types added later need to
+// land in one of these sets or paintList will silently filter them out.
+const POSTS_EVENT_TYPES = new Set(['friend_shared_trip', 'friend_reposted_trip']);
+const ACTIONS_EVENT_TYPES = new Set([
+    'friend_created_trip', 'friend_archived_trip', 'friend_joined_trip', 'new_friendship',
+]);
 
 /** Avatar circle — picture if available, otherwise a gradient initials
  *  badge so empty avatars don't break the visual rhythm. Mirrors the
@@ -185,16 +310,31 @@ function actionIconSvg(name, filled = false) {
  *  `.icon-btn-circle` aesthetic for the button itself; the count sits
  *  outside as a small grey number, kept out of the button so the
  *  button stays a clean colored circle (no width-juggling per count).
- *  @param {{className: string, accent: string, dataAttrs?: string, title: string, svg: string, count?: number, marginLeftAuto?: boolean}} opts
+ *
+ *  `count` and `countThreshold`:
+ *    Pass `count: undefined` for actions that have no count (repost,
+ *    bookmark) — no chip element rendered.
+ *    Pass `count: <number>` to render a chip; threshold gates whether
+ *    the number is visible. Default threshold = 1 (any non-zero
+ *    count shows). Likes use threshold = LIKE_COUNT_THRESHOLD so
+ *    "your friend got 1 like" doesn't read as a vanity metric.
+ *    Below threshold, the chip element is still in DOM (empty
+ *    text) so the click handlers can patch it as the count
+ *    crosses the threshold without re-rendering the button.
+ *
+ *  @param {{className: string, accent: string, dataAttrs?: string, title: string, svg: string, count?: number, countThreshold?: number, marginLeftAuto?: boolean}} opts
  */
 function actionButton(opts) {
     const wrapStyle = `display:inline-flex; align-items:center; gap:6px;${opts.marginLeftAuto ? ' margin-left:auto;' : ''}`;
+    const showChip = typeof opts.count === 'number';
+    const threshold = opts.countThreshold ?? 1;
+    const chipText = showChip && opts.count >= threshold ? String(opts.count) : '';
     return `
         <span style="${wrapStyle}">
             <button type="button" class="icon-btn-circle ${opts.className}" style="--accent: ${opts.accent};" ${opts.dataAttrs || ''} title="${opts.title}" aria-label="${opts.title}">
                 ${opts.svg}
             </button>
-            ${typeof opts.count === 'number' ? `<span class="feed-action-count" style="font-size:0.78rem; color:var(--text-secondary); font-weight:700; min-width:0.8em;">${opts.count > 0 ? opts.count : ''}</span>` : ''}
+            ${showChip ? `<span class="feed-action-count" data-threshold="${threshold}" style="font-size:0.78rem; color:var(--text-secondary); font-weight:700; min-width:0.8em;">${chipText}</span>` : ''}
         </span>
     `;
 }
@@ -215,27 +355,63 @@ const ACTION_ACCENTS = {
     bookmark: '255,149,0',    // orange
 };
 
-/** Build the action-row HTML — like, comment, repost, bookmark, all as
- *  `.icon-btn-circle` icon buttons matching the navbar's Complete/Delete
- *  trip aesthetic. Repost only appears on shareable events
- *  (friend_shared_trip + friend_reposted_trip), since reposting an
- *  auto-synthesised "X created a trip" event has no source post to
- *  point back to. Like + comment + bookmark live on every event.
+/** Build the action-row HTML. Event-class aware:
  *
- *  Toggled buttons (like, bookmark) flip `--accent` AND swap the SVG
- *  between outline / filled to signal state. Repost toggles to a green
- *  checkmark when the caller has reposted.
+ *   Posts events  (friend_shared_trip, friend_reposted_trip)
+ *     → like + comment + repost + bookmark, full row
  *
- *  The thread itself renders below the action row when expanded
- *  (built lazily by the click handler — empty `<div class="feed-thread">`
- *  shipped with every card so the slot is always there). */
+ *   Actions events (friend_created_trip / archived / joined,
+ *                   new_friendship)
+ *     → bookmark only, right-aligned
+ *
+ *   Rationale: Posts are user-initiated content that someone consciously
+ *   pushed for engagement. Actions are passive activity logs — heart-ing
+ *   "X created a trip" feels like surveillance with a button. Bookmarks
+ *   stay on both classes because saving an Action ("come back to this
+ *   trip later") is a useful private gesture even if reacting publicly
+ *   isn't.
+ *
+ *   Toggled buttons (like, bookmark) flip `--accent` AND swap the SVG
+ *   between outline / filled to signal state. Repost toggles to a green
+ *   checkmark when the caller has reposted.
+ *
+ *   The thread itself renders below the action row when expanded
+ *   (built lazily by the click handler — empty `<div class="feed-thread">`
+ *   shipped with every card so the slot is always there; only emitted
+ *   for Posts since Actions don't have comments). */
 function actionsRow(ev) {
-    const liked = !!ev.is_liked;
+    const isPost = POSTS_EVENT_TYPES.has(ev.type);
     const bookmarked = !!ev.is_bookmarked;
+
+    const bookmarkBtn = actionButton({
+        className: 'feed-bookmark-btn',
+        accent: bookmarked ? ACTION_ACCENTS.bookmark : ACTION_ACCENTS.muted,
+        dataAttrs: `data-event-id="${esc(ev.id)}" data-bookmarked="${bookmarked ? '1' : '0'}"`,
+        title: bookmarked ? 'Remove bookmark' : 'Bookmark',
+        svg: actionIconSvg('bookmark', bookmarked),
+        marginLeftAuto: true,
+    });
+
+    if (!isPost) {
+        // Actions get a slim row — bookmark only. Same divider line so
+        // the cards still feel symmetrical with their Posts neighbours.
+        return `
+            <div class="feed-actions" style="display:flex; align-items:center; gap:10px; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(0,45,91,0.06);">
+                ${bookmarkBtn}
+            </div>
+        `;
+    }
+
+    // Posts get the full row.
+    const liked = !!ev.is_liked;
     const likeCount = ev.like_count || 0;
     const commentCount = ev.comment_count || 0;
-    const canRepost = (ev.type === 'friend_shared_trip' || ev.type === 'friend_reposted_trip') && ev.post_id;
+    const canRepost = !!ev.post_id;
 
+    // Like-count chip: rendered with the threshold so "1 like" stays
+    // hidden as a tally (the heart still fills to confirm YOU liked it).
+    // The chip element itself is in DOM regardless so the click handler
+    // can update it as the count crosses the threshold either way.
     const likeBtn = actionButton({
         className: 'feed-like-btn',
         accent: liked ? ACTION_ACCENTS.like : ACTION_ACCENTS.muted,
@@ -243,6 +419,7 @@ function actionsRow(ev) {
         title: liked ? 'Unlike' : 'Like',
         svg: actionIconSvg('heart', liked),
         count: likeCount,
+        countThreshold: LIKE_COUNT_THRESHOLD,
     });
     const commentBtn = actionButton({
         className: 'feed-comment-btn',
@@ -259,14 +436,6 @@ function actionsRow(ev) {
         title: 'Repost to your friends',
         svg: actionIconSvg('repost'),
     }) : '';
-    const bookmarkBtn = actionButton({
-        className: 'feed-bookmark-btn',
-        accent: bookmarked ? ACTION_ACCENTS.bookmark : ACTION_ACCENTS.muted,
-        dataAttrs: `data-event-id="${esc(ev.id)}" data-bookmarked="${bookmarked ? '1' : '0'}"`,
-        title: bookmarked ? 'Remove bookmark' : 'Bookmark',
-        svg: actionIconSvg('bookmark', bookmarked),
-        marginLeftAuto: true,
-    });
 
     return `
         <div class="feed-actions" style="display:flex; align-items:center; gap:10px; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(0,45,91,0.06);">
@@ -326,9 +495,13 @@ export function renderFeed() {
     // Header + container shell. Both the header and the list live inside
     // the same centered column (max-width 760, margin auto) so they share
     // a vertical alignment line — left-aligning either one against the
-    // wide app-container would feel off. The list itself paints into
+    // wide app-container would feel off.
+    //
+    // Below the header sit two tabs (Posts / Actions) and an Apple-style
+    // Bookmarked toggle on the same row. The list itself paints into
     // #feedList so the network refresh can swap the body without
-    // re-rendering the header (which would steal scroll position).
+    // re-rendering the header (which would steal scroll position) and
+    // tab/toggle changes only repaint the list.
     div.innerHTML = `
         <div style="max-width: 760px; margin: 0 auto;">
             <div style="padding:32px 0 24px; text-align:center;">
@@ -336,31 +509,149 @@ export function renderFeed() {
                 <p style="margin:0;color:var(--text-secondary);font-size:1rem;">What your friends are up to lately</p>
             </div>
 
+            <div id="feedTabsRow" style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom: 16px; flex-wrap: wrap;">
+                <nav class="home-tabnav" role="tablist" aria-label="Feed sections">
+                    <button class="home-tabnav__tab${activeFeedTab === 'posts' ? ' is-active' : ''}" data-feed-tab="posts" role="tab" type="button">Posts</button>
+                    <button class="home-tabnav__tab${activeFeedTab === 'actions' ? ' is-active' : ''}" data-feed-tab="actions" role="tab" type="button">Actions</button>
+                </nav>
+                <label class="apple-toggle" id="feedBookmarkToggle" title="Filter to bookmarked items only">
+                    <input type="checkbox" class="apple-toggle__input" ${bookmarkedOnly ? 'checked' : ''}>
+                    <span class="apple-toggle__track"><span class="apple-toggle__thumb"></span></span>
+                    <span class="apple-toggle__label">🔖 Bookmarked</span>
+                </label>
+            </div>
+
             <div id="feedList" style="display:flex; flex-direction:column; gap:12px;"></div>
         </div>
     `;
 
-    /** Paint #feedList from `cachedEvents`. Pure DOM swap; no fetch. */
+    /** Paint #feedList from `cachedEvents`, filtered by the active tab
+     *  and the bookmarked-only toggle. Pure DOM swap; no fetch.
+     *  Empty-state copy varies by combo — "no posts yet" reads very
+     *  differently from "no bookmarked actions." */
     const paintList = () => {
         const listEl = q(div, '#feedList');
         if (!listEl) return;
-        if (cachedEvents.length === 0) {
+
+        const inActiveTab = (ev) => activeFeedTab === 'posts'
+            ? POSTS_EVENT_TYPES.has(ev.type)
+            : ACTIONS_EVENT_TYPES.has(ev.type);
+        const visible = cachedEvents.filter(ev => {
+            if (!inActiveTab(ev)) return false;
+            if (bookmarkedOnly && !ev.is_bookmarked) return false;
+            return true;
+        });
+
+        if (visible.length === 0) {
+            // Two distinct empty states. The "bookmarked filter on but
+            // empty" case needs different copy than "no events at all" —
+            // otherwise the user sees the same generic "no activity"
+            // message regardless of what they're actually looking at.
+            let title, body, ctaLabel, ctaAction;
+            if (bookmarkedOnly) {
+                title = activeFeedTab === 'posts' ? 'No bookmarked posts yet' : 'No bookmarked actions yet';
+                body = `Tap 🔖 on any card to save it for later — bookmarks are private and never expire.`;
+                ctaLabel = 'Show all';
+                ctaAction = () => {
+                    bookmarkedOnly = false;
+                    const toggleInput = /** @type {HTMLInputElement | null} */ (div.querySelector('#feedBookmarkToggle .apple-toggle__input'));
+                    if (toggleInput) toggleInput.checked = false;
+                    paintList();
+                };
+            } else if (activeFeedTab === 'posts') {
+                title = 'No posts yet';
+                body = `Posts are trips your friends shared (or reposted) for the world to see. Share one of your own from the trip header to kick things off — or check the <strong>Actions</strong> tab for what's been happening behind the scenes.`;
+                ctaLabel = 'See Actions';
+                ctaAction = () => {
+                    activeFeedTab = 'actions';
+                    paintList();
+                    div.querySelectorAll('.home-tabnav__tab').forEach(b => b.classList.toggle('is-active', /** @type {HTMLElement} */ (b).dataset.feedTab === 'actions'));
+                };
+            } else {
+                title = 'Quiet over here';
+                body = `When your friends create trips, complete adventures or join in on plans, you'll see it here. Add more friends in <strong>Your network</strong> to grow the feed.`;
+                ctaLabel = 'Go to Your network';
+                ctaAction = () => navigate('friends');
+            }
             listEl.innerHTML = `
                 <div class="card glass" style="padding: 32px; border-radius: 24px; border: 1.5px dashed rgba(155, 89, 182, 0.35); background: rgba(155, 89, 182, 0.04); text-align:center;">
-                    <div style="font-size:2.4rem; margin-bottom:10px;">🌱</div>
-                    <h3 style="margin:0 0 8px; color:#9b59b6; font-weight:800; font-size: 1.1rem;">No recent activity</h3>
-                    <p style="margin:0; color:var(--text-secondary); font-size:0.9rem; line-height:1.5;">When your friends create trips, complete adventures, share trips or join in on plans, you'll see it here.<br>Head to <strong>Your network</strong> to add more friends and grow the feed.</p>
-                    <button id="feedGoToNetworkBtn" class="btn-primary" style="margin-top: 16px; padding: 10px 22px; border-radius: 999px;">Go to Your network</button>
+                    <div style="font-size:2.4rem; margin-bottom:10px;">${bookmarkedOnly ? '🔖' : '🌱'}</div>
+                    <h3 style="margin:0 0 8px; color:#9b59b6; font-weight:800; font-size: 1.1rem;">${esc(title)}</h3>
+                    <p style="margin:0; color:var(--text-secondary); font-size:0.9rem; line-height:1.5;">${body}</p>
+                    <button id="feedEmptyCtaBtn" class="btn-primary" style="margin-top: 16px; padding: 10px 22px; border-radius: 999px;">${esc(ctaLabel)}</button>
                 </div>
             `;
-            const btn = listEl.querySelector('#feedGoToNetworkBtn');
-            if (btn) /** @type {HTMLButtonElement} */ (btn).onclick = () => navigate('friends');
+            const btn = listEl.querySelector('#feedEmptyCtaBtn');
+            if (btn) /** @type {HTMLButtonElement} */ (btn).onclick = ctaAction;
             return;
         }
 
-        listEl.innerHTML = cachedEvents.map(ev => {
+        const meId = STATE.user?.id;
+        // Aggregation. Posts pass through unchanged; Actions of the same
+        // (actor, type, day) get rolled into a bundle card with an
+        // expand affordance. Inside an expanded bundle the individual
+        // events render as small inline rows so the user can see
+        // exactly what's bundled.
+        const renderedItems = bundleEvents(visible);
+        listEl.innerHTML = renderedItems.map(item => {
+            if (/** @type {any} */ (item).bundled) {
+                const bundle = /** @type {{bundled: true, id: string, type: string, actor: Actor, when: string|null, members: FeedEvent[]}} */ (item);
+                const accent = eventAccent(bundle.type);
+                const time = relativeTime(bundle.when);
+                const isExpanded = expandedBundles.has(bundle.id);
+                // Each member shows its own bookmark control inside the
+                // expanded list — bookmarks are per-event, not per-bundle.
+                const memberRowsHtml = bundle.members.map(m => {
+                    const memberLine = eventLine(m);  // reuse single-event verb
+                    const bookmarked = !!m.is_bookmarked;
+                    return `
+                        <div class="feed-bundle-member" data-event-id="${esc(m.id)}" style="display:flex; align-items:center; gap:10px; padding:8px 0; border-top:1px dashed rgba(0,45,91,0.06);">
+                            <div style="flex:1; min-width:0; font-size:0.88rem; color:var(--text-secondary); line-height:1.4;">${memberLine}</div>
+                            <button type="button" class="icon-btn-circle feed-bookmark-btn" style="--accent: ${bookmarked ? ACTION_ACCENTS.bookmark : ACTION_ACCENTS.muted};" data-event-id="${esc(m.id)}" data-bookmarked="${bookmarked ? '1' : '0'}" title="${bookmarked ? 'Remove bookmark' : 'Bookmark'}" aria-label="${bookmarked ? 'Remove bookmark' : 'Bookmark'}">
+                                ${actionIconSvg('bookmark', bookmarked)}
+                            </button>
+                        </div>
+                    `;
+                }).join('');
+                return `
+                    <div class="card glass feed-event feed-bundle" data-bundle-id="${esc(bundle.id)}"
+                        style="padding: 16px 18px; border-radius: 18px; background: white; border: 1px solid ${accent.color}22; border-left: 4px solid ${accent.color}; box-shadow: 0 4px 14px rgba(0,45,91,0.06); display:flex; flex-direction:column; gap:0;">
+                        <div style="display:flex; align-items:flex-start; gap:14px;">
+                            ${avatar(bundle.actor)}
+                            <div style="flex:1; min-width:0;">
+                                <div style="font-size: 0.95rem; line-height:1.4; color: var(--text-secondary);">
+                                    <span style="margin-right:6px;">${accent.icon}</span>${bundleLine(bundle)}
+                                </div>
+                                ${time ? `<div style="font-size: 0.72rem; color: var(--text-secondary); margin-top: 4px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;">${esc(time)}</div>` : ''}
+                            </div>
+                            <button type="button" class="feed-bundle-toggle" data-bundle-id="${esc(bundle.id)}"
+                                style="background:transparent; border:0; color:var(--accent-blue); cursor:pointer; padding:4px 10px; font-size:0.78rem; font-weight:800; flex-shrink:0;">${isExpanded ? 'Collapse' : 'View all'}</button>
+                        </div>
+                        <div class="feed-bundle-members" style="margin-top: ${isExpanded ? '8px' : '0'}; padding-top: ${isExpanded ? '4px' : '0'}; display: ${isExpanded ? 'block' : 'none'};">
+                            ${memberRowsHtml}
+                        </div>
+                    </div>
+                `;
+            }
+            const ev = /** @type {FeedEvent} */ (item);
             const accent = eventAccent(ev.type);
             const time = relativeTime(ev.when);
+            // Caption block — only on shares/reposts that have one.
+            // Renders above the action row so it reads as the share's
+            // body text, not a footnote. Pre-wrap so newlines survive.
+            const captionHtml = ev.caption ? `
+                <div style="margin-top:10px; padding:10px 12px; background:rgba(88,86,214,0.06); border-radius:12px; font-size:0.92rem; color:#002d5b; line-height:1.45; white-space:pre-wrap; word-wrap:break-word;">${esc(ev.caption)}</div>
+            ` : '';
+            // Unshare ✕ — only on YOUR own original shares (reposts of
+            // someone else's share are deleted by the original author,
+            // not re-deletable by the reposter; reposting your own
+            // repost is impossible anyway). Reposts of YOUR share are
+            // deleted automatically when you unshare the original.
+            const isMyOriginalShare = ev.type === 'friend_shared_trip' && ev.actor?.id === meId && ev.post_id;
+            const unshareBtn = isMyOriginalShare ? `
+                <button type="button" class="feed-unshare-btn" data-post-id="${ev.post_id}" title="Unshare — removes from your friends' feeds" aria-label="Unshare"
+                    style="background:transparent; border:0; color:rgba(255,59,48,0.55); cursor:pointer; padding:2px 6px; font-size:0.85rem; font-weight:800; flex-shrink:0; line-height:1;">✕</button>
+            ` : '';
             return `
                 <div class="card glass feed-event" data-event-id="${esc(ev.id)}"
                     style="padding: 16px 18px; border-radius: 18px; background: white; border: 1px solid ${accent.color}22; border-left: 4px solid ${accent.color}; box-shadow: 0 4px 14px rgba(0,45,91,0.06); display:flex; flex-direction:column; gap:0;">
@@ -372,7 +663,9 @@ export function renderFeed() {
                             </div>
                             ${time ? `<div style="font-size: 0.72rem; color: var(--text-secondary); margin-top: 4px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;">${esc(time)}</div>` : ''}
                         </div>
+                        ${unshareBtn}
                     </div>
+                    ${captionHtml}
                     ${actionsRow(ev)}
                 </div>
             `;
@@ -396,6 +689,34 @@ export function renderFeed() {
             console.error('Feed refresh failed:', e);
         }
     };
+
+    // ── Tab + Bookmark filter wiring ──────────────────────────────────
+    // Tab nav: clicking a pill switches `activeFeedTab` + toggles
+    // is-active classes + repaints the list.
+    div.querySelectorAll('.home-tabnav__tab[data-feed-tab]').forEach(btn => {
+        /** @type {HTMLButtonElement} */ (btn).onclick = () => {
+            const tab = /** @type {'posts' | 'actions'} */ (/** @type {HTMLElement} */ (btn).dataset.feedTab);
+            if (!tab || activeFeedTab === tab) return;
+            activeFeedTab = tab;
+            div.querySelectorAll('.home-tabnav__tab[data-feed-tab]').forEach(b => {
+                b.classList.toggle('is-active', /** @type {HTMLElement} */ (b).dataset.feedTab === tab);
+            });
+            paintList();
+        };
+    });
+
+    // Bookmarked toggle: persists across tab switches via the module-
+    // level `bookmarkedOnly`. Native checkbox change event so keyboard
+    // (space) and click both fire.
+    const bookmarkToggleInput = /** @type {HTMLInputElement | null} */ (
+        div.querySelector('#feedBookmarkToggle .apple-toggle__input')
+    );
+    if (bookmarkToggleInput) {
+        bookmarkToggleInput.addEventListener('change', () => {
+            bookmarkedOnly = !!bookmarkToggleInput.checked;
+            paintList();
+        });
+    }
 
     // ── Action wiring (delegated) ─────────────────────────────────────
     // Single click handler covers like / repost / bookmark — cheaper than
@@ -425,13 +746,14 @@ export function renderFeed() {
             likeBtn.style.setProperty('--accent', newLiked ? ACTION_ACCENTS.like : ACTION_ACCENTS.muted);
             likeBtn.innerHTML = actionIconSvg('heart', newLiked);
             const countEl = /** @type {HTMLElement | null} */ (likeBtn.parentElement?.querySelector('.feed-action-count'));
-            if (countEl && ev) countEl.textContent = ev.like_count > 0 ? String(ev.like_count) : '';
+            const renderCount = (n) => (n >= LIKE_COUNT_THRESHOLD ? String(n) : '');
+            if (countEl && ev) countEl.textContent = renderCount(ev.like_count);
             // Server reconcile.
             const result = await toggleFeedLike(eventId);
             if (result.ok && result.body && ev) {
                 ev.is_liked = !!result.body.liked;
                 ev.like_count = Number(result.body.count) || 0;
-                if (countEl) countEl.textContent = ev.like_count > 0 ? String(ev.like_count) : '';
+                if (countEl) countEl.textContent = renderCount(ev.like_count);
             }
             return;
         }
@@ -446,7 +768,26 @@ export function renderFeed() {
             bookmarkBtn.dataset.bookmarked = newBookmarked ? '1' : '0';
             bookmarkBtn.style.setProperty('--accent', newBookmarked ? ACTION_ACCENTS.bookmark : ACTION_ACCENTS.muted);
             bookmarkBtn.innerHTML = actionIconSvg('bookmark', newBookmarked);
+            // If the Bookmarked filter is on and the user just UN-bookmarked,
+            // the card no longer matches the filter — repaint so it
+            // disappears (otherwise it'd linger until next refresh,
+            // confusing the visible list vs the filter state).
+            if (bookmarkedOnly && !newBookmarked) {
+                paintList();
+            }
             await toggleFeedBookmark(eventId);
+            return;
+        }
+
+        // Bundle expand/collapse — toggles `expandedBundles` set and
+        // repaints. The set is module-level so the state survives
+        // tab switches + bookmark filter toggles.
+        const bundleToggle = /** @type {HTMLElement | null} */ (target.closest('.feed-bundle-toggle'));
+        if (bundleToggle?.dataset.bundleId) {
+            const id = bundleToggle.dataset.bundleId;
+            if (expandedBundles.has(id)) expandedBundles.delete(id);
+            else expandedBundles.add(id);
+            paintList();
             return;
         }
 
@@ -508,6 +849,36 @@ export function renderFeed() {
                 showLiquidAlert("Couldn't delete — try again in a moment.");
                 // No rollback for v1 — the next refresh reconciles.
             }
+            return;
+        }
+
+        // Unshare ✕ — author-only, on your own original shares. Removes
+        // the share from every friend's feed AND cascade-removes any
+        // reposts of it (server-side). Confirm modal before firing
+        // since this is destructive and can't be undone.
+        const unshareBtn = /** @type {HTMLButtonElement | null} */ (target.closest('.feed-unshare-btn'));
+        if (unshareBtn?.dataset.postId) {
+            const postId = Number(unshareBtn.dataset.postId);
+            showConfirmModal({
+                title: 'Unshare this trip?',
+                message: `It'll disappear from your friends' feeds. Any reposts of it will be removed too. This can't be undone.`,
+                confirmText: 'Unshare',
+                onConfirm: async () => {
+                    const result = await unshareFeedPost(postId);
+                    if (!result || !result.ok) {
+                        showLiquidAlert("Couldn't unshare — try again in a moment.");
+                        return;
+                    }
+                    // Refresh from the server. The unshare cascades to
+                    // reposts on the backend, but the client-side
+                    // friend_reposted_trip events don't expose their
+                    // parent_post_id so we can't filter them out
+                    // accurately in memory. Refresh re-fetches the
+                    // authoritative list.
+                    await refresh();
+                    showLiquidAlert('Removed from your feed.');
+                },
+            });
             return;
         }
 
