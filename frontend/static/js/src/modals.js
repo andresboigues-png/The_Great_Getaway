@@ -766,7 +766,17 @@ export const openCompanionPickerModal = (tripId) => {
         `).join('');
     };
 
-    /** @type {HTMLButtonElement} */ (q(root, '#companionPickerCloseBtn')).onclick = () => close();
+    /** @type {HTMLButtonElement} */ (q(root, '#companionPickerCloseBtn')).onclick = () => {
+        close();
+        // Re-render home so the companions panel picks up any
+        // adds / removes / links done inside the picker. Without
+        // this, closing the modal drops the user back on the
+        // stale render and the new chips don't appear until the
+        // user navigates somewhere and back. emit('state:changed')
+        // alone only refreshes the trip selector + user UI, not
+        // the home page body.
+        navigate('home', null, true);
+    };
     /** @type {HTMLButtonElement} */ (q(root, '#companionPickerFriendCancel')).onclick = () => {
         friendSheet.hidden = true;
     };
