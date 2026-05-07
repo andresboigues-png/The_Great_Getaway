@@ -1,4 +1,3 @@
-// @ts-check
 // pages/home.js
 
 import { STATE, emit } from '../state.js';
@@ -36,27 +35,27 @@ import {
 
 // Empty-state slideshow timer. Lives in this module; router.js calls
 // stopHomeSlideshow() on every navigate so the timer doesn't leak past home.
-let _slideshowTimer = null;
+let _slideshowTimer: ReturnType<typeof setInterval> | null = null;
 export function stopHomeSlideshow() {
     if (_slideshowTimer) {
         clearInterval(_slideshowTimer);
         _slideshowTimer = null;
     }
 }
-let activeMarkers = {}; // Cache of Leaflet markers by day ID
-let editingDayId = null; // ID of the day currently being geolocated/pinned
-let activeMapClickListener = null; // Reference to the active map click handler
+let activeMarkers: Record<string, any> = {}; // Cache of Leaflet markers by day ID
+let editingDayId: string | null = null; // ID of the day currently being geolocated/pinned
+let activeMapClickListener: ((e: any) => void) | null = null; // Reference to the active map click handler
 // rAF id for the day-route polyline pulse animation. Cleared on
 // every home render so stacked timers can't leak when the user
 // flips trips, navigates away, or just re-renders the page.
-let _dayRouteAnimationFrame = null;
+let _dayRouteAnimationFrame: number | null = null;
 
 // setInterval id for the trip-header local-time clock. The clock
 // reads from a cached time-zone offset and updates every 30s so
 // the displayed local time stays correct without re-fetching the
 // Time Zone API. Cleared on every home render for the same
 // leak-prevention reason as the rAF above.
-let _localTimeClockInterval = null;
+let _localTimeClockInterval: ReturnType<typeof setInterval> | null = null;
 
 // Cache for the road-following polyline path keyed by trip + day
 // coordinates. Directions API costs per request — without this,
@@ -122,7 +121,7 @@ let _directionsHintLogged = false;
  * @returns {Promise<{path:{lat:number,lng:number}[], success:number} | null>}
  */
 async function fetchTripRouteViaRoutes(legs) {
-    const key = /** @type {any} */ (window).googleMapsApiKey || '';
+    const key = (window as any).googleMapsApiKey || '';
     if (!key || !Array.isArray(legs) || legs.length < 2) return null;
     const origin = legs[0];
     const destination = legs[legs.length - 1];
@@ -189,10 +188,9 @@ async function fetchDayRoutePath(legs) {
     if (typeof google === 'undefined' || !google.maps?.DirectionsService) return null;
     const service = new google.maps.DirectionsService();
     /** @type {{lat:number,lng:number}[]} */
-    const out = [];
+    const out: { lat: number; lng: number }[] = [];
     let success = 0;
-    /** @type {string | null} */
-    let firstFailureStatus = null;
+        let firstFailureStatus: string | null = null;
     for (let i = 0; i < legs.length - 1; i++) {
         const origin = legs[i];
         const dest = legs[i + 1];
@@ -212,7 +210,7 @@ async function fetchDayRoutePath(legs) {
                 }),
                 new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 6000)),
             ]);
-            const route = /** @type {any} */ (result).routes?.[0];
+            const route = (result as any).routes?.[0];
             const overview = route?.overview_path?.map(p => ({ lat: p.lat(), lng: p.lng() })) || [];
             if (overview.length > 0) {
                 if (out.length > 0) out.push(...overview.slice(1));
@@ -246,8 +244,7 @@ async function fetchDayRoutePath(legs) {
     return out.length >= 2 ? { path: out, success } : null;
 }
 
-/** @type {'days' | 'companions' | 'documents' | 'photos'} */
-let activeHomeTab = 'days'; // Sub-tab on the home trip view (Path / Companions / Documents / Photos)
+let activeHomeTab: 'days' | 'companions' | 'documents' | 'photos' = 'days'; // Sub-tab on the home trip view (Path / Companions / Documents / Photos)
 
 // ── Path tab: selected-day state ────────────────────────────────────
 // The vertical day-by-day timeline was replaced with a horizontal
@@ -260,8 +257,7 @@ let activeHomeTab = 'days'; // Sub-tab on the home trip view (Path / Companions 
 // Shape: { [tripId]: dayId }. Stored in localStorage as
 // 'home_path_selected_day_by_trip'. Cleared lazily on render when
 // the cached id no longer matches a day on the trip.
-/** @type {Object<string, string>} */
-let selectedDayByTrip = {};
+let selectedDayByTrip: Record<string, string> = {};
 try {
     const _raw = localStorage.getItem('home_path_selected_day_by_trip');
     if (_raw) selectedDayByTrip = JSON.parse(_raw) || {};
@@ -301,7 +297,7 @@ function setSelectedDay(tripId, dayId) {
     // on a non-home page or the map hasn't initialised yet, this just
     // no-ops — selection still updates and persists, the next visit
     // to /home will reflect it.
-    const map = /** @type {any} */ (window.activeMap);
+    const map = (window.activeMap as any);
     if (!map) return;
     const day = (STATE.tripDays || []).find(d => d.id === dayId);
     if (!day) return;
@@ -348,8 +344,7 @@ function resolveSelectedDayId(activeTrip, sortedDays) {
  *  tab content so changing the selected day doesn't need to re-render
  *  the whole Home page (which would tear down the map mid-interaction).
  *  Reset to null when home unmounts. */
-/** @type {(() => void) | null} */
-let _repaintPathTab = null;
+let _repaintPathTab: (() => void) | null = null;
 
 /** Set by renderHome → called whenever the wheel selection changes
  *  so the home map's active POI pills can re-fetch with the new
@@ -358,8 +353,7 @@ let _repaintPathTab = null;
  *  this hook, pill markers would freeze on the previous day's
  *  center until the user toggled the pill off+on. Reset on
  *  unmount. */
-/** @type {(() => void) | null} */
-let _onSelectedDayChange = null;
+let _onSelectedDayChange: (() => void) | null = null;
 // The "To do list" sub-tab was promoted to a top-level /todo page so
 // the to-do list now has its own banner-style surface (see pages/todo.js
 // + the navbar entry between Home and Plan with AI). The data still
@@ -673,16 +667,15 @@ export function renderHome() {
     let currentPhotoIdx = 0;
 
     // Determine data based on activeTrip or default
-    let displayImages = [];
-    let displayQuotes = [];
+    let displayImages: string[] = [];
+    let displayQuotes: string[] = [];
 
     /** The border IIFE (further down in this same render) calls
      *  addDiscoveredCountry() each time a new ISO country code surfaces
      *  from Nominatim. Quotes/facts/images for that country then join the
      *  slideshow roster on its next tick. Default no-op so the no-trip
      *  branch doesn't have to special-case it. */
-    /** @type {(cc: string | null | undefined) => void} */
-    let addDiscoveredCountry = () => {};
+        let addDiscoveredCountry: (cc: string | null | undefined) => void = () => {};
 
     if (!activeTrip) {
         // Shuffled slideshow for when NO trip is selected (Inspirational Quotes ONLY)
@@ -725,8 +718,8 @@ export function renderHome() {
         // single-element pick + a fragile localStorage toggle. Roster
         // is reshuffled each render so reload still rolls a fresh order.
         const refreshSlideshowMedia = () => {
-            const data = getMediaForTrip(activeTrip, [...discoveredCodes]);
-            const pairs = [];
+            const data = getMediaForTrip(activeTrip, [...discoveredCodes] as string[]);
+            const pairs: { img: string; text: string }[] = [];
             for (let i = 0; i < data.images.length; i++) {
                 const img = data.images[i];
                 const q = data.quotes[i];
@@ -765,8 +758,8 @@ export function renderHome() {
     const showNextImageAndQuote = () => {
         if (displayImages.length <= 1) return; // No need to cycle if only 1 image
         currentPhotoIdx = (currentPhotoIdx + 1) % displayImages.length;
-        const imgEl = /** @type {HTMLImageElement | null} */ (div.querySelector('#homeHeroImg'));
-        const quoteEl = /** @type {HTMLElement | null} */ (div.querySelector('#homeQuote'));
+        const imgEl = (div.querySelector('#homeHeroImg') as HTMLImageElement | null);
+        const quoteEl = (div.querySelector('#homeQuote') as HTMLElement | null);
         if (imgEl) {
             imgEl.style.opacity = '0';
             setTimeout(() => {
@@ -978,8 +971,7 @@ export function renderHome() {
                     { featureType: 'road', elementType: 'labels', stylers: [{ visibility: 'off' }] },
                 ];
                 const buildPoiStyles = (enabledSet) => {
-                    /** @type {any[]} */
-                    const styles = HIDE_ALL_POI_STYLES.slice();
+                                        const styles: any[] = HIDE_ALL_POI_STYLES.slice();
                     if (enabledSet.has('traffic')) {
                         // Highway / arterial road labels visible only when
                         // Roads & traffic is on, so the user sees major
@@ -1038,8 +1030,7 @@ export function renderHome() {
                  *  by the time this code runs. Construct on first use
                  *  instead of at module init so a slow places-library
                  *  load doesn't take the whole map down with it. */
-                /** @type {any | null} */
-                let _placesService = null;
+                                let _placesService: any | null = null;
                 const getPlacesService = () => {
                     if (_placesService) return _placesService;
                     if (typeof google === 'undefined' || !google.maps || !google.maps.places) return null;
@@ -1050,16 +1041,14 @@ export function renderHome() {
                 /** Markers grouped by pill key so we can clear one
                  *  category without disturbing the others. Each entry is
                  *  an array of google.maps.Marker. */
-                /** @type {Record<string, any[]>} */
-                const placesMarkers = {};
+                                const placesMarkers: Record<string, any[]> = {};
 
                 /** Cache of nearbySearch results keyed by `${tripId}|${pillKey}`.
                  *  Trip-wide cache because the search is now one big
                  *  query around the genesis pin (50 km radius), not one
                  *  per day pin — re-toggling a pill on the same trip
                  *  doesn't burn another API call. */
-                /** @type {Record<string, any[]>} */
-                const placesCache = {};
+                                const placesCache: Record<string, any[]> = {};
 
                 /** In-flight fetches keyed the same way. Concurrent
                  *  toggles for the same pill resolve to the same
@@ -1068,15 +1057,13 @@ export function renderHome() {
                  *  markers from the first fetch on top of the second.
                  *  Sparse — keys are only present while a fetch is in
                  *  flight (deleted in the .finally below), so reads
-                 *  must treat missing keys explicitly.
-                 *  @type {Record<string, Promise<any[]> | undefined>} */
-                const placesPending = {};
+                 *  must treat missing keys explicitly. */
+                const placesPending: Record<string, Promise<any[]> | undefined> = {};
 
                 /** Single shared InfoWindow — reused across every Places
                  *  marker so only one bubble is ever open at a time
                  *  (Google Maps standard behavior, less visual chaos). */
-                /** @type {any | null} */
-                let placesInfoWindow = null;
+                                let placesInfoWindow: any | null = null;
                 const getInfoWindow = () => {
                     if (placesInfoWindow) return placesInfoWindow;
                     placesInfoWindow = new google.maps.InfoWindow();
@@ -1143,9 +1130,9 @@ export function renderHome() {
                  *  setContent — so the re-attach below survives rebuilds. */
                 const wireInfoWindowMarkButtons = (cat, place) => {
                     const iw = getInfoWindow();
-                    const todoBtn = /** @type {HTMLButtonElement | null} */ (
-                        document.querySelector(`.gm-style-iw [data-action="toggle-todo"][data-place-id="${place.place_id}"]`)
-                    );
+                    const todoBtn = document.querySelector(
+                        `.gm-style-iw [data-action="toggle-todo"][data-place-id="${place.place_id}"]`,
+                    ) as HTMLButtonElement | null;
                     if (!todoBtn) return; // iw not in DOM yet, will retry on next domready
                     const refresh = () => {
                         iw.setContent(buildInfoWindowHtml(cat, place));
@@ -1289,7 +1276,7 @@ export function renderHome() {
                     return !!cat.useGenesisAlways;
                 };
 
-                const fetchPlacesForTrip = (cat) => {
+                const fetchPlacesForTrip = (cat: any): Promise<any[]> => {
                     const tripId = activeTrip?.id || '';
                     const { center, anchorId } = resolveSearchCenter(shouldForceGenesis(cat));
                     // Cache-key includes the anchor + strategy so:
@@ -1300,14 +1287,13 @@ export function renderHome() {
                     if (placesCache[key]) return Promise.resolve(placesCache[key]);
                     if (placesPending[key]) return placesPending[key];
 
-                    const promise = new Promise((resolve) => {
+                    const promise = new Promise<any[]>((resolve) => {
                         if (!center || typeof center.lat !== 'number' || typeof center.lng !== 'number') {
                             resolve([]); return;
                         }
                         const svc = getPlacesService();
                         if (!svc) { resolve([]); return; }
-                        /** @type {any[]} */
-                        const all = [];
+                                                const all: any[] = [];
 
                         // Two strategies, picked per-category:
                         //   distance → closest 60. Right for dense
@@ -1358,7 +1344,7 @@ export function renderHome() {
                                 // keyword='pharmacy'), and twin markers
                                 // would clutter the map.
                                 const seen = new Set();
-                                const deduped = [];
+                                const deduped: any[] = [];
                                 for (const p of all) {
                                     if (!p?.place_id || seen.has(p.place_id)) continue;
                                     seen.add(p.place_id);
@@ -1421,8 +1407,7 @@ export function renderHome() {
                         ? userFilter.minRating
                         : cat.defaultMinRating;
 
-                    /** @type {any[]} */
-                    const markers = [];
+                                        const markers: any[] = [];
                     const seen = new Set();
                     results.forEach(place => {
                         const pid = place.place_id;
@@ -1455,8 +1440,7 @@ export function renderHome() {
                 const tripIdForPills = activeTrip?.id || '';
                 const persistedPills = (STATE.preferences?.enabledPois?.[tripIdForPills] || [])
                     .filter(k => POI_CATEGORIES.some(c => c.key === k));
-                /** @type {Set<string>} */
-                const enabledPois = new Set(persistedPills);
+                                const enabledPois: Set<string> = new Set(persistedPills);
 
                 const mapOptions = {
                     center: savedMapView ? { lat: savedMapView.lat, lng: savedMapView.lng } : { lat: 20, lng: 0 },
@@ -1487,8 +1471,7 @@ export function renderHome() {
                 // Live traffic overlay — created lazily, attached to the
                 // map only while the Roads & traffic pill is on. Lives in
                 // the outer scope so the click handler can flip it on/off.
-                /** @type {any | null} */
-                let trafficLayer = null;
+                                let trafficLayer: any | null = null;
                 const setTrafficVisible = (visible) => {
                     if (visible) {
                         if (!trafficLayer) trafficLayer = new google.maps.TrafficLayer();
@@ -1537,8 +1520,8 @@ export function renderHome() {
                 // Visibility persists in localStorage so the user's
                 // preference (hidden by default — pills are off until
                 // they ask) sticks across reloads.
-                const poiToggleBar = /** @type {HTMLButtonElement | null} */ (document.getElementById('homePoiToggleBtn'));
-                const poiOverlay = /** @type {HTMLElement | null} */ (document.getElementById('homeMapPoiToggles'));
+                const poiToggleBar = (document.getElementById('homePoiToggleBtn') as HTMLButtonElement | null);
+                const poiOverlay = (document.getElementById('homeMapPoiToggles') as HTMLElement | null);
                 if (poiToggleBar && poiOverlay) {
                     // Sync initial state (the inline render decides
                     // visibility from localStorage; mirror it here).
@@ -1559,13 +1542,13 @@ export function renderHome() {
                 const poiTogglesEl = document.getElementById('homeMapPoiToggles');
                 if (poiTogglesEl) {
                     poiTogglesEl.addEventListener('click', (ev) => {
-                        const target = /** @type {HTMLElement | null} */ (ev.target);
+                        const target = (ev.target as HTMLElement | null);
 
                         // Regular category pill — flip Places API markers
                         // for that category on/off.
                         const pill = target?.closest('.map-poi-toggle');
                         if (!pill) return;
-                        const key = /** @type {HTMLElement} */ (pill).dataset.poi;
+                        const key = (pill as HTMLElement).dataset.poi;
                         if (!key) return;
                         const willBeOn = !enabledPois.has(key);
                         if (willBeOn) enabledPois.add(key);
@@ -1642,17 +1625,15 @@ export function renderHome() {
                 // from the place's types[] (best-effort match against
                 // POI_CATEGORIES, falling back to a generic 📍 pin).
                 (() => {
-                    const searchInput = /** @type {HTMLInputElement | null} */ (document.getElementById('homeMapSearchInput'));
-                    const resultsEl   = /** @type {HTMLElement | null} */     (document.getElementById('homeMapSearchResults'));
-                    const clearBtn    = /** @type {HTMLButtonElement | null} */ (document.getElementById('homeMapSearchClear'));
+                    const searchInput = (document.getElementById('homeMapSearchInput') as HTMLInputElement | null);
+                    const resultsEl   = (document.getElementById('homeMapSearchResults') as HTMLElement | null);
+                    const clearBtn    = (document.getElementById('homeMapSearchClear') as HTMLButtonElement | null);
                     if (!searchInput || !resultsEl || !clearBtn) return;
                     if (typeof google === 'undefined' || !google.maps?.places?.AutocompleteService) return;
 
                     const autocomplete = new google.maps.places.AutocompleteService();
-                    /** @type {google.maps.Marker | null} */
-                    let searchMarker = null;
-                    /** @type {ReturnType<typeof setTimeout> | null} */
-                    let typingTimer = null;
+                                        let searchMarker: google.maps.Marker | null = null;
+                                        let typingTimer: ReturnType<typeof setTimeout> | null = null;
 
                     /** Pick the best POI category match for a place — used so
                      *  the InfoWindow matches the colour/icon of the relevant
@@ -1781,8 +1762,7 @@ export function renderHome() {
                             // so "lisbon" while looking at Berlin doesn't
                             // surface unrelated Lisbons; falls back to
                             // global if no map bounds yet.
-                            /** @type {google.maps.places.AutocompletionRequest} */
-                            const req = { input: q };
+                                                        const req: google.maps.places.AutocompletionRequest = { input: q };
                             const bounds = map.getBounds();
                             if (bounds) req.bounds = bounds;
                             // Set `origin` to the trip's genesis pin so
@@ -1810,9 +1790,8 @@ export function renderHome() {
                     });
 
                     resultsEl.addEventListener('click', (e) => {
-                        const row = /** @type {HTMLElement | null} */ (
-                            /** @type {HTMLElement | null} */ (e.target)?.closest('.map-search-row')
-                        );
+                        const target = e.target as HTMLElement | null;
+                        const row = target?.closest('.map-search-row') as HTMLElement | null;
                         if (!row?.dataset.placeId) return;
                         const placeId = row.dataset.placeId;
                         searchInput.value = row.querySelector('div')?.textContent?.trim() || searchInput.value;
@@ -1836,7 +1815,7 @@ export function renderHome() {
                     document.addEventListener('click', (e) => {
                         const wrap = document.getElementById('homeMapSearchWrap');
                         if (!wrap) return;
-                        if (!wrap.contains(/** @type {Node} */ (e.target))) hideResults();
+                        if (!wrap.contains((e.target as Node))) hideResults();
                     });
                 })();
 
@@ -1929,8 +1908,7 @@ export function renderHome() {
                  *  don't need to pre-probe. The user gets a tiny
                  *  visual sense of WHAT's at this pin without
                  *  leaving the map. */
-                /** @type {any | null} */
-                let dayPinInfoWindow = null;
+                                let dayPinInfoWindow: any | null = null;
                 /** @param {any} marker
                  *  @param {any} day */
                 const openDayPinInfoWindow = (marker, day) => {
@@ -2113,7 +2091,8 @@ export function renderHome() {
 
                 // Re-attach map click listener if we are in the middle of pinning
                 if (activeMapClickListener) {
-                    map.addListener('click', (e) => activeMapClickListener({ latlng: { lat: e.latLng.lat(), lng: e.latLng.lng() } }));
+                    const cb = activeMapClickListener;
+                    map.addListener('click', (e) => cb({ latlng: { lat: e.latLng.lat(), lng: e.latLng.lng() } }));
                     mapContainer.style.cursor = 'crosshair';
                 }
 
@@ -2183,8 +2162,7 @@ export function renderHome() {
                 // Cached in sessionStorage so trip navigations don't re-bill
                 // the Geocoder quota.
                 if (currentTripDays.some(d => typeof d.lat === 'number')) {
-                    /** @type {any} */
-                    const _g = google;
+                                        const _g: any = google;
                     const DAY_CACHE_PREFIX = 'tggDayCountry:';
                     const cachedCountryFor = async (lat, lng) => {
                         const key = `${lat.toFixed(4)},${lng.toFixed(4)}`;
@@ -2380,8 +2358,7 @@ export function renderHome() {
         const members = activeTrip.members || [];
         const companions = activeTrip.companions || [];
 
-        /** @type {Array<{name: string, role: string|null, picture?: string|null, isOwner: boolean, isMember: boolean, isPending?: boolean}>} */
-        const chips = [];
+                const chips: Array<{name: string, role: string|null, picture?: string|null, isOwner: boolean, isMember: boolean, isPending?: boolean}> = [];
         const seenMemberIds = new Set();
 
         // Owner first.
@@ -2704,7 +2681,7 @@ export function renderHome() {
                        <span style="font-size: 1.25rem; font-weight: 800; line-height: 1.05;">${day.dayNumber}</span>
                    </div>`;
             const title = isGenesis ? 'Trip Genesis' : esc(day.name || `Day ${day.dayNumber}`);
-            const subtitleParts = [];
+            const subtitleParts: string[] = [];
             if (isGenesis) {
                 subtitleParts.push(activeTrip && activeTrip.country ? esc(shortPlaceName(activeTrip.country)) : 'Where the trip begins');
                 // Trip-wide doc/photo counts on Genesis (its long-standing role).
@@ -2765,7 +2742,7 @@ export function renderHome() {
          *  future pass. */
         const buildOptionsStack = (day, { isGenesis }) => {
             if (!day || !tripIsEditable) return '';
-            const buttons = [];
+            const buttons: string[] = [];
             // Primary button — different identity per day type.
             // Genesis: Trip checklist takes the gold-gradient primary
             // slot (per user). The "Open Full Plan" entry was dropped
@@ -2891,7 +2868,7 @@ export function renderHome() {
             // day is a numbered day (when Genesis is the selected
             // card, the right column collapses and Genesis stretches
             // to fill).
-            const columns = [];
+            const columns: string[] = [];
             if (genesis) {
                 const genesisIsSelected = selectedDay?.id === genesis.id;
                 columns.push(`
@@ -2935,7 +2912,7 @@ export function renderHome() {
          *  prev/next, keyboard arrow, swipe — anything that changes
          *  the selected day. After the swap, scroll the selected chip
          *  into view so off-screen chips don't strand the user. */
-        const pathTabInner = /** @type {HTMLElement | null} */ (daysContainer.querySelector('#pathTabInner'));
+        const pathTabInner = (daysContainer.querySelector('#pathTabInner') as HTMLElement | null);
         // Weather forecast state + paint helper — DECLARED BEFORE
         // repaintPath because repaintPath calls applyWeatherChips,
         // and `let _weatherForecast` (block-scoped, TDZ in strict-
@@ -2945,8 +2922,7 @@ export function renderHome() {
         // the entire home render with a ReferenceError on every
         // initial load. The fetch + assignment stays after the
         // first repaint — only the declaration moved earlier.
-        /** @type {any[] | null} */
-        let _weatherForecast = null;
+                let _weatherForecast: any[] | null = null;
         function applyWeatherChips() {
             if (!_weatherForecast || !pathTabInner) return;
             // Index forecastDays by YYYY-MM-DD for O(1) lookups.
@@ -2962,15 +2938,15 @@ export function renderHome() {
                 byDate.set(iso, fd);
             }
             pathTabInner.querySelectorAll('.day-card__weather').forEach(el => {
-                const date = /** @type {HTMLElement} */ (el).dataset.weatherDate;
+                const date = (el as HTMLElement).dataset.weatherDate;
                 if (!date) return;
                 const fd = byDate.get(date);
                 const summary = fd ? pickDaySummary(fd) : null;
                 if (!summary || summary.tempC == null) {
-                    /** @type {HTMLElement} */ (el).innerHTML = '';
+                    (el as HTMLElement).innerHTML = '';
                     return;
                 }
-                /** @type {HTMLElement} */ (el).innerHTML = `
+                (el as HTMLElement).innerHTML = `
                     <span class="day-card__weather-icon" title="${esc(summary.label)}">${summary.icon}</span>
                     <span class="day-card__weather-temp">${summary.tempC}°</span>
                 `;
@@ -2981,7 +2957,7 @@ export function renderHome() {
             if (!pathTabInner) return;
             pathTabInner.innerHTML = buildPathTabHtml();
             const sel = pathTabInner.querySelector('.path-chip.is-selected');
-            if (sel) /** @type {HTMLElement} */ (sel).scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+            if (sel) (sel as HTMLElement).scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
             // Re-paint weather chips after every Path-tab repaint
             // (chip clicks rebuild the day cards, so the chip slot
             // elements are fresh and need re-population from the
@@ -3016,11 +2992,11 @@ export function renderHome() {
         // swipe = prev day. 40px threshold so accidental taps don't
         // change selection. Touch-only — desktop has the chip strip,
         // prev/next, and arrow keys.
-        let swipeStartX = null;
+        let swipeStartX: number | null = null;
         daysContainer.addEventListener('touchstart', (e) => {
             const t = e.touches?.[0];
             if (!t) return;
-            const cardsRow = /** @type {HTMLElement | null} */ (e.target instanceof Element ? e.target.closest('.path-cards-row') : null);
+            const cardsRow = (e.target instanceof Element ? e.target.closest('.path-cards-row') : null as HTMLElement | null);
             if (!cardsRow) return;
             swipeStartX = t.clientX;
         }, { passive: true });
@@ -3058,7 +3034,7 @@ export function renderHome() {
         // setTripActionsHidden — addEventListener ignores the returned
         // promise, so this is just sugar that keeps await available.
         daysContainer.addEventListener('click', async (e) => {
-            const target = /** @type {HTMLElement | null} */ (e.target);
+            const target = (e.target as HTMLElement | null);
             if (!target) return;
 
             // Reset map view — clicking the trip name fits the map to all
@@ -3066,10 +3042,9 @@ export function renderHome() {
             // map away and wants to return to the canonical view of the
             // trip's full footprint (covers multi-region polygons too).
             if (target.closest('#resetMapViewBtn')) {
-                const map = /** @type {any} */ (window.activeMap);
+                const map = (window.activeMap as any);
                 if (!map || !activeTrip) return;
-                /** @type {any} */
-                const _g = google;
+                                const _g: any = google;
                 // Boundaries are now rendered server-side via FeatureLayer
                 // (data-driven styling) — they're not on map.data, so we
                 // can't compute bounds from drawn features. Fit to the
@@ -3135,16 +3110,16 @@ export function renderHome() {
             const setActiveHomeTab = (key) => {
                 activeHomeTab = key;
                 daysContainer.querySelectorAll('.trip-tabnav__tab').forEach(t => {
-                    const el = /** @type {HTMLElement} */ (t);
+                    const el = (t as HTMLElement);
                     const isActive = el.dataset.homeTab === activeHomeTab;
                     el.classList.toggle('is-active', isActive);
                     el.setAttribute('aria-selected', isActive ? 'true' : 'false');
                 });
                 daysContainer.querySelectorAll('.home-tab-content').forEach(c => {
-                    /** @type {HTMLElement} */ (c).classList.toggle('is-active', /** @type {HTMLElement} */ (c).dataset.homeTab === activeHomeTab);
+                    (c as HTMLElement).classList.toggle('is-active', (c as HTMLElement).dataset.homeTab === activeHomeTab);
                 });
             };
-            const tabBtn = /** @type {HTMLElement | null} */ (target.closest('.trip-tabnav__tab'));
+            const tabBtn = (target.closest('.trip-tabnav__tab') as HTMLElement | null);
             const tabKey = tabBtn?.dataset.homeTab;
             if (tabKey === 'days' || tabKey === 'companions') {
                 setActiveHomeTab(tabKey);
@@ -3171,7 +3146,7 @@ export function renderHome() {
             // the button's visual state without a full re-render so
             // the click feels instant. Failed network = revert the
             // visual flip + toast so the user knows nothing changed.
-            const silenceBtn = /** @type {HTMLElement | null} */ (target.closest('#silenceTripBtn'));
+            const silenceBtn = (target.closest('#silenceTripBtn') as HTMLElement | null);
             if (silenceBtn && activeTrip) {
                 const wasSilenced = silenceBtn.dataset.silenced === '1';
                 const willSilence = !wasSilenced;
@@ -3210,13 +3185,13 @@ export function renderHome() {
                 return;
             }
 
-            const saveBtn = /** @type {HTMLElement | null} */ (target.closest('.day-pin-save-btn'));
+            const saveBtn = (target.closest('.day-pin-save-btn') as HTMLElement | null);
             if (saveBtn?.dataset.dayId) { saveDayPin(saveBtn.dataset.dayId); return; }
 
-            const delPinBtn = /** @type {HTMLElement | null} */ (target.closest('.day-pin-delete-btn'));
+            const delPinBtn = (target.closest('.day-pin-delete-btn') as HTMLElement | null);
             if (delPinBtn?.dataset.dayId) { deleteDayPin(delPinBtn.dataset.dayId); return; }
 
-            const togglePinBtn = /** @type {HTMLElement | null} */ (target.closest('.day-pin-toggle-btn'));
+            const togglePinBtn = (target.closest('.day-pin-toggle-btn') as HTMLElement | null);
             if (togglePinBtn?.dataset.dayId) {
                 const dayId = togglePinBtn.dataset.dayId;
                 const day = STATE.tripDays.find(d => d.id === dayId);
@@ -3225,7 +3200,7 @@ export function renderHome() {
                 return;
             }
 
-            const journalBtn = /** @type {HTMLElement | null} */ (target.closest('.day-journaling-btn'));
+            const journalBtn = (target.closest('.day-journaling-btn') as HTMLElement | null);
             if (journalBtn?.dataset.dayId) { openJournalingModal(journalBtn.dataset.dayId); return; }
 
             // Genesis: Trip checklist option (free-form packing/errand
@@ -3255,10 +3230,10 @@ export function renderHome() {
             //  now live inside openTripDocumentsModal /
             //  openTripPhotosModal, scoped to the modal root.)
 
-            const delDayBtn = /** @type {HTMLElement | null} */ (target.closest('.day-delete-btn'));
+            const delDayBtn = (target.closest('.day-delete-btn') as HTMLElement | null);
             if (delDayBtn?.dataset.dayId) { deleteDay(delDayBtn.dataset.dayId); return; }
 
-            const detailBtn = /** @type {HTMLElement | null} */ (target.closest('.day-detail-btn'));
+            const detailBtn = (target.closest('.day-detail-btn') as HTMLElement | null);
             if (detailBtn?.dataset.dayId) { openDayDetail(detailBtn.dataset.dayId); return; }
 
             // ── Path tab navigation handlers (chip-strip layout) ────
@@ -3268,7 +3243,7 @@ export function renderHome() {
             if (target.closest('#pathPrevBtn')) { stepSelectedDay(-1); return; }
             if (target.closest('#pathNextBtn')) { stepSelectedDay(+1); return; }
             // Chip click — jump straight to that day.
-            const chip = /** @type {HTMLElement | null} */ (target.closest('.path-chip[data-path-chip-day-id]'));
+            const chip = (target.closest('.path-chip[data-path-chip-day-id]') as HTMLElement | null);
             if (chip?.dataset.pathChipDayId && activeTrip) {
                 setSelectedDay(activeTrip.id, chip.dataset.pathChipDayId);
                 return;
@@ -3278,7 +3253,7 @@ export function renderHome() {
             // Genesis; clicking the already-selected card is a no-op
             // (use the "Open Full Plan" button to enter the modal —
             // keeps the two interactions cleanly separated).
-            const pathCard = /** @type {HTMLElement | null} */ (target.closest('.path-card[data-day-id]'));
+            const pathCard = (target.closest('.path-card[data-day-id]') as HTMLElement | null);
             if (pathCard?.dataset.dayId && activeTrip) {
                 setSelectedDay(activeTrip.id, pathCard.dataset.dayId);
                 return;
@@ -3323,7 +3298,7 @@ export function renderHome() {
                 🧭 Show Quick Access
             </button>
         `;
-        const showBtn = /** @type {HTMLButtonElement | null} */ (showBtnContainer.querySelector('button'));
+        const showBtn = (showBtnContainer.querySelector('button') as HTMLButtonElement | null);
         if (showBtn) showBtn.onclick = () => {
             STATE.hideQuickAccess = false;
             emit('state:changed');
@@ -3372,10 +3347,10 @@ export function renderHome() {
             // Delegated handler — inner [data-guide-action] spans are checked
             // first so they don't bubble to the outer card's main action.
             guideContainer.addEventListener('click', (e) => {
-                const target = /** @type {HTMLElement | null} */ (e.target);
+                const target = (e.target as HTMLElement | null);
                 if (!target) return;
 
-                const innerAction = /** @type {HTMLElement | null} */ (target.closest('[data-guide-action]'));
+                const innerAction = (target.closest('[data-guide-action]') as HTMLElement | null);
                 if (innerAction) {
                     const action = innerAction.dataset.guideAction;
                     if (action === 'open-add-day') {
@@ -3390,13 +3365,13 @@ export function renderHome() {
                     return;
                 }
 
-                const card = /** @type {HTMLElement | null} */ (target.closest('.guide-step-card'));
+                const card = (target.closest('.guide-step-card') as HTMLElement | null);
                 if (card?.dataset.index) {
                     const idx = Number(card.dataset.index);
                     steps[idx]?.action();
                 }
             });
-            const hBtn = /** @type {HTMLButtonElement | null} */ (guideContainer.querySelector('#hideQuickAccessBtn'));
+            const hBtn = (guideContainer.querySelector('#hideQuickAccessBtn') as HTMLButtonElement | null);
             if (hBtn) hBtn.onclick = (e) => {
                 e.stopPropagation();
                 STATE.hideQuickAccess = true;
@@ -3430,9 +3405,9 @@ const openJournalingModal = (dayId) => {
             </div>
         `,
     });
-    /** @type {HTMLButtonElement} */ (q(root, '#closeJournalBtn')).onclick = () => close();
-    /** @type {HTMLButtonElement} */ (q(root, '#saveJournalBtn')).onclick = async () => {
-        day.notes = /** @type {HTMLTextAreaElement} */ (q(root, '#journalText')).value;
+    (q(root, '#closeJournalBtn') as HTMLButtonElement).onclick = () => close();
+    (q(root, '#saveJournalBtn') as HTMLButtonElement).onclick = async () => {
+        day.notes = (q(root, '#journalText') as HTMLTextAreaElement).value;
         emit('state:changed');
         await upsertDay(day);
         showLiquidAlert("Memories saved!");
@@ -3556,8 +3531,8 @@ export function openShareToFeedModal(trip, onSubmit, seedCaption = '') {
             </div>
         `,
     });
-    const textarea = /** @type {HTMLTextAreaElement | null} */ (root.querySelector('#shareCaptionInput'));
-    const counter = /** @type {HTMLElement | null} */ (root.querySelector('#shareCaptionCount'));
+    const textarea = (root.querySelector('#shareCaptionInput') as HTMLTextAreaElement | null);
+    const counter = (root.querySelector('#shareCaptionCount') as HTMLElement | null);
     if (textarea && counter) {
         textarea.addEventListener('input', () => {
             counter.textContent = `${textarea.value.length}/280`;
@@ -3565,9 +3540,9 @@ export function openShareToFeedModal(trip, onSubmit, seedCaption = '') {
         // Defer focus so the modal's open-animation doesn't fight it.
         setTimeout(() => textarea.focus(), 80);
     }
-    /** @type {HTMLButtonElement | null} */ (root.querySelector('#shareModalClose'))?.addEventListener('click', close);
-    /** @type {HTMLButtonElement | null} */ (root.querySelector('#shareModalCancel'))?.addEventListener('click', close);
-    /** @type {HTMLButtonElement | null} */ (root.querySelector('#shareModalSubmit'))?.addEventListener('click', async () => {
+    (root.querySelector('#shareModalClose') as HTMLButtonElement | null)?.addEventListener('click', close);
+    (root.querySelector('#shareModalCancel') as HTMLButtonElement | null)?.addEventListener('click', close);
+    (root.querySelector('#shareModalSubmit') as HTMLButtonElement | null)?.addEventListener('click', async () => {
         const caption = (textarea?.value || '').trim();
         close();
         await onSubmit(caption);
@@ -3668,7 +3643,7 @@ const openTripChecklistModal = (trip) => {
     // wipe the card wrapper (taking the cardClass / cardStyle with it)
     // — the modal would lose its rounded background, padding, etc.
     // Target the inner card directly so repaints only touch the body.
-    const card = /** @type {HTMLElement} */ (root.firstElementChild);
+    const card = (root.firstElementChild as HTMLElement);
 
     /** Re-render the modal contents in place (preserves scroll within
      *  the rows region by re-using the same container). */
@@ -3679,15 +3654,14 @@ const openTripChecklistModal = (trip) => {
 
     /** Wire all delegated handlers. Re-attached on every repaint. */
     const wire = () => {
-        /** @type {HTMLButtonElement | null} */
-        const closeBtn = root.querySelector('#checklistModalClose');
+                const closeBtn: HTMLButtonElement | null = root.querySelector('#checklistModalClose');
         if (closeBtn) closeBtn.onclick = close;
 
-        const form = /** @type {HTMLFormElement | null} */ (root.querySelector('#checklistAddForm'));
+        const form = (root.querySelector('#checklistAddForm') as HTMLFormElement | null);
         if (form) {
             form.onsubmit = (e) => {
                 e.preventDefault();
-                const input = /** @type {HTMLInputElement | null} */ (root.querySelector('#checklistAddInput'));
+                const input = (root.querySelector('#checklistAddInput') as HTMLInputElement | null);
                 const body = (input?.value || '').trim();
                 if (!body) return;
                 trip.checklist.push({
@@ -3700,15 +3674,15 @@ const openTripChecklistModal = (trip) => {
                 persist();
                 repaint();
                 // Re-focus input so chains of additions feel natural.
-                const refocus = /** @type {HTMLInputElement | null} */ (root.querySelector('#checklistAddInput'));
+                const refocus = (root.querySelector('#checklistAddInput') as HTMLInputElement | null);
                 if (refocus) refocus.focus();
             };
         }
 
         // Toggle done.
         root.querySelectorAll('.checklist-toggle-btn').forEach(btn => {
-            /** @type {HTMLButtonElement} */ (btn).onclick = () => {
-                const id = /** @type {HTMLElement} */ (btn).dataset.itemId;
+            (btn as HTMLButtonElement).onclick = () => {
+                const id = (btn as HTMLElement).dataset.itemId;
                 const item = trip.checklist.find(i => i.id === id);
                 if (!item) return;
                 item.done = !item.done;
@@ -3718,8 +3692,8 @@ const openTripChecklistModal = (trip) => {
         });
         // Click text → enter inline edit mode.
         root.querySelectorAll('.checklist-item-text').forEach(btn => {
-            /** @type {HTMLButtonElement} */ (btn).onclick = () => {
-                const id = /** @type {HTMLElement} */ (btn).dataset.itemId;
+            (btn as HTMLButtonElement).onclick = () => {
+                const id = (btn as HTMLElement).dataset.itemId;
                 const item = trip.checklist.find(i => i.id === id);
                 if (!item || !editable) return;
                 // Clear any other in-flight edits so only one row is
@@ -3727,7 +3701,7 @@ const openTripChecklistModal = (trip) => {
                 trip.checklist.forEach(i => { if (i._editing && i.id !== id) delete i._editing; });
                 item._editing = true;
                 repaint();
-                const input = /** @type {HTMLInputElement | null} */ (root.querySelector(`.checklist-edit-input[data-item-id="${id}"]`));
+                const input = (root.querySelector(`.checklist-edit-input[data-item-id="${id}"]`) as HTMLInputElement | null);
                 if (input) {
                     input.focus();
                     input.select();
@@ -3738,7 +3712,7 @@ const openTripChecklistModal = (trip) => {
         const commitEdit = (id) => {
             const item = trip.checklist.find(i => i.id === id);
             if (!item) return;
-            const input = /** @type {HTMLInputElement | null} */ (root.querySelector(`.checklist-edit-input[data-item-id="${id}"]`));
+            const input = (root.querySelector(`.checklist-edit-input[data-item-id="${id}"]`) as HTMLInputElement | null);
             if (input) {
                 const next = input.value.trim().slice(0, 200);
                 if (next) item.body = next;  // empty input → silently keep old text
@@ -3748,21 +3722,21 @@ const openTripChecklistModal = (trip) => {
             repaint();
         };
         root.querySelectorAll('.checklist-save-btn').forEach(btn => {
-            /** @type {HTMLButtonElement} */ (btn).onclick = () => {
-                const id = /** @type {HTMLElement} */ (btn).dataset.itemId;
+            (btn as HTMLButtonElement).onclick = () => {
+                const id = (btn as HTMLElement).dataset.itemId;
                 if (id) commitEdit(id);
             };
         });
         root.querySelectorAll('.checklist-edit-input').forEach(inp => {
-            /** @type {HTMLInputElement} */ (inp).onkeydown = (e) => {
-                const k = /** @type {KeyboardEvent} */ (e).key;
+            (inp as HTMLInputElement).onkeydown = (e) => {
+                const k = (e as KeyboardEvent).key;
                 if (k === 'Enter') {
                     e.preventDefault();
-                    const id = /** @type {HTMLElement} */ (inp).dataset.itemId;
+                    const id = (inp as HTMLElement).dataset.itemId;
                     if (id) commitEdit(id);
                 } else if (k === 'Escape') {
                     e.preventDefault();
-                    const id = /** @type {HTMLElement} */ (inp).dataset.itemId;
+                    const id = (inp as HTMLElement).dataset.itemId;
                     const item = trip.checklist.find(i => i.id === id);
                     if (item) { delete item._editing; repaint(); }
                 }
@@ -3770,8 +3744,8 @@ const openTripChecklistModal = (trip) => {
         });
         // Delete.
         root.querySelectorAll('.checklist-delete-btn').forEach(btn => {
-            /** @type {HTMLButtonElement} */ (btn).onclick = () => {
-                const id = /** @type {HTMLElement} */ (btn).dataset.itemId;
+            (btn as HTMLButtonElement).onclick = () => {
+                const id = (btn as HTMLElement).dataset.itemId;
                 trip.checklist = trip.checklist.filter(i => i.id !== id);
                 persist();
                 repaint();
@@ -3784,7 +3758,7 @@ const openTripChecklistModal = (trip) => {
     // typing straight away (the most common gesture when opening the
     // modal is "I want to add a task").
     setTimeout(() => {
-        const input = /** @type {HTMLInputElement | null} */ (root.querySelector('#checklistAddInput'));
+        const input = (root.querySelector('#checklistAddInput') as HTMLInputElement | null);
         if (input) input.focus();
     }, 80);
 };
@@ -3835,8 +3809,7 @@ const openTripDocumentsModal = (trip) => {
                 ? `<span style="background:rgba(0,113,227,0.08); color:var(--accent-blue); padding:2px 8px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">${esc(lbl)}</span>`
                 : `<span style="background:rgba(0,0,0,0.05); color:rgba(0,0,0,0.45); padding:2px 8px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">Unsorted</span>`;
         };
-        /** @type {Map<string, any[]>} */
-        const groups = new Map();
+                const groups: Map<string, any[]> = new Map();
         docs.forEach(d => {
             const key = d.dayId || '__orphan__';
             let bucket = groups.get(key);
@@ -3946,17 +3919,16 @@ const openTripDocumentsModal = (trip) => {
         if (body) body.innerHTML = renderBody();
     };
 
-    /** @type {HTMLButtonElement | null} */
-    (root.querySelector('#closeDocsModalBtn'))?.addEventListener('click', close);
+    (root.querySelector('#closeDocsModalBtn') as HTMLButtonElement | null)?.addEventListener('click', close);
 
     root.addEventListener('click', (ev) => {
-        const target = /** @type {HTMLElement | null} */ (ev.target);
+        const target = (ev.target as HTMLElement | null);
         if (!target) return;
         // PDF link → in-app preview (Cmd/Ctrl/Shift/middle-click
         // still escape to a new tab).
-        const docLink = /** @type {HTMLAnchorElement | null} */ (target.closest('a.trip-doc-link'));
+        const docLink = (target.closest('a.trip-doc-link') as HTMLAnchorElement | null);
         if (docLink && looksLikePdfUrl(docLink.href)) {
-            const me = /** @type {MouseEvent} */ (ev);
+            const me = (ev as MouseEvent);
             if (!me.metaKey && !me.ctrlKey && !me.shiftKey && me.button !== 1) {
                 me.preventDefault();
                 const card = docLink.closest('.trip-doc-card');
@@ -3978,13 +3950,13 @@ const openTripDocumentsModal = (trip) => {
             openAddTripDocumentModal(trip);
             return;
         }
-        const docEditBtn = /** @type {HTMLElement | null} */ (target.closest('.trip-doc-edit-btn'));
+        const docEditBtn = (target.closest('.trip-doc-edit-btn') as HTMLElement | null);
         if (docEditBtn?.dataset.docId && tripIsEditable) {
             close();
             openEditTripDocumentModal(trip, docEditBtn.dataset.docId);
             return;
         }
-        const docRemoveBtn = /** @type {HTMLElement | null} */ (target.closest('.trip-doc-remove-btn'));
+        const docRemoveBtn = (target.closest('.trip-doc-remove-btn') as HTMLElement | null);
         if (docRemoveBtn?.dataset.docId && tripIsEditable) {
             const removed = removeTripDocument(trip, docRemoveBtn.dataset.docId);
             if (removed) {
@@ -4002,8 +3974,8 @@ const openTripDocumentsModal = (trip) => {
     });
 
     root.addEventListener('change', (ev) => {
-        const target = /** @type {HTMLElement | null} */ (ev.target);
-        const docSel = /** @type {HTMLSelectElement | null} */ (target?.closest('.trip-doc-day-select'));
+        const target = (ev.target as HTMLElement | null);
+        const docSel = (target?.closest('.trip-doc-day-select') as HTMLSelectElement | null);
         if (docSel?.dataset.docId && tripIsEditable) {
             setDocumentDay(trip, docSel.dataset.docId, docSel.value || null);
             emit('state:changed');
@@ -4132,7 +4104,7 @@ const openTripPhotosModal = (trip) => {
      *  uploading once then deleting + re-uploading would silently
      *  no-op on the second try. */
     const wireFileInput = () => {
-        const input = /** @type {HTMLInputElement | null} */ (root.querySelector('#addPhotosInput'));
+        const input = (root.querySelector('#addPhotosInput') as HTMLInputElement | null);
         if (!input) return;
         input.addEventListener('change', async () => {
             const files = Array.from(input.files || []);
@@ -4171,15 +4143,13 @@ const openTripPhotosModal = (trip) => {
         wireFileInput();
     };
 
-    /** @type {HTMLButtonElement | null} */
-    (root.querySelector('#closePhotosModalBtn'))?.addEventListener('click', close);
+    (root.querySelector('#closePhotosModalBtn') as HTMLButtonElement | null)?.addEventListener('click', close);
 
     root.addEventListener('click', (ev) => {
-        const target = /** @type {HTMLElement | null} */ (ev.target);
+        const target = (ev.target as HTMLElement | null);
         if (!target) return;
         if (target.closest('#addPhotosBtn') && tripIsEditable) {
-            /** @type {HTMLInputElement | null} */
-            (root.querySelector('#addPhotosInput'))?.click();
+            (root.querySelector('#addPhotosInput') as HTMLInputElement | null)?.click();
             return;
         }
         if (target.closest('#addPhotoUrlBtn') && tripIsEditable) {
@@ -4187,7 +4157,7 @@ const openTripPhotosModal = (trip) => {
             openAddTripPhotoUrlModal(trip);
             return;
         }
-        const photoRemoveBtn = /** @type {HTMLElement | null} */ (target.closest('.trip-photo-remove-btn'));
+        const photoRemoveBtn = (target.closest('.trip-photo-remove-btn') as HTMLElement | null);
         if (photoRemoveBtn?.dataset.photoId && tripIsEditable) {
             const removed = removeTripPhoto(trip, photoRemoveBtn.dataset.photoId);
             if (removed) {
@@ -4202,7 +4172,7 @@ const openTripPhotosModal = (trip) => {
             }
             return;
         }
-        const photoCard = /** @type {HTMLElement | null} */ (target.closest('.trip-photo-card'));
+        const photoCard = (target.closest('.trip-photo-card') as HTMLElement | null);
         if (photoCard?.dataset.photoId
             && !target.closest('.trip-photo-remove-btn')
             && !target.closest('.trip-photo-day-select')) {
@@ -4219,8 +4189,8 @@ const openTripPhotosModal = (trip) => {
     });
 
     root.addEventListener('change', (ev) => {
-        const target = /** @type {HTMLElement | null} */ (ev.target);
-        const photoSel = /** @type {HTMLSelectElement | null} */ (target?.closest('.trip-photo-day-select'));
+        const target = (ev.target as HTMLElement | null);
+        const photoSel = (target?.closest('.trip-photo-day-select') as HTMLSelectElement | null);
         if (photoSel?.dataset.photoId && tripIsEditable) {
             setPhotoDay(trip, photoSel.dataset.photoId, photoSel.value || null);
             emit('state:changed');
@@ -4296,11 +4266,11 @@ const openAddTripDocumentModal = (trip) => {
             </div>
         `,
     });
-    const nameEl = /** @type {HTMLInputElement} */ (q(root, '#newDocName'));
-    const urlEl = /** @type {HTMLInputElement} */ (q(root, '#newDocUrl'));
-    const dayEl = /** @type {HTMLSelectElement} */ (q(root, '#newDocDay'));
-    const statusEl = /** @type {HTMLElement} */ (q(root, '#newDocStatus'));
-    const fileEl = /** @type {HTMLInputElement} */ (q(root, '#newDocUpload'));
+    const nameEl = (q(root, '#newDocName') as HTMLInputElement);
+    const urlEl = (q(root, '#newDocUrl') as HTMLInputElement);
+    const dayEl = (q(root, '#newDocDay') as HTMLSelectElement);
+    const statusEl = (q(root, '#newDocStatus') as HTMLElement);
+    const fileEl = (q(root, '#newDocUpload') as HTMLInputElement);
     fileEl.addEventListener('change', async () => {
         const file = fileEl.files?.[0];
         if (!file) return;
@@ -4318,8 +4288,8 @@ const openAddTripDocumentModal = (trip) => {
             statusEl.textContent = '❌ Upload failed.';
         }
     });
-    /** @type {HTMLButtonElement} */ (q(root, '#newDocCancelBtn')).onclick = () => close();
-    /** @type {HTMLButtonElement} */ (q(root, '#newDocSaveBtn')).onclick = async () => {
+    (q(root, '#newDocCancelBtn') as HTMLButtonElement).onclick = () => close();
+    (q(root, '#newDocSaveBtn') as HTMLButtonElement).onclick = async () => {
         const name = nameEl.value.trim();
         const url = urlEl.value.trim();
         if (!name || !url) {
@@ -4405,11 +4375,11 @@ const openEditTripDocumentModal = (trip, docId) => {
             </div>
         `,
     });
-    const nameEl = /** @type {HTMLInputElement} */ (q(root, '#editDocName'));
-    const urlEl = /** @type {HTMLInputElement} */ (q(root, '#editDocUrl'));
-    const dayEl = /** @type {HTMLSelectElement | null} */ (root.querySelector('#editDocDay'));
-    const statusEl = /** @type {HTMLElement} */ (q(root, '#editDocStatus'));
-    const fileEl = /** @type {HTMLInputElement} */ (q(root, '#editDocUpload'));
+    const nameEl = (q(root, '#editDocName') as HTMLInputElement);
+    const urlEl = (q(root, '#editDocUrl') as HTMLInputElement);
+    const dayEl = (root.querySelector('#editDocDay') as HTMLSelectElement | null);
+    const statusEl = (q(root, '#editDocStatus') as HTMLElement);
+    const fileEl = (q(root, '#editDocUpload') as HTMLInputElement);
     fileEl.addEventListener('change', async () => {
         const file = fileEl.files?.[0];
         if (!file) return;
@@ -4426,8 +4396,8 @@ const openEditTripDocumentModal = (trip, docId) => {
             statusEl.textContent = '❌ Upload failed.';
         }
     });
-    /** @type {HTMLButtonElement} */ (q(root, '#editDocCancelBtn')).onclick = () => close();
-    /** @type {HTMLButtonElement} */ (q(root, '#editDocSaveBtn')).onclick = async () => {
+    (q(root, '#editDocCancelBtn') as HTMLButtonElement).onclick = () => close();
+    (q(root, '#editDocSaveBtn') as HTMLButtonElement).onclick = async () => {
         const name = nameEl.value.trim();
         const url = urlEl.value.trim();
         if (!name || !url) {
@@ -4457,7 +4427,7 @@ const openEditTripDocumentModal = (trip, docId) => {
             showLiquidAlert('Document updated.');
             navigate('home');
         } catch (err) {
-            statusEl.textContent = `Save failed (${/** @type {Error} */ (err).message}). Try again.`;
+            statusEl.textContent = `Save failed (${(err as Error).message}). Try again.`;
             statusEl.style.color = '#ff3b30';
         }
     };
@@ -4495,10 +4465,10 @@ const openAddTripPhotoUrlModal = (trip) => {
             </div>
         `,
     });
-    const urlEl = /** @type {HTMLInputElement} */ (q(root, '#newPhotoUrl'));
-    const dayEl = /** @type {HTMLSelectElement} */ (q(root, '#newPhotoDay'));
-    /** @type {HTMLButtonElement} */ (q(root, '#newPhotoCancelBtn')).onclick = () => close();
-    /** @type {HTMLButtonElement} */ (q(root, '#newPhotoSaveBtn')).onclick = async () => {
+    const urlEl = (q(root, '#newPhotoUrl') as HTMLInputElement);
+    const dayEl = (q(root, '#newPhotoDay') as HTMLSelectElement);
+    (q(root, '#newPhotoCancelBtn') as HTMLButtonElement).onclick = () => close();
+    (q(root, '#newPhotoSaveBtn') as HTMLButtonElement).onclick = async () => {
         const url = urlEl.value.trim();
         if (!url) return;
         addTripPhoto(trip, { src: url, dayId: dayEl.value || null });
@@ -4567,7 +4537,7 @@ export const openPdfPreview = (url, name) => {
                 referrerpolicy="no-referrer"></iframe>
         `,
     });
-    /** @type {HTMLButtonElement} */ (q(root, '#closePdfPreviewBtn')).onclick = () => close();
+    (q(root, '#closePdfPreviewBtn') as HTMLButtonElement).onclick = () => close();
 };
 
 /** Detect whether a URL points to something we can preview inline
@@ -4695,17 +4665,17 @@ export const openDayView = (day) => {
             </div>
         `,
     });
-    /** @type {HTMLButtonElement} */ (q(root, '#closeViewBtn')).onclick = () => close();
+    (q(root, '#closeViewBtn') as HTMLButtonElement).onclick = () => close();
     // Documents card anchors → PDF preview in-app for .pdf URLs;
     // anything else stays as the default new-tab anchor behavior.
     // Cmd/Ctrl/Shift/middle-click still escape to the browser
     // default. (openDayView is its own modal DOM, separate from
     // the home-page click delegation, so we wire interception here.)
     root.addEventListener('click', (ev) => {
-        const target = /** @type {HTMLElement | null} */ (ev.target);
-        const a = /** @type {HTMLAnchorElement | null} */ (target?.closest('a[href]'));
+        const target = (ev.target as HTMLElement | null);
+        const a = (target?.closest('a[href]') as HTMLAnchorElement | null);
         if (!a || !looksLikePdfUrl(a.href)) return;
-        const me = /** @type {MouseEvent} */ (ev);
+        const me = (ev as MouseEvent);
         if (me.metaKey || me.ctrlKey || me.shiftKey || me.button === 1) return;
         me.preventDefault();
         openPdfPreview(a.href, a.textContent?.trim().replace(/^📎\s*/, '') || 'Document');
@@ -4808,8 +4778,7 @@ const openDayDetail = (dayId) => {
     // overlay is detached. The actual implementation is assigned a
     // few lines below; TDZ is safe because `onClose` only runs when
     // the user closes the modal, which is always after this fn returns.
-    /** @type {(() => void) | null} */
-    let flushPendingOnExit = null;
+        let flushPendingOnExit: (() => void) | null = null;
 
     // Genesis is the trip's central hub, not a calendar day with a
     // morning/afternoon/evening schedule. Render a Genesis-specific
@@ -5028,8 +4997,8 @@ const openDayDetail = (dayId) => {
     // we built earlier; Documents/Photos switch to those Home tabs.
     if (isGenesis) {
         root.querySelectorAll('.genesis-quicklink-btn').forEach(btn => {
-            /** @type {HTMLButtonElement} */ (btn).onclick = () => {
-                const target = /** @type {HTMLElement} */ (btn).dataset.target;
+            (btn as HTMLButtonElement).onclick = () => {
+                const target = (btn as HTMLElement).dataset.target;
                 close();
                 if (target === 'checklist') {
                     if (trip) openTripChecklistModal(trip);
@@ -5049,8 +5018,8 @@ const openDayDetail = (dayId) => {
     if (!isGenesis && trip) {
         const checkSvg = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
         root.querySelectorAll('.day-checklist-toggle').forEach(btn => {
-            /** @type {HTMLButtonElement} */ (btn).onclick = () => {
-                const id = /** @type {HTMLElement} */ (btn).dataset.itemId;
+            (btn as HTMLButtonElement).onclick = () => {
+                const id = (btn as HTMLElement).dataset.itemId;
                 const item = (trip.checklist || []).find(i => i.id === id);
                 if (!item) return;
                 item.done = !item.done;
@@ -5060,12 +5029,12 @@ const openDayDetail = (dayId) => {
                 // strike-through the sibling text. Cheaper than a
                 // full panel re-render.
                 const newDone = !!item.done;
-                /** @type {HTMLElement} */ (btn).style.borderColor = newDone ? '#8b6e0c' : 'rgba(0,113,227,0.3)';
-                /** @type {HTMLElement} */ (btn).style.background = newDone
+                (btn as HTMLElement).style.borderColor = newDone ? '#8b6e0c' : 'rgba(0,113,227,0.3)';
+                (btn as HTMLElement).style.background = newDone
                     ? 'linear-gradient(135deg, #e8b923, #8b6e0c)' : 'white';
                 btn.innerHTML = newDone ? checkSvg : '';
                 btn.setAttribute('aria-pressed', newDone ? 'true' : 'false');
-                const span = /** @type {HTMLElement | null} */ (btn.parentElement?.querySelector('span'));
+                const span = (btn.parentElement?.querySelector('span') as HTMLElement | null);
                 if (span) {
                     span.style.textDecoration = newDone ? 'line-through' : 'none';
                     span.style.color = newDone ? 'rgba(0,45,91,0.4)' : '#002d5b';
@@ -5073,11 +5042,11 @@ const openDayDetail = (dayId) => {
                 // Update the "X of Y left" summary chip.
                 const items = trip.checklist || [];
                 const remaining = items.filter(i => !i.done).length;
-                const summary = /** @type {HTMLElement | null} */ (root.querySelector('.day-checklist-summary'));
+                const summary = (root.querySelector('.day-checklist-summary') as HTMLElement | null);
                 if (summary) summary.textContent = `${remaining} of ${items.length} left`;
             };
         });
-        const manageBtn = /** @type {HTMLButtonElement | null} */ (root.querySelector('#dayChecklistManageBtn'));
+        const manageBtn = (root.querySelector('#dayChecklistManageBtn') as HTMLButtonElement | null);
         if (manageBtn) {
             manageBtn.onclick = () => {
                 close();
@@ -5092,14 +5061,11 @@ const openDayDetail = (dayId) => {
     // textarea (or the notes textarea) writes to `day.plan` / `day.notes`
     // immediately and schedules a debounced upsertDay so the server
     // stays in sync without spamming requests on every keystroke.
-    const planTextareas = /** @type {NodeListOf<HTMLTextAreaElement>} */
-        (root.querySelectorAll('textarea.plan-input'));
-    const notesTextarea = /** @type {HTMLTextAreaElement} */
-        (q(root, '#detailNotes'));
-    const statusEl = /** @type {HTMLElement} */ (q(root, '#autosaveStatus'));
+    const planTextareas = (root.querySelectorAll('textarea.plan-input') as NodeListOf<HTMLTextAreaElement>);
+    const notesTextarea = (q(root, '#detailNotes') as HTMLTextAreaElement);
+    const statusEl = (q(root, '#autosaveStatus') as HTMLElement);
 
-    /** @type {ReturnType<typeof setTimeout> | null} */
-    let saveTimer = null;
+        let saveTimer: ReturnType<typeof setTimeout> | null = null;
     let pendingSave = false;
 
     const flashStatus = (msg, color = 'var(--text-secondary)') => {
@@ -5114,11 +5080,11 @@ const openDayDetail = (dayId) => {
     // for Genesis — that would silently wipe any legacy plan data
     // and break round-tripping.
     const syncDayFromInputs = () => {
-        const morningEl = /** @type {HTMLTextAreaElement | null} */ (root.querySelector('textarea.plan-input[data-time="morning"]'));
+        const morningEl = (root.querySelector('textarea.plan-input[data-time="morning"]') as HTMLTextAreaElement | null);
         if (morningEl) {
             const morning = morningEl.value;
-            const afternoon = /** @type {HTMLTextAreaElement} */ (root.querySelector('textarea.plan-input[data-time="afternoon"]')).value;
-            const evening = /** @type {HTMLTextAreaElement} */ (root.querySelector('textarea.plan-input[data-time="evening"]')).value;
+            const afternoon = (root.querySelector('textarea.plan-input[data-time="afternoon"]') as HTMLTextAreaElement).value;
+            const evening = (root.querySelector('textarea.plan-input[data-time="evening"]') as HTMLTextAreaElement).value;
             day.plan = { morning, afternoon, evening };
         }
         day.notes = notesTextarea?.value ?? '';
@@ -5178,14 +5144,14 @@ const openDayDetail = (dayId) => {
     // forgiving to user edits ("had dinner at La Brasa" still counts).
     const refreshShortlistButtons = () => {
         const planVals = {
-            morning: (/** @type {HTMLTextAreaElement} */ (root.querySelector('textarea.plan-input[data-time="morning"]'))?.value || '').toLowerCase(),
-            afternoon: (/** @type {HTMLTextAreaElement} */ (root.querySelector('textarea.plan-input[data-time="afternoon"]'))?.value || '').toLowerCase(),
-            evening: (/** @type {HTMLTextAreaElement} */ (root.querySelector('textarea.plan-input[data-time="evening"]'))?.value || '').toLowerCase(),
+            morning: ((root.querySelector('textarea.plan-input[data-time="morning"]') as HTMLTextAreaElement)?.value || '').toLowerCase(),
+            afternoon: ((root.querySelector('textarea.plan-input[data-time="afternoon"]') as HTMLTextAreaElement)?.value || '').toLowerCase(),
+            evening: ((root.querySelector('textarea.plan-input[data-time="evening"]') as HTMLTextAreaElement)?.value || '').toLowerCase(),
         };
         root.querySelectorAll('.day-shortlist-add-btn').forEach(b => {
-            const btn = /** @type {HTMLButtonElement} */ (b);
+            const btn = (b as HTMLButtonElement);
             const pid = btn.dataset.placeId;
-            const time = /** @type {'morning' | 'afternoon' | 'evening'} */ (btn.dataset.time);
+            const time = (btn.dataset.time as 'morning' | 'afternoon' | 'evening');
             if (!pid || !time) return;
             const place = allShortlist.find(p => p.placeId === pid);
             if (!place || !place.name) return;
@@ -5215,9 +5181,8 @@ const openDayDetail = (dayId) => {
     // CSS hides it when empty).
     const refreshPlanTabCounts = () => {
         root.querySelectorAll('[data-plan-tab-count]').forEach(el => {
-            const slot = /** @type {HTMLElement} */ (el).dataset.planTabCount;
-            const ta = /** @type {HTMLTextAreaElement | null} */
-                (root.querySelector(`textarea.plan-input[data-time="${slot}"]`));
+            const slot = (el as HTMLElement).dataset.planTabCount;
+            const ta = (root.querySelector(`textarea.plan-input[data-time="${slot}"]`) as HTMLTextAreaElement | null);
             const value = ta?.value || '';
             const count = value.split('\n').filter(l => l.trim().length > 0).length;
             el.textContent = count > 0 ? String(count) : '';
@@ -5232,13 +5197,13 @@ const openDayDetail = (dayId) => {
     const switchPlanTab = (slot) => {
         if (!['morning', 'afternoon', 'evening'].includes(slot)) return;
         root.querySelectorAll('.day-plan-tab').forEach(tab => {
-            const el = /** @type {HTMLElement} */ (tab);
+            const el = (tab as HTMLElement);
             const isActive = el.dataset.planTab === slot;
             el.classList.toggle('is-active', isActive);
             el.setAttribute('aria-selected', isActive ? 'true' : 'false');
         });
         root.querySelectorAll('.day-plan-pane').forEach(pane => {
-            const el = /** @type {HTMLElement} */ (pane);
+            const el = (pane as HTMLElement);
             el.classList.toggle('is-active', el.dataset.planPane === slot);
         });
         // Focus the freshly-revealed textarea so the user keeps
@@ -5246,16 +5211,15 @@ const openDayDetail = (dayId) => {
         // CSS class swap has applied before the focus call (some
         // browsers refuse to focus a still-hidden element).
         setTimeout(() => {
-            const ta = /** @type {HTMLTextAreaElement | null} */
-                (root.querySelector(`.day-plan-pane.is-active textarea.plan-input`));
+            const ta = (root.querySelector(`.day-plan-pane.is-active textarea.plan-input`) as HTMLTextAreaElement | null);
             ta?.focus();
         }, 0);
     };
 
     // Tab strip click handler.
     root.querySelectorAll('.day-plan-tab').forEach(tab => {
-        /** @type {HTMLButtonElement} */ (tab).onclick = () => {
-            const slot = /** @type {HTMLElement} */ (tab).dataset.planTab;
+        (tab as HTMLButtonElement).onclick = () => {
+            const slot = (tab as HTMLElement).dataset.planTab;
             if (slot) switchPlanTab(slot);
         };
     });
@@ -5279,16 +5243,15 @@ const openDayDetail = (dayId) => {
     // save signal) and re-render the ✓ markers so the toggled
     // button's visual state is correct right away.
     root.addEventListener('click', (ev) => {
-        const target = /** @type {HTMLElement | null} */ (ev.target);
+        const target = (ev.target as HTMLElement | null);
         const btn = target?.closest('.day-shortlist-add-btn');
         if (!btn) return;
-        const pid = /** @type {HTMLElement} */ (btn).dataset.placeId;
-        const time = /** @type {HTMLElement} */ (btn).dataset.time;
+        const pid = (btn as HTMLElement).dataset.placeId;
+        const time = (btn as HTMLElement).dataset.time;
         if (!pid || !time || !trip) return;
         const place = allShortlist.find(p => p.placeId === pid);
         if (!place || !place.name) return;
-        const ta = /** @type {HTMLTextAreaElement | null} */
-            (root.querySelector(`textarea.plan-input[data-time="${time}"]`));
+        const ta = (root.querySelector(`textarea.plan-input[data-time="${time}"]`) as HTMLTextAreaElement | null);
         if (!ta) return;
         const needle = place.name.toLowerCase();
         const isThere = ta.value.toLowerCase().includes(needle);
@@ -5319,7 +5282,7 @@ const openDayDetail = (dayId) => {
         // collapsed textarea reads as "nothing happened"). The
         // textarea also gets a brief outline flash to draw the eye
         // to where the change occurred.
-        /** @type {HTMLButtonElement} */ (btn).animate(
+        (btn as HTMLButtonElement).animate(
             [{ transform: 'scale(1)' }, { transform: 'scale(1.18)' }, { transform: 'scale(1)' }],
             { duration: 220, easing: 'ease-out' },
         );
@@ -5343,15 +5306,15 @@ const openDayDetail = (dayId) => {
     // case-insensitive substring match against name + address. Hides
     // non-matching rows with display:none (cheaper than re-rendering)
     // and toggles an "No matches." placeholder when nothing's left.
-    const filterInput = /** @type {HTMLInputElement | null} */ (root.querySelector('#dayShortlistFilter'));
+    const filterInput = (root.querySelector('#dayShortlistFilter') as HTMLInputElement | null);
     if (filterInput) {
-        const rowsContainer = /** @type {HTMLElement | null} */ (root.querySelector('#dayShortlistRows'));
-        const emptyEl = /** @type {HTMLElement | null} */ (root.querySelector('#dayShortlistEmpty'));
+        const rowsContainer = (root.querySelector('#dayShortlistRows') as HTMLElement | null);
+        const emptyEl = (root.querySelector('#dayShortlistEmpty') as HTMLElement | null);
         filterInput.addEventListener('input', () => {
             const query = filterInput.value.trim().toLowerCase();
             let visible = 0;
             root.querySelectorAll('.day-shortlist-row').forEach(rowEl => {
-                const row = /** @type {HTMLElement} */ (rowEl);
+                const row = (rowEl as HTMLElement);
                 const pid = row.dataset.placeId;
                 const place = allShortlist.find(p => p.placeId === pid);
                 if (!place) return;
@@ -5366,13 +5329,13 @@ const openDayDetail = (dayId) => {
         });
     }
 
-    /** @type {HTMLButtonElement} */ (q(root, '#closeDetailBtn')).onclick = async () => {
+    (q(root, '#closeDetailBtn') as HTMLButtonElement).onclick = async () => {
         // Flush any pending debounce so closing-while-typing doesn't drop
         // the last keystroke. persistNow clears the timer + saves.
         if (saveTimer || pendingSave) await persistNow();
         close();
     };
-    /** @type {HTMLButtonElement} */ (q(root, '#saveDetailBtn')).onclick = async () => {
+    (q(root, '#saveDetailBtn') as HTMLButtonElement).onclick = async () => {
         // Manual "Done" button — explicit save + close. Mostly redundant
         // with auto-save but kept as a comfortable Big Button exit.
         await persistNow();
