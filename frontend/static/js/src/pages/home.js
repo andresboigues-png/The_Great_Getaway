@@ -34,9 +34,95 @@ export function stopHomeSlideshow() {
 let activeMarkers = {}; // Cache of Leaflet markers by day ID
 let editingDayId = null; // ID of the day currently being geolocated/pinned
 let activeMapClickListener = null; // Reference to the active map click handler
-let openMenuDayId = null; // Track which day's sidebar menu is open
 /** @type {'days' | 'companions' | 'documents' | 'photos'} */
 let activeHomeTab = 'days'; // Sub-tab on the home trip view (Path / Companions / Documents / Photos)
+
+// ── Path tab: selected-day state ────────────────────────────────────
+// The vertical day-by-day timeline was replaced with a horizontal
+// "wheel": Genesis pinned + the user-picked day, navigated via a
+// chip strip / prev-next / keyboard / swipe. The selection persists
+// per-trip in localStorage so leaving Home and coming back lands the
+// user on the same day they were last looking at — important for
+// multi-day trips where "where was I?" is a real friction.
+//
+// Shape: { [tripId]: dayId }. Stored in localStorage as
+// 'home_path_selected_day_by_trip'. Cleared lazily on render when
+// the cached id no longer matches a day on the trip.
+/** @type {Object<string, string>} */
+let selectedDayByTrip = {};
+try {
+    const _raw = localStorage.getItem('home_path_selected_day_by_trip');
+    if (_raw) selectedDayByTrip = JSON.parse(_raw) || {};
+} catch (_) { selectedDayByTrip = {}; }
+
+/** Persist + remember a day selection. Called on every chip click,
+ *  prev/next, keyboard arrow, and swipe gesture. Triggers a partial
+ *  repaint of the Path tab via _repaintPathTab if it's been wired
+ *  (set by renderHome on mount), then pans the home map to the
+ *  selected day's pin so the right side of the screen stays in sync
+ *  with the chip strip on the left. */
+function setSelectedDay(tripId, dayId) {
+    if (!tripId || !dayId) return;
+    selectedDayByTrip[tripId] = dayId;
+    try {
+        localStorage.setItem('home_path_selected_day_by_trip', JSON.stringify(selectedDayByTrip));
+    } catch (_) { /* localStorage full or disabled — fine */ }
+    if (typeof _repaintPathTab === 'function') _repaintPathTab();
+    // Map sync — pan to the selected day's pin (or, for Genesis with
+    // no day-pin, the trip's anchor lat/lng). window.activeMap is set
+    // by the map-init block when the home map mounts; if the user is
+    // on a non-home page or the map hasn't initialised yet, this just
+    // no-ops — selection still updates and persists, the next visit
+    // to /home will reflect it.
+    const map = /** @type {any} */ (window.activeMap);
+    if (!map) return;
+    const day = (STATE.tripDays || []).find(d => d.id === dayId);
+    if (!day) return;
+    const lat = typeof day.lat === 'number' ? day.lat : null;
+    const lng = typeof day.lng === 'number' ? day.lng : (typeof day.lon === 'number' ? day.lon : null);
+    try {
+        if (lat != null && lng != null) {
+            map.panTo({ lat, lng });
+            if (typeof map.getZoom === 'function' && map.getZoom() < 13) map.setZoom(13);
+        } else if (day.dayNumber === 0) {
+            // Genesis with no day-pin — fall back to the trip's anchor.
+            const trip = (STATE.trips || []).find(t => t.id === tripId);
+            if (trip && typeof trip.lat === 'number' && typeof trip.lng === 'number') {
+                map.panTo({ lat: trip.lat, lng: trip.lng });
+            }
+        }
+    } catch (_) { /* map not ready / api hiccup — fine */ }
+}
+
+/** Resolve which day should be the visible "selected" one in the wheel.
+ *  Order of preference:
+ *    1. Persisted choice (if it's still a real day on this trip)
+ *    2. Day whose date matches today (handy mid-trip)
+ *    3. First numbered day (dayNumber > 0)
+ *    4. Genesis (dayNumber === 0) — last resort, only when no
+ *       numbered days exist yet
+ *  @param {{id:string} | null} activeTrip
+ *  @param {{id:string,dayNumber:number,date?:string}[]} sortedDays — already sorted by dayNumber asc
+ *  @returns {string | null}
+ */
+function resolveSelectedDayId(activeTrip, sortedDays) {
+    if (!activeTrip || !sortedDays.length) return null;
+    const cached = selectedDayByTrip[activeTrip.id];
+    if (cached && sortedDays.some(d => d.id === cached)) return cached;
+    const today = new Date().toISOString().slice(0, 10);
+    const todayMatch = sortedDays.find(d => d.dayNumber > 0 && d.date === today);
+    if (todayMatch) return todayMatch.id;
+    const firstNumbered = sortedDays.find(d => d.dayNumber > 0);
+    if (firstNumbered) return firstNumbered.id;
+    return sortedDays[0].id;
+}
+
+/** Set by renderHome → wires a partial-DOM repaint of just the Path
+ *  tab content so changing the selected day doesn't need to re-render
+ *  the whole Home page (which would tear down the map mid-interaction).
+ *  Reset to null when home unmounts. */
+/** @type {(() => void) | null} */
+let _repaintPathTab = null;
 // The "To do list" sub-tab was promoted to a top-level /todo page so
 // the to-do list now has its own banner-style surface (see pages/todo.js
 // + the navbar entry between Home and Plan with AI). The data still
@@ -236,10 +322,9 @@ function isPrimaryMatch(categoryKey, types, name) {
 // Per-day card action helpers. The map setTimeout below detects
 // activeMapClickListener and wires it on the map; these helpers just mutate
 // the module-level state and re-navigate so renderHome runs again.
-const toggleDayMenu = (dayId) => {
-    openMenuDayId = (openMenuDayId === dayId) ? null : dayId;
-    navigate('home', null, true); // Preserve scroll
-};
+// (toggleDayMenu was retired with the chip-strip Path layout — there's
+//  no per-day expand/collapse state anymore; the selected day always
+//  shows its full content alongside Genesis.)
 
 const addDayPin = (dayId) => {
     const day = STATE.tripDays.find(d => d.id === dayId);
@@ -321,7 +406,13 @@ const deleteDay = (dayId) => {
                 .sort((a, b) => a.dayNumber - b.dayNumber)
                 .forEach((d, i) => { d.dayNumber = i + 1; });
 
-            if (openMenuDayId === dayId) openMenuDayId = null;
+            // If the deleted day was someone's last selected day on
+            // this trip, drop the cached selection so resolveSelectedDayId
+            // re-derives a sensible default on next render.
+            if (selectedDayByTrip[tripId] === dayId) {
+                delete selectedDayByTrip[tripId];
+                try { localStorage.setItem('home_path_selected_day_by_trip', JSON.stringify(selectedDayByTrip)); } catch (_) {}
+            }
             if (editingDayId === dayId) {
                 editingDayId = null;
                 activeMapClickListener = null;
@@ -2186,172 +2277,278 @@ export function renderHome() {
             </div>
         ` : ''}
 
-        <div class="home-tab-content${activeHomeTab === 'days' ? ' is-active' : ''}" data-home-tab="days" style="display: flex; flex-direction: column; gap: 12px; position: relative; padding-left: 20px;">
-            <!-- Subtle Timeline Line -->
-            <div style="position: absolute; left: 10px; top: 10px; bottom: 10px; width: 2px; background: linear-gradient(180deg, var(--accent-blue) 0%, rgba(0,113,227,0.05) 100%); border-radius: 1px; opacity: 0.3;"></div>
-
-            ${tripDays.map(day => {
-                const isOpen = openMenuDayId === day.id;
-                const isStartingPoint = day.dayNumber === 0;
-                return `
-                <div class="day-row${isOpen ? ' is-open' : ''}">
-                    <!-- Timeline Dot — Starting Point uses a green dot to distinguish from numbered days -->
-                    <div style="position: absolute; left: -14px; top: 22px; width: 10px; height: 10px; border-radius: 50%; background: ${isOpen ? (isStartingPoint ? '#34c759' : 'var(--accent-blue)') : 'white'}; border: 2px solid ${isStartingPoint ? '#34c759' : 'var(--accent-blue)'}; z-index: 2; box-shadow: 0 0 0 4px white;"></div>
-
-                    <!-- MAIN CARD: state-driven border via CSS class.
-                         genesis -> thin green; pinned -> thin blue;
-                         unpinned -> dashed amber plus a Pin this day pill.
-                         Class rules use !important to win over the inline
-                         border shorthand (see .day-card--* in index.css). -->
-                    <div class="day-card card glass${isOpen ? ' is-open' : ''} ${isStartingPoint ? 'day-card--genesis' : (day.lat || day.lng ? 'day-card--pinned' : 'day-card--unpinned')}"
-                         data-day-id="${day.id}"
-                         role="button" tabindex="0"
-                         aria-label="${esc(day.name || `Day ${day.dayNumber}`)} — ${isOpen ? 'collapse' : 'expand'}"
-                         style="flex: 1; padding: 20px 28px; border-radius: 28px; border: 1.5px solid ${isOpen ? 'var(--accent-blue)' : 'rgba(0,0,0,0.05)'}; background: ${isOpen ? 'rgba(255,255,255,0.95)' : 'white'}; cursor: pointer; box-shadow: ${isOpen ? '0 20px 40px rgba(0,0,0,0.1)' : 'none'};">
-
-                        <div style="display: flex; align-items: center; justify-content: space-between;">
-                            <div style="display: flex; align-items: center; gap: 20px;">
-                                ${isStartingPoint ? `
-                                    <div style="background: linear-gradient(135deg, #34c759, #30b350); color: white; width: 54px; height: 54px; border-radius: 50%; border: 3px solid white; display: flex; align-items: center; justify-content: center; font-family: -apple-system, sans-serif; box-shadow: 0 10px 20px rgba(52,199,89,0.18);">
-                                        <svg width="30" height="30" viewBox="0 0 48 48" aria-hidden="true">
-                                            <path d="M 24,11 L 27.06,18.96 L 35.55,19.49 L 28.92,24.92 L 31.0,33.16 L 24,28.6 L 17,33.16 L 19.08,24.92 L 12.45,19.49 L 20.94,18.96 Z" fill="white"/>
-                                        </svg>
-                                    </div>
-                                ` : `
-                                    <div style="background: linear-gradient(135deg, var(--accent-blue), #9b59b6); color: white; width: 54px; height: 54px; border-radius: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: -apple-system, sans-serif; box-shadow: 0 10px 20px rgba(0,113,227,0.15);">
-                                        <span style="font-size: 0.65rem; font-weight: 800; text-transform: uppercase; opacity: 0.8; letter-spacing: 0.05em; line-height: 1;">Day</span>
-                                        <span style="font-size: 1.4rem; font-weight: 800; line-height: 1.1;">${day.dayNumber}</span>
-                                    </div>
-                                `}
-                                <div style="display: flex; flex-direction: column;">
-                                    <h3 style="margin: 0; font-size: 1.3rem; font-weight: 800; color: #002d5b; letter-spacing: -0.02em;">${isStartingPoint ? 'Trip Genesis' : esc(day.name)}</h3>
-                                    <div style="font-size: 0.9rem; color: var(--text-secondary); font-weight: 600; margin-top: 4px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-                                        ${isStartingPoint
-                                            ? `<span>${activeTrip && activeTrip.country ? shortPlaceName(activeTrip.country) : 'Where the trip begins'}</span>`
-                                            : `<span>📅 ${formatDayDate(day.date) || 'Set date'}</span>`}
-                                        ${day.lat && !isStartingPoint ? `<span style="color: var(--accent-blue); opacity: 0.6;">•</span> <span style="color: var(--accent-blue);">📍 Location Set</span>` : ''}
-                                        ${(!isStartingPoint && !day.lat && !day.lng) ? `<span style="color: rgba(0,0,0,0.25);">•</span> <span class="day-card__pin-hint">📌 Pin this day</span>` : ''}
-                                        ${(() => {
-                                            // Trip Genesis subtitle gets count
-                                            // chips for trip-wide docs/photos
-                                            // (the bucket lives here per the
-                                            // pivot). Shows nothing when empty.
-                                            if (!isStartingPoint || !activeTrip) return '';
-                                            const docs = (activeTrip.documents || []).filter(d => d.dayId === day.id);
-                                            const photos = (activeTrip.photos || []).filter(p => p.dayId === day.id);
-                                            const dayDocs = (day.tickets || []);
-                                            const dayPhotos = (day.photos || []);
-                                            const totalDocs = docs.length + dayDocs.length;
-                                            const totalPhotos = photos.length + dayPhotos.length;
-                                            if (totalDocs === 0 && totalPhotos === 0) return '';
-                                            return `
-                                                <span style="color: rgba(0,0,0,0.25);">•</span>
-                                                ${totalPhotos > 0 ? `<span style="background:rgba(52,199,89,0.12); color:#1a6b3c; padding:2px 8px; border-radius:999px; font-size:0.7rem; font-weight:800;">📸 ${totalPhotos}</span>` : ''}
-                                                ${totalDocs > 0 ? `<span style="background:rgba(88,86,214,0.12); color:#5856d6; padding:2px 8px; border-radius:999px; font-size:0.7rem; font-weight:800;">📎 ${totalDocs}</span>` : ''}
-                                            `;
-                                        })()}
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div style="display: flex; align-items: center; gap: 16px;">
-                                ${isOpen ? `
-                                    <button class="btn btn-liquid-glass day-detail-btn" data-day-id="${day.id}" style="padding: 8px 16px; font-size: 0.8rem; font-weight: 700; background: var(--accent-blue); color: white; border: none; border-radius: 10px;">Open Full Plan</button>
-                                ` : `
-                                    <div style="width: 32px; height: 32px; border-radius: 50%; background: rgba(0,0,0,0.03); display: flex; align-items: center; justify-content: center; color: #002d5b; transition: all 0.3s;">
-                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
-                                    </div>
-                                `}
-                            </div>
-                        </div>
-
-                        ${isOpen && day.notes ? `
-                            <div style="margin-top: 20px; padding: 16px; background: rgba(0,0,0,0.02); border-radius: 16px; border-left: 4px solid var(--accent-blue);">
-                                <div style="font-size: 0.75rem; font-weight: 800; text-transform: uppercase; color: var(--accent-blue); margin-bottom: 8px;">Journaling Preview</div>
-                                <p style="margin: 0; font-size: 0.95rem; line-height: 1.5; color: #002d5b; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${esc(day.notes)}</p>
-                            </div>
-                        ` : ''}
-                    </div>
-
-                    <!-- RIGHT-SIDE ACTIONS — only rendered for users with edit
-                         rights. Relaxers see the day cards as read-only,
-                         no actions panel beside them. Sits AFTER the card so
-                         the flex row lays card → panel left-to-right. -->
-                    ${tripIsEditable ? `
-                    <div class="day-actions-panel${isOpen ? ' is-open' : ''}">
-                        <div class="day-actions-label">Actions</div>
-
-                        ${editingDayId === day.id ? `
-                            <div style="display: flex; gap: var(--space-1);">
-                                <button class="day-action-btn day-action-btn--success day-pin-save-btn" data-day-id="${day.id}" style="flex: 2; justify-content: center;">Save Pin</button>
-                                <button class="day-action-btn day-action-btn--danger-fill day-pin-delete-btn" data-day-id="${day.id}" style="flex: 1; justify-content: center;">X</button>
-                            </div>
-                        ` : `
-                            <button class="day-action-btn day-action-btn--brand day-pin-toggle-btn" data-day-id="${day.id}">
-                                <span>${day.lat ? '📍 Edit Pin Location' : '📍 Add Pin to Map'}</span>
-                            </button>
-                        `}
-
-                        <button class="day-action-btn day-action-btn--neutral day-journaling-btn" data-day-id="${day.id}">
-                            <span>✍️ Journaling</span>
-                        </button>
-
-                        <!-- 📸 Photos and 📄 Documents buttons used to
-                             live here. Both moved to dedicated trip-
-                             wide tabs (Documents + Photos on Home) so
-                             multi-day items (passports, hotels for
-                             N nights) have a proper home and the per-
-                             day actions list stays focused. -->
-
-                        ${(() => {
-                            // "Set as search center" — only useful on
-                            // pinned days. The button reflects whether
-                            // this day is currently the chosen epicenter
-                            // for the trip's pill searches; clicking
-                            // toggles between this day and the genesis
-                            // default. Hidden on the genesis day itself
-                            // (genesis is already the default).
-                            if (!day.lat || isStartingPoint) return '';
-                            const tripId = activeTrip?.id || '';
-                            const currentEpicenter = STATE.preferences?.pillEpicenters?.[tripId];
-                            const isActive = currentEpicenter === day.id;
-                            const cls = isActive ? 'day-action-btn day-action-btn--success day-set-epicenter-btn' : 'day-action-btn day-action-btn--neutral day-set-epicenter-btn';
-                            const label = isActive ? '🎯 Search center (active)' : '🎯 Set as search center';
-                            return `<button class="${cls}" data-day-id="${day.id}"><span>${label}</span></button>`;
-                        })()}
-
-                        ${isStartingPoint ? `
-                            <!-- Genesis is the trip's anchor — pillEpicenters,
-                                 the wide-area pill searches, and the lazy
-                                 sessionStorage flag all key off it. Removing
-                                 it from the menu (vs. only blocking the
-                                 confirm) makes the contract obvious. -->
-                            <div class="day-action-note" style="margin-top: var(--space-1); padding: 8px 12px; background: rgba(52,199,89,0.06); border: 1px solid rgba(52,199,89,0.18); border-radius: 10px; font-size: 0.72rem; color: rgba(0,0,0,0.55); line-height: 1.35; text-align:center;">
-                                ⭐ Trip Genesis can't be deleted — it anchors the trip.
-                            </div>
-                        ` : `
-                            <button class="day-action-btn day-action-btn--danger day-delete-btn" data-day-id="${day.id}" style="margin-top: var(--space-1);">
-                                <span>🗑️ Delete Day</span>
-                            </button>
-                        `}
-                    </div>
-                    ` : ''}
-                </div>
-            `}).join('')}
-            
-            <!-- ADD DAY BUTTON — hidden for non-planners (relaxers can't
-                 mutate the day list). -->
-            ${tripIsEditable ? `
-            <div id="addDayBtn">
-                <div class="add-dot" style="width: 14px; height: 14px; border-radius: 50%; border: 2px dashed var(--accent-blue); background: transparent; margin-left: -2px;"></div>
-                <div class="add-text" style="font-weight: 700; color: var(--text-secondary); font-size: var(--font-lg); letter-spacing: -0.01em;">+ Add a new day to your journey</div>
-            </div>
-            ` : ''}
+        <div class="home-tab-content${activeHomeTab === 'days' ? ' is-active' : ''}" data-home-tab="days" style="display: flex; flex-direction: column; gap: 4px;">
+            <!-- The Path tab content is built dynamically by buildPathTabHtml()
+                 below so chip-click / prev / next / keyboard nav can patch
+                 just this inner wrapper without a full Home re-render
+                 (which would tear down the map and other heavy state). -->
+            <div id="pathTabInner"></div>
         </div>
     `;
 
     if (activeTrip) {
         div.appendChild(daysContainer);
+
+        // ── Path tab: chip-strip + Genesis + selected-day cards ─────
+        // The vertical timeline was retired in favour of a horizontal
+        // "wheel" — Genesis pinned on the left, the user-picked day
+        // on the right, navigated via a numbered chip strip / prev-next
+        // buttons / arrow keys / swipe. buildPathTabHtml() returns the
+        // string and gets called twice: once on initial render, then
+        // again on every selection change to patch just #pathTabInner
+        // (so the map and other Home state don't churn).
+
+        /** Build a single day card body — used for both Genesis (small
+         *  ~30%) and the selected day (full width). The shape follows
+         *  the same hierarchy as the old vertical card: number badge
+         *  + title + date/location + secondary badges (pin status,
+         *  notes preview if any). Genesis gets the trip-wide doc/photo
+         *  count chips it always had.
+         *  @param {any} day
+         *  @param {{ isGenesis: boolean, isSelected: boolean }} flags
+         */
+        const buildDayCardBody = (day, { isGenesis, isSelected }) => {
+            const badge = isGenesis
+                ? `<div style="background: linear-gradient(135deg, #34c759, #30b350); color: white; width: 48px; height: 48px; border-radius: 50%; border: 3px solid white; display: flex; align-items: center; justify-content: center; flex-shrink:0; box-shadow: 0 8px 18px rgba(52,199,89,0.18);">
+                       <svg width="26" height="26" viewBox="0 0 48 48" aria-hidden="true">
+                           <path d="M 24,11 L 27.06,18.96 L 35.55,19.49 L 28.92,24.92 L 31.0,33.16 L 24,28.6 L 17,33.16 L 19.08,24.92 L 12.45,19.49 L 20.94,18.96 Z" fill="white"/>
+                       </svg>
+                   </div>`
+                : `<div style="background: linear-gradient(135deg, var(--accent-blue), #9b59b6); color: white; width: 48px; height: 48px; border-radius: 14px; display: flex; flex-direction: column; align-items: center; justify-content: center; flex-shrink:0; box-shadow: 0 8px 18px rgba(0,113,227,0.15);">
+                       <span style="font-size: 0.6rem; font-weight: 800; text-transform: uppercase; opacity: 0.85; letter-spacing: 0.05em; line-height:1;">Day</span>
+                       <span style="font-size: 1.25rem; font-weight: 800; line-height: 1.05;">${day.dayNumber}</span>
+                   </div>`;
+            const title = isGenesis ? 'Trip Genesis' : esc(day.name || `Day ${day.dayNumber}`);
+            const subtitleParts = [];
+            if (isGenesis) {
+                subtitleParts.push(activeTrip && activeTrip.country ? esc(shortPlaceName(activeTrip.country)) : 'Where the trip begins');
+                // Trip-wide doc/photo counts on Genesis (its long-standing role).
+                const docs = (activeTrip.documents || []).filter(d => d.dayId === day.id);
+                const photos = (activeTrip.photos || []).filter(p => p.dayId === day.id);
+                const totalDocs = docs.length + (day.tickets || []).length;
+                const totalPhotos = photos.length + (day.photos || []).length;
+                if (totalPhotos) subtitleParts.push(`<span style="background:rgba(52,199,89,0.12); color:#1a6b3c; padding:2px 8px; border-radius:999px; font-size:0.7rem; font-weight:800;">📸 ${totalPhotos}</span>`);
+                if (totalDocs) subtitleParts.push(`<span style="background:rgba(88,86,214,0.12); color:#5856d6; padding:2px 8px; border-radius:999px; font-size:0.7rem; font-weight:800;">📎 ${totalDocs}</span>`);
+            } else {
+                subtitleParts.push(`📅 ${formatDayDate(day.date) || 'Set date'}`);
+                if (day.lat) subtitleParts.push(`<span style="color: var(--accent-blue);">📍 Location set</span>`);
+                else subtitleParts.push(`<span class="day-card__pin-hint">📌 Pin this day</span>`);
+            }
+            // Notes preview only on the bigger (selected) card — Genesis
+            // is condensed by design, no preview body.
+            const notesPreview = (isSelected && day.notes && !isGenesis) ? `
+                <div style="margin-top: 12px; padding: 12px 14px; background: rgba(0,113,227,0.04); border-radius: 14px; border-left: 3px solid var(--accent-blue);">
+                    <div style="font-size: 0.7rem; font-weight: 800; text-transform: uppercase; color: var(--accent-blue); margin-bottom: 4px; letter-spacing: 0.05em;">Journal preview</div>
+                    <p style="margin: 0; font-size: 0.9rem; line-height: 1.45; color: #002d5b; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${esc(day.notes)}</p>
+                </div>
+            ` : '';
+            return `
+                <div style="display:flex; align-items:center; gap:14px;">
+                    ${badge}
+                    <div style="flex:1; min-width:0;">
+                        <h3 style="margin:0; font-size:${isGenesis ? '1.05rem' : '1.25rem'}; font-weight:800; color:#002d5b; letter-spacing:-0.02em; line-height:1.2; ${isGenesis ? 'overflow:hidden; text-overflow:ellipsis; white-space:nowrap;' : ''}">${title}</h3>
+                        <div style="font-size:0.82rem; color:var(--text-secondary); font-weight:600; margin-top:4px; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                            ${subtitleParts.map(p => `<span>${p}</span>`).join('<span style="opacity:0.4;">·</span>')}
+                        </div>
+                    </div>
+                </div>
+                ${notesPreview}
+            `;
+        };
+
+        /** Build the action row that sits under either Genesis or the
+         *  selected day card. Genesis gets a slim row (Open + Edit
+         *  anchor pin); a numbered day gets the full set: Open Full
+         *  Plan (primary) + Edit Pin / Search center / Journaling /
+         *  Delete (chips). When the user is mid pin-edit (editingDayId),
+         *  the pin button morphs into Save + ✕ as before. */
+        const buildOptionsRow = (day, { isGenesis }) => {
+            if (!day) return '';
+            const editable = tripIsEditable;
+            const buttons = [];
+            // Primary action — Open Full Plan opens the day-detail modal
+            // (same modal Genesis uses for its trip-wide notes/photos).
+            buttons.push(`
+                <button class="btn-primary day-detail-btn" data-day-id="${esc(day.id)}" style="padding: 9px 18px; font-size: 0.85rem; border-radius: 999px;">
+                    📋 Open Full Plan
+                </button>
+            `);
+            if (editable) {
+                if (editingDayId === day.id) {
+                    buttons.push(`<button class="day-action-btn day-action-btn--success day-pin-save-btn" data-day-id="${esc(day.id)}">Save Pin</button>`);
+                    buttons.push(`<button class="day-action-btn day-action-btn--danger-fill day-pin-delete-btn" data-day-id="${esc(day.id)}">✕</button>`);
+                } else {
+                    buttons.push(`<button class="day-action-btn day-action-btn--neutral day-pin-toggle-btn" data-day-id="${esc(day.id)}"><span>${day.lat ? '📍 Edit pin' : '📍 Add pin'}</span></button>`);
+                }
+                // Set as search center — only on pinned non-Genesis days.
+                if (!isGenesis && day.lat) {
+                    const tripId = activeTrip?.id || '';
+                    const isActive = STATE.preferences?.pillEpicenters?.[tripId] === day.id;
+                    const cls = isActive ? 'day-action-btn day-action-btn--success day-set-epicenter-btn' : 'day-action-btn day-action-btn--neutral day-set-epicenter-btn';
+                    const label = isActive ? '🎯 Search center (active)' : '🎯 Set as search center';
+                    buttons.push(`<button class="${cls}" data-day-id="${esc(day.id)}"><span>${label}</span></button>`);
+                }
+                // Journaling — separate notes-only modal. Available for
+                // every editable day including Genesis (Genesis's notes
+                // serve as trip-wide journal entries).
+                buttons.push(`<button class="day-action-btn day-action-btn--neutral day-journaling-btn" data-day-id="${esc(day.id)}"><span>✍️ Journaling</span></button>`);
+                // Delete — only on non-Genesis days. Genesis is
+                // structurally permanent (anchors the trip).
+                if (!isGenesis) {
+                    buttons.push(`<button class="day-action-btn day-action-btn--danger day-delete-btn" data-day-id="${esc(day.id)}"><span>🗑️ Delete</span></button>`);
+                }
+            }
+            return `<div class="path-options-row">${buttons.join('')}</div>`;
+        };
+
+        /** The top-level Path tab content — chip strip + cards + options.
+         *  Pure function of activeTrip + STATE; called on initial render
+         *  and on every selection change. */
+        const buildPathTabHtml = () => {
+            const sortedDays = [...tripDays].sort((a, b) => a.dayNumber - b.dayNumber);
+            const genesis = sortedDays.find(d => d.dayNumber === 0) || null;
+            const numberedDays = sortedDays.filter(d => d.dayNumber > 0);
+            const selectedId = resolveSelectedDayId(activeTrip, sortedDays);
+            const selectedDay = sortedDays.find(d => d.id === selectedId) || null;
+            // Empty state — no days yet (shouldn't happen since Genesis is
+            // stamped on trip create, but defensive).
+            if (sortedDays.length === 0) {
+                return `<div class="card glass" style="padding:28px; border-radius:18px; text-align:center; color:var(--text-secondary);">No days yet — create some.</div>`;
+            }
+            const totalDays = numberedDays.length;
+            const selectedIsGenesis = selectedDay?.dayNumber === 0;
+            const summaryText = selectedIsGenesis
+                ? `Trip Genesis · ${totalDays} day${totalDays === 1 ? '' : 's'} planned`
+                : (selectedDay
+                    ? `Day ${selectedDay.dayNumber} of ${totalDays}`
+                    : `${totalDays} day${totalDays === 1 ? '' : 's'} planned`);
+            // Chip strip — Genesis chip first, then numbered days, then
+            // a `+` chip (only for editable trips) that opens the
+            // Add-Day modal. Each chip's `title` carries the day's name
+            // + date so hovering surfaces context the chip itself can't
+            // fit (per Q3 — numbers visible, titles in tooltip).
+            const chipsHtml = sortedDays.map(d => {
+                const isSel = d.id === selectedId;
+                const isGen = d.dayNumber === 0;
+                const cls = `path-chip${isGen ? ' path-chip--genesis' : ''}${isSel ? ' is-selected' : ''}`;
+                const tooltip = isGen
+                    ? 'Trip Genesis — your trip\'s anchor'
+                    : `Day ${d.dayNumber}${d.name ? ' — ' + d.name : ''}${d.date ? ' · ' + (formatDayDate(d.date) || d.date) : ''}`;
+                const inner = isGen
+                    ? `<svg width="14" height="14" viewBox="0 0 48 48" aria-hidden="true"><path d="M 24,11 L 27.06,18.96 L 35.55,19.49 L 28.92,24.92 L 31.0,33.16 L 24,28.6 L 17,33.16 L 19.08,24.92 L 12.45,19.49 L 20.94,18.96 Z" fill="currentColor"/></svg>`
+                    : String(d.dayNumber);
+                return `<button type="button" class="${cls}" data-path-chip-day-id="${esc(d.id)}" title="${esc(tooltip)}" aria-label="${esc(tooltip)}" aria-pressed="${isSel}">${inner}</button>`;
+            }).join('');
+            const addChip = tripIsEditable
+                ? `<button type="button" class="path-chip path-chip--add" id="pathAddDayChip" title="Add a new day" aria-label="Add a new day">+</button>`
+                : '';
+            // Prev/Next nav — disabled at the ends of the list. Step
+            // through sortedDays by index, no wrap-around.
+            const idx = sortedDays.findIndex(d => d.id === selectedId);
+            const prevDisabled = idx <= 0;
+            const nextDisabled = idx < 0 || idx >= sortedDays.length - 1;
+            // Cards row — Genesis always present (when it exists);
+            // selected day shown alongside ONLY when it's a numbered
+            // day (otherwise Genesis IS the selected card and we
+            // collapse to one card).
+            let cardsHtml = '';
+            if (genesis) {
+                const genesisIsSelected = selectedDay?.id === genesis.id;
+                cardsHtml += `<div class="path-card path-card--genesis${genesisIsSelected ? ' path-card--selected' : ''}" data-day-id="${esc(genesis.id)}">${buildDayCardBody(genesis, { isGenesis: true, isSelected: genesisIsSelected })}</div>`;
+            }
+            if (selectedDay && selectedDay.dayNumber > 0) {
+                cardsHtml += `<div class="path-card path-card--selected" data-day-id="${esc(selectedDay.id)}">${buildDayCardBody(selectedDay, { isGenesis: false, isSelected: true })}</div>`;
+            }
+            // Options below — Genesis options OR selected day options
+            // depending on which card the user is focused on. Genesis
+            // gets a slim variant; numbered days get the full set.
+            const optionsHtml = selectedDay
+                ? buildOptionsRow(selectedDay, { isGenesis: selectedIsGenesis })
+                : '';
+            return `
+                <div class="path-strip">
+                    <button type="button" class="path-nav-btn" id="pathPrevBtn" title="Previous day" aria-label="Previous day" ${prevDisabled ? 'disabled' : ''}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                    </button>
+                    <div class="path-chips" role="tablist" aria-label="Trip days">
+                        ${chipsHtml}
+                        ${addChip}
+                    </div>
+                    <button type="button" class="path-nav-btn" id="pathNextBtn" title="Next day" aria-label="Next day" ${nextDisabled ? 'disabled' : ''}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                    </button>
+                </div>
+                <div class="path-summary">${esc(summaryText)}</div>
+                <div class="path-cards-row">${cardsHtml}</div>
+                ${optionsHtml}
+            `;
+        };
+
+        /** Repaint #pathTabInner in place. Called on chip click,
+         *  prev/next, keyboard arrow, swipe — anything that changes
+         *  the selected day. After the swap, scroll the selected chip
+         *  into view so off-screen chips don't strand the user. */
+        const pathTabInner = /** @type {HTMLElement | null} */ (daysContainer.querySelector('#pathTabInner'));
+        const repaintPath = () => {
+            if (!pathTabInner) return;
+            pathTabInner.innerHTML = buildPathTabHtml();
+            const sel = pathTabInner.querySelector('.path-chip.is-selected');
+            if (sel) /** @type {HTMLElement} */ (sel).scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+        };
+        _repaintPathTab = repaintPath;
+        repaintPath();
+
+        // Step the selection by ±1 in the sorted-day list. No wrap so
+        // the user feels the ends of the list (the disabled prev/next
+        // buttons reinforce that boundary).
+        const stepSelectedDay = (delta) => {
+            const sortedDays = [...(STATE.tripDays || [])
+                .filter(d => d.tripId === activeTrip.id)]
+                .sort((a, b) => a.dayNumber - b.dayNumber);
+            const currentId = resolveSelectedDayId(activeTrip, sortedDays);
+            const idx = sortedDays.findIndex(d => d.id === currentId);
+            const next = sortedDays[idx + delta];
+            if (next) setSelectedDay(activeTrip.id, next.id);
+        };
+
+        // Swipe support on the cards row — left swipe = next day, right
+        // swipe = prev day. 40px threshold so accidental taps don't
+        // change selection. Touch-only — desktop has the chip strip,
+        // prev/next, and arrow keys.
+        let swipeStartX = null;
+        daysContainer.addEventListener('touchstart', (e) => {
+            const t = e.touches?.[0];
+            if (!t) return;
+            const cardsRow = /** @type {HTMLElement | null} */ (e.target instanceof Element ? e.target.closest('.path-cards-row') : null);
+            if (!cardsRow) return;
+            swipeStartX = t.clientX;
+        }, { passive: true });
+        daysContainer.addEventListener('touchend', (e) => {
+            if (swipeStartX == null) return;
+            const t = e.changedTouches?.[0];
+            const startX = swipeStartX;
+            swipeStartX = null;
+            if (!t) return;
+            const dx = t.clientX - startX;
+            if (Math.abs(dx) < 40) return;
+            stepSelectedDay(dx < 0 ? +1 : -1);
+        }, { passive: true });
+
+        // Keyboard arrows when the Path tab is the active tab. Filter
+        // out events from inputs/textareas so typing in modal forms
+        // doesn't accidentally swap days.
+        const onKeyDown = (e) => {
+            if (activeHomeTab !== 'days') return;
+            if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+            const tag = (e.target && e.target.tagName) || '';
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+            stepSelectedDay(e.key === 'ArrowLeft' ? -1 : +1);
+        };
+        document.addEventListener('keydown', onKeyDown);
+        // Cleanup hook — removed by stopHomeSlideshow path on navigate-away.
+        // No formal lifecycle here, but the listener guards on activeHomeTab
+        // and the active trip so a stale listener after navigation is
+        // harmless until the next renderHome replaces the closure.
 
         // Delegated handler — per-day rows are dynamic; inner action buttons are
         // checked first so the outer card click (toggleDayMenu) only fires when
@@ -2660,9 +2857,28 @@ export function renderHome() {
             const detailBtn = /** @type {HTMLElement | null} */ (target.closest('.day-detail-btn'));
             if (detailBtn?.dataset.dayId) { openDayDetail(detailBtn.dataset.dayId); return; }
 
-            // Outer card click — only reached if no inner button matched.
-            const card = /** @type {HTMLElement | null} */ (target.closest('.day-card'));
-            if (card?.dataset.dayId) { toggleDayMenu(card.dataset.dayId); return; }
+            // ── Path tab navigation handlers (chip-strip layout) ────
+            // Add-day chip — opens the standard add-day modal.
+            if (target.closest('#pathAddDayChip')) { openAddDayModal(); return; }
+            // Prev/next nav buttons — step through sortedDays by ±1.
+            if (target.closest('#pathPrevBtn')) { stepSelectedDay(-1); return; }
+            if (target.closest('#pathNextBtn')) { stepSelectedDay(+1); return; }
+            // Chip click — jump straight to that day.
+            const chip = /** @type {HTMLElement | null} */ (target.closest('.path-chip[data-path-chip-day-id]'));
+            if (chip?.dataset.pathChipDayId && activeTrip) {
+                setSelectedDay(activeTrip.id, chip.dataset.pathChipDayId);
+                return;
+            }
+            // Card body click — selects that card. Genesis card click
+            // when a numbered day is currently selected jumps focus to
+            // Genesis; clicking the already-selected card is a no-op
+            // (use the "Open Full Plan" button to enter the modal —
+            // keeps the two interactions cleanly separated).
+            const pathCard = /** @type {HTMLElement | null} */ (target.closest('.path-card[data-day-id]'));
+            if (pathCard?.dataset.dayId && activeTrip) {
+                setSelectedDay(activeTrip.id, pathCard.dataset.dayId);
+                return;
+            }
         });
 
         // (Shortlist day/time dropdowns were removed — the manual flow
@@ -2741,10 +2957,11 @@ export function renderHome() {
             });
         }
 
-        setTimeout(() => {
-            const addBtn = /** @type {HTMLButtonElement | null} */ (div.querySelector('#addDayBtn'));
-            if (addBtn) addBtn.onclick = () => openAddDayModal();
-        }, 0);
+        // The legacy `#addDayBtn` (vertical-timeline footer) was retired
+        // when the Path tab moved to the chip-strip layout — `+ Add Day`
+        // now lives on the trailing "+" chip in the strip and is wired
+        // through the delegated daysContainer click handler above
+        // (#pathAddDayChip → openAddDayModal).
     }
 
     // Toggle state for Quick Access — hidden by default. Anyone who
