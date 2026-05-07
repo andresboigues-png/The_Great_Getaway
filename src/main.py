@@ -1143,8 +1143,12 @@ def add_friend():
         if row:
             return jsonify({"status": "error", "message": "Request already exists or already friends"}), 400
 
-        # Insert pending request (user_id -> friend_id)
-        cursor.execute("INSERT INTO friends (user_id, friend_id, status) VALUES (?, ?, 'pending')", (user_id, friend_id))
+        # Insert pending request (user_id -> friend_id). Explicit
+        # CURRENT_TIMESTAMP so existing dbs (where the column was added
+        # by ALTER without a DEFAULT — see database.py migration) still
+        # get a real timestamp; without this, the column would land NULL
+        # and the feed's new_friendship event would silently skip the row.
+        cursor.execute("INSERT INTO friends (user_id, friend_id, status, created_at) VALUES (?, ?, 'pending', CURRENT_TIMESTAMP)", (user_id, friend_id))
         
         # Get sender name
         cursor.execute("SELECT name FROM users WHERE id = ?", (user_id,))
@@ -1186,8 +1190,10 @@ def accept_friend():
         # Update original request
         cursor.execute("UPDATE friends SET status = 'accepted' WHERE user_id = ? AND friend_id = ?", (friend_id, user_id))
 
-        # Insert reciprocal friendship
-        cursor.execute("INSERT OR IGNORE INTO friends (user_id, friend_id, status) VALUES (?, ?, 'accepted')", (user_id, friend_id))
+        # Insert reciprocal friendship. Same explicit-CURRENT_TIMESTAMP
+        # treatment as the /add path so legacy dbs (column added without
+        # default by ALTER) still get a populated created_at.
+        cursor.execute("INSERT OR IGNORE INTO friends (user_id, friend_id, status, created_at) VALUES (?, ?, 'accepted', CURRENT_TIMESTAMP)", (user_id, friend_id))
         
         # Get acceptor name
         cursor.execute("SELECT name FROM users WHERE id = ?", (user_id,))
@@ -1494,23 +1500,33 @@ def get_feed():
         # the last 30 days. The friends table is two-rowed (one per
         # direction); we read the row where the caller is `user_id` so
         # there's exactly one event per friendship.
-        cursor.execute(f'''
-            SELECT u.id, u.name, u.picture, f.created_at
-            FROM friends f
-            JOIN users u ON u.id = f.friend_id
-            WHERE f.user_id = ?
-              AND f.status = 'accepted'
-              AND f.created_at IS NOT NULL
-              AND f.created_at >= datetime('now', '-30 days')
-            ORDER BY f.created_at DESC
-        ''', (user_id,))
-        for row in cursor.fetchall():
-            events.append({
-                "id": f"friendship_{user_id}_{row['id']}",
-                "type": "new_friendship",
-                "actor": {"id": row["id"], "name": row["name"], "picture": row["picture"]},
-                "when": row["created_at"],
-            })
+        # Wrapped in try/except as a backstop against schema-drift
+        # incidents like the one where a buggy ALTER left the
+        # `created_at` column un-added on legacy dbs and this query
+        # 500'd the whole /api/feed endpoint, surfacing as a totally
+        # empty feed instead of "missing the friendship event type".
+        # If the query throws, just skip these events and let the rest
+        # of the feed render — much better than nothing-at-all.
+        try:
+            cursor.execute(f'''
+                SELECT u.id, u.name, u.picture, f.created_at
+                FROM friends f
+                JOIN users u ON u.id = f.friend_id
+                WHERE f.user_id = ?
+                  AND f.status = 'accepted'
+                  AND f.created_at IS NOT NULL
+                  AND f.created_at >= datetime('now', '-30 days')
+                ORDER BY f.created_at DESC
+            ''', (user_id,))
+            for row in cursor.fetchall():
+                events.append({
+                    "id": f"friendship_{user_id}_{row['id']}",
+                    "type": "new_friendship",
+                    "actor": {"id": row["id"], "name": row["name"], "picture": row["picture"]},
+                    "when": row["created_at"],
+                })
+        except Exception as e:
+            print(f"[feed] new_friendship query failed (skipping): {e}")
 
         # 6) friend_shared_trip — explicit "Share to feed" posts. Original
         # shares only (repost_of_post_id IS NULL). Trip metadata joined

@@ -142,11 +142,19 @@ def init_db():
             )
         ''')
         # Backfill created_at on legacy databases that pre-date the column.
-        # Old rows end up NULL — the Feed endpoint treats NULL as "long ago"
-        # and just hides them past the 30-day window. New rows get a real
-        # timestamp going forward.
+        # SQLite REJECTS `ALTER TABLE ... ADD COLUMN ... DEFAULT CURRENT_TIMESTAMP`
+        # ("Cannot add a column with non-constant default") — so the
+        # earlier version of this migration silently failed and the
+        # column never got added on existing dbs, breaking /api/feed
+        # (the `new_friendship` query references f.created_at). Two-step
+        # workaround: (1) ALTER without a DEFAULT — column lands with
+        # NULL for existing rows, (2) UPDATE backfill so existing
+        # friendships surface as "just established" in the feed window.
+        # New INSERTs explicitly stamp created_at (see /api/friends/add
+        # and /api/friends/accept) so they don't depend on a default.
         try:
-            cursor.execute("ALTER TABLE friends ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP")
+            cursor.execute("ALTER TABLE friends ADD COLUMN created_at DATETIME")
+            cursor.execute("UPDATE friends SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL")
         except Exception:
             pass
         
