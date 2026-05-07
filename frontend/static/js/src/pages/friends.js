@@ -17,13 +17,20 @@ let cachedPending = [];
 // ── Helpers ───────────────────────────────────────────────────────────
 
 /** Avatar circle — picture if available, otherwise a gradient initials
- *  badge so empty avatars don't break the visual rhythm. */
+ *  badge so empty avatars don't break the visual rhythm.
+ *  Google profile pictures need referrerpolicy="no-referrer" to load
+ *  reliably; the onerror handler swaps to the initials fallback if
+ *  the URL is broken or rate-limited. */
 function avatar(user, size = 44) {
     const initial = (user.name || user.email || '?').charAt(0).toUpperCase();
+    const fallback = `<div style="width:${size}px; height:${size}px; border-radius:50%; background: linear-gradient(135deg, #007aff, #5856d6); color:white; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:${Math.round(size * 0.4)}px; flex-shrink:0; box-shadow: 0 2px 8px rgba(0,113,227,0.18);">${esc(initial)}</div>`;
     if (user.picture) {
-        return `<img src="${esc(user.picture)}" alt="" style="width:${size}px; height:${size}px; border-radius:50%; object-fit:cover; flex-shrink:0; border:2px solid rgba(255,255,255,0.6); box-shadow: 0 2px 8px rgba(0,45,91,0.12);">`;
+        return `<img src="${esc(user.picture)}" alt="" referrerpolicy="no-referrer"
+            onerror="this.outerHTML=this.dataset.fallback;"
+            data-fallback="${esc(fallback)}"
+            style="width:${size}px; height:${size}px; border-radius:50%; object-fit:cover; flex-shrink:0; border:2px solid rgba(255,255,255,0.6); box-shadow: 0 2px 8px rgba(0,45,91,0.12);">`;
     }
-    return `<div style="width:${size}px; height:${size}px; border-radius:50%; background: linear-gradient(135deg, #007aff, #5856d6); color:white; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:${Math.round(size * 0.4)}px; flex-shrink:0; box-shadow: 0 2px 8px rgba(0,113,227,0.18);">${esc(initial)}</div>`;
+    return fallback;
 }
 
 /** Friend list-row card. Variant flips visual cue (accepted = neutral

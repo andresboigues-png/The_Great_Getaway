@@ -1935,7 +1935,7 @@ export function renderHome() {
             const safeName = chip.name || '·';
             const initial = safeName.charAt(0).toUpperCase() || '·';
             const avatar = chip.picture
-                ? `<img class="member-chip__avatar" src="${esc(chip.picture)}" alt="">`
+                ? `<img class="member-chip__avatar" src="${esc(chip.picture)}" alt="" referrerpolicy="no-referrer">`
                 : `<span class="member-chip__initial">${esc(initial)}</span>`;
             let badge;
             if (chip.isOwner) {

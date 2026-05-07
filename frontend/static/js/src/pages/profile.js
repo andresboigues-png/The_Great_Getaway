@@ -127,7 +127,7 @@ function openFriendsListModal(friends) {
     const rowHtml = (f) => {
         const initial = (f.name || f.email || '?').charAt(0).toUpperCase();
         const avatar = f.picture
-            ? `<img src="${esc(f.picture)}" alt="" style="width:40px; height:40px; border-radius:50%; object-fit:cover; flex-shrink:0;">`
+            ? `<img src="${esc(f.picture)}" alt="" referrerpolicy="no-referrer" style="width:40px; height:40px; border-radius:50%; object-fit:cover; flex-shrink:0;">`
             : `<div style="width:40px; height:40px; border-radius:50%; background: linear-gradient(135deg,#007aff,#5856d6); color:white; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:1rem; flex-shrink:0;">${esc(initial)}</div>`;
         return `
             <button type="button" class="profile-friend-row" data-user-id="${esc(f.id)}"
@@ -204,7 +204,21 @@ export function renderProfile(targetUserId = null) {
                     <!-- Avatar -->
                     <div style="position: relative; flex-shrink: 0; ${isOwnProfile ? 'cursor: pointer;' : ''} border-radius: 50%;" id="${isOwnProfile ? 'profilePicWrapper' : ''}" title="${isOwnProfile ? 'Change profile photo' : ''}">
                         <div style="padding: 4px; background: linear-gradient(135deg, #4da3ff 0%, var(--accent-blue) 50%, #004080 100%); border-radius: 50%;">
-                            <img id="profilePicDisplay" src="${profilePicSrc}" alt="Profile Picture" style="width: 140px; height: 140px; border-radius: 50%; border: 4px solid var(--bg-color); object-fit: cover; display: block; transition: opacity 0.2s; background: var(--bg-color);">
+                            <img id="profilePicDisplay" src="${profilePicSrc || ''}" alt="Profile Picture"
+                                referrerpolicy="no-referrer"
+                                onerror="this.style.display='none'; this.nextElementSibling && (this.nextElementSibling.style.display='flex');"
+                                style="width: 140px; height: 140px; border-radius: 50%; border: 4px solid var(--bg-color); object-fit: cover; display: block; transition: opacity 0.2s; background: var(--bg-color);">
+                            <!-- Fallback initials avatar — shown when the
+                                 picture URL is empty OR the image fails
+                                 to load. Google profile-picture URLs
+                                 (lh3.googleusercontent.com) need
+                                 referrerpolicy=no-referrer above to load
+                                 reliably; this fallback covers the rare
+                                 case where the URL is missing entirely
+                                 or returns a network error. -->
+                            <div style="display: ${profilePicSrc ? 'none' : 'flex'}; align-items: center; justify-content: center; width: 140px; height: 140px; border-radius: 50%; border: 4px solid var(--bg-color); background: linear-gradient(135deg, var(--accent-blue), #5856d6); color: white; font-size: 3rem; font-weight: 800; letter-spacing: -0.04em;">
+                                ${esc((user.name || '?').slice(0, 1).toUpperCase())}
+                            </div>
                         </div>
                         ${isOwnProfile ? `
                         <div style="position: absolute; inset: 4px; border-radius: 50%; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.2s;" id="profilePicOverlay">
@@ -428,21 +442,56 @@ export function renderProfile(targetUserId = null) {
                         ]
                     });
 
+                    // Country-code set — highest-priority match key.
+                    // Modern trips carry `countryCode` (ISO 3166-1
+                    // alpha-2 from Google Places); matching by ISO is
+                    // far more reliable than guessing from the
+                    // formatted-address string. Legacy trips without a
+                    // code fall through to the name-match logic.
+                    const tripCodes = new Set(
+                        (trips || [])
+                            .map(t => (t.countryCode || '').toUpperCase())
+                            .filter(Boolean)
+                    );
                     fetch('https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_50m_admin_0_countries.geojson')
                         .then(res => res.json()).then(data => {
                             map.data.addGeoJson(data);
                             map.data.setStyle(feature => {
+                                const iso2 = (feature.getProperty('ISO_A2') || feature.getProperty('iso_a2') || '').toUpperCase();
                                 const countryName = (feature.getProperty('NAME') || feature.getProperty('name') || feature.getProperty('admin') || "").toLowerCase();
-                                if (!countryName) return { visible: false };
-                                const isMatch = uniqueCountries.some(c => {
-                                    if (!c) return false;
-                                    let cleanC = c.split(' (')[0].split(' - ')[0].toLowerCase();
-                                    if (cleanC === 'usa') cleanC = 'united states';
-                                    if (cleanC === 'uk') cleanC = 'united kingdom';
-                                    return countryName === cleanC || countryName.includes(cleanC) || cleanC.includes(countryName) || (cleanC === 'united states' && (countryName.includes('america') || countryName === 'usa'));
-                                });
+                                if (!iso2 && !countryName) return { visible: false };
+                                // Fast path — ISO match.
+                                let isMatch = !!iso2 && tripCodes.has(iso2);
+                                // Slow path — name fuzzy match. Only
+                                // runs when ISO didn't already win,
+                                // saves a substring sweep per feature.
+                                if (!isMatch) {
+                                    isMatch = uniqueCountries.some(c => {
+                                        if (!c) return false;
+                                        const cleanC = c.split(' (')[0].split(' - ')[0].toLowerCase().trim();
+                                        // Trip.country is often the
+                                        // full Google formatted_address
+                                        // ("Lisbon, Portugal"). Use the
+                                        // LAST comma-separated chunk as
+                                        // the country guess — far less
+                                        // ambiguous than two-way
+                                        // substring matching, which
+                                        // produced false positives on
+                                        // city names that contained a
+                                        // country word.
+                                        const lastChunk = cleanC.split(',').map(s => s.trim()).filter(Boolean).pop() || cleanC;
+                                        let alias = lastChunk;
+                                        if (alias === 'usa') alias = 'united states';
+                                        if (alias === 'uk') alias = 'united kingdom';
+                                        return countryName === alias
+                                            || countryName.includes(alias)
+                                            || alias.includes(countryName)
+                                            || (alias === 'united states' && countryName.includes('america'));
+                                    });
+                                }
                                 if (isMatch) {
-                                    let hash = 0; for (let i = 0; i < countryName.length; i++) hash = countryName.charCodeAt(i) + ((hash << 5) - hash);
+                                    const seedSrc = iso2 || countryName;
+                                    let hash = 0; for (let i = 0; i < seedSrc.length; i++) hash = seedSrc.charCodeAt(i) + ((hash << 5) - hash);
                                     const hue = Math.abs(hash % 360);
                                     return { fillColor: `hsl(${hue}, 70%, 60%)`, fillOpacity: 0.7, strokeColor: '#ffffff', strokeWeight: 0.5, visible: true };
                                 }
@@ -564,7 +613,14 @@ export function updateUserUI() {
         if (icon) { icon.style.display = 'none'; }
         if (label) { label.textContent = STATE.user.name; }
         if (sub) { sub.style.display = 'block'; sub.textContent = 'Logged in ✓'; }
-        if (pic) { pic.src = STATE.user.picture ?? ''; }
+        if (pic) {
+            // Google profile pictures need referrerpolicy=no-referrer
+            // to load — without it Google often returns 403 / blank.
+            // The img tag is static in index.html, so we set the
+            // attribute imperatively here when the user logs in.
+            pic.setAttribute('referrerpolicy', 'no-referrer');
+            pic.src = STATE.user.picture ?? '';
+        }
         if (logoutBtn) { logoutBtn.style.display = 'block'; }
     } else {
         if (avatar) { avatar.style.display = 'none'; }

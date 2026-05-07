@@ -126,6 +126,22 @@ export async function pullFromServer() {
         STATE.budgets = data.budgets || [];
         STATE.tripDays = data.tripDays || [];
 
+        // Populate per-trip snapshots on archived trips so
+        // collections.js renderArchivedTripDetail (which reads
+        // trip.tripDays / trip.expenses directly off the trip
+        // object, not from the global lists) works after a page
+        // reload. The original archive operation in main.js
+        // stamped these onto the trip locally — but on a fresh
+        // pull the trip is rebuilt from the trips row alone, so
+        // the snapshot was missing and the archived-trip detail
+        // page rendered "no days." Re-stamping here keeps the
+        // shape consistent regardless of how the trip arrived in
+        // STATE.archivedTrips.
+        for (const archived of STATE.archivedTrips) {
+            archived.tripDays = STATE.tripDays.filter(d => d.tripId === archived.id);
+            archived.expenses = STATE.expenses.filter(e => e.tripId === archived.id);
+        }
+
         emit(EVENTS.STATE_CHANGED);          // saveState + updateTripSelector via subscriber
 
         await fetchNotifications(); // already emits 'notifications:changed'

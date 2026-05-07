@@ -96,7 +96,7 @@ function renderNotificationDropdown() {
                 ${esc(n.title || notificationDefaultTitle(n.type))}
             </div>
             <div class="notification-item__message">${esc(n.message)}</div>
-            <div class="notification-item__time">${new Date(n.created_at).toLocaleDateString()}</div>
+            <div class="notification-item__time">${new Date(n.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
         </div>
     `).join('');
 }

@@ -380,7 +380,7 @@ export const openEditTripModal = (trip) => {
     if (numberedDays.length > 0) {
         startInput.value = numberedDays[0].date || '';
         endInput.value = numberedDays[numberedDays.length - 1].date || '';
-        dateHint.textContent = "This trip already has Path days — edit each day individually to change dates.";
+        dateHint.textContent = "Change these to re-date your existing Path days. Day count stays the same; each day shifts to keep the new start.";
     } else {
         dateHint.textContent = "If you fill these in, we'll create one empty Path day per date — you can pin places later.";
     }
@@ -451,18 +451,49 @@ export const openEditTripModal = (trip) => {
             }
         }
 
-        // Auto-scaffold Path days from the date range — only when the trip
-        // has no numbered days yet. With existing days we leave them
-        // alone (the hint above explains the constraint to the user).
+        // Date sync — three branches:
+        //  a. No numbered days yet AND user filled dates → scaffold
+        //     one empty day per calendar date.
+        //  b. Numbered days exist AND user changed the start date →
+        //     rebase each existing day's date to startDate +
+        //     (dayNumber - 1) so the day count is preserved and the
+        //     trip just shifts on the calendar. End-date input is
+        //     informational here; we don't add/remove days.
+        //  c. No date change → no-op.
         let scaffolded = /** @type {import('./types').TripDay[]} */ ([]);
+        const rebased = /** @type {import('./types').TripDay[]} */ ([]);
         if (numberedDays.length === 0) {
             scaffolded = _scaffoldTripDays(trip.id, startInput.value, endInput.value, 1);
             if (scaffolded.length > 0) STATE.tripDays.push(...scaffolded);
+        } else {
+            const newStart = startInput.value;
+            const oldStart = numberedDays[0].date || '';
+            if (newStart && newStart !== oldStart) {
+                const start = new Date(newStart + 'T00:00:00');
+                if (!isNaN(start.getTime())) {
+                    for (const day of numberedDays) {
+                        const d = new Date(start);
+                        d.setDate(d.getDate() + (day.dayNumber - 1));
+                        const newDate = d.toISOString().split('T')[0];
+                        if (day.date !== newDate) {
+                            day.date = newDate;
+                            rebased.push(day);
+                        }
+                    }
+                }
+            }
         }
+        // Mirror onto trip.dateFrom / trip.dateTo so the AI planner
+        // and any future date-aware surface can read trip-level
+        // dates without re-deriving from tripDays. Trip-level dates
+        // are kept in sync with the day range above.
+        if (startInput.value) trip.dateFrom = startInput.value;
+        if (endInput.value) trip.dateTo = endInput.value;
 
         emit('state:changed');
         upsertTrip(trip);
         scaffolded.forEach(d => upsertDay(d));
+        rebased.forEach(d => upsertDay(d));
 
         close();
         navigate('home', null, true);
@@ -722,7 +753,7 @@ export const openCompanionPickerModal = (tripId) => {
         }
         friendListEl.innerHTML = candidates.map(f => `
             <div class="companion-row friend-pick-row picker-friend-row" data-friend-id="${esc(f.id)}" data-friend-name="${esc(f.name)}">
-                <img src="${esc(f.picture)}" alt="" style="width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;">
+                <img src="${esc(f.picture)}" alt="" referrerpolicy="no-referrer" style="width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0; object-fit: cover;">
                 <span class="companion-row__name">${esc(f.name)}</span>
                 <span style="flex:1; font-size: var(--font-xs); color: rgba(0,0,0,0.45);">${esc(f.email)}</span>
                 <select class="companion-row__role-select picker-friend-role-select">
@@ -857,7 +888,7 @@ export const openTripMembersModal = (tripId) => {
 
     const memberRow = (/** @type {import('./types').TripMember} */ m, isOwnerRow) => `
         <div class="companion-row" style="cursor: default;">
-            ${m.picture ? `<img src="${esc(m.picture)}" alt="" style="width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;">` : ''}
+            ${m.picture ? `<img src="${esc(m.picture)}" alt="" referrerpolicy="no-referrer" style="width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0; object-fit: cover;">` : ''}
             <span class="companion-row__name">${esc(m.name || m.userId)}</span>
             <span class="companion-link-pill ${isOwnerRow ? 'companion-link-pill--linked' : 'companion-link-pill--pending'}">
                 ${isOwnerRow ? '👑 Owner' : esc(roleLabel(m.role))}

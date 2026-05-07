@@ -63,14 +63,25 @@ export function renderAI() {
     // creating / editing the trip). Falls back to the date range of
     // logged expenses for older trips that pre-date the dates field, so
     // the inputs auto-fill there too. Final fallback: empty, user picks.
+    //
+    // Source priority:
+    //   1. trip.dateFrom / dateTo — authoritative trip-level dates
+    //      (set by the edit-trip modal; mirrored from the day range
+    //      whenever the user picks them there). Always wins when
+    //      present so changing trip dates immediately reflects in
+    //      the AI planner.
+    //   2. tripDays earliest / latest — fallback for trips that
+    //      have days but no top-level dateFrom (legacy data).
+    //   3. expenses earliest / latest — last-ditch backup so a
+    //      receipts-first trip still surfaces something useful.
     const tripDays = (STATE.tripDays || [])
         .filter(d => d.tripId === STATE.activeTripId && d.dayNumber > 0 && d.date)
         .map(d => d.date)
         .sort();
     const tripExps = STATE.expenses.filter(e => e.tripId === STATE.activeTripId && e.date).sort((a, b) => a.date.localeCompare(b.date));
     const expenseDates = tripExps.map(e => e.date);
-    const minDate = tripDays[0] || expenseDates[0] || '';
-    const maxDate = tripDays[tripDays.length - 1] || expenseDates[expenseDates.length - 1] || '';
+    const minDate = activeTrip.dateFrom || tripDays[0] || expenseDates[0] || '';
+    const maxDate = activeTrip.dateTo || tripDays[tripDays.length - 1] || expenseDates[expenseDates.length - 1] || '';
 
     const savedPlan = activeTrip.aiPlan || null;
     const savedContext = activeTrip.aiContext || '';
@@ -271,6 +282,47 @@ export function renderAI() {
 
         let generatedItinerary = savedPlan;
 
+        /** Render a single time-slot body. Two shapes are supported:
+         *   1. New `items: string[]` — bullet list (the canonical
+         *      shape returned by the updated AI prompt).
+         *   2. Legacy `description: string` — pre-bullet plans
+         *      saved before the schema change. Renders as a paragraph
+         *      so old saved plans still display correctly.
+         *   Falls back to empty when neither exists. */
+        const renderSlotBody = (slot) => {
+            if (!slot) return '';
+            const items = Array.isArray(slot.items) ? slot.items.filter(Boolean) : [];
+            if (items.length > 0) {
+                return `<ul class="ai-plan-block__list">${items.map(i => `<li>${esc(String(i))}</li>`).join('')}</ul>`;
+            }
+            if (slot.description) {
+                // Defensive: if a legacy description happens to use
+                // newlines for soft bullets (some old plans did),
+                // surface them as a list. Otherwise render as text.
+                const lines = String(slot.description).split(/\n+/).map(s => s.trim()).filter(Boolean);
+                if (lines.length > 1) {
+                    return `<ul class="ai-plan-block__list">${lines.map(l => `<li>${esc(l.replace(/^[-•*]\s*/, ''))}</li>`).join('')}</ul>`;
+                }
+                return `<div class="ai-plan-block__desc">${esc(slot.description)}</div>`;
+            }
+            return '';
+        };
+
+        /** Flatten a slot for the day-plan textarea (Accept Plan
+         *  flow). Preserves the activity headline + bullet items so
+         *  the user sees the same structure on the home day card. */
+        const flattenSlotForTextarea = (slot) => {
+            if (!slot) return '';
+            const items = Array.isArray(slot.items) ? slot.items.filter(Boolean) : [];
+            if (items.length > 0) {
+                const head = slot.activity ? `${slot.activity}:` : '';
+                return [head, ...items.map(i => `- ${i}`)].filter(Boolean).join('\n');
+            }
+            // Legacy fallback — same shape the old code wrote.
+            if (slot.activity && slot.description) return `${slot.activity}: ${slot.description}`;
+            return slot.activity || slot.description || '';
+        };
+
         const renderItineraryOutput = (itinerary, numDays, country) => {
             const outputEl = q(div, '#itineraryOutput');
             if (!itinerary || !itinerary.length) {
@@ -310,18 +362,18 @@ export function renderAI() {
                             <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--space-4);">
                                 <div class="ai-plan-block" style="--accent: 0,113,227;">
                                     <div class="ai-plan-block__tag">🌅 Morning</div>
-                                    <div class="ai-plan-block__title">${day.morning?.activity || ''}</div>
-                                    <div class="ai-plan-block__desc">${day.morning?.description || ''}</div>
+                                    <div class="ai-plan-block__title">${esc(day.morning?.activity || '')}</div>
+                                    ${renderSlotBody(day.morning)}
                                 </div>
                                 <div class="ai-plan-block" style="--accent: 255,149,0;">
                                     <div class="ai-plan-block__tag">☀️ Afternoon</div>
-                                    <div class="ai-plan-block__title">${day.afternoon?.activity || ''}</div>
-                                    <div class="ai-plan-block__desc">${day.afternoon?.description || ''}</div>
+                                    <div class="ai-plan-block__title">${esc(day.afternoon?.activity || '')}</div>
+                                    ${renderSlotBody(day.afternoon)}
                                 </div>
                                 <div class="ai-plan-block" style="--accent: 155,89,182;">
                                     <div class="ai-plan-block__tag">🌙 Evening</div>
-                                    <div class="ai-plan-block__title">${day.evening?.activity || ''}</div>
-                                    <div class="ai-plan-block__desc">${day.evening?.description || ''}</div>
+                                    <div class="ai-plan-block__title">${esc(day.evening?.activity || '')}</div>
+                                    ${renderSlotBody(day.evening)}
                                 </div>
                             </div>
                             <!-- 💡 Pro Tip block was removed app-wide
@@ -416,9 +468,9 @@ export function renderAI() {
                         name: dayInfo.title || `Day ${idx + 1}`, dayNumber: idx + 1,
                         lat: dayInfo.lat, lng: dayInfo.lon,
                         photos: [], tickets: [], notes: '', plan: {
-                            morning: dayInfo.morning ? `${dayInfo.morning.activity}: ${dayInfo.morning.description}` : '',
-                            afternoon: dayInfo.afternoon ? `${dayInfo.afternoon.activity}: ${dayInfo.afternoon.description}` : '',
-                            evening: dayInfo.evening ? `${dayInfo.evening.activity}: ${dayInfo.evening.description}` : ''
+                            morning: flattenSlotForTextarea(dayInfo.morning),
+                            afternoon: flattenSlotForTextarea(dayInfo.afternoon),
+                            evening: flattenSlotForTextarea(dayInfo.evening)
                         }
                     };
                     STATE.tripDays.push(newDay);

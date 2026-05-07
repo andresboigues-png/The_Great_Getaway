@@ -1152,7 +1152,9 @@ def generate_itinerary():
     Additional context: {context}
 
     CRITICAL INSTRUCTION: You MUST return ONLY valid JSON. Do not wrap the JSON in markdown blocks.
-    For EACH day provide morning, afternoon, evening activities with REAL specific place names in {destination}, plus a practical tip.
+
+    For EACH day provide morning, afternoon, evening time slots with REAL specific place names in {destination}.
+    Each slot has an `activity` (the headline) and an `items` array — 2 to 4 short, concrete action bullets the traveler will do (visit a place, try a dish, take a photo at a viewpoint, etc.). Each item should be a single phrase, not a paragraph.
     Also include a "mainLocation" field with the name of the most iconic place visited that day (used for map geocoding).
 
     Schema:
@@ -1162,10 +1164,9 @@ def generate_itinerary():
         "date": "{date_from}",
         "title": "Day title",
         "mainLocation": "Specific place name",
-        "morning": {{"activity": "name", "description": "details"}},
-        "afternoon": {{"activity": "name", "description": "details"}},
-        "evening": {{"activity": "name", "description": "details"}},
-        "tip": "Practical tip"
+        "morning": {{"activity": "headline", "items": ["bullet 1", "bullet 2", "bullet 3"]}},
+        "afternoon": {{"activity": "headline", "items": ["bullet 1", "bullet 2", "bullet 3"]}},
+        "evening": {{"activity": "headline", "items": ["bullet 1", "bullet 2", "bullet 3"]}}
       }}
     ]
     """

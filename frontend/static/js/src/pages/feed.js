@@ -182,13 +182,21 @@ const ACTIONS_EVENT_TYPES = new Set([
 
 /** Avatar circle — picture if available, otherwise a gradient initials
  *  badge so empty avatars don't break the visual rhythm. Mirrors the
- *  helper in friends.js so both pages render the same way. */
+ *  helper in friends.js so both pages render the same way.
+ *  Google profile pictures (lh3.googleusercontent.com) require
+ *  referrerpolicy="no-referrer" to load reliably; without it Google
+ *  often returns a 403 / blank image. onerror swaps to the initials
+ *  fallback if the URL is broken or rate-limited. */
 function avatar(user, size = 44) {
     const initial = (user?.name || '?').charAt(0).toUpperCase();
+    const fallback = `<div style="width:${size}px; height:${size}px; border-radius:50%; background: linear-gradient(135deg, #007aff, #5856d6); color:white; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:${Math.round(size * 0.4)}px; flex-shrink:0; box-shadow: 0 2px 8px rgba(0,113,227,0.18);">${esc(initial)}</div>`;
     if (user?.picture) {
-        return `<img src="${esc(user.picture)}" alt="" style="width:${size}px; height:${size}px; border-radius:50%; object-fit:cover; flex-shrink:0; border:2px solid rgba(255,255,255,0.6); box-shadow: 0 2px 8px rgba(0,45,91,0.12);">`;
+        return `<img src="${esc(user.picture)}" alt="" referrerpolicy="no-referrer"
+            onerror="this.outerHTML=this.dataset.fallback;"
+            data-fallback="${esc(fallback)}"
+            style="width:${size}px; height:${size}px; border-radius:50%; object-fit:cover; flex-shrink:0; border:2px solid rgba(255,255,255,0.6); box-shadow: 0 2px 8px rgba(0,45,91,0.12);">`;
     }
-    return `<div style="width:${size}px; height:${size}px; border-radius:50%; background: linear-gradient(135deg, #007aff, #5856d6); color:white; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:${Math.round(size * 0.4)}px; flex-shrink:0; box-shadow: 0 2px 8px rgba(0,113,227,0.18);">${esc(initial)}</div>`;
+    return fallback;
 }
 
 /** Format an ISO timestamp as a relative phrase ("5m ago", "2h ago",
@@ -214,7 +222,9 @@ function relativeTime(iso) {
     if (hr < 24) return `${hr}h ago`;
     const d = Math.floor(hr / 24);
     if (d < 7) return `${d}d ago`;
-    return new Date(t).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+    // en-US lock keeps the format identical regardless of browser
+    // locale — matches utils.js formatDayDate's "Mon D" output.
+    return new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
 /** Build the human verb line for one event. Kept switch-style so adding

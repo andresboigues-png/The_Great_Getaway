@@ -406,20 +406,32 @@ export function esc(v) {
         .replace(/'/g, '&#39;');
 }
 
+// Short English month abbreviations — kept locale-invariant on
+// purpose so the display format reads the same regardless of the
+// user's browser locale ("Apr 6" everywhere, not "avr. 6" / "Abr 6").
+const _MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
 /**
+ * Format a stored date for display. Input is canonical YYYY-MM-DD
+ * (sortable, browser-safe). Output is "Mon D" (e.g. "Apr 6") —
+ * compact, locale-invariant, and the format the user requested.
+ * If the resulting year differs from the current year we append it
+ * (e.g. "Apr 6, 2025") so multi-year displays stay unambiguous;
+ * same-year dates drop the year for brevity.
+ *
+ * UTC parsing avoids midnight-near-DST timezone shifts.
+ *
  * @param {string} dateStr  YYYY-MM-DD
  * @returns {string}
  */
 export function formatDayDate(dateStr) {
     if (!dateStr) return '';
-    // Storage is canonical YYYY-MM-DD (sortable, browser-safe). For display
-    // we render DD-MM-YYYY everywhere — explicit zero-padding so single-
-    // digit days/months don't drift width and break alignment in tight
-    // rows. UTC parsing avoids midnight-near-DST timezone shifts.
     const date = new Date(dateStr + 'T00:00:00Z');
     if (isNaN(date.getTime())) return '';
-    const dd = String(date.getUTCDate()).padStart(2, '0');
-    const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
-    const yyyy = date.getUTCFullYear();
-    return `${dd}-${mm}-${yyyy}`;
+    const day = date.getUTCDate();
+    const month = _MONTHS_SHORT[date.getUTCMonth()];
+    const year = date.getUTCFullYear();
+    const currentYear = new Date().getUTCFullYear();
+    return year === currentYear ? `${month} ${day}` : `${month} ${day}, ${year}`;
 }
