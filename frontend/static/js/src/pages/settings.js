@@ -90,27 +90,32 @@ export function renderSettings() {
         }).join('')}
             </div>
 
-            <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--glass-border); border-radius: var(--radius-xl); overflow: hidden; margin-bottom: var(--space-6);">
-                <table class="mapping-table">
-                    <thead>
-                        <tr>
-                            <th class="is-left">Variable</th>
-                            <th class="is-left">Excel Column</th>
-                            <th class="is-center">Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${(STATE.customFormat || []).length === 0 ? '<tr><td class="empty-cell" colspan="3">No mappings yet.</td></tr>' : (STATE.customFormat || []).map(m => `
-                            <tr>
-                                <td style="font-weight:700;">${m.variable}</td>
-                                <td><span class="col-tag">${m.column}</span></td>
-                                <td class="is-center">
-                                    <button class="icon-x-btn remove-mapping-btn" data-variable="${m.variable}">&times;</button>
-                                </td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
+            <!-- Format mapping list — was a flat compact-table; now a
+                 card list with each mapping rendered as a row showing
+                 the variable name, an arrow connecting to the Excel
+                 column letter (chip), and a delete chip. Mandatory
+                 variables (★) get a star badge and a left stripe in
+                 the accent color. Easier to scan than the table —
+                 each mapping is a self-contained card. -->
+            <div class="format-list" style="margin-bottom: var(--space-6);">
+                ${(STATE.customFormat || []).length === 0 ? `
+                    <div class="format-list__empty">No mappings yet — pick a variable + column below.</div>
+                ` : (STATE.customFormat || []).map(m => {
+                    const isMandatory = MANDATORY.includes(m.variable);
+                    return `
+                        <div class="format-row${isMandatory ? ' is-mandatory' : ''}">
+                            <span class="format-row__star" aria-hidden="true">${isMandatory ? '★' : ''}</span>
+                            <span class="format-row__variable">${esc(m.variable)}</span>
+                            <span class="format-row__arrow" aria-hidden="true">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                            </span>
+                            <span class="format-row__col">${esc(m.column)}</span>
+                            <button class="format-row__remove remove-mapping-btn" data-variable="${esc(m.variable)}" title="Remove mapping" aria-label="Remove mapping">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                            </button>
+                        </div>
+                    `;
+                }).join('')}
             </div>
 
             <div style="display:flex; gap:var(--space-4); align-items:flex-end; flex-wrap:wrap; margin-bottom:var(--space-8);">
@@ -135,11 +140,20 @@ export function renderSettings() {
                 <h3 style="margin-top:0;">Saved Formats (${sf.length}/5)</h3>
                 <div style="display:grid; gap:var(--space-3);">
                     ${sf.map(f => `
-                        <div class="saved-format-row">
-                            <div style="font-weight:700;">${f.name}</div>
-                            <div style="display:flex; gap:var(--space-2);">
-                                <button class="themed-block-btn themed-block-btn--sm edit-saved-format-btn" data-format-id="${f.id}" style="--accent: 0,113,227;">Edit</button>
-                                <button class="themed-block-btn themed-block-btn--sm delete-saved-format-btn" data-format-id="${f.id}" style="--accent: 255,59,48;">Delete</button>
+                        <div class="saved-format-card">
+                            <div class="saved-format-card__name">
+                                <span class="saved-format-card__icon">📄</span>
+                                <span>${esc(f.name)}</span>
+                            </div>
+                            <div class="saved-format-card__actions">
+                                <button class="saved-format-card__btn saved-format-card__btn--edit edit-saved-format-btn" data-format-id="${esc(f.id)}">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                                    Edit
+                                </button>
+                                <button class="saved-format-card__btn saved-format-card__btn--delete delete-saved-format-btn" data-format-id="${esc(f.id)}">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"></path></svg>
+                                    Delete
+                                </button>
                             </div>
                         </div>
                     `).join('')}
@@ -191,6 +205,31 @@ export function renderSettings() {
                 <button class="btn btn-small btn-liquid-glass settings-tab-card" data-tab="menu" style="margin-bottom: 24px; padding: 10px 20px; border-radius: 14px;">&larr; Back to Control Center</button>
 
                 ${isGeneral ? (() => {
+                    const generalSubTab = activeTab === 'general' ? (window.__ggGeneralSubTab || 'pills') : 'pills';
+                    /** @param {string} t */
+                    const tab = (t) => generalSubTab === t ? ' is-active' : '';
+                    const subTabnav = `
+                        <div class="general-subtabs" role="tablist" aria-label="General settings sections">
+                            <button type="button" class="general-subtab${tab('pills')}" data-general-sub="pills" role="tab" aria-selected="${generalSubTab === 'pills' ? 'true' : 'false'}">
+                                <span class="general-subtab__icon">🗺️</span>
+                                <span class="general-subtab__label">Map pills</span>
+                            </button>
+                            <button type="button" class="general-subtab is-coming-soon" disabled aria-disabled="true" role="tab" aria-selected="false" title="More general settings coming soon">
+                                <span class="general-subtab__icon">⚙️</span>
+                                <span class="general-subtab__label">More soon</span>
+                            </button>
+                        </div>
+                    `;
+                    if (generalSubTab !== 'pills') {
+                        // Future tabs land here. For now there's only
+                        // pills; this branch is the placeholder rail.
+                        return `
+                            ${subTabnav}
+                            <div class="card glass" style="padding: 32px; border-radius: 28px;">
+                                <p style="color: var(--text-secondary); margin: 0;">Section coming soon.</p>
+                            </div>
+                        `;
+                    }
                     const filters = STATE.preferences?.poiFilters || {};
                     const anchoring = STATE.preferences?.poiAnchoring || {};
                     const visibility = STATE.preferences?.poiVisible || {};
@@ -247,6 +286,7 @@ export function renderSettings() {
                             `;
                         }).join('');
                     return `
+                        ${subTabnav}
                         <div class="card glass" style="padding: 32px; border-radius: 28px;">
                             <h2 style="color: var(--accent-blue); margin-top: 0;">Map pill filters</h2>
                             <p style="color: var(--text-secondary); margin-bottom: 16px;"><strong>Show on Home</strong> (the right-side switch) toggles whether each pill appears in the home map's pill row. Useful for hiding categories you never use so the row stays compact.</p>
@@ -436,6 +476,20 @@ export function renderSettings() {
         const tabCard = /** @type {HTMLElement | null} */ (target.closest('.settings-tab-card'));
         if (tabCard?.dataset.tab) { switchSettingsTab(tabCard.dataset.tab); return; }
 
+        // General-page sub-tab strip — switches between sections
+        // inside General Settings without leaving the page.
+        // Stashes the choice on window so a re-render of the
+        // General page (e.g. after a poi-filter-reset) restores
+        // the same sub-tab. Disabled tabs are :disabled buttons
+        // that the browser ignores for clicks anyway, so the
+        // dataset check below covers active tabs only.
+        const subTabBtn = /** @type {HTMLElement | null} */ (target.closest('.general-subtab'));
+        if (subTabBtn && !subTabBtn.hasAttribute('disabled') && subTabBtn.dataset.generalSub) {
+            /** @type {any} */ (window).__ggGeneralSubTab = subTabBtn.dataset.generalSub;
+            switchSettingsTab('general');
+            return;
+        }
+
         // POI default-pill checkbox is handled via the change listener
         // below, not here — clicks bubble up but the toggle's actual
         // state change is what we react to.
@@ -591,15 +645,33 @@ function openEditCategoryModal(categoryId) {
 export function renderPersonalization() {
     const div = document.createElement('div');
 
+    // Category rows — card-style instead of plain table cells.
+    // Each row gets a colored left stripe (the category color),
+    // a glyph + name in the middle, and edit/delete chips on the
+    // right. Hover lifts the card slightly so it reads as
+    // tappable. Designed to scan vertically (categories are
+    // dense lists in real-world use).
     const catsHtml = STATE.categories.map(c => `
-        <tr>
-            <td>${c.icon} ${esc(c.name)}</td>
-            <td class="is-right"><span class="color-swatch" style="background: ${c.color}"></span></td>
-            <td class="is-right">
-                <button class="btn-x-bare edit-category-btn" data-category-id="${c.id}" aria-label="Edit category" style="margin-right: var(--space-2);">✏️</button>
-                <button class="btn-x-bare delete-category-btn" data-category-id="${c.id}" aria-label="Delete category">✕</button>
-            </td>
-        </tr>
+        <div class="cat-row" style="--cat-color: ${esc(c.color)};">
+            <span class="cat-row__stripe" aria-hidden="true"></span>
+            <span class="cat-row__icon">${esc(c.icon)}</span>
+            <span class="cat-row__name">${esc(c.name)}</span>
+            <span class="cat-row__swatch" style="background:${esc(c.color)};" aria-label="Color ${esc(c.color)}"></span>
+            <div class="cat-row__actions">
+                <button class="cat-row__btn cat-row__btn--edit edit-category-btn" data-category-id="${esc(c.id)}" title="Edit category" aria-label="Edit category">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M12 20h9"></path>
+                        <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+                    </svg>
+                </button>
+                <button class="cat-row__btn cat-row__btn--delete delete-category-btn" data-category-id="${esc(c.id)}" title="Delete category" aria-label="Delete category">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+        </div>
     `).join('');
 
     div.innerHTML = `
@@ -620,19 +692,13 @@ export function renderPersonalization() {
 
             <div id="persCategories" style="display: none;">
                 <div class="card glass card-glow-blue">
-                    <h2 class="card-title" style="color: var(--accent-blue);">Categories</h2>
-                    <table class="compact-table" style="margin-bottom: var(--space-5);">
-                        <thead>
-                            <tr>
-                                <th class="is-left">Name</th>
-                                <th class="is-right">Color</th>
-                                <th class="is-right">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${catsHtml}
-                        </tbody>
-                    </table>
+                    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom: var(--space-4); flex-wrap:wrap;">
+                        <h2 class="card-title" style="color: var(--accent-blue); margin: 0;">Categories</h2>
+                        <span class="cat-count-chip">${STATE.categories.length}</span>
+                    </div>
+                    <div class="cat-list" style="margin-bottom: var(--space-5);">
+                        ${catsHtml || '<div class="cat-list__empty">No categories yet — add one below.</div>'}
+                    </div>
 
                     <div class="section-divider">
                         <h3 style="margin-bottom: var(--space-3); font-size: var(--font-lg);">Add New Category</h3>

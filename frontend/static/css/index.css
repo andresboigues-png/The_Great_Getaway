@@ -2262,6 +2262,588 @@ h1 {
    day-detail modal swapped its "Expert Tip" panel for the Trip
    Checklist panel. Class kept removed to avoid orphan styles.) */
 
+/* Companions panel on Home (Path → Companions tab). Was a small
+   blue pill + chip row below; promoted to a full glass card with
+   a blue→purple gradient header strip so the section reads as a
+   first-class part of the trip view (same visual weight as the
+   Genesis card / Path day card). The header carries an icon
+   medallion + title + count chip; the chip area shows existing
+   member chips OR an empty-state hint; the CTA button at the
+   bottom opens the companion picker (planner) or the read-only
+   members modal (relaxer). */
+.trip-companions-card {
+    background: white;
+    border: 1px solid rgba(0, 113, 227, 0.14);
+    border-radius: 24px;
+    box-shadow: 0 8px 24px rgba(0, 45, 91, 0.08);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+.trip-companions-card__header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 18px 22px;
+    background: linear-gradient(135deg, var(--accent-blue) 0%, #5856d6 100%);
+    color: white;
+}
+.trip-companions-card__icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.18);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    flex-shrink: 0;
+}
+.trip-companions-card__heading {
+    flex: 1;
+    min-width: 0;
+}
+.trip-companions-card__title {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: white;
+    line-height: 1.2;
+}
+.trip-companions-card__subtitle {
+    margin: 2px 0 0;
+    font-size: 0.78rem;
+    color: rgba(255, 255, 255, 0.85);
+    font-weight: 600;
+}
+.trip-companions-card__count {
+    background: rgba(255, 255, 255, 0.25);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.32);
+    font-weight: 800;
+    font-size: 0.95rem;
+    min-width: 36px;
+    height: 36px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    padding: 0 10px;
+}
+.trip-companions-card__chips {
+    padding: 18px 22px;
+    background: linear-gradient(180deg, rgba(0, 113, 227, 0.02), rgba(255, 255, 255, 0));
+    min-height: 60px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+.trip-companions-card__empty {
+    color: var(--text-secondary);
+    font-size: 0.88rem;
+    line-height: 1.5;
+    padding: 8px 0;
+    flex: 1;
+}
+.trip-companions-card__cta {
+    margin: 0 22px 22px;
+    padding: 14px 22px;
+    border: 0;
+    border-radius: 14px;
+    background: linear-gradient(135deg, var(--accent-blue), #5856d6);
+    color: white;
+    font-weight: 800;
+    font-size: 0.95rem;
+    cursor: pointer;
+    box-shadow: 0 6px 18px rgba(0, 113, 227, 0.28);
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+    letter-spacing: -0.01em;
+}
+.trip-companions-card__cta:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 24px rgba(0, 113, 227, 0.38);
+}
+.trip-companions-card__cta:active {
+    transform: translateY(0);
+}
+
+/* Settings → General — sub-tab strip. Was rendering pin filters
+   directly when the user opened "General Settings"; now there's
+   a tab nav at top so the structure can grow as more general
+   settings land. Today only "Map pills" is functional + a
+   placeholder "More soon" tab so the tab structure reads as
+   intentional. Style mirrors .trip-tabnav (capsule with active
+   pill carrying the blue→purple gradient) for consistency. */
+.general-subtabs {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px;
+    background: rgba(255, 255, 255, 0.72);
+    backdrop-filter: blur(14px) saturate(160%);
+    -webkit-backdrop-filter: blur(14px) saturate(160%);
+    border: 1px solid rgba(0, 45, 91, 0.08);
+    border-radius: 999px;
+    box-shadow: 0 4px 14px rgba(0, 45, 91, 0.06);
+    margin-bottom: 22px;
+}
+.general-subtab {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 22px;
+    border: 0;
+    background: transparent;
+    border-radius: 999px;
+    font-size: 0.84rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    cursor: pointer;
+    letter-spacing: -0.01em;
+    transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+}
+.general-subtab:hover:not(.is-active):not(.is-coming-soon) {
+    color: var(--accent-blue);
+    background: rgba(0, 113, 227, 0.06);
+}
+.general-subtab.is-active {
+    color: white;
+    background: linear-gradient(135deg, var(--accent-blue), #5856d6);
+    box-shadow: 0 4px 12px rgba(0, 113, 227, 0.28);
+    font-weight: 800;
+}
+.general-subtab.is-coming-soon {
+    opacity: 0.45;
+    cursor: not-allowed;
+    font-style: italic;
+}
+.general-subtab__icon {
+    font-size: 0.95rem;
+    line-height: 1;
+}
+
+/* Settings → Format mapping list — card list (replaces the
+   plain mapping-table). Each row shows
+   "VARIABLE → COLUMN" with the column rendered as a tinted
+   letter chip. Mandatory variables (★) get a gold star badge
+   and a gold left stripe so they read as required at a glance. */
+.format-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.format-list__empty {
+    padding: 22px 14px;
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    border: 1.5px dashed rgba(0, 113, 227, 0.25);
+    border-radius: 14px;
+    background: rgba(0, 113, 227, 0.03);
+}
+.format-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    background: white;
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    border-radius: 14px;
+    box-shadow: 0 2px 8px rgba(0, 45, 91, 0.04);
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+.format-row:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(0, 45, 91, 0.10);
+}
+.format-row.is-mandatory::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 5px;
+    background: linear-gradient(135deg, #e8b923, #c89a18);
+}
+.format-row.is-mandatory {
+    padding-left: 18px;
+}
+.format-row__star {
+    font-size: 0.95rem;
+    color: #c89a18;
+    width: 18px;
+    text-align: center;
+    flex-shrink: 0;
+}
+.format-row__variable {
+    flex: 1;
+    min-width: 0;
+    font-weight: 800;
+    color: #002d5b;
+    font-size: 0.9rem;
+    letter-spacing: -0.01em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.format-row__arrow {
+    color: rgba(0, 113, 227, 0.45);
+    display: inline-flex;
+    flex-shrink: 0;
+}
+.format-row__col {
+    background: linear-gradient(135deg, var(--accent-blue), #5856d6);
+    color: white;
+    font-weight: 800;
+    font-size: 0.85rem;
+    letter-spacing: 0.05em;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    box-shadow: 0 2px 6px rgba(0, 113, 227, 0.32);
+    text-transform: uppercase;
+}
+.format-row__remove {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 59, 48, 0.22);
+    background: rgba(255, 59, 48, 0.06);
+    color: #ff3b30;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+.format-row__remove:hover {
+    background: rgba(255, 59, 48, 0.14);
+    border-color: rgba(255, 59, 48, 0.4);
+}
+
+/* Settings → Saved Format cards (one per saved Excel template). */
+.saved-format-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 18px;
+    background: linear-gradient(135deg, rgba(0, 113, 227, 0.04), rgba(88, 86, 214, 0.04));
+    border: 1px solid rgba(0, 113, 227, 0.15);
+    border-radius: 14px;
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+.saved-format-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 20px rgba(0, 113, 227, 0.12);
+}
+.saved-format-card__name {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 800;
+    color: #002d5b;
+    font-size: 0.95rem;
+    min-width: 0;
+}
+.saved-format-card__icon {
+    font-size: 1.1rem;
+    line-height: 1;
+}
+.saved-format-card__actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+}
+.saved-format-card__btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 12px;
+    border-radius: 8px;
+    border: 1px solid;
+    font-weight: 700;
+    font-size: 0.78rem;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.15s ease;
+}
+.saved-format-card__btn--edit {
+    background: rgba(0, 113, 227, 0.08);
+    border-color: rgba(0, 113, 227, 0.28);
+    color: var(--accent-blue);
+}
+.saved-format-card__btn--edit:hover {
+    background: rgba(0, 113, 227, 0.16);
+    transform: translateY(-1px);
+}
+.saved-format-card__btn--delete {
+    background: rgba(255, 59, 48, 0.06);
+    border-color: rgba(255, 59, 48, 0.25);
+    color: #ff3b30;
+}
+.saved-format-card__btn--delete:hover {
+    background: rgba(255, 59, 48, 0.14);
+    transform: translateY(-1px);
+}
+
+/* Settings → Manage Categories — card-style list (replaces the
+   plain table). Each row carries a coloured left-edge stripe in
+   the category's own color so the list reads visually rather
+   than as a wall of text. Edit / delete actions live in chip
+   buttons on the right; hover lifts the row by 1px so the
+   tappable surface is obvious. */
+.cat-count-chip {
+    background: rgba(0, 113, 227, 0.10);
+    color: var(--accent-blue);
+    font-size: 0.7rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 4px 10px;
+    border-radius: 999px;
+}
+.cat-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.cat-list__empty {
+    padding: 24px 12px;
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 0.88rem;
+    border: 1.5px dashed rgba(0, 113, 227, 0.25);
+    border-radius: 14px;
+    background: rgba(0, 113, 227, 0.03);
+}
+.cat-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px 12px 18px;
+    background: white;
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    border-radius: 14px;
+    box-shadow: 0 2px 8px rgba(0, 45, 91, 0.04);
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+.cat-row:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(0, 45, 91, 0.10);
+}
+.cat-row__stripe {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 5px;
+    background: var(--cat-color);
+}
+.cat-row__icon {
+    font-size: 1.4rem;
+    line-height: 1;
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.04);
+    border-radius: 10px;
+}
+.cat-row__name {
+    flex: 1;
+    min-width: 0;
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: #002d5b;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    letter-spacing: -0.01em;
+}
+.cat-row__swatch {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    border: 2px solid white;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
+}
+.cat-row__actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+}
+.cat-row__btn {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    background: rgba(0, 0, 0, 0.03);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.cat-row__btn--edit {
+    color: var(--accent-blue);
+}
+.cat-row__btn--edit:hover {
+    background: rgba(0, 113, 227, 0.10);
+    border-color: rgba(0, 113, 227, 0.32);
+}
+.cat-row__btn--delete {
+    color: #ff3b30;
+}
+.cat-row__btn--delete:hover {
+    background: rgba(255, 59, 48, 0.08);
+    border-color: rgba(255, 59, 48, 0.32);
+}
+
+/* Profile-map InfoWindow — restyled when the user clicks a red
+   pin on the country footprint map. The default Google bubble is
+   plain white with no aesthetic identity; rules below override
+   the default chrome (gm-style-iw and friends are Google's
+   internal classnames) so we land on a glass card with the
+   GG blue→purple header gradient + tappable trip rows.
+   Caveat: Google can rename these internal classes between SDK
+   versions; if the bubble starts looking off after a Maps
+   upgrade, that's the place to start. */
+.gm-style .gm-style-iw-c {
+    padding: 0 !important;
+    border-radius: 18px !important;
+    box-shadow: 0 12px 36px rgba(0, 45, 91, 0.22) !important;
+    background: white !important;
+    overflow: hidden;
+}
+.gm-style .gm-style-iw-d {
+    overflow: hidden !important;
+    padding: 0 !important;
+}
+.gm-style .gm-style-iw-tc::after {
+    background: white !important;
+}
+/* Hide Google's close button — our InfoWindow is small + the
+   user can dismiss by clicking the map. Avoids a dangling X
+   floating over our gradient header. */
+.gm-style .gm-style-iw button.gm-ui-hover-effect {
+    display: none !important;
+}
+
+.profile-iw {
+    min-width: 240px;
+    max-width: 300px;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+}
+.profile-iw__header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    background: linear-gradient(135deg, var(--accent-blue) 0%, #5856d6 100%);
+    color: white;
+}
+.profile-iw__pin-icon {
+    font-size: 1.4rem;
+    line-height: 1;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.18));
+}
+.profile-iw__header-text {
+    flex: 1;
+    min-width: 0;
+}
+.profile-iw__country {
+    font-weight: 800;
+    font-size: 0.95rem;
+    letter-spacing: -0.01em;
+    color: white;
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.profile-iw__count {
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: rgba(255, 255, 255, 0.85);
+    margin-top: 2px;
+}
+.profile-iw__body {
+    padding: 8px;
+    background: white;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.profile-iw__trip-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    transition: background 0.18s ease;
+}
+.profile-iw__trip-row:hover {
+    background: rgba(0, 113, 227, 0.06);
+}
+.profile-iw__trip-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+.profile-iw__trip-icon {
+    font-size: 1.05rem;
+    flex-shrink: 0;
+}
+.profile-iw__trip-name {
+    font-weight: 700;
+    font-size: 0.88rem;
+    color: #002d5b;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.profile-iw__view-btn {
+    background: linear-gradient(135deg, var(--accent-blue), #5856d6);
+    color: white;
+    border: 0;
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-weight: 800;
+    font-size: 0.72rem;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 113, 227, 0.32);
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+    flex-shrink: 0;
+}
+.profile-iw__view-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 113, 227, 0.42);
+}
+
 /* Feed avatar button — wraps the round headshot on each event
    card + each comment row. Visually invisible (no background,
    no border) so the avatar fills it; on hover the picture lifts

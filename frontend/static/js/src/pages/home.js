@@ -2590,19 +2590,57 @@ export function renderHome() {
              active without remounting either. -->
         ${activeTrip ? `
             <div class="home-tab-content${activeHomeTab === 'companions' ? ' is-active' : ''}" data-home-tab="companions">
-                <div class="trip-companions-section">
-                    <button id="tripCompanionsBtn" class="trip-companions-pill" title="${tripIsManageable ? 'Pick which account companions are on this trip' : 'See who is on this trip'}">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
-                            <circle cx="9" cy="7" r="4"></circle>
-                            <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
-                            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-                        </svg>
-                        <span>Companions on this trip</span>
-                        <span class="trip-companions-pill__count">${tripIsManageable ? (activeTrip.companions || []).length : (activeTrip.members || []).length}</span>
-                    </button>
-                    ${memberChipsHtml}
-                </div>
+                ${(() => {
+                    const companionCount = tripIsManageable
+                        ? (activeTrip.companions || []).length
+                        : (activeTrip.members || []).length;
+                    const ctaLabel = tripIsManageable
+                        ? (companionCount > 0 ? '✏️ Edit travel companions' : '➕ Add travel companions')
+                        : '👁 See trip members';
+                    const ctaTitle = tripIsManageable
+                        ? 'Pick which account companions are on this trip'
+                        : 'See who is on this trip';
+                    return `
+                        <!-- Companions panel — was a small blue pill +
+                             chip row below. Promoted to a full glass
+                             card with a gradient header strip + an
+                             explicit primary CTA button so the section
+                             reads as a first-class part of the trip
+                             header (same hierarchy as Path / Genesis
+                             cards). -->
+                        <div class="trip-companions-card">
+                            <div class="trip-companions-card__header">
+                                <div class="trip-companions-card__icon">
+                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                                        <circle cx="9" cy="7" r="4"></circle>
+                                        <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
+                                        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                                    </svg>
+                                </div>
+                                <div class="trip-companions-card__heading">
+                                    <h3 class="trip-companions-card__title">Travel companions</h3>
+                                    <p class="trip-companions-card__subtitle">${companionCount} ${companionCount === 1 ? 'person' : 'people'} on this trip</p>
+                                </div>
+                                <span class="trip-companions-card__count">${companionCount}</span>
+                            </div>
+
+                            <div class="trip-companions-card__chips">
+                                ${memberChipsHtml || `
+                                    <div class="trip-companions-card__empty">
+                                        ${tripIsManageable
+                                            ? 'No companions added yet. Tap the button below to invite friends or add unlinked names.'
+                                            : 'You are the only one on this trip so far.'}
+                                    </div>
+                                `}
+                            </div>
+
+                            <button id="tripCompanionsBtn" class="trip-companions-card__cta" title="${esc(ctaTitle)}">
+                                ${esc(ctaLabel)}
+                            </button>
+                        </div>
+                    `;
+                })()}
             </div>
 
             <!-- To-do list tab content was removed when /todo became

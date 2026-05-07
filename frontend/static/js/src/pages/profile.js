@@ -318,7 +318,19 @@ export function renderProfile(targetUserId = null) {
 
                 <div style="display: flex; justify-content: center; margin-bottom: 24px;">
                     <div style="display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 0.9rem; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-primary);">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+                        <!-- Literal footprint glyph (sole + 5 toes)
+                             — replaces a generic map-pin that didn't
+                             match the "footprint" copy. Stroke-only
+                             so it inherits currentColor like the
+                             previous icon. -->
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                            <ellipse cx="12" cy="14" rx="4.2" ry="6"/>
+                            <ellipse cx="6.5" cy="6" rx="1.4" ry="1.7"/>
+                            <ellipse cx="9.6" cy="3.7" rx="1.3" ry="1.6"/>
+                            <ellipse cx="13.1" cy="3.4" rx="1.3" ry="1.6"/>
+                            <ellipse cx="16.3" cy="4.5" rx="1.3" ry="1.6"/>
+                            <ellipse cx="18.4" cy="7.4" rx="1.3" ry="1.6"/>
+                        </svg>
                         ${isOwnProfile ? 'Your footprint' : `${user.name.split(' ')[0]}'s footprint`}
                     </div>
                 </div>
@@ -523,22 +535,39 @@ export function renderProfile(targetUserId = null) {
                             icon: { path: google.maps.SymbolPath.CIRCLE, fillOpacity: 1, fillColor: '#ff2d55', strokeColor: 'white', strokeWeight: 2, scale: tps.length > 1 ? 14 : 10 }
                         });
 
+                        // Per-trip rows. Each row: trip name + a
+                        // small View button. Hover lifts the row +
+                        // tints the surface so the rows feel like
+                        // tappable surfaces, not table cells.
                         const tripList = tps.map(t => `
-                            <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid rgba(0,0,0,0.06);">
-                                <span style="font-weight: 600; color: #000;">${t.name}</span>
-                                <button class="archived-trip-view-btn" data-trip-id="${t.id}" style="background: #007aff; color: white; border: none; padding: 4px 12px; border-radius: 8px; font-weight: 700; font-size: 0.75rem; cursor: pointer;">View</button>
+                            <div class="profile-iw__trip-row">
+                                <div class="profile-iw__trip-info">
+                                    <span class="profile-iw__trip-icon">🗺️</span>
+                                    <span class="profile-iw__trip-name">${esc(t.name)}</span>
+                                </div>
+                                <button class="archived-trip-view-btn profile-iw__view-btn" data-trip-id="${esc(t.id)}">View</button>
                             </div>
                         `).join('');
 
                         // Build InfoWindow content as an HTMLElement so we can attach
                         // a delegated click listener to it (Google Maps renders the
                         // InfoWindow outside `div`, so delegation on `div` won't catch
-                        // clicks here).
+                        // clicks here). The inner card sits on a
+                        // gradient header strip + glass body; CSS in
+                        // .profile-iw* (index.css) hides Google's
+                        // default white container so the gradient
+                        // reads cleanly without a fighting backdrop.
                         const infoContent = document.createElement('div');
-                        infoContent.style.cssText = 'padding: 4px 8px; min-width: 220px; max-width: 300px; font-family: -apple-system, BlinkMacSystemFont, sans-serif;';
+                        infoContent.className = 'profile-iw';
                         infoContent.innerHTML = `
-                            <div style="font-weight: 800; font-size: 0.7rem; text-transform: uppercase; color: rgba(0,0,0,0.5); letter-spacing: 0.1em; margin-bottom: 6px;">${countryKey} — ${tps.length} trip${tps.length > 1 ? 's' : ''}</div>
-                            ${tripList}
+                            <div class="profile-iw__header">
+                                <span class="profile-iw__pin-icon">📍</span>
+                                <div class="profile-iw__header-text">
+                                    <div class="profile-iw__country">${esc(countryKey)}</div>
+                                    <div class="profile-iw__count">${tps.length} ${tps.length === 1 ? 'trip' : 'trips'}</div>
+                                </div>
+                            </div>
+                            <div class="profile-iw__body">${tripList}</div>
                         `;
                         infoContent.addEventListener('click', (e) => {
                             const btn = /** @type {HTMLElement | null} */ (

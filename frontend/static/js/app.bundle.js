@@ -22,27 +22,29 @@
                     </span>`}).join(``)}
             </div>
 
-            <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--glass-border); border-radius: var(--radius-xl); overflow: hidden; margin-bottom: var(--space-6);">
-                <table class="mapping-table">
-                    <thead>
-                        <tr>
-                            <th class="is-left">Variable</th>
-                            <th class="is-left">Excel Column</th>
-                            <th class="is-center">Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${(b.customFormat||[]).length===0?`<tr><td class="empty-cell" colspan="3">No mappings yet.</td></tr>`:(b.customFormat||[]).map(e=>`
-                            <tr>
-                                <td style="font-weight:700;">${e.variable}</td>
-                                <td><span class="col-tag">${e.column}</span></td>
-                                <td class="is-center">
-                                    <button class="icon-x-btn remove-mapping-btn" data-variable="${e.variable}">&times;</button>
-                                </td>
-                            </tr>
-                        `).join(``)}
-                    </tbody>
-                </table>
+            <!-- Format mapping list — was a flat compact-table; now a
+                 card list with each mapping rendered as a row showing
+                 the variable name, an arrow connecting to the Excel
+                 column letter (chip), and a delete chip. Mandatory
+                 variables (★) get a star badge and a left stripe in
+                 the accent color. Easier to scan than the table —
+                 each mapping is a self-contained card. -->
+            <div class="format-list" style="margin-bottom: var(--space-6);">
+                ${(b.customFormat||[]).length===0?`
+                    <div class="format-list__empty">No mappings yet — pick a variable + column below.</div>
+                `:(b.customFormat||[]).map(t=>{let n=e.includes(t.variable);return`
+                        <div class="format-row${n?` is-mandatory`:``}">
+                            <span class="format-row__star" aria-hidden="true">${n?`★`:``}</span>
+                            <span class="format-row__variable">${z(t.variable)}</span>
+                            <span class="format-row__arrow" aria-hidden="true">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                            </span>
+                            <span class="format-row__col">${z(t.column)}</span>
+                            <button class="format-row__remove remove-mapping-btn" data-variable="${z(t.variable)}" title="Remove mapping" aria-label="Remove mapping">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                            </button>
+                        </div>
+                    `}).join(``)}
             </div>
 
             <div style="display:flex; gap:var(--space-4); align-items:flex-end; flex-wrap:wrap; margin-bottom:var(--space-8);">
@@ -67,11 +69,20 @@
                 <h3 style="margin-top:0;">Saved Formats (${r.length}/5)</h3>
                 <div style="display:grid; gap:var(--space-3);">
                     ${r.map(e=>`
-                        <div class="saved-format-row">
-                            <div style="font-weight:700;">${e.name}</div>
-                            <div style="display:flex; gap:var(--space-2);">
-                                <button class="themed-block-btn themed-block-btn--sm edit-saved-format-btn" data-format-id="${e.id}" style="--accent: 0,113,227;">Edit</button>
-                                <button class="themed-block-btn themed-block-btn--sm delete-saved-format-btn" data-format-id="${e.id}" style="--accent: 255,59,48;">Delete</button>
+                        <div class="saved-format-card">
+                            <div class="saved-format-card__name">
+                                <span class="saved-format-card__icon">📄</span>
+                                <span>${z(e.name)}</span>
+                            </div>
+                            <div class="saved-format-card__actions">
+                                <button class="saved-format-card__btn saved-format-card__btn--edit edit-saved-format-btn" data-format-id="${z(e.id)}">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                                    Edit
+                                </button>
+                                <button class="saved-format-card__btn saved-format-card__btn--delete delete-saved-format-btn" data-format-id="${z(e.id)}">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"></path></svg>
+                                    Delete
+                                </button>
                             </div>
                         </div>
                     `).join(``)}
@@ -113,36 +124,53 @@
             `:`
                 <button class="btn btn-small btn-liquid-glass settings-tab-card" data-tab="menu" style="margin-bottom: 24px; padding: 10px 20px; border-radius: 14px;">&larr; Back to Control Center</button>
 
-                ${e===`general`?(()=>{let e=b.preferences?.poiFilters||{},t=b.preferences?.poiAnchoring||{},n=b.preferences?.poiVisible||{},r=[0,3,3.5,4,4.5];return`
+                ${e===`general`?(()=>{let t=e===`general`&&window.__ggGeneralSubTab||`pills`,n=`
+                        <div class="general-subtabs" role="tablist" aria-label="General settings sections">
+                            <button type="button" class="general-subtab${(e=>t===e?` is-active`:``)(`pills`)}" data-general-sub="pills" role="tab" aria-selected="${t===`pills`?`true`:`false`}">
+                                <span class="general-subtab__icon">🗺️</span>
+                                <span class="general-subtab__label">Map pills</span>
+                            </button>
+                            <button type="button" class="general-subtab is-coming-soon" disabled aria-disabled="true" role="tab" aria-selected="false" title="More general settings coming soon">
+                                <span class="general-subtab__icon">⚙️</span>
+                                <span class="general-subtab__label">More soon</span>
+                            </button>
+                        </div>
+                    `;if(t!==`pills`)return`
+                            ${n}
+                            <div class="card glass" style="padding: 32px; border-radius: 28px;">
+                                <p style="color: var(--text-secondary); margin: 0;">Section coming soon.</p>
+                            </div>
+                        `;let r=b.preferences?.poiFilters||{},i=b.preferences?.poiAnchoring||{},a=b.preferences?.poiVisible||{},o=[0,3,3.5,4,4.5];return`
+                        ${n}
                         <div class="card glass" style="padding: 32px; border-radius: 28px;">
                             <h2 style="color: var(--accent-blue); margin-top: 0;">Map pill filters</h2>
                             <p style="color: var(--text-secondary); margin-bottom: 16px;"><strong>Show on Home</strong> (the right-side switch) toggles whether each pill appears in the home map's pill row. Useful for hiding categories you never use so the row stays compact.</p>
                             <p style="color: var(--text-secondary); margin-bottom: 16px;"><strong>Minimum rating</strong> hides results below the chosen ★. Restaurants and Hotels default to 4★+ (rating is a meaningful quality signal there); the rest default to "Any rating".</p>
                             <p style="color: var(--text-secondary); margin-bottom: 24px;"><strong>Search anchor</strong> picks where each pill searches from. <em>Day-aware</em> uses the day you've set as search center on the Home page (falls back to the trip's genesis pin). <em>Trip-wide</em> always anchors on the genesis pin so the 50 km wide search covers the whole trip — better for sparse "where are these across my whole trip" categories like Medical, Sports, Govt, Schools, Public transit.</p>
                             <div class="poi-filter-list">
-                                ${wt.filter(e=>e.placesType).map(i=>{let a=typeof e[i.key]?.minRating==`number`?e[i.key].minRating:i.defaultMinRating,o=r.map(e=>`
-                                <option value="${e}" ${e===a?`selected`:``}>${e===0?`Any rating`:`${e}★ +`}</option>
-                            `).join(``),s=t[i.key],c=s===`genesis`||s===`epicenter`?s:i.useGenesisAlways?`genesis`:`epicenter`,l=i.useGenesisAlways?`genesis`:`epicenter`,u=`
+                                ${wt.filter(e=>e.placesType).map(e=>{let t=typeof r[e.key]?.minRating==`number`?r[e.key].minRating:e.defaultMinRating,n=o.map(e=>`
+                                <option value="${e}" ${e===t?`selected`:``}>${e===0?`Any rating`:`${e}★ +`}</option>
+                            `).join(``),s=i[e.key],c=s===`genesis`||s===`epicenter`?s:e.useGenesisAlways?`genesis`:`epicenter`,l=e.useGenesisAlways?`genesis`:`epicenter`,u=`
                                 <option value="epicenter" ${c===`epicenter`?`selected`:``}>📍 Day-aware</option>
                                 <option value="genesis"   ${c===`genesis`?`selected`:``}>🌐 Trip-wide</option>
-                            `,d=n[i.key]!==!1,f=a!==i.defaultMinRating||(s===`genesis`||s===`epicenter`)&&s!==l||!d;return`
+                            `,d=a[e.key]!==!1,f=t!==e.defaultMinRating||(s===`genesis`||s===`epicenter`)&&s!==l||!d;return`
                                 <div class="poi-filter-row${d?``:` poi-filter-row--hidden`}">
-                                    <span class="poi-filter-row__icon">${i.icon}</span>
+                                    <span class="poi-filter-row__icon">${e.icon}</span>
                                     <div class="poi-filter-row__body">
-                                        <div class="poi-filter-row__label">${z(i.label)}</div>
-                                        <div class="poi-filter-row__hint">${z(i.tooltip)}</div>
+                                        <div class="poi-filter-row__label">${z(e.label)}</div>
+                                        <div class="poi-filter-row__hint">${z(e.tooltip)}</div>
                                     </div>
-                                    <select class="poi-anchor-mode" data-poi="${i.key}" aria-label="Search anchor for ${z(i.label)}" title="Day-aware = uses the day you've picked as search center on Home (falls back to genesis). Trip-wide = always anchored on the trip's genesis pin.">
+                                    <select class="poi-anchor-mode" data-poi="${e.key}" aria-label="Search anchor for ${z(e.label)}" title="Day-aware = uses the day you've picked as search center on Home (falls back to genesis). Trip-wide = always anchored on the trip's genesis pin.">
                                         ${u}
                                     </select>
-                                    <select class="poi-filter-rating" data-poi="${i.key}" aria-label="Minimum rating for ${z(i.label)}">
-                                        ${o}
+                                    <select class="poi-filter-rating" data-poi="${e.key}" aria-label="Minimum rating for ${z(e.label)}">
+                                        ${n}
                                     </select>
-                                    <span class="poi-filter-row__default" title="Defaults: ${i.defaultMinRating===0?`Any rating`:i.defaultMinRating+`★+`} / ${l===`genesis`?`Trip-wide`:`Day-aware`} / shown">
-                                        ${f?`<button type="button" class="poi-filter-reset" data-poi="`+i.key+`" title="Reset rating, anchor, and visibility to default">Reset</button>`:`<span class="muted">Default</span>`}
+                                    <span class="poi-filter-row__default" title="Defaults: ${e.defaultMinRating===0?`Any rating`:e.defaultMinRating+`★+`} / ${l===`genesis`?`Trip-wide`:`Day-aware`} / shown">
+                                        ${f?`<button type="button" class="poi-filter-reset" data-poi="`+e.key+`" title="Reset rating, anchor, and visibility to default">Reset</button>`:`<span class="muted">Default</span>`}
                                     </span>
                                     <label class="switch poi-visibility-switch" title="${d?`Visible on the home pill row — switch off to hide.`:`Hidden from the home pill row — switch on to show.`}">
-                                        <input type="checkbox" class="poi-visibility-toggle" data-poi="${i.key}" ${d?`checked`:``}>
+                                        <input type="checkbox" class="poi-visibility-toggle" data-poi="${e.key}" ${d?`checked`:``}>
                                         <span class="slider"></span>
                                     </label>
                                 </div>
@@ -183,7 +211,7 @@
                     </div>
                 `:``}
             `}
-        `},r=t=>{e.innerHTML=n(t)},i=e=>{I({trips:{title:`Wipe All Trips?`,message:`This permanently deletes every trip, day log, and itinerary.`,confirmText:`Delete Trips`,onConfirm:async()=>{if(b.trips=[],b.archivedTrips=[],b.tripDays=[],b.expenses=[],b.budgets=[],b.activeTripId=null,T(`state:changed`),b.user)try{await X(`/api/user-data`,{method:`DELETE`,headers:{"Content-Type":`application/json`},body:JSON.stringify({})})}catch(e){console.error(`Server wipe failed`,e)}r(`reset`)}},categories:{title:`Reset Categories?`,message:`Reverts all expense categories to the system defaults.`,confirmText:`Restore Defaults`,onConfirm:()=>{b.categories=[{id:`c1`,name:`Food`,icon:`🍔`,color:`#ff3b30`},{id:`c2`,name:`Transport`,icon:`✈️`,color:`#007aff`},{id:`c3`,name:`Accommodation`,icon:`🏨`,color:`#5856d6`}],T(`state:changed`),ii(),r(`reset`)}},app:{title:`Factory Reset`,message:`Absolute destruction. This wipes EVERY bit of data from the application.`,confirmText:`ERASE EVERYTHING`,onConfirm:async()=>{if(b.user)try{await X(`/api/user-data`,{method:`DELETE`,headers:{"Content-Type":`application/json`},body:JSON.stringify({})})}catch(e){console.error(`Server wipe failed`,e)}b.trips=[],b.archivedTrips=[],b.tripDays=[],b.expenses=[],b.budgets=[],b.categories=[],b.activeTripId=null,b.user=null,b.notifications=[],b.hasLoggedInBefore=!1,T(`state:changed`),localStorage.clear(),location.reload()}}}[e])},a=()=>{let e=document.getElementById(`mapVarSelect`)?.value,t=document.getElementById(`mapColSelect`)?.value;!e||!t||(b.customFormat=b.customFormat||[],!b.customFormat.some(t=>t.variable===e)&&(b.customFormat.push({variable:e,column:t}),T(`state:changed`),r(`format`)))},o=e=>{b.customFormat=(b.customFormat||[]).filter(t=>t.variable!==e),T(`state:changed`),r(`format`)},s=()=>{let e=[`label`,`date`,`value`,`who`,`category`],t=b.customFormat||[],n=new Set(t.map(e=>e.variable===`categoryId`?`category`:e.variable)),i=e.filter(e=>!n.has(e));if(i.length>0)return alert(`Missing required fields: ${i.join(`, `)}`);let a=(document.getElementById(`formatNameInput`)?.value||``).trim();a&&(b.savedFormats=b.savedFormats||[],b.savedFormats.push({id:L(),name:a,mappings:[...t]}),b.customFormat=[],T(`state:changed`),r(`format`))},c=e=>{I({title:`Delete Format?`,message:`This mapping will no longer be available for imports.`,confirmText:`Delete`,onConfirm:()=>{b.savedFormats=(b.savedFormats||[]).filter(t=>t.id!==e),T(`state:changed`),r(`format`)}})},l=e=>{let t=(b.savedFormats||[]).find(t=>t.id===e);t&&(b.customFormat=[...t.mappings],b.savedFormats=(b.savedFormats||[]).filter(t=>t.id!==e),T(`state:changed`),r(`format`),setTimeout(()=>{let e=document.getElementById(`formatNameInput`);e&&(e.value=t.name)},50))};e.innerHTML=n(`menu`),e.addEventListener(`click`,e=>{let t=e.target;if(!t)return;let n=t.closest(`.settings-tab-card`);if(n?.dataset.tab){r(n.dataset.tab);return}let d=t.closest(`.confirm-reset-btn`);if(d?.dataset.resetType){i(d.dataset.resetType);return}let f=t.closest(`.remove-mapping-btn`);if(f?.dataset.variable){o(f.dataset.variable);return}let p=t.closest(`.edit-saved-format-btn`);if(p?.dataset.formatId){l(p.dataset.formatId);return}let m=t.closest(`.delete-saved-format-btn`);if(m?.dataset.formatId){c(m.dataset.formatId);return}if(t.closest(`#addFormatMappingBtn`)){a();return}if(t.closest(`#saveCustomFormatBtn`)){s();return}let h=t.closest(`.poi-filter-reset`);if(h?.dataset.poi){u(),delete b.preferences.poiFilters[h.dataset.poi],delete b.preferences.poiAnchoring[h.dataset.poi],delete b.preferences.poiVisible[h.dataset.poi],T(`state:changed`),r(`general`);return}}),e.addEventListener(`change`,e=>{let t=e.target;if(!t)return;let n=t.closest(`.poi-filter-rating`);if(n){let e=n.dataset.poi;if(!e)return;let t=parseFloat(n.value);u(),b.preferences.poiFilters[e]={minRating:t},T(`state:changed`),r(`general`);return}let i=t.closest(`.poi-anchor-mode`);if(i){let e=i.dataset.poi;if(!e)return;let t=i.value;if(t!==`genesis`&&t!==`epicenter`)return;u(),b.preferences.poiAnchoring[e]=t,T(`state:changed`),r(`general`);return}let a=t.closest(`.poi-visibility-toggle`);if(a){let e=a.dataset.poi;if(!e)return;let t=a.checked;u(),t?delete b.preferences.poiVisible[e]:b.preferences.poiVisible[e]=!1,T(`state:changed`),r(`general`);return}});function u(){b.preferences||={mapDefaultPois:[`sights`,`parks`,`transit`],poiFilters:{},pillEpicenters:{},poiAnchoring:{},poiVisible:{}},(!b.preferences.poiFilters||typeof b.preferences.poiFilters!=`object`)&&(b.preferences.poiFilters={}),(!b.preferences.poiAnchoring||typeof b.preferences.poiAnchoring!=`object`)&&(b.preferences.poiAnchoring={}),(!b.preferences.poiVisible||typeof b.preferences.poiVisible!=`object`)&&(b.preferences.poiVisible={})}return e}function we(e){let t=b.categories.find(t=>t.id===e);if(!t)return;let{root:n,close:r}=O({variant:`glass-light`,cardStyle:`width: 420px;`,innerHTML:`
+        `},r=t=>{e.innerHTML=n(t)},i=e=>{I({trips:{title:`Wipe All Trips?`,message:`This permanently deletes every trip, day log, and itinerary.`,confirmText:`Delete Trips`,onConfirm:async()=>{if(b.trips=[],b.archivedTrips=[],b.tripDays=[],b.expenses=[],b.budgets=[],b.activeTripId=null,T(`state:changed`),b.user)try{await X(`/api/user-data`,{method:`DELETE`,headers:{"Content-Type":`application/json`},body:JSON.stringify({})})}catch(e){console.error(`Server wipe failed`,e)}r(`reset`)}},categories:{title:`Reset Categories?`,message:`Reverts all expense categories to the system defaults.`,confirmText:`Restore Defaults`,onConfirm:()=>{b.categories=[{id:`c1`,name:`Food`,icon:`🍔`,color:`#ff3b30`},{id:`c2`,name:`Transport`,icon:`✈️`,color:`#007aff`},{id:`c3`,name:`Accommodation`,icon:`🏨`,color:`#5856d6`}],T(`state:changed`),ii(),r(`reset`)}},app:{title:`Factory Reset`,message:`Absolute destruction. This wipes EVERY bit of data from the application.`,confirmText:`ERASE EVERYTHING`,onConfirm:async()=>{if(b.user)try{await X(`/api/user-data`,{method:`DELETE`,headers:{"Content-Type":`application/json`},body:JSON.stringify({})})}catch(e){console.error(`Server wipe failed`,e)}b.trips=[],b.archivedTrips=[],b.tripDays=[],b.expenses=[],b.budgets=[],b.categories=[],b.activeTripId=null,b.user=null,b.notifications=[],b.hasLoggedInBefore=!1,T(`state:changed`),localStorage.clear(),location.reload()}}}[e])},a=()=>{let e=document.getElementById(`mapVarSelect`)?.value,t=document.getElementById(`mapColSelect`)?.value;!e||!t||(b.customFormat=b.customFormat||[],!b.customFormat.some(t=>t.variable===e)&&(b.customFormat.push({variable:e,column:t}),T(`state:changed`),r(`format`)))},o=e=>{b.customFormat=(b.customFormat||[]).filter(t=>t.variable!==e),T(`state:changed`),r(`format`)},s=()=>{let e=[`label`,`date`,`value`,`who`,`category`],t=b.customFormat||[],n=new Set(t.map(e=>e.variable===`categoryId`?`category`:e.variable)),i=e.filter(e=>!n.has(e));if(i.length>0)return alert(`Missing required fields: ${i.join(`, `)}`);let a=(document.getElementById(`formatNameInput`)?.value||``).trim();a&&(b.savedFormats=b.savedFormats||[],b.savedFormats.push({id:L(),name:a,mappings:[...t]}),b.customFormat=[],T(`state:changed`),r(`format`))},c=e=>{I({title:`Delete Format?`,message:`This mapping will no longer be available for imports.`,confirmText:`Delete`,onConfirm:()=>{b.savedFormats=(b.savedFormats||[]).filter(t=>t.id!==e),T(`state:changed`),r(`format`)}})},l=e=>{let t=(b.savedFormats||[]).find(t=>t.id===e);t&&(b.customFormat=[...t.mappings],b.savedFormats=(b.savedFormats||[]).filter(t=>t.id!==e),T(`state:changed`),r(`format`),setTimeout(()=>{let e=document.getElementById(`formatNameInput`);e&&(e.value=t.name)},50))};e.innerHTML=n(`menu`),e.addEventListener(`click`,e=>{let t=e.target;if(!t)return;let n=t.closest(`.settings-tab-card`);if(n?.dataset.tab){r(n.dataset.tab);return}let d=t.closest(`.general-subtab`);if(d&&!d.hasAttribute(`disabled`)&&d.dataset.generalSub){window.__ggGeneralSubTab=d.dataset.generalSub,r(`general`);return}let f=t.closest(`.confirm-reset-btn`);if(f?.dataset.resetType){i(f.dataset.resetType);return}let p=t.closest(`.remove-mapping-btn`);if(p?.dataset.variable){o(p.dataset.variable);return}let m=t.closest(`.edit-saved-format-btn`);if(m?.dataset.formatId){l(m.dataset.formatId);return}let h=t.closest(`.delete-saved-format-btn`);if(h?.dataset.formatId){c(h.dataset.formatId);return}if(t.closest(`#addFormatMappingBtn`)){a();return}if(t.closest(`#saveCustomFormatBtn`)){s();return}let g=t.closest(`.poi-filter-reset`);if(g?.dataset.poi){u(),delete b.preferences.poiFilters[g.dataset.poi],delete b.preferences.poiAnchoring[g.dataset.poi],delete b.preferences.poiVisible[g.dataset.poi],T(`state:changed`),r(`general`);return}}),e.addEventListener(`change`,e=>{let t=e.target;if(!t)return;let n=t.closest(`.poi-filter-rating`);if(n){let e=n.dataset.poi;if(!e)return;let t=parseFloat(n.value);u(),b.preferences.poiFilters[e]={minRating:t},T(`state:changed`),r(`general`);return}let i=t.closest(`.poi-anchor-mode`);if(i){let e=i.dataset.poi;if(!e)return;let t=i.value;if(t!==`genesis`&&t!==`epicenter`)return;u(),b.preferences.poiAnchoring[e]=t,T(`state:changed`),r(`general`);return}let a=t.closest(`.poi-visibility-toggle`);if(a){let e=a.dataset.poi;if(!e)return;let t=a.checked;u(),t?delete b.preferences.poiVisible[e]:b.preferences.poiVisible[e]=!1,T(`state:changed`),r(`general`);return}});function u(){b.preferences||={mapDefaultPois:[`sights`,`parks`,`transit`],poiFilters:{},pillEpicenters:{},poiAnchoring:{},poiVisible:{}},(!b.preferences.poiFilters||typeof b.preferences.poiFilters!=`object`)&&(b.preferences.poiFilters={}),(!b.preferences.poiAnchoring||typeof b.preferences.poiAnchoring!=`object`)&&(b.preferences.poiAnchoring={}),(!b.preferences.poiVisible||typeof b.preferences.poiVisible!=`object`)&&(b.preferences.poiVisible={})}return e}function we(e){let t=b.categories.find(t=>t.id===e);if(!t)return;let{root:n,close:r}=O({variant:`glass-light`,cardStyle:`width: 420px;`,innerHTML:`
             <h2 style="margin: 0 0 var(--space-5); font-size: var(--font-2xl); color: #002d5b; font-weight: 800; letter-spacing: -0.03em;">Edit Category</h2>
             <form id="editCategoryForm" style="display: flex; flex-direction: column; gap: var(--space-4);">
                 <div style="display: flex; gap: var(--space-3); align-items: center;">
@@ -196,7 +224,28 @@
                     <button type="button" id="cancelEditCatBtn" class="btn-neutral" style="flex: 1; border-radius: var(--radius-lg);">Cancel</button>
                 </div>
             </form>
-        `});R(n,`#cancelEditCatBtn`).onclick=()=>r(),R(n,`#editCategoryForm`).onsubmit=e=>{e.preventDefault();let i=R(n,`#editCatIcon`).value,a=R(n,`#editCatName`).value.trim(),o=R(n,`#editCatColor`).value;a&&(t.icon=i,t.name=a,t.color=o,T(`state:changed`),ii(),r(),Y(`personalization`),setTimeout(()=>xe(`categories`),50))}}function Te(){let e=document.createElement(`div`);return e.innerHTML=`
+        `});R(n,`#cancelEditCatBtn`).onclick=()=>r(),R(n,`#editCategoryForm`).onsubmit=e=>{e.preventDefault();let i=R(n,`#editCatIcon`).value,a=R(n,`#editCatName`).value.trim(),o=R(n,`#editCatColor`).value;a&&(t.icon=i,t.name=a,t.color=o,T(`state:changed`),ii(),r(),Y(`personalization`),setTimeout(()=>xe(`categories`),50))}}function Te(){let e=document.createElement(`div`),t=b.categories.map(e=>`
+        <div class="cat-row" style="--cat-color: ${z(e.color)};">
+            <span class="cat-row__stripe" aria-hidden="true"></span>
+            <span class="cat-row__icon">${z(e.icon)}</span>
+            <span class="cat-row__name">${z(e.name)}</span>
+            <span class="cat-row__swatch" style="background:${z(e.color)};" aria-label="Color ${z(e.color)}"></span>
+            <div class="cat-row__actions">
+                <button class="cat-row__btn cat-row__btn--edit edit-category-btn" data-category-id="${z(e.id)}" title="Edit category" aria-label="Edit category">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M12 20h9"></path>
+                        <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+                    </svg>
+                </button>
+                <button class="cat-row__btn cat-row__btn--delete delete-category-btn" data-category-id="${z(e.id)}" title="Delete category" aria-label="Delete category">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    `).join(``);return e.innerHTML=`
         <div class="ai-page-header">
             <h1 class="gradient-text" style="--g-from: #1a6b3c; --g-to: #34c759;">Personalization</h1>
             <p>Customize your experience and categories. Manage friends in the Friends tab; add companions per-trip from the Home page.</p>
@@ -214,28 +263,13 @@
 
             <div id="persCategories" style="display: none;">
                 <div class="card glass card-glow-blue">
-                    <h2 class="card-title" style="color: var(--accent-blue);">Categories</h2>
-                    <table class="compact-table" style="margin-bottom: var(--space-5);">
-                        <thead>
-                            <tr>
-                                <th class="is-left">Name</th>
-                                <th class="is-right">Color</th>
-                                <th class="is-right">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${b.categories.map(e=>`
-        <tr>
-            <td>${e.icon} ${z(e.name)}</td>
-            <td class="is-right"><span class="color-swatch" style="background: ${e.color}"></span></td>
-            <td class="is-right">
-                <button class="btn-x-bare edit-category-btn" data-category-id="${e.id}" aria-label="Edit category" style="margin-right: var(--space-2);">✏️</button>
-                <button class="btn-x-bare delete-category-btn" data-category-id="${e.id}" aria-label="Delete category">✕</button>
-            </td>
-        </tr>
-    `).join(``)}
-                        </tbody>
-                    </table>
+                    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom: var(--space-4); flex-wrap:wrap;">
+                        <h2 class="card-title" style="color: var(--accent-blue); margin: 0;">Categories</h2>
+                        <span class="cat-count-chip">${b.categories.length}</span>
+                    </div>
+                    <div class="cat-list" style="margin-bottom: var(--space-5);">
+                        ${t||`<div class="cat-list__empty">No categories yet — add one below.</div>`}
+                    </div>
 
                     <div class="section-divider">
                         <h3 style="margin-bottom: var(--space-3); font-size: var(--font-lg);">Add New Category</h3>
@@ -674,19 +708,44 @@ Fix: enable "Directions API" on the Google Cloud project tied to your Maps API k
              active without remounting either. -->
         ${t?`
             <div class="home-tab-content${B===`companions`?` is-active`:``}" data-home-tab="companions">
-                <div class="trip-companions-section">
-                    <button id="tripCompanionsBtn" class="trip-companions-pill" title="${D?`Pick which account companions are on this trip`:`See who is on this trip`}">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
-                            <circle cx="9" cy="7" r="4"></circle>
-                            <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
-                            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-                        </svg>
-                        <span>Companions on this trip</span>
-                        <span class="trip-companions-pill__count">${D?(t.companions||[]).length:(t.members||[]).length}</span>
-                    </button>
-                    ${k}
-                </div>
+                ${(()=>{let e=D?(t.companions||[]).length:(t.members||[]).length,n=D?e>0?`✏️ Edit travel companions`:`➕ Add travel companions`:`👁 See trip members`;return`
+                        <!-- Companions panel — was a small blue pill +
+                             chip row below. Promoted to a full glass
+                             card with a gradient header strip + an
+                             explicit primary CTA button so the section
+                             reads as a first-class part of the trip
+                             header (same hierarchy as Path / Genesis
+                             cards). -->
+                        <div class="trip-companions-card">
+                            <div class="trip-companions-card__header">
+                                <div class="trip-companions-card__icon">
+                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                                        <circle cx="9" cy="7" r="4"></circle>
+                                        <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
+                                        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                                    </svg>
+                                </div>
+                                <div class="trip-companions-card__heading">
+                                    <h3 class="trip-companions-card__title">Travel companions</h3>
+                                    <p class="trip-companions-card__subtitle">${e} ${e===1?`person`:`people`} on this trip</p>
+                                </div>
+                                <span class="trip-companions-card__count">${e}</span>
+                            </div>
+
+                            <div class="trip-companions-card__chips">
+                                ${k||`
+                                    <div class="trip-companions-card__empty">
+                                        ${D?`No companions added yet. Tap the button below to invite friends or add unlinked names.`:`You are the only one on this trip so far.`}
+                                    </div>
+                                `}
+                            </div>
+
+                            <button id="tripCompanionsBtn" class="trip-companions-card__cta" title="${z(D?`Pick which account companions are on this trip`:`See who is on this trip`)}">
+                                ${z(n)}
+                            </button>
+                        </div>
+                    `})()}
             </div>
 
             <!-- To-do list tab content was removed when /todo became
@@ -3144,7 +3203,19 @@ Fix: enable "Directions API" on the Google Cloud project tied to your Maps API k
 
                 <div style="display: flex; justify-content: center; margin-bottom: 24px;">
                     <div style="display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 0.9rem; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-primary);">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+                        <!-- Literal footprint glyph (sole + 5 toes)
+                             — replaces a generic map-pin that didn't
+                             match the "footprint" copy. Stroke-only
+                             so it inherits currentColor like the
+                             previous icon. -->
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                            <ellipse cx="12" cy="14" rx="4.2" ry="6"/>
+                            <ellipse cx="6.5" cy="6" rx="1.4" ry="1.7"/>
+                            <ellipse cx="9.6" cy="3.7" rx="1.3" ry="1.6"/>
+                            <ellipse cx="13.1" cy="3.4" rx="1.3" ry="1.6"/>
+                            <ellipse cx="16.3" cy="4.5" rx="1.3" ry="1.6"/>
+                            <ellipse cx="18.4" cy="7.4" rx="1.3" ry="1.6"/>
+                        </svg>
                         ${n?`Your footprint`:`${e.name.split(` `)[0]}'s footprint`}
                     </div>
                 </div>
@@ -3161,13 +3232,22 @@ Fix: enable "Directions API" on the Google Cloud project tied to your Maps API k
                 </div>
             </div>
         `,setTimeout(()=>{if(t.querySelector(`#profileBackToFriendsBtn`)?.addEventListener(`click`,()=>Y(`friends`)),t.querySelector(`#profileLogoutBtn`)?.addEventListener(`click`,()=>Sr()),n&&b.user){let e=t.querySelector(`#profileFriendsStat`),n=t.querySelector(`#profileFriendsCount`);X(`/api/friends/list`).then(e=>e.ok?e.json():[]).then(e=>{Array.isArray(e)&&(c=e,n&&(n.textContent=String(e.length)))}).catch(()=>{}),e&&(e.onclick=()=>{if(c.length===0){Y(`friends`);return}wr(c)})}if(n){let e=t.querySelector(`#profileStatus`),n=t.querySelector(`#profileBio`),r=t.querySelector(`#profileHomeCurrency`),i=t.querySelector(`#saveProfileBtn`),a=()=>{i&&(i.style.opacity=`1`,i.style.pointerEvents=`auto`)};e&&(e.onchange=a),n&&(n.oninput=a),r&&(r.onchange=a),i&&(i.onclick=async()=>{if(!b.user||!e||!n)return;let t=e.value,a=n.value,o=r?r.value:b.user.homeCurrency||null;try{(await X(`/api/profile/update`,{method:`POST`,headers:{"Content-Type":`application/json`},body:JSON.stringify({bio:a,status:t,homeCurrency:o})})).ok&&(b.user.bio=a,b.user.status=t,b.user.homeCurrency=o,T(`state:changed`),i.style.opacity=`0`,i.style.pointerEvents=`none`,F(`Profile updated!`))}catch{}});let o=t.querySelector(`#profilePhotoInput`),s=t.querySelector(`#profilePicWrapper`);s&&(s.onclick=()=>o&&o.click()),o&&(o.onchange=e=>{let n=e.target.files?.[0];if(!n)return;let r=new FileReader;r.onload=e=>{let n=typeof e.target?.result==`string`?e.target.result:null;b.profilePhoto=n,T(`state:changed`);let r=t.querySelector(`#profilePicDisplay`);r&&n&&(r.src=n)},r.readAsDataURL(n)})}if(typeof google<`u`&&google.maps){let e=document.getElementById(`legaciesMap`);if(e){let t=new google.maps.Map(e,{center:{lat:20,lng:0},zoom:2,minZoom:2,mapTypeId:`roadmap`,disableDefaultUI:!0,restriction:{latLngBounds:{north:85,south:-85,west:-180,east:180},strictBounds:!0},styles:[{featureType:`all`,elementType:`labels`,stylers:[{visibility:`off`}]},{featureType:`administrative`,elementType:`geometry`,stylers:[{visibility:`on`},{color:`#e0e0e0`}]},{featureType:`landscape`,stylers:[{color:`#f0f0f5`}]},{featureType:`water`,stylers:[{color:`#ffffff`}]}]}),n=new Set((r||[]).map(e=>(e.countryCode||``).toUpperCase()).filter(Boolean));fetch(`https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_50m_admin_0_countries.geojson`).then(e=>e.json()).then(e=>{t.data.addGeoJson(e),t.data.setStyle(e=>{let t=(e.getProperty(`ISO_A2`)||e.getProperty(`iso_a2`)||``).toUpperCase(),r=(e.getProperty(`NAME`)||e.getProperty(`name`)||e.getProperty(`admin`)||``).toLowerCase();if(!t&&!r)return{visible:!1};let a=!!t&&n.has(t);if(a||=i.some(e=>{if(!e)return!1;let t=e.split(` (`)[0].split(` - `)[0].toLowerCase().trim(),n=t.split(`,`).map(e=>e.trim()).filter(Boolean).pop()||t;return n===`usa`&&(n=`united states`),n===`uk`&&(n=`united kingdom`),r===n||r.includes(n)||n.includes(r)||n===`united states`&&r.includes(`america`)}),a){let e=t||r,n=0;for(let t=0;t<e.length;t++)n=e.charCodeAt(t)+((n<<5)-n);return{fillColor:`hsl(${Math.abs(n%360)}, 70%, 60%)`,fillOpacity:.7,strokeColor:`#ffffff`,strokeWeight:.5,visible:!0}}return{fillColor:`#d0d0d5`,fillOpacity:.2,strokeColor:`#ffffff`,strokeWeight:.5,visible:!0}})});let a=new google.maps.Geocoder,o={};r.filter(e=>e.isPublic).forEach(e=>{let t=e.country||e.name;t&&(o[t]||(o[t]=[]),o[t].push(e))});let s=(e,n,r)=>{let i=new google.maps.Marker({position:e,map:t,icon:{path:google.maps.SymbolPath.CIRCLE,fillOpacity:1,fillColor:`#ff2d55`,strokeColor:`white`,strokeWeight:2,scale:r.length>1?14:10}}),a=r.map(e=>`
-                            <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid rgba(0,0,0,0.06);">
-                                <span style="font-weight: 600; color: #000;">${e.name}</span>
-                                <button class="archived-trip-view-btn" data-trip-id="${e.id}" style="background: #007aff; color: white; border: none; padding: 4px 12px; border-radius: 8px; font-weight: 700; font-size: 0.75rem; cursor: pointer;">View</button>
+                            <div class="profile-iw__trip-row">
+                                <div class="profile-iw__trip-info">
+                                    <span class="profile-iw__trip-icon">🗺️</span>
+                                    <span class="profile-iw__trip-name">${z(e.name)}</span>
+                                </div>
+                                <button class="archived-trip-view-btn profile-iw__view-btn" data-trip-id="${z(e.id)}">View</button>
                             </div>
-                        `).join(``),o=document.createElement(`div`);o.style.cssText=`padding: 4px 8px; min-width: 220px; max-width: 300px; font-family: -apple-system, BlinkMacSystemFont, sans-serif;`,o.innerHTML=`
-                            <div style="font-weight: 800; font-size: 0.7rem; text-transform: uppercase; color: rgba(0,0,0,0.5); letter-spacing: 0.1em; margin-bottom: 6px;">${n} — ${r.length} trip${r.length>1?`s`:``}</div>
-                            ${a}
+                        `).join(``),o=document.createElement(`div`);o.className=`profile-iw`,o.innerHTML=`
+                            <div class="profile-iw__header">
+                                <span class="profile-iw__pin-icon">📍</span>
+                                <div class="profile-iw__header-text">
+                                    <div class="profile-iw__country">${z(n)}</div>
+                                    <div class="profile-iw__count">${r.length} ${r.length===1?`trip`:`trips`}</div>
+                                </div>
+                            </div>
+                            <div class="profile-iw__body">${a}</div>
                         `,o.addEventListener(`click`,e=>{let t=e.target?.closest(`.archived-trip-view-btn`);t?.dataset.tripId&&kn(t.dataset.tripId)});let s=new google.maps.InfoWindow({content:o});i.addListener(`click`,()=>s.open(t,i))};(async()=>{for(let[e,t]of Object.entries(o)){let n=t.find(e=>typeof e.lat==`number`&&typeof e.lng==`number`);if(n){s({lat:n.lat,lng:n.lng},e,t);continue}a.geocode({address:e},(n,r)=>{r===`OK`&&n[0]&&s(n[0].geometry.location,e,t)}),await new Promise(e=>setTimeout(e,800))}})()}}},100)};if(n){let e=[...b.trips||[],...b.archivedTrips||[]],t=new Date,n=e.filter(e=>e.isArchived||e.dateTo&&new Date(e.dateTo)<t);r(b.user,n)}else t.innerHTML=`<div style="display:flex; justify-content:center; align-items:center; height:300px;"><p style="font-weight:700; color:var(--text-secondary); animation: pulse 1.5s infinite;">Fetching profile...</p></div>`,fetch(kr(`/api/public-profile/${e}`)).then(e=>e.json()).then(e=>{e.error?t.innerHTML=`<p style="text-align:center; padding:50px;">User not found.</p>`:r(e.user,e.trips)}).catch(()=>{t.innerHTML=`<p style="text-align:center; padding:50px;">Error loading profile.</p>`});return t}function Er(){let e=document.getElementById(`sidebarProfileAvatar`),t=document.getElementById(`sidebarProfileIcon`),n=document.getElementById(`sidebarProfileLabel`),r=document.getElementById(`sidebarProfileSub`),i=document.getElementById(`sidebarProfilePic`),a=document.getElementById(`sidebarLogoutBtn`);document.body.classList.toggle(`is-signed-out`,!b.user),b.user?(e&&(e.style.display=`block`),t&&(t.style.display=`none`),n&&(n.textContent=b.user.name),r&&(r.style.display=`block`,r.textContent=`Logged in ✓`),i&&(i.setAttribute(`referrerpolicy`,`no-referrer`),i.src=b.user.picture??``),a&&(a.style.display=`block`)):(e&&(e.style.display=`none`),t&&(t.style.display=`block`),n&&(n.textContent=`Log in`),r&&(r.style.display=`none`),a&&(a.style.display=`none`))}var Dr=!1,Or=null;function Y(t,n=null,r=!1){let i=document.getElementById(`app-container`);if(!i)return;ut(),i.innerHTML=``;let a=null;if(!b.user){i.appendChild(Cr()),document.querySelectorAll(`.nav-item`).forEach(e=>e.classList.remove(`active`)),Dr=!0,window.location.hash=t,r||window.scrollTo(0,0);return}switch(t){case e.HOME:a=Nt();break;case e.EXPENSES:a=cn();break;case e.UPLOAD:return an(`batch`),Y(e.EXPENSES,n,r);case e.INSIGHTS:a=fn();break;case e.SETTINGS:a=Ce();break;case e.PERSONALIZATION:a=Te();break;case e.BUDGETS:a=vn();break;case e.COLLECTIONS:a=Dn();break;case e.AI:a=Pn();break;case e.SETTLEMENT:a=Bn();break;case e.FRIENDS:a=er();break;case e.FEED:a=br();break;case e.TODO:a=xr();break;case e.PROFILE:a=Tr(n?.userId);break;default:a=Nt()}a&&i.appendChild(a),document.querySelectorAll(`.nav-item`).forEach(e=>{e.classList.toggle(`active`,e.getAttribute(`data-page`)===t)}),Dr=!0,window.location.hash=t,!r&&Or!==t&&window.scrollTo(0,0),Or=t}window.onhashchange=()=>{if(Dr){Dr=!1;return}let t=window.location.hash.replace(`#`,``);Y(Object.values(e).includes(t)?t:e.HOME)};var kr=e=>`${n}${e}`,Ar=`gg_auth_token`,jr=()=>localStorage.getItem(Ar),Mr=e=>{e&&localStorage.setItem(Ar,e)},Nr=()=>localStorage.removeItem(Ar);function Pr(e={}){let t=jr();return t?{...e,headers:{...e.headers||{},Authorization:`Bearer ${t}`}}:e}async function X(e,n={}){let r=e.startsWith(`http`)?e:kr(e),i=await fetch(r,Pr(n));return i.status===401&&jr()&&(Nr(),b.user=null,T(t.STATE_CHANGED)),i}async function Fr(){if(b.user)try{await X(`/api/sync`,{method:`POST`,headers:{"Content-Type":`application/json`},body:JSON.stringify({trips:b.trips,archived_trips:b.archivedTrips||[],expenses:b.expenses,activities:b.activities,photos:b.photos,categories:b.categories||[],budgets:b.budgets||[]})})}catch(e){console.error(`Sync failed:`,e)}}async function Ir(){if(b.user)try{let n=f(await(await X(`/api/data`)).json());if(!n.ok){console.error(`pullFromServer: server data invalid —`,n.error);return}let r=n.value,i=(r.trips||[]).map(e=>({...e,companions:m(e.companions)})),a=b.user,o=a?.name?.split(` `)[0]||`Me`;for(let e of i)!a||e.ownerId!==a.id||e.companions.some(e=>e.linkedUserId===a.id)||e.companions.unshift({name:o,linkedUserId:a.id});b.trips=i.filter(e=>!e.isArchived),b.archivedTrips=i.filter(e=>e.isArchived),b.expenses=r.expenses||[],b.categories=r.categories||[],b.budgets=r.budgets||[],b.tripDays=r.tripDays||[];for(let e of b.archivedTrips)e.tripDays=b.tripDays.filter(t=>t.tripId===e.id),e.expenses=b.expenses.filter(t=>t.tripId===e.id);T(t.STATE_CHANGED),await li();let s=Object.values(e),c=window.location.hash.replace(`#`,``);Y(s.includes(c)?c:e.HOME)}catch(e){console.error(`Pull from server failed:`,e)}}var Z=(e,t)=>X(e,{method:`POST`,headers:{"Content-Type":`application/json`},body:JSON.stringify(t)}).catch(t=>console.error(`POST ${e} failed:`,t)),Lr=(e,t)=>X(e,{method:`DELETE`,headers:{"Content-Type":`application/json`},body:JSON.stringify(t)}).catch(t=>console.error(`DELETE ${e} failed:`,t)),Rr=async(e,t)=>{try{let n=await X(e,{method:`POST`,headers:{"Content-Type":`application/json`},body:JSON.stringify(t)}),r=null;try{r=await n.json()}catch{}return{ok:n.ok,status:n.status,body:r}}catch(t){return console.error(`POST ${e} failed:`,t),{ok:!1,status:0,body:null}}};function Q(e){if(b.user)return Z(`/api/trips`,{trip:e})}function zr(e){if(b.user)return Lr(`/api/trips/${e}`,{})}function Br(e){if(b.user)return Z(`/api/trips/${e}/archive`,{})}function Vr(e){if(b.user)return Z(`/api/trips/${e}/unarchive`,{})}function Hr(e,t){return b.user?Rr(`/api/feed/share`,{trip_id:e,caption:t}):Promise.resolve({ok:!1,status:0,body:null})}async function Ur(e,t){if(!b.user)return{ok:!1,status:0,body:null};try{let n=await X(`/api/trips/${encodeURIComponent(e)}/silence`,{method:`POST`,headers:{"Content-Type":`application/json`},body:JSON.stringify({hidden:!!t})}),r=null;try{r=await n.json()}catch{}return{ok:n.ok,status:n.status,body:r}}catch(e){return console.error(`setTripActionsHidden failed:`,e),{ok:!1,status:0,body:null}}}async function Wr(e){if(!b.user)return null;try{let t=await X(`/api/feed/share/status/${encodeURIComponent(e)}`);return t.ok?await t.json():null}catch(e){return console.error(`fetchShareStatus failed:`,e),null}}async function Gr(e){if(!b.user)return{ok:!1,status:0,body:null};try{let t=await X(`/api/feed/share/${e}`,{method:`DELETE`}),n=null;try{n=await t.json()}catch{}return{ok:t.ok,status:t.status,body:n}}catch(e){return console.error(`unshareFeedPost failed:`,e),{ok:!1,status:0,body:null}}}function Kr(e){return b.user?Rr(`/api/feed/repost/${e}`,{}):Promise.resolve({ok:!1,status:0,body:null})}function qr(e){return b.user?Rr(`/api/feed/like/${encodeURIComponent(e)}`,{}):Promise.resolve({ok:!1,status:0,body:null})}function Jr(e){return b.user?Rr(`/api/feed/bookmark/${encodeURIComponent(e)}`,{}):Promise.resolve({ok:!1,status:0,body:null})}async function Yr(e){if(!b.user)return null;try{let t=await X(`/api/feed/comments/${encodeURIComponent(e)}`);if(!t.ok)return null;let n=await t.json();return Array.isArray(n)?n:null}catch(e){return console.error(`fetchFeedComments failed:`,e),null}}function Xr(e,t){return b.user?Rr(`/api/feed/comment/${encodeURIComponent(e)}`,{body:t}):Promise.resolve({ok:!1,status:0,body:null})}async function Zr(e){if(!b.user)return{ok:!1,status:0,body:null};try{let t=await X(`/api/feed/comment/${e}`,{method:`DELETE`}),n=null;try{n=await t.json()}catch{}return{ok:t.ok,status:t.status,body:n}}catch(e){return console.error(`deleteFeedComment failed:`,e),{ok:!1,status:0,body:null}}}function Qr(e,t,n){if(b.user)return Z(`/api/trips/invite`,{trip_id:e,target_user_id:t,role:n})}function $r(e,t){return b.user?Rr(`/api/trips/invite/respond`,{trip_id:e,accept:t}):Promise.resolve({ok:!1,status:0,body:null})}function ei(e,t){if(b.user)return Z(`/api/trips/members/remove`,{trip_id:e,target_user_id:t})}function ti(e){if(b.user)return Z(`/api/expenses`,{expense:e})}function ni(e){if(b.user)return Lr(`/api/expenses/${e}`,{})}async function ri(){if(!b.user)return[];try{let e=await(await X(`/api/friends/list`)).json();return Array.isArray(e)?e:[]}catch(e){return console.error(`fetchAcceptedFriends failed:`,e),[]}}function ii(){if(b.user)return Z(`/api/categories`,{categories:b.categories})}function ai(e){if(b.user)return Z(`/api/budgets`,{budget:e})}function oi(e){if(b.user)return Lr(`/api/budgets/${e}`,{})}function $(e){if(b.user)return Z(`/api/days`,{day:e})}function si(e){if(b.user)return Lr(`/api/days/${e}`,{})}async function ci(e){if(!b.user)return null;let t=new FormData;t.append(`file`,e);try{return await(await X(`/api/upload`,{method:`POST`,body:t})).json()}catch(e){return console.error(`Upload failed`,e),null}}async function li(){if(b.user)try{b.notifications=await(await X(`/api/notifications/list`)).json(),T(t.NOTIFICATIONS_CHANGED)}catch(e){console.error(`Failed to fetch notifications:`,e)}}async function ui(){if(b.user)try{await X(`/api/notifications/read`,{method:`POST`,headers:{"Content-Type":`application/json`},body:JSON.stringify({})}),b.notifications.forEach(e=>e.is_read=1),T(t.NOTIFICATIONS_CHANGED)}catch(e){console.error(`Failed to mark notifications read:`,e)}}async function di(e){if(e.length===0)return;let t=[...e].sort(),n=t[0],r=t[t.length-1];if(!(!n||!r))try{let e=`https://api.frankfurter.app/${n}..${r}`,t=await fetch(e);if(t.ok){let e=await t.json();Object.entries(e.rates).forEach(([e,t])=>{Object.entries(t).forEach(([t,n])=>{b.rateCache[`${e}_${t}_EUR`]=1/n})}),T(`state:changed`)}}catch(e){console.error(`Failed to fetch historical rates:`,e)}}function fi(t){return Object.values(e).includes(t)?t:e.HOME}function pi(){let e=document.getElementById(`notificationBadge`),t=(b.notifications||[]).filter(e=>!e.is_read).length;e&&(e.style.display=t>0?`flex`:`none`,e.textContent=t>9?`9+`:String(t))}function mi(e){switch(e){case`alert`:return`255,59,48`;case`trip_public`:return`52,199,89`;case`trip_invite`:return`175,82,222`;case`trip_invite_accepted`:return`52,199,89`;case`trip_invite_declined`:return`142,142,147`;case`trip_member_removed`:return`255,59,48`;case`share_liked`:return`255,59,48`;case`share_commented`:return`0,113,227`;case`share_reposted`:return`88,86,214`;default:return`0,113,227`}}function hi(e){switch(e){case`friend_request`:return`Friend Request`;case`accepted_request`:return`Request Accepted`;case`trip_public`:return`Trip Completed`;case`trip_invite`:return`Trip invitation`;case`trip_invite_accepted`:return`Trip invite update`;case`trip_invite_declined`:return`Trip invite update`;case`trip_member_removed`:return`Removed from trip`;case`share_liked`:return`New like`;case`share_commented`:return`New comment`;case`share_reposted`:return`New repost`;case`alert`:return`Alert`;default:return`Notification`}}function gi(){let e=document.getElementById(`notificationList`);if(!e)return;let t=b.notifications||[];if(t.length===0){e.innerHTML=`<div class="notification-empty">No new notifications</div>`;return}e.innerHTML=t.map((e,t)=>`
         <div class="notification-item ${e.is_read?``:`unread`}" data-notification-index="${t}" role="button" tabindex="0">
             <div class="notification-item__title" style="--accent: ${mi(e.type)};">
