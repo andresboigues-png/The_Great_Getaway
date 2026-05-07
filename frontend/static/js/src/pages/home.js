@@ -45,6 +45,10 @@ export function stopHomeSlideshow() {
 let activeMarkers = {}; // Cache of Leaflet markers by day ID
 let editingDayId = null; // ID of the day currently being geolocated/pinned
 let activeMapClickListener = null; // Reference to the active map click handler
+// rAF id for the day-route polyline pulse animation. Cleared on
+// every home render so stacked timers can't leak when the user
+// flips trips, navigates away, or just re-renders the page.
+let _dayRouteAnimationFrame = null;
 /** @type {'days' | 'companions' | 'documents' | 'photos'} */
 let activeHomeTab = 'days'; // Sub-tab on the home trip view (Path / Companions / Documents / Photos)
 
@@ -1622,35 +1626,100 @@ export function renderHome() {
                 // trip-wide anchor, not a calendar position, so
                 // including it as the route's "Day 0" would imply
                 // travel from the hub to Day 1 which isn't a real
-                // travel leg. Dashed stroke + 55% opacity so it
-                // doesn't compete with the day pins themselves but
-                // still draws the eye along the path. Standard
-                // dashed-polyline technique for Google Maps:
-                // strokeOpacity:0 hides the solid stroke, then a
-                // repeating short-segment icon paints the dashes.
+                // travel leg.
+                //
+                // Visual: a neon stack — three Polylines layered to
+                // simulate a glow, all the same path:
+                //   1. wide soft halo (weight 14, ~10% opacity)
+                //   2. medium glow (weight 7, ~30% opacity)
+                //   3. crisp core (weight 2.5, ~95% opacity) — flows
+                //      via animated icon offset for a "current
+                //      running through the line" feel
+                // Then a single rAF loop animates the opacity on the
+                // halo + glow with a 1.6s sine wave so the line
+                // breathes. The core's dash offset shifts at a
+                // constant rate ("marching ants") which gives it
+                // direction — Day 1 → Day N, never reversed.
+                //
+                // Cleanup: cancel any prior animation frame before
+                // starting a new one. Without this, every home
+                // re-render would stack a new pulser on top of the
+                // old, and after a few navigations the page would
+                // be running 5+ pulse loops in parallel.
+                if (_dayRouteAnimationFrame !== null) {
+                    cancelAnimationFrame(_dayRouteAnimationFrame);
+                    _dayRouteAnimationFrame = null;
+                }
                 const dayPath = currentTripDays
                     .filter(d => d.dayNumber > 0 && d.lat != null && (d.lon != null || d.lng != null))
                     .sort((a, b) => a.dayNumber - b.dayNumber)
                     .map(d => ({ lat: d.lat, lng: d.lon || d.lng }));
                 if (dayPath.length >= 2) {
-                    new google.maps.Polyline({
+                    // Electric cyan reads as classic neon. Falls in
+                    // the same blue family as the day badges so the
+                    // route stays visually adjacent to the rest of
+                    // the trip-blue palette (just brighter).
+                    const NEON = '#00e5ff';
+                    const haloLine = new google.maps.Polyline({
                         path: dayPath,
                         map: map,
                         geodesic: true,
-                        strokeOpacity: 0,
+                        strokeColor: NEON,
+                        strokeOpacity: 0.10,
+                        strokeWeight: 14,
+                        zIndex: 48,
+                    });
+                    const glowLine = new google.maps.Polyline({
+                        path: dayPath,
+                        map: map,
+                        geodesic: true,
+                        strokeColor: NEON,
+                        strokeOpacity: 0.32,
+                        strokeWeight: 7,
+                        zIndex: 49,
+                    });
+                    const coreLine = new google.maps.Polyline({
+                        path: dayPath,
+                        map: map,
+                        geodesic: true,
+                        strokeColor: NEON,
+                        strokeOpacity: 0.95,
+                        strokeWeight: 2.5,
+                        zIndex: 50,
+                        // The icon below is a tiny vertical stroke
+                        // repeated along the path; offset shifting
+                        // makes it flow.
                         icons: [{
                             icon: {
                                 path: 'M 0,-1 0,1',
-                                strokeOpacity: 0.55,
-                                strokeColor: '#0071e3',
-                                strokeWeight: 3,
-                                scale: 4,
+                                strokeOpacity: 0,  // dashes are invisible — we just need the offset to walk
+                                strokeColor: NEON,
+                                strokeWeight: 0,
+                                scale: 0,
                             },
                             offset: '0',
-                            repeat: '14px',
+                            repeat: '20px',
                         }],
-                        zIndex: 50,
                     });
+                    // Animation. Uses requestAnimationFrame for
+                    // smoothness + automatic pause when the tab is
+                    // backgrounded (vs setInterval which keeps
+                    // burning CPU). Phase increments by ~0.06rad per
+                    // frame at 60fps → roughly 1.7s per pulse, slow
+                    // enough to feel alive without distracting.
+                    const start = performance.now();
+                    const tick = (now) => {
+                        const t = (now - start) / 1000; // seconds
+                        const sine = Math.sin(t * (2 * Math.PI / 1.6)); // 1.6s pulse
+                        const breathe = 0.5 + 0.5 * sine; // 0..1
+                        // Halo + glow swing wider; core just hums up
+                        // and down a bit so it never blacks out.
+                        haloLine.setOptions({ strokeOpacity: 0.06 + 0.10 * breathe });
+                        glowLine.setOptions({ strokeOpacity: 0.20 + 0.20 * breathe });
+                        coreLine.setOptions({ strokeOpacity: 0.85 + 0.10 * breathe });
+                        _dayRouteAnimationFrame = requestAnimationFrame(tick);
+                    };
+                    _dayRouteAnimationFrame = requestAnimationFrame(tick);
                 }
 
                 // Re-attach map click listener if we are in the middle of pinning
