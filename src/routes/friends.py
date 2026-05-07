@@ -1,0 +1,212 @@
+"""Friend graph endpoints — search / add / accept / reject / remove /
+pending / list. The friends table stores reciprocal rows on accept
+(see /api/friends/accept) so an "I unfriend you" needs to delete
+both my-side and their-side (see /api/friends/remove).
+
+Mutating routes are rate-limited at 30/minute to make automated
+abuse expensive (the abuse-vector audit added these).
+"""
+
+from flask import Blueprint, jsonify, request
+
+from auth import current_user_id, require_auth
+from database import get_db
+from extensions import limiter
+from helpers import ensure_user_exists
+
+
+bp = Blueprint("friends", __name__)
+
+
+@bp.route("/api/friends/search", methods=["GET"])
+@require_auth
+def search_friends():
+    """Search for users by email."""
+    query = request.args.get("q", "").strip()
+    if not query:
+        return jsonify([])
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, name, email, picture FROM users WHERE email LIKE ? LIMIT 5", (f"%{query}%",))
+        users = [dict(row) for row in cursor.fetchall()]
+    return jsonify(users)
+
+
+@bp.route("/api/friends/add", methods=["POST"])
+@limiter.limit("30 per minute")
+@require_auth
+def add_friend():
+    """Send a friend request. Sender from JWT; friend_id in body."""
+    user_id = current_user_id()
+    friend_id = (request.json or {}).get("friend_id")
+    if not friend_id:
+        return jsonify({"status": "error", "message": "Missing data"}), 400
+    if user_id == friend_id:
+        return jsonify({"status": "error", "message": "Can't friend yourself"}), 400
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # friend_id must point at a real user — without this check the
+        # endpoint accepts arbitrary strings and pollutes the friends
+        # table with rows that point at nothing.
+        if not ensure_user_exists(cursor, friend_id):
+            return jsonify({"status": "error", "message": "Friend not found"}), 404
+
+        # Check if they are already friends or have a pending request
+        cursor.execute("SELECT status FROM friends WHERE user_id = ? AND friend_id = ?", (user_id, friend_id))
+        row = cursor.fetchone()
+        if row:
+            return jsonify({"status": "error", "message": "Request already exists or already friends"}), 400
+
+        # Insert pending request (user_id -> friend_id). Explicit
+        # CURRENT_TIMESTAMP so existing dbs (column added by ALTER
+        # without a DEFAULT) still get a real timestamp; without this,
+        # the column would land NULL and the feed's new_friendship
+        # event would silently skip the row.
+        cursor.execute("INSERT INTO friends (user_id, friend_id, status, created_at) VALUES (?, ?, 'pending', CURRENT_TIMESTAMP)", (user_id, friend_id))
+
+        cursor.execute("SELECT name FROM users WHERE id = ?", (user_id,))
+        sender_name = cursor.fetchone()["name"]
+
+        msg = f"{sender_name} sent you a friend request."
+        cursor.execute("INSERT INTO notifications (user_id, type, title, related_id, message, is_read) VALUES (?, 'friend_request', 'Friend Request', ?, ?, 0)",
+                       (friend_id, user_id, msg))
+
+        conn.commit()
+    return jsonify({"status": "success"})
+
+
+@bp.route("/api/friends/accept", methods=["POST"])
+@limiter.limit("30 per minute")
+@require_auth
+def accept_friend():
+    """Accept a friend request. Verifies an actual pending invitation
+    exists FROM `friend_id` TO `user_id` before flipping it to
+    accepted — without that check, any caller could fabricate
+    friendships by POSTing arbitrary id pairs.
+    Acceptor from JWT; sender (friend_id) in body."""
+    user_id = current_user_id()
+    friend_id = (request.json or {}).get("friend_id")
+    if not friend_id:
+        return jsonify({"status": "error", "message": "Missing data"}), 400
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT 1 FROM friends WHERE user_id = ? AND friend_id = ? AND status = 'pending'",
+            (friend_id, user_id),
+        )
+        if not cursor.fetchone():
+            return jsonify({"status": "error", "message": "No pending request"}), 404
+
+        cursor.execute("UPDATE friends SET status = 'accepted' WHERE user_id = ? AND friend_id = ?", (friend_id, user_id))
+
+        # Insert reciprocal friendship. Same explicit-CURRENT_TIMESTAMP
+        # treatment as the /add path so legacy dbs still get a populated
+        # created_at on the back-row.
+        cursor.execute("INSERT OR IGNORE INTO friends (user_id, friend_id, status, created_at) VALUES (?, ?, 'accepted', CURRENT_TIMESTAMP)", (user_id, friend_id))
+
+        cursor.execute("SELECT name FROM users WHERE id = ?", (user_id,))
+        acceptor_name = cursor.fetchone()["name"]
+
+        msg = f"{acceptor_name} accepted your friend request."
+        cursor.execute("INSERT INTO notifications (user_id, type, title, related_id, message, is_read) VALUES (?, 'accepted_request', 'Request Accepted', ?, ?, 0)",
+                       (friend_id, user_id, msg))
+
+        conn.commit()
+    return jsonify({"status": "success"})
+
+
+@bp.route("/api/friends/pending", methods=["GET"])
+@require_auth
+def pending_friends():
+    """Get pending incoming friend requests for a user."""
+    user_id = current_user_id()
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT u.id, u.name, u.email, u.picture
+            FROM users u
+            JOIN friends f ON u.id = f.user_id
+            WHERE f.friend_id = ? AND f.status = 'pending'
+        ''', (user_id,))
+        requests = [dict(row) for row in cursor.fetchall()]
+    return jsonify(requests)
+
+
+@bp.route("/api/friends/reject", methods=["POST"])
+@limiter.limit("30 per minute")
+@require_auth
+def reject_friend():
+    """Reject a pending friend request. Mirror of accept_friend's
+    permission gate: caller must be the RECIPIENT of the pending
+    invitation. Deletes the row but does NOT block the sender from
+    re-sending later — rejection is "not now," not "blocked."
+    Recipient from JWT; sender (friend_id) in body."""
+    user_id = current_user_id()
+    friend_id = (request.json or {}).get("friend_id")
+    if not friend_id:
+        return jsonify({"status": "error", "message": "Missing data"}), 400
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT 1 FROM friends WHERE user_id = ? AND friend_id = ? AND status = 'pending'",
+            (friend_id, user_id),
+        )
+        if not cursor.fetchone():
+            return jsonify({"status": "error", "message": "No pending request"}), 404
+        cursor.execute(
+            "DELETE FROM friends WHERE user_id = ? AND friend_id = ? AND status = 'pending'",
+            (friend_id, user_id),
+        )
+        conn.commit()
+    return jsonify({"status": "success"})
+
+
+@bp.route("/api/friends/remove", methods=["POST"])
+@limiter.limit("30 per minute")
+@require_auth
+def remove_friend():
+    """Remove a friendship in BOTH directions. The friends table
+    stores reciprocal rows on accept, so an "I unfriend you" needs
+    to delete both my-side and their-side. No notification fires —
+    unfriending is a quiet exit, mirrors how most social apps
+    handle it.
+    Caller from JWT; counterparty in body."""
+    user_id = current_user_id()
+    friend_id = (request.json or {}).get("friend_id")
+    if not friend_id:
+        return jsonify({"status": "error", "message": "Missing data"}), 400
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        # Two-direction delete via OR, scoped to the (user_id, friend_id)
+        # pair in either column ordering. Status unconstrained — also
+        # clears any leftover pending rows on a concurrent
+        # accept + remove.
+        cursor.execute(
+            "DELETE FROM friends WHERE (user_id = ? AND friend_id = ?) OR (user_id = ? AND friend_id = ?)",
+            (user_id, friend_id, friend_id, user_id),
+        )
+        conn.commit()
+    return jsonify({"status": "success"})
+
+
+@bp.route("/api/friends/list", methods=["GET"])
+@require_auth
+def list_friends():
+    """Get the user's friend list."""
+    user_id = current_user_id()
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT u.id, u.name, u.email, u.picture
+            FROM users u
+            JOIN friends f ON u.id = f.friend_id
+            WHERE f.user_id = ? AND f.status = 'accepted'
+        ''', (user_id,))
+        friends = [dict(row) for row in cursor.fetchall()]
+    return jsonify(friends)
