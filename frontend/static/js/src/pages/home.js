@@ -1531,15 +1531,18 @@ export function renderHome() {
                         const isEditing = editingDayId === day.id;
                         const isStartingPoint = day.dayNumber === 0;
 
-                        // Genesis: green circle with a white star inside,
-                        // shipped as one SVG data-URL — no text label, no
-                        // font fallback, the glyph is part of the image so
-                        // it never glitches on re-render.
-                        // Numbered days: blue circle with the day number as a
-                        // label.
+                        // Genesis: gold-plated circle with a white star
+                        // inside, shipped as one SVG data-URL — no text
+                        // label, no font fallback, the glyph is part of
+                        // the image so it never glitches on re-render.
+                        // Recoloured from green (%2334c759) to
+                        // %23c89a18 to match the rest of the Genesis
+                        // theme (chip, badge, primary button, card glow).
+                        // Numbered days: blue circle with the day number
+                        // as a label.
                         const GENESIS_SVG = 'data:image/svg+xml;utf8,'
                             + '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">'
-                            + '<circle cx="24" cy="24" r="21" fill="%2334c759" stroke="white" stroke-width="3"/>'
+                            + '<circle cx="24" cy="24" r="21" fill="%23c89a18" stroke="white" stroke-width="3"/>'
                             + '<path d="M 24,11 L 27.06,18.96 L 35.55,19.49 L 28.92,24.92 L 31.0,33.16 L 24,28.6 L 17,33.16 L 19.08,24.92 L 12.45,19.49 L 20.94,18.96 Z" fill="white"/>'
                             + '</svg>';
                         const marker = new google.maps.Marker({
