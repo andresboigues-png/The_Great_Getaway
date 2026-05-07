@@ -11,6 +11,9 @@ from flask_limiter.util import get_remote_address
 from database import get_db, init_db
 from auth import issue_token, current_user_id, require_auth
 from extensions import limiter
+from routes.budgets import bp as budgets_bp
+from routes.days import bp as days_bp
+from routes.expenses import bp as expenses_bp
 from routes.media import bp as media_bp
 from routes.public import bp as public_bp
 from routes.settings import bp as settings_bp
@@ -65,6 +68,9 @@ limiter.init_app(app)
 # Phase B4 splits each domain (media / auth / trips / feed / ...) into its
 # own routes/<domain>.py blueprint. Add new blueprints to this list as the
 # split progresses; main.py shrinks accordingly.
+app.register_blueprint(budgets_bp)
+app.register_blueprint(days_bp)
+app.register_blueprint(expenses_bp)
 app.register_blueprint(media_bp)
 app.register_blueprint(public_bp)
 app.register_blueprint(settings_bp)
@@ -549,59 +555,18 @@ def sync_data():
 from helpers import unwrap_legacy_plan_text as _unwrap_legacy_plan_text
 
 
-def _ensure_owner_member_row(cursor, trip_id, owner_id):
-    """Idempotent: makes sure the trip's owner has a planner-role member
-    row. Called from /api/trips upsert and from /api/sync's trip loop."""
-    cursor.execute(
-        "INSERT OR IGNORE INTO trip_members "
-        "(trip_id, user_id, role, is_archived, invitation_status, invited_by) "
-        "VALUES (?, ?, 'planner', 0, 'accepted', ?)",
-        (trip_id, owner_id, owner_id),
-    )
-
-
-def _trip_member_role(cursor, trip_id, user_id):
-    """Returns the user's role on the trip ('planner' / 'relaxer' / future
-    extensions) or None if they aren't an accepted member. Owners always
-    return 'planner' even if their member row hasn't been backfilled yet
-    (defensive — a missing owner row is a bug, not a permission boundary)."""
-    cursor.execute(
-        "SELECT role, invitation_status FROM trip_members WHERE trip_id = ? AND user_id = ?",
-        (trip_id, user_id),
-    )
-    row = cursor.fetchone()
-    if row and row["invitation_status"] == "accepted":
-        return row["role"]
-    # Owner fallback — a write to a freshly-created trip might land before
-    # the owner-row backfill; treat owners as planners regardless.
-    cursor.execute("SELECT user_id FROM trips WHERE id = ?", (trip_id,))
-    trip_row = cursor.fetchone()
-    if trip_row and trip_row["user_id"] == user_id:
-        return "planner"
-    return None
-
-
-def _can_edit_trip(cursor, trip_id, user_id):
-    """Permission gate for trip-level write endpoints (rename trip, edit
-    days, edit metadata). Planner-only; Budgeteers are NOT allowed to
-    write here — they only handle expenses."""
-    role = _trip_member_role(cursor, trip_id, user_id)
-    return role == "planner"
-
-
-def _can_edit_expenses(cursor, trip_id, user_id):
-    """Permission gate for expense-level write endpoints.
-    Planners and Budgeteers both allowed; Relaxers blocked.
-    The Budgeteer role exists for trips where one person handles money
-    but the rest of the planning is locked down."""
-    role = _trip_member_role(cursor, trip_id, user_id)
-    return role in ("planner", "budgeteer")
-
-
-def _is_trip_owner(cursor, trip_id, user_id):
-    cursor.execute("SELECT user_id FROM trips WHERE id = ?", (trip_id,))
-    row = cursor.fetchone()
-    return bool(row and row["user_id"] == user_id)
+# Trip-permission helpers moved to src/helpers.py (Phase B4) so route
+# blueprints can import them without dragging main.py's import graph.
+# Underscore aliases kept so the rest of main.py (and any out-of-tree
+# callers) keep working without a sweeping rename.
+from helpers import (
+    ensure_owner_member_row as _ensure_owner_member_row,
+    trip_member_role as _trip_member_role,
+    can_edit_trip as _can_edit_trip,
+    can_edit_expenses as _can_edit_expenses,
+    is_trip_owner as _is_trip_owner,
+    ensure_user_exists as _ensure_user_exists,
+)
 
 
 @app.route("/api/trips", methods=["POST"])
@@ -951,178 +916,6 @@ def remove_trip_member():
         )
         conn.commit()
     return jsonify({"status": "ok"})
-
-
-@app.route("/api/expenses", methods=["POST"])
-@require_auth
-def upsert_expense():
-    """Create or update a single expense. Planner OR Budgeteer can write
-    (Relaxers blocked). The Budgeteer role exists so one person can
-    handle the trip's money without also being able to rename the trip
-    or change the itinerary."""
-    data = request.json or {}
-    user_id = current_user_id()
-    e = data.get("expense")
-    if not e:
-        return jsonify({"error": "Missing data"}), 400
-    with get_db() as conn:
-        cursor = conn.cursor()
-        if not _can_edit_expenses(cursor, e["tripId"], user_id):
-            return jsonify({"error": "Forbidden"}), 403
-        cursor.execute('''
-            INSERT INTO expenses (id, trip_id, who, category_id, label, date, country, value, currency, euro_value)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET
-                who=excluded.who,
-                category_id=excluded.category_id,
-                label=excluded.label,
-                date=excluded.date,
-                country=excluded.country,
-                value=excluded.value,
-                currency=excluded.currency,
-                euro_value=excluded.euro_value
-        ''', (e['id'], e['tripId'], e['who'], e.get('categoryId', ''),
-              e.get('label', ''), e.get('date', ''), e.get('country', ''),
-              e.get('value', 0), e.get('currency', 'EUR'), e.get('euroValue', 0)))
-        conn.commit()
-    return jsonify({"status": "ok"})
-
-
-@app.route("/api/expenses/<expense_id>", methods=["DELETE"])
-@require_auth
-def delete_expense(expense_id):
-    """Delete a single expense by ID. Planner OR Budgeteer can delete;
-    Relaxers blocked. Caller comes from the JWT, not the body."""
-    user_id = current_user_id()
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT trip_id FROM expenses WHERE id = ?", (expense_id,))
-        row = cursor.fetchone()
-        if not row:
-            return jsonify({"status": "deleted"})  # idempotent
-        if not _can_edit_expenses(cursor, row["trip_id"], user_id):
-            return jsonify({"error": "Forbidden"}), 403
-        cursor.execute("DELETE FROM expenses WHERE id = ?", (expense_id,))
-        conn.commit()
-    return jsonify({"status": "deleted"})
-
-
-# Account-level companions and the companion-link flow are gone.
-# Companions live ONLY inside `trip.companions_json` and are added via the
-# trip-companions picker (which fires a /api/trips/invite when the entry
-# is linked to a friend). The previous endpoints — /api/companions,
-# /api/companions/link, /api/companions/link/respond, /api/companions/unlink
-# — used to be the foundation for that flow and are removed.
-
-def _ensure_user_exists(cursor, user_id):
-    cursor.execute("SELECT 1 FROM users WHERE id = ?", (user_id,))
-    return cursor.fetchone() is not None
-
-
-@app.route("/api/budgets", methods=["POST"])
-@require_auth
-def upsert_budget():
-    """Create or update a single budget."""
-    data = request.json or {}
-    user_id = current_user_id()
-    b = data.get("budget")
-    if not b:
-        return jsonify({"error": "Missing data"}), 400
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute('''
-            INSERT INTO budgets (id, user_id, trip_id, label, amount, currency)
-            VALUES (?, ?, ?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET
-                label=excluded.label,
-                amount=excluded.amount,
-                currency=excluded.currency,
-                trip_id=excluded.trip_id
-        ''', (b['id'], user_id, b.get('tripId'), b.get('label', ''),
-              b.get('amount', 0), b.get('currency', 'EUR')))
-        conn.commit()
-    return jsonify({"status": "ok"})
-
-
-@app.route("/api/budgets/<budget_id>", methods=["DELETE"])
-@require_auth
-def delete_budget(budget_id):
-    """Delete a single budget. Owner-of-budget only — budgets are personal,
-    each user has their own. The endpoint used to delete by id alone, which
-    let any caller wipe anyone's budget if they could guess an id."""
-    user_id = current_user_id()
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute(
-            "DELETE FROM budgets WHERE id = ? AND user_id = ?",
-            (budget_id, user_id),
-        )
-        conn.commit()
-    return jsonify({"status": "deleted"})
-
-
-@app.route("/api/days", methods=["POST"])
-@require_auth
-def upsert_day():
-    """Create or update a single trip day. Planner-role gate."""
-    data = request.json or {}
-    user_id = current_user_id()
-    d = data.get("day")
-    if not d:
-        return jsonify({"error": "Missing data"}), 400
-    with get_db() as conn:
-        cursor = conn.cursor()
-        if not _can_edit_trip(cursor, d.get("tripId"), user_id):
-            return jsonify({"error": "Forbidden"}), 403
-        cursor.execute('''
-            INSERT INTO trip_days (id, trip_id, day_number, date, name, morning, afternoon, evening, tip, lat, lng)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET
-                day_number=excluded.day_number,
-                date=excluded.date,
-                name=excluded.name,
-                morning=excluded.morning,
-                afternoon=excluded.afternoon,
-                evening=excluded.evening,
-                tip=excluded.tip,
-                lat=excluded.lat,
-                lng=excluded.lng
-        ''', (d['id'], d.get('tripId'), d.get('dayNumber'), d.get('date'), d.get('name'),
-              # Plain text — see /api/sync above for the json.dumps fix.
-              d.get('morning', d.get('plan', {}).get('morning', '')) or '',
-              d.get('afternoon', d.get('plan', {}).get('afternoon', '')) or '',
-              d.get('evening', d.get('plan', {}).get('evening', '')) or '',
-              d.get('tip', d.get('notes', '')),
-              d.get('lat'),
-              d.get('lng') or d.get('lon')))
-        conn.commit()
-    return jsonify({"status": "ok"})
-
-
-@app.route("/api/days/<day_id>", methods=["DELETE"])
-@require_auth
-def delete_day(day_id):
-    """Delete a single trip day. Planner-role gate.
-
-    Day 0 (Trip Genesis) is the trip's anchor — pill epicenter searches,
-    the wide-area POI fetch radius, and the lazy day-0 sessionStorage
-    flag all key off it. The home UI hides the delete button on the
-    genesis card; this 422 is belt-and-braces in case a stale client
-    or a curl-wielding user fires the request anyway."""
-    user_id = current_user_id()
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT trip_id, day_number FROM trip_days WHERE id = ?", (day_id,))
-        row = cursor.fetchone()
-        if not row:
-            return jsonify({"status": "deleted"})  # idempotent
-        if not _can_edit_trip(cursor, row["trip_id"], user_id):
-            return jsonify({"error": "Forbidden"}), 403
-        if int(row["day_number"] or 0) == 0:
-            return jsonify({"error": "Trip Genesis (day 0) anchors the trip and can't be deleted."}), 422
-        cursor.execute("DELETE FROM trip_days WHERE id = ?", (day_id,))
-        conn.commit()
-    return jsonify({"status": "deleted"})
 
 
 # ── END DELTA SYNC ENDPOINTS ──────────────────────────────────────────────────
