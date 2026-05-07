@@ -1,10 +1,10 @@
 // @ts-check
 import { STATE, emit } from '../state.js';
-import { showConfirmModal, formatHome, esc, shortPlaceName } from '../utils.js';
+import { showConfirmModal, formatHome, esc, shortPlaceName, showLiquidAlert } from '../utils.js';
 import { navigate } from '../router.js';
-import { apiUrl, unarchiveTripOnServer } from '../api.js';
+import { apiUrl, apiFetch, unarchiveTripOnServer, shareTripToFeed, fetchShareStatus, unshareFeedPost } from '../api.js';
 import { wireRoleButtonKeys } from '../components/Keyboard.js';
-import { openDayView, openPdfPreview, looksLikePdfUrl } from './home.js';
+import { openDayView, openPdfPreview, looksLikePdfUrl, openShareToFeedModal, updateShareBtnVisualState } from './home.js';
 
 // ── Collections sort + filter state ───────────────────────────────────
 // Module-level so the user's pick survives navigation away and back.
@@ -352,8 +352,22 @@ export function renderCollections() {
     return div;
 }
 
-export function renderArchivedTripDetail(tripId) {
-    const trip = STATE.archivedTrips.find(t => t.id === tripId);
+/**
+ * Render a read-only archived-trip detail page.
+ *
+ * Accepts EITHER a trip id (string — looks up STATE.archivedTrips +
+ * STATE.trips for the local case) OR a fully-shaped trip object
+ * (used when the page is opened on a foreign public trip fetched
+ * via /api/public-trip — the caller doesn't own the trip so it
+ * isn't in STATE).
+ *
+ * @param {string | any} tripIdOrTrip
+ */
+export function renderArchivedTripDetail(tripIdOrTrip) {
+    const trip = typeof tripIdOrTrip === 'string'
+        ? (STATE.archivedTrips.find(t => t.id === tripIdOrTrip)
+            || STATE.trips.find(t => t.id === tripIdOrTrip))
+        : tripIdOrTrip;
     const div = document.createElement('div');
     if (!trip) {
         div.innerHTML = `<p style="padding: 40px; text-align: center;">Trip not found.</p>`;
@@ -423,10 +437,25 @@ export function renderArchivedTripDetail(tripId) {
                  readability when the photo is bright. -->
             <div style="position:absolute; inset:0; background: radial-gradient(circle at 20% 0%, rgba(255,255,255,0.18) 0%, transparent 55%); pointer-events:none;"></div>
 
-            <!-- Action pills float top-right; outline pill (Back) and
-                 solid pill (Restore Trip), matching .btn-primary-pill. -->
+            <!-- Action pills float top-right. Order: Back, then
+                 (when public) Share, then Restore. Share is the new
+                 home of the share-to-feed entry point — moved here
+                 from the home-page trip header so only trips the
+                 user has explicitly marked Public can be shared.
+                 Outline pill aesthetic for Back + Share matches the
+                 .btn-primary-pill family already used by Restore. -->
             <div style="position:absolute; top:24px; right:24px; display:flex; gap:8px; z-index:2;">
                 <button id="backToCollectionsBtn" type="button" style="background:rgba(255,255,255,0.16); border:1px solid rgba(255,255,255,0.3); color:#ffffff; padding:10px 18px; border-radius:999px; font-weight:800; font-size:0.85rem; cursor:pointer; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);">← Back</button>
+                ${trip.isPublic ? `
+                    <button id="shareToFeedBtn" type="button" data-trip-id="${esc(trip.id)}" title="Share this trip to your friends' feeds" aria-label="Share to feed"
+                        style="background:rgba(255,255,255,0.16); border:1px solid rgba(255,255,255,0.3); color:#ffffff; padding:10px 18px; border-radius:999px; font-weight:800; font-size:0.85rem; cursor:pointer; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); display:inline-flex; align-items:center; gap:6px;">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <line x1="22" y1="2" x2="11" y2="13"></line>
+                            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                        </svg>
+                        Share
+                    </button>
+                ` : ''}
                 <button class="restore-trip-btn" data-trip-id="${esc(trip.id)}" type="button" style="background:#ffffff; color:#002d5b; padding:10px 18px; border-radius:999px; font-weight:800; font-size:0.85rem; cursor:pointer; box-shadow:0 4px 14px rgba(0,0,0,0.18); border: 0;">↺ Restore Trip</button>
             </div>
 
@@ -640,10 +669,73 @@ export function renderArchivedTripDetail(tripId) {
     `;
 
     div.querySelector('#backToCollectionsBtn')?.addEventListener('click', () => navigate('collections'));
+
+    // Share-to-feed button — only rendered when trip.isPublic. Bootstraps
+    // its visual state from /api/feed/share/status (so a re-render shows
+    // "already shared" without flicker), then listens for clicks: first
+    // click opens the caption modal; clicks on an already-shared button
+    // open the unshare confirm. Same flow that lived on the home page,
+    // moved here so it's gated on the public flag.
+    const shareBtnEl = /** @type {HTMLElement | null} */ (div.querySelector('#shareToFeedBtn'));
+    if (shareBtnEl) {
+        fetchShareStatus(trip.id).then(status => {
+            if (!status?.shared) return;
+            shareBtnEl.dataset.shared = '1';
+            shareBtnEl.dataset.postId = String(status.post_id);
+            updateShareBtnVisualState(shareBtnEl, true);
+        });
+    }
+
     div.addEventListener('click', (e) => {
         const target = /** @type {HTMLElement | null} */ (e.target);
         const restoreBtn = /** @type {HTMLElement | null} */ (target?.closest('.restore-trip-btn'));
         if (restoreBtn?.dataset.tripId) { restoreTrip(restoreBtn.dataset.tripId); return; }
+
+        // Share-to-feed click handler (mirrors the old home.js flow).
+        const shareBtn = /** @type {HTMLElement | null} */ (target?.closest('#shareToFeedBtn'));
+        if (shareBtn) {
+            const alreadyShared = shareBtn.dataset.shared === '1';
+            if (alreadyShared) {
+                const postId = Number(shareBtn.dataset.postId || 0);
+                if (!postId) return;
+                showConfirmModal({
+                    title: "Unshare this trip?",
+                    message: "It'll disappear from your friends' feeds. Any reposts of it will be removed too.",
+                    confirmText: "Unshare",
+                    onConfirm: async () => {
+                        const result = await unshareFeedPost(postId);
+                        if (!result || !result.ok) {
+                            showLiquidAlert("Couldn't unshare — try again in a moment.");
+                            return;
+                        }
+                        shareBtn.dataset.shared = '0';
+                        shareBtn.dataset.postId = '';
+                        updateShareBtnVisualState(shareBtn, false);
+                        showLiquidAlert("Removed from your feed.");
+                    },
+                });
+                return;
+            }
+            openShareToFeedModal(trip, async (caption) => {
+                const result = await shareTripToFeed(trip.id, caption);
+                if (!result || !result.ok) {
+                    showLiquidAlert("Couldn't share — try again in a moment.");
+                    return;
+                }
+                const postId = Number(result.body?.post_id) || 0;
+                if (postId) {
+                    shareBtn.dataset.shared = '1';
+                    shareBtn.dataset.postId = String(postId);
+                    updateShareBtnVisualState(shareBtn, true);
+                }
+                if (result.body?.status === 'already_shared') {
+                    showLiquidAlert(caption ? "Updated your share." : "Already shared to your feed.");
+                } else {
+                    showLiquidAlert("Shared to your feed.");
+                }
+            });
+            return;
+        }
         // Documents-section anchor: clicking a .pdf row pops the
         // in-app PDF preview instead of opening a new tab. Cmd/Ctrl/
         // Shift/middle-click still escape to the browser default so
@@ -681,12 +773,53 @@ export function renderArchivedTripDetail(tripId) {
     return div;
 }
 
-// Exported because profile.js (archived-trips section) also opens these.
-export const viewArchivedDetails = (id) => {
+// Exported because profile.js (archived-trips section) and feed.js
+// (share/repost trip-card click-through) also open these.
+//
+// For local trips (in the caller's STATE), this is a synchronous
+// swap. For trips that aren't in local state — typical for trip
+// cards on shared/reposted feed posts where the trip belongs to a
+// friend — we lazily fetch the full trip via /api/public-trip,
+// then render off the fetched object directly. The renderer accepts
+// both shapes, so the caller doesn't need to branch.
+export const viewArchivedDetails = async (id) => {
     const content = document.getElementById('app-container');
     if (!content) return;
-    content.innerHTML = '';
-    content.appendChild(renderArchivedTripDetail(id));
+    // Fast path — trip is in our local state (own archive or own
+    // active trip). Renders immediately, no network.
+    const local = STATE.archivedTrips.find(t => t.id === id)
+        || STATE.trips.find(t => t.id === id);
+    if (local) {
+        content.innerHTML = '';
+        content.appendChild(renderArchivedTripDetail(local));
+        return;
+    }
+    // Slow path — foreign trip. Show a loading placeholder so the
+    // user gets feedback while the request is in flight, then swap
+    // in the rendered content (or a not-found message) when it lands.
+    content.innerHTML = `<div style="padding:60px 20px; text-align:center; color:var(--text-secondary); font-size:0.95rem;">Loading trip…</div>`;
+    try {
+        // apiFetch attaches the bearer token automatically when the
+        // user is logged in — needed so the endpoint can grant
+        // access to private trips the caller IS a member of (anon
+        // callers only get public trips, which is what we want for
+        // logged-out feed views too).
+        const res = await apiFetch(`/api/public-trip/${encodeURIComponent(id)}`);
+        if (!res.ok) {
+            content.innerHTML = `<div style="padding:60px 20px; text-align:center; color:var(--text-secondary);">This trip isn't available — it may be private or deleted.</div>`;
+            return;
+        }
+        const data = await res.json();
+        if (!data?.trip) {
+            content.innerHTML = `<div style="padding:60px 20px; text-align:center; color:var(--text-secondary);">Trip not found.</div>`;
+            return;
+        }
+        content.innerHTML = '';
+        content.appendChild(renderArchivedTripDetail(data.trip));
+    } catch (err) {
+        console.error('viewArchivedDetails fetch failed:', err);
+        content.innerHTML = `<div style="padding:60px 20px; text-align:center; color:var(--text-secondary);">Couldn't load this trip — try again in a moment.</div>`;
+    }
 };
 
 const toggleTripPrivacy = async (id, isPublic) => {

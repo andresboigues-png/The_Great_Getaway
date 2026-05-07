@@ -2303,6 +2303,134 @@ def get_data():
             "tripDays": trip_days,
         })
 
+@app.route("/api/public-trip/<trip_id>", methods=["GET"])
+def get_public_trip(trip_id):
+    """Fetch full trip data for read-only display when the caller doesn't
+    own the trip. Powers the feed-post trip-card click-through and any
+    other surface where a non-member needs to view a friend's trip.
+
+    Gating: returns 404 if the trip doesn't exist OR isn't public AND
+    the caller isn't a member. We intentionally hide private trips behind
+    a 404 (vs 403) so a probing client can't enumerate which trip IDs
+    exist.
+
+    Shape mirrors the archived-trip object the frontend's
+    renderArchivedTripDetail expects: trip metadata + tripDays
+    (with plan/photos/documents inlined) + expenses + owner user info.
+    Companions / markedPlaces / per-trip photos / documents / checklist
+    are all included so the read-only renderer renders the same body
+    a local archive view would."""
+    caller_id = current_user_id()  # may be None if not authed
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM trips WHERE id = ?", (trip_id,))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"error": "Not found"}), 404
+        trip = dict(row)
+        is_public = bool(trip.get('is_public'))
+        owner_id = trip.get('user_id')
+
+        # Visibility gate. Public → anyone. Private → caller must be a
+        # member (owner row or accepted trip_members row). We hide
+        # non-visible trips behind 404 to avoid leaking trip-id existence.
+        is_visible = is_public
+        if not is_visible and caller_id:
+            if owner_id == caller_id:
+                is_visible = True
+            else:
+                cursor.execute(
+                    "SELECT 1 FROM trip_members WHERE trip_id = ? AND user_id = ? "
+                    "AND invitation_status = 'accepted' LIMIT 1",
+                    (trip_id, caller_id),
+                )
+                if cursor.fetchone():
+                    is_visible = True
+        if not is_visible:
+            return jsonify({"error": "Not found"}), 404
+
+        # Frontend-shape the trip row. Same field-renaming the main
+        # /api/data path uses; kept inline rather than refactored
+        # because that path is large and tangled — extracting now
+        # would balloon this PR's surface area.
+        trip['ownerId'] = owner_id
+        trip['isPublic'] = is_public
+        trip['placeId'] = trip.pop('place_id', None)
+        viewport_raw = trip.pop('viewport_json', None)
+        trip['viewport'] = json.loads(viewport_raw) if viewport_raw else None
+        types_raw = trip.pop('place_types', None)
+        trip['placeTypes'] = json.loads(types_raw) if types_raw else None
+        trip['countryCode'] = trip.pop('country_code', None)
+        companions_raw = trip.pop('companions_json', None)
+        trip['companions'] = json.loads(companions_raw) if companions_raw else []
+        marked_raw = trip.pop('marked_places_json', None)
+        trip['markedPlaces'] = json.loads(marked_raw) if marked_raw else []
+        documents_raw = trip.pop('documents_json', None)
+        trip['documents'] = json.loads(documents_raw) if documents_raw else []
+        photos_raw = trip.pop('photos_json', None)
+        trip['photos'] = json.loads(photos_raw) if photos_raw else []
+        checklist_raw = trip.pop('checklist_json', None)
+        trip['checklist'] = json.loads(checklist_raw) if checklist_raw else []
+        trip['isArchived'] = bool(trip.pop('is_archived', False))
+        trip.pop('user_id', None)
+
+        # Owner display info (name + picture) so the read-only page can
+        # show "by [Owner]". Kept tiny — just what the renderer needs.
+        cursor.execute("SELECT id, name, picture FROM users WHERE id = ?", (owner_id,))
+        owner_row = cursor.fetchone()
+        owner = dict(owner_row) if owner_row else None
+
+        # Days, expenses, and the day-level photos/documents that the
+        # archived renderer consumes. Mirrors the /api/data shaping so
+        # the same renderer can read this payload without branching.
+        cursor.execute("SELECT * FROM trip_days WHERE trip_id = ?", (trip_id,))
+        trip_days = []
+        for d_row in cursor.fetchall():
+            day = dict(d_row)
+            day['tripId'] = day.pop('trip_id')
+            day['dayNumber'] = day.pop('day_number')
+            day['lon'] = day.pop('lng')
+            day['plan'] = {
+                'morning': _unwrap_legacy_plan_text(day.pop('morning', '')),
+                'afternoon': _unwrap_legacy_plan_text(day.pop('afternoon', '')),
+                'evening': _unwrap_legacy_plan_text(day.pop('evening', '')),
+            }
+            try: day['photos'] = json.loads(day.get('photos') or '[]')
+            except: day['photos'] = []
+            try: day['documents'] = json.loads(day.get('documents') or '[]')
+            except: day['documents'] = []
+            trip_days.append(day)
+
+        cursor.execute("SELECT * FROM expenses WHERE trip_id = ?", (trip_id,))
+        expenses = [dict(r) for r in cursor.fetchall()]
+
+        # Inline tripDays + expenses + members on the trip object. The
+        # archived-trip frontend reads these from `trip.tripDays` and
+        # `trip.expenses` (snapshots stored on archive), not from
+        # global STATE — so embedding them here means the same
+        # renderer works for fetched trips with no extra plumbing.
+        trip['tripDays'] = trip_days
+        trip['expenses'] = expenses
+
+        cursor.execute('''
+            SELECT m.user_id, m.role, u.name AS user_name, u.picture AS user_picture
+            FROM trip_members m
+            LEFT JOIN users u ON u.id = m.user_id
+            WHERE m.trip_id = ? AND m.invitation_status = 'accepted'
+        ''', (trip_id,))
+        trip['members'] = [
+            {
+                'userId': mr['user_id'],
+                'role': mr['role'],
+                'name': mr['user_name'],
+                'picture': mr['user_picture'],
+            }
+            for mr in cursor.fetchall()
+        ]
+
+        return jsonify({"trip": trip, "owner": owner})
+
+
 @app.route("/api/public-profile/<user_id>", methods=["GET"])
 def get_public_profile(user_id):
     """Fetch public profile data for a user (Name, Bio, Public Trips, etc)."""

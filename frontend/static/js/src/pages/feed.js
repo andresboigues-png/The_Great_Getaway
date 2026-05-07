@@ -24,6 +24,7 @@ import { apiFetch, toggleFeedLike, toggleFeedBookmark, repostFeedPost,
          unshareFeedPost } from '../api.js';
 import { esc, q, showLiquidAlert, showConfirmModal } from '../utils.js';
 import { navigate } from '../router.js';
+import { viewArchivedDetails } from './collections.js';
 
 // Show like-count chips only above this threshold. Below it the heart
 // still fills when YOU've liked it, but the global tally stays hidden —
@@ -666,32 +667,26 @@ export function renderFeed() {
                 <div style="margin-top:10px; padding:10px 12px; background:rgba(88,86,214,0.06); border-radius:12px; font-size:0.92rem; color:#002d5b; line-height:1.45; white-space:pre-wrap; word-wrap:break-word;">${esc(ev.caption)}</div>
             ` : '';
             // Trip card — visual anchor showing WHICH trip is being
-            // shared/reposted. Without it the trip name was buried as
-            // inline-bold prose in the verb line; users couldn't tell
-            // a share apart from a caption-only message. Click takes
-            // the viewer to the original sharer's public profile so
-            // they can explore other trips by them (we don't have a
-            // per-trip view yet — this gives the post agency without
-            // building one).
+            // shared/reposted. Without it the trip name was buried
+            // as inline-bold prose in the verb line; users couldn't
+            // tell a share apart from a caption-only message. Click
+            // opens the SAME read-only trip detail page that
+            // collections / profile reach via their "View" button —
+            // viewArchivedDetails handles foreign trips by lazy-
+            // fetching /api/public-trip when the trip isn't in the
+            // caller's local state.
             const isShareLike = ev.type === 'friend_shared_trip' || ev.type === 'friend_reposted_trip';
-            const tripCardHtml = (isShareLike && ev.trip) ? (() => {
-                // For reposts, the trip "belongs" to the original
-                // sharer; viewers expect the trip card to land them
-                // there, not on the reposter's profile. For original
-                // shares, the actor IS the sharer.
-                const profileTarget = ev.type === 'friend_reposted_trip'
-                    ? (ev.original_sharer?.id || ev.actor?.id)
-                    : ev.actor?.id;
+            const tripCardHtml = (isShareLike && ev.trip?.id) ? (() => {
                 const country = ev.trip.country ? esc(ev.trip.country) : '';
                 return `
-                    <button type="button" class="feed-trip-card" data-profile-target="${esc(profileTarget || '')}"
-                        style="margin-top:10px; width:100%; text-align:left; background:white; border:1px solid rgba(88,86,214,0.22); border-left:4px solid #5856d6; border-radius:14px; padding:12px 14px; cursor:${profileTarget ? 'pointer' : 'default'}; display:flex; align-items:center; gap:12px; box-shadow:0 2px 8px rgba(0,45,91,0.04); transition: transform 0.15s ease, box-shadow 0.15s ease;">
+                    <button type="button" class="feed-trip-card" data-trip-id="${esc(ev.trip.id)}"
+                        style="margin-top:10px; width:100%; text-align:left; background:white; border:1px solid rgba(88,86,214,0.22); border-left:4px solid #5856d6; border-radius:14px; padding:12px 14px; cursor:pointer; display:flex; align-items:center; gap:12px; box-shadow:0 2px 8px rgba(0,45,91,0.04); transition: transform 0.15s ease, box-shadow 0.15s ease;">
                         <span style="font-size:1.6rem; line-height:1; flex-shrink:0;">🗺️</span>
                         <div style="flex:1; min-width:0;">
                             <div style="font-weight:800; color:#002d5b; font-size:0.98rem; line-height:1.25; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(ev.trip.name || 'Trip')}</div>
                             ${country ? `<div style="font-size:0.78rem; color:var(--text-secondary); font-weight:600; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">📍 ${country}</div>` : ''}
                         </div>
-                        ${profileTarget ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="color:#5856d6; flex-shrink:0;"><polyline points="9 18 15 12 9 6"></polyline></svg>` : ''}
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="color:#5856d6; flex-shrink:0;"><polyline points="9 18 15 12 9 6"></polyline></svg>
                     </button>
                 `;
             })() : '';
@@ -779,15 +774,15 @@ export function renderFeed() {
         const target = /** @type {HTMLElement | null} */ (e.target);
         if (!target) return;
 
-        // Trip card on share/repost events. We don't have a per-trip
-        // public view yet, so the click takes the viewer to the
-        // ORIGINAL sharer's profile — gives the post some agency
-        // without pretending we have a trip-detail page. data-attr is
-        // empty when no profile target was resolvable; in that case
-        // the cursor is already `default` and we no-op here.
+        // Trip card on share/repost events. Opens the same read-only
+        // trip detail page that profile/collections "View" buttons
+        // reach. viewArchivedDetails handles both local trips
+        // (synchronous, from STATE) and foreign trips (async fetch
+        // from /api/public-trip), so the click works whether the
+        // shared trip belongs to the viewer or to a friend.
         const tripCard = /** @type {HTMLElement | null} */ (target.closest('.feed-trip-card'));
-        if (tripCard?.dataset.profileTarget) {
-            navigate('profile', { userId: tripCard.dataset.profileTarget });
+        if (tripCard?.dataset.tripId) {
+            viewArchivedDetails(tripCard.dataset.tripId);
             return;
         }
 

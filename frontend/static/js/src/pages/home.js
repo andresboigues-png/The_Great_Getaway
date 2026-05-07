@@ -4,7 +4,12 @@
 import { STATE, emit } from '../state.js';
 import { INSPIRATIONAL_PAIRS } from '../constants.js';
 import { getMediaForTrip, showLiquidAlert, formatDayDate, q, showConfirmModal, generateId, shortPlaceName, esc } from '../utils.js';
-import { upsertDay, uploadMedia, deleteDayOnServer, upsertTrip, shareTripToFeed, fetchShareStatus, unshareFeedPost } from '../api.js';
+// Share-flow imports (shareTripToFeed / fetchShareStatus /
+// unshareFeedPost) used to live here; they moved with the Share
+// button to collections.js (renderArchivedTripDetail). The
+// share-modal helper itself (openShareToFeedModal) is still defined
+// here and re-exported so collections.js can drive it.
+import { upsertDay, uploadMedia, deleteDayOnServer, upsertTrip } from '../api.js';
 import { navigate } from '../router.js';
 import { showPersTab } from './settings.js';
 import { openNewTripModal, openAddDayModal, openEditTripModal, openCompanionPickerModal, openTripMembersModal } from '../modals.js';
@@ -684,21 +689,10 @@ export function renderHome() {
         stopHomeSlideshow();
 
         setTimeout(() => {
-            // Share-to-feed button — initial state from server. The
-            // button starts in the outline state and flips to filled
-            // (purple) if the trip is currently shared. Stamps post_id
-            // into a data attribute so the unshare flow has it.
-            if (activeTrip) {
-                const shareBtn = /** @type {HTMLElement | null} */ (document.getElementById('shareToFeedBtn'));
-                if (shareBtn) {
-                    fetchShareStatus(activeTrip.id).then(status => {
-                        if (!status?.shared) return;
-                        shareBtn.dataset.shared = '1';
-                        shareBtn.dataset.postId = String(status.post_id);
-                        updateShareBtnVisualState(shareBtn, true);
-                    });
-                }
-            }
+            // (Share-button bootstrap moved out — the share entry
+            // point lives on the public-trip detail page in
+            // Collections now, and that page does its own share
+            // status fetch on mount.)
 
             const mapContainer = document.getElementById('homeHeroMap');
             if (mapContainer && typeof google !== 'undefined' && google.maps && activeTrip) {
@@ -2008,23 +2002,14 @@ export function renderHome() {
                             </a>
                         `;
                     })()}
-                    <!-- Share to feed — any accepted member can share
-                         (the backend gates on membership, not ownership).
-                         Posts the trip to the caller's friends' feeds as
-                         a friend_shared_trip event; idempotent so a
-                         re-click on an already-shared trip just hands
-                         back the existing post. Visual: icon-btn-circle
-                         (vs the Open-in-Maps button next to it which is
-                         icon-btn-square) plus a paper-plane icon, so it
-                         doesn't read as another open-external-link
-                         button. When already shared, JS flips this to a
-                         filled purple state via updateShareBtnVisualState. -->
-                    <button id="shareToFeedBtn" class="icon-btn-circle" style="--accent: 88, 86, 214;" title="Share this trip to your feed" aria-label="Share to feed">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                            <line x1="22" y1="2" x2="11" y2="13"></line>
-                            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-                        </svg>
-                    </button>
+                    <!-- Share-to-feed button used to live here, on every
+                         active trip. Moved (per user) to the public-trip
+                         detail page in Collections / Profile so only
+                         trips the user has explicitly marked Public can
+                         be shared. The feed event payload + flow is
+                         unchanged; the entry point is just the trip
+                         detail's Share button now. See
+                         renderArchivedTripDetail in collections.js. -->
                     ${!tripIsEditable ? `
                         <span class="trip-role-badge trip-role-badge--relaxer" title="You're a Relaxer on this trip — view-only">👁 Relaxer</span>
                     ` : ''}
@@ -2745,56 +2730,9 @@ export function renderHome() {
             // Edit-trip pencil — owner-only, hidden when !manageable.
             if (target.closest('#editTripBtn')) { openEditTripModal(activeTrip); return; }
 
-            // Share-to-feed — toggle. The button stamps its current state
-            // into `data-shared` (refreshed by the post-render fetch in
-            // fetchShareStatus, see below) so we know whether to open
-            // the share modal or the unshare confirm. Filled state means
-            // already-shared.
-            const shareBtn = /** @type {HTMLElement | null} */ (target.closest('#shareToFeedBtn'));
-            if (shareBtn && activeTrip) {
-                const alreadyShared = shareBtn.dataset.shared === '1';
-                if (alreadyShared) {
-                    const postId = Number(shareBtn.dataset.postId || 0);
-                    if (!postId) return;
-                    showConfirmModal({
-                        title: "Unshare this trip?",
-                        message: `It'll disappear from your friends' feeds. Any reposts of it will be removed too.`,
-                        confirmText: "Unshare",
-                        onConfirm: async () => {
-                            const result = await unshareFeedPost(postId);
-                            if (!result || !result.ok) {
-                                showLiquidAlert("Couldn't unshare — try again in a moment.");
-                                return;
-                            }
-                            shareBtn.dataset.shared = '0';
-                            shareBtn.dataset.postId = '';
-                            updateShareBtnVisualState(shareBtn, false);
-                            showLiquidAlert("Removed from your feed.");
-                        },
-                    });
-                    return;
-                }
-                // Not shared yet — open the share modal with caption input.
-                openShareToFeedModal(activeTrip, async (caption) => {
-                    const result = await shareTripToFeed(activeTrip.id, caption);
-                    if (!result || !result.ok) {
-                        showLiquidAlert("Couldn't share — try again in a moment.");
-                        return;
-                    }
-                    const postId = Number(result.body?.post_id) || 0;
-                    if (postId) {
-                        shareBtn.dataset.shared = '1';
-                        shareBtn.dataset.postId = String(postId);
-                        updateShareBtnVisualState(shareBtn, true);
-                    }
-                    if (result.body?.status === 'already_shared') {
-                        showLiquidAlert(caption ? "Updated your share." : "Already shared to your feed.");
-                    } else {
-                        showLiquidAlert("Shared to your feed.");
-                    }
-                });
-                return;
-            }
+            // (Share-to-feed click handler moved to collections.js —
+            // the button only renders on public-trip detail pages
+            // now, see renderArchivedTripDetail.)
 
             // Companions / Members button OR the inline member-chip panel —
             // both route through the same dispatcher: owner picks roster,
@@ -3224,8 +3162,12 @@ const openJournalingModal = (dayId) => {
  *  tint from --accent: 88,86,214); filled state goes solid-purple with
  *  a white icon so the "already shared" state pops visually. The
  *  same purple anchors the share/repost event accent in the feed,
- *  carrying visual identity across home → feed. */
-function updateShareBtnVisualState(btn, shared) {
+ *  carrying visual identity across home → feed.
+ *
+ *  Exported so collections.js (the new home of the Share button —
+ *  rendered on public-trip detail pages only) can drive the same
+ *  visual state machine without re-implementing it. */
+export function updateShareBtnVisualState(btn, shared) {
     if (!btn) return;
     if (shared) {
         btn.style.background = '#5856d6';
@@ -3247,8 +3189,12 @@ function updateShareBtnVisualState(btn, shared) {
 /** Open the Share-to-feed modal: a textarea for an optional ≤280-char
  *  caption + a Cancel/Share pair. The textarea pre-fills with `seedCaption`
  *  when the user is editing an existing share. The submit callback gets
- *  the cleaned caption string (or empty for "no caption"). */
-function openShareToFeedModal(trip, onSubmit, seedCaption = '') {
+ *  the cleaned caption string (or empty for "no caption").
+ *
+ *  Exported because the Share button moved from home.js to the
+ *  public-trip detail page in collections.js; that page reuses this
+ *  modal so the share UX stays identical regardless of entry point. */
+export function openShareToFeedModal(trip, onSubmit, seedCaption = '') {
     const { root, close } = showModal({
         cardClass: 'card glass',
         cardStyle: 'width: 480px; max-width: calc(100vw - 32px); padding: 28px; border-radius: 28px; background: white;',
