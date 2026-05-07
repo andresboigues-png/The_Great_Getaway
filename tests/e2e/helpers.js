@@ -93,10 +93,11 @@ export async function loginAsTestUser(page, userId = 'test-user-1') {
  * navigations: the first lets us touch localStorage on the right
  * origin, the second is the actual app boot under the seeded session.
  * @param {import('@playwright/test').Page} page
+ * @param {string} [userId]
  */
-export async function openFreshApp(page) {
+export async function openFreshApp(page, userId = 'test-user-1') {
     await page.goto('/');
-    await loginAsTestUser(page);
+    await loginAsTestUser(page, userId);
     await page.goto('/');
     await expect(page.locator('#sidebar')).toBeVisible();
 }
@@ -168,6 +169,94 @@ export async function addCompanion(page, name) {
     // give the re-render a moment before subsequent assertions.
     await page.click('#companionPickerCloseBtn');
     await page.waitForLoadState('domcontentloaded');
+}
+
+// ── API-level helpers ────────────────────────────────────────────────
+// The flow suite exercises the JWT-gated endpoints directly via
+// page.request rather than driving the UI for setup. Same auth
+// (loginAsTestUser issues a real JWT and seeds it in localStorage,
+// but `page.request` is its own context so we replay the
+// Authorization header manually). Faster + more deterministic for
+// the API contract tests.
+
+/**
+ * Issue a fresh JWT via the test-mode bypass and return the
+ * Authorization header for use with page.request. Independent of any
+ * existing localStorage / cookies.
+ * @param {import('@playwright/test').Page} page
+ * @param {string} [userId]
+ * @returns {Promise<{ token: string, user: any, headers: { Authorization: string } }>}
+ */
+export async function getAuthForApi(page, userId = 'test-user-1') {
+    const res = await page.request.post('/api/auth/google', {
+        data: { token: `test:${userId}`, name: userId === 'test-user-1' ? 'Test User' : `Test ${userId}` },
+    });
+    if (!res.ok()) {
+        throw new Error(`getAuthForApi failed: ${res.status()} ${await res.text()}`);
+    }
+    const body = await res.json();
+    return {
+        token: body.token,
+        user: body.user,
+        headers: { Authorization: `Bearer ${body.token}` },
+    };
+}
+
+/**
+ * Create a trip via /api/trips POST. Faster than the UI modal +
+ * deterministic — Playwright doesn't need to drive the place picker.
+ * @param {import('@playwright/test').APIRequestContext | import('@playwright/test').Page} ctx
+ * @param {{ Authorization: string }} headers
+ * @param {{ id?: string; name?: string; country?: string; isPublic?: boolean }} [trip]
+ */
+export async function createTripViaApi(ctx, headers, trip = {}) {
+    // Accept either a Page (use .request) or a raw APIRequestContext.
+    /** @type {import('@playwright/test').APIRequestContext} */
+    const api = 'request' in ctx ? ctx.request : ctx;
+    const id = trip.id || `trip-flow-${Math.random().toString(36).slice(2, 8)}`;
+    const res = await api.post('/api/trips', {
+        headers,
+        data: {
+            trip: {
+                id,
+                name: trip.name || 'Flow Test Trip',
+                country: trip.country || 'Portugal',
+                isPublic: trip.isPublic ?? false,
+            },
+        },
+    });
+    if (!res.ok()) throw new Error(`createTripViaApi failed: ${res.status()} ${await res.text()}`);
+    return id;
+}
+
+/**
+ * Establish a mutually-accepted friendship between two test users by
+ * driving the friend-add and friend-accept endpoints. Uses
+ * GG_ALLOW_TEST_LOGIN's test-mode auth shortcut for both halves so
+ * the test isn't sensitive to row ordering.
+ * @param {import('@playwright/test').Page} page
+ * @param {string} userIdA
+ * @param {string} userIdB
+ * @returns {Promise<{ a: { headers: { Authorization: string } }, b: { headers: { Authorization: string } } }>}
+ */
+export async function befriend(page, userIdA, userIdB) {
+    const a = await getAuthForApi(page, userIdA);
+    const b = await getAuthForApi(page, userIdB);
+    const addRes = await page.request.post('/api/friends/add', {
+        headers: a.headers,
+        data: { friend_id: userIdB },
+    });
+    if (!addRes.ok()) {
+        throw new Error(`befriend (add) failed: ${addRes.status()} ${await addRes.text()}`);
+    }
+    const acceptRes = await page.request.post('/api/friends/accept', {
+        headers: b.headers,
+        data: { friend_id: userIdA },
+    });
+    if (!acceptRes.ok()) {
+        throw new Error(`befriend (accept) failed: ${acceptRes.status()} ${await acceptRes.text()}`);
+    }
+    return { a, b };
 }
 
 /**
