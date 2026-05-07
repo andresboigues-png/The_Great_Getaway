@@ -1,9 +1,8 @@
-// @ts-check
 import { STATE, loadState, emit, subscribe } from './state.js';
 import { syncWithServer, pullFromServer, fetchNotifications, markNotificationsRead, deleteTrip, archiveTripOnServer, apiUrl, apiFetch, setAuthToken, clearAuthToken } from './api.js';
 import { showConfirmModal, esc } from './utils.js';
 import { navigate } from './router.js';
-import { PAGES } from './constants.js';
+import { PAGES, EVENTS, type PageName } from './constants.js';
 import { canDelete } from './permissions.js';
 
 /**
@@ -11,14 +10,10 @@ import { canDelete } from './permissions.js';
  * down to a known PageName, falling back to home for unknown values. Keeps
  * the typed `navigate()` signature honest at the boundary where strings come
  * from outside the app.
- * @param {string} raw
- * @returns {import('./constants.js').PageName}
  */
-function resolvePage(raw) {
-    const known = /** @type {string[]} */ (Object.values(PAGES));
-    return /** @type {import('./constants.js').PageName} */ (
-        known.includes(raw) ? raw : PAGES.HOME
-    );
+function resolvePage(raw: string): PageName {
+    const known: readonly string[] = Object.values(PAGES);
+    return (known.includes(raw) ? raw : PAGES.HOME) as PageName;
 }
 import { updateUserUI, logout } from './pages/profile.js';
 import { openNewTripModal, openTripInviteResponseModal } from './modals.js';
@@ -168,9 +163,11 @@ function updateTripSelector() {
     if (deleteBtn) deleteBtn.style.display = hasActive && canDelete(activeTrip) ? 'flex' : 'none';
 
     selector.onchange = (e) => {
-        STATE.activeTripId = /** @type {HTMLSelectElement} */ (e.target).value;
-        emit('state:changed');               // saveState + updateTripSelector via subscriber
-        navigate('home');
+        const target = e.target as HTMLSelectElement | null;
+        if (!target) return;
+        STATE.activeTripId = target.value;
+        emit(EVENTS.STATE_CHANGED);          // saveState + updateTripSelector via subscriber
+        navigate(PAGES.HOME);
     };
 }
 
@@ -399,10 +396,10 @@ async function init() {
     document.getElementById('sidebarOverlay')?.addEventListener('click', toggleSidebar);
     document.getElementById('sidebarClose')?.addEventListener('click', toggleSidebar);
 
-    const brand = /** @type {HTMLElement | null} */ (document.querySelector('.nav-brand'));
+    const brand = document.querySelector('.nav-brand') as HTMLElement | null;
     if (brand) {
         brand.style.cursor = 'pointer';
-        brand.onclick = () => navigate('home');
+        brand.onclick = () => navigate(PAGES.HOME);
     }
 
     const bellBtn = document.getElementById('notificationBellBtn');
@@ -429,12 +426,12 @@ async function init() {
     document.getElementById('deleteTripBtn')?.addEventListener('click', deleteActiveTrip);
 
     document.addEventListener('click', (e) => {
-        const target = /** @type {HTMLElement | null} */ (e.target);
+        const target = e.target as HTMLElement | null;
 
         // Notification item clicked — route to the page that lets the user
         // act on it. Checked before the outside-click close, since the click
         // is inside the dropdown and we want to dismiss it ourselves.
-        const notifItem = /** @type {HTMLElement | null} */ (target?.closest('[data-notification-index]'));
+        const notifItem = target?.closest('[data-notification-index]') as HTMLElement | null;
         if (notifItem) {
             const idx = parseInt(notifItem.getAttribute('data-notification-index') ?? '', 10);
             const notif = (STATE.notifications || [])[idx];

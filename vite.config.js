@@ -4,7 +4,7 @@ import path from 'path';
 export default defineConfig({
     build: {
         rollupOptions: {
-            input: path.resolve(__dirname, 'frontend/static/js/src/main.js'),
+            input: path.resolve(__dirname, 'frontend/static/js/src/main.ts'),
             output: {
                 dir: path.resolve(__dirname, 'frontend/static/js'),
                 entryFileNames: 'app.bundle.js',
