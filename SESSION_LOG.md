@@ -93,18 +93,32 @@ TS's parser treats `(expr\n   as Type)` as two statements).
 - Flask smoke test: `/` returns HTTP 200, bundle returns HTTP 200,
   no errors in server log.
 
-**What's still left in Phase A1**:
+**Phase A1 Stages 3 + 4 also shipped this session**:
 
-- Stage 3 — enable `"strict": true`, `"noUnusedLocals": true`,
-  `"noImplicitReturns": true` in tsconfig and fix the surfaced
-  errors at root. Expected to surface a few hundred more errors
-  the relaxed config let through; these are the real
-  craftsman-grade type cleanup. No `any` escape hatches.
+- Stage 3 — `"strict": true` + `"noImplicitReturns": true` in
+  tsconfig. Surfaced 0 errors on top of the existing setup — the
+  per-file type cleanup from Stage 2 already satisfied
+  strictBindCallApply, strictFunctionTypes,
+  strictPropertyInitialization, useUnknownInCatchVariables.
+  Held back from `noImplicitAny: true` for now: that surfaces 437
+  callback-parameter errors. Each one wants the upstream data
+  shape tightened (STATE / api response types) rather than dotted
+  with `: any`. Filed as Phase A1.5 backlog — same ROADMAP phase,
+  contained piece of work.
 
-- Stage 4 — pre-commit hook (`tsc --noEmit` blocks the commit if
-  it fails) and CI gate (already running typecheck per
-  `.github/workflows/ci.yml` — verify it actually fails on a
-  type error and that branch protection requires the check).
+- Stage 4 — pre-commit + CI gates. lint-staged glob extended from
+  `**/*.js` to `**/*.{js,ts}` so the husky hook actually exercises
+  ESLint + Prettier on the migrated files. .husky/pre-commit now
+  also runs `npm run typecheck` after lint-staged so a typecheck
+  failure blocks the commit (tsc cache makes follow-on runs ~1s).
+  CI workflow's typecheck job rebadged from "TypeScript checkJs"
+  (now misleading) to "TypeScript strict typecheck".
+
+**What's left in Phase A1**:
+
+- Phase A1.5 — implicit-any cleanup. Walk STATE / api response
+  types, narrow them, watch the 437 callback-param errors resolve
+  organically. Then flip `noImplicitAny: true`.
 
 **Method note that paid off**: the Python regex script went through
 ~470 cast conversions in this session with zero hand edits. The

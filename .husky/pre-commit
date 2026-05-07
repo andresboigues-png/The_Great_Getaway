@@ -1,1 +1,6 @@
 npx lint-staged
+# Block commits that don't typecheck — Phase A1 made TypeScript a real
+# safety net, so a typecheck failure should fail the commit alongside
+# the eslint/prettier checks above. Runs against the full project; the
+# tsc cache means subsequent runs are fast (~1-2s).
+npm run typecheck

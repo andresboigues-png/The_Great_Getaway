@@ -16,15 +16,15 @@
         "prepare": "husky"
     },
     "lint-staged": {
-        "frontend/static/js/src/**/*.js": [
+        "frontend/static/js/src/**/*.{js,ts}": [
             "eslint --fix",
             "prettier --write"
         ],
-        "tests/e2e/**/*.js": [
+        "tests/e2e/**/*.{js,ts}": [
             "eslint --fix",
             "prettier --write"
         ],
-        "{playwright,vite,eslint}.config.js": [
+        "{playwright,vite,eslint}.config.{js,ts}": [
             "eslint --fix",
             "prettier --write"
         ],
