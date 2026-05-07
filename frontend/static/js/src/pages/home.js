@@ -12,7 +12,7 @@ import { canEdit, canManageRoster, ROLE_PLANNER, ROLE_BUDGETEER } from '../permi
 import { findTripCompanionByLinkedUser } from '../companions.js';
 import { showModal } from '../components/Modal.js';
 import { wireRoleButtonKeys } from '../components/Keyboard.js';
-import { findMarkedPlace, toggleTodoListMembership, removeMarkedPlace } from '../markedPlaces.js';
+import { findMarkedPlace, toggleTodoListMembership } from '../markedPlaces.js';
 import {
     getAllTripDocuments, getAllTripPhotos,
     addTripDocument, addTripPhoto,
@@ -35,12 +35,14 @@ let activeMarkers = {}; // Cache of Leaflet markers by day ID
 let editingDayId = null; // ID of the day currently being geolocated/pinned
 let activeMapClickListener = null; // Reference to the active map click handler
 let openMenuDayId = null; // Track which day's sidebar menu is open
-/** @type {'days' | 'companions' | 'shortlist' | 'documents' | 'photos'} */
-let activeHomeTab = 'days'; // Sub-tab on the home trip view (Path / Companions / To do list / Documents / Photos)
-// 'shortlist' is the legacy key kept here so URL state, in-memory state,
-// and DOM data attributes don't need a churning rename — the user-visible
-// label is now "To do list" (and the data behind it is `forManual` on
-// markedPlaces, same as before).
+/** @type {'days' | 'companions' | 'documents' | 'photos'} */
+let activeHomeTab = 'days'; // Sub-tab on the home trip view (Path / Companions / Documents / Photos)
+// The "To do list" sub-tab was promoted to a top-level /todo page so
+// the to-do list now has its own banner-style surface (see pages/todo.js
+// + the navbar entry between Home and Plan with AI). The data still
+// lives on `trip.markedPlaces[i].forManual`; the home page's day-detail
+// modal still shows the "From your to-do list" block, so day-level
+// AM/PM/Eve drops are unchanged.
 
 /** Single source of truth for the home-map POI quick-access pills.
  *  Read by:
@@ -365,9 +367,6 @@ export function renderHome() {
         displayImages = indices.map(i => displayImages[i]);
         displayQuotes = indices.map(i => displayQuotes[i]);
     } else {
-        const showQuote = localStorage.getItem('home_media_toggle') !== 'fact';
-        localStorage.setItem('home_media_toggle', showQuote ? 'fact' : 'quote');
-
         /** @type {Set<string>} ISO codes seen for this trip. */
         const discoveredCodes = new Set();
         if (activeTrip.countryCode) discoveredCodes.add(activeTrip.countryCode);
@@ -375,7 +374,11 @@ export function renderHome() {
         // Pull country codes for already-geocoded day pins out of
         // sessionStorage at render time — saves the wait for the async
         // reverse-geocode loop to repopulate the roster on every reload.
-        // (cache writer lives in the map-init block below.)
+        // Day pins in OTHER countries widen the roster: a Spain-trip
+        // with a day pinned in Morocco gets quotes + facts from BOTH
+        // countries on the slideshow. The cache writer lives in the
+        // map-init block further down; new discoveries also call
+        // addDiscoveredCountry below to extend the roster live.
         const tripDaysForRoster = (STATE.tripDays || []).filter(d => d.tripId === activeTrip.id);
         for (const day of tripDaysForRoster) {
             const lat = day.lat, lng = day.lon || day.lng;
@@ -386,23 +389,44 @@ export function renderHome() {
             } catch (_) { /* sessionStorage unavailable */ }
         }
 
+        // Build an INTERLEAVED roster of (image, quote) and (image, fact)
+        // pairs for every country in the discovered set. The slideshow
+        // timer cycles through them every 6s so the user sees BOTH the
+        // travel quote AND the population/capital fact for each country
+        // on rotation — no more "facts never appear" because of a
+        // single-element pick + a fragile localStorage toggle. Roster
+        // is reshuffled each render so reload still rolls a fresh order.
         const refreshSlideshowMedia = () => {
             const data = getMediaForTrip(activeTrip, [...discoveredCodes]);
-            // Random pick from the country roster — on reload you might see
-            // Italy's "la dolce vita" or Portugal's population fact, etc.
-            // No timer cycles this; reload to roll again.
-            const pool = showQuote ? data.quotes : data.facts;
-            const idx = pool.length > 0 ? Math.floor(Math.random() * pool.length) : 0;
-            displayQuotes = [pool[idx] || ''];
-            displayImages = data.images.length > idx ? [data.images[idx]] : (data.images[0] ? [data.images[0]] : []);
+            const pairs = [];
+            for (let i = 0; i < data.images.length; i++) {
+                const img = data.images[i];
+                const q = data.quotes[i];
+                const f = data.facts[i];
+                if (q) pairs.push({ img, text: q });
+                if (f) pairs.push({ img, text: f });
+            }
+            // Shuffle so the order doesn't rigidly read country-by-country
+            // (Italy quote → Italy fact → France quote → France fact);
+            // a mixed shuffle feels like a magazine roster.
+            for (let i = pairs.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [pairs[i], pairs[j]] = [pairs[j], pairs[i]];
+            }
+            displayImages = pairs.map(p => p.img);
+            displayQuotes = pairs.map(p => p.text);
+            // getMediaForTrip's stub fallback guarantees ≥1 entry for
+            // any non-null trip, so pairs is non-empty here. No
+            // defensive branch needed.
             if (currentPhotoIdx >= displayImages.length) currentPhotoIdx = 0;
         };
         refreshSlideshowMedia();
 
         // When the geocoder later discovers a new country for a day pin,
         // cache it so the *next* reload's roster is wider. We deliberately
-        // don't refresh the on-screen quote mid-session — the user wanted
-        // quotes to change on reload, not flicker as pins resolve.
+        // don't refresh the on-screen slideshow mid-session — the
+        // existing pairs keep cycling rather than flickering as pins
+        // resolve.
         addDiscoveredCountry = (cc) => {
             if (!cc) return;
             const up = cc.toUpperCase();
@@ -757,27 +781,12 @@ export function renderHome() {
                         emit('state:changed');
                         upsertTrip(activeTrip);
                         refresh();
-                        // Patch the home tab nav's "To do list" badge inline
-                        // so the count reflects the change without re-rendering
-                        // the whole home page (which would tear down the map
-                        // and close this InfoWindow). If the To-do tab is
-                        // currently the visible sub-tab, fall back to a full
-                        // re-render so the user also sees the new card —
-                        // they're explicitly looking at that surface.
-                        if (activeTrip) {
-                            const newCount = (activeTrip.markedPlaces || []).filter(p => p.forManual).length;
-                            const tabBtn = document.querySelector('.home-tabnav__tab[data-home-tab="shortlist"]');
-                            if (tabBtn) {
-                                const badgeHtml = newCount > 0
-                                    ? ` <span style="background:rgba(155,89,182,0.15); color:#9b59b6; padding:1px 6px; border-radius:999px; font-size:0.7rem; font-weight:800; margin-left:2px;">${newCount}</span>`
-                                    : '';
-                                tabBtn.innerHTML = `To do list${badgeHtml}`;
-                            }
-                            const todoTabIsVisible = document.querySelector('.home-tab-content[data-home-tab="shortlist"].is-active');
-                            if (todoTabIsVisible) {
-                                navigate('home');
-                            }
-                        }
+                        // The to-do list is its own /todo page now —
+                        // no in-home badge to patch. The InfoWindow's
+                        // own button label flips to "✓ On your to-do list"
+                        // via refresh(), which is the immediate feedback
+                        // the user needs at the click site. Visiting /todo
+                        // shows the updated list.
                     };
                 };
 
@@ -1852,12 +1861,16 @@ export function renderHome() {
                          Posts the trip to the caller's friends' feeds as
                          a friend_shared_trip event; idempotent so a
                          re-click on an already-shared trip just hands
-                         back the existing post. -->
-                    <button id="shareToFeedBtn" class="icon-btn-square" title="Share this trip to your feed" aria-label="Share to feed">
+                         back the existing post. Visual: icon-btn-circle
+                         (vs the Open-in-Maps button next to it which is
+                         icon-btn-square) plus a paper-plane icon, so it
+                         doesn't read as another open-external-link
+                         button. When already shared, JS flips this to a
+                         filled purple state via updateShareBtnVisualState. -->
+                    <button id="shareToFeedBtn" class="icon-btn-circle" style="--accent: 88, 86, 214;" title="Share this trip to your feed" aria-label="Share to feed">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                            <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path>
-                            <polyline points="16 6 12 2 8 6"></polyline>
-                            <line x1="12" y1="2" x2="12" y2="15"></line>
+                            <line x1="22" y1="2" x2="11" y2="13"></line>
+                            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
                         </svg>
                     </button>
                     ${!tripIsEditable ? `
@@ -1871,8 +1884,8 @@ export function renderHome() {
         ${activeTrip ? (() => {
             // Tab badge counters — built once so the JSX (template
             // string) reads less noisy, and so we can reuse the same
-            // counts in tab body rendering below.
-            const shortlistCount = (activeTrip.markedPlaces || []).filter(p => p.forManual).length;
+            // counts in tab body rendering below. The to-do count
+            // moved to the dedicated /todo page header.
             const docsCount = getAllTripDocuments(activeTrip).length;
             const photosCount = getAllTripPhotos(activeTrip).length;
             /** Small chip rendered next to a tab label when count > 0. */
@@ -1883,7 +1896,6 @@ export function renderHome() {
             <nav class="home-tabnav" role="tablist">
                 <button class="home-tabnav__tab${activeHomeTab === 'days' ? ' is-active' : ''}" data-home-tab="days" role="tab">Path</button>
                 <button class="home-tabnav__tab${activeHomeTab === 'companions' ? ' is-active' : ''}" data-home-tab="companions" role="tab">Companions</button>
-                <button class="home-tabnav__tab${activeHomeTab === 'shortlist' ? ' is-active' : ''}" data-home-tab="shortlist" role="tab">To do list${badge(shortlistCount, { bg: 'rgba(155,89,182,0.15)', fg: '#9b59b6' })}</button>
                 <button class="home-tabnav__tab${activeHomeTab === 'documents' ? ' is-active' : ''}" data-home-tab="documents" role="tab">Documents${badge(docsCount, { bg: 'rgba(88,86,214,0.15)', fg: '#5856d6' })}</button>
                 <button class="home-tabnav__tab${activeHomeTab === 'photos' ? ' is-active' : ''}" data-home-tab="photos" role="tab">Photos${badge(photosCount, { bg: 'rgba(52,199,89,0.15)', fg: '#1a6b3c' })}</button>
             </nav>
@@ -1911,65 +1923,9 @@ export function renderHome() {
                 </div>
             </div>
 
-            <!-- To do list tab — places the user added from the home
-                 map InfoWindow with "📋 Add to to-do list". Cards show
-                 the place and a remove button. The user assigns a place
-                 to a day by either: opening a day's Full Plan and tapping
-                 AM/PM/Eve, OR opening the AI planner where each item
-                 surfaces with a checkbox + day/time dropdowns to feed
-                 the AI generation. The data backing this is the same
-                 trip.markedPlaces.forManual list as the legacy shortlist.
-                 The 'shortlist' DOM key is kept to avoid pointless churn
-                 across the tab-switch wiring. -->
-            <div class="home-tab-content${activeHomeTab === 'shortlist' ? ' is-active' : ''}" data-home-tab="shortlist">
-                ${(() => {
-                    const shortlist = (activeTrip.markedPlaces || []).filter(p => p.forManual);
-                    if (shortlist.length === 0) {
-                        return `
-                            <div class="card glass" style="padding: 28px; border-radius: 18px; border: 1.5px dashed rgba(155, 89, 182, 0.35); background: rgba(155, 89, 182, 0.04); text-align:center;">
-                                <div style="font-size:2rem; margin-bottom:8px;">📋</div>
-                                <h3 style="margin:0 0 6px; color:#9b59b6; font-weight:800;">Your to-do list is empty</h3>
-                                <p style="margin:0; color:var(--text-secondary); font-size:0.9rem;">On the home map, click any pin and hit <strong>📋 Add to to-do list</strong>. From there, open any day's <strong>Full Plan</strong> and tap AM / PM / Eve to drop a place into that day — or jump to <strong>Plan with AI ✦</strong>, where each to-do item arrives pre-ticked for the AI to consider.</p>
-                            </div>
-                        `;
-                    }
-                    // Wrap in a single column-flex container — the parent
-                    // .home-tab-content.is-active rule sets `display: flex`
-                    // (row by default), so two top-level children would lay
-                    // out side-by-side instead of stacking. (Companions tab
-                    // dodges this with its single .trip-companions-section
-                    // wrapper.)
-                    // To-do visibility is everyone-can-see, but only
-                    // planners can mutate (add via map InfoWindow, remove
-                    // via this card's ✕). For non-planners we hide the ✕
-                    // button so the card is purely informational; the
-                    // click handler also re-checks tripIsEditable as
-                    // defense in depth.
-                    const helperText = tripIsEditable
-                        ? `Open any day's <strong>Full Plan</strong> below and use AM / PM / Eve to drop an item into that day — or visit <strong>Plan with AI ✦</strong> to let the AI slot them.`
-                        : `Places your trip planners want to fit in somewhere. Open any day's <strong>Full Plan</strong> to view it.`;
-                    return `
-                        <div style="display:flex; flex-direction:column; gap:12px; flex:1; min-width:0;">
-                            <div style="font-size:0.8rem; color:var(--text-secondary);">${helperText}</div>
-                            <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap:12px;">
-                                ${shortlist.map(p => `
-                                    <div class="shortlist-card" data-place-id="${esc(p.placeId)}" style="background:white; border:1.5px solid ${p.color}; border-radius:14px; padding:14px; box-shadow: 0 4px 12px rgba(0,0,0,0.06); display:flex; align-items:flex-start; gap:10px;">
-                                        <span style="font-size:1.4rem; line-height:1;">${p.icon}</span>
-                                        <div style="flex:1; min-width:0;">
-                                            <div style="font-weight:800; color:#002d5b; font-size:0.95rem; line-height:1.25;">${esc(p.name)}</div>
-                                            ${p.address ? `<div style="font-size:0.75rem; color:var(--text-secondary); margin-top:2px;">${esc(p.address)}</div>` : ''}
-                                        </div>
-                                        ${tripIsEditable ? `
-                                            <button type="button" class="shortlist-remove-btn" data-place-id="${esc(p.placeId)}" title="Remove from to-do list" aria-label="Remove ${esc(p.name)}"
-                                                style="background: rgba(255,59,48,0.08); border: 1px solid rgba(255,59,48,0.25); color:#ff3b30; border-radius: 8px; padding: 4px 8px; font-size:0.75rem; font-weight:800; cursor:pointer; flex-shrink:0;">✕</button>
-                                        ` : ''}
-                                    </div>
-                                `).join('')}
-                            </div>
-                        </div>
-                    `;
-                })()}
-            </div>
+            <!-- To-do list tab content was removed when /todo became
+                 a top-level page — the data and the day-detail modal's
+                 "From your to-do list" block both still work. -->
 
             <!-- Documents tab — trip-wide and day-tagged booking
                  confirmations, hotel vouchers, etc. The list is the
@@ -2465,13 +2421,14 @@ export function renderHome() {
                 return;
             }
 
-            // Home sub-tabs (Path / Companions / Shortlist) — toggle the
-            // active block via class swap; all tabs stay in the DOM so
-            // nothing has to remount on switch (preserves per-day
-            // delegated handlers and timeline animation state).
+            // Home sub-tabs (Path / Companions / Documents / Photos) —
+            // toggle the active block via class swap; all tabs stay in
+            // the DOM so nothing has to remount on switch (preserves
+            // per-day delegated handlers and timeline animation state).
+            // The To-do list moved to its own top-level /todo page.
             const tabBtn = /** @type {HTMLElement | null} */ (target.closest('.home-tabnav__tab'));
             const tabKey = tabBtn?.dataset.homeTab;
-            if (tabKey === 'days' || tabKey === 'companions' || tabKey === 'shortlist' || tabKey === 'documents' || tabKey === 'photos') {
+            if (tabKey === 'days' || tabKey === 'companions' || tabKey === 'documents' || tabKey === 'photos') {
                 activeHomeTab = tabKey;
                 daysContainer.querySelectorAll('.home-tabnav__tab').forEach(t => {
                     /** @type {HTMLElement} */ (t).classList.toggle('is-active', /** @type {HTMLElement} */ (t).dataset.homeTab === activeHomeTab);
@@ -2586,18 +2543,9 @@ export function renderHome() {
                 return;
             }
 
-            // Shortlist tab: per-card remove (planner-only). The render
-            // path already hides the button for non-planners; this guard
-            // is belt-and-braces in case a stale DOM survives a role
-            // demotion.
-            const shortlistRemoveBtn = /** @type {HTMLElement | null} */ (target.closest('.shortlist-remove-btn'));
-            if (shortlistRemoveBtn?.dataset.placeId && activeTrip && tripIsEditable) {
-                removeMarkedPlace(activeTrip, shortlistRemoveBtn.dataset.placeId);
-                emit('state:changed');
-                upsertTrip(activeTrip);
-                navigate('home'); // re-render so the count + tab content update
-                return;
-            }
+            // The shortlist remove handler used to live here; the
+            // to-do list moved to /todo so this button no longer
+            // renders on home. The /todo page owns its own remove.
 
             // Documents tab — clicking a doc-link with a .pdf URL
             // intercepts the default <a target="_blank"> behavior and
@@ -2940,9 +2888,12 @@ const openJournalingModal = (dayId) => {
 //                   '0' → not shared yet (outline style)
 //   data-post-id    feed_posts.id when shared, used for the Unshare flow
 
-/** Flip the Share button between outline and filled states. Filled
- *  uses the same purple as the Share-to-feed event accent (5856d6) so
- *  visual identity carries across the home button → feed card. */
+/** Flip the Share button between outline and filled states. Outline
+ *  state inherits the standard `.icon-btn-circle` look (subtle purple
+ *  tint from --accent: 88,86,214); filled state goes solid-purple with
+ *  a white icon so the "already shared" state pops visually. The
+ *  same purple anchors the share/repost event accent in the feed,
+ *  carrying visual identity across home → feed. */
 function updateShareBtnVisualState(btn, shared) {
     if (!btn) return;
     if (shared) {
@@ -2952,6 +2903,8 @@ function updateShareBtnVisualState(btn, shared) {
         btn.title = 'Already shared — click to unshare';
         btn.setAttribute('aria-label', 'Unshare this trip');
     } else {
+        // Clear the inline overrides so the .icon-btn-circle base
+        // styles (driven by --accent on the element) take back over.
         btn.style.background = '';
         btn.style.color = '';
         btn.style.borderColor = '';

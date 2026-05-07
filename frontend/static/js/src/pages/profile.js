@@ -1,10 +1,11 @@
 // @ts-check
 import { STATE, emit } from '../state.js';
 import { syncWithServer, apiUrl, apiFetch, clearAuthToken } from '../api.js';
-import { showLiquidAlert, getHomeCurrency } from '../utils.js';
+import { showLiquidAlert, getHomeCurrency, esc } from '../utils.js';
 import { CONVERSION_RATES, CURRENCY_SYMBOLS } from '../constants.js';
 import { navigate } from '../router.js';
 import { viewArchivedDetails } from './collections.js';
+import { showModal } from '../components/Modal.js';
 
 export const logout = async () => {
     try {
@@ -116,6 +117,53 @@ export function renderLoginWall() {
     return div;
 }
 
+/** Pop a modal listing the caller's accepted friends — each row is a
+ *  click target that closes the modal and navigates to that friend's
+ *  public profile page. Mirrors the avatar-+-name+-email row pattern
+ *  from the Friends page so the two surfaces feel like one thing.
+ *  @param {{id:string,name:string,email:string,picture?:string}[]} friends
+ */
+function openFriendsListModal(friends) {
+    const rowHtml = (f) => {
+        const initial = (f.name || f.email || '?').charAt(0).toUpperCase();
+        const avatar = f.picture
+            ? `<img src="${esc(f.picture)}" alt="" style="width:40px; height:40px; border-radius:50%; object-fit:cover; flex-shrink:0;">`
+            : `<div style="width:40px; height:40px; border-radius:50%; background: linear-gradient(135deg,#007aff,#5856d6); color:white; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:1rem; flex-shrink:0;">${esc(initial)}</div>`;
+        return `
+            <button type="button" class="profile-friend-row" data-user-id="${esc(f.id)}"
+                style="display:flex; align-items:center; gap:12px; padding:10px 12px; background:transparent; border:0; border-radius:12px; cursor:pointer; width:100%; text-align:left; transition: background 0.15s;"
+                onmouseover="this.style.background='rgba(0,113,227,0.06)'" onmouseout="this.style.background='transparent'">
+                ${avatar}
+                <div style="flex:1; min-width:0;">
+                    <div style="font-weight:700; color:#002d5b; font-size:0.95rem; line-height:1.2;">${esc(f.name || 'Friend')}</div>
+                    <div style="font-size:0.78rem; color:var(--text-secondary); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(f.email || '')}</div>
+                </div>
+            </button>
+        `;
+    };
+    const { root, close } = showModal({
+        cardClass: 'card glass',
+        cardStyle: 'width: 440px; max-width: calc(100vw - 32px); max-height: 80vh; overflow:hidden; padding: 24px; border-radius: 24px; background: white; display:flex; flex-direction:column;',
+        innerHTML: `
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 14px;">
+                <h2 style="margin:0; font-size:1.4rem; color:#002d5b; font-weight:800; letter-spacing:-0.02em;">Your friends <span style="background:rgba(0,113,227,0.1); color:var(--accent-blue); padding:2px 10px; border-radius:999px; font-size:0.78rem; font-weight:800; margin-left:6px; vertical-align:2px;">${friends.length}</span></h2>
+                <button id="friendsListClose" class="close-x-btn" aria-label="Close">✕</button>
+            </div>
+            <div style="overflow-y:auto; display:flex; flex-direction:column; gap:4px; min-height:0;">
+                ${friends.map(rowHtml).join('')}
+            </div>
+        `,
+    });
+    /** @type {HTMLButtonElement | null} */ (root.querySelector('#friendsListClose'))?.addEventListener('click', close);
+    root.querySelectorAll('.profile-friend-row').forEach(btn => {
+        /** @type {HTMLButtonElement} */ (btn).onclick = () => {
+            const id = /** @type {HTMLElement} */ (btn).dataset.userId;
+            close();
+            if (id) navigate('profile', { userId: id });
+        };
+    });
+}
+
 /** @param {string | null} [targetUserId] */
 export function renderProfile(targetUserId = null) {
     const div = document.createElement('div');
@@ -134,6 +182,13 @@ export function renderProfile(targetUserId = null) {
         const allTrips = trips || [];
         const uniqueCountries = [...new Set(allTrips.map(t => t.country).filter(Boolean))];
         const profilePicSrc = user.picture;
+        // Friends list — fetched async after the main render so the
+        // initial paint isn't gated on the API call. Stat starts at
+        // "—" and gets replaced when /api/friends/list resolves;
+        // the modal also reads from this cache so the second click is
+        // instant.
+        /** @type {{id:string,name:string,email:string,picture?:string}[]} */
+        let friendsCache = [];
 
         div.innerHTML = `
             <div style="max-width: 800px; margin: 0 auto; padding-bottom: 60px;">
@@ -171,7 +226,12 @@ export function renderProfile(targetUserId = null) {
                             ` : ''}
                         </div>
                         
-                        <!-- Stats Row -->
+                        <!-- Stats Row. The friends stat is clickable
+                             (own profile only) — opens a modal listing
+                             every accepted friend, each row navigates
+                             to that friend's profile. Number starts as
+                             "—" and the post-render fetch fills it in
+                             once /api/friends/list resolves. -->
                         <div style="display: flex; gap: 32px; margin-bottom: 24px;">
                             <div style="text-align: left;">
                                 <span style="font-size: 1.15rem; font-weight: 700; color: var(--text-primary);">${trips.length}</span>
@@ -181,6 +241,12 @@ export function renderProfile(targetUserId = null) {
                                 <span style="font-size: 1.15rem; font-weight: 700; color: var(--text-primary);">${uniqueCountries.length}</span>
                                 <span style="font-size: 1.1rem; color: var(--text-primary); font-weight: 400; margin-left: 4px;">countries</span>
                             </div>
+                            ${isOwnProfile ? `
+                                <button id="profileFriendsStat" type="button" style="background:none; border:0; padding:0; cursor:pointer; text-align:left; display:inline-flex; align-items:baseline; gap:4px; font-family: inherit;">
+                                    <span id="profileFriendsCount" style="font-size: 1.15rem; font-weight: 700; color: var(--text-primary);">—</span>
+                                    <span style="font-size: 1.1rem; color: var(--accent-blue); font-weight: 600; text-decoration: underline; text-decoration-color: rgba(0,113,227,0.25); text-underline-offset: 3px;">friends</span>
+                                </button>
+                            ` : ''}
                         </div>
                         
                         <!-- Bio & Status -->
@@ -260,6 +326,38 @@ export function renderProfile(targetUserId = null) {
         setTimeout(() => {
             div.querySelector('#profileBackToFriendsBtn')?.addEventListener('click', () => navigate('friends'));
             div.querySelector('#profileLogoutBtn')?.addEventListener('click', () => logout());
+
+            // ── Friends stat (own profile only) ───────────────────────
+            // Async fetch + click-to-open modal listing all accepted
+            // friends. The number on the stat starts at "—" and gets
+            // replaced when the request resolves; clicking the stat
+            // opens a modal that lists each friend, and clicking a
+            // friend row navigates to that user's profile.
+            if (isOwnProfile && STATE.user) {
+                const friendsBtn = /** @type {HTMLElement | null} */ (div.querySelector('#profileFriendsStat'));
+                const friendsCountEl = /** @type {HTMLElement | null} */ (div.querySelector('#profileFriendsCount'));
+                apiFetch('/api/friends/list')
+                    .then(r => r.ok ? r.json() : [])
+                    .then(list => {
+                        if (!Array.isArray(list)) return;
+                        friendsCache = list;
+                        if (friendsCountEl) friendsCountEl.textContent = String(list.length);
+                    })
+                    .catch(() => { /* leave the "—" placeholder */ });
+                if (friendsBtn) {
+                    friendsBtn.onclick = () => {
+                        if (friendsCache.length === 0) {
+                            // Either no friends yet, or the fetch is
+                            // still in flight. Either way, push the user
+                            // to /friends where they can either add
+                            // friends or see their list once it loads.
+                            navigate('friends');
+                            return;
+                        }
+                        openFriendsListModal(friendsCache);
+                    };
+                }
+            }
 
             if (isOwnProfile) {
                 const statusEl = /** @type {HTMLInputElement | null} */ (div.querySelector('#profileStatus'));

@@ -10,7 +10,7 @@
 // (back-compat — no need for a sweeping refactor of every call site).
 
 /**
- * @typedef {'home'|'expenses'|'upload'|'insights'|'settings'|'personalization'|'budgets'|'collections'|'ai'|'settlement'|'friends'|'profile'|'feed'} PageName
+ * @typedef {'home'|'expenses'|'upload'|'insights'|'settings'|'personalization'|'budgets'|'collections'|'ai'|'settlement'|'friends'|'profile'|'feed'|'todo'} PageName
  */
 export const PAGES = {
     HOME: /** @type {PageName} */ ('home'),
@@ -26,6 +26,7 @@ export const PAGES = {
     FRIENDS: /** @type {PageName} */ ('friends'),
     PROFILE: /** @type {PageName} */ ('profile'),
     FEED: /** @type {PageName} */ ('feed'),
+    TODO: /** @type {PageName} */ ('todo'),
 };
 
 /** @typedef {'state:changed'|'notifications:changed'} EventName */

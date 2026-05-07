@@ -509,12 +509,19 @@ export function renderFeed() {
                 <p style="margin:0;color:var(--text-secondary);font-size:1rem;">What your friends are up to lately</p>
             </div>
 
-            <div id="feedTabsRow" style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom: 16px; flex-wrap: wrap;">
-                <nav class="home-tabnav" role="tablist" aria-label="Feed sections">
-                    <button class="home-tabnav__tab${activeFeedTab === 'posts' ? ' is-active' : ''}" data-feed-tab="posts" role="tab" type="button">Posts</button>
-                    <button class="home-tabnav__tab${activeFeedTab === 'actions' ? ' is-active' : ''}" data-feed-tab="actions" role="tab" type="button">Actions</button>
+            <div id="feedTabsRow" style="position:relative; display:flex; align-items:center; justify-content:center; gap:12px; margin-bottom: 16px; flex-wrap: wrap;">
+                <!-- Posts tab gets the share/repost purple (matches the
+                     event accent for shares); Actions tab gets orange,
+                     borrowed from the friend-joined-trip event accent.
+                     Both colours come from the GG palette and read as
+                     "different but related" — same visual weight, easy
+                     to scan at a glance. --accent is consumed by the
+                     home-tabnav--centered CSS rules. -->
+                <nav class="home-tabnav home-tabnav--centered" role="tablist" aria-label="Feed sections">
+                    <button class="home-tabnav__tab${activeFeedTab === 'posts' ? ' is-active' : ''}" data-feed-tab="posts" role="tab" type="button" style="--accent: 88, 86, 214;">Posts</button>
+                    <button class="home-tabnav__tab${activeFeedTab === 'actions' ? ' is-active' : ''}" data-feed-tab="actions" role="tab" type="button" style="--accent: 255, 149, 0;">Actions</button>
                 </nav>
-                <label class="apple-toggle" id="feedBookmarkToggle" title="Filter to bookmarked items only">
+                <label class="apple-toggle" id="feedBookmarkToggle" title="Filter to bookmarked items only" style="position:absolute; right:0; top:50%; transform:translateY(-50%);">
                     <input type="checkbox" class="apple-toggle__input" ${bookmarkedOnly ? 'checked' : ''}>
                     <span class="apple-toggle__track"><span class="apple-toggle__thumb"></span></span>
                     <span class="apple-toggle__label">🔖 Bookmarked</span>

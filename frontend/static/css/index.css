@@ -3434,6 +3434,36 @@ h1 {
     font-weight: 800;
 }
 
+/* `home-tabnav--centered` modifier — used by the Feed page so the
+   Posts/Actions pair sits in the middle instead of left-anchored,
+   and drops the bottom baseline (the feed already has the action-row
+   divider on each card; an extra baseline above the cards reads as
+   visual noise). Tabs themselves carry their own --accent CSS var
+   (set inline per-tab) so each gets a palette colour: Posts purple,
+   Actions orange — see feed.js. The active border-bottom turns into
+   a subtle pill backdrop instead, since there's no baseline to sit on. */
+.home-tabnav--centered {
+    justify-content: center;
+    border-bottom: 0;
+    gap: 8px;
+}
+.home-tabnav--centered .home-tabnav__tab {
+    --accent: 0, 113, 227;
+    border-bottom: 0;
+    padding: 10px 18px;
+    border-radius: 999px;
+    color: rgba(var(--accent), 0.55);
+}
+.home-tabnav--centered .home-tabnav__tab:hover {
+    color: rgb(var(--accent));
+    background: rgba(var(--accent), 0.06);
+}
+.home-tabnav--centered .home-tabnav__tab.is-active {
+    color: rgb(var(--accent));
+    background: rgba(var(--accent), 0.12);
+    border-bottom: 0;
+}
+
 /* Tab content swap — both blocks stay in the DOM so per-day delegated
    handlers don't churn on tab change. `display: none` on the inactive
    block keeps it from taking layout space; `is-active` reveals it. The
