@@ -4059,11 +4059,11 @@ const openDayDetail = (dayId) => {
             <textarea id="detailNotes" class="plain-textarea" placeholder="What this trip is about, highlights, things to remember…" style="flex:1; min-height: 320px;">${esc(day.notes || '')}</textarea>
         </div>
     `;
+    // Genesis right column — just Done + autosave status. The
+    // "Trip tip" card was removed app-wide; Genesis already has the
+    // Trip checklist quick-link at the top of the left column, so
+    // there's no need to mirror the checklist on the right here.
     const genesisRightHtml = `
-        <div style="background: #000; padding: var(--space-6); border-radius: 24px; color: white;">
-            <h4 class="text-tag" style="--accent: 212,160,23;">Trip tip</h4>
-            <p style="margin: 0; font-size: var(--font-md); line-height: 1.5; opacity: 0.9;">${esc(day.tip || "Genesis is your trip's central hub — use Trip notes for the big-picture story, and the quick links above for prep tasks, photos and documents.")}</p>
-        </div>
         <div style="display:flex; flex-direction:column; gap:6px;">
             <button id="saveDetailBtn" class="btn-primary" style="width: 100%; padding: var(--space-5); border-radius: var(--radius-xl); font-size: var(--font-xl);">Done</button>
             <div id="autosaveStatus" style="text-align:center; font-size:0.7rem; color:var(--text-secondary); font-weight:600; min-height:1em;">Changes save automatically</div>
@@ -4085,15 +4085,56 @@ const openDayDetail = (dayId) => {
             <textarea class="plain-textarea plan-input" data-time="evening" placeholder="Evening plans...">${day.plan?.evening || ''}</textarea>
         </div>
     `;
+    // Trip checklist panel — surfaces the Genesis-level checklist on
+    // every day's modal so users can tick off prep tasks while
+    // planning each day. Source of truth lives on `trip.checklist`
+    // (managed via Genesis → Trip checklist option). Click-to-toggle
+    // here writes through to that same array; full add/edit/delete
+    // stays on the Genesis modal to keep one editing surface.
+    const checklistPanelHtml = (() => {
+        const items = (trip?.checklist || []);
+        const remaining = items.filter(i => !i.done).length;
+        if (items.length === 0) {
+            return `
+                <div style="background: rgba(212,160,23,0.04); padding: var(--space-5); border-radius: 24px; border: 1.5px dashed rgba(212,160,23,0.32);">
+                    <h4 class="text-tag" style="--accent: 212,160,23;">📝 Trip checklist</h4>
+                    <p style="margin: 6px 0 8px; font-size: 0.82rem; color: var(--text-secondary); line-height:1.45;">No tasks yet — open Trip Genesis → 📝 Trip checklist to add packing/errand tasks. They'll appear here on every day.</p>
+                </div>
+            `;
+        }
+        const rowsHtml = items.map(item => {
+            const id = esc(item.id);
+            const done = !!item.done;
+            return `
+                <div class="day-checklist-row" data-item-id="${id}" style="display:flex; align-items:center; gap:10px; padding:6px 0;">
+                    <button type="button" class="day-checklist-toggle" data-item-id="${id}" aria-pressed="${done}" title="${done ? 'Mark not done' : 'Mark done'}"
+                        style="flex-shrink:0; width:20px; height:20px; border-radius:50%; border:2px solid ${done ? '#8b6e0c' : 'rgba(0,113,227,0.3)'}; background:${done ? 'linear-gradient(135deg, #e8b923, #8b6e0c)' : 'white'}; color:white; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; padding:0;">
+                        ${done ? `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>` : ''}
+                    </button>
+                    <span style="flex:1; min-width:0; font-size:0.88rem; line-height:1.4; color:#002d5b; ${done ? 'color:rgba(0,45,91,0.4); text-decoration:line-through;' : ''}">${esc(item.body || '')}</span>
+                </div>
+            `;
+        }).join('');
+        return `
+            <div style="background: rgba(212,160,23,0.04); padding: var(--space-5); border-radius: 24px; border: 1.5px solid rgba(212,160,23,0.22);">
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
+                    <h4 class="text-tag" style="--accent: 212,160,23; margin:0;">📝 Trip checklist</h4>
+                    <span class="day-checklist-summary" style="font-size:0.7rem; color:var(--text-secondary); font-weight:700; text-transform:uppercase; letter-spacing:0.05em;">${remaining} of ${items.length} left</span>
+                </div>
+                <div id="dayChecklistRows" style="display:flex; flex-direction:column;">
+                    ${rowsHtml}
+                </div>
+                <button type="button" id="dayChecklistManageBtn" style="margin-top:6px; background:transparent; border:0; color:#8b6e0c; font-weight:700; font-size:0.78rem; cursor:pointer; padding:0;">Manage in Trip Genesis →</button>
+            </div>
+        `;
+    })();
+
     const numberedDayRightHtml = `
         <div style="flex: 1; background: rgba(0,113,227,0.05); padding: var(--space-6); border-radius: 24px; border: 1px solid rgba(0,113,227,0.1);">
             <h4 class="text-tag">Personal Notes</h4>
             <textarea id="detailNotes" class="plain-textarea plain-textarea--no-resize" style="height: 200px;" placeholder="Private thoughts about this day...">${esc(day.notes || '')}</textarea>
         </div>
-        <div style="background: #000; padding: var(--space-6); border-radius: 24px; color: white;">
-            <h4 class="text-tag" style="--accent: 52,199,89;">Expert Tip</h4>
-            <p style="margin: 0; font-size: var(--font-md); line-height: 1.5; opacity: 0.9;">${esc(day.tip || "Always keep a portable charger and a small bottle of water in your bag for long exploration days.")}</p>
-        </div>
+        ${checklistPanelHtml}
         <div style="display:flex; flex-direction:column; gap:6px;">
             <button id="saveDetailBtn" class="btn-primary" style="width: 100%; padding: var(--space-5); border-radius: var(--radius-xl); font-size: var(--font-xl);">Done</button>
             <div id="autosaveStatus" style="text-align:center; font-size:0.7rem; color:var(--text-secondary); font-weight:600; min-height:1em;">Changes save automatically</div>
@@ -4143,6 +4184,51 @@ const openDayDetail = (dayId) => {
                 }
             };
         });
+    }
+
+    // Numbered-day Trip checklist panel — toggle done state inline +
+    // link out to the full Genesis modal for add/edit/delete. The
+    // checklist source of truth is `trip.checklist` (Genesis-level),
+    // so toggling here writes to the same array, persists via
+    // upsertTrip, and shows up consistently on every day's modal.
+    if (!isGenesis && trip) {
+        const checkSvg = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+        root.querySelectorAll('.day-checklist-toggle').forEach(btn => {
+            /** @type {HTMLButtonElement} */ (btn).onclick = () => {
+                const id = /** @type {HTMLElement} */ (btn).dataset.itemId;
+                const item = (trip.checklist || []).find(i => i.id === id);
+                if (!item) return;
+                item.done = !item.done;
+                emit('state:changed');
+                upsertTrip(trip);
+                // Inline patch — flip THIS button's visual state +
+                // strike-through the sibling text. Cheaper than a
+                // full panel re-render.
+                const newDone = !!item.done;
+                /** @type {HTMLElement} */ (btn).style.borderColor = newDone ? '#8b6e0c' : 'rgba(0,113,227,0.3)';
+                /** @type {HTMLElement} */ (btn).style.background = newDone
+                    ? 'linear-gradient(135deg, #e8b923, #8b6e0c)' : 'white';
+                btn.innerHTML = newDone ? checkSvg : '';
+                btn.setAttribute('aria-pressed', newDone ? 'true' : 'false');
+                const span = /** @type {HTMLElement | null} */ (btn.parentElement?.querySelector('span'));
+                if (span) {
+                    span.style.textDecoration = newDone ? 'line-through' : 'none';
+                    span.style.color = newDone ? 'rgba(0,45,91,0.4)' : '#002d5b';
+                }
+                // Update the "X of Y left" summary chip.
+                const items = trip.checklist || [];
+                const remaining = items.filter(i => !i.done).length;
+                const summary = /** @type {HTMLElement | null} */ (root.querySelector('.day-checklist-summary'));
+                if (summary) summary.textContent = `${remaining} of ${items.length} left`;
+            };
+        });
+        const manageBtn = /** @type {HTMLButtonElement | null} */ (root.querySelector('#dayChecklistManageBtn'));
+        if (manageBtn) {
+            manageBtn.onclick = () => {
+                close();
+                openTripChecklistModal(trip);
+            };
+        }
     }
 
     // ── Auto-save plumbing ─────────────────────────────────────────

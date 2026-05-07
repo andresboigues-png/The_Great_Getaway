@@ -111,6 +111,25 @@ export interface Trip {
     /** All accepted members of the trip. Used by the home trip header
      *  to render the avatar stack + role badges. */
     members?: TripMember[];
+    /** Genesis-level prep tasks (packing/errands/research). Surfaced
+     *  in the Genesis modal AND on every numbered-day detail modal so
+     *  users can tick items off while planning each day. Source of
+     *  truth — toggling done on a day modal writes to the same array. */
+    checklist?: TripChecklistItem[];
+}
+
+/** Single row in `Trip.checklist`. `id` is a stable client-generated
+ *  string so toggle/remove ops can target the right item without
+ *  index drift. `done` flips inline; `body` is editable in the
+ *  Genesis modal only (numbered-day modal is read+toggle only). */
+export interface TripChecklistItem {
+    id: string;
+    body: string;
+    done: boolean;
+    /** ISO timestamp the item was added — currently unused by render
+     *  but persisted so future "added 3d ago" labels can land without
+     *  a migration. */
+    created_at?: string;
 }
 
 export interface TripDay {

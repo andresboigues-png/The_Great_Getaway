@@ -2211,12 +2211,21 @@ h1 {
     gap: var(--space-1);
 }
 
-/* Pro-tip callout — used on the AI itinerary cards. */
-.pro-tip {
-    padding: var(--space-3) var(--space-4);
-    background: rgba(0,113,227,0.05);
-    border-left: 3px solid var(--accent-blue);
-    border-radius: 0 10px 10px 0;
+/* (Pro-tip / Expert Tip surfaces were removed app-wide per user.
+   The AI itinerary cards no longer show a "Pro Tip" line; the
+   day-detail modal swapped its "Expert Tip" panel for the Trip
+   Checklist panel. Class kept removed to avoid orphan styles.) */
+
+/* Feed trip card — sits below caption on share/repost events to
+   anchor the post to a specific trip. Click navigates to the
+   sharer's profile. The transform/shadow already live on the inline
+   style; this rule just adds the :hover state (can't inline that). */
+.feed-trip-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(0,45,91,0.10) !important;
+}
+.feed-trip-card:active {
+    transform: translateY(0);
 }
 
 /* Profile inline-bio textarea — invisible until focused, then a subtle

@@ -307,7 +307,7 @@ export function renderAI() {
                                 <h3 style="margin:0 0 var(--space-1);font-size:1.2rem;font-weight:700;letter-spacing:-0.02em;color:white;">${day.title || 'Day ' + day.day}</h3>
                                 <span style="font-size:var(--font-base);color:var(--text-secondary);">${day.date || ''}</span>
                             </div>
-                            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--space-4);margin-bottom:${day.tip ? 'var(--space-5)' : '0'};">
+                            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--space-4);">
                                 <div class="ai-plan-block" style="--accent: 0,113,227;">
                                     <div class="ai-plan-block__tag">🌅 Morning</div>
                                     <div class="ai-plan-block__title">${day.morning?.activity || ''}</div>
@@ -324,7 +324,10 @@ export function renderAI() {
                                     <div class="ai-plan-block__desc">${day.evening?.description || ''}</div>
                                 </div>
                             </div>
-                            ${day.tip ? `<div class="pro-tip"><span style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--accent-blue);">💡 Pro Tip</span><p style="margin:5px 0 0;font-size:var(--font-sm);color:var(--text-secondary);">${day.tip}</p></div>` : ''}
+                            <!-- 💡 Pro Tip block was removed app-wide
+                                 (per user) — AI itineraries used to
+                                 ship a per-day tip line; no more. -->
+
                         </div>
                     </div>`;
                 daysContainer.appendChild(dayDiv);
