@@ -1,4 +1,3 @@
-// @ts-check
 import { STATE, emit } from '../state.js';
 import { CONVERSION_RATES } from '../constants.js';
 import { generateId, q } from '../utils.js';
@@ -91,7 +90,7 @@ const CATEGORY_FALLBACK_PALETTE = [
  */
 function parseSplitsCell(raw) {
     if (!raw || !String(raw).trim()) return null;
-    const out = /** @type {Record<string, number>} */ ({});
+    const out = ({} as Record<string, number>);
     for (const tok of String(raw).split(/[,;]/)) {
         const m = tok.match(/^\s*(.+?)\s*[:=]\s*(-?\d+(?:\.\d+)?)\s*$/);
         if (!m) continue;
@@ -294,8 +293,7 @@ export function renderUpload() {
     `;
 
     setTimeout(() => {
-        /** @type {any[][] | null} */
-        let parsedRows = null;
+                let parsedRows: any[][] | null = null;
 
         div.querySelector('#uploadFormatSettingsLink')?.addEventListener('click', (e) => {
             e.preventDefault();
@@ -304,7 +302,7 @@ export function renderUpload() {
             setTimeout(() => showSettingsTab('format'), 50);
         });
 
-        const formatSelect = /** @type {HTMLSelectElement} */ (q(div, '#formatSelect'));
+        const formatSelect = (q(div, '#formatSelect') as HTMLSelectElement);
         const popularNote = q(div, '#popularNote');
         const customFormatPreview = q(div, '#customFormatPreview');
         const customFormatTable = q(div, '#customFormatTable');
@@ -338,10 +336,8 @@ export function renderUpload() {
                 const popId = val.split(':')[1];
                 const popContainer = q(div, '#popularFormatTableContainer');
 
-                /** @type {string[]} */
-                let headers = [];
-                /** @type {string[]} */
-                let row = [];
+                                let headers: string[] = [];
+                                let row: string[] = [];
                 if (popId === 'tricount') {
                     headers = ['Title', 'Amount', 'Currency', 'Date', 'Paid by'];
                     row = ['Dinner', '45.00', 'EUR', '2023-10-12', 'Alice'];
@@ -381,13 +377,13 @@ export function renderUpload() {
         updateUI();
 
         q(div, '#excelFile').addEventListener('change', (e) => {
-            const file = /** @type {HTMLInputElement} */ (e.target).files?.[0];
+            const file = (e.target as HTMLInputElement).files?.[0];
             if (!file) return;
 
             const reader = new FileReader();
             reader.onload = function (evt) {
                 try {
-                    const data = new Uint8Array(/** @type {ArrayBuffer} */ (evt.target?.result));
+                    const data = new Uint8Array((evt.target?.result as ArrayBuffer));
                     // cellDates: true tells SheetJS to convert XLSX-typed
                     // date cells into JS Date objects instead of returning
                     // the raw Excel serial number (days since 1900-01-01).
@@ -397,8 +393,7 @@ export function renderUpload() {
                     const workbook = XLSX.read(data, { type: 'array', cellDates: true });
                     const firstSheetName = workbook.SheetNames[0];
                     const worksheet = workbook.Sheets[firstSheetName];
-                    /** @type {any[][]} */
-                    const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                                        const json: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
                     if (json.length < 2) return;
 
@@ -445,10 +440,10 @@ export function renderUpload() {
 
             try {
                 let added = 0;
-                let mappings = [];
+                let mappings: { variable: string; column: string }[] = [];
                 /** Collected so the user can hit "Undo last batch" on
                  *  the expenses page and revert this import in one shot. */
-                const importedIds = /** @type {string[]} */ ([]);
+                const importedIds = ([] as string[]);
 
                 if (!isPopular) {
                     const formatId = formatVal.split(':')[1];
@@ -463,7 +458,7 @@ export function renderUpload() {
                     // Splits + settlement flag. Custom formats can map the new
                     // 'splits' / 'isSettlement' variables; popular formats use
                     // hard-coded conventions filled in below.
-                    let splits = /** @type {Record<string, number> | null} */ (null);
+                    let splits = (null as Record<string, number> | null);
                     let isSettlement = false;
 
                     if (isPopular) {
@@ -540,7 +535,7 @@ export function renderUpload() {
                         if (isPopular && (popularFormat === 'tricount' || popularFormat === 'splitwise') && tripRoster.length > 0) {
                             const pct = 100 / tripRoster.length;
                             splits = {};
-                            tripRoster.forEach(g => { /** @type {Record<string, number>} */ (splits)[g] = pct; });
+                            tripRoster.forEach(g => { (splits as Record<string, number>)[g] = pct; });
                         } else {
                             splits = who ? { [who]: 100 } : {};
                         }
@@ -554,8 +549,7 @@ export function renderUpload() {
                     }
                     const categoryId = category ? category.id : STATE.categories[0].id;
 
-                    /** @type {import('../types').Expense} */
-                    const expense = {
+                    const expense: import('../types').Expense = {
                         id: generateId(),
                         tripId: activeTripId,
                         who,
@@ -566,7 +560,7 @@ export function renderUpload() {
                         value,
                         currency,
                         euroValue: value * (CONVERSION_RATES[currency] || 1),
-                        splits,
+                        splits: splits ?? undefined,
                     };
                     if (isSettlement) expense.isSettlement = true;
                     STATE.expenses.push(expense);

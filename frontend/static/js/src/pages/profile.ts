@@ -1,4 +1,3 @@
-// @ts-check
 import { STATE, emit } from '../state.js';
 import { syncWithServer, apiUrl, apiFetch, clearAuthToken } from '../api.js';
 import { showLiquidAlert, getHomeCurrency, esc } from '../utils.js';
@@ -154,18 +153,17 @@ function openFriendsListModal(friends) {
             </div>
         `,
     });
-    /** @type {HTMLButtonElement | null} */ (root.querySelector('#friendsListClose'))?.addEventListener('click', close);
+    (root.querySelector('#friendsListClose') as HTMLButtonElement | null)?.addEventListener('click', close);
     root.querySelectorAll('.profile-friend-row').forEach(btn => {
-        /** @type {HTMLButtonElement} */ (btn).onclick = () => {
-            const id = /** @type {HTMLElement} */ (btn).dataset.userId;
+        (btn as HTMLButtonElement).onclick = () => {
+            const id = (btn as HTMLElement).dataset.userId;
             close();
             if (id) navigate('profile', { userId: id });
         };
     });
 }
 
-/** @param {string | null} [targetUserId] */
-export function renderProfile(targetUserId = null) {
+export function renderProfile(targetUserId: string | null | undefined = null) {
     const div = document.createElement('div');
 
     // Helper to determine if we are viewing ourselves
@@ -178,17 +176,17 @@ export function renderProfile(targetUserId = null) {
         return renderLoginWall();
     }
 
-    const renderData = (user, trips) => {
+    interface ProfileFriend { id: string; name: string; email: string; picture?: string }
+    const renderData = (user: any, trips: any[]) => {
         const allTrips = trips || [];
-        const uniqueCountries = [...new Set(allTrips.map(t => t.country).filter(Boolean))];
+        const uniqueCountries: string[] = [...new Set(allTrips.map(t => t.country).filter(Boolean))];
         const profilePicSrc = user.picture;
         // Friends list — fetched async after the main render so the
         // initial paint isn't gated on the API call. Stat starts at
         // "—" and gets replaced when /api/friends/list resolves;
         // the modal also reads from this cache so the second click is
         // instant.
-        /** @type {{id:string,name:string,email:string,picture?:string}[]} */
-        let friendsCache = [];
+        let friendsCache: ProfileFriend[] = [];
 
         div.innerHTML = `
             <div style="max-width: 800px; margin: 0 auto; padding-bottom: 60px;">
@@ -360,8 +358,8 @@ export function renderProfile(targetUserId = null) {
             // opens a modal that lists each friend, and clicking a
             // friend row navigates to that user's profile.
             if (isOwnProfile && STATE.user) {
-                const friendsBtn = /** @type {HTMLElement | null} */ (div.querySelector('#profileFriendsStat'));
-                const friendsCountEl = /** @type {HTMLElement | null} */ (div.querySelector('#profileFriendsCount'));
+                const friendsBtn = (div.querySelector('#profileFriendsStat') as HTMLElement | null);
+                const friendsCountEl = (div.querySelector('#profileFriendsCount') as HTMLElement | null);
                 apiFetch('/api/friends/list')
                     .then(r => r.ok ? r.json() : [])
                     .then(list => {
@@ -386,10 +384,10 @@ export function renderProfile(targetUserId = null) {
             }
 
             if (isOwnProfile) {
-                const statusEl = /** @type {HTMLInputElement | null} */ (div.querySelector('#profileStatus'));
-                const bioEl = /** @type {HTMLTextAreaElement | null} */ (div.querySelector('#profileBio'));
-                const homeCurrencyEl = /** @type {HTMLSelectElement | null} */ (div.querySelector('#profileHomeCurrency'));
-                const saveBtn = /** @type {HTMLButtonElement | null} */ (div.querySelector('#saveProfileBtn'));
+                const statusEl = (div.querySelector('#profileStatus') as HTMLInputElement | null);
+                const bioEl = (div.querySelector('#profileBio') as HTMLTextAreaElement | null);
+                const homeCurrencyEl = (div.querySelector('#profileHomeCurrency') as HTMLSelectElement | null);
+                const saveBtn = (div.querySelector('#saveProfileBtn') as HTMLButtonElement | null);
                 const showSave = () => { if (saveBtn) { saveBtn.style.opacity = '1'; saveBtn.style.pointerEvents = 'auto'; } };
                 if (statusEl) statusEl.onchange = showSave;
                 if (bioEl) bioEl.oninput = showSave;
@@ -421,18 +419,18 @@ export function renderProfile(targetUserId = null) {
                     };
                 }
 
-                const input = /** @type {HTMLInputElement | null} */ (div.querySelector('#profilePhotoInput'));
-                const wrapper = /** @type {HTMLElement | null} */ (div.querySelector('#profilePicWrapper'));
+                const input = (div.querySelector('#profilePhotoInput') as HTMLInputElement | null);
+                const wrapper = (div.querySelector('#profilePicWrapper') as HTMLElement | null);
                 // Hover-reveal of #profilePicOverlay is pure CSS now —
                 // the JS attachment was the same opacity toggle.
                 if (wrapper) wrapper.onclick = () => input && input.click();
                 if (input) input.onchange = (e) => {
-                    const file = /** @type {HTMLInputElement} */ (e.target).files?.[0]; if (!file) return;
+                    const file = (e.target as HTMLInputElement).files?.[0]; if (!file) return;
                     const reader = new FileReader();
                     reader.onload = (ev) => {
                         const result = typeof ev.target?.result === 'string' ? ev.target.result : null;
                         STATE.profilePhoto = result; emit('state:changed');
-                        const display = /** @type {HTMLImageElement | null} */ (div.querySelector('#profilePicDisplay'));
+                        const display = (div.querySelector('#profilePicDisplay') as HTMLImageElement | null);
                         if (display && result) display.src = result;
                     };
                     reader.readAsDataURL(file);
@@ -570,9 +568,8 @@ export function renderProfile(targetUserId = null) {
                             <div class="profile-iw__body">${tripList}</div>
                         `;
                         infoContent.addEventListener('click', (e) => {
-                            const btn = /** @type {HTMLElement | null} */ (
-                                /** @type {HTMLElement | null} */ (e.target)?.closest('.archived-trip-view-btn')
-                            );
+                            const target = e.target as HTMLElement | null;
+                            const btn = target?.closest('.archived-trip-view-btn') as HTMLElement | null;
                             if (btn?.dataset.tripId) viewArchivedDetails(btn.dataset.tripId);
                         });
 
@@ -585,14 +582,14 @@ export function renderProfile(targetUserId = null) {
                             // Prefer stored coords on any trip in the cluster.
                             // Falls back to Geocoder for legacy trips that
                             // were created before the Places migration.
-                            const withCoords = /** @type {any} */ (tps).find(t => typeof t.lat === 'number' && typeof t.lng === 'number');
+                            const withCoords = (tps as any).find(t => typeof t.lat === 'number' && typeof t.lng === 'number');
                             if (withCoords) {
-                                placeMarker({ lat: withCoords.lat, lng: withCoords.lng }, countryKey, /** @type {any} */ (tps));
+                                placeMarker({ lat: withCoords.lat, lng: withCoords.lng }, countryKey, (tps as any));
                                 continue; // no API call, no throttle needed
                             }
                             geocoder.geocode({ address: countryKey }, (results, status) => {
                                 if (status === "OK" && results[0]) {
-                                    placeMarker(results[0].geometry.location, countryKey, /** @type {any} */ (tps));
+                                    placeMarker(results[0].geometry.location, countryKey, (tps as any));
                                 }
                             });
                             await new Promise(r => setTimeout(r, 800));
@@ -628,7 +625,7 @@ export function updateUserUI() {
     const icon = document.getElementById('sidebarProfileIcon');
     const label = document.getElementById('sidebarProfileLabel');
     const sub = document.getElementById('sidebarProfileSub');
-    const pic = /** @type {HTMLImageElement | null} */ (document.getElementById('sidebarProfilePic'));
+    const pic = (document.getElementById('sidebarProfilePic') as HTMLImageElement | null);
     const logoutBtn = document.getElementById('sidebarLogoutBtn');
 
     // App-wide signed-out body class — drives the CSS that hides the

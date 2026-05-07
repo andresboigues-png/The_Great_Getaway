@@ -1,4 +1,3 @@
-// @ts-check
 // pages/expenses.js
 //
 // Expenses page is a tabbed UI: Manual Upload (the per-row form), Batch
@@ -18,8 +17,7 @@ import { navigate } from '../router.js';
 import { renderUpload } from './upload.js';
 import { canEditExpenses } from '../permissions.js';
 
-/** @type {'manual' | 'batch' | 'history'} */
-let activeExpensesTab = 'manual';
+let activeExpensesTab: 'manual' | 'batch' | 'history' = 'manual';
 
 /** Set the active tab before rendering — used by the /upload route to land
  *  users on the Batch tab without breaking deep links from before the merge. */
@@ -76,7 +74,7 @@ export function renderExpenses() {
         content.innerHTML = '';
 
         div.querySelectorAll('.expenses-tabnav__tab').forEach(t => {
-            const el = /** @type {HTMLElement} */ (t);
+            const el = (t as HTMLElement);
             el.classList.toggle('is-active', el.dataset.tab === activeExpensesTab);
         });
 
@@ -111,7 +109,7 @@ export function renderExpenses() {
     }
 
     div.querySelectorAll('.expenses-tabnav__tab').forEach(t => {
-        const el = /** @type {HTMLElement} */ (t);
+        const el = (t as HTMLElement);
         el.addEventListener('click', () => {
             const tab = el.dataset.tab;
             if (tab === 'manual' || tab === 'batch' || tab === 'history') {
@@ -231,13 +229,12 @@ function renderManualTab() {
             navigate('home');
         });
 
-        const form = /** @type {HTMLFormElement} */ (q(wrapper, '#expenseForm'));
+        const form = (q(wrapper, '#expenseForm') as HTMLFormElement);
         const splitContainer = q(wrapper, '#splitContainer');
-        const addSplitSelect = /** @type {HTMLSelectElement} */ (q(wrapper, '#addSplitSelect'));
-        const addSplitBtn = /** @type {HTMLButtonElement} */ (q(wrapper, '#addSplitBtn'));
+        const addSplitSelect = (q(wrapper, '#addSplitSelect') as HTMLSelectElement);
+        const addSplitBtn = (q(wrapper, '#addSplitBtn') as HTMLButtonElement);
 
-        /** @type {string[]} */
-        let activeSplitters = [];
+                let activeSplitters: string[] = [];
 
         function updateSplitUI() {
             if (activeSplitters.length === 0) {
@@ -258,7 +255,7 @@ function renderManualTab() {
             `).join('');
 
             splitContainer.querySelectorAll('.remove-splitter').forEach(btn => {
-                /** @type {HTMLButtonElement} */ (btn).onclick = () => {
+                (btn as HTMLButtonElement).onclick = () => {
                     const person = btn.getAttribute('data-person');
                     activeSplitters = activeSplitters.filter(p => p !== person);
                     updateSplitUI();
@@ -277,19 +274,19 @@ function renderManualTab() {
         // Populate from draft
         if (STATE.draftExpense) {
             const d = STATE.draftExpense;
-            if (d.who) /** @type {HTMLSelectElement} */ (q(wrapper, '#expWho')).value = d.who;
-            if (d.categoryId) /** @type {HTMLSelectElement} */ (q(wrapper, '#expCategory')).value = d.categoryId;
-            if (d.label) /** @type {HTMLInputElement} */ (q(wrapper, '#expLabel')).value = d.label;
-            if (d.date) /** @type {HTMLInputElement} */ (q(wrapper, '#expDate')).value = d.date;
-            if (d.country) /** @type {HTMLInputElement} */ (q(wrapper, '#expCountry')).value = d.country;
-            if (d.value) /** @type {HTMLInputElement} */ (q(wrapper, '#expValue')).value = String(d.value);
-            if (d.currency) /** @type {HTMLSelectElement} */ (q(wrapper, '#expCurrency')).value = d.currency;
+            if (d.who) (q(wrapper, '#expWho') as HTMLSelectElement).value = d.who;
+            if (d.categoryId) (q(wrapper, '#expCategory') as HTMLSelectElement).value = d.categoryId;
+            if (d.label) (q(wrapper, '#expLabel') as HTMLInputElement).value = d.label;
+            if (d.date) (q(wrapper, '#expDate') as HTMLInputElement).value = d.date;
+            if (d.country) (q(wrapper, '#expCountry') as HTMLInputElement).value = d.country;
+            if (d.value) (q(wrapper, '#expValue') as HTMLInputElement).value = String(d.value);
+            if (d.currency) (q(wrapper, '#expCurrency') as HTMLSelectElement).value = d.currency;
         }
 
         // Live Save Draft
         form.querySelectorAll('input, select').forEach(el => {
             el.addEventListener('input', (e) => {
-                const t = /** @type {HTMLInputElement | HTMLSelectElement} */ (e.target);
+                const t = (e.target as HTMLInputElement | HTMLSelectElement);
                 const id = t.id;
                 if (!id) return;
                 const val = t.value;
@@ -306,16 +303,16 @@ function renderManualTab() {
         });
 
         // Custom Searchable Dropdown Logic
-        const countryInput = /** @type {HTMLInputElement} */ (q(wrapper, '#expCountry'));
+        const countryInput = (q(wrapper, '#expCountry') as HTMLInputElement);
         const countryList = q(wrapper, '#countryDropdownList');
-        const countryItems = /** @type {NodeListOf<HTMLElement>} */ (countryList.querySelectorAll('.dropdown-item'));
+        const countryItems = (countryList.querySelectorAll('.dropdown-item') as NodeListOf<HTMLElement>);
 
         countryInput.onfocus = () => {
             countryList.style.display = 'block';
         };
 
         countryInput.oninput = (e) => {
-            const val = /** @type {HTMLInputElement} */ (e.target).value.toLowerCase();
+            const val = (e.target as HTMLInputElement).value.toLowerCase();
             countryItems.forEach(item => {
                 const text = (item.textContent ?? '').toLowerCase();
                 item.style.display = text.includes(val) ? 'block' : 'none';
@@ -340,9 +337,8 @@ function renderManualTab() {
         // Keyboard navigation: ↓ ↑ to move the active highlight, Enter to
         // select, Escape to close. Skips items hidden by the search filter.
         let activeIdx = -1;
-        const visibleItems = () => /** @type {HTMLElement[]} */ (
-            Array.from(countryItems).filter(it => it.style.display !== 'none')
-        );
+        const visibleItems = (): HTMLElement[] =>
+            Array.from(countryItems).filter(it => it.style.display !== 'none');
         const clearActive = () => {
             countryItems.forEach(it => it.classList.remove('is-active'));
             activeIdx = -1;
@@ -383,7 +379,7 @@ function renderManualTab() {
 
         // Click outside to close
         document.addEventListener('click', (e) => {
-            const target = /** @type {Node | null} */ (e.target);
+            const target = (e.target as Node | null);
             const container = wrapper.querySelector('#countrySearchContainer');
             if (!target || !container || !container.contains(target)) {
                 countryList.style.display = 'none';
@@ -395,12 +391,11 @@ function renderManualTab() {
             if (!STATE.activeTripId) return;
             const tripId = STATE.activeTripId;
 
-            const payer = /** @type {HTMLSelectElement} */ (q(wrapper, '#expWho')).value;
-            /** @type {Record<string, number>} */
-            const splits = {};
+            const payer = (q(wrapper, '#expWho') as HTMLSelectElement).value;
+                        const splits: Record<string, number> = {};
             let totalSplit = 0;
 
-            const splitInputs = /** @type {NodeListOf<HTMLInputElement>} */ (wrapper.querySelectorAll('.split-input'));
+            const splitInputs = (wrapper.querySelectorAll('.split-input') as NodeListOf<HTMLInputElement>);
             if (splitInputs.length > 0) {
                 splitInputs.forEach(input => {
                     const val = parseFloat(input.value) || 0;
@@ -417,8 +412,8 @@ function renderManualTab() {
                 splits[payer] = 100;
             }
 
-            const val = parseFloat(/** @type {HTMLInputElement} */ (q(wrapper, '#expValue')).value);
-            const curr = /** @type {HTMLSelectElement} */ (q(wrapper, '#expCurrency')).value.toUpperCase();
+            const val = parseFloat((q(wrapper, '#expValue') as HTMLInputElement).value);
+            const curr = (q(wrapper, '#expCurrency') as HTMLSelectElement).value.toUpperCase();
 
             if (isNaN(val) || val <= 0) {
                 alert("Please enter a valid expense value.");
@@ -430,7 +425,7 @@ function renderManualTab() {
             }
 
             const activeTrip = STATE.trips.find(t => t.id === tripId);
-            const countryVal = /** @type {HTMLInputElement} */ (q(wrapper, '#expCountry')).value || (activeTrip ? activeTrip.country : '');
+            const countryVal = (q(wrapper, '#expCountry') as HTMLInputElement).value || (activeTrip ? activeTrip.country : '');
 
             const isEdit = !!STATE.draftExpense?.id;
             /** @type {import('../types').Expense} */
@@ -438,9 +433,9 @@ function renderManualTab() {
                 id: isEdit && STATE.draftExpense.id ? STATE.draftExpense.id : generateId(),
                 tripId,
                 who: payer,
-                categoryId: /** @type {HTMLSelectElement} */ (q(wrapper, '#expCategory')).value,
-                label: /** @type {HTMLInputElement} */ (q(wrapper, '#expLabel')).value,
-                date: /** @type {HTMLInputElement} */ (q(wrapper, '#expDate')).value,
+                categoryId: (q(wrapper, '#expCategory') as HTMLSelectElement).value,
+                label: (q(wrapper, '#expLabel') as HTMLInputElement).value,
+                date: (q(wrapper, '#expDate') as HTMLInputElement).value,
                 country: countryVal,
                 value: val,
                 currency: curr,
@@ -583,54 +578,54 @@ function renderHistoryTab() {
     // Delegated handler for per-row edit/delete in #tripExpensesList — listener
     // attached on wrapper once; rows are re-rendered by renderTripExpenses().
     wrapper.addEventListener('click', (e) => {
-        const target = /** @type {HTMLElement | null} */ (e.target);
+        const target = (e.target as HTMLElement | null);
         if (!target) return;
-        const editBtn = /** @type {HTMLElement | null} */ (target.closest('.expense-edit-btn'));
+        const editBtn = (target.closest('.expense-edit-btn') as HTMLElement | null);
         if (editBtn?.dataset.expenseId) { openEditExpenseModal(editBtn.dataset.expenseId); return; }
-        const delBtn = /** @type {HTMLElement | null} */ (target.closest('.expense-delete-btn'));
+        const delBtn = (target.closest('.expense-delete-btn') as HTMLElement | null);
         if (delBtn?.dataset.expenseId) { deleteExpense(delBtn.dataset.expenseId); return; }
     });
 
     setTimeout(() => {
         const filterExps = () => {
-            const search = /** @type {HTMLInputElement} */ (q(wrapper, '#filterSearch')).value.toLowerCase();
-            const catId = /** @type {HTMLSelectElement} */ (q(wrapper, '#filterCategory')).value;
-            const who = /** @type {HTMLSelectElement} */ (q(wrapper, '#filterWho')).value;
-            const dateFrom = /** @type {HTMLInputElement} */ (q(wrapper, '#filterDateFrom')).value;
-            const dateTo = /** @type {HTMLInputElement} */ (q(wrapper, '#filterDateTo')).value;
-            const minVal = parseFloat(/** @type {HTMLInputElement} */ (q(wrapper, '#filterMinVal')).value) || 0;
-            const maxVal = parseFloat(/** @type {HTMLInputElement} */ (q(wrapper, '#filterMaxVal')).value) || Infinity;
-            const sort = /** @type {HTMLSelectElement} */ (q(wrapper, '#filterSort')).value;
+            const search = (q(wrapper, '#filterSearch') as HTMLInputElement).value.toLowerCase();
+            const catId = (q(wrapper, '#filterCategory') as HTMLSelectElement).value;
+            const who = (q(wrapper, '#filterWho') as HTMLSelectElement).value;
+            const dateFrom = (q(wrapper, '#filterDateFrom') as HTMLInputElement).value;
+            const dateTo = (q(wrapper, '#filterDateTo') as HTMLInputElement).value;
+            const minVal = parseFloat((q(wrapper, '#filterMinVal') as HTMLInputElement).value) || 0;
+            const maxVal = parseFloat((q(wrapper, '#filterMaxVal') as HTMLInputElement).value) || Infinity;
+            const sort = (q(wrapper, '#filterSort') as HTMLSelectElement).value;
 
             renderTripExpenses(q(wrapper, '#tripExpensesList'), {
                 search, catId, who, dateFrom, dateTo, minVal, maxVal, sort
             });
         };
 
-        /** @type {HTMLInputElement} */ (q(wrapper, '#filterSearch')).oninput = filterExps;
-        /** @type {HTMLSelectElement} */ (q(wrapper, '#filterCategory')).onchange = filterExps;
-        /** @type {HTMLSelectElement} */ (q(wrapper, '#filterWho')).onchange = filterExps;
-        /** @type {HTMLSelectElement} */ (q(wrapper, '#filterSort')).onchange = filterExps;
-        /** @type {HTMLInputElement} */ (q(wrapper, '#filterDateFrom')).onchange = filterExps;
-        /** @type {HTMLInputElement} */ (q(wrapper, '#filterDateTo')).onchange = filterExps;
-        /** @type {HTMLInputElement} */ (q(wrapper, '#filterMinVal')).oninput = filterExps;
-        /** @type {HTMLInputElement} */ (q(wrapper, '#filterMaxVal')).oninput = filterExps;
+        (q(wrapper, '#filterSearch') as HTMLInputElement).oninput = filterExps;
+        (q(wrapper, '#filterCategory') as HTMLSelectElement).onchange = filterExps;
+        (q(wrapper, '#filterWho') as HTMLSelectElement).onchange = filterExps;
+        (q(wrapper, '#filterSort') as HTMLSelectElement).onchange = filterExps;
+        (q(wrapper, '#filterDateFrom') as HTMLInputElement).onchange = filterExps;
+        (q(wrapper, '#filterDateTo') as HTMLInputElement).onchange = filterExps;
+        (q(wrapper, '#filterMinVal') as HTMLInputElement).oninput = filterExps;
+        (q(wrapper, '#filterMaxVal') as HTMLInputElement).oninput = filterExps;
 
-        /** @type {HTMLButtonElement} */ (q(wrapper, '#clearFiltersBtn')).onclick = () => {
-            /** @type {HTMLInputElement} */ (q(wrapper, '#filterSearch')).value = '';
-            /** @type {HTMLSelectElement} */ (q(wrapper, '#filterCategory')).value = 'all';
-            /** @type {HTMLSelectElement} */ (q(wrapper, '#filterWho')).value = 'all';
-            /** @type {HTMLSelectElement} */ (q(wrapper, '#filterSort')).value = 'date_desc';
-            /** @type {HTMLInputElement} */ (q(wrapper, '#filterDateFrom')).value = '';
-            /** @type {HTMLInputElement} */ (q(wrapper, '#filterDateTo')).value = '';
-            /** @type {HTMLInputElement} */ (q(wrapper, '#filterMinVal')).value = '';
-            /** @type {HTMLInputElement} */ (q(wrapper, '#filterMaxVal')).value = '';
+        (q(wrapper, '#clearFiltersBtn') as HTMLButtonElement).onclick = () => {
+            (q(wrapper, '#filterSearch') as HTMLInputElement).value = '';
+            (q(wrapper, '#filterCategory') as HTMLSelectElement).value = 'all';
+            (q(wrapper, '#filterWho') as HTMLSelectElement).value = 'all';
+            (q(wrapper, '#filterSort') as HTMLSelectElement).value = 'date_desc';
+            (q(wrapper, '#filterDateFrom') as HTMLInputElement).value = '';
+            (q(wrapper, '#filterDateTo') as HTMLInputElement).value = '';
+            (q(wrapper, '#filterMinVal') as HTMLInputElement).value = '';
+            (q(wrapper, '#filterMaxVal') as HTMLInputElement).value = '';
             renderTripExpenses(q(wrapper, '#tripExpensesList'));
         };
 
         const undoBtn = wrapper.querySelector('#undoLastBatchBtn');
         if (undoBtn) {
-            /** @type {HTMLButtonElement} */ (undoBtn).onclick = () => {
+            (undoBtn as HTMLButtonElement).onclick = () => {
                 const batch = STATE.lastImportBatch;
                 if (!batch || !Array.isArray(batch.expenseIds) || batch.expenseIds.length === 0) return;
                 showConfirmModal({
@@ -658,11 +653,17 @@ function renderHistoryTab() {
     return wrapper;
 }
 
-/**
- * @param {HTMLElement} container
- * @param {{ search?: string; catId?: string; who?: string; dateFrom?: string; dateTo?: string; minVal?: number; maxVal?: number; sort?: string }} [filters]
- */
-export function renderTripExpenses(container, filters = {}) {
+interface ExpensesFilters {
+    search?: string;
+    catId?: string;
+    who?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    minVal?: number;
+    maxVal?: number;
+    sort?: string;
+}
+export function renderTripExpenses(container: HTMLElement, filters: ExpensesFilters = {}) {
     if (!container) return;
 
     let tripExpenses = STATE.expenses.filter(e => e.tripId === STATE.activeTripId);

@@ -1,4 +1,3 @@
-// @ts-check
 import { STATE, emit } from '../state.js';
 import { generateId, showConfirmModal, q, esc } from '../utils.js';
 import { syncCategories, apiFetch } from '../api.js';
@@ -7,7 +6,7 @@ import { showModal } from '../components/Modal.js';
 import { POI_CATEGORIES } from './home.js';
 
 export const showSettingsTab = (tab) => {
-    const tabs = /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll('.settings-tab-btn'));
+    const tabs = (document.querySelectorAll('.settings-tab-btn') as NodeListOf<HTMLElement>);
     const sections = document.querySelectorAll('.settings-section');
 
     tabs.forEach(t => t.classList.remove('active'));
@@ -401,8 +400,8 @@ export function renderSettings() {
     };
 
     const addFormatMapping = () => {
-        const variable = /** @type {HTMLSelectElement | null} */ (document.getElementById('mapVarSelect'))?.value;
-        const column = /** @type {HTMLSelectElement | null} */ (document.getElementById('mapColSelect'))?.value;
+        const variable = (document.getElementById('mapVarSelect') as HTMLSelectElement | null)?.value;
+        const column = (document.getElementById('mapColSelect') as HTMLSelectElement | null)?.value;
         if (!variable || !column) return;
         STATE.customFormat = STATE.customFormat || [];
         if (STATE.customFormat.some(m => m.variable === variable)) return;
@@ -426,7 +425,7 @@ export function renderSettings() {
         const mapped = new Set(fmt.map(m => m.variable === 'categoryId' ? 'category' : m.variable));
         const missing = MANDATORY.filter(v => !mapped.has(v));
         if (missing.length > 0) return alert(`Missing required fields: ${missing.join(', ')}`);
-        const name = (/** @type {HTMLInputElement | null} */ (document.getElementById('formatNameInput'))?.value || '').trim();
+        const name = ((document.getElementById('formatNameInput') as HTMLInputElement | null)?.value || '').trim();
         if (!name) return;
         STATE.savedFormats = STATE.savedFormats || [];
         STATE.savedFormats.push({ id: generateId(), name, mappings: [...fmt] });
@@ -459,7 +458,7 @@ export function renderSettings() {
         switchSettingsTab('format');
         // Pre-fill the name input after tab renders
         setTimeout(() => {
-            const nameInput = /** @type {HTMLInputElement | null} */ (document.getElementById('formatNameInput'));
+            const nameInput = (document.getElementById('formatNameInput') as HTMLInputElement | null);
             if (nameInput) nameInput.value = format.name;
         }, 50);
     };
@@ -470,10 +469,10 @@ export function renderSettings() {
     // rewrites div.innerHTML on every tab change, so per-element listeners
     // would die. Delegation on div survives.
     div.addEventListener('click', (e) => {
-        const target = /** @type {HTMLElement | null} */ (e.target);
+        const target = (e.target as HTMLElement | null);
         if (!target) return;
 
-        const tabCard = /** @type {HTMLElement | null} */ (target.closest('.settings-tab-card'));
+        const tabCard = (target.closest('.settings-tab-card') as HTMLElement | null);
         if (tabCard?.dataset.tab) { switchSettingsTab(tabCard.dataset.tab); return; }
 
         // General-page sub-tab strip — switches between sections
@@ -483,9 +482,9 @@ export function renderSettings() {
         // the same sub-tab. Disabled tabs are :disabled buttons
         // that the browser ignores for clicks anyway, so the
         // dataset check below covers active tabs only.
-        const subTabBtn = /** @type {HTMLElement | null} */ (target.closest('.general-subtab'));
+        const subTabBtn = (target.closest('.general-subtab') as HTMLElement | null);
         if (subTabBtn && !subTabBtn.hasAttribute('disabled') && subTabBtn.dataset.generalSub) {
-            /** @type {any} */ (window).__ggGeneralSubTab = subTabBtn.dataset.generalSub;
+            (window as any).__ggGeneralSubTab = subTabBtn.dataset.generalSub;
             switchSettingsTab('general');
             return;
         }
@@ -494,16 +493,16 @@ export function renderSettings() {
         // below, not here — clicks bubble up but the toggle's actual
         // state change is what we react to.
 
-        const resetBtn = /** @type {HTMLElement | null} */ (target.closest('.confirm-reset-btn'));
+        const resetBtn = (target.closest('.confirm-reset-btn') as HTMLElement | null);
         if (resetBtn?.dataset.resetType) { confirmReset(resetBtn.dataset.resetType); return; }
 
-        const removeMappingBtn = /** @type {HTMLElement | null} */ (target.closest('.remove-mapping-btn'));
+        const removeMappingBtn = (target.closest('.remove-mapping-btn') as HTMLElement | null);
         if (removeMappingBtn?.dataset.variable) { removeFormatMapping(removeMappingBtn.dataset.variable); return; }
 
-        const editFormatBtn = /** @type {HTMLElement | null} */ (target.closest('.edit-saved-format-btn'));
+        const editFormatBtn = (target.closest('.edit-saved-format-btn') as HTMLElement | null);
         if (editFormatBtn?.dataset.formatId) { editSavedFormat(editFormatBtn.dataset.formatId); return; }
 
-        const delFormatBtn = /** @type {HTMLElement | null} */ (target.closest('.delete-saved-format-btn'));
+        const delFormatBtn = (target.closest('.delete-saved-format-btn') as HTMLElement | null);
         if (delFormatBtn?.dataset.formatId) { deleteSavedFormat(delFormatBtn.dataset.formatId); return; }
 
         if (target.closest('#addFormatMappingBtn')) { addFormatMapping(); return; }
@@ -512,7 +511,7 @@ export function renderSettings() {
         // POI filter: reset one category back to its defaults — clears
         // rating, anchor, AND visibility overrides so the row shows
         // "Default" again.
-        const resetPoiBtn = /** @type {HTMLElement | null} */ (target.closest('.poi-filter-reset'));
+        const resetPoiBtn = (target.closest('.poi-filter-reset') as HTMLElement | null);
         if (resetPoiBtn?.dataset.poi) {
             ensurePoiPrefs();
             delete STATE.preferences.poiFilters[resetPoiBtn.dataset.poi];
@@ -529,14 +528,14 @@ export function renderSettings() {
     // Delegated because div.innerHTML is rewritten on tab switch, so
     // per-element listeners would die.
     div.addEventListener('change', (e) => {
-        const target = /** @type {HTMLElement | null} */ (e.target);
+        const target = (e.target as HTMLElement | null);
         if (!target) return;
 
         const ratingSel = target.closest('.poi-filter-rating');
         if (ratingSel) {
-            const key = /** @type {HTMLElement} */ (ratingSel).dataset.poi;
+            const key = (ratingSel as HTMLElement).dataset.poi;
             if (!key) return;
-            const value = parseFloat(/** @type {HTMLSelectElement} */ (ratingSel).value);
+            const value = parseFloat((ratingSel as HTMLSelectElement).value);
             ensurePoiPrefs();
             STATE.preferences.poiFilters[key] = { minRating: value };
             emit('state:changed');
@@ -546,9 +545,9 @@ export function renderSettings() {
 
         const anchorSel = target.closest('.poi-anchor-mode');
         if (anchorSel) {
-            const key = /** @type {HTMLElement} */ (anchorSel).dataset.poi;
+            const key = (anchorSel as HTMLElement).dataset.poi;
             if (!key) return;
-            const value = /** @type {HTMLSelectElement} */ (anchorSel).value;
+            const value = (anchorSel as HTMLSelectElement).value;
             if (value !== 'genesis' && value !== 'epicenter') return;
             ensurePoiPrefs();
             STATE.preferences.poiAnchoring[key] = value;
@@ -559,9 +558,9 @@ export function renderSettings() {
 
         const visibilityToggle = target.closest('.poi-visibility-toggle');
         if (visibilityToggle) {
-            const key = /** @type {HTMLElement} */ (visibilityToggle).dataset.poi;
+            const key = (visibilityToggle as HTMLElement).dataset.poi;
             if (!key) return;
-            const checked = /** @type {HTMLInputElement} */ (visibilityToggle).checked;
+            const checked = (visibilityToggle as HTMLInputElement).checked;
             ensurePoiPrefs();
             // Default is visible (=== true). Only persist when the user
             // hides — checked = visible = "remove the override".
@@ -624,12 +623,12 @@ function openEditCategoryModal(categoryId) {
         `,
     });
 
-    /** @type {HTMLButtonElement} */ (q(root, '#cancelEditCatBtn')).onclick = () => close();
-    /** @type {HTMLFormElement} */ (q(root, '#editCategoryForm')).onsubmit = (e) => {
+    (q(root, '#cancelEditCatBtn') as HTMLButtonElement).onclick = () => close();
+    (q(root, '#editCategoryForm') as HTMLFormElement).onsubmit = (e) => {
         e.preventDefault();
-        const icon = /** @type {HTMLSelectElement} */ (q(root, '#editCatIcon')).value;
-        const name = /** @type {HTMLInputElement} */ (q(root, '#editCatName')).value.trim();
-        const color = /** @type {HTMLInputElement} */ (q(root, '#editCatColor')).value;
+        const icon = (q(root, '#editCatIcon') as HTMLSelectElement).value;
+        const name = (q(root, '#editCatName') as HTMLInputElement).value.trim();
+        const color = (q(root, '#editCatColor') as HTMLInputElement).value;
         if (!name) return;
         cat.icon = icon;
         cat.name = name;
@@ -721,25 +720,25 @@ export function renderPersonalization() {
 
     // Delegated handler for category-row delete + the menu/back tab cards.
     div.addEventListener('click', (e) => {
-        const target = /** @type {HTMLElement | null} */ (e.target);
+        const target = (e.target as HTMLElement | null);
         if (!target) return;
 
-        const persTabCard = /** @type {HTMLElement | null} */ (target.closest('.pers-tab-card'));
+        const persTabCard = (target.closest('.pers-tab-card') as HTMLElement | null);
         if (persTabCard?.dataset.tab) { showPersTab(persTabCard.dataset.tab); return; }
 
-        const editCatBtn = /** @type {HTMLElement | null} */ (target.closest('.edit-category-btn'));
+        const editCatBtn = (target.closest('.edit-category-btn') as HTMLElement | null);
         if (editCatBtn?.dataset.categoryId) { openEditCategoryModal(editCatBtn.dataset.categoryId); return; }
 
-        const delCatBtn = /** @type {HTMLElement | null} */ (target.closest('.delete-category-btn'));
+        const delCatBtn = (target.closest('.delete-category-btn') as HTMLElement | null);
         if (delCatBtn?.dataset.categoryId) { deleteCategory(delCatBtn.dataset.categoryId); return; }
     });
 
     setTimeout(() => {
         const addCatBtn = div.querySelector('#addCatBtn');
         if (addCatBtn) addCatBtn.addEventListener('click', () => {
-            const icon = /** @type {HTMLSelectElement} */ (q(div, '#catIcon')).value;
-            const name = /** @type {HTMLInputElement} */ (q(div, '#catName')).value.trim();
-            const color = /** @type {HTMLInputElement} */ (q(div, '#catColor')).value;
+            const icon = (q(div, '#catIcon') as HTMLSelectElement).value;
+            const name = (q(div, '#catName') as HTMLInputElement).value.trim();
+            const color = (q(div, '#catColor') as HTMLInputElement).value;
             if (name) {
                 STATE.categories.push({ id: generateId(), name, icon, color });
                 emit('state:changed');
