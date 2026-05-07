@@ -138,52 +138,138 @@ function eventAccent(type) {
     }
 }
 
-/** Build the action-row HTML — like, comment, repost, bookmark. Repost
- *  only appears on shareable events (friend_shared_trip + friend_reposted_trip),
- *  since reposting an auto-synthesised "X created a trip" event has no
- *  source post to point back to. Like + comment + bookmark live on every
- *  event. The thread itself renders below the action row when expanded
+/** SVG icon paths for action-row buttons. Lucide-outline aesthetic
+ *  matching the navbar's Complete-Trip / Delete-Trip glyphs:
+ *  stroke="currentColor" + stroke-width 2.2 + linecap/linejoin round.
+ *  Toggled actions (heart, bookmark) flip between outline and filled
+ *  to signal state — fill="currentColor" on the path inside the
+ *  outline shape. The svg viewBox + 14×14 render size matches the
+ *  navbar icons exactly so the buttons share visual weight when they
+ *  share a row.
+ *  @param {'heart'|'comment'|'repost'|'bookmark'} name
+ *  @param {boolean} [filled=false]
+ *  @returns {string}
+ */
+function actionIconSvg(name, filled = false) {
+    const head = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">`;
+    const close = `</svg>`;
+    const fillAttr = filled ? ' fill="currentColor"' : '';
+    let body = '';
+    switch (name) {
+        case 'heart':
+            // Lucide heart — symmetric two-lobe outline. fill swaps
+            // for the "liked" state.
+            body = `<path${fillAttr} d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>`;
+            break;
+        case 'comment':
+            // Lucide message-square — speech bubble with a tail.
+            // No filled state; comments aren't a per-user toggle.
+            body = `<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>`;
+            break;
+        case 'repost':
+            // Lucide refresh-cw — two arrows in a cycle. No fill;
+            // we communicate "reposted" via a checkmark replacement
+            // (see actionsRow) instead.
+            body = `<polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path>`;
+            break;
+        case 'bookmark':
+            // Lucide bookmark — page-corner outline. fill swaps for
+            // the "bookmarked" state.
+            body = `<path${fillAttr} d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>`;
+            break;
+    }
+    return head + body + close;
+}
+
+/** Compact "icon button + count" pair. Mirrors the navbar's
+ *  `.icon-btn-circle` aesthetic for the button itself; the count sits
+ *  outside as a small grey number, kept out of the button so the
+ *  button stays a clean colored circle (no width-juggling per count).
+ *  @param {{className: string, accent: string, dataAttrs?: string, title: string, svg: string, count?: number, marginLeftAuto?: boolean}} opts
+ */
+function actionButton(opts) {
+    const wrapStyle = `display:inline-flex; align-items:center; gap:6px;${opts.marginLeftAuto ? ' margin-left:auto;' : ''}`;
+    return `
+        <span style="${wrapStyle}">
+            <button type="button" class="icon-btn-circle ${opts.className}" style="--accent: ${opts.accent};" ${opts.dataAttrs || ''} title="${opts.title}" aria-label="${opts.title}">
+                ${opts.svg}
+            </button>
+            ${typeof opts.count === 'number' ? `<span class="feed-action-count" style="font-size:0.78rem; color:var(--text-secondary); font-weight:700; min-width:0.8em;">${opts.count > 0 ? opts.count : ''}</span>` : ''}
+        </span>
+    `;
+}
+
+/** Action-row accent palette. Picked once and reused both at render
+ *  time and inside the click handlers (so optimistic toggles can flip
+ *  --accent without re-deriving the colour each time).
+ *  Inactive buttons share the `muted` (system grey) tint so the row
+ *  reads as "neutral until you act"; active buttons take their semantic
+ *  colour (red heart, orange bookmark, green repost). The blue comment
+ *  button has no inactive state — it always looks "ready to be opened".
+ */
+const ACTION_ACCENTS = {
+    muted:    '142,142,147',  // system grey — inactive state
+    like:     '255,59,48',    // red — heart
+    comment:  '0,113,227',    // accent-blue
+    repost:   '52,199,89',    // green
+    bookmark: '255,149,0',    // orange
+};
+
+/** Build the action-row HTML — like, comment, repost, bookmark, all as
+ *  `.icon-btn-circle` icon buttons matching the navbar's Complete/Delete
+ *  trip aesthetic. Repost only appears on shareable events
+ *  (friend_shared_trip + friend_reposted_trip), since reposting an
+ *  auto-synthesised "X created a trip" event has no source post to
+ *  point back to. Like + comment + bookmark live on every event.
+ *
+ *  Toggled buttons (like, bookmark) flip `--accent` AND swap the SVG
+ *  between outline / filled to signal state. Repost toggles to a green
+ *  checkmark when the caller has reposted.
+ *
+ *  The thread itself renders below the action row when expanded
  *  (built lazily by the click handler — empty `<div class="feed-thread">`
  *  shipped with every card so the slot is always there). */
 function actionsRow(ev) {
     const liked = !!ev.is_liked;
     const bookmarked = !!ev.is_bookmarked;
-    const count = ev.like_count || 0;
+    const likeCount = ev.like_count || 0;
     const commentCount = ev.comment_count || 0;
     const canRepost = (ev.type === 'friend_shared_trip' || ev.type === 'friend_reposted_trip') && ev.post_id;
-    const likeBtn = `
-        <button type="button" class="feed-like-btn" data-event-id="${esc(ev.id)}" data-liked="${liked ? '1' : '0'}"
-            title="${liked ? 'Unlike' : 'Like'}" aria-label="${liked ? 'Unlike' : 'Like'}"
-            style="display:inline-flex; align-items:center; gap:5px; background:transparent; border:0; padding:4px 8px; border-radius:999px; cursor:pointer; color:${liked ? '#ff3b30' : 'var(--text-secondary)'}; font-weight:700; font-size:0.82rem; transition: background 0.15s;">
-            <span style="font-size:1.05rem;">${liked ? '❤️' : '🤍'}</span>
-            <span class="feed-like-count">${count > 0 ? count : ''}</span>
-        </button>
-    `;
-    const commentBtn = `
-        <button type="button" class="feed-comment-btn" data-event-id="${esc(ev.id)}"
-            title="Comments" aria-label="Comments"
-            style="display:inline-flex; align-items:center; gap:5px; background:transparent; border:0; padding:4px 8px; border-radius:999px; cursor:pointer; color:var(--text-secondary); font-weight:700; font-size:0.82rem; transition: background 0.15s;">
-            <span style="font-size:1.05rem;">💬</span>
-            <span class="feed-comment-count">${commentCount > 0 ? commentCount : ''}</span>
-        </button>
-    `;
-    const repostBtn = canRepost ? `
-        <button type="button" class="feed-repost-btn" data-post-id="${ev.post_id}"
-            title="Repost to your friends" aria-label="Repost"
-            style="display:inline-flex; align-items:center; gap:5px; background:transparent; border:0; padding:4px 8px; border-radius:999px; cursor:pointer; color:var(--text-secondary); font-weight:700; font-size:0.82rem; transition: background 0.15s;">
-            <span style="font-size:1.05rem;">🔁</span>
-            <span>Repost</span>
-        </button>
-    ` : '';
-    const bookmarkBtn = `
-        <button type="button" class="feed-bookmark-btn" data-event-id="${esc(ev.id)}" data-bookmarked="${bookmarked ? '1' : '0'}"
-            title="${bookmarked ? 'Remove bookmark' : 'Bookmark'}" aria-label="${bookmarked ? 'Remove bookmark' : 'Bookmark'}"
-            style="display:inline-flex; align-items:center; gap:5px; background:transparent; border:0; padding:4px 8px; border-radius:999px; cursor:pointer; color:${bookmarked ? '#ff9500' : 'var(--text-secondary)'}; font-weight:700; font-size:0.82rem; margin-left:auto; transition: background 0.15s;">
-            <span style="font-size:1.05rem;">${bookmarked ? '🔖' : '📑'}</span>
-        </button>
-    `;
+
+    const likeBtn = actionButton({
+        className: 'feed-like-btn',
+        accent: liked ? ACTION_ACCENTS.like : ACTION_ACCENTS.muted,
+        dataAttrs: `data-event-id="${esc(ev.id)}" data-liked="${liked ? '1' : '0'}"`,
+        title: liked ? 'Unlike' : 'Like',
+        svg: actionIconSvg('heart', liked),
+        count: likeCount,
+    });
+    const commentBtn = actionButton({
+        className: 'feed-comment-btn',
+        accent: ACTION_ACCENTS.comment,
+        dataAttrs: `data-event-id="${esc(ev.id)}"`,
+        title: 'Comments',
+        svg: actionIconSvg('comment'),
+        count: commentCount,
+    });
+    const repostBtn = canRepost ? actionButton({
+        className: 'feed-repost-btn',
+        accent: ACTION_ACCENTS.muted,
+        dataAttrs: `data-post-id="${ev.post_id}"`,
+        title: 'Repost to your friends',
+        svg: actionIconSvg('repost'),
+    }) : '';
+    const bookmarkBtn = actionButton({
+        className: 'feed-bookmark-btn',
+        accent: bookmarked ? ACTION_ACCENTS.bookmark : ACTION_ACCENTS.muted,
+        dataAttrs: `data-event-id="${esc(ev.id)}" data-bookmarked="${bookmarked ? '1' : '0'}"`,
+        title: bookmarked ? 'Remove bookmark' : 'Bookmark',
+        svg: actionIconSvg('bookmark', bookmarked),
+        marginLeftAuto: true,
+    });
+
     return `
-        <div class="feed-actions" style="display:flex; align-items:center; gap:4px; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(0,45,91,0.06);">
+        <div class="feed-actions" style="display:flex; align-items:center; gap:10px; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(0,45,91,0.06);">
             ${likeBtn}
             ${commentBtn}
             ${repostBtn}
@@ -318,25 +404,27 @@ export function renderFeed() {
         const target = /** @type {HTMLElement | null} */ (e.target);
         if (!target) return;
 
-        const likeBtn = /** @type {HTMLElement | null} */ (target.closest('.feed-like-btn'));
+        const likeBtn = /** @type {HTMLButtonElement | null} */ (target.closest('.feed-like-btn'));
         if (likeBtn?.dataset.eventId) {
             const eventId = likeBtn.dataset.eventId;
             const wasLiked = likeBtn.dataset.liked === '1';
+            const newLiked = !wasLiked;
             // Optimistic flip. Find the cached event so the next paint
             // doesn't snap back if the user double-clicks before the
             // server responds.
             const ev = cachedEvents.find(e => e.id === eventId);
             if (ev) {
-                ev.is_liked = !wasLiked;
+                ev.is_liked = newLiked;
                 ev.like_count = Math.max(0, (ev.like_count || 0) + (wasLiked ? -1 : 1));
             }
-            // Patch the button inline (no full re-paint).
-            const heart = likeBtn.querySelector('span');
-            const countEl = likeBtn.querySelector('.feed-like-count');
-            const newLiked = !wasLiked;
+            // Patch the button inline: --accent CSS var (red↔grey), the
+            // SVG inner shape (filled↔outline), and the sibling count
+            // chip. The button itself is `.icon-btn-circle` so all the
+            // tinting cascades from --accent.
             likeBtn.dataset.liked = newLiked ? '1' : '0';
-            likeBtn.style.color = newLiked ? '#ff3b30' : 'var(--text-secondary)';
-            if (heart) heart.textContent = newLiked ? '❤️' : '🤍';
+            likeBtn.style.setProperty('--accent', newLiked ? ACTION_ACCENTS.like : ACTION_ACCENTS.muted);
+            likeBtn.innerHTML = actionIconSvg('heart', newLiked);
+            const countEl = /** @type {HTMLElement | null} */ (likeBtn.parentElement?.querySelector('.feed-action-count'));
             if (countEl && ev) countEl.textContent = ev.like_count > 0 ? String(ev.like_count) : '';
             // Server reconcile.
             const result = await toggleFeedLike(eventId);
@@ -348,17 +436,16 @@ export function renderFeed() {
             return;
         }
 
-        const bookmarkBtn = /** @type {HTMLElement | null} */ (target.closest('.feed-bookmark-btn'));
+        const bookmarkBtn = /** @type {HTMLButtonElement | null} */ (target.closest('.feed-bookmark-btn'));
         if (bookmarkBtn?.dataset.eventId) {
             const eventId = bookmarkBtn.dataset.eventId;
             const wasBookmarked = bookmarkBtn.dataset.bookmarked === '1';
-            const ev = cachedEvents.find(e => e.id === eventId);
-            if (ev) ev.is_bookmarked = !wasBookmarked;
             const newBookmarked = !wasBookmarked;
+            const ev = cachedEvents.find(e => e.id === eventId);
+            if (ev) ev.is_bookmarked = newBookmarked;
             bookmarkBtn.dataset.bookmarked = newBookmarked ? '1' : '0';
-            bookmarkBtn.style.color = newBookmarked ? '#ff9500' : 'var(--text-secondary)';
-            const icon = bookmarkBtn.querySelector('span');
-            if (icon) icon.textContent = newBookmarked ? '🔖' : '📑';
+            bookmarkBtn.style.setProperty('--accent', newBookmarked ? ACTION_ACCENTS.bookmark : ACTION_ACCENTS.muted);
+            bookmarkBtn.innerHTML = actionIconSvg('bookmark', newBookmarked);
             await toggleFeedBookmark(eventId);
             return;
         }
@@ -409,10 +496,12 @@ export function renderFeed() {
             const ev = eventId ? cachedEvents.find(e => e.id === eventId) : null;
             if (ev) {
                 ev.comment_count = Math.max(0, (ev.comment_count || 0) - 1);
-                // Patch the count chip on the comment button.
+                // Patch the count chip — it sits as a sibling of the
+                // comment button inside the same wrapper span.
                 const card = threadEl?.closest('.feed-event');
-                const btn = card?.querySelector('.feed-comment-btn .feed-comment-count');
-                if (btn) btn.textContent = ev.comment_count > 0 ? String(ev.comment_count) : '';
+                const btn = card?.querySelector('.feed-comment-btn');
+                const countEl = /** @type {HTMLElement | null} */ (btn?.parentElement?.querySelector('.feed-action-count'));
+                if (countEl) countEl.textContent = ev.comment_count > 0 ? String(ev.comment_count) : '';
             }
             const result = await deleteFeedComment(commentId);
             if (!result.ok) {
@@ -422,27 +511,32 @@ export function renderFeed() {
             return;
         }
 
-        const repostBtn = /** @type {HTMLElement | null} */ (target.closest('.feed-repost-btn'));
+        const repostBtn = /** @type {HTMLButtonElement | null} */ (target.closest('.feed-repost-btn'));
         if (repostBtn?.dataset.postId) {
             const postId = Number(repostBtn.dataset.postId);
-            // Disable to prevent double-fire while the request is in
-            // flight; re-enable after, even on failure.
-            const orig = repostBtn.innerHTML;
-            /** @type {HTMLButtonElement} */ (repostBtn).disabled = true;
-            repostBtn.innerHTML = '<span style="font-size:1.05rem;">⏳</span><span>Reposting…</span>';
+            // Disable + nudge --accent to a "pending" tone while the
+            // request is in flight; the icon stays the cycle so the
+            // user sees the action they pressed. Restored on failure.
+            const origAccent = repostBtn.style.getPropertyValue('--accent') || ACTION_ACCENTS.muted;
+            repostBtn.disabled = true;
+            repostBtn.style.setProperty('--accent', ACTION_ACCENTS.muted);
             const result = await repostFeedPost(postId);
-            /** @type {HTMLButtonElement} */ (repostBtn).disabled = false;
             if (result.ok && result.body?.status !== 'same_user') {
                 const wasAlready = result.body?.status === 'already_reposted';
                 showLiquidAlert(wasAlready ? 'Already reposted' : 'Reposted to your feed');
-                repostBtn.innerHTML = '<span style="font-size:1.05rem;">✓</span><span>Reposted</span>';
-                /** @type {HTMLButtonElement} */ (repostBtn).disabled = true;
-                repostBtn.style.color = '#34c759';
+                // Settle into the "reposted" state: green tint + a
+                // checkmark glyph in place of the cycle icon. Stays
+                // disabled — reposting twice is a no-op server-side
+                // anyway, so the disabled state matches reality.
+                repostBtn.style.setProperty('--accent', ACTION_ACCENTS.repost);
+                repostBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
             } else if (result.body?.status === 'same_user') {
-                repostBtn.innerHTML = orig;
+                repostBtn.disabled = false;
+                repostBtn.style.setProperty('--accent', origAccent);
                 showLiquidAlert("That's your own share — no need to repost it.");
             } else {
-                repostBtn.innerHTML = orig;
+                repostBtn.disabled = false;
+                repostBtn.style.setProperty('--accent', origAccent);
                 showLiquidAlert('Repost failed — try again in a moment.');
             }
             return;
@@ -485,7 +579,8 @@ export function renderFeed() {
         if (ev) {
             ev.comment_count = (ev.comment_count || 0) + 1;
             const card = threadEl?.closest('.feed-event');
-            const countEl = card?.querySelector('.feed-comment-btn .feed-comment-count');
+            const btn = card?.querySelector('.feed-comment-btn');
+            const countEl = /** @type {HTMLElement | null} */ (btn?.parentElement?.querySelector('.feed-action-count'));
             if (countEl) countEl.textContent = String(ev.comment_count);
         }
     });
