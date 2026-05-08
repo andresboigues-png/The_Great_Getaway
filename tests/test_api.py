@@ -175,6 +175,53 @@ def test_upsert_expense_rejected_when_not_member(
     assert res.status_code == 403
 
 
+def test_upsert_expense_missing_payload(client, auth_headers):
+    """Mirror of upsert_day_missing_payload — POST with no `expense`
+    key returns 400 without writing anything."""
+    res = client.post("/api/expenses", headers=auth_headers, json={})
+    assert res.status_code == 400
+
+
+def test_delete_expense_happy_path(client, seed_user, auth_headers):
+    """Owner can delete their own expense; row is gone after."""
+    client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": "trip-1", "name": "Tuscany"},
+    })
+    client.post("/api/expenses", headers=auth_headers, json={
+        "expense": {
+            "id": "exp-1", "tripId": "trip-1", "who": "Me", "value": 50,
+            "currency": "EUR", "euroValue": 50, "label": "Lunch", "date": "2026-01-01",
+        },
+    })
+    res = client.delete("/api/expenses/exp-1", headers=auth_headers)
+    assert res.status_code == 200
+    assert res.get_json() == {"status": "deleted"}
+
+
+def test_delete_expense_idempotent_on_unknown_id(client, seed_user, auth_headers):
+    """DELETE on a non-existent expense returns 200 (idempotent), not 404."""
+    res = client.delete("/api/expenses/never-existed", headers=auth_headers)
+    assert res.status_code == 200
+    assert res.get_json() == {"status": "deleted"}
+
+
+def test_delete_expense_rejects_non_member(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """Someone outside the trip can't delete its expenses."""
+    client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": "trip-1", "name": "Tuscany"},
+    })
+    client.post("/api/expenses", headers=auth_headers, json={
+        "expense": {
+            "id": "exp-1", "tripId": "trip-1", "who": "Me", "value": 50,
+            "currency": "EUR", "euroValue": 50, "label": "Lunch", "date": "2026-01-01",
+        },
+    })
+    res = client.delete("/api/expenses/exp-1", headers=other_auth_headers)
+    assert res.status_code == 403
+
+
 # ── /api/days ────────────────────────────────────────────────────────────────
 
 def test_upsert_day_happy_path(client, seed_user, auth_headers):
@@ -194,6 +241,137 @@ def test_upsert_day_happy_path(client, seed_user, auth_headers):
 def test_upsert_day_missing_payload(client, auth_headers):
     res = client.post("/api/days", headers=auth_headers, json={})
     assert res.status_code == 400
+
+
+def test_upsert_day_rejects_non_planner(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """Only the trip's planner-role members can upsert days."""
+    client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": "trip-1", "name": "Tuscany"},
+    })
+    res = client.post("/api/days", headers=other_auth_headers, json={
+        "day": {
+            "id": "day-1", "tripId": "trip-1", "dayNumber": 1,
+            "name": "Florence", "date": "2026-01-02",
+        },
+    })
+    assert res.status_code == 403
+
+
+def test_delete_day_happy_path(client, seed_user, auth_headers):
+    """Planner can delete a numbered day; row is gone after."""
+    client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": "trip-1", "name": "Tuscany"},
+    })
+    client.post("/api/days", headers=auth_headers, json={
+        "day": {
+            "id": "day-1", "tripId": "trip-1", "dayNumber": 1,
+            "name": "Florence", "date": "2026-01-02",
+        },
+    })
+    res = client.delete("/api/days/day-1", headers=auth_headers)
+    assert res.status_code == 200
+    assert res.get_json() == {"status": "deleted"}
+
+
+def test_delete_day_idempotent_on_unknown_id(client, seed_user, auth_headers):
+    """DELETE on a non-existent day returns 200 (idempotent)."""
+    res = client.delete("/api/days/never-existed", headers=auth_headers)
+    assert res.status_code == 200
+    assert res.get_json() == {"status": "deleted"}
+
+
+def test_delete_day_rejects_genesis(client, seed_user, auth_headers):
+    """Day 0 (Trip Genesis) is the trip's anchor and can't be deleted —
+    the home UI hides the delete button on the genesis card; this 422
+    is the belt-and-braces backend gate against curl-wielding users
+    or stale clients firing the request anyway."""
+    client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": "trip-1", "name": "Tuscany"},
+    })
+    client.post("/api/days", headers=auth_headers, json={
+        "day": {
+            "id": "day-genesis", "tripId": "trip-1", "dayNumber": 0,
+            "name": "Trip Genesis",
+        },
+    })
+    res = client.delete("/api/days/day-genesis", headers=auth_headers)
+    assert res.status_code == 422
+    body = res.get_json()
+    assert "Genesis" in body["error"]
+
+
+def test_delete_day_rejects_non_planner(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """Non-planner can't delete days off someone else's trip."""
+    client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": "trip-1", "name": "Tuscany"},
+    })
+    client.post("/api/days", headers=auth_headers, json={
+        "day": {
+            "id": "day-1", "tripId": "trip-1", "dayNumber": 1,
+            "name": "Florence",
+        },
+    })
+    res = client.delete("/api/days/day-1", headers=other_auth_headers)
+    assert res.status_code == 403
+
+
+# ── /api/budgets ─────────────────────────────────────────────────────────────
+# Budgets are per-user (not per-trip), so the gate is "caller owns this
+# budget row". The audit fix replaced the previous "delete by id alone"
+# path that let any caller wipe anyone's budget by guessing an id.
+
+def test_upsert_budget_happy_path(client, seed_user, auth_headers):
+    """Owner can create + update their own budget."""
+    res = client.post("/api/budgets", headers=auth_headers, json={
+        "budget": {
+            "id": "budget-1", "tripId": "trip-1", "label": "Food",
+            "amount": 200, "currency": "EUR",
+        },
+    })
+    assert res.status_code == 200
+
+
+def test_upsert_budget_missing_payload(client, auth_headers):
+    """POST with no `budget` key returns 400."""
+    res = client.post("/api/budgets", headers=auth_headers, json={})
+    assert res.status_code == 400
+
+
+def test_delete_budget_only_deletes_own_budget(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """Audit-fix coverage: another user's DELETE of a guessed budget id
+    is a silent no-op — the WHERE clause's `user_id = ?` makes the SQL
+    delete zero rows. The endpoint still returns 200/{deleted} for
+    idempotency, but the row stays put for the real owner."""
+    # Owner creates a budget
+    client.post("/api/budgets", headers=auth_headers, json={
+        "budget": {
+            "id": "budget-mine", "tripId": "trip-1", "label": "Food",
+            "amount": 200, "currency": "EUR",
+        },
+    })
+    # Different user fires DELETE — request returns 200 but the row
+    # survives because the gate is `user_id = ?` in the SQL.
+    other_res = client.delete("/api/budgets/budget-mine", headers=other_auth_headers)
+    assert other_res.status_code == 200
+
+    # Owner can still delete it themselves (proves it wasn't actually
+    # removed by the previous request).
+    own_res = client.delete("/api/budgets/budget-mine", headers=auth_headers)
+    assert own_res.status_code == 200
+    assert own_res.get_json() == {"status": "deleted"}
+
+
+def test_delete_budget_idempotent_on_unknown_id(client, seed_user, auth_headers):
+    """DELETE on a non-existent budget returns 200 (idempotent)."""
+    res = client.delete("/api/budgets/never-existed", headers=auth_headers)
+    assert res.status_code == 200
+    assert res.get_json() == {"status": "deleted"}
 
 
 # ── /api/friends ─────────────────────────────────────────────────────────────
