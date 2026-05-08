@@ -1950,3 +1950,195 @@ def test_auth_google_real_path_invalid_token_returns_401(client, monkeypatch):
     res = client.post("/api/auth/google", json={"token": "expired.token"})
     assert res.status_code == 401
     assert res.get_json().get("error") == "Invalid token"
+
+
+# ── /api/sync — archived_trips + budgets + trip_days + legacy share ──────────
+#
+# The basic happy path is covered above (test_sync_writes_trips_and_expenses).
+# These cover the lower-traffic branches: archived-trip upsert (with
+# nested expenses), the budgets replace-mode sync, the trip_days insert
+# block, and the legacy /api/trips/share route. Each pinning a specific
+# uncovered chunk in src/routes/data.py.
+
+def test_sync_writes_archived_trip_with_expenses(client, seed_user, auth_headers):
+    """archived_trips block — separate from the active trips block —
+    upserts trips with is_archived=1 and gates per-row on can_edit_trip
+    for nested expenses. Pin both the archived-trip insert and the
+    nested-expense insert in one round-trip."""
+    res = client.post("/api/sync", headers=auth_headers, json={
+        "trips": [],
+        "expenses": [],
+        "archived_trips": [
+            {
+                "id": "trip-archived-1",
+                "name": "Last Year Italy",
+                "country": "Italy",
+                "expenses": [
+                    {
+                        "id": "exp-arch-1",
+                        "tripId": "trip-archived-1",
+                        "who": "Me",
+                        "categoryId": "c-food",
+                        "country": "Italy",
+                        "value": 12,
+                        "currency": "EUR",
+                        "euroValue": 12,
+                        "label": "Gelato",
+                        "date": "2025-08-15",
+                    },
+                ],
+            },
+        ],
+    })
+    assert res.status_code == 200
+
+    # Round-trip via /api/data: the archived trip + its expense
+    # should both be present. The trip's `isArchived` flag actually
+    # surfaces from the per-user trip_members row (per Phase G);
+    # ensure_owner_member_row inserts that row with archived=0,
+    # so the response shows myArchived=False even though the trip
+    # row's is_archived=1. That's a known quirk of the legacy bulk-
+    # sync path — the new flow uses /api/trips/<id>/archive which
+    # toggles the member-row flag directly. Here we only pin that
+    # the trip + its nested expense both round-trip.
+    pull = client.get("/api/data", headers=auth_headers)
+    body = pull.get_json()
+    archived = next(
+        (t for t in body["trips"] if t["id"] == "trip-archived-1"), None,
+    )
+    assert archived is not None
+    assert archived["country"] == "Italy"
+    assert any(e["id"] == "exp-arch-1" for e in body["expenses"])
+
+
+def test_sync_writes_budgets_categories_and_trip_days(client, seed_user, auth_headers):
+    """Cover three smaller sync branches in one payload: budgets
+    replace-mode (DELETE WHERE id NOT IN <list>), categories DELETE
+    THEN INSERT, and trip_days insert. Pin the round-trip so a
+    field-rename regression surfaces immediately."""
+    # Need a trip first for trip_days FK.
+    client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": "trip-multi-sync", "name": "Multi", "country": "France"},
+    })
+
+    res = client.post("/api/sync", headers=auth_headers, json={
+        "trips": [],
+        "expenses": [],
+        "categories": [
+            {"id": "c-food-sync", "name": "Food", "icon": "🍔", "color": "#ff0000"},
+        ],
+        "budgets": [
+            {
+                "id": "b-sync-1",
+                "tripId": "trip-multi-sync",
+                "label": "Hotels",
+                "amount": 500,
+                "currency": "EUR",
+            },
+        ],
+        "trip_days": [
+            {
+                "id": "td-sync-1",
+                "tripId": "trip-multi-sync",
+                "dayNumber": 1,
+                "date": "2026-06-01",
+                "name": "Arrival",
+                "morning": "Land at CDG",
+                "afternoon": "Hotel check-in",
+                "evening": "Dinner",
+                "tip": "Avoid taxi scams at CDG arrivals",
+                "lat": 48.85,
+                "lng": 2.35,
+            },
+        ],
+    })
+    assert res.status_code == 200
+
+    pull = client.get("/api/data", headers=auth_headers)
+    body = pull.get_json()
+    assert any(c["id"] == "c-food-sync" for c in body["categories"])
+    assert any(b["id"] == "b-sync-1" for b in body["budgets"])
+    # /api/data returns trip days under `tripDays` (camelCase).
+    assert any(d["id"] == "td-sync-1" for d in body["tripDays"])
+
+
+def test_sync_budgets_replace_mode_deletes_omitted_ids(client, seed_user, auth_headers):
+    """The budgets replace path runs `DELETE WHERE user_id = ? AND id
+    NOT IN (...)` — pin the implicit "you can drop a budget by
+    omitting its id from the next sync" contract."""
+    # First sync: 2 budgets.
+    client.post("/api/sync", headers=auth_headers, json={
+        "trips": [],
+        "expenses": [],
+        "budgets": [
+            {"id": "b-keep", "label": "Keep me", "amount": 100, "currency": "EUR"},
+            {"id": "b-drop", "label": "Drop me", "amount": 200, "currency": "EUR"},
+        ],
+    })
+
+    # Second sync: only b-keep — b-drop should be deleted.
+    client.post("/api/sync", headers=auth_headers, json={
+        "trips": [],
+        "expenses": [],
+        "budgets": [
+            {"id": "b-keep", "label": "Keep me", "amount": 100, "currency": "EUR"},
+        ],
+    })
+
+    pull = client.get("/api/data", headers=auth_headers)
+    body = pull.get_json()
+    budget_ids = [b["id"] for b in body["budgets"]]
+    assert "b-keep" in budget_ids
+    assert "b-drop" not in budget_ids
+
+
+def test_sync_budgets_empty_list_clears_all(client, seed_user, auth_headers):
+    """The empty-list branch runs an unconditional `DELETE WHERE
+    user_id = ?` (no NOT IN clause) — pin the wipe-everything path."""
+    # Seed two budgets.
+    client.post("/api/sync", headers=auth_headers, json={
+        "trips": [], "expenses": [],
+        "budgets": [
+            {"id": "b-wipe-1", "label": "x", "amount": 1, "currency": "EUR"},
+            {"id": "b-wipe-2", "label": "y", "amount": 2, "currency": "EUR"},
+        ],
+    })
+
+    # Sync with no `budgets` key at all → defaults to [] → DELETE
+    # WHERE user_id = ? fires unconditionally.
+    res = client.post("/api/sync", headers=auth_headers, json={
+        "trips": [], "expenses": [],
+    })
+    assert res.status_code == 200
+
+    pull = client.get("/api/data", headers=auth_headers)
+    assert pull.get_json()["budgets"] == []
+
+
+def test_legacy_trips_share_inserts_collaborator_row(
+    client, seed_user, seed_other_user, auth_headers,
+):
+    """`/api/trips/share` is the legacy collaborator-table path. The
+    Phase-G flow goes through /api/trips/invite + respond, but this
+    endpoint is preserved for clients that haven't migrated. Pin so
+    a tidy-up doesn't accidentally remove it (existing rows would
+    fall off the /api/data UNION)."""
+    # Owner creates a trip.
+    client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": "trip-legacy-share", "name": "Legacy", "country": "X"},
+    })
+
+    res = client.post("/api/trips/share", headers=auth_headers, json={
+        "trip_id": "trip-legacy-share",
+        "friend_id": seed_other_user,
+    })
+    assert res.status_code == 200
+    assert res.get_json().get("status") == "shared"
+
+    # Re-share with same pair — INSERT OR IGNORE means the second call
+    # is a no-op rather than a UNIQUE violation.
+    res = client.post("/api/trips/share", headers=auth_headers, json={
+        "trip_id": "trip-legacy-share",
+        "friend_id": seed_other_user,
+    })
+    assert res.status_code == 200
