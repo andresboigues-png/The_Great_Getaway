@@ -764,7 +764,7 @@ momentum scrolling works on every scrollable surface.
       handle pill (iOS pattern). Slides up via `sheetSlideUp`
       keyframes. Internal scroll on tall forms via `100dvh`
       (handles iOS Safari URL bar collapse) + `overscroll-behavior:
-  contain`. Inline `width: 420px` from showModal call sites
+contain`. Inline `width: 420px` from showModal call sites
       defeated via `!important`. `.card-glass-confirm` stays
       alert-shaped (full-sheet would over-emphasize a yes/no).
       Selectors are descendant-scoped under `.modal-overlay` so
@@ -790,13 +790,13 @@ momentum scrolling works on every scrollable surface.
       mobile" pattern can opt in by adding the class.
 - [x] **Expense History row flips to column layout on mobile** —
       the desktop layout (`[icon + title + meta] ←→ [receipt +
-    amount + actions]` in a single flex row) crushes the meta
+  amount + actions]` in a single flex row) crushes the meta
       text and pushes the amount tight against the actions at
       375px. On mobile, `.expense-row` becomes `flex-direction:
-    column` and the right-side action cluster (`> div:nth-child(2)`)
+  column` and the right-side action cluster (`> div:nth-child(2)`)
       gets `justify-content: flex-end` so the amount + receipt +
       edit/delete pile on the right. Title gets `word-break:
-    break-word` so long expense names wrap instead of overflowing.
+  break-word` so long expense names wrap instead of overflowing.
       Visual baseline updated for darwin (linux baseline needs a
       `visual-baselines-bootstrap.yml` workflow re-bootstrap on
       next merge — same recipe as Phase A4).
@@ -819,21 +819,66 @@ momentum scrolling works on every scrollable surface.
   changes is fine for now; explicit sticky bars are a polish
   pass.
 
-### D2 — Dark mode
+### D2 — Dark mode ✅
 
 Real dark mode, not just "invert colors." Each surface re-thought.
+**Complete.** Tri-state theme picker (Light / Dark / System) lives
+in Settings → Appearance, persists to `STATE.preferences.theme`,
+applies via `data-theme="dark"` on `<html>` (read by every CSS
+token), and respects the OS via `prefers-color-scheme` when in
+System mode (with a media-query listener that re-applies live).
 
-- [ ] Token-level: every color in `:root` gets a dark counterpart in
-      `:root[data-theme="dark"]`.
-- [ ] Glass treatment in dark mode: backgrounds shift to dark glass with
-      cool light blur (sample: Apple Notification Center on dark
-      wallpaper).
-- [ ] System-preference auto-detection (`prefers-color-scheme`) AND a
-      manual toggle in settings.
-- [ ] The map (Google Maps) has a dark style — apply when in dark mode.
-- [ ] All gradient + shadow tokens have dark variants.
-- [ ] Components preview page exercises both themes side-by-side so
-      regressions surface in visual tests.
+- [x] **Token-level dark overrides** — every color, glass surface,
+      and shadow token in `:root` has a counterpart in
+      `:root[data-theme="dark"]`. Includes `--bg-color`,
+      `--card-bg`, `--text-primary`/`secondary`, `--accent-blue`
+      (Apple's brighter dark-mode `#0a84ff`),
+      `--accent-blue-hover`, all four `--glass-*` fills, all six
+      `--shadow-*` variants, and `--surface-glass-light`.
+      Brand gradients (`--gradient-day`, `--gradient-genesis`,
+      `--gradient-neon`, `--gradient-title`) and the static
+      success / warning / danger accents are intentionally NOT
+      overridden — they're brand identity and read on either
+      background.
+- [x] **Glass treatment in dark mode** — `.glass` automatically
+      reads the right value because `--glass-bg` / `--glass-fill`
+      / `--glass-border` flip via the token override. Backdrop-
+      blur stays the same; only the fill rgba flips so the blur
+      reads as "frosted on dark wallpaper" not "milky on bright."
+- [x] **System auto-detection + manual toggle** — `theme.ts`
+      resolves `'system'` via `window.matchMedia('(prefers-color-
+    scheme: dark)')`, attaches a single listener that re-applies
+      on OS theme change (only when the user is in System mode),
+      and the Settings → Appearance card surfaces the tri-state
+      picker.
+- [x] **Google Maps dark style** — `getDarkMapStyles()` returns
+      an Apple-like dark map array (geometry tinted dark-navy,
+      labels light grey, water deep navy, parks tinted green).
+      `applyMapTheme(map, baseStyles)` merges dark first so any
+      page-specific overrides (like the profile footprint map's
+      labels-off / muted landscape) win on key collisions. Wired
+      into all 4 map instantiation sites (home, ai empty-state,
+      ai active-trip, profile legacies).
+- [x] **All gradient + shadow tokens have dark variants** — see
+      token-level note above. Shadow rgba alpha is bumped (0.4–0.8
+      vs 0.04–0.25 in light) to compensate for the reduced contrast
+      against the dark canvas.
+- [x] **First-paint FOUC guard** — synchronous inline `<script>`
+      in `<head>` reads `theGreatEscapeState.preferences.theme`
+      from localStorage AND resolves system-mode via mediaQuery
+      BEFORE the bundle loads. The very first frame already paints
+      with the right theme; the bundle's `initThemeManager` runs
+      later and is idempotent (cheap setAttribute, no-op when the
+      value is already correct).
+- [ ] Components preview page side-by-side — deferred (would need
+      a route + visual baselines per theme, separate sweep).
+
+**E2e coverage:** `appearance setting flips html data-theme between
+light and dark` exercises the toggle round-trip + persistence to
+localStorage. `system theme follows prefers-color-scheme on boot
+(no FOUC)` uses Playwright's `colorScheme: 'dark'` browser context
+to verify the inline head script lands `data-theme="dark"` before
+first paint for new users on a dark OS.
 
 ### D3 — Accessibility
 
@@ -1203,19 +1248,19 @@ expenses ADD COLUMN receipt_url TEXT`, threaded through
     round-trip via `STATE.draftExpense.receiptUrl` so re-opening
     an expense pre-fills the picker.
 
-                **Latent bug uncovered + fixed**: while wiring this up I
-                discovered the server was writing expense fields camelCase via
-                `/api/expenses` but reading them back from `/api/data` as
-                snake_case (`trip_id`, `category_id`, `euro_value`,
-                `receipt_url`) — frontend filters like
-                `e.tripId === STATE.activeTripId` would silently return empty
-                on cold-load. The History tab and Settlement page would have
-                appeared empty until the user added a fresh expense locally.
-                Translation now lives in both `routes/data.py` and
-                `routes/public.py` so the public archived-trip detail also
-                benefits. 2 pytests for the round-trip (set + clear), legacy
-                compat test, and 1 e2e for the receipt clip icon. Net: 161/161
-                pytests + 43/43 e2e + 20/20 visual.
+                    **Latent bug uncovered + fixed**: while wiring this up I
+                    discovered the server was writing expense fields camelCase via
+                    `/api/expenses` but reading them back from `/api/data` as
+                    snake_case (`trip_id`, `category_id`, `euro_value`,
+                    `receipt_url`) — frontend filters like
+                    `e.tripId === STATE.activeTripId` would silently return empty
+                    on cold-load. The History tab and Settlement page would have
+                    appeared empty until the user added a fresh expense locally.
+                    Translation now lives in both `routes/data.py` and
+                    `routes/public.py` so the public archived-trip detail also
+                    benefits. 2 pytests for the round-trip (set + clear), legacy
+                    compat test, and 1 e2e for the receipt clip icon. Net: 161/161
+                    pytests + 43/43 e2e + 20/20 visual.
 
 5.  **Trip share-via-link (read-only)** — `4-6 hours`, schema +
     public backend route + new public frontend route + Views counter.

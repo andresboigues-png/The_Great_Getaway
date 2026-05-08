@@ -47,6 +47,30 @@
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+    <!-- Phase D2 — early theme application to avoid flash-of-light-
+         content. The bundle's initThemeManager runs after JS load
+         (async/defer), which is after the browser's first paint.
+         This snippet runs synchronously here in the head so the
+         very first frame already uses the right theme. Mirrors the
+         resolveTheme + setHtmlTheme logic in theme.ts; if STATE
+         turns out to disagree later the bundle will overwrite. -->
+    <script>
+        (function () {
+            try {
+                var stored = localStorage.getItem('theGreatEscapeState');
+                var theme = null;
+                if (stored) {
+                    var parsed = JSON.parse(stored);
+                    theme = (parsed && parsed.preferences && parsed.preferences.theme) || null;
+                }
+                var dark = theme === 'dark'
+                    || ((theme === 'system' || !theme)
+                        && window.matchMedia('(prefers-color-scheme: dark)').matches);
+                if (dark) document.documentElement.dataset.theme = 'dark';
+            } catch (e) { /* localStorage unavailable / corrupt — fall back to light */ }
+        })();
+    </script>
+
     <!-- Google Maps API -->
     <script src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&libraries=places&loading=async"></script>
     <script>

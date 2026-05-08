@@ -153,18 +153,63 @@
                 box-shadow var(--duration-fast) var(--easing-smooth);
 }
 
-/* Dark Mode Support */
-@media (prefers-color-scheme: dark) {
-    :root {
-        --bg-color: #000000;
-        --text-primary: #f5f5f7;
-        --text-secondary: #86868b;
-        --glass-bg: rgba(29, 29, 31, 0.72);
-        --glass-border: rgba(255, 255, 255, 0.1);
-        --card-bg: #1c1c1e;
-        --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.4);
-        --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.6);
-    }
+/* ── Dark mode (Phase D2) ────────────────────────────────────────
+   Dark counterparts for every token. Activated by JS setting
+   `data-theme="dark"` on <html> — the theme manager
+   (frontend/static/js/src/theme.ts) does this when the user picks
+   dark OR when their preference is "system" and the OS reports a
+   dark color scheme. So the CSS only needs ONE selector to cover
+   both manual + system-driven dark.
+
+   Brand gradients (--gradient-day, --gradient-genesis, --gradient-
+   neon, --gradient-title) are NOT overridden — they're brand
+   identity and read fine on either background. Same for the static
+   #34c759 (success), #ff3b30 (danger), #ff9500 (warning) accents
+   used inline across pages. */
+:root[data-theme="dark"] {
+    /* Surfaces */
+    --bg-color: #000000;
+    --card-bg: #1c1c1e;
+
+    /* Text */
+    --text-primary: #f5f5f7;
+    --text-secondary: #a0a0a8;
+
+    /* Brand accent — Apple's dark-mode blue is slightly brighter
+       so it pops on dark surfaces (system blue is #0a84ff in dark
+       mode vs #0071e3 in light). */
+    --accent-blue: #0a84ff;
+    --accent-blue-hover: #409cff;
+
+    /* Glass — frosted dark surfaces. Backdrop-filter blur stays
+       the same; the fill flips from white-translucent to dark-
+       translucent so the blur reads as "frosted on dark wallpaper"
+       not "milky on bright wallpaper". */
+    --glass-bg: rgba(28, 28, 30, 0.72);
+    --glass-border: rgba(255, 255, 255, 0.08);
+    --glass-fill-soft: rgba(255, 255, 255, 0.04);
+    --glass-fill: rgba(255, 255, 255, 0.08);
+    --glass-fill-strong: rgba(255, 255, 255, 0.14);
+    --surface-subtle: rgba(255, 255, 255, 0.06);
+    --surface-subtle-hover: rgba(255, 255, 255, 0.1);
+    --surface-glass-light: rgba(28, 28, 30, 0.85);
+    /* --surface-glass stays at the same rgba(18, 22, 30, 0.96)
+       value in both themes — it's already dark in light mode
+       (used as the modal backdrop / notification dropdown
+       background). No-op to override. */
+
+    /* Shadows — dark mode shadows are deeper to compensate for the
+       reduced contrast against the dark canvas. */
+    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.5);
+    --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.55);
+    --shadow-xl: 0 20px 40px rgba(0, 0, 0, 0.6);
+    --shadow-modal: 0 40px 100px rgba(0, 0, 0, 0.8);
+    --shadow-button-blue: 0 8px 16px rgba(10, 132, 255, 0.35);
+    --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.35);
+    --shadow-chip: 0 1px 4px rgba(0, 0, 0, 0.45);
+    /* --shadow-pulse stays cyan-tinted — it's brand glow, not
+       theme-tied. */
 }
 
 body {
@@ -263,10 +308,10 @@ body {
     border: 1px solid var(--glass-border) !important;
 }
 
-@media (prefers-color-scheme: dark) {
-    .trip-tab:hover ,     .trip-tab:active ,     .trip-tab:focus-visible {
-        background: rgba(255, 255, 255, 0.05);
-    }
+:root[data-theme="dark"] .trip-tab:hover,
+:root[data-theme="dark"] .trip-tab:active,
+:root[data-theme="dark"] .trip-tab:focus-visible {
+    background: rgba(255, 255, 255, 0.05);
 }
 
 .nav-trips {
@@ -5344,6 +5389,91 @@ body.is-signed-out .mobile-bottom-nav {
 @keyframes sheetSlideUp {
     from { transform: translateY(100%); opacity: 0; }
     to { transform: translateY(0); opacity: 1; }
+}
+
+/* ── Theme picker (Phase D2) ─────────────────────────────────────
+   Three option cards stacked vertically (one per theme: light /
+   dark / system). The active card gets a purple accent border +
+   check mark; the rest read as neutral choices. */
+.theme-options {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+.theme-option-card {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    grid-template-areas:
+        "icon label check"
+        "icon body  check";
+    align-items: center;
+    column-gap: var(--space-4);
+    row-gap: 2px;
+    padding: var(--space-4) var(--space-5);
+    border-radius: var(--radius-xl);
+    background: var(--surface-subtle);
+    border: 1.5px solid transparent;
+    color: var(--text-primary);
+    cursor: pointer;
+    text-align: left;
+    transition: background var(--duration-fast) var(--easing-smooth),
+                border-color var(--duration-fast) var(--easing-smooth),
+                transform var(--duration-instant) var(--easing-smooth);
+    -webkit-tap-highlight-color: transparent;
+}
+.theme-option-card:hover,
+.theme-option-card:focus-visible {
+    background: var(--surface-subtle-hover);
+    outline: none;
+}
+.theme-option-card:active {
+    transform: scale(0.99);
+}
+.theme-option-card.is-active {
+    background: rgba(88, 86, 214, 0.08);
+    border-color: rgba(88, 86, 214, 0.45);
+}
+:root[data-theme="dark"] .theme-option-card.is-active {
+    background: rgba(88, 86, 214, 0.18);
+    border-color: rgba(88, 86, 214, 0.55);
+}
+.theme-option-card__icon {
+    grid-area: icon;
+    font-size: 1.6rem;
+    line-height: 1;
+}
+.theme-option-card__label {
+    grid-area: label;
+    font-weight: 800;
+    font-size: var(--font-lg);
+    color: var(--text-primary);
+}
+.theme-option-card__body {
+    grid-area: body;
+    font-size: var(--font-sm);
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+.theme-option-card__check {
+    grid-area: check;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: #5856d6;
+    color: white;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+    opacity: 0;
+    transform: scale(0.7);
+    transition: opacity var(--duration-fast) var(--easing-smooth),
+                transform var(--duration-fast) var(--easing-smooth);
+}
+.theme-option-card.is-active .theme-option-card__check {
+    opacity: 1;
+    transform: scale(1);
 }
 
 /* ── Expense History filter grid ─────────────────────────────────

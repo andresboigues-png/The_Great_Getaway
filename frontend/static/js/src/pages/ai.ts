@@ -8,6 +8,7 @@ import { canEdit, getMyRole, ROLE_BUDGETEER, ROLE_RELAXER } from '../permissions
 // and writes back day/time-of-day assignments via setMarkedPlaceAssignment.
 import { getMarkedPlaces, setMarkedPlaceAssignment } from '../markedPlaces.js';
 import { showModal } from '../components/Modal.js';
+import { applyMapTheme } from '../theme.js';
 import { navigate } from '../router.js';
 import { renderSlotBody, flattenSlotForTextarea } from './ai/slots.js';
 
@@ -39,7 +40,7 @@ export function renderAI() {
         setTimeout(() => {
             div.querySelector('#aiStartJourneyBtn')?.addEventListener('click', () => openNewTripModal());
             if (typeof google !== 'undefined' && google.maps) {
-                new google.maps.Map(document.getElementById('emptyMap'), {
+                const emptyMap = new google.maps.Map(document.getElementById('emptyMap'), {
                     center: { lat: 20, lng: 0 },
                     zoom: 2,
                     minZoom: 2,
@@ -49,6 +50,7 @@ export function renderAI() {
                     },
                     styles: []
                 });
+                applyMapTheme(emptyMap, []);
             }
         }, 100);
         return div;
@@ -258,7 +260,8 @@ export function renderAI() {
                     },
                     styles: []
                 });
-                
+                applyMapTheme(googleMap, []);
+
                 zoomToLocation(tripCountry);
 
                 googleMap.addListener('idle', () => {

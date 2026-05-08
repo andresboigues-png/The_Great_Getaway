@@ -414,6 +414,15 @@ export interface AppPreferences {
     poiAnchoring: Record<string, 'epicenter' | 'genesis'>;
     poiVisible: Record<string, boolean>;
     enabledPois: Record<string, string[]>;
+    /** Color theme — `'system'` follows the OS via prefers-color-scheme,
+     *  `'light'` and `'dark'` pin the choice regardless. The theme
+     *  manager (theme.ts) reads this on boot, sets
+     *  document.documentElement.dataset.theme, and (for 'system')
+     *  listens to media-query changes so a user toggling their OS
+     *  appearance updates the app live. Default 'system' for new
+     *  installs; legacy snapshots without this field also default to
+     *  'system' via the theme manager's `?? 'system'` guard. */
+    theme?: 'light' | 'dark' | 'system';
 }
 
 /** Event names emitted via state.emit / subscribed via state.subscribe. */

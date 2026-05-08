@@ -71,6 +71,7 @@ import { findTripCompanionByLinkedUser } from '../companions.js';
 // home/* modules now.
 import { wireRoleButtonKeys } from '../components/Keyboard.js';
 import { findMarkedPlace, toggleTodoListMembership } from '../markedPlaces.js';
+import { applyMapTheme } from '../theme.js';
 // All tripMedia helpers (getAllTripDocuments, getAllTripPhotos,
 // add/remove/set/update/buildGmailTripSearchUrl) moved to
 // ./home/tripMediaModals.ts during the Phase B1 split — they
@@ -927,6 +928,11 @@ export function renderHome() {
 
                 const map = new google.maps.Map(mapContainer, mapOptions);
                 window.activeMap = map; // Read by external Google Maps callbacks; keep on window.
+                // Phase D2: merge dark map style on top of the POI
+                // styles when the user is in dark mode. Page-level POI
+                // styles win over the dark base because applyMapTheme
+                // spreads dark first, base second.
+                applyMapTheme(map, buildPoiStyles(enabledPois));
 
                 // Live traffic overlay — created lazily, attached to the
                 // map only while the Roads & traffic pill is on. Lives in

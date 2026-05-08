@@ -1,4 +1,5 @@
 import { STATE, loadState, emit, subscribe } from './state.js';
+import { initThemeManager } from './theme.js';
 import { syncWithServer, pullFromServer, fetchNotifications, markNotificationsRead, deleteTrip, archiveTripOnServer, apiUrl, apiFetch, setAuthToken, clearAuthToken } from './api.js';
 import { showConfirmModal, esc } from './utils.js';
 import { navigate } from './router.js';
@@ -337,7 +338,13 @@ function initGoogleLogin() {
 
 async function init() {
     loadState();
-    
+
+    // Phase D2 — apply theme BEFORE any render so there's no flash-
+    // of-light-content when the user has dark or system-dark active.
+    // Cheap (one attribute set + one media-query listen), runs once.
+    initThemeManager();
+
+
     // Check session: apiFetch attaches the stored JWT (if any). The
     // server returns logged_in:true with the user payload when the token
     // is still valid, so we restore STATE.user and pull data; otherwise

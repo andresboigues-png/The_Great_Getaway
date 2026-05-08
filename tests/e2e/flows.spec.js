@@ -625,6 +625,83 @@ test.describe('Critical flows — UI-driven', () => {
         await expect(page.locator(`[data-path-chip-day-id="${day2Id}"]`)).toBeVisible();
     });
 
+    test('appearance setting flips html data-theme between light and dark', async ({ page }) => {
+        // Phase D2: Settings → Appearance card surfaces a tri-state
+        // theme picker. Picking Dark sets <html data-theme="dark">,
+        // picking Light removes the attribute, picking System resolves
+        // via prefers-color-scheme. Persistence + first-paint FOUC
+        // guard live in theme.ts + the inline <head> script — this
+        // test covers the click-through round-trip.
+        const userId = uniqueId('user');
+        await getAuthForApi(page, userId);
+        await openFreshApp(page, userId);
+
+        // Navigate to Settings → Appearance card.
+        await page.evaluate(() => {
+            document.getElementById('sidebar')?.classList.remove('open');
+            document.getElementById('sidebarOverlay')?.classList.remove('open');
+        });
+        await navigateTo(page, 'settings');
+        const appearanceCard = page.locator('.settings-tab-card[data-tab="appearance"]');
+        await appearanceCard.waitFor({ state: 'visible', timeout: 5000 });
+        await appearanceCard.click();
+
+        // The three options should render with System the default
+        // active state (legacy snapshots without preferences.theme
+        // default to 'system' in the theme manager).
+        const lightBtn = page.locator('.theme-option-card[data-theme-value="light"]');
+        const darkBtn = page.locator('.theme-option-card[data-theme-value="dark"]');
+        const systemBtn = page.locator('.theme-option-card[data-theme-value="system"]');
+        await expect(lightBtn).toBeVisible();
+        await expect(systemBtn).toHaveClass(/is-active/);
+
+        // Pick Dark → <html> gets data-theme="dark", the dark option
+        // card lights up.
+        await darkBtn.click();
+        await expect(darkBtn).toHaveClass(/is-active/);
+        const themeAfterDark = await page.evaluate(() => document.documentElement.dataset.theme);
+        expect(themeAfterDark).toBe('dark');
+
+        // Pick Light → attribute removed (theme.ts deletes rather than
+        // setting `="light"` so the default cascade stays clean).
+        await lightBtn.click();
+        await expect(lightBtn).toHaveClass(/is-active/);
+        const themeAfterLight = await page.evaluate(() => document.documentElement.dataset.theme);
+        expect(themeAfterLight).toBeFalsy();
+
+        // Persistence: the choice lives in STATE.preferences.theme,
+        // saved to localStorage on every state:changed emit. Verify
+        // by reading localStorage directly.
+        const persistedTheme = await page.evaluate(() => {
+            const raw = localStorage.getItem('theGreatEscapeState');
+            if (!raw) return null;
+            const s = JSON.parse(raw);
+            return (s.preferences || {}).theme;
+        });
+        expect(persistedTheme).toBe('light');
+    });
+
+    test('system theme follows prefers-color-scheme on boot (no FOUC)', async ({ browser }) => {
+        // Verifies the inline <head> script in index.html sets
+        // data-theme="dark" BEFORE first paint when (a) the user
+        // preference is system OR unset, and (b) the OS reports
+        // prefers-color-scheme: dark. The script reads localStorage
+        // synchronously and applies the attribute before the bundle
+        // even loads, so this test uses Playwright's colorScheme
+        // override to simulate a dark-OS user opening the app fresh.
+        const ctx = await browser.newContext({ colorScheme: 'dark' });
+        const page = await ctx.newPage();
+        try {
+            // Fresh user who's never set a theme — should follow system
+            // (which Playwright is reporting as dark in this context).
+            await page.goto('/');
+            const themeOnFirstPaint = await page.evaluate(() => document.documentElement.dataset.theme);
+            expect(themeOnFirstPaint).toBe('dark');
+        } finally {
+            await ctx.close();
+        }
+    });
+
     test('expense receipt clip icon renders in History when receiptUrl is set', async ({ page }) => {
         // Receipts on expenses (post-Phase-C "small things" release —
         // sister feature to cover photo). Same test shape: skip the

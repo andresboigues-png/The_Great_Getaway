@@ -4,6 +4,7 @@ import { syncCategories, apiFetch } from '../api.js';
 import { navigate } from '../router.js';
 import { showModal } from '../components/Modal.js';
 import { POI_CATEGORIES } from './home.js';
+import { setTheme } from '../theme.js';
 
 export const showSettingsTab = (tab: string) => {
     const tabs = (document.querySelectorAll('.settings-tab-btn') as NodeListOf<HTMLElement>);
@@ -172,6 +173,7 @@ export function renderSettings() {
         const isReset = activeTab === 'reset';
         const isFormat = activeTab === 'format';
         const isGeneral = activeTab === 'general';
+        const isAppearance = activeTab === 'appearance';
 
         return `
             <div class="ai-page-header">
@@ -191,6 +193,12 @@ export function renderSettings() {
                         <h2 class="card-title" style="color: #ff9500; margin: 0;">Format Options</h2>
                         <p style="color: var(--text-secondary); margin: 8px 0 0;">Configure Excel import mappings and global data formats.</p>
                         <div style="margin-top: 20px; color: #ff9500; font-weight: 700; font-size: 0.85rem;">Configure &rarr;</div>
+                    </button>
+
+                    <button type="button" class="card-button-reset card glass management-card settings-tab-card" data-tab="appearance">
+                        <h2 class="card-title" style="color: #5856d6; margin: 0;">Appearance</h2>
+                        <p style="color: var(--text-secondary); margin: 8px 0 0;">Light, dark, or follow your system. Theme applies instantly across the app.</p>
+                        <div style="margin-top: 20px; color: #5856d6; font-weight: 700; font-size: 0.85rem;">Choose theme &rarr;</div>
                     </button>
 
                     <button type="button" class="card-button-reset card glass management-card danger-card settings-tab-card" data-tab="reset">
@@ -322,12 +330,42 @@ export function renderSettings() {
                     <div class="card glass" style="padding: 32px; border-radius: 28px;">
                         <h2 style="color: #ff9500; margin-top: 0;">Custom Excel Mapping</h2>
                         <p style="color: var(--text-secondary); margin-bottom: 24px;">Define how internal app fields map to Excel columns for seamless imports.</p>
-                        
+
                         <div id="mappingTableContainer">
                             ${renderMappingContent()}
                         </div>
                     </div>
                 ` : ''}
+
+                ${isAppearance ? (() => {
+                    // Tri-state theme picker (light / dark / system).
+                    // Active state reads from STATE.preferences.theme;
+                    // default is 'system' for legacy snapshots without
+                    // the field set. Click handlers fire setTheme()
+                    // which writes back to state, emits state:changed
+                    // (auto-saves to localStorage), and updates
+                    // <html data-theme> in the same frame as the click.
+                    const currentTheme = STATE.preferences?.theme || 'system';
+                    const opt = (value: string, label: string, icon: string, body: string) => `
+                        <button type="button" class="theme-option-card${currentTheme === value ? ' is-active' : ''}" data-theme-value="${value}">
+                            <span class="theme-option-card__icon" aria-hidden="true">${icon}</span>
+                            <span class="theme-option-card__label">${label}</span>
+                            <span class="theme-option-card__body">${body}</span>
+                            <span class="theme-option-card__check" aria-hidden="true">${currentTheme === value ? '✓' : ''}</span>
+                        </button>
+                    `;
+                    return `
+                        <div class="card glass" style="padding: 32px; border-radius: 28px;">
+                            <h2 style="color: #5856d6; margin-top: 0;">Appearance</h2>
+                            <p style="color: var(--text-secondary); margin-bottom: 24px;">Pick a theme. <strong>System</strong> follows your device's appearance setting and updates live when it changes.</p>
+                            <div class="theme-options">
+                                ${opt('light', 'Light', '☀️', 'Bright surfaces, dark text. Classic.')}
+                                ${opt('dark', 'Dark', '🌙', 'Dark surfaces, light text. Easy on the eyes after sundown.')}
+                                ${opt('system', 'System', '🖥️', 'Follow your device. Auto-switches when your OS does.')}
+                            </div>
+                        </div>
+                    `;
+                })() : ''}
             `}
         `;
     };
@@ -494,6 +532,20 @@ export function renderSettings() {
 
         const resetBtn = (target.closest('.confirm-reset-btn') as HTMLElement | null);
         if (resetBtn?.dataset.resetType) { confirmReset(resetBtn.dataset.resetType as 'trips' | 'categories' | 'app'); return; }
+
+        // Theme picker on the Appearance tab. setTheme() handles
+        // STATE write + emit + html-attribute update; we just need
+        // to re-render this tab so the active state highlights the
+        // newly-picked option.
+        const themeBtn = (target.closest('.theme-option-card') as HTMLElement | null);
+        if (themeBtn?.dataset.themeValue) {
+            const value = themeBtn.dataset.themeValue;
+            if (value === 'light' || value === 'dark' || value === 'system') {
+                setTheme(value);
+                switchSettingsTab('appearance');
+            }
+            return;
+        }
 
         const removeMappingBtn = (target.closest('.remove-mapping-btn') as HTMLElement | null);
         if (removeMappingBtn?.dataset.variable) { removeFormatMapping(removeMappingBtn.dataset.variable); return; }

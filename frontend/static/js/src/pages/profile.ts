@@ -5,6 +5,7 @@ import { CONVERSION_RATES, CURRENCY_SYMBOLS } from '../constants.js';
 import { navigate } from '../router.js';
 import { viewArchivedDetails } from './collections.js';
 import { showModal } from '../components/Modal.js';
+import { applyMapTheme } from '../theme.js';
 
 export const logout = async () => {
     try {
@@ -441,16 +442,27 @@ export function renderProfile(targetUserId: string | null | undefined = null) {
             if (typeof google !== 'undefined' && google.maps) {
                 const mapContainer = document.getElementById('legaciesMap');
                 if (mapContainer) {
+                    // Profile-page footprint map has its own muted base
+                    // style (labels off, light landscape, white water)
+                    // that reads as a country-fill canvas. Phase D2
+                    // dark-mode merge: applyMapTheme spreads the dark
+                    // base FIRST then these PROFILE styles, so the
+                    // page-specific overrides win when keys overlap —
+                    // labels stay off in both themes, the landscape /
+                    // water fills get reasonable dark counterparts via
+                    // the dark base where the profile styles are silent. */
+                    const profileMapStyles = [
+                        { "featureType": "all", "elementType": "labels", "stylers": [{ "visibility": "off" }] },
+                        { "featureType": "administrative", "elementType": "geometry", "stylers": [{ "visibility": "on" }, { "color": "#e0e0e0" }] },
+                        { "featureType": "landscape", "stylers": [{ "color": "#f0f0f5" }] },
+                        { "featureType": "water", "stylers": [{ "color": "#ffffff" }] }
+                    ];
                     const map = new google.maps.Map(mapContainer, {
                         center: { lat: 20, lng: 0 }, zoom: 2, minZoom: 2, mapTypeId: 'roadmap', disableDefaultUI: true,
                         restriction: { latLngBounds: { north: 85, south: -85, west: -180, east: 180 }, strictBounds: true },
-                        styles: [
-                            { "featureType": "all", "elementType": "labels", "stylers": [{ "visibility": "off" }] },
-                            { "featureType": "administrative", "elementType": "geometry", "stylers": [{ "visibility": "on" }, { "color": "#e0e0e0" }] },
-                            { "featureType": "landscape", "stylers": [{ "color": "#f0f0f5" }] },
-                            { "featureType": "water", "stylers": [{ "color": "#ffffff" }] }
-                        ]
+                        styles: profileMapStyles,
                     });
+                    applyMapTheme(map, profileMapStyles);
 
                     // Country-code set — highest-priority match key.
                     // Modern trips carry `countryCode` (ISO 3166-1
