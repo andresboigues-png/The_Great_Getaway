@@ -173,6 +173,17 @@
                 <span></span><span></span><span></span>
             </button>
             <div class="nav-brand">The Great Getaway</div>
+            <!-- Search (cross-trip search page — first fresh React leaf
+                 shipped post-Phase-C). Magnifying-glass icon next to the
+                 brand so it's reachable from every page without
+                 expanding the sidebar. -->
+            <a href="#" data-page="search" id="navSearchBtn" aria-label="Search" title="Search across trips, days, and expenses"
+                style="background: transparent; border: none; cursor: pointer; padding: 4px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: background 0.2s; margin-left: 8px; text-decoration: none; color: inherit;">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="7"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+            </a>
             <!-- Feed (sits immediately left of the bell — friend activity
                  lives in the same "stay-in-the-loop" mental cluster as
                  notifications, so they're visually adjacent). Routes to

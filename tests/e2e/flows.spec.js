@@ -621,6 +621,139 @@ test.describe('Critical flows — UI-driven', () => {
         await expect(page.locator(`[data-path-chip-day-id="${day2Id}"]`)).toBeVisible();
     });
 
+    test('search page finds trips, expenses, and days across active trips', async ({ page }) => {
+        // Cross-trip search (post-Phase-C feature). One input, three
+        // result groups (Trips / Days / Expenses), all filtered
+        // client-side from STATE. Click-through navigates to the right
+        // page with the right active trip set.
+        const userId = uniqueId('user');
+        const auth = await getAuthForApi(page, userId);
+
+        // Two trips so we can prove cross-trip matching: the search for
+        // "Lisbon" should find ONE trip (the Lisbon one) and ONE
+        // expense (logged against the Tokyo trip but with country
+        // "Lisbon" — tests the country field matcher).
+        const lisbonTripId = uniqueId('trip-lisbon');
+        const tokyoTripId = uniqueId('trip-tokyo');
+        await createTripViaApi(page, auth.headers, {
+            id: lisbonTripId,
+            name: 'Lisbon Adventure',
+            country: 'Portugal',
+        });
+        await createTripViaApi(page, auth.headers, {
+            id: tokyoTripId,
+            name: 'Tokyo Highlights',
+            country: 'Japan',
+        });
+
+        // Add a day to Lisbon — its name carries the search term.
+        await page.request.post('/api/days', {
+            headers: auth.headers,
+            data: {
+                day: {
+                    id: uniqueId('day'),
+                    tripId: lisbonTripId,
+                    dayNumber: 1,
+                    name: 'Belém Tower walk',
+                    date: '2026-06-01',
+                    morning: 'Visit the historic Belém district',
+                    afternoon: '',
+                    evening: '',
+                },
+            },
+        });
+
+        // Add an expense on the Tokyo trip with country=Lisbon — proves
+        // the search matches the expense's country field, not just
+        // the parent trip's name.
+        const expId = uniqueId('exp');
+        await page.request.post('/api/expenses', {
+            headers: auth.headers,
+            data: {
+                expense: {
+                    id: expId,
+                    tripId: tokyoTripId,
+                    who: 'Andres',
+                    categoryId: 'c1',
+                    label: 'Pastéis de Lisboa',
+                    date: '2026-06-02',
+                    country: 'Portugal',
+                    value: 12.5,
+                    currency: 'EUR',
+                    euroValue: 12.5,
+                    splits: { Andres: 100 },
+                },
+            },
+        });
+
+        await openFreshApp(page, userId);
+        await expect(page.locator('#tripSelector')).toContainText('Lisbon Adventure', {
+            timeout: 5000,
+        });
+
+        // Navigate to Search via the navbar icon. data-page="search"
+        // is on the search button next to the brand.
+        await page.evaluate(() => {
+            document.getElementById('sidebar')?.classList.remove('open');
+            document.getElementById('sidebarOverlay')?.classList.remove('open');
+        });
+        await page.click('#navSearchBtn');
+        await page.locator('#searchInput').waitFor({ state: 'visible', timeout: 5000 });
+
+        // Empty state should show before typing.
+        await expect(page.locator('text=Start typing to search.')).toBeVisible();
+
+        // Type the query — note: matches BOTH the trip name and the
+        // expense label, so we expect at least 1 trip + 1 expense
+        // group rendered.
+        await page.locator('#searchInput').fill('lisb');
+
+        // Trips group: 1 hit (Lisbon Adventure). Days group: 1 hit
+        // (Belém Tower walk's morning text mentions "Belém"). Expenses
+        // group: 1 hit (Pastéis de Lisboa OR country=Portugal — the
+        // label match drives this).
+        await expect(page.locator('[data-search-group="trips"]')).toBeVisible();
+        await expect(page.locator('[data-search-group="trips"] .search-result-row')).toContainText('Lisbon Adventure');
+        await expect(page.locator('[data-search-group="expenses"]')).toBeVisible();
+        await expect(page.locator('[data-search-group="expenses"] .search-result-row')).toContainText(
+            'Pastéis de Lisboa'
+        );
+
+        // Click the trip result — should switch active trip to Lisbon
+        // and navigate to home.
+        await page
+            .locator('[data-search-group="trips"] .search-result-row')
+            .filter({ hasText: 'Lisbon Adventure' })
+            .click();
+        await expect(page).toHaveURL(/#home$/);
+        // After navigation, the trip selector reflects the search-
+        // selected trip rather than whatever was active before.
+        await expect(page.locator('#tripSelector')).toHaveValue(lisbonTripId);
+    });
+
+    test('search page shows empty state when no results match', async ({ page }) => {
+        const userId = uniqueId('user');
+        const auth = await getAuthForApi(page, userId);
+        await createTripViaApi(page, auth.headers, {
+            id: uniqueId('trip'),
+            name: 'Some Trip',
+            country: 'Spain',
+        });
+        await openFreshApp(page, userId);
+        await page.evaluate(() => {
+            document.getElementById('sidebar')?.classList.remove('open');
+            document.getElementById('sidebarOverlay')?.classList.remove('open');
+        });
+        await page.click('#navSearchBtn');
+        await page.locator('#searchInput').waitFor({ state: 'visible', timeout: 5000 });
+
+        // Query that won't match anything — proves the no-results
+        // empty state renders + isn't a generic crash.
+        await page.locator('#searchInput').fill('zzzzzzzz');
+        await expect(page.locator('[data-testid="search-empty"]')).toBeVisible();
+        await expect(page.locator('[data-testid="search-empty"]')).toContainText('zzzzzzzz');
+    });
+
     test('expense form auto-suggests currency from country pick', async ({ page }) => {
         // Currency auto-suggest (post-Phase-C feature). Picking a country
         // in the expense form's country picker flips the currency

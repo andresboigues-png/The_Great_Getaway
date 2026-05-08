@@ -683,8 +683,14 @@ below for details):
    and respects manual picks. ~70-line `COUNTRY_TO_CURRENCY` map +
    ~25 lines wired into the form's `selectCountry` path + 1 e2e test
    covering both the suggest path and the manual-override-wins path.
-2. Ship **Search across trips** (~2-4h) as a fresh React leaf —
-   showcases the new substrate, no legacy code touched.
+2. ✅ **Search across trips** — shipped. Fresh JSX leaf at
+   `pages/search/Search.tsx` — first feature built ENTIRELY in
+   React post-Phase-C (no thin-wrapper). One input, three result
+   groups (Trips / Days / Expenses), all-client filter across
+   active + archived trips. Click-through navigates to the right
+   page with the active trip pre-selected. Magnifying-glass icon in
+   the navbar at `#navSearchBtn`. 2 e2e tests cover the cross-trip
+   match + empty-state paths.
 3. Then move into Phase D, bundling **Trip cover photo +
    Receipts** alongside the mobile sweep (D1).
 4. Phase E + **Trip share-via-link** as the launch story.
@@ -1053,11 +1059,22 @@ substrate" then "pair with the right infrastructure phase"):
    user's earlier choice. Took ~30 minutes end-to-end including
    tests; safety net behaved exactly as designed.
 
-2. **Search across trips** — `2-4 hours`, all-client filter. Single
-   search input → grouped results across trips, expenses, days.
-   **Best fit for the new React substrate** — built as a fresh JSX
-   leaf from day 1, no legacy code touched. High user value once
-   trips accumulate. Pair with: anytime after Phase C.
+2. ✅ **Search across trips** — **shipped**. Single search input,
+   three result groups (Trips / Days / Expenses), all-client filter
+   across active + archived trips. **First fresh JSX leaf** built
+   end-to-end in React post-Phase-C — `pages/search/Search.tsx`,
+   `pages/search/mount.ts`, route case in `router.ts`, magnifying-
+   glass icon in the navbar at `#navSearchBtn`. The page proves out
+   the new substrate's authoring story: useStore selectors,
+   useMemo-cached filters, useState for query + per-group "show all"
+   expanders, no innerHTML or createElement anywhere. 2 e2e tests
+   cover (a) cross-trip match where the search hits a trip name,
+   day plan text, AND an expense logged on a _different_ trip
+   whose country happens to match the query, and (b) the
+   no-results empty state with the query echoed back. Took ~45
+   minutes. The Cmd+K command-palette modal would now be a 1-day
+   add — same component tree wrapped in a Modal, since everything
+   is already React.
 
 3. **Trip cover photo** + **Receipts on expenses** — bundle as a
    "small things" release. Each `2-3 hours` (schema + backend +

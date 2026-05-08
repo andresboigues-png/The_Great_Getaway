@@ -23,6 +23,7 @@ export const PAGES = {
     PROFILE: 'profile',
     FEED: 'feed',
     TODO: 'todo',
+    SEARCH: 'search',
 } as const;
 export type PageName = typeof PAGES[keyof typeof PAGES];
 

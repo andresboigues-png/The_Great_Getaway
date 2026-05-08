@@ -34,6 +34,8 @@ import { mountAI } from './pages/ai/mount.js';
 // renderFriends migrated to React (Phase C3) — see ./pages/friends/mount.ts.
 // renderFeed migrated to React (Phase C3 wave 3) — see ./pages/feed/mount.ts.
 import { mountFeed } from './pages/feed/mount.js';
+// First fresh JSX leaf shipped post-Phase-C — see ./pages/search/mount.ts.
+import { mountSearch } from './pages/search/mount.js';
 // renderTodo migrated to React (Phase C3) — see ./pages/todo/mount.ts.
 // renderProfile migrated to React (Phase C3 wave 4) — see ./pages/profile/mount.ts.
 // renderLoginWall stays imperative for now; it's only invoked from the
@@ -128,6 +130,9 @@ export function navigate(
         case PAGES.FEED: mountFeed(content); break;
         // Phase C3: Todo migrated to React.
         case PAGES.TODO: mountTodo(content); break;
+        // First feature post-Phase-C: cross-trip search built as a
+        // fresh JSX leaf (no legacy file to wrap).
+        case PAGES.SEARCH: mountSearch(content); break;
         // Phase C3 wave 4: Profile migrated to React. params?.userId
         // becomes a prop the React component re-mounts on when changing.
         case PAGES.PROFILE: mountProfile(content, params?.userId); break;
