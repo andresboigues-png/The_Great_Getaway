@@ -26,6 +26,13 @@ import { openJournalingModal } from './home/journalingModal.js';
 import { openTripDocumentsModal, openTripPhotosModal } from './home/tripMediaModals.js';
 import { openDayView } from './home/dayViewModal.js';
 import { openDayDetail as _openDayDetailRaw, type HomeTab } from './home/dayDetailModal.js';
+import {
+    setSelectedDay,
+    resolveSelectedDayId,
+    getSelectedDayId,
+    clearSelectedDay,
+    registerPathSelectionHooks,
+} from './home/pathSelection.js';
 
 // The day-detail modal lives in its own module but mutates
 // home.ts's `activeHomeTab` when the user clicks a Genesis
@@ -84,113 +91,11 @@ let _localTimeClockInterval: ReturnType<typeof setInterval> | null = null;
 let activeHomeTab: 'days' | 'companions' | 'documents' | 'photos' = 'days'; // Sub-tab on the home trip view (Path / Companions / Documents / Photos)
 
 // ── Path tab: selected-day state ────────────────────────────────────
-// The vertical day-by-day timeline was replaced with a horizontal
-// "wheel": Genesis pinned + the user-picked day, navigated via a
-// chip strip / prev-next / keyboard / swipe. The selection persists
-// per-trip in localStorage so leaving Home and coming back lands the
-// user on the same day they were last looking at — important for
-// multi-day trips where "where was I?" is a real friction.
-//
-// Shape: { [tripId]: dayId }. Stored in localStorage as
-// 'home_path_selected_day_by_trip'. Cleared lazily on render when
-// the cached id no longer matches a day on the trip.
-let selectedDayByTrip: Record<string, string> = {};
-try {
-    const _raw = localStorage.getItem('home_path_selected_day_by_trip');
-    if (_raw) selectedDayByTrip = JSON.parse(_raw) || {};
-} catch (_) { selectedDayByTrip = {}; }
-
-/** Persist + remember a day selection. Called on every chip click,
- *  prev/next, keyboard arrow, and swipe gesture. Triggers a partial
- *  repaint of the Path tab via _repaintPathTab if it's been wired
- *  (set by renderHome on mount), then pans the home map to the
- *  selected day's pin so the right side of the screen stays in sync
- *  with the chip strip on the left. */
-function setSelectedDay(tripId, dayId) {
-    if (!tripId || !dayId) return;
-    const prev = selectedDayByTrip[tripId];
-    if (prev === dayId) return;
-    selectedDayByTrip[tripId] = dayId;
-    try {
-        localStorage.setItem('home_path_selected_day_by_trip', JSON.stringify(selectedDayByTrip));
-    } catch (_) { /* localStorage full or disabled — fine */ }
-    if (typeof _repaintPathTab === 'function') _repaintPathTab();
-    // Notify the active home map so any active POI pills can
-    // re-fetch with the new search center (the selected day's
-    // pin → Genesis fallback). See _onSelectedDayChange comment
-    // for the full rationale. Wrapped in try/catch because the
-    // callback closes over the home renderer's local state; if
-    // the user has navigated away (e.g. to /collections) since
-    // the home was last rendered, that state may reference
-    // detached DOM. We don't want a navigation away to break
-    // the wheel chip click in the collections-archive view.
-    if (typeof _onSelectedDayChange === 'function') {
-        try { _onSelectedDayChange(); }
-        catch (e) { console.warn('[GG] _onSelectedDayChange threw — likely stale home closure:', e); }
-    }
-    // Map sync — pan to the selected day's pin (or, for Genesis with
-    // no day-pin, the trip's anchor lat/lng). window.activeMap is set
-    // by the map-init block when the home map mounts; if the user is
-    // on a non-home page or the map hasn't initialised yet, this just
-    // no-ops — selection still updates and persists, the next visit
-    // to /home will reflect it.
-    const map = (window.activeMap as any);
-    if (!map) return;
-    const day = (STATE.tripDays || []).find(d => d.id === dayId);
-    if (!day) return;
-    const lat = typeof day.lat === 'number' ? day.lat : null;
-    const lng = typeof day.lng === 'number' ? day.lng : (typeof day.lon === 'number' ? day.lon : null);
-    try {
-        if (lat != null && lng != null) {
-            map.panTo({ lat, lng });
-            if (typeof map.getZoom === 'function' && map.getZoom() < 13) map.setZoom(13);
-        } else if (day.dayNumber === 0) {
-            // Genesis with no day-pin — fall back to the trip's anchor.
-            const trip = (STATE.trips || []).find(t => t.id === tripId);
-            if (trip && typeof trip.lat === 'number' && typeof trip.lng === 'number') {
-                map.panTo({ lat: trip.lat, lng: trip.lng });
-            }
-        }
-    } catch (_) { /* map not ready / api hiccup — fine */ }
-}
-
-/** Resolve which day should be the visible "selected" one in the wheel.
- *  Order of preference:
- *    1. Persisted choice (if it's still a real day on this trip)
- *    2. Day whose date matches today (handy mid-trip)
- *    3. First numbered day (dayNumber > 0)
- *    4. Genesis (dayNumber === 0) — last resort, only when no
- *       numbered days exist yet
- *  @param {{id:string} | null} activeTrip
- *  @param {{id:string,dayNumber:number,date?:string}[]} sortedDays — already sorted by dayNumber asc
- *  @returns {string | null}
- */
-function resolveSelectedDayId(activeTrip, sortedDays) {
-    if (!activeTrip || !sortedDays.length) return null;
-    const cached = selectedDayByTrip[activeTrip.id];
-    if (cached && sortedDays.some(d => d.id === cached)) return cached;
-    const today = new Date().toISOString().slice(0, 10);
-    const todayMatch = sortedDays.find(d => d.dayNumber > 0 && d.date === today);
-    if (todayMatch) return todayMatch.id;
-    const firstNumbered = sortedDays.find(d => d.dayNumber > 0);
-    if (firstNumbered) return firstNumbered.id;
-    return sortedDays[0].id;
-}
-
-/** Set by renderHome → wires a partial-DOM repaint of just the Path
- *  tab content so changing the selected day doesn't need to re-render
- *  the whole Home page (which would tear down the map mid-interaction).
- *  Reset to null when home unmounts. */
-let _repaintPathTab: (() => void) | null = null;
-
-/** Set by renderHome → called whenever the wheel selection changes
- *  so the home map's active POI pills can re-fetch with the new
- *  search center. Pills follow whichever day the user is browsing
- *  (Day 3 selected → pills search around Day 3's pin); without
- *  this hook, pill markers would freeze on the previous day's
- *  center until the user toggled the pill off+on. Reset on
- *  unmount. */
-let _onSelectedDayChange: (() => void) | null = null;
+// selectedDayByTrip + setSelectedDay + resolveSelectedDayId
+// moved to ./home/pathSelection.ts during the Phase B1 split.
+// The two render-bound callbacks (_repaintPathTab,
+// _onSelectedDayChange) are now wired by registerPathSelectionHooks
+// inside renderHome instead of being module-level vars here.
 // The "To do list" sub-tab was promoted to a top-level /todo page so
 // the to-do list now has its own banner-style surface (see pages/todo.js
 // + the navbar entry between Home and Plan with AI). The data still
@@ -294,9 +199,8 @@ const deleteDay = (dayId) => {
             // If the deleted day was someone's last selected day on
             // this trip, drop the cached selection so resolveSelectedDayId
             // re-derives a sensible default on next render.
-            if (selectedDayByTrip[tripId] === dayId) {
-                delete selectedDayByTrip[tripId];
-                try { localStorage.setItem('home_path_selected_day_by_trip', JSON.stringify(selectedDayByTrip)); } catch (_) {}
+            if (getSelectedDayId(tripId) === dayId) {
+                clearSelectedDay(tripId);
             }
             if (editingDayId === dayId) {
                 editingDayId = null;
@@ -1252,18 +1156,21 @@ export function renderHome() {
                 // setPlacesPillVisible flow. Cache hits per
                 // (tripId, pillKey, anchorId) keep the second
                 // toggle of the same day instant.
-                _onSelectedDayChange = () => {
-                    if (enabledPois.size === 0) return;
-                    enabledPois.forEach(key => {
-                        // Skip categories that always anchor to
-                        // Genesis (transit etc.) — their results
-                        // don't depend on the selected day.
-                        const cat = POI_CATEGORIES.find(c => c.key === key);
-                        if (cat && shouldForceGenesis(cat)) return;
-                        setPlacesPillVisible(key, false);
-                        setPlacesPillVisible(key, true);
-                    });
-                };
+                registerPathSelectionHooks({
+                    onSelectedDayChange: () => {
+                        if (enabledPois.size === 0) return;
+                        enabledPois.forEach(key => {
+                            // Skip categories that always anchor
+                            // to Genesis (transit etc.) — their
+                            // results don't depend on the selected
+                            // day.
+                            const cat = POI_CATEGORIES.find(c => c.key === key);
+                            if (cat && shouldForceGenesis(cat)) return;
+                            setPlacesPillVisible(key, false);
+                            setPlacesPillVisible(key, true);
+                        });
+                    },
+                });
 
                 // ── Map search banner ──────────────────────────────────
                 // Free-form search of the Google Places database for the
@@ -2453,7 +2360,7 @@ export function renderHome() {
             // cached forecast).
             paintWeatherChips(_weatherForecast, pathTabInner);
         };
-        _repaintPathTab = repaintPath;
+        registerPathSelectionHooks({ repaintPathTab: repaintPath });
         repaintPath();
 
         if (activeTrip && typeof activeTrip.lat === 'number' && typeof activeTrip.lng === 'number') {
