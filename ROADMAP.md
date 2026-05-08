@@ -336,29 +336,33 @@ code addressable for the React migration in Phase C.
       (Home.tsx). The interior decomposition is now happening as
       a multi-session arc with one self-contained slice per commit:
 
-    | Slice                                            | Lines | home.ts after | Status |
-    | ------------------------------------------------ | ----: | ------------: | ------ |
-    | Path-tab HTML builders (`pages/home/pathTab.ts`) |   235 |         2,345 | ✅     |
-    | Map-search banner closures                       |     ? |             ? | ⏳     |
-    | Day markers + Anchor pin SVG construction        |     ? |             ? | ⏳     |
-    | POI category palette + Places-API integration    |     ? |             ? | ⏳     |
-    | Day-card + welcome-state HTML builders           |     ? |             ? | ⏳     |
-    | Map setup + polyline animation init              |     ? |             ? | ⏳     |
-    | Hash listeners + closing wiring                  |     ? |             ? | ⏳     |
-    | …                                                |       |               |        |
+    | Slice                                               | Lines | home.ts after | Status |
+    | --------------------------------------------------- | ----: | ------------: | ------ |
+    | Path-tab HTML builders (`pages/home/pathTab.ts`)    |   235 |         2,345 | ✅     |
+    | Welcome state + greeting (`home/welcomeCard.ts`)    |    28 |         2,317 | ✅     |
+    | Map-search banner (`home/mapSearch.ts`)             |   191 |         2,126 | ✅     |
+    | Day markers + Anchor pin (`home/dayMarkers.ts`)     |   109 |         2,017 | ✅     |
+    | POI palette + Places-API integration                |  ~700 |             ? | ⏳     |
+    | Day-pin action helpers (addDayPin / saveDayPin / …) |  ~110 |             ? | ⏳     |
+    | Map setup + polyline animation init                 |     ? |             ? | ⏳     |
+    | Hash listeners + closing wiring                     |     ? |             ? | ⏳     |
 
-        Pacing is "one clean slice per session"; each commit is
-        reviewable, behaviour-preserving (full safety net green), and
-        shrinks home.ts by 200-400 lines. Goal is home.ts under 800
-        lines (the bound the rest of B1 targets).
+          Pacing is "one clean slice per session"; each commit is
+          reviewable, behaviour-preserving (full safety net green), and
+          shrinks home.ts by 200-400 lines. Goal is home.ts under 800
+          lines (the bound the rest of B1 targets).
 
-**Status**: First post-Phase-C slice landed (path tab → pathTab.ts,
-−235 lines). home.ts is no longer parked — React's mount infra
-(Phase C) plus the proven slice-by-slice playbook makes the
-decomposition a measurable per-commit grind. The map setup
-(polyline rAF, marker construction, place searches) is the
-heaviest cluster and ships last; everything around it slices
-cleanly first.
+**Status**: 4 of ~8 slices landed. home.ts: 2,580 → **2,017** lines
+(−563 across the slice arc). The POI-palette block (~700 lines, deeply
+closure-coupled to the map + Places API + InfoWindow + the four
+shared helpers map-search currently receives by reference) is the
+heaviest cluster remaining and gets its own focused session — single-
+session extraction risks subtle map / search-result regressions the
+safety net might not catch. Day-pin action helpers (~110 lines) need a
+getter/setter API for the shared `editingDayId` /
+`activeMapClickListener` module-level state; small refactor but
+deliberate enough to keep separate. Both unblocked, both well-bounded
+— just future commits, not blockers.
 
 ### B2 — Components preview route ✅
 
@@ -1464,19 +1468,19 @@ expenses ADD COLUMN receipt_url TEXT`, threaded through
     round-trip via `STATE.draftExpense.receiptUrl` so re-opening
     an expense pre-fills the picker.
 
-                                        **Latent bug uncovered + fixed**: while wiring this up I
-                                        discovered the server was writing expense fields camelCase via
-                                        `/api/expenses` but reading them back from `/api/data` as
-                                        snake_case (`trip_id`, `category_id`, `euro_value`,
-                                        `receipt_url`) — frontend filters like
-                                        `e.tripId === STATE.activeTripId` would silently return empty
-                                        on cold-load. The History tab and Settlement page would have
-                                        appeared empty until the user added a fresh expense locally.
-                                        Translation now lives in both `routes/data.py` and
-                                        `routes/public.py` so the public archived-trip detail also
-                                        benefits. 2 pytests for the round-trip (set + clear), legacy
-                                        compat test, and 1 e2e for the receipt clip icon. Net: 161/161
-                                        pytests + 43/43 e2e + 20/20 visual.
+                                            **Latent bug uncovered + fixed**: while wiring this up I
+                                            discovered the server was writing expense fields camelCase via
+                                            `/api/expenses` but reading them back from `/api/data` as
+                                            snake_case (`trip_id`, `category_id`, `euro_value`,
+                                            `receipt_url`) — frontend filters like
+                                            `e.tripId === STATE.activeTripId` would silently return empty
+                                            on cold-load. The History tab and Settlement page would have
+                                            appeared empty until the user added a fresh expense locally.
+                                            Translation now lives in both `routes/data.py` and
+                                            `routes/public.py` so the public archived-trip detail also
+                                            benefits. 2 pytests for the round-trip (set + clear), legacy
+                                            compat test, and 1 e2e for the receipt clip icon. Net: 161/161
+                                            pytests + 43/43 e2e + 20/20 visual.
 
 5.  **Trip share-via-link (read-only)** — `4-6 hours`, schema +
     public backend route + new public frontend route + Views counter.

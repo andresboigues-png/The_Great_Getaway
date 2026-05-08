@@ -6,7 +6,7 @@
 // To re-record on flake, run `npx playwright test --debug`.
 
 import { test, expect } from '@playwright/test';
-import { openFreshApp, createTrip, addCompanion, navigateTo } from './helpers.js';
+import { openFreshApp, createTrip, addCompanion, navigateTo, openMobileTripControlsPopover } from './helpers.js';
 
 test.describe('The Great Getaway — smoke', () => {
     test('app loads with no console errors and renders the navbar', async ({ page }) => {
@@ -153,12 +153,10 @@ test.describe('The Great Getaway — smoke', () => {
         await page.evaluate(() => {
             /** @type {any} */ (window).google = undefined;
         });
-        await page.click('#tripControlsBtn');
-        // Wait for the +New Trip button INSIDE the popover to be
-        // hit-testable (catches both the popover's display flip and
-        // the inner-control layout in one wait). Same pattern as the
-        // helpers.createTrip() mobile path.
-        await page.locator('#newTripBtnSidebar').waitFor({ state: 'visible', timeout: 8000 });
+        // Use the chunk-load-race-tolerant helper instead of a single
+        // click — late in a heavy suite the listener attachment can
+        // lag behind the click. See openMobileTripControlsPopover.
+        await openMobileTripControlsPopover(page);
         await page.click('#newTripBtnSidebar');
         const card = page.locator('.modal-overlay .card-glass-modal').first();
         await card.waitFor({ state: 'visible', timeout: 5000 });

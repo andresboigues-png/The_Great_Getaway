@@ -89,6 +89,30 @@ export async function loginAsTestUser(page, userId = 'test-user-1') {
 }
 
 /**
+ * Open the mobile compass-trigger popover. Late in a heavy suite the
+ * chunk-load + main.ts init that wires the click listener can lag
+ * behind a fresh-page-load click on `#tripControlsBtn` — the click
+ * fires with no listener and `#newTripBtnSidebar` stays hidden. Poll
+ * by re-clicking until the popover transitions to display:block,
+ * bounded at 12 attempts (~3s) which is well under the test's 15s
+ * default timeout but generous for cold-cache mobile chunk-load.
+ *
+ * @param {import('@playwright/test').Page} page
+ */
+export async function openMobileTripControlsPopover(page) {
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+        await page.click('#tripControlsBtn');
+        const opened = await page
+            .locator('#tripControlsPopover')
+            .evaluate((el) => /** @type {HTMLElement} */ (el).style.display === 'block')
+            .catch(() => false);
+        if (opened) break;
+        await page.waitForTimeout(250);
+    }
+    await page.locator('#newTripBtnSidebar').waitFor({ state: 'visible', timeout: 8000 });
+}
+
+/**
  * Open the app at a clean state, signed in as the test user. Two
  * navigations: the first lets us touch localStorage on the right
  * origin, the second is the actual app boot under the seeded session.
@@ -136,18 +160,26 @@ export async function createTrip(page, { name, country }) {
     //              an update; only the host element changed.
     const viewportWidth = page.viewportSize()?.width ?? 1280;
     if (viewportWidth <= 720) {
-        await page.click('#tripControlsBtn');
-        // Wait for the +New Trip button INSIDE the popover to become
-        // hit-testable. Using the button itself (rather than the
-        // popover wrapper) defends against any race where the
-        // popover's `display: block` flips but the inner controls
-        // haven't laid out yet — the inner-button visibility check
-        // implicitly waits for both. The compass-button click handler
-        // is synchronous so a single retry-tolerant wait is enough.
-        await page.locator('#newTripBtnSidebar').waitFor({ state: 'visible', timeout: 8000 });
+        // Mobile: compass-popover path. See openMobileTripControlsPopover
+        // for the chunk-load race the retry loop is defending against.
+        await openMobileTripControlsPopover(page);
         await page.click('#newTripBtnSidebar');
     } else {
-        await page.click('#newTripBtn');
+        // Same chunk-load race as mobile: when the suite runs late and
+        // user state is heavy (many trips/days/expenses already in
+        // play), main.ts's modal-listener attachment can lag behind a
+        // fresh-page-load click on #newTripBtn. The click fires with
+        // no listener and #tripName never mounts. Poll for the modal
+        // to actually appear before falling through to the fill.
+        for (let attempt = 0; attempt < 12; attempt += 1) {
+            await page.click('#newTripBtn');
+            const opened = await page
+                .locator('#tripName')
+                .isVisible()
+                .catch(() => false);
+            if (opened) break;
+            await page.waitForTimeout(250);
+        }
     }
     await page.fill('#tripName', name);
     await page.fill('#tripPlaceInput', country);
