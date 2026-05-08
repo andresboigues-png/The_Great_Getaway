@@ -13,6 +13,9 @@
         "typecheck": "tsc --noEmit",
         "test:e2e": "playwright test",
         "test:e2e:ui": "playwright test --ui",
+        "test:e2e:nonvisual": "playwright test --grep-invert='Visual regression'",
+        "test:e2e:visual": "playwright test tests/e2e/visual.spec.js",
+        "test:e2e:visual:update": "playwright test tests/e2e/visual.spec.js --update-snapshots",
         "prepare": "husky"
     },
     "lint-staged": {

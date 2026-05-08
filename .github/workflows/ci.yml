@@ -1,9 +1,17 @@
 name: CI
 
 # Runs on every push to any branch + every PR.
-# Three jobs run in parallel: lint, typecheck, e2e tests.
-# Build is verified inside the e2e job (the prod bundle has to compile
-# for the dev server to even boot).
+# Five jobs run in parallel: lint, typecheck, build, pytest, e2e
+# (smoke + flows). Visual regression runs as a separate job so a
+# missing Linux baseline doesn't block other checks. Build is also
+# verified inside the e2e job (the prod bundle has to compile for the
+# dev server to even boot).
+#
+# Bootstrapping Linux visual baselines: trigger the
+# `visual-baselines-bootstrap` workflow manually (Actions tab →
+# "Visual baselines bootstrap" → Run workflow). It runs
+# `--update-snapshots` and uploads the new -linux.png files as an
+# artifact you can download + commit.
 
 on:
     push:
@@ -83,7 +91,7 @@ jobs:
                   retention-days: 7
 
     e2e:
-        name: Playwright smoke
+        name: Playwright smoke + flows
         runs-on: ubuntu-latest
         timeout-minutes: 10
         steps:
@@ -108,11 +116,13 @@ jobs:
             - run: npm run build
 
             # CI=true tells the playwright config to do a fresh server boot
-            # (no `reuseExistingServer`).
-            - name: Run e2e tests
+            # (no `reuseExistingServer`). `test:e2e:nonvisual` skips the
+            # visual.spec.js suite — that runs in the separate `visual` job
+            # below so a missing Linux baseline doesn't block smoke + flows.
+            - name: Run e2e tests (smoke + flows)
               env:
                   CI: 'true'
-              run: npm run test:e2e
+              run: npm run test:e2e:nonvisual
 
             # Upload the report on failure for debugging.
             - name: Upload Playwright report
@@ -122,3 +132,47 @@ jobs:
                   name: playwright-report
                   path: playwright-report/
                   retention-days: 7
+
+    visual:
+        name: Playwright visual regression
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+        # `continue-on-error: true` so a missing Linux baseline doesn't
+        # block the PR from merging on the rest of the green checks.
+        # Once Linux baselines exist (see visual-bootstrap workflow), this
+        # job behaves like a normal blocker — set continue-on-error to
+        # false in the same PR that commits the -linux.png snapshots.
+        continue-on-error: true
+        steps:
+            - uses: actions/checkout@v4
+
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: '24'
+                  cache: 'npm'
+
+            - uses: actions/setup-python@v5
+              with:
+                  python-version: '3.12'
+                  cache: 'pip'
+
+            - run: npm ci
+            - run: pip install -r requirements.txt
+            - run: npx playwright install --with-deps chromium
+            - run: npm run build
+
+            - name: Run visual regression tests
+              env:
+                  CI: 'true'
+              run: npm run test:e2e:visual
+
+            # Diffs land in the playwright-report HTML; upload on failure
+            # so the PR reviewer can see them side-by-side without re-running
+            # locally.
+            - name: Upload visual diff report
+              if: failure()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: visual-regression-report
+                  path: playwright-report/
+                  retention-days: 14

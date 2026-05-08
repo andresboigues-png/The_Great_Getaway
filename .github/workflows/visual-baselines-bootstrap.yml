@@ -1,0 +1,78 @@
+name: Visual baselines bootstrap
+
+# Manual workflow — run from the Actions tab when you need to (re)seed
+# the Linux platform baselines for the visual regression suite.
+#
+# Why: Playwright stores screenshot baselines per-platform. The
+# repo's existing baselines are -darwin.png (macOS development).
+# CI runs on ubuntu-latest, which needs -linux.png baselines.
+# Without them every visual test fails on the first CI run because
+# Playwright won't auto-create baselines outside `--update-snapshots`
+# mode.
+#
+# Usage:
+#   1. Trigger this workflow (Actions tab → "Visual baselines
+#      bootstrap" → Run workflow → pick the branch).
+#   2. Wait ~5 min for it to run + upload the artefact.
+#   3. Download the `linux-visual-baselines` artefact zip.
+#   4. Unzip into `tests/e2e/visual.spec.js-snapshots/` and commit
+#      the new -linux.png files in a PR.
+#
+# After Linux baselines exist on main, flip `continue-on-error: false`
+# in the `visual` job in ci.yml so visual regressions become blocking.
+
+on:
+    workflow_dispatch:
+        inputs:
+            branch:
+                description: 'Branch to bootstrap baselines from (default: current)'
+                required: false
+                type: string
+
+jobs:
+    bootstrap:
+        name: Generate Linux visual baselines
+        runs-on: ubuntu-latest
+        timeout-minutes: 15
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  ref: ${{ github.event.inputs.branch || github.ref }}
+
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: '24'
+                  cache: 'npm'
+
+            - uses: actions/setup-python@v5
+              with:
+                  python-version: '3.12'
+                  cache: 'pip'
+
+            - run: npm ci
+            - run: pip install -r requirements.txt
+            - run: npx playwright install --with-deps chromium
+
+            # Bundle has to compile for the dev server to boot.
+            - run: npm run build
+
+            # `--update-snapshots` writes the actual rendered
+            # screenshot to disk as the baseline (Playwright's normal
+            # bootstrapping mode). Test result is "passed" because
+            # there's nothing to compare against — we just want the
+            # output files.
+            - name: Bootstrap Linux baselines
+              env:
+                  CI: 'true'
+              run: npm run test:e2e:visual:update
+
+            # Upload only the freshly-written -linux.png files so the
+            # human reviewer can drop them straight into the repo
+            # without picking through unrelated darwin baselines.
+            - name: Upload Linux baselines
+              uses: actions/upload-artifact@v4
+              with:
+                  name: linux-visual-baselines
+                  path: tests/e2e/visual.spec.js-snapshots/*-linux.png
+                  retention-days: 14
+                  if-no-files-found: warn
