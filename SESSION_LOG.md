@@ -7,6 +7,107 @@ Newest entry at the top.
 
 ---
 
+## Session N+8 — 2026-05-08 — Backlog clearing + pytest push (67% → 84%)
+
+**Goal**: Continuation request — close out remaining tagged
+backlog items (A2.3, B3 follow-up, the activeTripId bug filed
+in N+6) and keep pushing pytest coverage past the 60% floor.
+
+**A2.3 — companion + expense smoke tests re-enabled**: both were
+`test.skip()`'d in `smoke.spec.js` since Phase G. Two-line fix:
+
+- `helpers.js · addCompanion()` now clicks the Companions sub-tab
+  (`.trip-tabnav__tab[data-home-tab="companions"]`) BEFORE looking
+  for `#tripCompanionsBtn`. The button lives inside a
+  `display:none` tab-content block by default; without the tab
+  switch, scrollIntoViewIfNeeded couldn't reach it.
+- Expense test was missing `#expCurrency` selection (form
+  hard-validates currency non-empty → silent no-op). Also clicked
+  the History tab before asserting the row exists — the manual
+  tab just shows "✓ Saved" after submit.
+
+Smoke suite went 23/23 → 25/25 on chromium-desktop.
+
+**activeTripId stale bug — fixed**: filed in Session N+6 SESSION_LOG.
+`pullFromServer` overwrote `STATE.trips` wholesale but never
+re-validated `STATE.activeTripId`. Two failure modes:
+
+1. First-load: activeTripId starts null. loadState's "pick first
+   trip" fallback only ran once against localStorage; pullFrom-
+   Server replaced trips without re-running it. UI gates
+   (#completeTripBtn, #editTripBtn, Companions tab) all key off
+   activeTripId being set, so they stayed hidden.
+2. Stale ID: deleted-elsewhere trip → activeTripId points to a
+   non-existent row → every render's lookup returns undefined.
+
+Fix: re-run the same two-clause guard already in loadState() —
+`if STATE.trips.length > 0 && (!STATE.activeTripId || !STATE.trips
+.find(t => t.id === STATE.activeTripId)) { STATE.activeTripId =
+STATE.trips[0].id; }`.
+
+Test fallout: smoke test "app loads" relied on the bug —
+asserted `#homeHeroImg` visible even with trips on the server.
+Updated to accept either state (empty hero OR populated
+selector). flows.spec.js's `selectOption('#tripSelector', tripId)`
+calls became defensive (kept because dev SQLite persists trips
+between runs).
+
+**B3 follow-up — `--gradient-genesis-deep` token + 5 swaps**:
+extracted the `linear-gradient(135deg, #e8b923, #8b6e0c)` pattern
+(deeper-toned gold, distinct from the brighter `--gradient-genesis`)
+to its own token. Used in 5 spots: genesis day-badge in home.ts,
+Trip Genesis chip in dayDetailModal.ts, three checklist-toggle
+done-state styles. Pixel-identical swap, visual regression caught
+zero drift.
+
+**Phase A2 — pytest coverage push, 5 commits, 67% → 84% (+17pp)**:
+
+| File               | Before  | After   | New tests |
+| ------------------ | ------- | ------- | --------- |
+| routes/days.py     | 59%     | 100%    | 4         |
+| routes/expenses.py | 63%     | 100%    | 4         |
+| routes/budgets.py  | 38%     | 100%    | 4         |
+| routes/settings.py | 28%     | 100%    | 5         |
+| routes/public.py   | 28%     | 93%     | 4         |
+| routes/data.py     | 24%     | 82%     | 4         |
+| routes/auth.py     | 72%     | 76%     | 2         |
+| **TOTAL**          | **67%** | **84%** | **27**    |
+
+Tests went 77 → 105. Notable test patterns established:
+
+- _Idempotent DELETE_: every delete endpoint returns 200/{deleted}
+  on unknown id (tests pin so a regression that 404s won't slip).
+- _Audit-fix coverage_: tests pin behaviour the audit fixes
+  explicitly required (`/api/sync` not letting any caller
+  hijack a trip; budgets `WHERE user_id = ?` SQL gate; private
+  trip 404s not 403s).
+- _Round-trip pairs_: POST then GET with same data, assert
+  consistency. Catches schema-drift / field-rename bugs at the
+  serialization layer.
+
+**CI coverage floor: 60% → 80%**: bumped `--cov-fail-under` after
+the suite cleared 84%. Comfortable 4pp headroom; future PRs can
+drift slightly without flapping CI but a real regression turns it
+red. Verified locally: `pytest --cov-fail-under=80` passes.
+
+**Test status at close**: pytest 105/105, playwright desktop 25/25
+(visual + smoke + flows + pages), build green, tsc strict clean.
+9 commits on main this session (`8a168fc`–`56ba9ed`).
+
+**What remains** (carried-over backlog, smaller every session):
+
+- routes/integrations.py at 21% — Gemini AI requires HTTP mocking,
+  bigger fixture investment than the value justifies right now.
+- routes/auth.py at 76% — the actual Google ID token verify
+  happy path (verify_oauth2_token mocking) is the last gap.
+- routes/feed.py at 81% + trips.py at 78% — comment delete /
+  invite respond / silence edge cases. Lower priority.
+- B1 final-final: extract more from `renderHome()` — still
+  parked as B-Phase-2 work (deeply closure-coupled to the map
+  setup; needs Phase C's React migration to force boundaries).
+
+---
+
 ## Session N+7 — 2026-05-08 — Phase A close + B1 slice 13 + A4 polish
 
 **Goal**: User asked for three things in sequence: (1) finish A1 by
