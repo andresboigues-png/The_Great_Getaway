@@ -7,6 +7,198 @@ Newest entry at the top.
 
 ---
 
+## Session N+10 — 2026-05-08 — Phase C close-out + post-C "small things" + D1 + D2 + nav restructure
+
+**Goal**: Continuation request — finish Phase C, ship the four post-C
+"small things" features, complete Phase D1 (mobile responsive sweep)
+and D2 (dark mode), then iterate on per-user UX feedback for the nav
+chrome (sidebar/navbar/bottom-tab restructure for desktop vs mobile).
+
+Massive session — 17 commits, ~3000 lines net. Every change shipped
+under the safety net (typecheck strict, e2e, visual regression,
+pytest) with zero regressions across all phases.
+
+**Phase C close-out (commits `af67123`, `cae6b78`, `8cc6a69`,
+`07997f1`, `f19528b`, `ca46625`, `ce65e3b`)**: C3 final wave migrated
+the last 6 pages to React thin wrappers (Feed / Profile / Collections
+/ Settings / AI / Home). C4 extracted `<EmptyState>` reusable React
+component (one site for now — Todo + Insights still use the legacy
+empty-state markup, can convert later as JSX leaves expand). C5
+flipped `exactOptionalPropertyTypes: true` + `noUncheckedIndexedAccess:
+true` in tsconfig and fixed every resulting strict-mode error.
+ROADMAP marked Phase C ✅ operationally complete (12/12 routes mount
+via React, every component typechecks under the strictest practical
+TypeScript config). Aspirational items (full-JSX rewrites for the
+thin-wrapper pages) re-classified as continuation work, not blockers.
+
+**Post-Phase-C "small things" release (4 features, commits
+`19039a9`, `eb6b658`, `07d3479`, `7d06349`)**:
+
+1. **Currency auto-suggest from country** — `COUNTRY_TO_CURRENCY`
+   map (~70 entries) in `constants.ts`; expense form's
+   `selectCountry` consults the map and flips the currency
+   dropdown when the suggested code is in `CONVERSION_RATES`,
+   gated on a `currencyManuallyChosen` flag that trips on first
+   `change` event so explicit picks always win. 1 e2e covers
+   both paths.
+2. **Cross-trip search** — first fresh JSX leaf shipped post-C.
+   `pages/search/Search.tsx` — single input, three result groups
+   (Trips / Days / Expenses), all-client filter across active +
+   archived. Magnifying-glass icon at `#navSearchBtn`. Click-
+   through navigates to the right page with the active trip set.
+   2 e2e tests (cross-trip match + empty state).
+3. **Trip cover photo** — first schema-touching feature post-C.
+   `ALTER TABLE trips ADD COLUMN cover_url TEXT` + threading
+   through `routes/trips.py` upsert + `routes/data.py` bulk-sync
+   (active + archived) + read mapping. Edit Trip modal "Choose
+   cover" file input → `/api/upload` → live preview thumb +
+   Remove. Display: 60×60 thumbnail on Collections list card
+    - cover takes priority on archived-trip detail hero. 2
+      pytests (round-trip + clear) + 1 e2e.
+4. **Receipts on expenses** — `ALTER TABLE expenses ADD COLUMN
+receipt_url TEXT` + same threading pattern. 📎 Attach receipt
+   button on expense form with live preview + click-to-open. Clip
+   icon on History rows when set. **Bonus latent-bug fix**: server
+   was writing camelCase via `/api/expenses` but reading back as
+   `e.trip_id` / `e.category_id` / `e.euro_value` snake_case —
+   `e.tripId === STATE.activeTripId` filters silently returned
+   empty on cold-load. History tab + Settlement page would have
+   appeared empty until the user touched an expense locally. Now
+   translated consistently in both `/api/data` and
+   `/api/public-trip` reads. 2 pytests + 1 e2e.
+
+**Phase D1 — Mobile-first responsive sweep (commits `aa23b5c`,
+`7e5b4be`, `c38d76f`, → ✅ in ROADMAP)**:
+
+- Bottom-tab nav (iOS-style) for Home/Feed/Collections/Profile at
+  ≤720px. Fixed bottom strip, z-index 1500, safe-area inset.
+- `.nav-links` (Todo/AI/Expenses/Insights) hidden on mobile via
+  `display: none` at ≤720px; pages added to burger drawer in
+  the same pass so every page reachable from somewhere on
+  mobile.
+- Compact mobile navbar (12px padding, smaller New Trip pill,
+  capped trip selector width).
+- Hamburger touch target 22×16 → 44×44 (WCAG 2.5.5). Search /
+  feed / bell icons 30 → 44px (`padding: 4px → 11px`).
+- Mobile modal sheet variant: `.modal-overlay` flex-end +
+  `.card-glass-modal` becomes full-width sheet at ≤720px.
+  Rounded top corners, drag-handle pill (`::before` pseudo,
+  40×4), `sheetSlideUp` keyframe, `100dvh` for iOS Safari URL
+  bar collapse, `overscroll-behavior: contain`. Descendant-
+  scoped under `.modal-overlay` so `/components` preview stays
+  flat — visual baselines untouched.
+- Expense History filter grid → single-column on mobile. Date-
+  pair forms (Trip Start/End) stack vertically via opt-in
+  `.form-row-split` class. Expense rows flip to column layout
+  on mobile (`.expense-row { flex-direction: column }`).
+- `padding-bottom` + `scroll-margin-bottom` on `<main>` so the
+  bottom-tab nav doesn't hide content + Playwright clicks land
+  comfortably above it.
+- `-webkit-overflow-scrolling: touch` everywhere (attribute
+  selector for inline `overflow-y: auto` + class hooks for
+  `.sidebar`, `.modal-overlay`, etc.) so iOS Safari does fling-
+  and-decay scroll on dropdowns, sheets, sidebar.
+- Mobile e2e suite re-enabled: 5 previously-skipped smoke tests
+  (`create trip`, `add companion`, `add day`, `add expense`)
+    - new bottom-tab nav test. 49/49 e2e total at end of D1.
+- Visual baseline updated for `expense-row-chromium-mobile` on
+  darwin; linux baseline needs `visual-baselines-bootstrap.yml`
+  workflow re-bootstrap on next merge.
+
+**Phase D2 — Dark mode (commits `0542d34`, `840570b`, `9f227db`,
+`8e28b11`, → ✅ in ROADMAP)**:
+
+- Token-level overrides in `:root[data-theme="dark"]` for every
+  color, glass surface, and shadow. Brand gradients (--gradient-
+  day / genesis / neon / title) and static success / warning /
+  danger accents intentionally NOT overridden — brand identity.
+- `theme.ts` manager: `Theme = 'light' | 'dark' | 'system'`,
+  default 'system'. `resolveTheme()` resolves system via
+  `matchMedia('(prefers-color-scheme: dark)')`. `applyThemeFromState()`
+  writes `data-theme` on `<html>`. `setTheme()` writes pref +
+  applies + emits in same frame. `initThemeManager()` attaches
+  matchMedia listener for live OS-change response.
+- FOUC guard: synchronous inline `<script>` in `<head>` reads
+  localStorage + matchMedia BEFORE the bundle loads, sets
+  `data-theme="dark"` if appropriate. First paint already uses
+  the right theme.
+- Settings → General → Appearance sub-tab (initially top-level
+  Appearance card, refactored to General sub-tab per user
+  feedback). Tri-state picker (Light / Dark / System) with icon
+    - label + body + check pill. Visibility fix in second
+      iteration: cards bumped to solid `--card-bg` background +
+      visible border + shadow (initial `rgba(0,0,0,0.04)` was
+      invisible against translucent glass parent).
+- Google Maps dark style merged at all 4 map sites (home, ai
+  empty/active, profile legacies). `applyMapTheme(map, baseStyles)`
+  spreads dark first then page-specific overrides so per-page
+  styles win on key collisions.
+- 2 e2e tests (toggle round-trip + system-theme prefers-color-
+  scheme on boot via Playwright's `colorScheme: 'dark'`
+  context).
+- Cache-busting (`?v=<mtime>`) added to `app.bundle.js` +
+  `index.css` URLs in `index.html` so future deploys don't need
+  hard reload to pick up new bundles. Was added during D2
+  iteration after user reported sidebar changes weren't
+  appearing on reload.
+
+**Per-user nav restructure (commits `eff98f4`, `f2e514a`)**:
+
+- First pass: hide redundant Pages-section items
+  (Todo/AI/Expenses/Insights + label) in sidebar on desktop
+  only via `.sidebar-item--mobile-only` marker class. Mobile
+  burger keeps them all (top-nav row hidden on mobile means the
+  burger IS the every-page menu). Generic mechanism reusable
+  for any future "duplicate-on-desktop" cleanup.
+- Second pass (major restructure):
+    - **Mobile bottom-tab nav** replaced with the 4 task pages:
+      To do / Plan AI / Expenses / Insights. New icons: AI gets
+      the canonical 4-point sparkle (was 5-point star); Expenses
+      gets a credit card (was dollar sign — same as Settlements).
+    - **Mobile sidebar** gets new top section: full-width +New
+      Trip pill + trip selector + Complete/Delete icon row.
+      Moved out of the cramped mobile top navbar.
+    - **Mobile top navbar**: bell + search swapped (bell now to
+      the LEFT of search, was right). New Trip + selector
+      removed (now in sidebar). Much cleaner.
+    - **Desktop sidebar**: Home + Feed removed (Home → brand
+      text + top-nav, Feed → top-nav icon). **Search added** at
+      the top of the sidebar (replaces the hidden `#navSearchBtn`
+      which now carries `.navbar-icon-mobile-only`).
+    - **Desktop sidebar spacing**: each section wrapped in a
+      `.sidebar-section` div, parent `.sidebar-middle` uses
+      `flex: 1; justify-content: space-around` so Search +
+      Account + Keeping Track + Preferences distribute evenly
+      down the column instead of bunching at top with empty
+      space at bottom.
+    - **Wiring**: `updateTripSelector()` now keeps both selectors
+      (`#tripSelector` + `#tripSelectorSidebar`) in lock-step.
+      `#newTripBtnSidebar` + `#completeTripBtnSidebar` +
+      `#deleteTripBtnSidebar` wired to the same handlers. Tests
+      updated for dual-instance pattern + viewport-aware
+      `createTrip` + smarter `navigateTo` helper (three-tier
+      fallback: visible non-sidebar → opened sidebar item →
+      hash-route).
+
+**Final state**: 51/51 e2e (was ~38 at session start), 20/20 visual,
+161/161 pytest (was 105 at start of N+9), typecheck clean (strictest
+practical config), bundle ~795 KB (was ~752 KB at session start).
+ROADMAP: A ✅ B ✅ C ✅ D1 ✅ D2 ✅. Remaining: D3 (a11y), D4-D6
+(perf/animation/i18n), Phase E (production deploy), F (PWA),
+share-via-link feature.
+
+**Open follow-ups**:
+
+- Linux visual baselines need `visual-baselines-bootstrap.yml`
+  workflow re-bootstrap (the `expense-row-chromium-mobile` baseline
+  was updated for darwin only during D1).
+- `app.bundle.js` is committed despite being a generated file;
+  user offered to add to `.gitignore` "next session" — not yet done.
+- Components preview page (D2 line item) doesn't render light/dark
+  side-by-side yet — separate sweep.
+
+---
+
 ## Session N+9 — 2026-05-08 — pytest 84% → 95%, floor 60% → 92%
 
 **Goal**: Continuation request — keep clearing backlog and pushing
