@@ -14,6 +14,7 @@ the auth gate itself omit the headers and assert 401.
 """
 
 import io
+import json
 import sys
 
 
@@ -1443,3 +1444,190 @@ def test_notifications_trip_public_creates_notification(
         "trip_name": "Public Trip",
     })
     assert res.status_code == 200
+
+
+# ── /api/config + /api/generate_itinerary ───────────────────────────────────
+# /api/config exposes public-facing keys (Google client id, AI keys
+# loaded from env). /api/generate_itinerary calls Gemini — tests
+# mock requests.post to avoid real network traffic + paid quota.
+
+def test_config_returns_keys_from_env(client, monkeypatch):
+    """Pin the env-var → response-key mapping. Frontend's /api/config
+    consumer reads these into window.googleClientId etc. on boot."""
+    monkeypatch.setenv("OPENAI_API_KEY", "openai-test-key")
+    monkeypatch.setenv("GEMINI_API_KEY", "gemini-test-key")
+    monkeypatch.setenv("CLIENT_ID_GOOGLE_AUTH", "google-test-id")
+    res = client.get("/api/config")
+    assert res.status_code == 200
+    body = res.get_json()
+    assert body["openai_key"] == "openai-test-key"
+    assert body["gemini_key"] == "gemini-test-key"
+    assert body["google_client_id"] == "google-test-id"
+
+
+def test_config_returns_empty_strings_when_env_unset(client, monkeypatch):
+    """Missing env vars resolve to empty string (not undefined). The
+    frontend keys off `if (key)` so this is the "not configured"
+    signal."""
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("CLIENT_ID_GOOGLE_AUTH", raising=False)
+    res = client.get("/api/config")
+    assert res.status_code == 200
+    body = res.get_json()
+    assert body == {"openai_key": "", "gemini_key": "", "google_client_id": ""}
+
+
+def test_generate_itinerary_rejects_missing_key(client, seed_user, auth_headers, monkeypatch):
+    """No BYO key + no env GEMINI_API_KEY → 400 with a helpful message
+    pointing the user at the AI Engine card. This is the most common
+    "I just signed up" path so the message matters."""
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    res = client.post("/api/generate_itinerary", headers=auth_headers, json={
+        "destination": "Tokyo",
+        "numDays": 3,
+    })
+    assert res.status_code == 400
+    body = res.get_json()
+    assert "Gemini API key" in body["error"]
+
+
+class _FakeGeminiResponse:
+    """Stand-in for requests.Response. Models the slice of the API the
+    handler reads (status_code, ok, json(), text)."""
+
+    def __init__(self, status_code: int, json_body=None, text: str = ""):
+        self.status_code = status_code
+        self.ok = 200 <= status_code < 300
+        self._json_body = json_body
+        self.text = text
+
+    def json(self):
+        if self._json_body is None:
+            raise ValueError("not JSON")
+        return self._json_body
+
+
+def test_generate_itinerary_happy_path(client, seed_user, auth_headers, monkeypatch):
+    """Mock a successful Gemini response → handler unwraps the
+    candidates[].content.parts[].text shape and returns the parsed
+    itinerary array. Pin the wire shape because a Gemini API change
+    that drops or renames any of those fields would silently break."""
+    fake_itinerary = [
+        {
+            "day": 1, "date": "2026-04-15", "title": "Arrival",
+            "mainLocation": "Shibuya",
+            "morning": {"activity": "Coffee", "items": ["Blue Bottle"]},
+            "afternoon": {"activity": "Walk", "items": ["Yoyogi Park"]},
+            "evening": {"activity": "Dinner", "items": ["Ramen alley"]},
+        },
+    ]
+    fake_resp_body = {
+        "candidates": [
+            {"content": {"parts": [{"text": json.dumps(fake_itinerary)}]}},
+        ],
+    }
+
+    def fake_post(url, headers=None, json=None, timeout=None):
+        return _FakeGeminiResponse(200, json_body=fake_resp_body)
+
+    import routes.integrations
+    monkeypatch.setattr(routes.integrations.requests, "post", fake_post)
+
+    res = client.post("/api/generate_itinerary", headers=auth_headers, json={
+        "destination": "Tokyo", "numDays": 1, "gemini_key": "byo-key",
+    })
+    assert res.status_code == 200
+    body = res.get_json()
+    assert body["status"] == "success"
+    assert body["itinerary"] == fake_itinerary
+
+
+def test_generate_itinerary_strips_markdown_fences(
+    client, seed_user, auth_headers, monkeypatch,
+):
+    """Some Gemini responses wrap the JSON in ```json ... ``` despite
+    responseMimeType:application/json — the handler strips those
+    fences before parsing. Pin the strip so a Gemini behaviour change
+    that re-introduces them doesn't crash json.loads."""
+    fake_itinerary = [{"day": 1, "title": "Arrival"}]
+    wrapped_text = f"```json\n{json.dumps(fake_itinerary)}\n```"
+    fake_resp_body = {
+        "candidates": [
+            {"content": {"parts": [{"text": wrapped_text}]}},
+        ],
+    }
+
+    def fake_post(url, headers=None, json=None, timeout=None):
+        return _FakeGeminiResponse(200, json_body=fake_resp_body)
+
+    import routes.integrations
+    monkeypatch.setattr(routes.integrations.requests, "post", fake_post)
+
+    res = client.post("/api/generate_itinerary", headers=auth_headers, json={
+        "destination": "Lisbon", "gemini_key": "byo-key",
+    })
+    assert res.status_code == 200
+    body = res.get_json()
+    assert body["itinerary"] == fake_itinerary
+
+
+def test_generate_itinerary_502_when_both_models_fail(
+    client, seed_user, auth_headers, monkeypatch,
+):
+    """Handler tries gemini-flash-latest then gemini-2.5-flash. Both
+    failing → 502 with last_error. Pin the retry-then-bail sequence
+    so a future single-model regression doesn't silently degrade."""
+    call_log = []
+
+    def fake_post(url, headers=None, json=None, timeout=None):
+        call_log.append(url)
+        # Return a 503 with Google's standard error envelope so the
+        # handler's err_body extraction path runs.
+        return _FakeGeminiResponse(
+            503,
+            json_body={"error": {"status": "UNAVAILABLE", "message": "Service overloaded"}},
+        )
+
+    import routes.integrations
+    monkeypatch.setattr(routes.integrations.requests, "post", fake_post)
+
+    res = client.post("/api/generate_itinerary", headers=auth_headers, json={
+        "destination": "Lisbon", "gemini_key": "byo-key",
+    })
+    assert res.status_code == 502
+    body = res.get_json()
+    assert "AI generation failed" in body["error"]
+    assert "UNAVAILABLE" in body["error"]
+    # Confirm both models were attempted before bailing.
+    assert len(call_log) == 2
+    assert "gemini-flash-latest" in call_log[0]
+    assert "gemini-2.5-flash" in call_log[1]
+
+
+def test_generate_itinerary_500_on_invalid_json_in_response(
+    client, seed_user, auth_headers, monkeypatch,
+):
+    """If Gemini returns a 200 but the candidate text isn't valid JSON
+    (rare but possible — the model can ignore the schema), handler
+    catches the json.loads exception and returns 500 with the parse
+    error. Pin so a regression that lets the exception bubble crash
+    the dev server."""
+    fake_resp_body = {
+        "candidates": [
+            {"content": {"parts": [{"text": "not actually json {{{"}]}},
+        ],
+    }
+
+    def fake_post(url, headers=None, json=None, timeout=None):
+        return _FakeGeminiResponse(200, json_body=fake_resp_body)
+
+    import routes.integrations
+    monkeypatch.setattr(routes.integrations.requests, "post", fake_post)
+
+    res = client.post("/api/generate_itinerary", headers=auth_headers, json={
+        "destination": "Paris", "gemini_key": "byo-key",
+    })
+    assert res.status_code == 500
+    body = res.get_json()
+    assert "error" in body
