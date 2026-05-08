@@ -626,25 +626,29 @@ test.describe('Critical flows — UI-driven', () => {
     });
 
     test('appearance setting flips html data-theme between light and dark', async ({ page }) => {
-        // Phase D2: Settings → Appearance card surfaces a tri-state
-        // theme picker. Picking Dark sets <html data-theme="dark">,
-        // picking Light removes the attribute, picking System resolves
-        // via prefers-color-scheme. Persistence + first-paint FOUC
-        // guard live in theme.ts + the inline <head> script — this
-        // test covers the click-through round-trip.
+        // Phase D2: Settings → General → Appearance sub-tab surfaces
+        // a tri-state theme picker. Picking Dark sets <html
+        // data-theme="dark">, picking Light removes the attribute,
+        // picking System resolves via prefers-color-scheme.
+        // Persistence + first-paint FOUC guard live in theme.ts +
+        // the inline <head> script — this test covers the click-
+        // through round-trip.
         const userId = uniqueId('user');
         await getAuthForApi(page, userId);
         await openFreshApp(page, userId);
 
-        // Navigate to Settings → Appearance card.
+        // Navigate to Settings → General → Appearance sub-tab.
         await page.evaluate(() => {
             document.getElementById('sidebar')?.classList.remove('open');
             document.getElementById('sidebarOverlay')?.classList.remove('open');
         });
         await navigateTo(page, 'settings');
-        const appearanceCard = page.locator('.settings-tab-card[data-tab="appearance"]');
-        await appearanceCard.waitFor({ state: 'visible', timeout: 5000 });
-        await appearanceCard.click();
+        const generalCard = page.locator('.settings-tab-card[data-tab="general"]');
+        await generalCard.waitFor({ state: 'visible', timeout: 5000 });
+        await generalCard.click();
+        const appearanceSubTab = page.locator('.general-subtab[data-general-sub="appearance"]');
+        await appearanceSubTab.waitFor({ state: 'visible', timeout: 5000 });
+        await appearanceSubTab.click();
 
         // The three options should render with System the default
         // active state (legacy snapshots without preferences.theme

@@ -863,7 +863,7 @@ Fix: enable "Directions API" on the Google Cloud project tied to your Maps API k
                     `:``}
                 </div>
             </div>
-        `}let n=(e=`menu`)=>{let n=e===`menu`,r=e===`reset`,i=e===`format`,a=e===`general`,o=e===`appearance`;return`
+        `}let n=(e=`menu`)=>{let n=e===`menu`,r=e===`reset`,i=e===`format`;return`
             <div class="ai-page-header">
                 <h1 class="gradient-text" style="--g-from: #1a6b3c; --g-to: #34c759;">System Control</h1>
                 <p>Manage your travel data, custom formats, and core preferences.</p>
@@ -883,12 +883,6 @@ Fix: enable "Directions API" on the Google Cloud project tied to your Maps API k
                         <div style="margin-top: 20px; color: #ff9500; font-weight: 700; font-size: 0.85rem;">Configure &rarr;</div>
                     </button>
 
-                    <button type="button" class="card-button-reset card glass management-card settings-tab-card" data-tab="appearance">
-                        <h2 class="card-title" style="color: #5856d6; margin: 0;">Appearance</h2>
-                        <p style="color: var(--text-secondary); margin: 8px 0 0;">Light, dark, or follow your system. Theme applies instantly across the app.</p>
-                        <div style="margin-top: 20px; color: #5856d6; font-weight: 700; font-size: 0.85rem;">Choose theme &rarr;</div>
-                    </button>
-
                     <button type="button" class="card-button-reset card glass management-card danger-card settings-tab-card" data-tab="reset">
                         <div class="danger-glow pulse-red"></div>
                         <h2 class="card-title" style="color: #ff3b30; margin: 0;">Data Management</h2>
@@ -899,36 +893,49 @@ Fix: enable "Directions API" on the Google Cloud project tied to your Maps API k
             `:`
                 <button class="btn btn-small btn-liquid-glass settings-tab-card" data-tab="menu" style="margin-bottom: 24px; padding: 10px 20px; border-radius: 14px;">&larr; Back to Control Center</button>
 
-                ${a?(()=>{let t=e===`general`&&window.__ggGeneralSubTab||`pills`,n=`
+                ${e===`general`?(()=>{let t=e===`general`&&window.__ggGeneralSubTab||`pills`,n=e=>t===e?` is-active`:``,r=`
                         <div class="general-subtabs" role="tablist" aria-label="General settings sections">
-                            <button type="button" class="general-subtab${(e=>t===e?` is-active`:``)(`pills`)}" data-general-sub="pills" role="tab" aria-selected="${t===`pills`?`true`:`false`}">
+                            <button type="button" class="general-subtab${n(`pills`)}" data-general-sub="pills" role="tab" aria-selected="${t===`pills`?`true`:`false`}">
                                 <span class="general-subtab__icon">🗺️</span>
                                 <span class="general-subtab__label">Map pills</span>
                             </button>
-                            <button type="button" class="general-subtab is-coming-soon" disabled aria-disabled="true" role="tab" aria-selected="false" title="More general settings coming soon">
-                                <span class="general-subtab__icon">⚙️</span>
-                                <span class="general-subtab__label">More soon</span>
+                            <button type="button" class="general-subtab${n(`appearance`)}" data-general-sub="appearance" role="tab" aria-selected="${t===`appearance`?`true`:`false`}">
+                                <span class="general-subtab__icon">🎨</span>
+                                <span class="general-subtab__label">Appearance</span>
                             </button>
                         </div>
-                    `;if(t!==`pills`)return`
-                            ${n}
+                    `;if(t===`appearance`){let e=R.preferences?.theme||`system`,t=(t,n,r,i)=>`
+                            <button type="button" class="theme-option-card${e===t?` is-active`:``}" data-theme-value="${t}">
+                                <span class="theme-option-card__icon" aria-hidden="true">${r}</span>
+                                <span class="theme-option-card__label">${n}</span>
+                                <span class="theme-option-card__body">${i}</span>
+                                <span class="theme-option-card__check" aria-hidden="true">${e===t?`✓`:``}</span>
+                            </button>
+                        `;return`
+                            ${r}
                             <div class="card glass" style="padding: 32px; border-radius: 28px;">
-                                <p style="color: var(--text-secondary); margin: 0;">Section coming soon.</p>
+                                <h2 style="color: #5856d6; margin-top: 0;">Appearance</h2>
+                                <p style="color: var(--text-secondary); margin-bottom: 24px;">Pick a theme. <strong>System</strong> follows your device's appearance setting and updates live when it changes.</p>
+                                <div class="theme-options">
+                                    ${t(`light`,`Light`,`☀️`,`Bright surfaces, dark text. Classic.`)}
+                                    ${t(`dark`,`Dark`,`🌙`,`Dark surfaces, light text. Easy on the eyes after sundown.`)}
+                                    ${t(`system`,`System`,`🖥️`,`Follow your device. Auto-switches when your OS does.`)}
+                                </div>
                             </div>
-                        `;let r=R.preferences?.poiFilters||{},i=R.preferences?.poiAnchoring||{},a=R.preferences?.poiVisible||{},o=[0,3,3.5,4,4.5];return`
-                        ${n}
+                        `}let i=R.preferences?.poiFilters||{},a=R.preferences?.poiAnchoring||{},o=R.preferences?.poiVisible||{},s=[0,3,3.5,4,4.5];return`
+                        ${r}
                         <div class="card glass" style="padding: 32px; border-radius: 28px;">
                             <h2 style="color: var(--accent-blue); margin-top: 0;">Map pill filters</h2>
                             <p style="color: var(--text-secondary); margin-bottom: 16px;"><strong>Show on Home</strong> (the right-side switch) toggles whether each pill appears in the home map's pill row. Useful for hiding categories you never use so the row stays compact.</p>
                             <p style="color: var(--text-secondary); margin-bottom: 16px;"><strong>Minimum rating</strong> hides results below the chosen ★. Restaurants and Hotels default to 4★+ (rating is a meaningful quality signal there); the rest default to "Any rating".</p>
                             <p style="color: var(--text-secondary); margin-bottom: 24px;"><strong>Search anchor</strong> picks where each pill searches from. <em>Day-aware</em> uses the day you've set as search center on the Home page (falls back to the trip's genesis pin). <em>Trip-wide</em> always anchors on the genesis pin so the 50 km wide search covers the whole trip — better for sparse "where are these across my whole trip" categories like Medical, Sports, Govt, Schools, Public transit.</p>
                             <div class="poi-filter-list">
-                                ${Bs.filter(e=>e.placesType).map(e=>{let t=typeof r[e.key]?.minRating==`number`?r[e.key].minRating:e.defaultMinRating,n=o.map(e=>`
+                                ${Bs.filter(e=>e.placesType).map(e=>{let t=typeof i[e.key]?.minRating==`number`?i[e.key].minRating:e.defaultMinRating,n=s.map(e=>`
                                 <option value="${e}" ${e===t?`selected`:``}>${e===0?`Any rating`:`${e}★ +`}</option>
-                            `).join(``),s=i[e.key],c=s===`genesis`||s===`epicenter`?s:e.useGenesisAlways?`genesis`:`epicenter`,l=e.useGenesisAlways?`genesis`:`epicenter`,u=`
+                            `).join(``),r=a[e.key],c=r===`genesis`||r===`epicenter`?r:e.useGenesisAlways?`genesis`:`epicenter`,l=e.useGenesisAlways?`genesis`:`epicenter`,u=`
                                 <option value="epicenter" ${c===`epicenter`?`selected`:``}>📍 Day-aware</option>
                                 <option value="genesis"   ${c===`genesis`?`selected`:``}>🌐 Trip-wide</option>
-                            `,d=a[e.key]!==!1,f=t!==e.defaultMinRating||(s===`genesis`||s===`epicenter`)&&s!==l||!d;return`
+                            `,d=o[e.key]!==!1,f=t!==e.defaultMinRating||(r===`genesis`||r===`epicenter`)&&r!==l||!d;return`
                                 <div class="poi-filter-row${d?``:` poi-filter-row--hidden`}">
                                     <span class="poi-filter-row__icon">${e.icon}</span>
                                     <div class="poi-filter-row__body">
@@ -986,26 +993,8 @@ Fix: enable "Directions API" on the Google Cloud project tied to your Maps API k
                     </div>
                 `:``}
 
-                ${o?(()=>{let e=R.preferences?.theme||`system`,t=(t,n,r,i)=>`
-                        <button type="button" class="theme-option-card${e===t?` is-active`:``}" data-theme-value="${t}">
-                            <span class="theme-option-card__icon" aria-hidden="true">${r}</span>
-                            <span class="theme-option-card__label">${n}</span>
-                            <span class="theme-option-card__body">${i}</span>
-                            <span class="theme-option-card__check" aria-hidden="true">${e===t?`✓`:``}</span>
-                        </button>
-                    `;return`
-                        <div class="card glass" style="padding: 32px; border-radius: 28px;">
-                            <h2 style="color: #5856d6; margin-top: 0;">Appearance</h2>
-                            <p style="color: var(--text-secondary); margin-bottom: 24px;">Pick a theme. <strong>System</strong> follows your device's appearance setting and updates live when it changes.</p>
-                            <div class="theme-options">
-                                ${t(`light`,`Light`,`☀️`,`Bright surfaces, dark text. Classic.`)}
-                                ${t(`dark`,`Dark`,`🌙`,`Dark surfaces, light text. Easy on the eyes after sundown.`)}
-                                ${t(`system`,`System`,`🖥️`,`Follow your device. Auto-switches when your OS does.`)}
-                            </div>
-                        </div>
-                    `})():``}
             `}
-        `},r=t=>{e.innerHTML=n(t)},i=e=>{vs({trips:{title:`Wipe All Trips?`,message:`This permanently deletes every trip, day log, and itinerary.`,confirmText:`Delete Trips`,onConfirm:async()=>{if(R.trips=[],R.archivedTrips=[],R.tripDays=[],R.expenses=[],R.budgets=[],R.activeTripId=null,L(`state:changed`),R.user)try{await $(`/api/user-data`,{method:`DELETE`,headers:{"Content-Type":`application/json`},body:JSON.stringify({})})}catch(e){console.error(`Server wipe failed`,e)}r(`reset`)}},categories:{title:`Reset Categories?`,message:`Reverts all expense categories to the system defaults.`,confirmText:`Restore Defaults`,onConfirm:()=>{R.categories=[{id:`c1`,name:`Food`,icon:`🍔`,color:`#ff3b30`},{id:`c2`,name:`Transport`,icon:`✈️`,color:`#007aff`},{id:`c3`,name:`Accommodation`,icon:`🏨`,color:`#5856d6`}],L(`state:changed`),Sf(),r(`reset`)}},app:{title:`Factory Reset`,message:`Absolute destruction. This wipes EVERY bit of data from the application.`,confirmText:`ERASE EVERYTHING`,onConfirm:async()=>{if(R.user)try{await $(`/api/user-data`,{method:`DELETE`,headers:{"Content-Type":`application/json`},body:JSON.stringify({})})}catch(e){console.error(`Server wipe failed`,e)}R.trips=[],R.archivedTrips=[],R.tripDays=[],R.expenses=[],R.budgets=[],R.categories=[],R.activeTripId=null,R.user=null,R.notifications=[],R.hasLoggedInBefore=!1,L(`state:changed`),localStorage.clear(),location.reload()}}}[e])},a=()=>{let e=document.getElementById(`mapVarSelect`)?.value,t=document.getElementById(`mapColSelect`)?.value;!e||!t||(R.customFormat=R.customFormat||[],!R.customFormat.some(t=>t.variable===e)&&(R.customFormat.push({variable:e,column:t}),L(`state:changed`),r(`format`)))},o=e=>{R.customFormat=(R.customFormat||[]).filter(t=>t.variable!==e),L(`state:changed`),r(`format`)},s=()=>{let e=[`label`,`date`,`value`,`who`,`category`],t=R.customFormat||[],n=new Set(t.map(e=>e.variable===`categoryId`?`category`:e.variable)),i=e.filter(e=>!n.has(e));if(i.length>0)return alert(`Missing required fields: ${i.join(`, `)}`);let a=(document.getElementById(`formatNameInput`)?.value||``).trim();a&&(R.savedFormats=R.savedFormats||[],R.savedFormats.push({id:ys(),name:a,mappings:[...t]}),R.customFormat=[],L(`state:changed`),r(`format`))},c=e=>{vs({title:`Delete Format?`,message:`This mapping will no longer be available for imports.`,confirmText:`Delete`,onConfirm:()=>{R.savedFormats=(R.savedFormats||[]).filter(t=>t.id!==e),L(`state:changed`),r(`format`)}})},l=e=>{let t=(R.savedFormats||[]).find(t=>t.id===e);t&&(R.customFormat=[...t.mappings],R.savedFormats=(R.savedFormats||[]).filter(t=>t.id!==e),L(`state:changed`),r(`format`),setTimeout(()=>{let e=document.getElementById(`formatNameInput`);e&&(e.value=t.name)},50))};e.innerHTML=n(`menu`),e.addEventListener(`click`,e=>{let t=e.target;if(!t)return;let n=t.closest(`.settings-tab-card`);if(n?.dataset.tab){r(n.dataset.tab);return}let d=t.closest(`.general-subtab`);if(d&&!d.hasAttribute(`disabled`)&&d.dataset.generalSub){window.__ggGeneralSubTab=d.dataset.generalSub,r(`general`);return}let f=t.closest(`.confirm-reset-btn`);if(f?.dataset.resetType){i(f.dataset.resetType);return}let p=t.closest(`.theme-option-card`);if(p?.dataset.themeValue){let e=p.dataset.themeValue;(e===`light`||e===`dark`||e===`system`)&&(Yo(e),r(`appearance`));return}let m=t.closest(`.remove-mapping-btn`);if(m?.dataset.variable){o(m.dataset.variable);return}let h=t.closest(`.edit-saved-format-btn`);if(h?.dataset.formatId){l(h.dataset.formatId);return}let g=t.closest(`.delete-saved-format-btn`);if(g?.dataset.formatId){c(g.dataset.formatId);return}if(t.closest(`#addFormatMappingBtn`)){a();return}if(t.closest(`#saveCustomFormatBtn`)){s();return}let _=t.closest(`.poi-filter-reset`);if(_?.dataset.poi){u(),delete R.preferences.poiFilters[_.dataset.poi],delete R.preferences.poiAnchoring[_.dataset.poi],delete R.preferences.poiVisible[_.dataset.poi],L(`state:changed`),r(`general`);return}}),e.addEventListener(`change`,e=>{let t=e.target;if(!t)return;let n=t.closest(`.poi-filter-rating`);if(n){let e=n.dataset.poi;if(!e)return;let t=parseFloat(n.value);u(),R.preferences.poiFilters[e]={minRating:t},L(`state:changed`),r(`general`);return}let i=t.closest(`.poi-anchor-mode`);if(i){let e=i.dataset.poi;if(!e)return;let t=i.value;if(t!==`genesis`&&t!==`epicenter`)return;u(),R.preferences.poiAnchoring[e]=t,L(`state:changed`),r(`general`);return}let a=t.closest(`.poi-visibility-toggle`);if(a){let e=a.dataset.poi;if(!e)return;let t=a.checked;u(),t?delete R.preferences.poiVisible[e]:R.preferences.poiVisible[e]=!1,L(`state:changed`),r(`general`);return}});function u(){R.preferences||={mapDefaultPois:[`sights`,`parks`,`transit`],poiFilters:{},pillEpicenters:{},poiAnchoring:{},poiVisible:{},enabledPois:{}},(!R.preferences.poiFilters||typeof R.preferences.poiFilters!=`object`)&&(R.preferences.poiFilters={}),(!R.preferences.poiAnchoring||typeof R.preferences.poiAnchoring!=`object`)&&(R.preferences.poiAnchoring={}),(!R.preferences.poiVisible||typeof R.preferences.poiVisible!=`object`)&&(R.preferences.poiVisible={})}return e}function Kc(e){let t=R.categories.find(t=>t.id===e);if(!t)return;let{root:n,close:r}=rs({variant:`glass-light`,cardStyle:`width: 420px;`,innerHTML:`
+        `},r=t=>{e.innerHTML=n(t)},i=e=>{vs({trips:{title:`Wipe All Trips?`,message:`This permanently deletes every trip, day log, and itinerary.`,confirmText:`Delete Trips`,onConfirm:async()=>{if(R.trips=[],R.archivedTrips=[],R.tripDays=[],R.expenses=[],R.budgets=[],R.activeTripId=null,L(`state:changed`),R.user)try{await $(`/api/user-data`,{method:`DELETE`,headers:{"Content-Type":`application/json`},body:JSON.stringify({})})}catch(e){console.error(`Server wipe failed`,e)}r(`reset`)}},categories:{title:`Reset Categories?`,message:`Reverts all expense categories to the system defaults.`,confirmText:`Restore Defaults`,onConfirm:()=>{R.categories=[{id:`c1`,name:`Food`,icon:`🍔`,color:`#ff3b30`},{id:`c2`,name:`Transport`,icon:`✈️`,color:`#007aff`},{id:`c3`,name:`Accommodation`,icon:`🏨`,color:`#5856d6`}],L(`state:changed`),Sf(),r(`reset`)}},app:{title:`Factory Reset`,message:`Absolute destruction. This wipes EVERY bit of data from the application.`,confirmText:`ERASE EVERYTHING`,onConfirm:async()=>{if(R.user)try{await $(`/api/user-data`,{method:`DELETE`,headers:{"Content-Type":`application/json`},body:JSON.stringify({})})}catch(e){console.error(`Server wipe failed`,e)}R.trips=[],R.archivedTrips=[],R.tripDays=[],R.expenses=[],R.budgets=[],R.categories=[],R.activeTripId=null,R.user=null,R.notifications=[],R.hasLoggedInBefore=!1,L(`state:changed`),localStorage.clear(),location.reload()}}}[e])},a=()=>{let e=document.getElementById(`mapVarSelect`)?.value,t=document.getElementById(`mapColSelect`)?.value;!e||!t||(R.customFormat=R.customFormat||[],!R.customFormat.some(t=>t.variable===e)&&(R.customFormat.push({variable:e,column:t}),L(`state:changed`),r(`format`)))},o=e=>{R.customFormat=(R.customFormat||[]).filter(t=>t.variable!==e),L(`state:changed`),r(`format`)},s=()=>{let e=[`label`,`date`,`value`,`who`,`category`],t=R.customFormat||[],n=new Set(t.map(e=>e.variable===`categoryId`?`category`:e.variable)),i=e.filter(e=>!n.has(e));if(i.length>0)return alert(`Missing required fields: ${i.join(`, `)}`);let a=(document.getElementById(`formatNameInput`)?.value||``).trim();a&&(R.savedFormats=R.savedFormats||[],R.savedFormats.push({id:ys(),name:a,mappings:[...t]}),R.customFormat=[],L(`state:changed`),r(`format`))},c=e=>{vs({title:`Delete Format?`,message:`This mapping will no longer be available for imports.`,confirmText:`Delete`,onConfirm:()=>{R.savedFormats=(R.savedFormats||[]).filter(t=>t.id!==e),L(`state:changed`),r(`format`)}})},l=e=>{let t=(R.savedFormats||[]).find(t=>t.id===e);t&&(R.customFormat=[...t.mappings],R.savedFormats=(R.savedFormats||[]).filter(t=>t.id!==e),L(`state:changed`),r(`format`),setTimeout(()=>{let e=document.getElementById(`formatNameInput`);e&&(e.value=t.name)},50))};e.innerHTML=n(`menu`),e.addEventListener(`click`,e=>{let t=e.target;if(!t)return;let n=t.closest(`.settings-tab-card`);if(n?.dataset.tab){r(n.dataset.tab);return}let d=t.closest(`.general-subtab`);if(d&&!d.hasAttribute(`disabled`)&&d.dataset.generalSub){window.__ggGeneralSubTab=d.dataset.generalSub,r(`general`);return}let f=t.closest(`.confirm-reset-btn`);if(f?.dataset.resetType){i(f.dataset.resetType);return}let p=t.closest(`.theme-option-card`);if(p?.dataset.themeValue){let e=p.dataset.themeValue;(e===`light`||e===`dark`||e===`system`)&&(Yo(e),window.__ggGeneralSubTab=`appearance`,r(`general`));return}let m=t.closest(`.remove-mapping-btn`);if(m?.dataset.variable){o(m.dataset.variable);return}let h=t.closest(`.edit-saved-format-btn`);if(h?.dataset.formatId){l(h.dataset.formatId);return}let g=t.closest(`.delete-saved-format-btn`);if(g?.dataset.formatId){c(g.dataset.formatId);return}if(t.closest(`#addFormatMappingBtn`)){a();return}if(t.closest(`#saveCustomFormatBtn`)){s();return}let _=t.closest(`.poi-filter-reset`);if(_?.dataset.poi){u(),delete R.preferences.poiFilters[_.dataset.poi],delete R.preferences.poiAnchoring[_.dataset.poi],delete R.preferences.poiVisible[_.dataset.poi],L(`state:changed`),r(`general`);return}}),e.addEventListener(`change`,e=>{let t=e.target;if(!t)return;let n=t.closest(`.poi-filter-rating`);if(n){let e=n.dataset.poi;if(!e)return;let t=parseFloat(n.value);u(),R.preferences.poiFilters[e]={minRating:t},L(`state:changed`),r(`general`);return}let i=t.closest(`.poi-anchor-mode`);if(i){let e=i.dataset.poi;if(!e)return;let t=i.value;if(t!==`genesis`&&t!==`epicenter`)return;u(),R.preferences.poiAnchoring[e]=t,L(`state:changed`),r(`general`);return}let a=t.closest(`.poi-visibility-toggle`);if(a){let e=a.dataset.poi;if(!e)return;let t=a.checked;u(),t?delete R.preferences.poiVisible[e]:R.preferences.poiVisible[e]=!1,L(`state:changed`),r(`general`);return}});function u(){R.preferences||={mapDefaultPois:[`sights`,`parks`,`transit`],poiFilters:{},pillEpicenters:{},poiAnchoring:{},poiVisible:{},enabledPois:{}},(!R.preferences.poiFilters||typeof R.preferences.poiFilters!=`object`)&&(R.preferences.poiFilters={}),(!R.preferences.poiAnchoring||typeof R.preferences.poiAnchoring!=`object`)&&(R.preferences.poiAnchoring={}),(!R.preferences.poiVisible||typeof R.preferences.poiVisible!=`object`)&&(R.preferences.poiVisible={})}return e}function Kc(e){let t=R.categories.find(t=>t.id===e);if(!t)return;let{root:n,close:r}=rs({variant:`glass-light`,cardStyle:`width: 420px;`,innerHTML:`
             <h2 style="margin: 0 0 var(--space-5); font-size: var(--font-2xl); color: #002d5b; font-weight: 800; letter-spacing: -0.03em;">Edit Category</h2>
             <form id="editCategoryForm" style="display: flex; flex-direction: column; gap: var(--space-4);">
                 <div style="display: flex; gap: var(--space-3); align-items: center;">
