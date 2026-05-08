@@ -173,7 +173,7 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
     // shows a gold "⭐ Trip Genesis" chip to match the Path tab
     // styling.
     const headerChipHtml = isGenesis
-        ? `<div style="background: linear-gradient(135deg, #e8b923, #8b6e0c); color: white; padding: var(--space-1) var(--space-3); border-radius: var(--radius-sm); font-weight: 800; font-size: var(--font-xs); text-transform: uppercase; letter-spacing: 0.06em;">⭐ Trip Genesis</div>`
+        ? `<div style="background: var(--gradient-genesis-deep); color: white; padding: var(--space-1) var(--space-3); border-radius: var(--radius-sm); font-weight: 800; font-size: var(--font-xs); text-transform: uppercase; letter-spacing: 0.06em;">⭐ Trip Genesis</div>`
         : `<div style="background: var(--accent-blue); color: white; padding: var(--space-1) var(--space-3); border-radius: var(--radius-sm); font-weight: 800; font-size: var(--font-xs); text-transform: uppercase;">Day ${day.dayNumber}</div>`;
     const headerSubtitle = isGenesis
         ? (trip?.country ? esc(shortPlaceName(trip.country)) : 'Where the trip begins')
@@ -288,7 +288,7 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
             return `
                 <div class="day-checklist-row" data-item-id="${id}" style="display:flex; align-items:center; gap:10px; padding:6px 0;">
                     <button type="button" class="day-checklist-toggle" data-item-id="${id}" aria-pressed="${done}" title="${done ? 'Mark not done' : 'Mark done'}"
-                        style="flex-shrink:0; width:20px; height:20px; border-radius:50%; border:2px solid ${done ? '#8b6e0c' : 'rgba(0,113,227,0.3)'}; background:${done ? 'linear-gradient(135deg, #e8b923, #8b6e0c)' : 'white'}; color:white; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; padding:0;">
+                        style="flex-shrink:0; width:20px; height:20px; border-radius:50%; border:2px solid ${done ? '#8b6e0c' : 'rgba(0,113,227,0.3)'}; background:${done ? 'var(--gradient-genesis-deep)' : 'white'}; color:white; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; padding:0;">
                         ${done ? `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>` : ''}
                     </button>
                     <span style="flex:1; min-width:0; font-size:0.88rem; line-height:1.4; color:#002d5b; ${done ? 'color:rgba(0,45,91,0.4); text-decoration:line-through;' : ''}">${esc(item.body || '')}</span>
@@ -421,7 +421,7 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
                 const newDone = !!item.done;
                 (btn as HTMLElement).style.borderColor = newDone ? '#8b6e0c' : 'rgba(0,113,227,0.3)';
                 (btn as HTMLElement).style.background = newDone
-                    ? 'linear-gradient(135deg, #e8b923, #8b6e0c)' : 'white';
+                    ? 'var(--gradient-genesis-deep)' : 'white';
                 btn.innerHTML = newDone ? checkSvg : '';
                 btn.setAttribute('aria-pressed', newDone ? 'true' : 'false');
                 const span = (btn.parentElement?.querySelector('span') as HTMLElement | null);

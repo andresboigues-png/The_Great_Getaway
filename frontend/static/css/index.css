@@ -106,6 +106,13 @@
     --gradient-day: linear-gradient(135deg, #007aff, #5856d6);
     --gradient-genesis: linear-gradient(135deg, #ffd700, #ff9500);
     --gradient-neon: linear-gradient(135deg, #00e5ff, #00b8d4);
+    /* --gradient-genesis-deep: deeper-toned gold pair used for
+       checklist-done toggles + genesis day-badge + the Trip Genesis
+       chip in dayDetailModal. Distinct from --gradient-genesis (which
+       is the brighter gold→orange used on Trip-genesis card surfaces) —
+       this one reads as "completed" / "permanent" rather than "primary
+       gold call-out". */
+    --gradient-genesis-deep: linear-gradient(135deg, #e8b923, #8b6e0c);
 
     /* Glass surfaces — alongside the existing --glass-bg + --glass-fill-*.
        --surface-glass is the dark-frosted modal backdrop; --surface-glass-light

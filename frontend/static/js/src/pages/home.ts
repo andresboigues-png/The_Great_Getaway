@@ -1943,7 +1943,7 @@ export function renderHome() {
          */
         const buildDayCardBody = (day: any, { isGenesis, isSelected }: { isGenesis: boolean; isSelected: boolean }) => {
             const badge = isGenesis
-                ? `<div style="background: linear-gradient(135deg, #e8b923, #8b6e0c); color: white; width: 48px; height: 48px; border-radius: 50%; border: 3px solid white; display: flex; align-items: center; justify-content: center; flex-shrink:0; box-shadow: 0 8px 18px rgba(212,160,23,0.28);">
+                ? `<div style="background: var(--gradient-genesis-deep); color: white; width: 48px; height: 48px; border-radius: 50%; border: 3px solid white; display: flex; align-items: center; justify-content: center; flex-shrink:0; box-shadow: 0 8px 18px rgba(212,160,23,0.28);">
                        <svg width="26" height="26" viewBox="0 0 48 48" aria-hidden="true">
                            <path d="M 24,11 L 27.06,18.96 L 35.55,19.49 L 28.92,24.92 L 31.0,33.16 L 24,28.6 L 17,33.16 L 19.08,24.92 L 12.45,19.49 L 20.94,18.96 Z" fill="white"/>
                        </svg>
