@@ -625,7 +625,7 @@ Once every page is `.tsx`, raise the TS bar:
       `routePolyline.ts`, `slideshow.ts`,
       `settlement/legacyRender.ts`, `upload.ts`, etc. Pattern was
       mechanical: `arr[i]!` after a length check, `obj[key] ??
-    default` for unguarded record lookups, `?? null` for
+  default` for unguarded record lookups, `?? null` for
       nullable string fields.
 - [x] Replace `any` left over from migration with real types.
       Done across the 4 JSX-rewritten leaves (Insights, Todo,
@@ -634,7 +634,7 @@ Once every page is `.tsx`, raise the TS bar:
       Insights — Chart.js CDN global, an external-dependency
       `any` (not a migration leak).
 - [x] Deleted 5 dead legacy files in the same pass: `pages/
-    insights.ts`, `todo.ts`, `budgets.ts`, `friends.ts`,
+  insights.ts`, `todo.ts`, `budgets.ts`, `friends.ts`,
       `settlement.ts`. All five superseded by their React
       replacements with no remaining external importers; the
       post-C2 "1 stable session" deletion gate had been overdue.
@@ -675,6 +675,17 @@ is a continuation of C3 (per-page migration), not a blocker for
 "Phase C done." The codebase is ready for Phase D (quality polish)
 under a fully React + strictest-practical TypeScript substrate.
 
+**Recommended next moves** (post-Phase-C, see Feature backlog
+below for details):
+
+1. Ship **Currency auto-suggest** (~1h) as the confidence-builder
+   that validates the safety net under a real change.
+2. Ship **Search across trips** (~2-4h) as a fresh React leaf —
+   showcases the new substrate, no legacy code touched.
+3. Then move into Phase D, bundling **Trip cover photo +
+   Receipts** alongside the mobile sweep (D1).
+4. Phase E + **Trip share-via-link** as the launch story.
+
 ---
 
 ## Phase D — Quality polish
@@ -684,6 +695,12 @@ expensive (every change is a copy-paste across multiple files); polishing
 in React with tokens is cheap (one component, one token). Doing it after
 C means each polish task lands once, in one place, instead of being
 sprinkled across 5,000-line files.
+
+**Pair with these features from the backlog**: Trip cover photo +
+Receipts on expenses (2-3h each from `FUTURE_FEATURES.md`). Both
+touch the same surfaces D rebuilds (mobile-treated hero, mobile
+modal sheets, touch-target audit), so doing them together avoids
+double-handling. Ship as a "small things" release alongside D1.
 
 ### D1 — Mobile-first responsive sweep
 
@@ -778,6 +795,15 @@ language is one PR.
 **Why fifth, not earlier.** Don't deploy until the platform is
 beautiful. The first time friends use it, they form a permanent
 impression. Deploy after the React + polish work is done.
+
+**Pair with this feature from the backlog**: Trip share-via-link
+(read-only) + Views counter (4-6h from `FUTURE_FEATURES.md`).
+Shareable links are pointless on localhost — do them as the
+capstone feature once the app is on a real URL. The new public
+`/share/<token>` route gets built as a fresh React leaf, the
+schema migration ships in the same deploy, and the launch story
+becomes "the GG is live AND your trips are now shareable" rather
+than two unrelated announcements.
 
 ### E1 — Production-ready backend
 
@@ -991,29 +1017,54 @@ without surprise scope.
 
 ---
 
-## Feature backlog — pick from any time after Phase A
+## Feature backlog — Phase A/B/C done, gate is OPEN
 
-These don't have a strict order. Pick one when shipping a new feature
-makes sense (between phases, as a Saturday session). Each entry is sized
-for one focused effort.
+Phase A's safety net is in place, Phase C's React substrate is in place.
+Feature work can now ship cleanly without regression risk. Each entry
+below is sized for one focused effort and lists which existing phase
+(if any) it pairs naturally with.
 
-The strict rule: **every new feature lands with the same safety net any
-phase enjoys.** Tests pass. Visual regression unchanged or
-intentionally-changed. Schema validators updated. PR description
-explains the why. No feature work happens before Phase A is complete —
-that's the rule that keeps the codebase from regressing.
+The strict rule still applies: **every new feature lands with the same
+safety net any phase enjoys.** Tests pass. Visual regression unchanged
+or intentionally-changed. Schema validators updated. PR description
+explains the why.
 
 ### High-leverage / quick wins (from `FUTURE_FEATURES.md`)
 
-- **Currency auto-suggest from country** — country code → default
-  currency on expense form.
-- **Trip cover photo** — one image per trip transforms the home hero +
-  collections cards.
-- **Receipts attached to expenses** — photo of the receipt next to each
-  expense.
-- **Search across trips** — `cmd-K` style search with grouped results.
-- **Trip share-via-link (read-only)** — public URL with a `share_token`,
-  no auth, includes a "Views" counter.
+Recommended order (different from FUTURE_FEATURES.md's listing order;
+optimised for "ship first / build confidence" then "showcase the new
+substrate" then "pair with the right infrastructure phase"):
+
+1. **Currency auto-suggest from country** — `~1 hour`, frontend only.
+   Country code → default currency on the expense form. Tiny scope,
+   contained to one form, no schema change. **Recommended first
+   feature post-Phase-C** — validates the safety net under real
+   change pressure. Pair with: anytime, no phase dependency. Touches
+   the thin-wrapper Expenses page; the imperative style is fine for
+   a 1-hour add (no JSX migration needed first).
+
+2. **Search across trips** — `2-4 hours`, all-client filter. Single
+   search input → grouped results across trips, expenses, days.
+   **Best fit for the new React substrate** — built as a fresh JSX
+   leaf from day 1, no legacy code touched. High user value once
+   trips accumulate. Pair with: anytime after Phase C.
+
+3. **Trip cover photo** + **Receipts on expenses** — bundle as a
+   "small things" release. Each `2-3 hours` (schema + backend +
+   frontend). FUTURE_FEATURES.md itself recommends bundling these.
+   Both touch imperative thin-wrapper pages (Home / Collections /
+   Expenses) for display. Pair with: **Phase D (mobile-first
+   sweep)** — the cover photo's hero treatment and the receipt
+   thumbnail are exactly the kind of mobile-touch surfaces D
+   rebuilds anyway. Doing them together avoids double-handling.
+
+4. **Trip share-via-link (read-only)** — `4-6 hours`, schema +
+   public backend route + new public frontend route + Views counter.
+   The most complex feature on the list, with security-sensitive
+   auth-bypass logic. **Pair with Phase E (production deploy)** —
+   shareable links are pointless on localhost; do them as the
+   capstone feature when the app gets a real URL. Build the new
+   frontend route as a fresh React leaf (greenfield).
 
 ### Social network deepening (from `VISION.md`)
 
