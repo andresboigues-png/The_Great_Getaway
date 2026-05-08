@@ -5411,31 +5411,58 @@ body.is-signed-out .mobile-bottom-nav {
     row-gap: 2px;
     padding: var(--space-4) var(--space-5);
     border-radius: var(--radius-xl);
-    background: var(--surface-subtle);
-    border: 1.5px solid transparent;
+    /* Solid card-bg so the option reads as a tappable card distinct
+       from the translucent .glass parent. (The previous --surface-
+       subtle background was rgba(0,0,0,0.04) which is essentially
+       invisible on a white .glass parent — invisible cards.) */
+    background: var(--card-bg);
+    border: 1.5px solid rgba(0, 0, 0, 0.08);
+    box-shadow: var(--shadow-sm);
     color: var(--text-primary);
     cursor: pointer;
     text-align: left;
     transition: background var(--duration-fast) var(--easing-smooth),
                 border-color var(--duration-fast) var(--easing-smooth),
+                box-shadow var(--duration-fast) var(--easing-smooth),
                 transform var(--duration-instant) var(--easing-smooth);
     -webkit-tap-highlight-color: transparent;
 }
+:root[data-theme="dark"] .theme-option-card {
+    /* Dark mode: stronger border so the card outline reads on the
+       darker translucent parent, where the default 0.08-alpha black
+       border disappears. */
+    border-color: rgba(255, 255, 255, 0.1);
+}
 .theme-option-card:hover,
 .theme-option-card:focus-visible {
-    background: var(--surface-subtle-hover);
+    border-color: rgba(88, 86, 214, 0.35);
+    box-shadow: 0 4px 12px rgba(88, 86, 214, 0.12);
+    transform: translateY(-1px);
     outline: none;
 }
 .theme-option-card:active {
     transform: scale(0.99);
 }
 .theme-option-card.is-active {
-    background: rgba(88, 86, 214, 0.08);
-    border-color: rgba(88, 86, 214, 0.45);
+    /* Purple accent border + soft purple wash so the active state
+       reads at a glance. The check pill in the right column is the
+       second cue. */
+    background: linear-gradient(
+        180deg,
+        rgba(88, 86, 214, 0.06) 0%,
+        var(--card-bg) 100%
+    );
+    border-color: #5856d6;
+    box-shadow: 0 6px 18px rgba(88, 86, 214, 0.18);
 }
 :root[data-theme="dark"] .theme-option-card.is-active {
-    background: rgba(88, 86, 214, 0.18);
-    border-color: rgba(88, 86, 214, 0.55);
+    background: linear-gradient(
+        180deg,
+        rgba(88, 86, 214, 0.18) 0%,
+        var(--card-bg) 100%
+    );
+    border-color: #7c79e0;
+    box-shadow: 0 6px 18px rgba(88, 86, 214, 0.28);
 }
 .theme-option-card__icon {
     grid-area: icon;
