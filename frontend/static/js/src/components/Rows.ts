@@ -44,7 +44,13 @@ import { esc } from '../utils.js';
  * @param {boolean} [opts.clickable=false] - whether the row itself is interactive (navigates on click)
  * @returns {string}
  */
-export function friendRow(opts) {
+export function friendRow(opts: {
+    user: { id: string; name?: string; email?: string; picture?: string };
+    variant?: 'neutral' | 'warn' | 'brand';
+    extraClass?: string;
+    rightSide?: string;
+    clickable?: boolean;
+}): string {
     const { user, variant = 'neutral', extraClass = '', rightSide = '', clickable = false } = opts;
     const cls = `user-row user-row--${variant}${extraClass ? ' ' + extraClass : ''}`;
     const a11y = clickable ? ' role="button" tabindex="0"' : '';

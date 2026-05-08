@@ -23,7 +23,9 @@ const VARIANT_CLASS = {
     'glass': 'card-glass-modal',
     'glass-light': 'card-glass-modal-light',
     'confirm': 'card-glass-confirm',
-};
+} as const satisfies Record<string, string>;
+
+type ModalVariant = keyof typeof VARIANT_CLASS;
 
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
@@ -38,7 +40,15 @@ const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]):not([t
  * @param {() => void} [opts.onClose]
  * @returns {{ root: HTMLElement, close: () => void }}
  */
-export function showModal(opts) {
+export function showModal(opts: {
+    variant?: ModalVariant;
+    cardClass?: string;
+    cardStyle?: string;
+    innerHTML: string;
+    closeOnBackdrop?: boolean;
+    closeOnEscape?: boolean;
+    onClose?: () => void;
+}): { root: HTMLElement; close: () => void } {
     const {
         variant = 'glass',
         cardClass: explicitCardClass,
@@ -71,8 +81,7 @@ export function showModal(opts) {
     };
 
     // Esc closes; Tab traps focus inside the modal.
-    /** @param {KeyboardEvent} e */
-    const onKeyDown = (e) => {
+    const onKeyDown = (e: KeyboardEvent) => {
         if (e.key === 'Escape' && closeOnEscape) {
             e.stopPropagation();
             close();

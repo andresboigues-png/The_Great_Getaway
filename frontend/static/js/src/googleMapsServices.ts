@@ -16,7 +16,8 @@ const _apiKey = () => /** @type {any} */ (window).googleMapsApiKey || '';
 /** Round to 4 decimals — small enough to share a cache entry for
  *  the same point on the map, big enough to break for genuinely
  *  different places. */
-const _roundCoord = (n) => (typeof n === 'number' ? Math.round(n * 1e4) / 1e4 : 0);
+const _roundCoord = (n: number | null | undefined): number =>
+    (typeof n === 'number' ? Math.round(n * 1e4) / 1e4 : 0);
 
 // ── Time Zone API ───────────────────────────────────────────────────
 // https://developers.google.com/maps/documentation/timezone
@@ -32,7 +33,7 @@ const _tzCache = new Map();
  *  @param {number} lng
  *  @returns {Promise<{timeZoneId: string, timeZoneName: string, rawOffset: number, dstOffset: number} | null>}
  */
-export async function fetchTimeZone(lat, lng) {
+export async function fetchTimeZone(lat: number, lng: number) {
     const key = _apiKey();
     if (!key || typeof lat !== 'number' || typeof lng !== 'number') return null;
     const cacheKey = `${_roundCoord(lat)},${_roundCoord(lng)}`;
@@ -66,7 +67,7 @@ export async function fetchTimeZone(lat, lng) {
  *  @param {{timeZoneId: string, timeZoneName: string, rawOffset: number, dstOffset: number}} tz
  *  @returns {{ time: string, offsetLabel: string, name: string }}
  */
-export function formatLocalTime(tz) {
+export function formatLocalTime(tz: { timeZoneId?: string; timeZoneName?: string; rawOffset?: number; dstOffset?: number }) {
     const totalOffsetSec = (tz.rawOffset || 0) + (tz.dstOffset || 0);
     const nowMs = Date.now();
     // UTC time + the destination's offset = destination's local time
@@ -103,7 +104,7 @@ const _weatherForecastCache = new Map();
  * @param {number} [days=10] - days of forecast to request, max 10
  * @returns {Promise<any[] | null>} array of forecastDay objects or null on failure
  */
-export async function fetchWeatherForecast(lat, lng, days = 10) {
+export async function fetchWeatherForecast(lat: number, lng: number, days: number = 10) {
     const key = _apiKey();
     if (!key || typeof lat !== 'number' || typeof lng !== 'number') return null;
     const cacheKey = `${_roundCoord(lat)},${_roundCoord(lng)}|${days}`;
@@ -128,7 +129,7 @@ export async function fetchWeatherForecast(lat, lng, days = 10) {
  *  cloud emoji if the type isn't in the map. Categories chosen to
  *  cover the common Google Weather API condition codes — see
  *  https://developers.google.com/maps/documentation/weather */
-const _WEATHER_GLYPH = {
+const _WEATHER_GLYPH: Record<string, { icon: string; label: string }> = {
     CLEAR: { icon: '☀️', label: 'Clear' },
     MOSTLY_CLEAR: { icon: '🌤', label: 'Mostly clear' },
     PARTLY_CLOUDY: { icon: '⛅', label: 'Partly cloudy' },
@@ -157,7 +158,7 @@ const _WEATHER_GLYPH = {
  *  @param {any} forecastDay  the daypart object from the API
  *  @returns {{ icon: string, label: string, tempC: number | null, tempF: number | null } | null}
  */
-export function pickDaySummary(forecastDay) {
+export function pickDaySummary(forecastDay: any): { icon: string; label: string; tempC: number | null; tempF: number | null } | null {
     if (!forecastDay) return null;
     // Per-day summary lives on `daytimeForecast` (the morning →
     // evening period); we prefer it because most travelers care
@@ -215,7 +216,7 @@ export function streetViewUrl(
  *  @param {{lat: number, lng: number}} pos
  *  @returns {Promise<boolean>} true when status === 'OK'
  */
-export async function streetViewHasImagery(pos) {
+export async function streetViewHasImagery(pos: { lat: number; lng: number } | null | undefined): Promise<boolean> {
     const key = _apiKey();
     if (!key || !pos) return false;
     try {

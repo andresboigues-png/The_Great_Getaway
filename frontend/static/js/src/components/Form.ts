@@ -24,10 +24,11 @@ const VARIANT_CLASS = {
     default: 'glass-input',
     modal: 'glass-input-modal',
     light: 'glass-input-light',
-};
+} as const satisfies Record<string, string>;
 
-/** @param {Record<string, any> | undefined} attrs */
-const _attrsToString = (attrs) => {
+type Variant = keyof typeof VARIANT_CLASS;
+
+const _attrsToString = (attrs: Record<string, any> | undefined) => {
     if (!attrs) return '';
     return Object.entries(attrs)
         .filter(([, v]) => v !== undefined && v !== null && v !== false)
@@ -51,7 +52,20 @@ const _attrsToString = (attrs) => {
  * @param {Record<string, any>} [opts.attrs] - arbitrary extra attributes (data-*, min, step, max, accept, multiple, ...)
  * @returns {string}
  */
-export function glassInput(opts) {
+export function glassInput(opts: {
+    type?: string;
+    id?: string;
+    name?: string;
+    value?: string | number;
+    placeholder?: string;
+    required?: boolean;
+    autofocus?: boolean;
+    autocomplete?: string;
+    variant?: Variant;
+    className?: string;
+    style?: string;
+    attrs?: Record<string, any>;
+}): string {
     const {
         type = 'text', id, name, value, placeholder,
         required, autofocus, autocomplete,
@@ -85,7 +99,16 @@ export function glassInput(opts) {
  * @param {Record<string, any>} [opts.attrs]
  * @returns {string}
  */
-export function glassSelect(opts) {
+export function glassSelect(opts: {
+    id?: string;
+    name?: string;
+    options: string;
+    required?: boolean;
+    variant?: Variant;
+    className?: string;
+    style?: string;
+    attrs?: Record<string, any>;
+}): string {
     const {
         id, name, options, required, variant = 'default',
         className, style, attrs,

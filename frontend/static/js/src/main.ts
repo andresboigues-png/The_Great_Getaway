@@ -33,7 +33,7 @@ export function updateNotificationUI() {
 
 /** Pick the accent colour rgb-triple for a notification type. Drives both
  *  the title indicator dot and the box-shadow glow on it. */
-function notificationAccent(type) {
+function notificationAccent(type: string) {
     switch (type) {
         case 'alert': return '255,59,48';
         case 'trip_public': return '52,199,89';
@@ -54,7 +54,7 @@ function notificationAccent(type) {
 }
 
 /** Human-readable title fallback when the row didn't ship one. */
-function notificationDefaultTitle(type) {
+function notificationDefaultTitle(type: string) {
     switch (type) {
         case 'friend_request': return 'Friend Request';
         case 'accepted_request': return 'Request Accepted';
@@ -99,7 +99,7 @@ function renderNotificationDropdown() {
 /** Route a clicked notification to the page that lets the user act on it.
  *  `related_id` is a user_id for friend_* / trip_public / trip_member_removed
  *  and a trip_id for trip_invite_*; for everything else we fall back to home. */
-function handleNotificationClick(notification) {
+function handleNotificationClick(notification: { type?: string; related_id?: string | number; message?: string; title?: string; id?: string | number }) {
     const dropdown = document.getElementById('notificationDropdown');
     if (dropdown) dropdown.style.display = 'none';
 
@@ -260,7 +260,7 @@ const deleteActiveTrip = () => {
 
 // ── AUTH ──
 
-async function handleGoogleLogin(response) {
+async function handleGoogleLogin(response: { credential?: string; [key: string]: any }) {
     try {
         const res = await fetch(apiUrl('/api/auth/google'), {
             method: 'POST',

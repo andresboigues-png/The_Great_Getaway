@@ -22,8 +22,8 @@
  *
  * @param {HTMLElement} root
  */
-export function wireRoleButtonKeys(root) {
-    root.addEventListener('keydown', (e) => {
+export function wireRoleButtonKeys(root: HTMLElement): void {
+    root.addEventListener('keydown', (e: KeyboardEvent) => {
         if (e.key !== 'Enter' && e.key !== ' ') return;
         const target = (e.target as HTMLElement | null);
         if (!target) return;

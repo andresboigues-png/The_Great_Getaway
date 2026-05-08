@@ -149,8 +149,7 @@ export function loadState() {
     // openNewTripModal stamps one for new trips, but archived legacy
     // data may not. We use it as the canonical "trip-wide" bucket
     // for documents and photos — see the migration below.
-    /** @param {string} tripId @param {{id:string,dayNumber:number,tripId?:string}[]} pool */
-    const findGenesisId = (tripId, pool) => {
+    const findGenesisId = (tripId: string, pool: Array<{ id: string; dayNumber: number; tripId?: string }>): string | null => {
         const g = (pool || []).find(d => d.tripId === tripId && Number(d.dayNumber) === 0);
         return g ? g.id : null;
     };
