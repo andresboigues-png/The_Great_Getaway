@@ -625,7 +625,7 @@ Once every page is `.tsx`, raise the TS bar:
       `routePolyline.ts`, `slideshow.ts`,
       `settlement/legacyRender.ts`, `upload.ts`, etc. Pattern was
       mechanical: `arr[i]!` after a length check, `obj[key] ??
-  default` for unguarded record lookups, `?? null` for
+default` for unguarded record lookups, `?? null` for
       nullable string fields.
 - [x] Replace `any` left over from migration with real types.
       Done across the 4 JSX-rewritten leaves (Insights, Todo,
@@ -634,7 +634,7 @@ Once every page is `.tsx`, raise the TS bar:
       Insights — Chart.js CDN global, an external-dependency
       `any` (not a migration leak).
 - [x] Deleted 5 dead legacy files in the same pass: `pages/
-  insights.ts`, `todo.ts`, `budgets.ts`, `friends.ts`,
+insights.ts`, `todo.ts`, `budgets.ts`, `friends.ts`,
       `settlement.ts`. All five superseded by their React
       replacements with no remaining external importers; the
       post-C2 "1 stable session" deletion gate had been overdue.
@@ -678,8 +678,11 @@ under a fully React + strictest-practical TypeScript substrate.
 **Recommended next moves** (post-Phase-C, see Feature backlog
 below for details):
 
-1. Ship **Currency auto-suggest** (~1h) as the confidence-builder
-   that validates the safety net under a real change.
+1. ✅ **Currency auto-suggest** — shipped. Country pick on the expense
+   form auto-flips the currency dropdown (Japan → JPY, Spain → EUR, …)
+   and respects manual picks. ~70-line `COUNTRY_TO_CURRENCY` map +
+   ~25 lines wired into the form's `selectCountry` path + 1 e2e test
+   covering both the suggest path and the manual-override-wins path.
 2. Ship **Search across trips** (~2-4h) as a fresh React leaf —
    showcases the new substrate, no legacy code touched.
 3. Then move into Phase D, bundling **Trip cover photo +
@@ -1035,13 +1038,20 @@ Recommended order (different from FUTURE_FEATURES.md's listing order;
 optimised for "ship first / build confidence" then "showcase the new
 substrate" then "pair with the right infrastructure phase"):
 
-1. **Currency auto-suggest from country** — `~1 hour`, frontend only.
-   Country code → default currency on the expense form. Tiny scope,
-   contained to one form, no schema change. **Recommended first
-   feature post-Phase-C** — validates the safety net under real
-   change pressure. Pair with: anytime, no phase dependency. Touches
-   the thin-wrapper Expenses page; the imperative style is fine for
-   a 1-hour add (no JSX migration needed first).
+1. ✅ **Currency auto-suggest from country** — **shipped**
+   (commit on `claude/optimistic-bell-9d70a4`). `COUNTRY_TO_CURRENCY`
+   map in `constants.ts` covers Eurozone + USD-pegged states + every
+   single-country mapping whose ISO code lands in `CONVERSION_RATES`
+   (so we never auto-pick a currency the dropdown can't render).
+   `selectCountry` in `expenses.ts` consults the map and flips the
+   currency dropdown, gated on a `currencyManuallyChosen` flag that
+   trips on the dropdown's first `change` event — explicit picks
+   always win. E2e test in `flows.spec.js` covers both paths
+   (Japan → JPY suggest path + manually-set-USD-then-pick-France
+   stays-USD override path). Edit-mode (existing expense) starts
+   with the flag pre-set so re-picking a country doesn't clobber a
+   user's earlier choice. Took ~30 minutes end-to-end including
+   tests; safety net behaved exactly as designed.
 
 2. **Search across trips** — `2-4 hours`, all-client filter. Single
    search input → grouped results across trips, expenses, days.

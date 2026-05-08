@@ -133,6 +133,104 @@ export const LOCALE_TO_CURRENCY: Record<string, string> = {
     ID: 'IDR', SG: 'SGD', HK: 'HKD', KR: 'KRW', ZA: 'ZAR', CN: 'CNY',
 };
 
+// Country / region display name → ISO 4217 currency code.
+// Used by the expense form to auto-suggest the currency dropdown
+// when a country is picked, so a trip in Japan defaults the
+// expense currency to JPY without making the user hunt for it.
+//
+// Keyed by the EXACT strings used in the COUNTRIES array (and
+// the US_STATES array, which all map to USD). Eurozone members,
+// USD-pegged states, and EUR/USD-circulating territories are
+// included so the suggest works for the common cases.
+//
+// Countries whose real currency isn't in CONVERSION_RATES are
+// intentionally omitted — the lookup returns undefined, and the
+// caller (expenses.ts) only auto-applies when the suggested code
+// is actually one of our supported display currencies. That keeps
+// the dropdown honest: we never auto-pick a currency the user
+// can't then save the expense in.
+export const COUNTRY_TO_CURRENCY: Record<string, string> = {
+    // ── Eurozone (EUR) ────────────────────────────────────────────
+    Andorra: 'EUR',
+    Austria: 'EUR',
+    Belgium: 'EUR',
+    Croatia: 'EUR',
+    Cyprus: 'EUR',
+    Estonia: 'EUR',
+    Finland: 'EUR',
+    France: 'EUR',
+    Germany: 'EUR',
+    Greece: 'EUR',
+    Ireland: 'EUR',
+    Italy: 'EUR',
+    Kosovo: 'EUR',           // de facto EUR
+    Latvia: 'EUR',
+    Lithuania: 'EUR',
+    Luxembourg: 'EUR',
+    Malta: 'EUR',
+    Monaco: 'EUR',
+    Montenegro: 'EUR',       // de facto EUR
+    Netherlands: 'EUR',
+    Portugal: 'EUR',
+    'San Marino': 'EUR',
+    Slovakia: 'EUR',
+    Slovenia: 'EUR',
+    Spain: 'EUR',
+    'Vatican City': 'EUR',
+
+    // ── USD + USD-circulating / pegged ────────────────────────────
+    'United States (USA)': 'USD',
+    Ecuador: 'USD',          // de facto USD since 2000
+    'El Salvador': 'USD',    // de facto USD since 2001
+    'Marshall Islands': 'USD',
+    Micronesia: 'USD',
+    Palau: 'USD',
+    Panama: 'USD',           // Balboa pegged 1:1, USD circulates
+    'Timor-Leste': 'USD',
+    Zimbabwe: 'USD',         // multi-currency, USD dominant
+
+    // ── GBP ───────────────────────────────────────────────────────
+    UK: 'GBP',
+
+    // ── Single-country mappings ──────────────────────────────────
+    Japan: 'JPY',
+    Switzerland: 'CHF',
+    Liechtenstein: 'CHF',    // CHF is legal tender
+    Canada: 'CAD',
+    Australia: 'AUD',
+    Kiribati: 'AUD',         // AUD is legal tender
+    Nauru: 'AUD',            // AUD is legal tender
+    Tuvalu: 'AUD',           // AUD is legal tender
+    China: 'CNY',
+    Brazil: 'BRL',
+    Mexico: 'MXN',
+    India: 'INR',
+    Bhutan: 'INR',           // INR widely accepted alongside ngultrum
+    Indonesia: 'IDR',
+    Singapore: 'SGD',
+    'New Zealand': 'NZD',
+    'Korea, South': 'KRW',
+    'South Africa': 'ZAR',
+    Eswatini: 'ZAR',         // ZAR is legal tender alongside lilangeni
+    Lesotho: 'ZAR',          // ZAR is legal tender alongside loti
+
+    // ── US states all default to USD ─────────────────────────────
+    Alabama: 'USD', Alaska: 'USD', Arizona: 'USD', Arkansas: 'USD',
+    California: 'USD', Colorado: 'USD', Connecticut: 'USD', Delaware: 'USD',
+    Florida: 'USD', Georgia: 'USD', Hawaii: 'USD', Idaho: 'USD',
+    Illinois: 'USD', Indiana: 'USD', Iowa: 'USD', Kansas: 'USD',
+    Kentucky: 'USD', Louisiana: 'USD', Maine: 'USD', Maryland: 'USD',
+    Massachusetts: 'USD', Michigan: 'USD', Minnesota: 'USD', Mississippi: 'USD',
+    Missouri: 'USD', Montana: 'USD', Nebraska: 'USD', Nevada: 'USD',
+    'New Hampshire': 'USD', 'New Jersey': 'USD', 'New Mexico': 'USD',
+    'New York': 'USD', 'North Carolina': 'USD', 'North Dakota': 'USD',
+    Ohio: 'USD', Oklahoma: 'USD', Oregon: 'USD', Pennsylvania: 'USD',
+    'Rhode Island': 'USD', 'South Carolina': 'USD', 'South Dakota': 'USD',
+    Tennessee: 'USD', Texas: 'USD', Utah: 'USD', Vermont: 'USD',
+    Virginia: 'USD', Washington: 'USD', 'West Virginia': 'USD',
+    Wisconsin: 'USD', Wyoming: 'USD',
+};
+
 // Country / state name → presentation media (cover image,
 // quote, fact). Indexed by display name; alias lookup happens
 // via _destLookup in utils.ts. Typed as `Record<string,

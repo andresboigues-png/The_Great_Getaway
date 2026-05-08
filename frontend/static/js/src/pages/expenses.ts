@@ -7,7 +7,7 @@
 // and coming back lands the user on the right tab.
 
 import { STATE, emit } from '../state.js';
-import { COUNTRIES, CONVERSION_RATES } from '../constants.js';
+import { COUNTRIES, CONVERSION_RATES, COUNTRY_TO_CURRENCY } from '../constants.js';
 import { generateId, showConfirmModal, q, formatHome, getHomeCurrency, esc } from '../utils.js';
 import { upsertExpense, deleteExpenseOnServer } from '../api.js';
 import { navigate } from '../router.js';
@@ -271,6 +271,14 @@ function renderManualTab() {
             }
         };
 
+        // Auto-suggest currency from country pick (see selectCountry below).
+        // Flag flips to true the moment the user touches the currency
+        // dropdown themselves, so the suggest can never overwrite an
+        // explicit pick. Edit-mode (draft has an id) starts with the flag
+        // already set — the existing currency on the expense is the user's
+        // earlier choice and we don't want a country re-pick to clobber it.
+        let currencyManuallyChosen = !!STATE.draftExpense?.id;
+
         // Populate from draft
         if (STATE.draftExpense) {
             const d = STATE.draftExpense;
@@ -282,6 +290,16 @@ function renderManualTab() {
             if (d.value) (q(wrapper, '#expValue') as HTMLInputElement).value = String(d.value);
             if (d.currency) (q(wrapper, '#expCurrency') as HTMLSelectElement).value = d.currency;
         }
+
+        // Manual-pick tracker: any change event on the currency dropdown
+        // counts as the user committing to a choice. `change` (not `input`)
+        // because `input` fires on programmatic value sets too in some
+        // browsers, which would falsely trip the flag the first time we
+        // suggest a currency from a country pick.
+        const currencySelect = (q(wrapper, '#expCurrency') as HTMLSelectElement);
+        currencySelect.addEventListener('change', () => {
+            currencyManuallyChosen = true;
+        });
 
         // Live Save Draft
         form.querySelectorAll('input, select').forEach(el => {
@@ -324,6 +342,19 @@ function renderManualTab() {
             countryInput.value = item.getAttribute('data-value') ?? '';
             countryList.style.display = 'none';
             STATE.draftExpense.country = countryInput.value;
+
+            // Auto-suggest currency from the picked country, but only
+            // when the user hasn't already chosen a currency themselves
+            // and only when the suggested code is one we actually
+            // support in CONVERSION_RATES (so we never set a value that
+            // isn't an option in the dropdown).
+            if (!currencyManuallyChosen) {
+                const suggested = COUNTRY_TO_CURRENCY[countryInput.value];
+                if (suggested && CONVERSION_RATES[suggested] !== undefined) {
+                    currencySelect.value = suggested;
+                    STATE.draftExpense.currency = suggested;
+                }
+            }
             emit('state:changed');
         };
 

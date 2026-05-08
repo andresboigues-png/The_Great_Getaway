@@ -26,7 +26,7 @@
 // picker). Re-enable those after B1.
 
 import { test, expect } from '@playwright/test';
-import { openFreshApp, getAuthForApi, createTripViaApi, befriend } from './helpers.js';
+import { openFreshApp, getAuthForApi, createTripViaApi, befriend, navigateTo } from './helpers.js';
 
 // Each test gets a unique id suffix so re-running the suite against
 // the long-running Flask dev server (its SQLite DB persists across
@@ -619,5 +619,59 @@ test.describe('Critical flows — UI-driven', () => {
 
         await expect(page.locator(`[data-path-chip-day-id="${day1Id}"]`)).toBeVisible({ timeout: 5000 });
         await expect(page.locator(`[data-path-chip-day-id="${day2Id}"]`)).toBeVisible();
+    });
+
+    test('expense form auto-suggests currency from country pick', async ({ page }) => {
+        // Currency auto-suggest (post-Phase-C feature). Picking a country
+        // in the expense form's country picker flips the currency
+        // dropdown to that country's ISO 4217 code, but only when the
+        // user hasn't already changed the currency themselves —
+        // explicit picks always win.
+        const userId = uniqueId('user');
+        const auth = await getAuthForApi(page, userId);
+        const tripId = uniqueId('trip-currency-suggest');
+        await createTripViaApi(page, auth.headers, {
+            id: tripId,
+            name: 'Currency Suggest Trip',
+        });
+        await openFreshApp(page, userId);
+        await expect(page.locator('#tripSelector')).toContainText('Currency Suggest Trip', { timeout: 5000 });
+        await page.selectOption('#tripSelector', tripId);
+
+        // Navigate to the Expenses page (lives in the top nav,
+        // .nav-item[data-page="expenses"]). The expenses page renders
+        // the Manual Upload form by default (activeExpensesTab =
+        // 'manual'), which is the form we need.
+        await page.evaluate(() => {
+            document.getElementById('sidebar')?.classList.remove('open');
+            document.getElementById('sidebarOverlay')?.classList.remove('open');
+        });
+        await navigateTo(page, 'expenses');
+
+        // Wait for the manual-tab country picker to be in the DOM —
+        // setTimeout(mountTab, 0) inside renderExpenses defers the tab
+        // mount one tick.
+        const country = page.locator('#expCountry');
+        const currency = page.locator('#expCurrency');
+        await country.waitFor({ state: 'visible', timeout: 5000 });
+
+        // ── Suggest path: pick Japan → currency flips to JPY. ──
+        await country.click();
+        await country.fill('Japan');
+        await page.locator('#countryDropdownList .dropdown-item[data-value="Japan"]').click();
+        await expect(currency).toHaveValue('JPY');
+
+        // ── Manual-pick wins: change currency to USD, then re-pick a
+        // country (France, normally EUR). Currency should stay USD —
+        // the change-flag prevents the suggest from overwriting an
+        // explicit user choice.
+        await currency.selectOption('USD');
+        await country.click();
+        // Clear typed text first; the input's filter would otherwise
+        // hide the France row.
+        await country.fill('');
+        await country.fill('France');
+        await page.locator('#countryDropdownList .dropdown-item[data-value="France"]').click();
+        await expect(currency).toHaveValue('USD');
     });
 });
