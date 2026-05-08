@@ -347,10 +347,10 @@ code addressable for the React migration in Phase C.
     | Map setup + polyline animation init                 |     ? |             ? | ⏳     |
     | Hash listeners + closing wiring                     |     ? |             ? | ⏳     |
 
-          Pacing is "one clean slice per session"; each commit is
-          reviewable, behaviour-preserving (full safety net green), and
-          shrinks home.ts by 200-400 lines. Goal is home.ts under 800
-          lines (the bound the rest of B1 targets).
+            Pacing is "one clean slice per session"; each commit is
+            reviewable, behaviour-preserving (full safety net green), and
+            shrinks home.ts by 200-400 lines. Goal is home.ts under 800
+            lines (the bound the rest of B1 targets).
 
 **Status**: 4 of ~8 slices landed. home.ts: 2,580 → **2,017** lines
 (−563 across the slice arc). The POI-palette block (~700 lines, deeply
@@ -1021,19 +1021,62 @@ through). Every PR blocks on a clean axe + dynamic-type pass across
 all 13 authenticated routes + the unauth wall + the synthetic
 /components preview, on both desktop and mobile.
 
-### D4 — Animations + micro-interactions
+### D4 — Animations + micro-interactions ✅
 
 The current animations are good but spotty. A coherent motion language
 makes the platform feel premium.
 
-- [ ] Page transitions: fade+slide on route change.
-- [ ] Modal open/close: spring instead of linear.
-- [ ] Day chip selection on the wheel: spring scale to selected size,
-      not snap.
-- [ ] Like / bookmark / share button taps: small haptic-like spring.
-- [ ] Toast / liquid alert: slide-up-and-fade, not pop.
-- [ ] Standardise on Framer Motion (or a lighter alternative like
-      `motion-one`) so animations are declarative, not setTimeout-driven.
+- [x] **Spring easing tokens** — three named curves shipped in
+      `index.css` `:root`: `--easing-spring` (subtle ~25% overshoot,
+      modal pop / page enter / day-chip selection),
+      `--easing-spring-soft` (~15% overshoot, toast entrance),
+      `--easing-bounce` (~56% overshoot, one-shot reactions). All
+      flatten to ~0ms under the existing `prefers-reduced-motion`
+      universal guard.
+- [x] **Page transitions: fade+slide on route change** — new
+      `pageEnter` keyframe + `#app-container > * { animation }` rule.
+      Each navigation produces fresh DOM under `#app-container` (the
+      router does an atomic clearReactMount → innerHTML='' → mount
+      swap), so the keyframe replays per route. `animation-fill-mode:
+    backwards` prevents a flash of the final state in the gap
+      between mount and animation start.
+- [x] **Modal open/close: spring overshoot** — three `card-glass-*`
+      rules (`.card-glass-modal`, `.card-glass-modal-light`,
+      `.card-glass-confirm`) swap from `--easing-smooth` to
+      `--easing-spring`. Same `modalPop` keyframe (scale 0.95 → 1.0)
+      now arrives with a gentle bounce instead of a clinical decel
+      slide.
+- [x] **Day chip selection: spring scale** — `.path-chip` transition
+      splits transform onto its own track (0.32s `--easing-spring`)
+      so the scale(1.3) on `.is-selected` overshoots momentarily
+      before settling. Other properties (background / border / colour)
+      keep `--easing-smooth` since springs on colour read as jitter.
+- [x] **Like / bookmark / share button taps: haptic spring** — new
+      `actionPop` keyframe (scale 1 → 1.18 → 1 over 280ms with
+      `--easing-bounce`) + `.tap-pop` class. `feed.ts` adds a small
+      `playTapPop(el)` helper that toggles the class with a reflow-
+      flush re-add (so a double-tap re-arms the keyframe). Wired into
+      the like, bookmark, and repost-success handlers — celebrates
+      the toggle without a JS animation library.
+- [x] **Toast slide-up-and-fade: spring overshoot** — `.liquid-alert`
+      entrance switches to `--easing-spring-soft` so the toast comes
+      up from below, settles slightly above its rest position, then
+      drops. The dismiss path keeps `--easing-smooth` because a
+      bouncing exit ("why is it springing AWAY from me?") feels wrong.
+- [x] **Declarative, not setTimeout-driven** — every D4 animation is
+      a CSS keyframe or transition. No JS animation library was added:
+      Framer Motion (~30 KB gzip) and `motion-one` (~3 KB) both lose
+      to "free in the bundle budget" under the D5 perf gate (165 KB
+      first-paint target). The motion tokens + `playTapPop` helper
+      give the same declarative authoring surface (one class, one
+      keyframe per surface) without the runtime cost.
+
+**Status**: Shipped. Six surfaces upgraded, three spring tokens
+added, zero KB bundle impact. Reduced-motion already respected via
+the universal `*` guard from D3 — D4 animations inherit that hard
+kill-switch automatically. Visual-regression suite re-baselined
+clean (animations are disabled during snapshot capture, so the
+final-state pixels are unchanged).
 
 ### D5 — Performance ⚠️ partial (bundle-size baseline + CI gate shipped)
 
@@ -1468,19 +1511,19 @@ expenses ADD COLUMN receipt_url TEXT`, threaded through
     round-trip via `STATE.draftExpense.receiptUrl` so re-opening
     an expense pre-fills the picker.
 
-                                            **Latent bug uncovered + fixed**: while wiring this up I
-                                            discovered the server was writing expense fields camelCase via
-                                            `/api/expenses` but reading them back from `/api/data` as
-                                            snake_case (`trip_id`, `category_id`, `euro_value`,
-                                            `receipt_url`) — frontend filters like
-                                            `e.tripId === STATE.activeTripId` would silently return empty
-                                            on cold-load. The History tab and Settlement page would have
-                                            appeared empty until the user added a fresh expense locally.
-                                            Translation now lives in both `routes/data.py` and
-                                            `routes/public.py` so the public archived-trip detail also
-                                            benefits. 2 pytests for the round-trip (set + clear), legacy
-                                            compat test, and 1 e2e for the receipt clip icon. Net: 161/161
-                                            pytests + 43/43 e2e + 20/20 visual.
+                                                **Latent bug uncovered + fixed**: while wiring this up I
+                                                discovered the server was writing expense fields camelCase via
+                                                `/api/expenses` but reading them back from `/api/data` as
+                                                snake_case (`trip_id`, `category_id`, `euro_value`,
+                                                `receipt_url`) — frontend filters like
+                                                `e.tripId === STATE.activeTripId` would silently return empty
+                                                on cold-load. The History tab and Settlement page would have
+                                                appeared empty until the user added a fresh expense locally.
+                                                Translation now lives in both `routes/data.py` and
+                                                `routes/public.py` so the public archived-trip detail also
+                                                benefits. 2 pytests for the round-trip (set + clear), legacy
+                                                compat test, and 1 e2e for the receipt clip icon. Net: 161/161
+                                                pytests + 43/43 e2e + 20/20 visual.
 
 5.  **Trip share-via-link (read-only)** — `4-6 hours`, schema +
     public backend route + new public frontend route + Views counter.

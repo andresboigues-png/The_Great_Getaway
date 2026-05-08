@@ -80,6 +80,32 @@
 
     --easing-smooth: cubic-bezier(0.16, 1, 0.3, 1);
 
+    /* D4 spring easings — overshoot curves for the project's motion
+       language. CSS-only (no JS physics library) so every animation
+       stays declarative + reduced-motion-respecting via the universal
+       guard at the bottom of this file.
+
+       Three flavours, picked to match the surface:
+         --easing-spring        — subtle overshoot (~25% past 1.0). Modal
+                                  pop, page enter, day-chip selection.
+                                  The default "feels alive, not silly"
+                                  curve for steady-state transitions.
+         --easing-spring-soft   — gentler overshoot (~15%). Toast slide
+                                  entrance — the travel distance does
+                                  most of the work, the spring just
+                                  prevents a clinical linear arrival.
+         --easing-bounce        — pronounced overshoot (~56% past 1.0).
+                                  One-shot reactions ONLY: heart-burst
+                                  pop, "you did something" feedback.
+                                  Too noisy for state transitions —
+                                  reserved for momentary celebrations.
+
+       --easing-smooth (decel curve, no overshoot) stays the default for
+       hover lifts and colour fades, where a spring would feel jittery. */
+    --easing-spring: cubic-bezier(0.34, 1.25, 0.64, 1);
+    --easing-spring-soft: cubic-bezier(0.25, 1.15, 0.5, 1);
+    --easing-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+
     /* Animation durations — anything UI-driven should pull from these
        so a "feels fast" / "feels slow" pass is one-line. */
     --duration-instant: 0.1s;
@@ -1312,6 +1338,55 @@ body.is-signed-out .trip-controls-popover {
     }
 }
 
+/* D4: page transition keyframe — fade + slide-up on route change. The
+   router does an atomic swap (clearReactMount → innerHTML='' → mount)
+   so every navigation produces fresh DOM under #app-container. The
+   fresh nodes inherit `animation: pageEnter`, which the browser plays
+   from the start because the element is brand-new. No JS hook needed.
+   `animation-fill-mode: backwards` makes the `from` state apply
+   *before* the first frame so there's no flash of the final state in
+   the gap between mount and animation start. */
+@keyframes pageEnter {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+#app-container > * {
+    animation: pageEnter 0.3s var(--easing-spring) backwards;
+}
+
+/* D4: action-button pop — momentary scale-up reaction. Triggered by
+   adding `.tap-pop` to a button (typically a feed like / bookmark /
+   repost / comment icon-btn-circle) right after the user toggles its
+   state. The keyframe overshoots scale(1.0) to 1.18 then settles back,
+   layered on top of any existing `transform` (the .icon-btn-circle
+   hover does scale(1.05); the keyframe replaces that for ~280ms then
+   the underlying state takes over).
+
+   Implementation note (feed.ts): on like / bookmark / repost / comment
+   submission, the page replaces the icon HTML and toggles dataset
+   attributes; immediately after that, it adds `.tap-pop` and
+   removes it on `animationend`. CSS-only animation — no setTimeout
+   needed because the keyframe duration matches the design.
+
+   Reduced-motion guard at the bottom of this file flattens the
+   keyframe to ~0ms automatically, so users who've opted out of motion
+   still see the icon flip but without the scale arc. */
+@keyframes actionPop {
+    0% { transform: scale(1); }
+    35% { transform: scale(1.18); }
+    100% { transform: scale(1); }
+}
+.tap-pop {
+    animation: actionPop 0.28s var(--easing-bounce);
+}
+
 /* Modals & Overlays */
 .modal-overlay {
     position: fixed !important;
@@ -1792,7 +1867,11 @@ body.is-signed-out .trip-controls-popover {
     background: var(--glass-fill);
     border: 1px solid rgba(255,255,255,0.4);
     box-shadow: var(--shadow-modal);
-    animation: modalPop 0.4s var(--easing-smooth);
+    /* D4: --easing-spring overshoots scale(1) momentarily on the way
+       up from scale(0.95), so the modal arrives with a gentle bounce
+       instead of a clinical decel slide. Same keyframe, springier
+       arrival. */
+    animation: modalPop 0.4s var(--easing-spring);
 }
 
 /* Form helpers — label + hint patterns repeated in every modal. */
@@ -1854,7 +1933,18 @@ body.is-signed-out .trip-controls-popover {
     font-weight: 700;
     z-index: 99999;
     opacity: 1;
-    transition: transform 0.5s var(--easing-smooth), opacity 0.5s var(--easing-smooth);
+    /* D4: spring-soft on the entrance — the toast comes up from
+       below, settles slightly above its rest position, then drops
+       down. Reads as "arrived" not "slid in". The dismiss path
+       still uses the smooth decel on .dismiss because a bouncing
+       exit feels weird ("why is it springing AWAY from me?"). */
+    transition: transform 0.45s var(--easing-spring-soft),
+                opacity 0.45s var(--easing-smooth);
+}
+.liquid-alert.dismiss {
+    /* Faster, smoother exit — no bounce on the way out. */
+    transition: transform 0.3s var(--easing-smooth),
+                opacity 0.3s var(--easing-smooth);
 }
 .liquid-alert.show { transform: translateX(-50%) translateY(0); }
 .liquid-alert.dismiss { transform: translateX(-50%) translateY(100px); opacity: 0; }
@@ -3818,7 +3908,8 @@ body.is-signed-out .trip-controls-popover {
     background: rgba(255,255,255,0.95);
     border: 1px solid rgba(255,255,255,0.4);
     box-shadow: 0 40px 100px rgba(0,0,0,0.2);
-    animation: modalPop 0.4s var(--easing-smooth);
+    /* D4: matches .card-glass-modal — see note there. */
+    animation: modalPop 0.4s var(--easing-spring);
 }
 
 /* Neutral "Close" / "Done" button — used as the secondary action in
@@ -4833,8 +4924,16 @@ body.is-signed-out .trip-controls-popover {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    transition: background 0.18s ease, transform 0.18s ease,
-                border-color 0.18s ease, box-shadow 0.18s ease,
+    /* D4: transform uses --easing-spring so the scale(1.3) on
+       .is-selected overshoots momentarily — the chip "pops" to size
+       instead of snapping. Other properties keep the smooth decel
+       since they're colour/border-only and a spring on those reads
+       as jitter. Slightly longer duration on transform to let the
+       overshoot breathe (180ms is too punchy for a spring). */
+    transition: background 0.18s ease,
+                transform 0.32s var(--easing-spring),
+                border-color 0.18s ease,
+                box-shadow 0.18s ease,
                 color 0.18s ease;
     box-shadow: 0 0 0 3px white;  /* "knock out" the line behind the circle */
 }
@@ -5435,7 +5534,8 @@ body.is-signed-out #sidebarOverlay {
     gap: var(--space-6);
     box-sizing: border-box;
     overflow: hidden;
-    animation: modalPop 0.4s var(--easing-smooth);
+    /* D4: matches .card-glass-modal — see note there. */
+    animation: modalPop 0.4s var(--easing-spring);
 }
 
 /* ── iOS momentum scrolling on scrollable containers ────────────

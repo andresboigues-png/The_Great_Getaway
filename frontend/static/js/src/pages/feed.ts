@@ -48,6 +48,25 @@ import {
 // switch). Keyed by the bundle's stable id (see `bundleEvents`).
 const expandedBundles: Set<string> = new Set();
 
+/** D4 motion: trigger the `actionPop` keyframe (CSS `.tap-pop`) on a
+ *  button so it scale-pops in response to a tap. Self-cleaning — the
+ *  class drops on `animationend` so it's free to re-arm on the next
+ *  tap. Defensive against the (unlikely) double-tap case where the
+ *  user retriggers before animationend fires: removing first then
+ *  re-adding inside a `requestAnimationFrame` resets the keyframe. */
+function playTapPop(el: HTMLElement): void {
+    el.classList.remove('tap-pop');
+    // Force a reflow so the browser registers the class removal before
+    // the re-add — otherwise `add` is a no-op when the class was
+    // technically still there (CSS animation already finished but the
+    // class lingers).
+    void el.offsetWidth;
+    el.classList.add('tap-pop');
+    el.addEventListener('animationend', () => {
+        el.classList.remove('tap-pop');
+    }, { once: true });
+}
+
 // Module-level cache survives navigation away and back, so the second
 // visit paints from cache before the network call returns.
 let cachedEvents: FeedEvent[] = [];
@@ -404,6 +423,9 @@ export function renderFeed() {
             likeBtn.dataset.liked = newLiked ? '1' : '0';
             likeBtn.style.setProperty('--accent', newLiked ? ACTION_ACCENTS.like : ACTION_ACCENTS.muted);
             likeBtn.innerHTML = actionIconSvg('heart', newLiked);
+            // D4 haptic pop — celebrates the toggle. Plays on both
+            // like AND unlike so the gesture always feels confirmed.
+            playTapPop(likeBtn);
             const countEl = (likeBtn.parentElement?.querySelector('.feed-action-count') as HTMLElement | null);
             const renderCount = (n: number) => (n >= LIKE_COUNT_THRESHOLD ? String(n) : '');
             if (countEl && ev) countEl.textContent = renderCount(ev.like_count ?? 0);
@@ -427,6 +449,8 @@ export function renderFeed() {
             bookmarkBtn.dataset.bookmarked = newBookmarked ? '1' : '0';
             bookmarkBtn.style.setProperty('--accent', newBookmarked ? ACTION_ACCENTS.bookmark : ACTION_ACCENTS.muted);
             bookmarkBtn.innerHTML = actionIconSvg('bookmark', newBookmarked);
+            // D4 haptic pop — same as like.
+            playTapPop(bookmarkBtn);
             // If the Bookmarked filter is on and the user just UN-bookmarked,
             // the card no longer matches the filter — repaint so it
             // disappears (otherwise it'd linger until next refresh,
@@ -560,6 +584,10 @@ export function renderFeed() {
                 // anyway, so the disabled state matches reality.
                 repostBtn.style.setProperty('--accent', ACTION_ACCENTS.repost);
                 repostBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+                // D4 haptic pop on success — only on a real repost,
+                // not on the same-user / failure branches (popping a
+                // failure feels celebratory in a wrong way).
+                playTapPop(repostBtn);
             } else if (result.body?.status === 'same_user') {
                 repostBtn.disabled = false;
                 repostBtn.style.setProperty('--accent', origAccent);
