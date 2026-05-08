@@ -92,6 +92,6 @@ export const looksLikePdfUrl = (url: string | null | undefined): boolean => {
     if (/^data:application\/pdf/i.test(url)) return true;
     // Strip query string + fragment before checking the extension —
     // many CDN URLs append ?token=... or #page=2.
-    const cleaned = url.split(/[?#]/)[0];
+    const cleaned = url.split(/[?#]/)[0] ?? '';
     return /\.pdf$/i.test(cleaned);
 };

@@ -133,7 +133,7 @@ export async function pullFromServer() {
         //    render until the user manually picks another trip.
         // The two-clause guard mirrors loadState's identical check.
         if (STATE.trips.length > 0 && (!STATE.activeTripId || !STATE.trips.find(t => t.id === STATE.activeTripId))) {
-            STATE.activeTripId = STATE.trips[0].id;
+            STATE.activeTripId = STATE.trips[0]!.id;
         }
 
         STATE.expenses = data.expenses || [];

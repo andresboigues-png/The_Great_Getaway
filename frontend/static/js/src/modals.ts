@@ -59,7 +59,7 @@ function _scaffoldTripDays(
 
     let dayNumber = startDayNumber;
     for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-        const iso = d.toISOString().split('T')[0];
+        const iso = d.toISOString().split('T')[0] ?? '';
         /** @type {import('./types').TripDay} */
         const day = {
             id: generateId(),
@@ -281,6 +281,10 @@ export const openNewTripModal = () => {
                 picture: STATE.user.picture ?? null,
             }]
             : [];
+        // ownerId is `string | undefined` (STATE.user?.id), but Trip's
+        // optional `ownerId?: string` under exactOptionalPropertyTypes
+        // means the property must either be present with a value OR
+        // absent. Conditional spread keeps the type happy.
         const newTrip = {
             id, name,
             country: pickedPlace.name,
@@ -292,7 +296,7 @@ export const openNewTripModal = () => {
             countryCode: pickedPlace.countryCode,
             budget: 0,
             isArchived: false,
-            ownerId: STATE.user?.id,
+            ...(STATE.user?.id ? { ownerId: STATE.user.id } : {}),
             myRole: ROLE_PLANNER,
             myArchived: false,
             companions: initialCompanions,
@@ -383,8 +387,8 @@ export const openEditTripModal = (trip: any) => {
     const endInput = (q(root, '#editTripEndDate') as HTMLInputElement);
     const dateHint = q(root, '#editTripDateHint');
     if (numberedDays.length > 0) {
-        startInput.value = numberedDays[0].date || '';
-        endInput.value = numberedDays[numberedDays.length - 1].date || '';
+        startInput.value = numberedDays[0]!.date || '';
+        endInput.value = numberedDays[numberedDays.length - 1]!.date || '';
         dateHint.textContent = "Change these to re-date your existing Path days. Day count stays the same; each day shifts to keep the new start.";
     } else {
         dateHint.textContent = "If you fill these in, we'll create one empty Path day per date — you can pin places later.";
@@ -471,14 +475,14 @@ export const openEditTripModal = (trip: any) => {
             if (scaffolded.length > 0) STATE.tripDays.push(...scaffolded);
         } else {
             const newStart = startInput.value;
-            const oldStart = numberedDays[0].date || '';
+            const oldStart = numberedDays[0]!.date || '';
             if (newStart && newStart !== oldStart) {
                 const start = new Date(newStart + 'T00:00:00');
                 if (!isNaN(start.getTime())) {
                     for (const day of numberedDays) {
                         const d = new Date(start);
                         d.setDate(d.getDate() + (day.dayNumber - 1));
-                        const newDate = d.toISOString().split('T')[0];
+                        const newDate = d.toISOString().split('T')[0] ?? '';
                         if (day.date !== newDate) {
                             day.date = newDate;
                             rebased.push(day);
@@ -516,16 +520,16 @@ export const openAddDayModal = () => {
     // the next user-facing day number, otherwise the first added day jumps
     // straight to "Day 2" (genesis counts as 1 in tripDays.length).
     const numberedDays = tripDays.filter(d => d.dayNumber > 0);
-    const maxDayNumber = numberedDays.length > 0 ? numberedDays[numberedDays.length - 1].dayNumber : 0;
+    const maxDayNumber = numberedDays.length > 0 ? numberedDays[numberedDays.length - 1]!.dayNumber : 0;
     const nextDayNumber = maxDayNumber + 1;
     let suggestedDate = '';
 
     if (tripDays.length > 0) {
-        const lastDay = tripDays[tripDays.length - 1];
+        const lastDay = tripDays[tripDays.length - 1]!;
         if (lastDay.date) {
             const d = new Date(lastDay.date);
             d.setDate(d.getDate() + 1);
-            suggestedDate = d.toISOString().split('T')[0];
+            suggestedDate = d.toISOString().split('T')[0] ?? '';
         }
     }
 

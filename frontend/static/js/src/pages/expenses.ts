@@ -348,8 +348,10 @@ function renderManualTab() {
             if (items.length === 0) { clearActive(); return; }
             countryItems.forEach(it => it.classList.remove('is-active'));
             activeIdx = ((idx % items.length) + items.length) % items.length;
-            items[activeIdx].classList.add('is-active');
-            items[activeIdx].scrollIntoView({ block: 'nearest' });
+            const cur = items[activeIdx];
+            if (!cur) return;
+            cur.classList.add('is-active');
+            cur.scrollIntoView({ block: 'nearest' });
         };
         countryInput.addEventListener('keydown', (e) => {
             if (countryList.style.display === 'none') {
@@ -361,9 +363,10 @@ function renderManualTab() {
             if (e.key === 'ArrowUp') { e.preventDefault(); setActive(activeIdx - 1); return; }
             if (e.key === 'Enter') {
                 const items = visibleItems();
-                if (activeIdx >= 0 && items[activeIdx]) {
+                const cur = activeIdx >= 0 ? items[activeIdx] : undefined;
+                if (cur) {
                     e.preventDefault();
-                    selectCountry(items[activeIdx]);
+                    selectCountry(cur);
                     clearActive();
                 }
                 return;

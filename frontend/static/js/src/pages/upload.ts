@@ -93,7 +93,7 @@ function parseSplitsCell(raw: unknown): Record<string, number> | null {
     const out = ({} as Record<string, number>);
     for (const tok of String(raw).split(/[,;]/)) {
         const m = tok.match(/^\s*(.+?)\s*[:=]\s*(-?\d+(?:\.\d+)?)\s*$/);
-        if (!m) continue;
+        if (!m || !m[1] || !m[2]) continue;
         const name = m[1].trim();
         const pct = parseFloat(m[2]);
         if (!name || isNaN(pct)) continue;
@@ -122,7 +122,8 @@ function inferCategoryStyle(name: string): { icon: string; color: string } {
     for (let i = 0; i < lc.length; i++) {
         hash = ((hash << 5) - hash + lc.charCodeAt(i)) | 0;
     }
-    return CATEGORY_FALLBACK_PALETTE[Math.abs(hash) % CATEGORY_FALLBACK_PALETTE.length];
+    return CATEGORY_FALLBACK_PALETTE[Math.abs(hash) % CATEGORY_FALLBACK_PALETTE.length] ??
+        { icon: '💼', color: '#8e8e93' };
 }
 
 /**
@@ -182,15 +183,17 @@ function parseCellDate(cell: unknown): string {
         // month. We can't distinguish DD/MM from MM/DD without locale info,
         // so heuristic: if either >12 it must be the day; otherwise prefer
         // day-first (the rest of this app already targets EU users).
-        let month, day;
+        let month: number | undefined, day: number | undefined;
         if (yIdx === 0) {
             [month, day] = others;
         } else {
             const [a, b] = others;
+            if (a === undefined || b === undefined) return '';
             if (a > 12) { day = a; month = b; }
             else if (b > 12) { day = b; month = a; }
             else { day = a; month = b; }  // EU default
         }
+        if (month === undefined || day === undefined) return '';
         if (month < 1 || month > 12 || day < 1 || day > 31) return '';
         return `${year}-${_pad2(month)}-${_pad2(day)}`;
     }
@@ -322,7 +325,7 @@ export function renderUpload() {
                     </div>`;
 
                     const trip = STATE.trips.find(t => t.id === STATE.activeTripId);
-                    if (trip) {
+                    if (trip && formatId) {
                         trip.activeFormatId = formatId;
                         trip.activeFormatType = 'custom';
                         emit('state:changed');
@@ -365,7 +368,7 @@ export function renderUpload() {
                 }
 
                 const trip = STATE.trips.find(t => t.id === STATE.activeTripId);
-                if (trip) {
+                if (trip && popId) {
                     trip.activeFormatId = popId;
                     trip.activeFormatType = 'popular';
                     emit('state:changed');
@@ -397,7 +400,7 @@ export function renderUpload() {
 
                     if (json.length < 2) return;
 
-                    const header = json[0];
+                    const header = json[0]!;
                     parsedRows = json.slice(1).filter(r => r.length > 0 && r[0]);
 
                     const previewContainer = q(div, '#previewContainer');
@@ -546,7 +549,7 @@ export function renderUpload() {
                         category = { id: generateId(), name: catName, icon: style.icon, color: style.color };
                         STATE.categories.push(category);
                     }
-                    const categoryId = category ? category.id : STATE.categories[0].id;
+                    const categoryId = category ? category.id : (STATE.categories[0]?.id ?? '');
 
                     const expense: import('../types').Expense = {
                         id: generateId(),

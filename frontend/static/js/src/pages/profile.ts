@@ -478,7 +478,7 @@ export function renderProfile(targetUserId: string | null | undefined = null) {
                                 if (!isMatch) {
                                     isMatch = uniqueCountries.some(c => {
                                         if (!c) return false;
-                                        const cleanC = c.split(' (')[0].split(' - ')[0].toLowerCase().trim();
+                                        const cleanC = (c.split(' (')[0] ?? '').split(' - ')[0]!.toLowerCase().trim();
                                         // Trip.country is often the
                                         // full Google formatted_address
                                         // ("Lisbon, Portugal"). Use the

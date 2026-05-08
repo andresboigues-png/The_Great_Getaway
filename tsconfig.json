@@ -18,7 +18,9 @@
         "resolveJsonModule": true,
         "allowSyntheticDefaultImports": true,
         "esModuleInterop": true,
-        "jsx": "react-jsx"
+        "jsx": "react-jsx",
+        "exactOptionalPropertyTypes": true,
+        "noUncheckedIndexedAccess": true
     },
     "include": [
         "frontend/static/js/src/**/*.js",

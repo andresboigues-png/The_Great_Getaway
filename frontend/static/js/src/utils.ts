@@ -33,11 +33,13 @@ export function detectHomeCurrency() {
  * a valid 3-letter code present in CONVERSION_RATES.
  * @returns {string}
  */
-export function getHomeCurrency() {
+export function getHomeCurrency(): string {
     const set = STATE.user && STATE.user.homeCurrency;
-    if (set && CONVERSION_RATES[set]) return set;
+    if (set && CONVERSION_RATES[set] !== undefined) return set;
     const detected = detectHomeCurrency();
-    return CONVERSION_RATES[detected] ? detected : 'EUR';
+    return detected !== undefined && CONVERSION_RATES[detected] !== undefined
+        ? detected
+        : 'EUR';
 }
 
 /**
@@ -200,10 +202,10 @@ export function shortPlaceName(name: string | null | undefined): string {
     if (!cleaned) return '';
     if (cleaned.includes(' - ')) {
         const parts = cleaned.split(' - ').map(p => p.trim()).filter(Boolean);
-        if (parts.length >= 2) return parts[1];
-        if (parts.length === 1) return parts[0];
+        if (parts.length >= 2 && parts[1] !== undefined) return parts[1];
+        if (parts.length === 1 && parts[0] !== undefined) return parts[0];
     }
-    const firstChunk = cleaned.split(',')[0].trim();
+    const firstChunk = (cleaned.split(',')[0] || '').trim();
     return firstChunk || cleaned;
 }
 
@@ -212,9 +214,12 @@ function resolveDestinationData(countryStr: string | null | undefined) {
 
     // Legacy two-part format from the old dropdown.
     if (countryStr.includes(' - ')) {
-        const state = countryStr.split(' - ')[1].trim();
-        const key = _destLookup[state.toLowerCase()];
-        if (key) return DESTINATION_DATA[key];
+        const stateRaw = countryStr.split(' - ')[1];
+        if (stateRaw) {
+            const state = stateRaw.trim();
+            const key = _destLookup[state.toLowerCase()];
+            if (key) return DESTINATION_DATA[key];
+        }
     }
 
     // Walk comma parts left-to-right (most specific → least specific).

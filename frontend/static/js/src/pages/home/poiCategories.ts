@@ -206,8 +206,10 @@ export function isPrimaryMatch(categoryKey: string, types: string[] | undefined 
 
     let firstMatch = -1, firstConflict = -1;
     for (let i = 0; i < types.length; i++) {
-        if (firstMatch < 0 && rule.match(types[i])) firstMatch = i;
-        if (firstConflict < 0 && rule.conflict(types[i])) firstConflict = i;
+        const t = types[i];
+        if (t === undefined) continue;
+        if (firstMatch < 0 && rule.match(t)) firstMatch = i;
+        if (firstConflict < 0 && rule.conflict(t)) firstConflict = i;
         if (firstMatch >= 0 && firstConflict >= 0) break;
     }
     if (firstMatch < 0) return false;          // not this category at all

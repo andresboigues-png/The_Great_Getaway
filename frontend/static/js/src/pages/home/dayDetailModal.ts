@@ -550,7 +550,7 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
             if (!pid || !time) return;
             const place = allShortlist.find((p: any) => p.placeId === pid);
             if (!place || !place.name) return;
-            const isThere = planVals[time].includes(place.name.toLowerCase());
+            const isThere = (planVals[time] ?? '').includes(place.name.toLowerCase());
             // Restore the canonical label, then prefix with ✓
             // if present.
             const label = time === 'morning' ? '🌅 AM' : time === 'afternoon' ? '☀️ PM' : '🌙 Eve';

@@ -41,18 +41,18 @@ export function Settlement() {
     // Initial currentTripId mirrors the legacy module-level fallback:
     // active trip first, then first trip in the list, else null.
     const [currentTripId, setCurrentTripId] = useState<string | null>(() => {
-        return activeTripId || (trips.length > 0 ? trips[0].id : null);
+        return activeTripId || (trips.length > 0 ? trips[0]!.id : null);
     });
 
     // If the selected trip got archived/deleted, fall back to a sensible
     // default. Mirrors the legacy renderSettlement guard.
     useEffect(() => {
-        if (currentTripId && !trips.find((t: any) => t.id === currentTripId)) {
-            setCurrentTripId(activeTripId || (trips.length > 0 ? trips[0].id : null));
+        if (currentTripId && !trips.find((t) => t.id === currentTripId)) {
+            setCurrentTripId(activeTripId || (trips.length > 0 ? trips[0]!.id : null));
         }
     }, [trips, currentTripId, activeTripId]);
 
-    const trip = trips.find((t: any) => t.id === currentTripId) || null;
+    const trip = trips.find((t) => t.id === currentTripId) || null;
     const tripIsEditable = canEditExpenses(trip);
 
     // Re-derive HTML on every relevant change. useMemo's deps include

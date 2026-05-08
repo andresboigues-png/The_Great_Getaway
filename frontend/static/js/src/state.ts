@@ -256,7 +256,7 @@ export function loadState() {
 
     // Ensure activeTripId is valid
     if (STATE.trips.length > 0 && (!STATE.activeTripId || !STATE.trips.find(t => t.id === STATE.activeTripId))) {
-        STATE.activeTripId = STATE.trips[0].id;
+        STATE.activeTripId = STATE.trips[0]!.id;
     }
 }
 

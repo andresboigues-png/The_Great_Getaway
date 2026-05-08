@@ -90,8 +90,10 @@ export function showModal(opts: {
         if (e.key === 'Tab') {
             const focusables = (Array.from(overlay.querySelectorAll(FOCUSABLE)) as HTMLElement[]);
             if (focusables.length === 0) return;
-            const first = focusables[0];
-            const last = focusables[focusables.length - 1];
+            // length-checked above; non-null assertions satisfy
+            // noUncheckedIndexedAccess.
+            const first = focusables[0]!;
+            const last = focusables[focusables.length - 1]!;
             const active = (document.activeElement as HTMLElement);
             if (e.shiftKey && active === first) {
                 e.preventDefault();

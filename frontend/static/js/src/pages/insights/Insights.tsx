@@ -132,9 +132,12 @@ export function Insights() {
 
         let highestExpense: ConvertedExpense | null = null;
         if (convertedExps.length > 0) {
-            highestExpense = convertedExps.reduce(
+            // length-checked above so [0] is safe; explicit local
+            // avoids `convertedExps[0]` being typed as `ConvertedExpense | undefined`.
+            const seed: ConvertedExpense = convertedExps[0]!;
+            highestExpense = convertedExps.reduce<ConvertedExpense>(
                 (max, e) => (e.displayValue > max.displayValue ? e : max),
-                convertedExps[0],
+                seed,
             );
         }
 
@@ -204,8 +207,9 @@ export function Insights() {
         );
     }
 
-    const topSpender = sortedSpenders.length > 0 ? sortedSpenders[0][0] : 'N/A';
-    const topSpenderAmount = sortedSpenders.length > 0 ? sortedSpenders[0][1] : 0;
+    const topEntry = sortedSpenders[0];
+    const topSpender = topEntry ? topEntry[0] : 'N/A';
+    const topSpenderAmount = topEntry ? topEntry[1] : 0;
 
     // Pie data — matched to category lookups for color/label display.
     const pieLabels: string[] = [];
@@ -215,7 +219,7 @@ export function Insights() {
         const cat = categories.find((c: Category) => c.id === catId);
         pieLabels.push(cat ? `${cat.icon} ${cat.name}` : 'Unknown');
         pieColors.push(cat ? cat.color : '#ccc');
-        pieData.push(catTotals[catId]);
+        pieData.push(catTotals[catId] ?? 0);
     });
 
     // ── Chart.js side-effects ─────────────────────────────────────────────

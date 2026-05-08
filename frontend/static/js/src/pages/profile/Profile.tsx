@@ -9,7 +9,10 @@ import { useEffect, useRef } from 'react';
 import { renderProfile } from '../profile.js';
 
 export interface ProfileProps {
-    targetUserId?: string | null;
+    // Required (no `?`) so `exactOptionalPropertyTypes` lets the
+    // router pass through `params?.userId` which is `string | undefined`.
+    // Callers explicitly pass null when there's no target.
+    targetUserId: string | null | undefined;
 }
 
 export function Profile({ targetUserId }: ProfileProps) {

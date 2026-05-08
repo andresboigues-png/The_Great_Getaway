@@ -760,7 +760,12 @@ export function renderAI() {
                 const d = await r.json();
                 if (d.error) throw new Error(d.error);
                 generatedItinerary = d.itinerary;
-                activeTrip.aiPlan = generatedItinerary ?? undefined; emit('state:changed');
+                if (generatedItinerary != null) {
+                    activeTrip.aiPlan = generatedItinerary;
+                } else {
+                    delete activeTrip.aiPlan;
+                }
+                emit('state:changed');
                 renderItineraryOutput(generatedItinerary, numDays, tripCountry);
                 outputEl.scrollIntoView({ behavior: 'smooth' });
             } catch (e) {

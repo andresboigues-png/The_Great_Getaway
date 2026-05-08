@@ -279,7 +279,7 @@ export function renderHome() {
                 `Your ${displayCountry} adventure starts here.`,
                 `Time to write your ${displayCountry} story.`
             ];
-            greeting = greetings[Math.floor(Math.random() * greetings.length)];
+            greeting = greetings[Math.floor(Math.random() * greetings.length)] ?? greeting;
         }
 
         div.innerHTML = `
@@ -1639,7 +1639,7 @@ export function renderHome() {
             chips.push({
                 name: findTripCompanionByLinkedUser(activeTrip, owner.userId)?.name || owner.name || 'Owner',
                 role: owner.role,
-                picture: owner.picture,
+                picture: owner.picture ?? null,
                 isOwner: true,
                 isMember: true,
             });
@@ -1652,7 +1652,7 @@ export function renderHome() {
             chips.push({
                 name: findTripCompanionByLinkedUser(activeTrip, m.userId)?.name || m.name || m.userId,
                 role: m.role,
-                picture: m.picture,
+                picture: m.picture ?? null,
                 isOwner: false,
                 isMember: true,
             });

@@ -46,17 +46,17 @@ export function computeTripBalances(trip: any) {
 
     for (const exp of tripExps) {
         const amount = exp.euroValue || exp.value || 0;
-        if (balances[exp.who] !== undefined) balances[exp.who] += amount;
+        if (balances[exp.who] !== undefined) balances[exp.who]! += amount;
         if (exp.splits && Object.keys(exp.splits).length > 0) {
             for (const [person, pct] of Object.entries(exp.splits)) {
                 if (balances[person] !== undefined)
-                    balances[person] -= amount * (Number(pct) / 100);
+                    balances[person]! -= amount * (Number(pct) / 100);
             }
         } else {
             // No-splits fallback: equal share across the roster.
             const share = amount / Math.max(roster.length, 1);
             roster.forEach((p) => {
-                if (balances[p] !== undefined) balances[p] -= share;
+                if (balances[p] !== undefined) balances[p]! -= share;
             });
         }
     }
@@ -78,12 +78,14 @@ export function simplifyDebts(balances: Record<string, number>): SettlementDebt[
     let i = 0,
         j = 0;
     while (i < debtors.length && j < creditors.length) {
-        const pay = Math.min(debtors[i].amount, creditors[j].amount);
-        debts.push({ from: debtors[i].person, to: creditors[j].person, amount: pay });
-        debtors[i].amount -= pay;
-        creditors[j].amount -= pay;
-        if (debtors[i].amount < 0.01) i++;
-        if (creditors[j].amount < 0.01) j++;
+        const debtor = debtors[i]!;
+        const creditor = creditors[j]!;
+        const pay = Math.min(debtor.amount, creditor.amount);
+        debts.push({ from: debtor.person, to: creditor.person, amount: pay });
+        debtor.amount -= pay;
+        creditor.amount -= pay;
+        if (debtor.amount < 0.01) i++;
+        if (creditor.amount < 0.01) j++;
     }
     return debts;
 }
@@ -108,11 +110,11 @@ export function computeGlobalBalances() {
 
     for (const exp of allExpenses) {
         const amount = exp.euroValue || exp.value || 0;
-        if (globalBalances[exp.who] !== undefined) globalBalances[exp.who] += amount;
+        if (globalBalances[exp.who] !== undefined) globalBalances[exp.who]! += amount;
         if (exp.splits && Object.keys(exp.splits).length > 0) {
             for (const [person, pct] of Object.entries(exp.splits)) {
                 if (globalBalances[person] !== undefined)
-                    globalBalances[person] -= amount * (Number(pct) / 100);
+                    globalBalances[person]! -= amount * (Number(pct) / 100);
             }
         } else {
             const roster = tripCompanionsById[exp.tripId] || [];
@@ -126,7 +128,7 @@ export function computeGlobalBalances() {
                       );
             const share = amount / Math.max(splitGroup.length, 1);
             splitGroup.forEach((p) => {
-                if (globalBalances[p] !== undefined) globalBalances[p] -= share;
+                if (globalBalances[p] !== undefined) globalBalances[p]! -= share;
             });
         }
     }
@@ -144,15 +146,15 @@ export function computeLeaderboard(trip: any) {
     roster.forEach((p) => (board[p] = { paid: 0, share: 0 }));
     for (const exp of exps) {
         const amount = exp.euroValue || exp.value || 0;
-        if (board[exp.who]) board[exp.who].paid += amount;
+        if (board[exp.who]) board[exp.who]!.paid += amount;
         if (exp.splits && Object.keys(exp.splits).length > 0) {
             for (const [person, pct] of Object.entries(exp.splits)) {
-                if (board[person]) board[person].share += amount * (Number(pct) / 100);
+                if (board[person]) board[person]!.share += amount * (Number(pct) / 100);
             }
         } else {
             const share = amount / Math.max(roster.length, 1);
             roster.forEach((p) => {
-                if (board[p]) board[p].share += share;
+                if (board[p]) board[p]!.share += share;
             });
         }
     }

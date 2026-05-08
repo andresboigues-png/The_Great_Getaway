@@ -215,7 +215,7 @@ function archiveActiveTrip() {
             STATE.tripDays = STATE.tripDays.filter(d => d.tripId !== trip.id);
             STATE.trips = STATE.trips.filter(t => t.id !== trip.id);
 
-            STATE.activeTripId = STATE.trips.length > 0 ? STATE.trips[0].id : null;
+            STATE.activeTripId = STATE.trips.length > 0 ? STATE.trips[0]!.id : null;
 
             emit('state:changed');               // saveState + updateTripSelector via subscriber
             archiveTripOnServer(trip.id);        // server delta still explicit
@@ -249,7 +249,7 @@ const deleteActiveTrip = () => {
             STATE.trips = STATE.trips.filter(t => t.id !== trip.id);
             STATE.expenses = STATE.expenses.filter(e => e.tripId !== trip.id);
             STATE.tripDays = STATE.tripDays.filter(d => d.tripId !== trip.id);
-            STATE.activeTripId = STATE.trips.length > 0 ? STATE.trips[0].id : null;
+            STATE.activeTripId = STATE.trips.length > 0 ? STATE.trips[0]!.id : null;
 
             emit('state:changed');               // saveState + updateTripSelector via subscriber
             deleteTrip(trip.id);                 // server delta still explicit
@@ -285,7 +285,7 @@ async function handleGoogleLogin(response: { credential?: string; [key: string]:
             // Logout cleared activeTripId; server doesn't store it. Reconcile so the
             // trip selector and the rest of the UI agree on which trip is active.
             if (STATE.trips.length > 0 && !STATE.trips.find(t => t.id === STATE.activeTripId)) {
-                STATE.activeTripId = STATE.trips[0].id;
+                STATE.activeTripId = STATE.trips[0]!.id;
             }
             emit('state:changed');               // saveState via subscriber
             updateUserUI();

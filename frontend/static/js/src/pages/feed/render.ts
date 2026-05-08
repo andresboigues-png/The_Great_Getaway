@@ -122,13 +122,15 @@ export function bundleEvents(events: FeedEvent[]) {
         const slotKey = (slot as any).__slot;
         if (!slotKey) return slot as FeedEvent;
         const members = groups.get(slotKey) || [];
-        if (members.length === 1) return members[0];
+        if (members.length === 1) return members[0]!;
+        // length > 1 here, so members[0] is guaranteed.
+        const first = members[0]!;
         return {
             bundled: true,
             id: `bundle_${slotKey}`,
-            type: members[0].type,
-            actor: members[0].actor,
-            when: members[0].when,
+            type: first.type,
+            actor: first.actor,
+            when: first.when,
             members,
         };
     });

@@ -166,5 +166,6 @@ export function resolveSelectedDayId(
     if (todayMatch) return todayMatch.id;
     const firstNumbered = sortedDays.find(d => d.dayNumber > 0);
     if (firstNumbered) return firstNumbered.id;
-    return sortedDays[0].id;
+    // sortedDays.length checked above so [0] is guaranteed.
+    return sortedDays[0]!.id;
 }

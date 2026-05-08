@@ -92,8 +92,11 @@ export function setupSlideshow(activeTrip: any): SlideshowController {
         quotes = INSPIRATIONAL_PAIRS.map(p => p.q);
         const indices = Array.from({ length: images.length }, (_, i) => i);
         indices.sort(() => Math.random() - 0.5);
-        images = indices.map(i => images[i]);
-        quotes = indices.map(i => quotes[i]);
+        // indices come from a length-checked Array.from above, so
+        // images[i] / quotes[i] are guaranteed defined. The non-null
+        // assertion satisfies noUncheckedIndexedAccess.
+        images = indices.map((i) => images[i]!);
+        quotes = indices.map((i) => quotes[i]!);
 
         return {
             get images() { return images; },
@@ -145,16 +148,20 @@ export function setupSlideshow(activeTrip: any): SlideshowController {
             const img = data.images[i];
             const q = data.quotes[i];
             const f = data.facts[i];
-            if (q) pairs.push({ img, text: q });
-            if (f) pairs.push({ img, text: f });
+            if (img && q) pairs.push({ img, text: q });
+            if (img && f) pairs.push({ img, text: f });
         }
         // Shuffle so the order doesn't rigidly read country-
         // by-country (Italy quote → Italy fact → France quote
         // → France fact); a mixed shuffle feels like a
-        // magazine roster.
+        // magazine roster. Length-checked swap target so
+        // noUncheckedIndexedAccess sees defined values.
         for (let i = pairs.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
-            [pairs[i], pairs[j]] = [pairs[j], pairs[i]];
+            const a = pairs[i]!;
+            const b = pairs[j]!;
+            pairs[i] = b;
+            pairs[j] = a;
         }
         images = pairs.map(p => p.img);
         quotes = pairs.map(p => p.text);
@@ -208,7 +215,7 @@ function startCycle(
         if (imgEl) {
             imgEl.style.opacity = '0';
             setTimeout(() => {
-                imgEl.src = images[next];
+                imgEl.src = images[next] ?? '';
                 imgEl.style.opacity = '1';
             }, 800);
         }

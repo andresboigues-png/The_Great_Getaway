@@ -63,8 +63,9 @@ type RouteResult = { path: Leg[]; success: number };
 async function fetchTripRouteViaRoutes(legs: Leg[]): Promise<RouteResult | null> {
     const key = (window as any).googleMapsApiKey || '';
     if (!key || !Array.isArray(legs) || legs.length < 2) return null;
-    const origin = legs[0];
-    const destination = legs[legs.length - 1];
+    // length-checked above so first/last are guaranteed.
+    const origin = legs[0]!;
+    const destination = legs[legs.length - 1]!;
     const intermediates = legs.slice(1, -1).map(p => ({
         location: { latLng: { latitude: p.lat, longitude: p.lng } },
     }));
@@ -152,8 +153,10 @@ export async function fetchDayRoutePath(legs: Leg[]): Promise<RouteResult | null
     let success = 0;
     let firstFailureStatus: string | null = null;
     for (let i = 0; i < legs.length - 1; i++) {
-        const origin = legs[i];
-        const dest = legs[i + 1];
+        // i ranges over [0, legs.length - 1) so both origin and dest
+        // are guaranteed defined.
+        const origin = legs[i]!;
+        const dest = legs[i + 1]!;
         try {
             // Promisify the callback API. Wrap in a 6s timeout so
             // a hung request doesn't block subsequent legs.

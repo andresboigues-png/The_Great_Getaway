@@ -314,7 +314,9 @@ function renderHistoryTab(trip: any, tripIsEditable: boolean): string {
             <div style="display:flex; flex-direction:column; gap:18px;">
                 ${sortedKeys
                     .map((key) => {
-                        const items = groupedByDate[key];
+                        // sortedKeys come from Object.keys(groupedByDate) so
+                        // every key has a non-empty array.
+                        const items = groupedByDate[key]!;
                         const totalForDay = items.reduce((s, x) => s + (x.euroValue || 0), 0);
                         return `
                         <div>
@@ -502,7 +504,7 @@ export function settleDebt(
         who: from,
         categoryId: STATE.categories[0]?.id ?? '',
         country: 'Settlement',
-        date: new Date().toISOString().split('T')[0],
+        date: new Date().toISOString().split('T')[0] ?? '',
         splits: { [to]: 100 },
         isSettlement: true,
     };

@@ -238,7 +238,7 @@ export function renderSettings() {
                         .filter(c => c.placesType)
                         .map(c => {
                             const userMin = typeof filters[c.key]?.minRating === 'number'
-                                ? filters[c.key].minRating
+                                ? filters[c.key]!.minRating
                                 : c.defaultMinRating;
                             const ratingOpts = ratingOptions.map(v => `
                                 <option value="${v}" ${v === userMin ? 'selected' : ''}>${v === 0 ? 'Any rating' : `${v}★ +`}</option>
