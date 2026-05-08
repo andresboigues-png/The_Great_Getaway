@@ -5239,4 +5239,109 @@ body.is-signed-out .mobile-bottom-nav {
     main#app-container button {
         scroll-margin-bottom: calc(96px + env(safe-area-inset-bottom));
     }
+
+    /* ── Mobile modal sheet variant ─────────────────────────────
+       Centered modals on a 375px viewport feel cramped — the
+       sheet rises from the bottom (iOS pattern), takes the full
+       viewport width, and grows tall enough to host a long form
+       with internal scrolling. Visual identity (dark frosted
+       glass + white text on form labels) is preserved so we
+       don't need to re-theme every form input.
+
+       Affects all three glass-card variants used by showModal()
+       — .card-glass-modal (default), .card-glass-modal-light
+       (journaling), .card-glass-confirm (alert-style). The
+       confirm variant stays narrower because alerts read
+       better as compact dialogs than as full sheets. */
+    .modal-overlay {
+        /* Anchor the card to the bottom; sheet rises from there. */
+        align-items: flex-end !important;
+        padding: 0 !important;
+    }
+
+    /* Descendant selector (.modal-overlay .card-glass-modal) so the
+       sheet styles only land on modals that the showModal helper
+       actually opens — NOT on the /components preview page that
+       demos these card classes standalone (which would otherwise
+       blow up to full-width sheets on mobile and trip the visual
+       baseline). */
+    .modal-overlay .card-glass-modal,
+    .modal-overlay .card-glass-modal-light {
+        /* Defeat any inline `width: 420px` style passed via
+           cardStyle on the showModal call site — sheet always
+           fills the viewport horizontally on mobile. */
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+
+        /* Internal scroll for tall forms (Edit Trip with cover
+           picker + dates can run past the viewport). dvh handles
+           iOS Safari's collapsing URL bar so the sheet doesn't
+           jump when the bar shows/hides; vh is the fallback for
+           older Safari that ignores dvh. */
+        max-height: calc(100vh - 64px);
+        max-height: calc(100dvh - 64px);
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
+
+        /* Sheet aesthetic: rounded top, flush bottom (the bottom
+           is anchored to the viewport edge). Safe-area inset
+           pads past the home indicator on devices that need it. */
+        border-radius: 24px 24px 0 0 !important;
+        padding-bottom: calc(var(--space-8) + env(safe-area-inset-bottom));
+
+        /* Replace the modalPop scale-in (looks awkward when the
+           card is already at the bottom) with a slide-up from
+           below. */
+        animation: sheetSlideUp 0.32s var(--easing-smooth) !important;
+    }
+
+    /* Drag handle pill at the top — visual signal the surface is a
+       dismissible sheet (iOS pattern). It's a CSS-only adornment;
+       the modal still dismisses via backdrop click + Escape (set
+       up by showModal()), not via swipe. Same descendant scoping
+       so /components demos stay flat. */
+    .modal-overlay .card-glass-modal::before,
+    .modal-overlay .card-glass-modal-light::before {
+        content: '';
+        display: block;
+        width: 40px;
+        height: 4px;
+        margin: -4px auto 16px;
+        background: rgba(255, 255, 255, 0.28);
+        border-radius: 2px;
+        flex-shrink: 0;
+    }
+
+    /* Confirmation dialogs stay alert-shaped on mobile —
+       full-width sheet would over-emphasize a yes/no question. */
+    .modal-overlay .card-glass-confirm {
+        width: calc(100% - 32px) !important;
+        max-width: 360px;
+        max-height: calc(100vh - 80px);
+        overflow-y: auto;
+        margin: 0 16px;
+    }
+}
+
+@keyframes sheetSlideUp {
+    from { transform: translateY(100%); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+/* ── Expense History filter grid ─────────────────────────────────
+   3-column grid on desktop (Search row spans all; Category /
+   Payer / Sort row + From / To / Value row each take one column).
+   Stacks to a single column on mobile so 375px-wide selects don't
+   crush to <100px and become unreadable. */
+.expense-history-filters {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: var(--space-3);
+}
+@media (max-width: 720px) {
+    .expense-history-filters {
+        grid-template-columns: 1fr;
+    }
 }

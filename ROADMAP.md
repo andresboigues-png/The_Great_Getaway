@@ -751,16 +751,42 @@ A focused QA pass at 375 × 812 (iPhone SE).
       (`can create a trip`, `can add a companion`, `can add a day`,
       `can add an expense`) plus a new **bottom-tab nav** test
       that exercises Home/Feed/Collections/Profile click-through
-      now run on `chromium-mobile`. Net: 48/48 e2e (was 43).
-- [ ] Modals: full-screen sheet variant on mobile for day-detail, AI
-      planner, Edit Trip, companion picker, share-to-feed, trip
-      checklist, documents/photos.
-- [ ] Forms: side-by-side fields stack vertically.
-- [ ] Tables that haven't been converted: expense History → card list.
-- [ ] Touch targets ≥44px audited on remaining icon buttons
-      (`#navSearchBtn`, `#navFeedBtn`, `#notificationBellBtn` —
-      currently ~30px from inline `padding: 4px`).
+      now run on `chromium-mobile`.
+- [x] **Mobile modal sheet variant** — at ≤720px, `.modal-overlay`
+      anchors content to the bottom and the glass-modal cards
+      become full-width sheets with rounded top corners + drag-
+      handle pill (iOS pattern). Slides up via `sheetSlideUp`
+      keyframes. Internal scroll on tall forms via `100dvh`
+      (handles iOS Safari URL bar collapse) + `overscroll-behavior:
+    contain`. Inline `width: 420px` from showModal call sites
+      defeated via `!important`. `.card-glass-confirm` stays
+      alert-shaped (full-sheet would over-emphasize a yes/no).
+      Selectors are descendant-scoped under `.modal-overlay` so
+      the `/components` preview page's standalone demos of these
+      cards stay flat — visual baselines all green. New e2e test
+      asserts the New Trip modal renders full-width + bottom-
+      anchored + has the 40×4 drag-handle pseudo on mobile.
+- [x] **Touch targets on remaining nav icons** — search / feed /
+      bell bumped from 30px to 44×44px via inline padding update
+      (4px → 11px). Now every top-nav control meets WCAG 2.5.5.
+- [x] **Expense History filter grid** stacks to a single column on
+      mobile — the 3-column desktop layout (Category | Payer | Sort
+      and From | To | Value rows) was unreadable at 375px (each
+      cell ~120px, dates crushed). Class-based now
+      (`.expense-history-filters`) so the media query lands cleanly.
+- [ ] Per-modal copy/layout polish (Edit Trip dates row,
+      companion picker, AI planner) — the structural sheet wrapper
+      is in place; per-form vertical stacking for narrow date
+      pairs is a follow-up if desired.
+- [ ] Tables that haven't been converted: expense History rows →
+      card list (currently `.expense-row` is a flex row with
+      icon + meta + amount + actions; reads OK at 375px but a
+      taller card layout would be cleaner).
 - [ ] Sticky headers on long pages, scroll restoration, momentum scrolling.
+
+**D1 status: 6 of 9 sub-items shipped, 3 remaining for a future
+sweep. Mobile is now usable end-to-end on a 375×812 viewport with
+49/49 e2e passing on both desktop and mobile projects.**
 
 ### D2 — Dark mode
 
@@ -1146,19 +1172,19 @@ expenses ADD COLUMN receipt_url TEXT`, threaded through
     round-trip via `STATE.draftExpense.receiptUrl` so re-opening
     an expense pre-fills the picker.
 
-        **Latent bug uncovered + fixed**: while wiring this up I
-        discovered the server was writing expense fields camelCase via
-        `/api/expenses` but reading them back from `/api/data` as
-        snake_case (`trip_id`, `category_id`, `euro_value`,
-        `receipt_url`) — frontend filters like
-        `e.tripId === STATE.activeTripId` would silently return empty
-        on cold-load. The History tab and Settlement page would have
-        appeared empty until the user added a fresh expense locally.
-        Translation now lives in both `routes/data.py` and
-        `routes/public.py` so the public archived-trip detail also
-        benefits. 2 pytests for the round-trip (set + clear), legacy
-        compat test, and 1 e2e for the receipt clip icon. Net: 161/161
-        pytests + 43/43 e2e + 20/20 visual.
+            **Latent bug uncovered + fixed**: while wiring this up I
+            discovered the server was writing expense fields camelCase via
+            `/api/expenses` but reading them back from `/api/data` as
+            snake_case (`trip_id`, `category_id`, `euro_value`,
+            `receipt_url`) — frontend filters like
+            `e.tripId === STATE.activeTripId` would silently return empty
+            on cold-load. The History tab and Settlement page would have
+            appeared empty until the user added a fresh expense locally.
+            Translation now lives in both `routes/data.py` and
+            `routes/public.py` so the public archived-trip detail also
+            benefits. 2 pytests for the round-trip (set + clear), legacy
+            compat test, and 1 e2e for the receipt clip icon. Net: 161/161
+            pytests + 43/43 e2e + 20/20 visual.
 
 5.  **Trip share-via-link (read-only)** — `4-6 hours`, schema +
     public backend route + new public frontend route + Views counter.

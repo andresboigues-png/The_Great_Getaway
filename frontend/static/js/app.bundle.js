@@ -1671,7 +1671,7 @@ Error generating stack: `+e.message+`
                         </div>
                     </div>
 
-                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--space-3);">
+                    <div class="expense-history-filters">
                         <!-- Row 1: Search (full width) -->
                         <div style="grid-column: 1 / -1;">
                             <label class="filter-label">Search</label>

@@ -113,6 +113,51 @@ test.describe('The Great Getaway — smoke', () => {
         await expect(page.locator('text=Shibuya wandering').first()).toBeVisible();
     });
 
+    test('mobile modal renders as full-width bottom sheet, not centered card', async ({ page }, testInfo) => {
+        // Phase D1: modals at ≤720px viewport switch from a
+        // centered card (with `width: 420px` inline styles) to a
+        // full-width bottom sheet with rounded top corners and a
+        // drag-handle pill. Verified by opening the New Trip modal
+        // (which passes `cardStyle: 'width: 380px'`) and asserting
+        // the rendered card is closer to viewport-width than to
+        // 380px, and is anchored to the bottom of the viewport.
+        if (testInfo.project.name !== 'chromium-mobile') test.skip();
+
+        await openFreshApp(page);
+
+        // Open the New Trip modal — its cardStyle is `width: 380px`,
+        // which the mobile sheet overrides via descendant selector
+        // + !important.
+        await page.evaluate(() => {
+            /** @type {any} */ (window).google = undefined;
+            document.getElementById('sidebar')?.classList.remove('open');
+            document.getElementById('sidebarOverlay')?.classList.remove('open');
+        });
+        await page.click('#newTripBtn');
+        const card = page.locator('.modal-overlay .card-glass-modal').first();
+        await card.waitFor({ state: 'visible', timeout: 5000 });
+
+        // Sheet is the FULL viewport width (not the 380px inline
+        // style) — gives ~10px tolerance for rounding.
+        const cardBox = await card.boundingBox();
+        const viewportWidth = page.viewportSize()?.width ?? 0;
+        expect(cardBox?.width).toBeGreaterThan(viewportWidth - 10);
+        expect(cardBox?.width).toBeLessThanOrEqual(viewportWidth);
+
+        // Sheet is anchored to the bottom of the viewport (its
+        // bottom edge is within ~5px of the viewport bottom).
+        const viewportHeight = page.viewportSize()?.height ?? 0;
+        const cardBottom = (cardBox?.y ?? 0) + (cardBox?.height ?? 0);
+        expect(cardBottom).toBeGreaterThan(viewportHeight - 5);
+
+        // Drag-handle pseudo (::before) — confirm it renders by
+        // checking the card's first generated content. Pseudos can't
+        // be queried directly, but we can verify via computed styles
+        // of the ::before element.
+        const handleWidth = await card.evaluate((el) => getComputedStyle(el, '::before').width);
+        expect(handleWidth).toBe('40px');
+    });
+
     test('mobile bottom-tab nav navigates between primary pages', async ({ page }, testInfo) => {
         // Phase D1: bottom-tab nav for Home / Feed / Collections /
         // Profile is mobile-only — test only runs on the chromium-
