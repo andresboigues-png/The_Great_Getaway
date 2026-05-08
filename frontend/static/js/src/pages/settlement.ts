@@ -18,139 +18,24 @@ import { generateId, showConfirmModal, q, formatHome, getHomeCurrency, convertCu
 import { getTripCompanionNames } from '../companions.js';
 import { canEditExpenses } from '../permissions.js';
 import { showModal } from '../components/Modal.js';
+import {
+    computeTripBalances,
+    simplifyDebts,
+    computeGlobalBalances,
+    computeLeaderboard,
+} from './settlement/balances.js';
+
+// Re-export for any external consumers that imported SettlementDebt
+// from pages/settlement directly (the name was previously declared
+// here before the B1 split moved it to settlement/balances.ts).
+export type { SettlementDebt } from './settlement/balances.js';
 
 let activeSettlementTab: 'trip' | 'history' | 'global' = 'trip';
 let currentTripId = (null as string | null);
 
-// ── Pure helpers ──────────────────────────────────────────────────────
-// Pulled out so the per-trip and cross-trip views share one
-// implementation. Easier to reason about than inline IIFEs.
-
-/** Compute per-person balance for a single trip (positive = is owed,
- *  negative = owes). Splits roster falls back to (a) the trip's
- *  companion list, then (b) the names referenced by existing expenses. */
-function computeTripBalances(trip: any) {
-    if (!trip) return { balances: {}, roster: [], expenses: [] };
-    const tripExps = (STATE.expenses || []).filter(e => e.tripId === trip.id);
-    const tripCompanionNames = getTripCompanionNames(trip);
-    const roster = tripCompanionNames.length > 0
-        ? tripCompanionNames
-        : Array.from(new Set(
-            tripExps.flatMap(e => [e.who, ...Object.keys(e.splits || {})]).filter(Boolean)
-        ));
-
-        const balances: Record<string, number> = {};
-    roster.forEach(p => balances[p] = 0);
-
-    for (const exp of tripExps) {
-        const amount = exp.euroValue || exp.value || 0;
-        if (balances[exp.who] !== undefined) balances[exp.who] += amount;
-        if (exp.splits && Object.keys(exp.splits).length > 0) {
-            for (const [person, pct] of Object.entries(exp.splits)) {
-                if (balances[person] !== undefined) balances[person] -= amount * (Number(pct) / 100);
-            }
-        } else {
-            // No-splits fallback: equal share across the roster.
-            const share = amount / Math.max(roster.length, 1);
-            roster.forEach(p => { if (balances[p] !== undefined) balances[p] -= share; });
-        }
-    }
-    return { balances, roster, expenses: tripExps };
-}
-
-/** A single debt → creditor settlement edge produced by simplifyDebts. */
-export interface SettlementDebt { from: string; to: string; amount: number }
-interface BalanceEntry { person: string; amount: number }
-
-/** Greedy minimal-payments list. Pairs largest debtor with largest
- *  creditor, settles the smaller of the two, repeats. */
-function simplifyDebts(balances: Record<string, number>): SettlementDebt[] {
-    const creditors: BalanceEntry[] = [];
-    const debtors: BalanceEntry[] = [];
-    for (const [person, balance] of Object.entries(balances)) {
-        if (balance > 0.01) creditors.push({ person, amount: balance });
-        else if (balance < -0.01) debtors.push({ person, amount: Math.abs(balance) });
-    }
-    creditors.sort((a, b) => b.amount - a.amount);
-    debtors.sort((a, b) => b.amount - a.amount);
-    const debts: SettlementDebt[] = [];
-    let i = 0, j = 0;
-    while (i < debtors.length && j < creditors.length) {
-        const pay = Math.min(debtors[i].amount, creditors[j].amount);
-        debts.push({ from: debtors[i].person, to: creditors[j].person, amount: pay });
-        debtors[i].amount -= pay;
-        creditors[j].amount -= pay;
-        if (debtors[i].amount < 0.01) i++;
-        if (creditors[j].amount < 0.01) j++;
-    }
-    return debts;
-}
-
-/** Compute the cross-trip balance map. Same shape as the per-trip
- *  one, but seeded with every name from every trip's roster (active
- *  + archived) and accumulated over EVERY expense. */
-function computeGlobalBalances() {
-        const globalBalances: Record<string, number> = {};
-    for (const t of [...STATE.trips, ...(STATE.archivedTrips || [])]) {
-        for (const name of getTripCompanionNames(t)) {
-            if (!(name in globalBalances)) globalBalances[name] = 0;
-        }
-    }
-    const archivedExps = (STATE.archivedTrips || []).flatMap(t => t.expenses || []);
-    const allExpenses = [...STATE.expenses, ...archivedExps];
-
-        const tripCompanionsById: Record<string, string[]> = {};
-    for (const t of [...STATE.trips, ...(STATE.archivedTrips || [])]) {
-        tripCompanionsById[t.id] = getTripCompanionNames(t);
-    }
-
-    for (const exp of allExpenses) {
-        const amount = exp.euroValue || exp.value || 0;
-        if (globalBalances[exp.who] !== undefined) globalBalances[exp.who] += amount;
-        if (exp.splits && Object.keys(exp.splits).length > 0) {
-            for (const [person, pct] of Object.entries(exp.splits)) {
-                if (globalBalances[person] !== undefined) globalBalances[person] -= amount * (Number(pct) / 100);
-            }
-        } else {
-            const roster = tripCompanionsById[exp.tripId] || [];
-            const splitGroup = roster.length > 0
-                ? roster
-                : Array.from(new Set([exp.who, ...Object.keys(exp.splits || {})].filter(Boolean)));
-            const share = amount / Math.max(splitGroup.length, 1);
-            splitGroup.forEach(p => { if (globalBalances[p] !== undefined) globalBalances[p] -= share; });
-        }
-    }
-    return globalBalances;
-}
-
-/** Per-companion paid/share leaderboard for a trip — used by the
- *  Trip-tab summary row. "paid" is the sum of expenses they fronted;
- *  "share" is the sum of their split obligations across the trip. */
-function computeLeaderboard(trip: any) {
-    if (!trip) return [];
-    const exps = (STATE.expenses || []).filter(e => e.tripId === trip.id);
-    const roster = getTripCompanionNames(trip);
-        const board: Record<string, {paid: number, share: number}> = {};
-    roster.forEach(p => board[p] = { paid: 0, share: 0 });
-    for (const exp of exps) {
-        const amount = exp.euroValue || exp.value || 0;
-        if (board[exp.who]) board[exp.who].paid += amount;
-        if (exp.splits && Object.keys(exp.splits).length > 0) {
-            for (const [person, pct] of Object.entries(exp.splits)) {
-                if (board[person]) board[person].share += amount * (Number(pct) / 100);
-            }
-        } else {
-            const share = amount / Math.max(roster.length, 1);
-            roster.forEach(p => { if (board[p]) board[p].share += share; });
-        }
-    }
-    return Object.entries(board).map(([name, v]) => ({
-        name,
-        paid: v.paid,
-        share: v.share,
-        net: v.paid - v.share,
-    }));
-}
+// Pure balance + simplification helpers live in ./settlement/balances.ts
+// since the B1 split. The per-trip and cross-trip views share that
+// module's implementations — no DOM, no events, only data in/data out.
 
 // ── Render ────────────────────────────────────────────────────────────
 
