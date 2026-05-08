@@ -225,9 +225,12 @@ test.describe('Critical flows — UI-driven', () => {
         await openFreshApp(page, userId);
         // Wait for /api/data to populate STATE.trips (the second
         // page.goto in openFreshApp triggers it; we wait until the
-        // trip name appears in the selector). Then pick the trip in
-        // the dropdown — that fires the onchange handler that sets
-        // STATE.activeTripId and unhides the Complete button.
+        // trip name appears in the selector). pullFromServer
+        // auto-sets activeTripId now (api.ts), so explicitly picking
+        // the dropdown is no longer required — but keep the
+        // selectOption as a defensive guard against the dev SQLite
+        // carrying *another* trip from a previous run that auto-
+        // selected first instead of our test's `Archive Flow`.
         await expect(page.locator('#tripSelector')).toContainText('Archive Flow', { timeout: 5000 });
         await page.selectOption('#tripSelector', tripId);
 

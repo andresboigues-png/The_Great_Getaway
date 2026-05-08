@@ -118,6 +118,24 @@ export async function pullFromServer() {
         STATE.trips = allTrips.filter(t => !t.isArchived);
         STATE.archivedTrips = allTrips.filter(t => t.isArchived);
 
+        // Re-validate STATE.activeTripId after replacing the trips
+        // list. Without this:
+        //  - First-load: activeTripId starts null. loadState() picks
+        //    the first trip as a fallback BUT only on its initial run
+        //    against localStorage; the subsequent pullFromServer
+        //    overwrites STATE.trips and never re-runs the fallback,
+        //    so activeTripId stays null even though there are now
+        //    trips. UI surfaces (`#completeTripBtn`, `#editTripBtn`,
+        //    the Companions tab) all gate on activeTripId being set.
+        //  - Stale ID: if activeTripId pointed to a trip that's been
+        //    deleted server-side, the lookup `STATE.trips.find(t =>
+        //    t.id === STATE.activeTripId)` returns undefined every
+        //    render until the user manually picks another trip.
+        // The two-clause guard mirrors loadState's identical check.
+        if (STATE.trips.length > 0 && (!STATE.activeTripId || !STATE.trips.find(t => t.id === STATE.activeTripId))) {
+            STATE.activeTripId = STATE.trips[0].id;
+        }
+
         STATE.expenses = data.expenses || [];
         // Account-level companions (data.companions) is no longer used —
         // companions live per-trip on `trip.companions`.
