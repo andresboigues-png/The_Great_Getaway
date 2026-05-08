@@ -184,10 +184,24 @@ function renderManualTab() {
                 <div class="form-row" style="position: relative;" id="countrySearchContainer">
                     <label class="form-label-light" for="expCountry">Country</label>
                     <div class="custom-select-wrapper">
-                        <input type="text" id="expCountry" class="glass-input-light" placeholder="Search country..." autocomplete="off">
-                        <div id="countryDropdownList" class="custom-select-dropdown glass shadow-xl" style="display: none; position: absolute; top: 100%; left: 0; right: 0; z-index: 1000; max-height: 250px; overflow-y: auto; margin-top: var(--space-2); border-radius: var(--radius-xl); border: 1px solid rgba(0,0,0,0.1); background: rgba(255,255,255,0.95); backdrop-filter: blur(20px);">
-                            ${COUNTRIES.sort().map(c => `<div class="dropdown-item" data-value="${c}">${c}</div>`).join('')}
-                            <div class="dropdown-item" data-value="Other">Other</div>
+                        <!-- WAI-ARIA combobox pattern (D3): role=combobox +
+                             aria-autocomplete=list + aria-expanded + aria-
+                             controls let screen readers announce that this
+                             input has a popup of suggestions, and how many
+                             are visible. The keyboard handler below toggles
+                             aria-expanded + sets aria-activedescendant so
+                             VoiceOver / NVDA / JAWS announce the active
+                             option as the user arrows through them. -->
+                        <input type="text" id="expCountry" class="glass-input-light"
+                            placeholder="Search country..." autocomplete="off"
+                            role="combobox" aria-autocomplete="list"
+                            aria-expanded="false" aria-controls="countryDropdownList"
+                            aria-haspopup="listbox">
+                        <div id="countryDropdownList" class="custom-select-dropdown glass shadow-xl"
+                            role="listbox" aria-label="Countries"
+                            style="display: none; position: absolute; top: 100%; left: 0; right: 0; z-index: 1000; max-height: 250px; overflow-y: auto; margin-top: var(--space-2); border-radius: var(--radius-xl); border: 1px solid rgba(0,0,0,0.1); background: rgba(255,255,255,0.95); backdrop-filter: blur(20px);">
+                            ${COUNTRIES.sort().map((c, i) => `<div class="dropdown-item" role="option" id="expCountryOpt-${i}" data-value="${c}">${c}</div>`).join('')}
+                            <div class="dropdown-item" role="option" id="expCountryOpt-other" data-value="Other">Other</div>
                         </div>
                     </div>
                 </div>
@@ -403,14 +417,35 @@ function renderManualTab() {
             });
         });
 
-        // Custom Searchable Dropdown Logic
+        // Custom Searchable Dropdown Logic.
+        //
+        // D3 a11y: this is a WAI-ARIA combobox (role=combobox on the input,
+        // role=listbox on the popup, role=option on each item — all set in
+        // the markup above). The handlers below keep the ARIA state in sync:
+        //   - openList()  → sets aria-expanded=true  on the input
+        //   - closeList() → sets aria-expanded=false on the input
+        //   - setActive() → sets aria-activedescendant on the input to
+        //                   the active option's id, so screen readers
+        //                   announce the active option as it changes
+        //                   without moving DOM focus off the input.
+        // The visible list is controlled by `display: block/none` and a
+        // visible `.is-active` class on the highlighted option (matching
+        // how the original mouse hover styled active items).
         const countryInput = (q(wrapper, '#expCountry') as HTMLInputElement);
         const countryList = q(wrapper, '#countryDropdownList');
         const countryItems = (countryList.querySelectorAll('.dropdown-item') as NodeListOf<HTMLElement>);
 
-        countryInput.onfocus = () => {
+        const openList = () => {
             countryList.style.display = 'block';
+            countryInput.setAttribute('aria-expanded', 'true');
         };
+        const closeList = () => {
+            countryList.style.display = 'none';
+            countryInput.setAttribute('aria-expanded', 'false');
+            countryInput.removeAttribute('aria-activedescendant');
+        };
+
+        countryInput.onfocus = openList;
 
         countryInput.oninput = (e) => {
             const val = (e.target as HTMLInputElement).value.toLowerCase();
@@ -418,12 +453,12 @@ function renderManualTab() {
                 const text = (item.textContent ?? '').toLowerCase();
                 item.style.display = text.includes(val) ? 'block' : 'none';
             });
-            countryList.style.display = 'block';
+            openList();
         };
 
         const selectCountry = (item: HTMLElement) => {
             countryInput.value = item.getAttribute('data-value') ?? '';
-            countryList.style.display = 'none';
+            closeList();
             STATE.draftExpense.country = countryInput.value;
 
             // Auto-suggest currency from the picked country, but only
@@ -450,12 +485,15 @@ function renderManualTab() {
 
         // Keyboard navigation: ↓ ↑ to move the active highlight, Enter to
         // select, Escape to close. Skips items hidden by the search filter.
+        // aria-activedescendant on the input points at the active option's
+        // id so screen readers announce its label without moving focus.
         let activeIdx = -1;
         const visibleItems = (): HTMLElement[] =>
             Array.from(countryItems).filter(it => it.style.display !== 'none');
         const clearActive = () => {
             countryItems.forEach(it => it.classList.remove('is-active'));
             activeIdx = -1;
+            countryInput.removeAttribute('aria-activedescendant');
         };
         const setActive = (idx: number) => {
             const items = visibleItems();
@@ -466,15 +504,19 @@ function renderManualTab() {
             if (!cur) return;
             cur.classList.add('is-active');
             cur.scrollIntoView({ block: 'nearest' });
+            const id = cur.getAttribute('id');
+            if (id) countryInput.setAttribute('aria-activedescendant', id);
         };
         countryInput.addEventListener('keydown', (e) => {
             if (countryList.style.display === 'none') {
                 if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-                    countryList.style.display = 'block';
+                    openList();
                 }
             }
             if (e.key === 'ArrowDown') { e.preventDefault(); setActive(activeIdx + 1); return; }
             if (e.key === 'ArrowUp') { e.preventDefault(); setActive(activeIdx - 1); return; }
+            if (e.key === 'Home') { e.preventDefault(); setActive(0); return; }
+            if (e.key === 'End') { e.preventDefault(); setActive(visibleItems().length - 1); return; }
             if (e.key === 'Enter') {
                 const items = visibleItems();
                 const cur = activeIdx >= 0 ? items[activeIdx] : undefined;
@@ -486,7 +528,15 @@ function renderManualTab() {
                 return;
             }
             if (e.key === 'Escape') {
-                countryList.style.display = 'none';
+                closeList();
+                clearActive();
+                return;
+            }
+            if (e.key === 'Tab') {
+                // Don't trap Tab — let it move focus naturally and
+                // close the list as a side effect (also matches the
+                // WAI-ARIA combobox pattern).
+                closeList();
                 clearActive();
                 return;
             }
@@ -499,7 +549,7 @@ function renderManualTab() {
             const target = (e.target as Node | null);
             const container = wrapper.querySelector('#countrySearchContainer');
             if (!target || !container || !container.contains(target)) {
-                countryList.style.display = 'none';
+                closeList();
             }
         });
 
