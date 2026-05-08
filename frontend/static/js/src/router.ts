@@ -164,8 +164,10 @@ export function navigate(
     });
 
     // Update active nav state. Phase 3A swapped inline onclick="" for
-    // data-page=""; we match against that now.
-    document.querySelectorAll('.nav-item').forEach(item => {
+    // data-page=""; we match against that now. Covers both the top
+    // navbar `.nav-item` links AND the new sidebar-rail items so the
+    // active-page highlight follows the user across both surfaces.
+    document.querySelectorAll('.nav-item, .sidebar-rail__item').forEach(item => {
         item.classList.toggle('active', item.getAttribute('data-page') === page);
     });
 

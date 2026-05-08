@@ -341,6 +341,84 @@
         </div>
     </nav>
 
+    <!-- Desktop sidebar rail — always-visible icon strip on the left
+         edge (≥721px viewport only). Per-user request: shorter path
+         to the sidebar's deeper pages without making the user open
+         the burger drawer first. The hamburger drawer still opens on
+         click and shows the FULL labelled menu — the rail is the
+         shortcut, not a replacement.
+
+         Each item has the same `data-page="…"` the burger drawer
+         items use, so main.ts's existing delegated click handler
+         picks them up — no new JS wiring. `data-i18n-aria-label`
+         on each item makes the accessible label translate via
+         paintI18nBindings on locale change. Section dividers are
+         tiny coloured dots (no labels) keyed off the burger's
+         section colours: blue (Account) → orange (Keeping track) →
+         green (Preferences). The user's profile avatar pinned at
+         the bottom mirrors the burger drawer's footer pattern. -->
+    <aside id="sidebarRail" class="sidebar-rail" aria-label="Quick navigation">
+        <a href="#" class="sidebar-rail__item" data-page="search" aria-label="Search" data-i18n-aria-label="nav.search" title="Search">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="7"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+        </a>
+        <span class="sidebar-rail__dot" aria-hidden="true" style="--dot-color: #0071e3"></span>
+        <a href="#" class="sidebar-rail__item" data-page="collections" aria-label="Collections" data-i18n-aria-label="nav.collections" title="Collections">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+            </svg>
+        </a>
+        <a href="#" class="sidebar-rail__item" data-page="friends" aria-label="Your network" data-i18n-aria-label="nav.friends" title="Your network">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+            </svg>
+        </a>
+        <span class="sidebar-rail__dot" aria-hidden="true" style="--dot-color: #ff9500"></span>
+        <a href="#" class="sidebar-rail__item" data-page="budgets" aria-label="Budgets" data-i18n-aria-label="nav.budgets" title="Budgets">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <rect x="2" y="7" width="20" height="14" rx="2" />
+                <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
+            </svg>
+        </a>
+        <a href="#" class="sidebar-rail__item" data-page="settlement" aria-label="Settlements" data-i18n-aria-label="nav.settlement" title="Settlements">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+            </svg>
+        </a>
+        <span class="sidebar-rail__dot" aria-hidden="true" style="--dot-color: #34c759"></span>
+        <a href="#" class="sidebar-rail__item" data-page="personalization" aria-label="Personalization" title="Personalization">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path>
+            </svg>
+        </a>
+        <a href="#" class="sidebar-rail__item" data-page="settings" aria-label="Settings" data-i18n-aria-label="nav.settings" title="Settings">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+            </svg>
+        </a>
+        <!-- Profile pinned at the bottom — circular avatar that
+             updates from the same source the burger-drawer profile
+             entry uses (sidebarProfilePic). The img stays hidden
+             until main.ts's updateUserUI() lands a real URL on it
+             post-login; we render a fallback initial in the meantime
+             so the rail never shows a broken-image icon. -->
+        <a href="#" class="sidebar-rail__item sidebar-rail__profile" data-page="profile" aria-label="Profile" data-i18n-aria-label="nav.profile" title="Profile">
+            <span id="railProfileFallback" class="sidebar-rail__profile-fallback" aria-hidden="true">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="12" cy="7" r="4"></circle>
+                </svg>
+            </span>
+            <img id="railProfilePic" src="" alt="" referrerpolicy="no-referrer" style="display: none;">
+        </a>
+    </aside>
+
     <!-- Main Content Area -->
     <main id="app-container">
         <!-- Pages will be dynamically injected here via JS -->

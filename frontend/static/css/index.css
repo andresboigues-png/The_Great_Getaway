@@ -810,6 +810,136 @@ h1 {
     overflow-y: auto;
 }
 
+/* ── Sidebar rail (desktop-only quick-nav strip) ─────────────────────
+   The user's "no two-click navigation" request: an always-visible
+   icon strip on the left edge of the viewport at desktop sizes. Sits
+   below the navbar (top: 56px to clear it) and runs to the bottom.
+   Hidden on ≤720px so the mobile layout's burger drawer stays the
+   sole navigation surface there.
+
+   Each item reuses the burger drawer's `data-page="…"` so main.ts's
+   global delegated click handler picks them up — no new wiring.
+   The rail is `position: fixed` so it doesn't push content; main
+   gets a `padding-left: 64px` on desktop further down to keep
+   content visually clear of the strip. */
+.sidebar-rail {
+    position: fixed;
+    top: 56px;
+    left: 0;
+    bottom: 0;
+    width: 64px;
+    z-index: 100;
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border-right: 1px solid var(--glass-border);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 14px 0 18px;
+    gap: 6px;
+    overflow-y: auto;
+}
+.sidebar-rail__item {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    color: var(--text-primary);
+    text-decoration: none;
+    transition: background 0.18s ease, color 0.18s ease, transform 0.05s ease;
+}
+.sidebar-rail__item:hover,
+.sidebar-rail__item:focus-visible {
+    background: rgba(0, 113, 227, 0.08);
+    color: #005bb8;
+    outline: none;
+}
+.sidebar-rail__item:active {
+    transform: scale(0.94);
+}
+.sidebar-rail__item.active {
+    /* The .active class is set by main.ts's nav-item highlight on
+       navigation. Match the existing nav-item active emphasis. */
+    background: rgba(0, 113, 227, 0.14);
+    color: #005bb8;
+}
+/* Coloured section dot — small circle replacing the burger drawer's
+   labelled section headers. The colour is per-section and threaded
+   in via the inline `--dot-color` custom property on each <span>. */
+.sidebar-rail__dot {
+    flex-shrink: 0;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--dot-color, var(--text-secondary));
+    margin: 6px auto;
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.6);
+}
+/* Profile avatar pinned to the bottom of the rail. */
+.sidebar-rail__profile {
+    margin-top: auto;
+    padding: 0;
+    overflow: hidden;
+    /* The image sits flush inside the rounded button — drop the
+       hover background tint that the other items use, since the
+       avatar's image already fills the button's content box. */
+}
+.sidebar-rail__profile:hover,
+.sidebar-rail__profile:focus-visible {
+    background: transparent;
+    /* Subtle ring on hover so the user gets feedback without the
+       avatar reflowing into a tinted square. */
+    box-shadow: 0 0 0 2px rgba(0, 113, 227, 0.32);
+}
+.sidebar-rail__profile img {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    object-fit: cover;
+    display: block;
+}
+.sidebar-rail__profile-fallback {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: rgba(0, 113, 227, 0.12);
+    color: var(--accent-blue);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+/* Hide the fallback once the real avatar mounts (img has src + is
+   not display:none anymore). Mirrors the burger drawer's pattern. */
+.sidebar-rail__profile img:not([style*="display: none"]) + .sidebar-rail__profile-fallback,
+.sidebar-rail__profile:has(img:not([style*="display: none"])) .sidebar-rail__profile-fallback {
+    display: none;
+}
+/* On signed-out pages the rail has no nav target and the user is
+   stuck on the login wall — hide it so the wall is the only chrome. */
+body.is-signed-out .sidebar-rail {
+    display: none !important;
+}
+/* Desktop: shift main content right by the rail width so it doesn't
+   sit under the strip. Navbar already spans full width and floats
+   above the rail (z-index higher). */
+@media (min-width: 721px) {
+    main#app-container {
+        padding-left: 64px;
+    }
+    /* Modal overlays cover the whole viewport — keep them above the
+       rail via the existing modal z-index, no new rule needed
+       (.modal-overlay is z-index 2000+). */
+}
+@media (max-width: 720px) {
+    .sidebar-rail {
+        display: none;
+    }
+}
+
 .sidebar.open {
     transform: translateX(0);
 }

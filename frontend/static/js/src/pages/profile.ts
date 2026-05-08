@@ -646,6 +646,12 @@ export function updateUserUI() {
     const sub = document.getElementById('sidebarProfileSub');
     const pic = (document.getElementById('sidebarProfilePic') as HTMLImageElement | null);
     const logoutBtn = document.getElementById('sidebarLogoutBtn');
+    // Desktop sidebar-rail mirror — the rail's profile slot uses the
+    // same image source as the burger drawer. Defined here so the
+    // single login flow drives both rendering surfaces from one
+    // place; missing rail (mobile / older snapshots) is a no-op.
+    const railPic = (document.getElementById('railProfilePic') as HTMLImageElement | null);
+    const railFallback = document.getElementById('railProfileFallback');
 
     // App-wide signed-out body class — drives the CSS that hides the
     // nav links, trip selector, notification bell, and sidebar trigger
@@ -666,12 +672,31 @@ export function updateUserUI() {
             pic.setAttribute('referrerpolicy', 'no-referrer');
             pic.src = STATE.user.picture ?? '';
         }
+        if (railPic) {
+            const url = STATE.user.picture ?? '';
+            if (url) {
+                railPic.setAttribute('referrerpolicy', 'no-referrer');
+                railPic.src = url;
+                railPic.style.display = 'block';
+                if (railFallback) railFallback.style.display = 'none';
+            } else {
+                // No picture URL on this user — keep the fallback
+                // initial visible.
+                railPic.style.display = 'none';
+                if (railFallback) railFallback.style.display = 'flex';
+            }
+        }
         if (logoutBtn) { logoutBtn.style.display = 'block'; }
     } else {
         if (avatar) { avatar.style.display = 'none'; }
         if (icon) { icon.style.display = 'block'; }
         if (label) { label.textContent = 'Log in'; }
         if (sub) { sub.style.display = 'none'; }
+        if (railPic) {
+            railPic.style.display = 'none';
+            railPic.removeAttribute('src');
+        }
+        if (railFallback) { railFallback.style.display = 'flex'; }
         if (logoutBtn) { logoutBtn.style.display = 'none'; }
     }
 }

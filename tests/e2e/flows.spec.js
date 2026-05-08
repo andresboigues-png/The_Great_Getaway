@@ -434,6 +434,45 @@ test.describe('Critical flows — UI-driven', () => {
         if (testInfo.project.name === 'chromium-mobile') test.skip();
     });
 
+    test('desktop sidebar rail is visible and clicks navigate to deep pages', async ({ page }) => {
+        // Per-user request: an always-visible icon rail on the left
+        // edge of the viewport at desktop sizes that bypasses the
+        // burger drawer for the "deep" pages (Search, Collections,
+        // Friends, Budgets, Settlement, Personalization, Settings,
+        // Profile). The hamburger drawer still works as before; the
+        // rail is a one-click shortcut, not a replacement.
+        const userId = uniqueId('user');
+        await getAuthForApi(page, userId);
+        await openFreshApp(page, userId);
+
+        // Sanity: the rail is rendered and visible at desktop width.
+        const rail = page.locator('#sidebarRail');
+        await expect(rail).toBeVisible();
+        // Each rail item is reachable WITHOUT opening the burger
+        // drawer first. Click Settings via the rail and assert
+        // the URL hash flips. Use Playwright's normal .click() so
+        // the browser's hit-test runs — same shape as the post-D6
+        // sidebar regression test above.
+        const railSettings = rail.locator('.sidebar-rail__item[data-page="settings"]');
+        await railSettings.click({ timeout: 5000 });
+        await expect.poll(() => page.evaluate(() => location.hash)).toBe('#settings');
+
+        // Click Personalization via the rail.
+        const railPers = rail.locator('.sidebar-rail__item[data-page="personalization"]');
+        await railPers.click({ timeout: 5000 });
+        await expect.poll(() => page.evaluate(() => location.hash)).toBe('#personalization');
+
+        // Click Friends via the rail.
+        const railFriends = rail.locator('.sidebar-rail__item[data-page="friends"]');
+        await railFriends.click({ timeout: 5000 });
+        await expect.poll(() => page.evaluate(() => location.hash)).toBe('#friends');
+
+        // Active-state highlight: the current page's rail item gets
+        // .active. Verifies the router's nav-item-active sweep
+        // covers the rail too.
+        await expect(railFriends).toHaveClass(/active/);
+    });
+
     test('sidebar Settings + Personalization items are clickable (no overlay intercept)', async ({ page }) => {
         // Regression for a layout bug where a flex spacer
         // `<div style="flex: 1;">` in the sidebar competed with
