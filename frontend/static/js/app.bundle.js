@@ -1229,7 +1229,7 @@ Fix: enable "Directions API" on the Google Cloud project tied to your Maps API k
                                 </div>
                                 ${t}
                             </button>
-                        `}).join(``)},p=(e,t)=>{let n=e?.geometry?.location;if(!n)return;let r={path:`M12 2C8 2 5 5 5 9c0 5 7 13 7 13s7-8 7-13c0-4-3-7-7-7z`,fillColor:t.color||`#0071e3`,fillOpacity:1,strokeColor:`#ffffff`,strokeWeight:2,scale:1.6,anchor:new google.maps.Point(12,22)};a&&a.setMap(null),a=new google.maps.Marker({position:n,map:E,icon:r,title:e.name||``,zIndex:9999}),E.panTo(n),E.getZoom()<14&&E.setZoom(15);let i=h();i.setContent(_(t,e)),google.maps.event.addListenerOnce(i,`domready`,()=>{v(t,e)}),i.open({map:E,anchor:a})},m=e=>{u().getDetails({placeId:e,fields:[`place_id`,`name`,`formatted_address`,`vicinity`,`geometry`,`types`,`rating`,`user_ratings_total`,`icon`,`url`]},(e,t)=>{t!==google.maps.places.PlacesServiceStatus.OK||!e||p(e,s(e.types)||c)})};e.addEventListener(`input`,()=>{let n=e.value.trim();if(r.style.display=n?`inline-flex`:`none`,o&&clearTimeout(o),!n){l();return}o=setTimeout(()=>{let e={input:n},r=E.getBounds();r&&(e.bounds=r),t&&typeof t.lat==`number`&&typeof t.lng==`number`&&(e.origin={lat:t.lat,lng:t.lng}),i.getPlacePredictions(e,(e,t)=>{if(t!==google.maps.places.PlacesServiceStatus.OK){t===google.maps.places.PlacesServiceStatus.ZERO_RESULTS?f([]):l();return}f(e||[])})},220)}),n.addEventListener(`click`,t=>{let n=t.target?.closest(`.map-search-row`);if(!n?.dataset.placeId)return;let r=n.dataset.placeId;e.value=n.querySelector(`div`)?.textContent?.trim()||e.value,l(),m(r)}),r.addEventListener(`click`,()=>{e.value=``,r.style.display=`none`,l(),a&&=(a.setMap(null),null);let t=h();try{t.close()}catch{}e.focus()}),document.addEventListener(`click`,e=>{let t=document.getElementById(`homeMapSearchWrap`);t&&(t.contains(e.target)||l())})})();let ae=t?(R.tripDays||[]).filter(e=>e.tripId===t.id):[];cl={},ae.forEach(e=>{if(e.lat&&(e.lon||e.lng)){let t=e.lon||e.lng,n=ll===e.id,r=e.dayNumber===0,i=new google.maps.Marker({position:{lat:e.lat,lng:t},map:E,draggable:n,title:r?`Trip Anchor`:`Day ${e.dayNumber}: ${e.name}`,label:r?void 0:{text:String(e.dayNumber),color:`white`,fontWeight:`800`,fontSize:n?`16px`:`14px`},icon:r?{url:`data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48"><circle cx="24" cy="24" r="21" fill="%23c89a18" stroke="white" stroke-width="3"/><path d="M 24,11 L 27.06,18.96 L 35.55,19.49 L 28.92,24.92 L 31.0,33.16 L 24,28.6 L 17,33.16 L 19.08,24.92 L 12.45,19.49 L 20.94,18.96 Z" fill="white"/></svg>`,scaledSize:new google.maps.Size(48,48),anchor:new google.maps.Point(24,24)}:{path:google.maps.SymbolPath.CIRCLE,fillOpacity:1,fillColor:n?`#ff3b30`:`#007aff`,strokeColor:`white`,strokeWeight:3,scale:n?22:18},zIndex:r?1:100});cl[e.id]=i,n?i.addListener(`dragend`,()=>{let t=i.getPosition();e.lat=t.lat(),e.lon=t.lng(),e.lng=t.lng()}):i.addListener(`click`,()=>{E.panTo(i.getPosition()),typeof E.getZoom==`function`&&E.getZoom()<13&&E.setZoom(13),se(i,e)})}});let oe=null,se=(e,t)=>{oe||=new google.maps.InfoWindow;let n=t.lat,r=js({lat:n,lng:t.lng||t.lon},{width:280,height:160,fov:90}),i=t.dayNumber===0,a=i?`⚓ Trip Anchor`:`Day ${t.dayNumber}`,o=t.name&&!i?`<div style="font-size:0.78rem; color:rgba(0,45,91,0.6); margin-top:2px;">${H(t.name)}</div>`:``,s=t.date&&!i?`<div style="font-size:0.7rem; color:var(--accent-blue); font-weight:700; margin-top:2px;">📅 ${H(xs(t.date)||t.date)}</div>`:``,c=`
+                        `}).join(``)},p=(e,t)=>{let n=e?.geometry?.location;if(!n)return;let r={path:`M12 2C8 2 5 5 5 9c0 5 7 13 7 13s7-8 7-13c0-4-3-7-7-7z`,fillColor:t.color||`#0071e3`,fillOpacity:1,strokeColor:`#ffffff`,strokeWeight:2,scale:1.6,anchor:new google.maps.Point(12,22)};a&&a.setMap(null),a=new google.maps.Marker({position:n,map:E,icon:r,title:e.name||``,zIndex:9999}),E.panTo(n),E.getZoom()<14&&E.setZoom(15);let i=h();i.setContent(_(t,e)),google.maps.event.addListenerOnce(i,`domready`,()=>{v(t,e)}),i.open({map:E,anchor:a})},m=e=>{u().getDetails({placeId:e,fields:[`place_id`,`name`,`formatted_address`,`vicinity`,`geometry`,`types`,`rating`,`user_ratings_total`,`icon`,`url`]},(e,t)=>{t!==google.maps.places.PlacesServiceStatus.OK||!e||p(e,s(e.types)||c)})};e.addEventListener(`input`,()=>{let n=e.value.trim();if(r.style.display=n?`inline-flex`:`none`,o&&clearTimeout(o),!n){l();return}o=setTimeout(()=>{let e={input:n},r=E.getBounds();r&&(e.bounds=r),t&&typeof t.lat==`number`&&typeof t.lng==`number`&&(e.origin={lat:t.lat,lng:t.lng}),i.getPlacePredictions(e,(e,t)=>{if(t!==google.maps.places.PlacesServiceStatus.OK){t===google.maps.places.PlacesServiceStatus.ZERO_RESULTS?f([]):l();return}f(e||[])})},220)}),n.addEventListener(`click`,t=>{let n=t.target?.closest(`.map-search-row`);if(!n?.dataset.placeId)return;let r=n.dataset.placeId;e.value=n.querySelector(`div`)?.textContent?.trim()||e.value,l(),m(r)}),r.addEventListener(`click`,()=>{e.value=``,r.style.display=`none`,l(),a&&=(a.setMap(null),null);let t=h();try{t.close()}catch{}e.focus()}),document.addEventListener(`click`,e=>{let t=document.getElementById(`homeMapSearchWrap`);t&&(t.contains(e.target)||l())})})();let ae=t?(R.tripDays||[]).filter(e=>e.tripId===t.id):[];cl={},ae.forEach(e=>{if(e.lat&&(e.lon||e.lng)){let t=e.lon||e.lng,n=ll===e.id,r=e.dayNumber===0,i=new google.maps.Marker({position:{lat:e.lat,lng:t},map:E,draggable:n,title:r?`Trip Anchor`:`Day ${e.dayNumber}: ${e.name}`,label:r?void 0:{text:String(e.dayNumber),color:`white`,fontWeight:`800`,fontSize:n?`16px`:`14px`},icon:r?{url:`data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48"><circle cx="24" cy="24" r="21" fill="%23c89a18" stroke="white" stroke-width="3"/><g fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><circle cx="24" cy="14" r="3"/><line x1="24" y1="38" x2="24" y2="17"/><path d="M14 28H10a14 14 0 0 0 28 0h-4"/></g></svg>`,scaledSize:new google.maps.Size(48,48),anchor:new google.maps.Point(24,24)}:{path:google.maps.SymbolPath.CIRCLE,fillOpacity:1,fillColor:n?`#ff3b30`:`#007aff`,strokeColor:`white`,strokeWeight:3,scale:n?22:18},zIndex:r?1:100});cl[e.id]=i,n?i.addListener(`dragend`,()=>{let t=i.getPosition();e.lat=t.lat(),e.lon=t.lng(),e.lng=t.lng()}):i.addListener(`click`,()=>{E.panTo(i.getPosition()),typeof E.getZoom==`function`&&E.getZoom()<13&&E.setZoom(13),se(i,e)})}});let oe=null,se=(e,t)=>{oe||=new google.maps.InfoWindow;let n=t.lat,r=js({lat:n,lng:t.lng||t.lon},{width:280,height:160,fov:90}),i=t.dayNumber===0,a=i?`⚓ Trip Anchor`:`Day ${t.dayNumber}`,o=t.name&&!i?`<div style="font-size:0.78rem; color:rgba(0,45,91,0.6); margin-top:2px;">${H(t.name)}</div>`:``,s=t.date&&!i?`<div style="font-size:0.7rem; color:var(--accent-blue); font-weight:700; margin-top:2px;">📅 ${H(xs(t.date)||t.date)}</div>`:``,c=`
                         <div style="font-family:-apple-system,BlinkMacSystemFont,sans-serif; min-width:240px; max-width:300px; padding:4px 4px 6px;">
                             ${r?`<img src="${H(r)}" alt="Street view of ${H(a)}"
                             referrerpolicy="no-referrer"
@@ -1415,8 +1415,10 @@ Fix: enable "Directions API" on the Google Cloud project tied to your Maps API k
             <div id="pathTabInner"></div>
         </div>
     `,t){e.appendChild(s);let n=(e,{isAnchor:n,isSelected:r})=>{let i=n?`<div style="background: var(--gradient-anchor-deep); color: white; width: 48px; height: 48px; border-radius: 50%; border: 3px solid white; display: flex; align-items: center; justify-content: center; flex-shrink:0; box-shadow: 0 8px 18px rgba(212,160,23,0.28);">
-                       <svg width="26" height="26" viewBox="0 0 48 48" aria-hidden="true">
-                           <path d="M 24,11 L 27.06,18.96 L 35.55,19.49 L 28.92,24.92 L 31.0,33.16 L 24,28.6 L 17,33.16 L 19.08,24.92 L 12.45,19.49 L 20.94,18.96 Z" fill="white"/>
+                       <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                           <circle cx="12" cy="5" r="3"/>
+                           <line x1="12" y1="22" x2="12" y2="8"/>
+                           <path d="M5 12H2a10 10 0 0 0 20 0h-3"/>
                        </svg>
                    </div>`:`<div style="background: var(--gradient-title); color: white; width: 48px; height: 48px; border-radius: 14px; display: flex; flex-direction: column; align-items: center; justify-content: center; flex-shrink:0; box-shadow: 0 8px 18px rgba(0,113,227,0.15);">
                        <span style="font-size: 0.6rem; font-weight: 800; text-transform: uppercase; opacity: 0.85; letter-spacing: 0.05em; line-height:1;">Day</span>
@@ -2797,7 +2799,7 @@ Error generating stack: `+e.message+`
         `}).join(``)}
             </div>
         `});t.querySelector(`#friendsListClose`)?.addEventListener(`click`,n),t.querySelectorAll(`.profile-friend-row`).forEach(e=>{e.onclick=()=>{let t=e.dataset.userId;n(),t&&Q(`profile`,{userId:t})}})}function Rd(e=null){let t=document.createElement(`div`),n=!e||R.user&&e===R.user.id;if(!R.user&&n)return Id();let r=(e,r)=>{let i=[...new Set((r||[]).map(e=>e.country).filter(Boolean))],a=e.picture,o=[];t.innerHTML=`
-            <div style="max-width: 800px; margin: 0 auto; padding-bottom: 60px;">
+            <div class="profile-page" style="max-width: 800px; margin: 0 auto; padding-bottom: 60px;">
                 ${n?``:`
                     <button class="btn btn-small" id="profileBackToFriendsBtn" style="margin-bottom: 20px; background: rgba(0,0,0,0.05); color: var(--text-primary); border: 1px solid var(--glass-border); padding: 8px 16px; border-radius: 12px; font-weight: 700; display: flex; align-items: center; gap: 8px;">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
@@ -2805,8 +2807,13 @@ Error generating stack: `+e.message+`
                     </button>
                 `}
 
-                <!-- Instagram-style Profile Header -->
-                <div style="display: flex; align-items: flex-start; gap: 40px; padding: 30px 20px; border-bottom: 1px solid var(--glass-border); margin-bottom: 30px;">
+                <!-- Instagram-style Profile Header. The .profile-header
+                     class is a CSS hook for the mobile layout override
+                     (≤720px) — the inline flex+gap below is the desktop
+                     layout; on mobile the rule in index.css stacks
+                     avatar + info into a single centered column so
+                     long emails / labels don't overflow the viewport. -->
+                <div class="profile-header" style="display: flex; align-items: flex-start; gap: 40px; padding: 30px 20px; border-bottom: 1px solid var(--glass-border); margin-bottom: 30px;">
                     <!-- Avatar -->
                     <div style="position: relative; flex-shrink: 0; ${n?`cursor: pointer;`:``} border-radius: 50%;" id="${n?`profilePicWrapper`:``}" title="${n?`Change profile photo`:``}">
                         <div style="padding: 4px; background: linear-gradient(135deg, #4da3ff 0%, var(--accent-blue) 50%, #004080 100%); border-radius: 50%;">
@@ -2837,22 +2844,22 @@ Error generating stack: `+e.message+`
                     </div>
                     
                     <!-- Info Section -->
-                    <div style="flex: 1; padding-top: 10px;">
+                    <div class="profile-info" style="flex: 1; padding-top: 10px; min-width: 0;">
                         <!-- Name & Actions -->
-                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px;">
-                            <h2 style="margin: 0; font-size: 1.6rem; font-weight: 700; color: var(--text-primary); letter-spacing: -0.02em;">${e.name}</h2>
+                        <div class="profile-name-row" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; gap: 12px;">
+                            <h2 style="margin: 0; font-size: 1.6rem; font-weight: 700; color: var(--text-primary); letter-spacing: -0.02em; min-width: 0; overflow-wrap: anywhere;">${e.name}</h2>
                             ${n?`
                                 <button id="profileLogoutBtn" class="btn-logout">Log Out</button>
                             `:``}
                         </div>
-                        
+
                         <!-- Stats Row. The friends stat is clickable
                              (own profile only) — opens a modal listing
                              every accepted friend, each row navigates
                              to that friend's profile. Number starts as
                              "—" and the post-render fetch fills it in
                              once /api/friends/list resolves. -->
-                        <div style="display: flex; gap: 32px; margin-bottom: 24px;">
+                        <div class="profile-stats" style="display: flex; gap: 32px; margin-bottom: 24px; flex-wrap: wrap;">
                             <div style="text-align: left;">
                                 <span style="font-size: 1.15rem; font-weight: 700; color: var(--text-primary);">${r.length}</span>
                                 <span style="font-size: 1.1rem; color: var(--text-primary); font-weight: 400; margin-left: 4px;">public trips</span>
@@ -2870,8 +2877,8 @@ Error generating stack: `+e.message+`
                         </div>
                         
                         <!-- Bio & Status -->
-                        <div>
-                            <div style="font-size: 0.95rem; font-weight: 700; color: var(--text-primary); margin-bottom: 4px;">${e.email}</div>
+                        <div class="profile-bio-block">
+                            <div class="profile-email" style="font-size: 0.95rem; font-weight: 700; color: var(--text-primary); margin-bottom: 4px; overflow-wrap: anywhere;">${e.email}</div>
                             
                             <!-- Inline Status -->
                             <div style="position: relative; display: inline-block; margin-bottom: 8px;">

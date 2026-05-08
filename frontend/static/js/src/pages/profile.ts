@@ -190,7 +190,7 @@ export function renderProfile(targetUserId: string | null | undefined = null) {
         let friendsCache: ProfileFriend[] = [];
 
         div.innerHTML = `
-            <div style="max-width: 800px; margin: 0 auto; padding-bottom: 60px;">
+            <div class="profile-page" style="max-width: 800px; margin: 0 auto; padding-bottom: 60px;">
                 ${!isOwnProfile ? `
                     <button class="btn btn-small" id="profileBackToFriendsBtn" style="margin-bottom: 20px; background: rgba(0,0,0,0.05); color: var(--text-primary); border: 1px solid var(--glass-border); padding: 8px 16px; border-radius: 12px; font-weight: 700; display: flex; align-items: center; gap: 8px;">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
@@ -198,8 +198,13 @@ export function renderProfile(targetUserId: string | null | undefined = null) {
                     </button>
                 ` : ''}
 
-                <!-- Instagram-style Profile Header -->
-                <div style="display: flex; align-items: flex-start; gap: 40px; padding: 30px 20px; border-bottom: 1px solid var(--glass-border); margin-bottom: 30px;">
+                <!-- Instagram-style Profile Header. The .profile-header
+                     class is a CSS hook for the mobile layout override
+                     (≤720px) — the inline flex+gap below is the desktop
+                     layout; on mobile the rule in index.css stacks
+                     avatar + info into a single centered column so
+                     long emails / labels don't overflow the viewport. -->
+                <div class="profile-header" style="display: flex; align-items: flex-start; gap: 40px; padding: 30px 20px; border-bottom: 1px solid var(--glass-border); margin-bottom: 30px;">
                     <!-- Avatar -->
                     <div style="position: relative; flex-shrink: 0; ${isOwnProfile ? 'cursor: pointer;' : ''} border-radius: 50%;" id="${isOwnProfile ? 'profilePicWrapper' : ''}" title="${isOwnProfile ? 'Change profile photo' : ''}">
                         <div style="padding: 4px; background: linear-gradient(135deg, #4da3ff 0%, var(--accent-blue) 50%, #004080 100%); border-radius: 50%;">
@@ -230,22 +235,22 @@ export function renderProfile(targetUserId: string | null | undefined = null) {
                     </div>
                     
                     <!-- Info Section -->
-                    <div style="flex: 1; padding-top: 10px;">
+                    <div class="profile-info" style="flex: 1; padding-top: 10px; min-width: 0;">
                         <!-- Name & Actions -->
-                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px;">
-                            <h2 style="margin: 0; font-size: 1.6rem; font-weight: 700; color: var(--text-primary); letter-spacing: -0.02em;">${user.name}</h2>
+                        <div class="profile-name-row" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; gap: 12px;">
+                            <h2 style="margin: 0; font-size: 1.6rem; font-weight: 700; color: var(--text-primary); letter-spacing: -0.02em; min-width: 0; overflow-wrap: anywhere;">${user.name}</h2>
                             ${isOwnProfile ? `
                                 <button id="profileLogoutBtn" class="btn-logout">Log Out</button>
                             ` : ''}
                         </div>
-                        
+
                         <!-- Stats Row. The friends stat is clickable
                              (own profile only) — opens a modal listing
                              every accepted friend, each row navigates
                              to that friend's profile. Number starts as
                              "—" and the post-render fetch fills it in
                              once /api/friends/list resolves. -->
-                        <div style="display: flex; gap: 32px; margin-bottom: 24px;">
+                        <div class="profile-stats" style="display: flex; gap: 32px; margin-bottom: 24px; flex-wrap: wrap;">
                             <div style="text-align: left;">
                                 <span style="font-size: 1.15rem; font-weight: 700; color: var(--text-primary);">${trips.length}</span>
                                 <span style="font-size: 1.1rem; color: var(--text-primary); font-weight: 400; margin-left: 4px;">public trips</span>
@@ -263,8 +268,8 @@ export function renderProfile(targetUserId: string | null | undefined = null) {
                         </div>
                         
                         <!-- Bio & Status -->
-                        <div>
-                            <div style="font-size: 0.95rem; font-weight: 700; color: var(--text-primary); margin-bottom: 4px;">${user.email}</div>
+                        <div class="profile-bio-block">
+                            <div class="profile-email" style="font-size: 0.95rem; font-weight: 700; color: var(--text-primary); margin-bottom: 4px; overflow-wrap: anywhere;">${user.email}</div>
                             
                             <!-- Inline Status -->
                             <div style="position: relative; display: inline-block; margin-bottom: 8px;">

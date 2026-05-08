@@ -1297,19 +1297,23 @@ export function renderHome() {
                         const isEditing = editingDayId === day.id;
                         const isStartingPoint = day.dayNumber === 0;
 
-                        // Anchor: gold-plated circle with a white star
-                        // inside, shipped as one SVG data-URL — no text
-                        // label, no font fallback, the glyph is part of
-                        // the image so it never glitches on re-render.
-                        // Recoloured from green (%2334c759) to
-                        // %23c89a18 to match the rest of the Anchor
-                        // theme (chip, badge, primary button, card glow).
-                        // Numbered days: blue circle with the day number
-                        // as a label.
+                        // Anchor: gold-plated circle with a white anchor
+                        // glyph inside, shipped as one SVG data-URL — no
+                        // text label, no font fallback, the glyph is part
+                        // of the image so it never glitches on re-render.
+                        // The inner glyph is a Lucide-style anchor
+                        // (loop + shaft + bottom arc) scaled 2× to fit
+                        // the 48×48 viewBox cleanly inside the gold
+                        // r=21 circle. Numbered days: blue circle with
+                        // the day number as a label.
                         const GENESIS_SVG = 'data:image/svg+xml;utf8,'
                             + '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">'
                             + '<circle cx="24" cy="24" r="21" fill="%23c89a18" stroke="white" stroke-width="3"/>'
-                            + '<path d="M 24,11 L 27.06,18.96 L 35.55,19.49 L 28.92,24.92 L 31.0,33.16 L 24,28.6 L 17,33.16 L 19.08,24.92 L 12.45,19.49 L 20.94,18.96 Z" fill="white"/>'
+                            + '<g fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">'
+                            + '<circle cx="24" cy="14" r="3"/>'
+                            + '<line x1="24" y1="38" x2="24" y2="17"/>'
+                            + '<path d="M14 28H10a14 14 0 0 0 28 0h-4"/>'
+                            + '</g>'
                             + '</svg>';
                         const marker = new google.maps.Marker({
                             position: { lat: day.lat, lng: lon },
@@ -1950,8 +1954,10 @@ export function renderHome() {
         const buildDayCardBody = (day: any, { isAnchor, isSelected }: { isAnchor: boolean; isSelected: boolean }) => {
             const badge = isAnchor
                 ? `<div style="background: var(--gradient-anchor-deep); color: white; width: 48px; height: 48px; border-radius: 50%; border: 3px solid white; display: flex; align-items: center; justify-content: center; flex-shrink:0; box-shadow: 0 8px 18px rgba(212,160,23,0.28);">
-                       <svg width="26" height="26" viewBox="0 0 48 48" aria-hidden="true">
-                           <path d="M 24,11 L 27.06,18.96 L 35.55,19.49 L 28.92,24.92 L 31.0,33.16 L 24,28.6 L 17,33.16 L 19.08,24.92 L 12.45,19.49 L 20.94,18.96 Z" fill="white"/>
+                       <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                           <circle cx="12" cy="5" r="3"/>
+                           <line x1="12" y1="22" x2="12" y2="8"/>
+                           <path d="M5 12H2a10 10 0 0 0 20 0h-3"/>
                        </svg>
                    </div>`
                 : `<div style="background: var(--gradient-title); color: white; width: 48px; height: 48px; border-radius: 14px; display: flex; flex-direction: column; align-items: center; justify-content: center; flex-shrink:0; box-shadow: 0 8px 18px rgba(0,113,227,0.15);">
