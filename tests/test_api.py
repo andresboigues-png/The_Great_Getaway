@@ -1817,3 +1817,136 @@ def test_feed_like_on_synthesised_event_id_skips_notification(
     body = res.get_json()
     assert body.get("liked") is True
     assert body.get("count") == 1
+
+
+# ── /api/auth/google — production happy path (mocked Google verify) ──────────
+#
+# The test-mode bypass above only exercises the `test:<id>` shortcut. These
+# tests mock `id_token.verify_oauth2_token` to drive the real production
+# branch (lines 118-142 in src/routes/auth.py) without making a real network
+# call to Google's OAuth backend. Same monkeypatch pattern as integrations.py.
+
+def test_auth_google_real_path_inserts_user_and_returns_token(client, monkeypatch):
+    """Production happy path: verify_oauth2_token returns a valid idinfo
+    dict; the handler upserts the user row and mints a JWT. Pin the
+    response shape since the frontend keys off `body.user.id`,
+    `body.token`, etc."""
+    monkeypatch.setenv("CLIENT_ID_GOOGLE_AUTH", "client-id-test")
+    monkeypatch.delenv("GG_ALLOW_TEST_LOGIN", raising=False)
+
+    fake_idinfo = {
+        "sub": "google-uid-12345",
+        "email": "real@example.com",
+        "name": "Real User",
+        "picture": "https://lh3.googleusercontent.com/avatar.jpg",
+    }
+
+    def fake_verify(token, request, client_id):
+        # Pin the contract: verify gets called with the token + the
+        # configured client_id.
+        assert token == "valid.google.token"
+        assert client_id == "client-id-test"
+        return fake_idinfo
+
+    import routes.auth
+    monkeypatch.setattr(routes.auth.id_token, "verify_oauth2_token", fake_verify)
+
+    res = client.post("/api/auth/google", json={"token": "valid.google.token"})
+    assert res.status_code == 200
+    body = res.get_json()
+    assert body["status"] == "success"
+    assert body["token"]  # signed JWT (real string, not None)
+    assert body["user"]["id"] == "google-uid-12345"
+    assert body["user"]["email"] == "real@example.com"
+    assert body["user"]["name"] == "Real User"
+    assert body["user"]["picture"].startswith("https://")
+    # First sign-in: bio/status default to empty string, home_currency to None.
+    assert body["user"]["bio"] == ""
+    assert body["user"]["status"] == ""
+    assert body["user"]["homeCurrency"] is None
+
+
+def test_auth_google_real_path_supports_credential_field(client, monkeypatch):
+    """Frontend may send the token under either `token` (legacy) or
+    `credential` (Google's GIS lib default name). Pin both routes."""
+    monkeypatch.setenv("CLIENT_ID_GOOGLE_AUTH", "client-id-test")
+    monkeypatch.delenv("GG_ALLOW_TEST_LOGIN", raising=False)
+
+    def fake_verify(token, request, client_id):
+        return {
+            "sub": "uid-cred",
+            "email": "cred@example.com",
+            "name": "Cred User",
+            "picture": "",
+        }
+
+    import routes.auth
+    monkeypatch.setattr(routes.auth.id_token, "verify_oauth2_token", fake_verify)
+
+    res = client.post("/api/auth/google", json={"credential": "via.credential.field"})
+    assert res.status_code == 200
+    assert res.get_json()["user"]["id"] == "uid-cred"
+
+
+def test_auth_google_real_path_returns_existing_profile_on_repeat_signin(
+    client, monkeypatch,
+):
+    """Second sign-in for an existing user preserves bio / status /
+    home_currency from the DB row (these aren't touched by the
+    upsert). Pin so a regression that overwrites profile fields on
+    repeat sign-in surfaces immediately."""
+    monkeypatch.setenv("CLIENT_ID_GOOGLE_AUTH", "client-id-test")
+    monkeypatch.delenv("GG_ALLOW_TEST_LOGIN", raising=False)
+
+    fake_idinfo = {
+        "sub": "returning-user",
+        "email": "ret@example.com",
+        "name": "Returning User",
+        "picture": "",
+    }
+
+    def fake_verify(token, request, client_id):
+        return fake_idinfo
+
+    import routes.auth
+    monkeypatch.setattr(routes.auth.id_token, "verify_oauth2_token", fake_verify)
+
+    # First sign-in → upsert.
+    client.post("/api/auth/google", json={"token": "first.signin"})
+
+    # Hand-set the profile fields the way /api/profile/update would.
+    from database import get_db
+    with get_db() as conn:
+        c = conn.cursor()
+        c.execute(
+            "UPDATE users SET bio = ?, status = ?, home_currency = ? WHERE id = ?",
+            ("Coffee enthusiast", "Wandering", "EUR", "returning-user"),
+        )
+        conn.commit()
+
+    # Second sign-in — same Google identity, profile fields should
+    # come back in the response body.
+    res = client.post("/api/auth/google", json={"token": "second.signin"})
+    assert res.status_code == 200
+    body = res.get_json()
+    assert body["user"]["bio"] == "Coffee enthusiast"
+    assert body["user"]["status"] == "Wandering"
+    assert body["user"]["homeCurrency"] == "EUR"
+
+
+def test_auth_google_real_path_invalid_token_returns_401(client, monkeypatch):
+    """verify_oauth2_token raises ValueError on a tampered/expired
+    token; handler maps that to 401 (NOT 500). Frontend reads the 401
+    as "session bad, show login wall again"."""
+    monkeypatch.setenv("CLIENT_ID_GOOGLE_AUTH", "client-id-test")
+    monkeypatch.delenv("GG_ALLOW_TEST_LOGIN", raising=False)
+
+    def fake_verify(token, request, client_id):
+        raise ValueError("Token used too late, 1234567890 < 1234567899")
+
+    import routes.auth
+    monkeypatch.setattr(routes.auth.id_token, "verify_oauth2_token", fake_verify)
+
+    res = client.post("/api/auth/google", json={"token": "expired.token"})
+    assert res.status_code == 401
+    assert res.get_json().get("error") == "Invalid token"
