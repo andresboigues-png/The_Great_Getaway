@@ -16,16 +16,16 @@ let collectionsSearchText = '';
 
 /** Earliest tripDay date on a trip (its start). Falls back to null
  *  for trips with no dated days — those float to the end on date sorts. */
-function tripStartDate(trip) {
+function tripStartDate(trip: any): string | null {
     const dates = (trip.tripDays || [])
-        .map(d => d.date)
+        .map((d: any) => d.date)
         .filter(Boolean)
         .sort();
     return dates[0] || null;
 }
 
 /** "Year" used for the year filter — earliest day's year, or null. */
-function tripYear(trip) {
+function tripYear(trip: any): number | null {
     const start = tripStartDate(trip);
     if (!start) return null;
     const y = parseInt(String(start).slice(0, 4), 10);
@@ -34,23 +34,23 @@ function tripYear(trip) {
 
 /** Cleaned-up destination name. Handles localised formatted_address
  *  ("Atlanta, Geórgia, Estados Unidos" → "Atlanta") via shortPlaceName. */
-function tripDestination(trip) {
+function tripDestination(trip: any): string {
     return shortPlaceName(trip.country || '') || (trip.country || '').trim();
 }
 
 /** Total non-settlement EUR spent on the trip. Same logic the per-card
  *  display uses. */
-function tripTotalSpent(trip) {
+function tripTotalSpent(trip: any): number {
     return (trip.expenses || [])
-        .filter(e => !e.isSettlement)
-        .reduce((sum, e) => sum + (e.euroValue || 0), 0);
+        .filter((e: any) => !e.isSettlement)
+        .reduce((sum: number, e: any) => sum + (e.euroValue || 0), 0);
 }
 
 /** Apply the current sort + filter + search state to the trip list.
  *  Returns a new array; never mutates archived. */
-function applyCollectionsView(archived) {
+function applyCollectionsView(archived: any[]): any[] {
     const text = collectionsSearchText.trim().toLowerCase();
-    const filtered = archived.filter(t => {
+    const filtered = archived.filter((t: any) => {
         if (collectionsFilterYear) {
             if (String(tripYear(t) || '') !== collectionsFilterYear) return false;
         }
@@ -69,7 +69,7 @@ function applyCollectionsView(archived) {
             // archivedAt timestamp descending; trips without one fall
             // back to array-order (newest pushed last). Mixed cohort
             // handled by isoFor returning a comparable string for both.
-            const isoFor = (t, idx) => t.archivedAt || `0000-${String(idx).padStart(8, '0')}`;
+            const isoFor = (t: any, idx: number) => t.archivedAt || `0000-${String(idx).padStart(8, '0')}`;
             out.sort((a, b) => isoFor(b, archived.indexOf(b)).localeCompare(isoFor(a, archived.indexOf(a))));
             break;
         }
@@ -224,7 +224,7 @@ export function renderCollections() {
                         ? new Date(start).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
                         : null;
                     const dest = tripDestination(t);
-                    const expenseCount = (t.expenses || []).filter(e => !e.isSettlement).length;
+                    const expenseCount = (t.expenses || []).filter((e: any) => !e.isSettlement).length;
                     return `
                     <div class="card glass card-glow-blue" style="display: flex; flex-direction: row; align-items: center; justify-content: space-between; padding: 20px; gap: 16px;">
                         <div class="archived-trip-card" data-trip-id="${t.id}" role="button" tabindex="0" aria-label="Open ${esc(t.name)} details" style="cursor: pointer; flex: 1; min-width:0;">
@@ -360,7 +360,7 @@ export function renderCollections() {
  *
  * @param {string | any} tripIdOrTrip
  */
-export function renderArchivedTripDetail(tripIdOrTrip) {
+export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
     const trip = typeof tripIdOrTrip === 'string'
         ? (STATE.archivedTrips.find(t => t.id === tripIdOrTrip)
             || STATE.trips.find(t => t.id === tripIdOrTrip))
@@ -377,17 +377,17 @@ export function renderArchivedTripDetail(tripIdOrTrip) {
     // Documents/Photos tabs on Home. Archive carries the trip object
     // intact, so trip.photos / trip.documents survive without any
     // migration on this side.
-    const expenses = (trip.expenses || []).filter(e => !e.isSettlement);
-    const totalSpent = expenses.reduce((sum, e) => sum + (e.euroValue || 0), 0);
+    const expenses = (trip.expenses || []).filter((e: any) => !e.isSettlement);
+    const totalSpent = expenses.reduce((sum: number, e: any) => sum + (e.euroValue || 0), 0);
     const tripDays = (trip.tripDays || []);
     const dayCount = tripDays.length;
     const tripPhotos = Array.isArray(trip.photos) ? trip.photos : [];
     const tripDocs = Array.isArray(trip.documents) ? trip.documents : [];
     const totalPhotos =
-        tripDays.reduce((n, d) => n + ((d.photos || []).length), 0)
+        tripDays.reduce((n: number, d: any) => n + ((d.photos || []).length), 0)
         + tripPhotos.length;
     const totalDocs =
-        tripDays.reduce((n, d) => n + ((d.tickets || []).length), 0)
+        tripDays.reduce((n: number, d: any) => n + ((d.tickets || []).length), 0)
         + tripDocs.length;
 
     // First photo (used as the hero background and a fallback for any
@@ -418,7 +418,7 @@ export function renderArchivedTripDetail(tripIdOrTrip) {
     const chipBg = 'rgba(255,255,255,0.16)';
     const chipBorder = '1px solid rgba(255,255,255,0.25)';
 
-    const statChip = (icon, label, value) => `
+    const statChip = (icon: string, label: string, value: string | number) => `
         <div style="display:flex; align-items:center; gap:10px; background:${chipBg}; border:${chipBorder}; padding:10px 16px; border-radius:999px; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);">
             <span style="font-size:1.05rem; line-height:1;">${icon}</span>
             <div style="display:flex; flex-direction:column; line-height:1.05;">
@@ -491,15 +491,15 @@ export function renderArchivedTripDetail(tripIdOrTrip) {
             <span style="color: var(--text-secondary); font-size:0.85rem; font-weight:600;">Tap a day to relive what was planned.</span>
         </div>
         <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:18px;">
-            ${tripDays.sort((a, b) => a.dayNumber - b.dayNumber).map(day => {
+            ${tripDays.sort((a: any, b: any) => a.dayNumber - b.dayNumber).map((day: any) => {
                 // Per-day media counts: legacy day-level arrays + any
                 // trip-level entries this day was tagged with via the
                 // Documents/Photos tabs.
                 const dayPhotosFromDay = day.photos || [];
-                const dayPhotosFromTrip = tripPhotos.filter(p => p.dayId === day.id);
+                const dayPhotosFromTrip = tripPhotos.filter((p: any) => p.dayId === day.id);
                 const totalDayPhotos = dayPhotosFromDay.length + dayPhotosFromTrip.length;
                 const dayDocsFromDay = day.tickets || [];
-                const dayDocsFromTrip = tripDocs.filter(d => d.dayId === day.id);
+                const dayDocsFromTrip = tripDocs.filter((d: any) => d.dayId === day.id);
                 const totalDayDocs = dayDocsFromDay.length + dayDocsFromTrip.length;
                 const isStartingPoint = Number(day.dayNumber) === 0;
                 // The day-card background uses ONLY photos that are
@@ -558,18 +558,18 @@ export function renderArchivedTripDetail(tripIdOrTrip) {
             // a blue "Day N" chip. Orphans (legacy null-dayId
             // entries that didn't migrate because the trip lacked
             // a Genesis day) fall back to a neutral "Unsorted" chip.
-            const dayLabel = (id) => {
+            const dayLabel = (id: string | null | undefined) => {
                 if (!id) return null;
-                const d = tripDays.find(x => x.id === id);
+                const d = tripDays.find((x: any) => x.id === id);
                 if (!d) return null;
                 return Number(d.dayNumber) === 0 ? '⭐ Genesis' : `Day ${d.dayNumber}`;
             };
-            const isGenesisId = (id) => {
+            const isGenesisId = (id: string | null | undefined) => {
                 if (!id) return false;
-                const d = tripDays.find(x => x.id === id);
+                const d = tripDays.find((x: any) => x.id === id);
                 return !!d && Number(d.dayNumber) === 0;
             };
-            const dayChip = (id) => {
+            const dayChip = (id: string | null | undefined) => {
                 if (isGenesisId(id)) {
                     return `<span style="background:rgba(52,199,89,0.12); color:#1a6b3c; padding:2px 10px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">⭐ Genesis</span>`;
                 }
@@ -583,19 +583,19 @@ export function renderArchivedTripDetail(tripIdOrTrip) {
             // day.tickets) sorted Trip-wide → Day 1 → Day 2 …
             interface UnionDoc { name: string; url: string; dayId: string | null; source: 'trip' | 'day'; _key: string }
             const allDocs: UnionDoc[] = [];
-            tripDocs.forEach(d => allDocs.push({
+            tripDocs.forEach((d: any) => allDocs.push({
                 name: d.name || 'Document', url: d.url || '', dayId: d.dayId || null,
                 source: 'trip', _key: d.id || `${d.name}-${d.url}`,
             }));
-            tripDays.forEach(day => {
-                (day.tickets || []).forEach((t, i) => allDocs.push({
+            tripDays.forEach((day: any) => {
+                (day.tickets || []).forEach((t: any, i: number) => allDocs.push({
                     name: t.name || 'Document', url: t.url || '', dayId: day.id,
                     source: 'day', _key: `${day.id}#${i}`,
                 }));
             });
-            const dayOrder = (id) => {
+            const dayOrder = (id: string | null) => {
                 if (!id) return -1; // Trip-wide first
-                const d = tripDays.find(x => x.id === id);
+                const d = tripDays.find((x: any) => x.id === id);
                 return d ? d.dayNumber : 999;
             };
             allDocs.sort((a, b) => dayOrder(a.dayId) - dayOrder(b.dayId));
@@ -603,19 +603,19 @@ export function renderArchivedTripDetail(tripIdOrTrip) {
             // Same union for photos.
             interface UnionPhoto { src: string; dayId: string | null; source: 'trip' | 'day'; _key: string }
             const allPhotos: UnionPhoto[] = [];
-            tripPhotos.forEach(p => allPhotos.push({
+            tripPhotos.forEach((p: any) => allPhotos.push({
                 src: p.src || '', dayId: p.dayId || null,
                 source: 'trip', _key: p.id || p.src,
             }));
-            tripDays.forEach(day => {
-                (day.photos || []).forEach((src, i) => allPhotos.push({
+            tripDays.forEach((day: any) => {
+                (day.photos || []).forEach((src: string, i: number) => allPhotos.push({
                     src, dayId: day.id,
                     source: 'day', _key: `${day.id}#${i}`,
                 }));
             });
             allPhotos.sort((a, b) => dayOrder(a.dayId) - dayOrder(b.dayId));
 
-            const isImage = (src) => /^data:image\//i.test(src || '')
+            const isImage = (src: string | null | undefined) => /^data:image\//i.test(src || '')
                 || /\.(jpe?g|png|gif|webp|avif|heic|heif|bmp|tiff?|svg)(\?.*)?$/i.test(src || '');
 
             const docsSection = allDocs.length === 0 ? '' : `
@@ -755,7 +755,7 @@ export function renderArchivedTripDetail(tripIdOrTrip) {
         // global list), so we look them up off the trip object directly.
         const dayBlock = (target?.closest('.archived-day-block') as HTMLElement | null);
         if (dayBlock?.dataset.dayId) {
-            const day = (trip.tripDays || []).find(d => d.id === dayBlock.dataset.dayId);
+            const day = (trip.tripDays || []).find((d: any) => d.id === dayBlock.dataset.dayId);
             if (day) openDayView(day);
             return;
         }
@@ -778,7 +778,7 @@ export function renderArchivedTripDetail(tripIdOrTrip) {
 // friend — we lazily fetch the full trip via /api/public-trip,
 // then render off the fetched object directly. The renderer accepts
 // both shapes, so the caller doesn't need to branch.
-export const viewArchivedDetails = async (id) => {
+export const viewArchivedDetails = async (id: string) => {
     const content = document.getElementById('app-container');
     if (!content) return;
     // Fast path — trip is in our local state (own archive or own
@@ -818,7 +818,7 @@ export const viewArchivedDetails = async (id) => {
     }
 };
 
-const toggleTripPrivacy = async (id, isPublic) => {
+const toggleTripPrivacy = async (id: string, isPublic: boolean) => {
     const trip = STATE.archivedTrips.find(t => t.id === id) || STATE.trips.find(t => t.id === id);
     if (!trip) return;
     trip.isPublic = isPublic;
@@ -842,7 +842,7 @@ const toggleTripPrivacy = async (id, isPublic) => {
     }
 };
 
-const restoreTrip = (id) => {
+const restoreTrip = (id: string) => {
     const trip = STATE.archivedTrips.find(t => t.id === id);
     if (!trip) return;
 
@@ -877,7 +877,7 @@ const restoreTrip = (id) => {
     });
 };
 
-const deleteArchivedTrip = (id) => {
+const deleteArchivedTrip = (id: string) => {
     showConfirmModal({
         title: "Delete Permanently?",
         message: "This trip and all its memories will be gone forever.",

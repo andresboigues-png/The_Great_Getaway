@@ -118,14 +118,14 @@ let activeHomeTab: 'days' | 'companions' | 'documents' | 'photos' = 'days'; // S
 //  no per-day expand/collapse state anymore; the selected day always
 //  shows its full content alongside Genesis.)
 
-const addDayPin = (dayId) => {
+const addDayPin = (dayId: string) => {
     const day = STATE.tripDays.find(d => d.id === dayId);
     if (!day) return;
 
     editingDayId = dayId;
-    showLiquidAlert("Click on the map to set the location for this day!");
+    showLiquidAlert('Click on the map to set the location for this day!');
 
-    activeMapClickListener = (e) => {
+    activeMapClickListener = (e: any) => {
         day.lat = e.latlng.lat;
         day.lon = e.latlng.lng;
         day.lng = e.latlng.lng;
@@ -136,12 +136,12 @@ const addDayPin = (dayId) => {
     navigate('home', null, true);
 };
 
-const editDayPin = (dayId) => {
+const editDayPin = (dayId: string) => {
     editingDayId = dayId;
     navigate('home', null, true);
 };
 
-const saveDayPin = async (dayId) => {
+const saveDayPin = async (dayId: string) => {
     const day = STATE.tripDays.find(d => d.id === dayId);
     if (!day) return;
 
@@ -149,11 +149,11 @@ const saveDayPin = async (dayId) => {
     activeMapClickListener = null;
     emit('state:changed');
     await upsertDay(day);
-    showLiquidAlert("Location saved!");
+    showLiquidAlert('Location saved!');
     navigate('home', null, true);
 };
 
-const deleteDayPin = async (dayId) => {
+const deleteDayPin = async (dayId: string) => {
     const day = STATE.tripDays.find(d => d.id === dayId);
     if (!day) return;
 
@@ -168,7 +168,7 @@ const deleteDayPin = async (dayId) => {
     navigate('home', null, true);
 };
 
-const deleteDay = (dayId) => {
+const deleteDay = (dayId: string) => {
     const day = STATE.tripDays.find(d => d.id === dayId);
     if (!day) return;
     // Genesis is the trip's anchor — pill search, wide-area POIs, and
@@ -530,7 +530,7 @@ export function renderHome() {
                     { featureType: 'transit', stylers: [{ visibility: 'off' }] },
                     { featureType: 'road', elementType: 'labels', stylers: [{ visibility: 'off' }] },
                 ];
-                const buildPoiStyles = (enabledSet) => {
+                const buildPoiStyles = (enabledSet: Set<string>) => {
                                         const styles: any[] = HIDE_ALL_POI_STYLES.slice();
                     if (enabledSet.has('traffic')) {
                         // Highway / arterial road labels visible only when
@@ -638,7 +638,7 @@ export function renderHome() {
                  *  scheme so it lands directly on the place's full page
                  *  (with photos, hours, reviews, directions, etc.). */
                 const tripIsEditable = canEdit(activeTrip);
-                const buildInfoWindowHtml = (cat, place) => {
+                const buildInfoWindowHtml = (cat: any, place: any) => {
                     const safeName = esc(place.name || cat.label);
                     const safeVicinity = esc(place.vicinity || '');
                     const ratingHtml = (typeof place.rating === 'number')
@@ -688,7 +688,7 @@ export function renderHome() {
                  *  to-do list"). Google's InfoWindow domready event
                  *  fires when the DOM is available, including after
                  *  setContent — so the re-attach below survives rebuilds. */
-                const wireInfoWindowMarkButtons = (cat, place) => {
+                const wireInfoWindowMarkButtons = (cat: any, place: any) => {
                     const iw = getInfoWindow();
                     const todoBtn = document.querySelector(
                         `.gm-style-iw [data-action="toggle-todo"][data-place-id="${place.place_id}"]`,
@@ -724,7 +724,7 @@ export function renderHome() {
                  *  Click → pans + zooms to the place AND opens an
                  *  InfoWindow with name / address / rating + a Google
                  *  Maps link for the full info page. */
-                const dropPlaceMarker = (cat, place) => {
+                const dropPlaceMarker = (cat: any, place: any) => {
                     const loc = place.geometry?.location;
                     if (!loc) return null;
                     // Pick a per-place icon when the pill spans multiple
@@ -829,7 +829,7 @@ export function renderHome() {
                  *  General) wins, else the category's useGenesisAlways
                  *  default. Returns true if this pill should always
                  *  search from genesis (ignoring the day epicenter). */
-                const shouldForceGenesis = (cat) => {
+                const shouldForceGenesis = (cat: any) => {
                     const userPref = STATE.preferences?.poiAnchoring?.[cat.key];
                     if (userPref === 'genesis') return true;
                     if (userPref === 'epicenter') return false;
@@ -883,7 +883,7 @@ export function renderHome() {
                         const typesToSearch = [cat.placesType, ...(cat.extraPlacesTypes || [])];
                         const keywordsToSearch = cat.extraKeywords || [];
                         let pendingSearches = typesToSearch.length + keywordsToSearch.length;
-                        const sharedHandle = (results, status, pagination) => {
+                        const sharedHandle = (results: any, status: string, pagination: any) => {
                             const ok = status === google.maps.places.PlacesServiceStatus.OK
                                 || status === google.maps.places.PlacesServiceStatus.ZERO_RESULTS;
                             if (ok && Array.isArray(results)) all.push(...results);
@@ -913,14 +913,14 @@ export function renderHome() {
                                 resolve(deduped);
                             }
                         };
-                        const runSearch = (extra) => {
+                        const runSearch = (extra: Record<string, any>) => {
                             const base = cat.searchStrategy === 'distance'
                                 ? { location: center, rankBy: google.maps.places.RankBy.DISTANCE }
                                 : { location: center, radius: 50000 };
                             svc.nearbySearch({ ...base, ...extra }, sharedHandle);
                         };
-                        typesToSearch.forEach(t => runSearch({ type: t }));
-                        keywordsToSearch.forEach(kw => runSearch({ keyword: kw }));
+                        typesToSearch.forEach((t: string) => runSearch({ type: t }));
+                        keywordsToSearch.forEach((kw: string) => runSearch({ keyword: kw }));
                     });
                     placesPending[key] = promise;
                     promise.then(list => {
@@ -940,7 +940,7 @@ export function renderHome() {
                  *  resolved" path). After the fetch completes, only
                  *  adds markers if the pill is STILL enabled — fixes
                  *  the race where rapid on/off left orphans on the map. */
-                const setPlacesPillVisible = async (pillKey, visible) => {
+                const setPlacesPillVisible = async (pillKey: string, visible: boolean) => {
                     const cat = POI_CATEGORIES.find(c => c.key === pillKey);
                     if (!cat || !cat.placesType) return;
 
@@ -1032,7 +1032,7 @@ export function renderHome() {
                 // map only while the Roads & traffic pill is on. Lives in
                 // the outer scope so the click handler can flip it on/off.
                                 let trafficLayer: any | null = null;
-                const setTrafficVisible = (visible) => {
+                const setTrafficVisible = (visible: boolean) => {
                     if (visible) {
                         if (!trafficLayer) trafficLayer = new google.maps.TrafficLayer();
                         trafficLayer.setMap(map);
@@ -1201,12 +1201,12 @@ export function renderHome() {
                     /** Pick the best POI category match for a place — used so
                      *  the InfoWindow matches the colour/icon of the relevant
                      *  pill if the place happens to be a known type. */
-                    const guessCategory = (types) => {
+                    const guessCategory = (types: string[] | undefined) => {
                         if (!Array.isArray(types)) return null;
                         for (const cat of POI_CATEGORIES) {
                             if (!cat.placesType) continue;
                             if (types.includes(cat.placesType)) return cat;
-                            if (Array.isArray(cat.extraPlacesTypes) && cat.extraPlacesTypes.some(t => types.includes(t))) return cat;
+                            if (Array.isArray(cat.extraPlacesTypes) && cat.extraPlacesTypes.some((t: string) => types.includes(t))) return cat;
                         }
                         return null;
                     };
@@ -1220,7 +1220,7 @@ export function renderHome() {
                     /** Format a metres count as a compact distance. <1km
                      *  in metres ("850 m"), 1–100km in km with one decimal
                      *  ("12.4 km"), >100km in km no decimal ("245 km"). */
-                    const formatDistance = (meters) => {
+                    const formatDistance = (meters: number | null | undefined) => {
                         if (typeof meters !== 'number' || !isFinite(meters) || meters < 0) return '';
                         if (meters < 1000) return `${Math.round(meters)} m`;
                         const km = meters / 1000;
@@ -1228,14 +1228,14 @@ export function renderHome() {
                         return `${Math.round(km)} km`;
                     };
 
-                    const renderPredictions = (preds) => {
+                    const renderPredictions = (preds: any[] | null | undefined) => {
                         if (!preds || preds.length === 0) {
                             resultsEl.style.display = 'block';
                             resultsEl.innerHTML = `<div style="padding:14px 18px; color:var(--text-secondary); font-size:0.85rem;">No matches.</div>`;
                             return;
                         }
                         resultsEl.style.display = 'block';
-                        resultsEl.innerHTML = preds.slice(0, 6).map(p => {
+                        resultsEl.innerHTML = preds.slice(0, 6).map((p: any) => {
                             // distance_meters is populated by the
                             // AutocompleteService when the request carried
                             // an `origin` (the trip's genesis pin lat/lng,
@@ -1264,7 +1264,7 @@ export function renderHome() {
                      *  shape as POI markers (colour-fill SVG) so it
                      *  reads as a search-pin rather than something
                      *  arbitrary. */
-                    const dropMarker = (place, cat) => {
+                    const dropMarker = (place: any, cat: any) => {
                         const loc = place?.geometry?.location;
                         if (!loc) return;
                         const color = cat.color || '#0071e3';
@@ -1300,12 +1300,12 @@ export function renderHome() {
                         iw.open({ map, anchor: searchMarker });
                     };
 
-                    const fetchDetails = (placeId) => {
+                    const fetchDetails = (placeId: string) => {
                         const svc = getPlacesService();
                         svc.getDetails({
                             placeId,
                             fields: ['place_id', 'name', 'formatted_address', 'vicinity', 'geometry', 'types', 'rating', 'user_ratings_total', 'icon', 'url'],
-                        }, (place, status) => {
+                        }, (place: any, status: string) => {
                             if (status !== google.maps.places.PlacesServiceStatus.OK || !place) return;
                             const cat = guessCategory(place.types) || fallbackCat;
                             dropMarker(place, cat);
@@ -1338,7 +1338,7 @@ export function renderHome() {
                             if (activeTrip && typeof activeTrip.lat === 'number' && typeof activeTrip.lng === 'number') {
                                 req.origin = { lat: activeTrip.lat, lng: activeTrip.lng };
                             }
-                            autocomplete.getPlacePredictions(req, (preds, status) => {
+                            autocomplete.getPlacePredictions(req, (preds: any, status: string) => {
                                 if (status !== google.maps.places.PlacesServiceStatus.OK) {
                                     if (status === google.maps.places.PlacesServiceStatus.ZERO_RESULTS) {
                                         renderPredictions([]);
@@ -1472,9 +1472,7 @@ export function renderHome() {
                  *  visual sense of WHAT's at this pin without
                  *  leaving the map. */
                                 let dayPinInfoWindow: any | null = null;
-                /** @param {any} marker
-                 *  @param {any} day */
-                const openDayPinInfoWindow = (marker, day) => {
+                const openDayPinInfoWindow = (marker: any, day: any) => {
                     if (!dayPinInfoWindow) dayPinInfoWindow = new google.maps.InfoWindow();
                     const lat = day.lat;
                     const lng = day.lng || day.lon;
@@ -1521,7 +1519,7 @@ export function renderHome() {
                 // Re-attach map click listener if we are in the middle of pinning
                 if (activeMapClickListener) {
                     const cb = activeMapClickListener;
-                    map.addListener('click', (e) => cb({ latlng: { lat: e.latLng.lat(), lng: e.latLng.lng() } }));
+                    map.addListener('click', (e: any) => cb({ latlng: { lat: e.latLng.lat(), lng: e.latLng.lng() } }));
                     mapContainer.style.cursor = 'crosshair';
                 }
 
@@ -1559,7 +1557,7 @@ export function renderHome() {
                         });
                     } else {
                         const geocoder = new google.maps.Geocoder();
-                        geocoder.geocode({ address: cleanQuery }, (results, status) => {
+                        geocoder.geocode({ address: cleanQuery }, (results: any, status: string) => {
                             if (status === "OK" && results[0]) {
                                 const bounds = results[0].geometry.viewport;
                                 google.maps.event.addListenerOnce(map, 'tilesloaded', () => {
@@ -1593,7 +1591,7 @@ export function renderHome() {
                 if (currentTripDays.some(d => typeof d.lat === 'number')) {
                                         const _g: any = google;
                     const DAY_CACHE_PREFIX = 'tggDayCountry:';
-                    const cachedCountryFor = async (lat, lng) => {
+                    const cachedCountryFor = async (lat: number, lng: number) => {
                         const key = `${lat.toFixed(4)},${lng.toFixed(4)}`;
                         try {
                             const hit = sessionStorage.getItem(DAY_CACHE_PREFIX + key);
@@ -1604,7 +1602,7 @@ export function renderHome() {
                             const resp = await geocoder.geocode({ location: { lat, lng } });
                             const results = (resp && resp.results) || [];
                             for (const r of results) {
-                                const cc = (r.address_components || []).find(c => (c.types || []).includes('country'));
+                                const cc = (r.address_components || []).find((c: any) => (c.types || []).includes('country'));
                                 if (cc && cc.short_name) {
                                     const code = cc.short_name.toUpperCase();
                                     try { sessionStorage.setItem(DAY_CACHE_PREFIX + key, code); } catch (_) {}
@@ -1774,7 +1772,7 @@ export function renderHome() {
 
         if (chips.length === 0) return '';
 
-        const renderChip = (/** @type {{name: string, role: string|null, picture?: string|null, isOwner: boolean, isMember: boolean, isPending?: boolean}} */ chip) => {
+        const renderChip = (chip: { name: string; role: string | null; picture?: string | null; isOwner: boolean; isMember: boolean; isPending?: boolean }) => {
             // Defensive — historical snapshots could carry malformed entries
             // (e.g. legacy `string[]` companions where `chip.name` would be
             // undefined). Falls back to a neutral glyph rather than crashing
@@ -2043,7 +2041,7 @@ export function renderHome() {
          *  @param {any} day
          *  @param {{ isGenesis: boolean, isSelected: boolean }} flags
          */
-        const buildDayCardBody = (day, { isGenesis, isSelected }) => {
+        const buildDayCardBody = (day: any, { isGenesis, isSelected }: { isGenesis: boolean; isSelected: boolean }) => {
             const badge = isGenesis
                 ? `<div style="background: linear-gradient(135deg, #e8b923, #8b6e0c); color: white; width: 48px; height: 48px; border-radius: 50%; border: 3px solid white; display: flex; align-items: center; justify-content: center; flex-shrink:0; box-shadow: 0 8px 18px rgba(212,160,23,0.28);">
                        <svg width="26" height="26" viewBox="0 0 48 48" aria-hidden="true">
@@ -2114,7 +2112,7 @@ export function renderHome() {
          *  pillEpicenters value already in storage; the entry point
          *  to set/clear it will move into the pin-edit options in a
          *  future pass. */
-        const buildOptionsStack = (day, { isGenesis }) => {
+        const buildOptionsStack = (day: any, { isGenesis }: { isGenesis: boolean }) => {
             if (!day || !tripIsEditable) return '';
             const buttons: string[] = [];
             // Primary button — different identity per day type.
@@ -2319,7 +2317,7 @@ export function renderHome() {
         // Step the selection by ±1 in the sorted-day list. No wrap so
         // the user feels the ends of the list (the disabled prev/next
         // buttons reinforce that boundary).
-        const stepSelectedDay = (delta) => {
+        const stepSelectedDay = (delta: number) => {
             const sortedDays = [...(STATE.tripDays || [])
                 .filter(d => d.tripId === activeTrip.id)]
                 .sort((a, b) => a.dayNumber - b.dayNumber);
@@ -2355,10 +2353,10 @@ export function renderHome() {
         // Keyboard arrows when the Path tab is the active tab. Filter
         // out events from inputs/textareas so typing in modal forms
         // doesn't accidentally swap days.
-        const onKeyDown = (e) => {
+        const onKeyDown = (e: KeyboardEvent) => {
             if (activeHomeTab !== 'days') return;
             if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
-            const tag = (e.target && e.target.tagName) || '';
+            const tag = ((e.target as HTMLElement | null)?.tagName) || '';
             if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
             stepSelectedDay(e.key === 'ArrowLeft' ? -1 : +1);
         };
@@ -2448,7 +2446,7 @@ export function renderHome() {
             // are reached via the same activeHomeTab swap. Selector
             // is .trip-tabnav__tab (the segmented-capsule design);
             // .home-tabnav still exists but is feed.js's tabs.
-            const setActiveHomeTab = (key) => {
+            const setActiveHomeTab = (key: 'days' | 'companions' | 'documents' | 'photos') => {
                 activeHomeTab = key;
                 daysContainer.querySelectorAll('.trip-tabnav__tab').forEach(t => {
                     const el = (t as HTMLElement);
