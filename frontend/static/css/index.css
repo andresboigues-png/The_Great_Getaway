@@ -679,13 +679,22 @@ h1 {
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    width: 22px;
-    height: 16px;
+    align-items: stretch;
+    /* Visual icon stays 22×16 — the same spacing as before; padding
+       extends the tap target to a comfortable 44×44 (Phase D1 a11y
+       audit — minimum touch target per Apple HIG / WCAG 2.5.5). The
+       bars hug top, middle, bottom of the inner content box exactly
+       as they did pre-Phase-D1, so no visual regression. */
+    width: 44px;
+    height: 44px;
+    padding: 14px 11px;
+    box-sizing: border-box;
     background: none;
     border: none;
+    border-radius: 50%;
     cursor: pointer;
-    padding: 0;
     flex-shrink: 0;
+    -webkit-tap-highlight-color: transparent;
 }
 
 .hamburger-btn span {
@@ -5089,4 +5098,145 @@ body.is-signed-out #sidebarOverlay {
     box-sizing: border-box;
     overflow: hidden;
     animation: modalPop 0.4s var(--easing-smooth);
+}
+
+/* ── Phase D1: Mobile-first responsive sweep ──────────────────────
+   Bottom-tab nav + cramped-top-bar fixes for ≤720px. The four
+   most-used pages (Home, Feed, Collections, Profile) live in the
+   thumb zone via a fixed-bottom nav; everything else is reachable
+   via the burger drawer (which got Todo / AI / Expenses / Insights /
+   Feed added in the same pass). The top nav loses its 5-page link
+   row on mobile (those 5 pages are in the burger now), keeps
+   compact trip controls, brand, and the icon row.
+
+   Hidden by default on desktop — the @media block below is the
+   only place .mobile-bottom-nav switches on. */
+.mobile-bottom-nav {
+    display: none;
+}
+
+.mobile-bottom-nav__item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    flex: 1;
+    padding: 8px 4px;
+    color: var(--accent-blue);
+    text-decoration: none;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    /* opacity + color override the .nav-item base (which sets
+       opacity:0.6); we want bottom-tab items to read clearly even
+       when inactive — they're the primary mobile nav. */
+    opacity: 0.55;
+    transition: opacity 0.15s ease, transform 0.05s ease;
+    /* Tap target ≥ 44×44px. Padding pushes the row past 44 even
+       at the 0.65rem font size + 22px icon. */
+    min-height: 56px;
+    -webkit-tap-highlight-color: transparent;
+}
+.mobile-bottom-nav__item span {
+    /* Override the .nav-item base font-size which would shrink
+       the label to 0.9rem and eat the icon's bottom anchor. */
+    font-size: 0.65rem;
+    font-weight: 700;
+}
+.mobile-bottom-nav__item.active {
+    opacity: 1;
+}
+.mobile-bottom-nav__item:active {
+    transform: scale(0.95);
+}
+
+/* Hide bottom-nav while signed out — the login wall fills the
+   screen and we don't want a stray nav anchored to the bottom. */
+body.is-signed-out .mobile-bottom-nav {
+    display: none !important;
+}
+
+@media (max-width: 720px) {
+    /* Hide the top-nav page links (Home / Todo / AI / Expenses /
+       Insights). Sidebar carries them on mobile, bottom-tab nav
+       carries Home. */
+    .nav-links { display: none !important; }
+
+    /* Tighter padding so the brand, icons, and trip controls
+       actually fit at 375px. */
+    .navbar {
+        padding: 0 12px;
+        grid-template-columns: auto 1fr;
+        gap: 8px;
+    }
+
+    /* Compact trip controls — keep the New Trip button reachable
+       (smoke tests + the fundamental "create a trip" flow depend on
+       it being clickable on mobile) but shrink padding/font so it
+       doesn't crowd out the trip selector. */
+    .nav-trips {
+        gap: 6px;
+    }
+    #newTripBtn {
+        padding: 6px 12px;
+        font-size: 0.78rem;
+    }
+    #tripSelector {
+        min-width: 0 !important;
+        max-width: 140px;
+        font-size: 0.78rem;
+        padding-right: 28px;
+    }
+
+    /* Brand text shrinks one notch — "The Great Getaway" wraps
+       awkwardly otherwise. The font-weight stays bold. */
+    .nav-brand {
+        font-size: 1rem;
+    }
+
+    /* Show + position the bottom-tab nav. iOS-style fixed strip
+       with safe-area inset for devices with home indicators.
+       z-index 1500 sits above any in-page content (max observed
+       in pages is ~1564 for liquid alerts, but those land at the
+       top of the screen and don't conflict here) and below the
+       sidebar drawer (1998-1999) and modals (10000), so the
+       bottom-tab nav is the topmost layer for normal page reads
+       while drawers/modals can still cover it when open. */
+    .mobile-bottom-nav {
+        display: flex;
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(255, 255, 255, 0.92);
+        backdrop-filter: saturate(180%) blur(20px);
+        -webkit-backdrop-filter: saturate(180%) blur(20px);
+        border-top: 1px solid rgba(0, 0, 0, 0.08);
+        padding: 4px 0 calc(4px + env(safe-area-inset-bottom));
+        z-index: 1500;
+        box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.06);
+    }
+
+    /* Push main content above the bottom nav so the last row of
+       any list isn't hidden under it. 96px ≈ bar height (~64px) +
+       comfortable breathing room; safe-area inset adds the home
+       indicator gap on top of that on devices that need it. */
+    main#app-container {
+        padding-bottom: calc(96px + env(safe-area-inset-bottom));
+    }
+
+    /* `scroll-margin-bottom` reserves space below interactive
+       elements so `scrollIntoViewIfNeeded` (used by browsers when
+       focusing inputs and by Playwright on click) lands them
+       comfortably above the fixed bottom nav. Without this, a
+       textarea/select near the bottom of a form scrolls so its
+       BOTTOM aligns with the viewport bottom — which puts the
+       element directly behind the bottom nav, intercepting taps. */
+    main#app-container input,
+    main#app-container select,
+    main#app-container textarea,
+    main#app-container button {
+        scroll-margin-bottom: calc(96px + env(safe-area-inset-bottom));
+    }
 }

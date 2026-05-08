@@ -67,12 +67,12 @@ test.describe('The Great Getaway — smoke', () => {
         expect(real, 'unexpected console errors').toEqual([]);
     });
 
-    test('can create a trip and it shows up in the selector', async ({ page }, testInfo) => {
-        // Mobile viewport: #newTripBtn is offscreen in the top nav.
-        // Surfaced as a real regression — Phase B's responsive sweep
-        // should reposition the button into the mobile burger drawer.
-        if (testInfo.project.name === 'chromium-mobile') test.skip();
-
+    test('can create a trip and it shows up in the selector', async ({ page }) => {
+        // Phase D1 (mobile responsive sweep) shrunk #newTripBtn into a
+        // compact pill on mobile and tightened the nav layout, so the
+        // button now sits comfortably on a 375px viewport. The
+        // mobile-skip that was here is gone — desktop and mobile now
+        // share the same flow.
         await openFreshApp(page);
         await createTrip(page, { name: 'Lisbon Spring', country: 'Portugal' });
 
@@ -87,20 +87,17 @@ test.describe('The Great Getaway — smoke', () => {
     // problem that originally made this flake — the companions card sits
     // in its own home-tab content block now and addCompanion()'s
     // sidebar-overlay close + scrollIntoViewIfNeeded chain reliably
-    // reaches the trigger. Mobile-skipped because the
-    // #tripCompanionsBtn target lives below the fold on 375px viewport
-    // AND the sidebar drawer covers the trip header on mobile.
-    test('can add a companion to a trip', async ({ page }, testInfo) => {
-        if (testInfo.project.name === 'chromium-mobile') test.skip();
+    // reaches the trigger. Phase D1 closed the mobile gap too (compact
+    // navbar lets createTrip work at 375px), so the test now runs on
+    // both projects.
+    test('can add a companion to a trip', async ({ page }) => {
         await openFreshApp(page);
         await createTrip(page, { name: 'Madrid Days', country: 'Spain' });
         await addCompanion(page, 'Maria');
         await expect(page.locator('text=Maria').first()).toBeVisible();
     });
 
-    test('can add a day to a trip', async ({ page }, testInfo) => {
-        if (testInfo.project.name === 'chromium-mobile') test.skip();
-
+    test('can add a day to a trip', async ({ page }) => {
         await openFreshApp(page);
         await createTrip(page, { name: 'Tokyo Run', country: 'Japan' });
 
@@ -116,12 +113,54 @@ test.describe('The Great Getaway — smoke', () => {
         await expect(page.locator('text=Shibuya wandering').first()).toBeVisible();
     });
 
+    test('mobile bottom-tab nav navigates between primary pages', async ({ page }, testInfo) => {
+        // Phase D1: bottom-tab nav for Home / Feed / Collections /
+        // Profile is mobile-only — test only runs on the chromium-
+        // mobile project. Click each tab and assert (a) the URL hash
+        // updates, (b) the active class lands on the right tab.
+        if (testInfo.project.name !== 'chromium-mobile') test.skip();
+
+        await openFreshApp(page);
+
+        // Home is the default landing page; the Home tab should be
+        // pre-marked .active by the router on first paint.
+        const home = page.locator('.mobile-bottom-nav__item[data-page="home"]');
+        const feed = page.locator('.mobile-bottom-nav__item[data-page="feed"]');
+        const collections = page.locator('.mobile-bottom-nav__item[data-page="collections"]');
+        const profile = page.locator('.mobile-bottom-nav__item[data-page="profile"]');
+
+        await expect(home).toBeVisible();
+        await expect(home).toHaveClass(/active/);
+
+        await collections.click();
+        await expect(page).toHaveURL(/#collections$/);
+        await expect(collections).toHaveClass(/active/);
+        await expect(home).not.toHaveClass(/active/);
+
+        await feed.click();
+        await expect(page).toHaveURL(/#feed$/);
+        await expect(feed).toHaveClass(/active/);
+
+        await profile.click();
+        await expect(page).toHaveURL(/#profile$/);
+        await expect(profile).toHaveClass(/active/);
+
+        // Profile renders #legaciesMap (a Google Maps container) which
+        // captures pointer events on mobile and trips Playwright's
+        // strict actionability check on the bounce back to home —
+        // even though the bottom-tab nav sits at z-index 1500 above
+        // it visually. Force the click since the visual stacking is
+        // correct; this matches what a user's tap does in reality.
+        await home.click({ force: true });
+        await expect(page).toHaveURL(/#home$/);
+        await expect(home).toHaveClass(/active/);
+    });
+
     // Re-enabled now that addCompanion works (Companions tab switch in
-    // helpers.js). Mobile-skipped for the same viewport reasons as the
-    // companion test. Form submit validates `#expCurrency` non-empty
-    // — earlier version of this test omitted that and silently no-op'd.
-    test('can add an expense end-to-end', async ({ page }, testInfo) => {
-        if (testInfo.project.name === 'chromium-mobile') test.skip();
+    // helpers.js) and Phase D1 fixed the mobile navbar — mobile gate
+    // gone. Form submit validates `#expCurrency` non-empty — earlier
+    // version of this test omitted that and silently no-op'd.
+    test('can add an expense end-to-end', async ({ page }) => {
         await openFreshApp(page);
         await createTrip(page, { name: 'Rome Weekend', country: 'Italy' });
         await addCompanion(page, 'Andres');

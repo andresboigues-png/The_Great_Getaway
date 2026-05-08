@@ -267,18 +267,34 @@ export async function befriend(page, userIdA, userIdB) {
 }
 
 /**
- * Navigate to a page via the sidebar (or top nav for the always-visible
- * items). Robust against SPA hashchange suppression.
+ * Navigate to a page via whatever surface currently exposes it —
+ * top-nav, mobile bottom-tab, or sidebar burger. Phase D1 added the
+ * mobile bottom-tab nav and HID the top-nav-link row at ≤720px, so
+ * a naive `.nav-item[data-page=…]` lookup picks up DOM-present-but-
+ * `display:none` items on mobile and times out on click. The
+ * `:visible` filter restricts the match to elements that actually
+ * render.
+ *
+ * Order: visible nav-item first (top nav on desktop, bottom-tab on
+ * mobile), then sidebar burger as a universal fallback.
+ *
  * @param {import('@playwright/test').Page} page
  * @param {string} dataPage
  */
 export async function navigateTo(page, dataPage) {
-    // Top nav has direct items; sidebar covers the rest.
-    const topNav = page.locator(`.nav-item[data-page="${dataPage}"]`);
-    if (await topNav.count()) {
-        await topNav.first().click();
+    // First try a visible nav-item with the right data-page. On
+    // desktop this hits the top-nav row; on mobile it hits the
+    // bottom-tab row when the page is one of the four primary
+    // destinations (Home / Feed / Collections / Profile).
+    const visibleNav = page.locator(`.nav-item[data-page="${dataPage}"]:visible`);
+    if (await visibleNav.count()) {
+        await visibleNav.first().click();
         return;
     }
+    // Fallback: open the burger drawer and click the sidebar item.
+    // Sidebar covers every page (Phase D1 added Todo / AI / Expenses /
+    // Insights / Feed alongside the existing Collections / Friends /
+    // Settlements / Personalization / Settings / Profile entries).
     await page.click('#hamburgerBtn');
     await page.click(`.sidebar-item[data-page="${dataPage}"]`);
 }

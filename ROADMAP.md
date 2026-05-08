@@ -734,14 +734,32 @@ double-handling. Ship as a "small things" release alongside D1.
 
 A focused QA pass at 375 × 812 (iPhone SE).
 
-- [ ] Sidebar behavior on mobile (likely: bottom-tab nav for the four
-      most-used pages: Home, Feed, Collections, Profile).
+- [x] **Bottom-tab nav** for Home / Feed / Collections / Profile —
+      iOS-style fixed bottom strip with safe-area inset, z-index
+      1500 (above page content, below sidebar drawer + modals).
+      Top-nav `.nav-links` (Todo/AI/Expenses/Insights) hidden at
+      ≤720px; those pages got added to the burger drawer in the
+      same pass so every page is reachable from somewhere on
+      mobile. Compact navbar on mobile (12px padding, smaller
+      New Trip pill, max-width on trip selector). `padding-bottom` + `scroll-margin-bottom` on inputs/buttons in `<main>` so
+      content + Playwright clicks land comfortably above the
+      bottom nav.
+- [x] **Hamburger touch target** bumped from 22×16 to 44×44 via
+      padding (icon visual unchanged; tap zone now meets WCAG
+      2.5.5 minimum).
+- [x] **Mobile e2e suite re-enabled.** All five smoke tests
+      (`can create a trip`, `can add a companion`, `can add a day`,
+      `can add an expense`) plus a new **bottom-tab nav** test
+      that exercises Home/Feed/Collections/Profile click-through
+      now run on `chromium-mobile`. Net: 48/48 e2e (was 43).
 - [ ] Modals: full-screen sheet variant on mobile for day-detail, AI
       planner, Edit Trip, companion picker, share-to-feed, trip
       checklist, documents/photos.
 - [ ] Forms: side-by-side fields stack vertically.
 - [ ] Tables that haven't been converted: expense History → card list.
-- [ ] Touch targets ≥44px audited everywhere.
+- [ ] Touch targets ≥44px audited on remaining icon buttons
+      (`#navSearchBtn`, `#navFeedBtn`, `#notificationBellBtn` —
+      currently ~30px from inline `padding: 4px`).
 - [ ] Sticky headers on long pages, scroll restoration, momentum scrolling.
 
 ### D2 — Dark mode
@@ -1063,92 +1081,92 @@ Recommended order (different from FUTURE_FEATURES.md's listing order;
 optimised for "ship first / build confidence" then "showcase the new
 substrate" then "pair with the right infrastructure phase"):
 
-1. ✅ **Currency auto-suggest from country** — **shipped**
-   (commit on `claude/optimistic-bell-9d70a4`). `COUNTRY_TO_CURRENCY`
-   map in `constants.ts` covers Eurozone + USD-pegged states + every
-   single-country mapping whose ISO code lands in `CONVERSION_RATES`
-   (so we never auto-pick a currency the dropdown can't render).
-   `selectCountry` in `expenses.ts` consults the map and flips the
-   currency dropdown, gated on a `currencyManuallyChosen` flag that
-   trips on the dropdown's first `change` event — explicit picks
-   always win. E2e test in `flows.spec.js` covers both paths
-   (Japan → JPY suggest path + manually-set-USD-then-pick-France
-   stays-USD override path). Edit-mode (existing expense) starts
-   with the flag pre-set so re-picking a country doesn't clobber a
-   user's earlier choice. Took ~30 minutes end-to-end including
-   tests; safety net behaved exactly as designed.
+1.  ✅ **Currency auto-suggest from country** — **shipped**
+    (commit on `claude/optimistic-bell-9d70a4`). `COUNTRY_TO_CURRENCY`
+    map in `constants.ts` covers Eurozone + USD-pegged states + every
+    single-country mapping whose ISO code lands in `CONVERSION_RATES`
+    (so we never auto-pick a currency the dropdown can't render).
+    `selectCountry` in `expenses.ts` consults the map and flips the
+    currency dropdown, gated on a `currencyManuallyChosen` flag that
+    trips on the dropdown's first `change` event — explicit picks
+    always win. E2e test in `flows.spec.js` covers both paths
+    (Japan → JPY suggest path + manually-set-USD-then-pick-France
+    stays-USD override path). Edit-mode (existing expense) starts
+    with the flag pre-set so re-picking a country doesn't clobber a
+    user's earlier choice. Took ~30 minutes end-to-end including
+    tests; safety net behaved exactly as designed.
 
-2. ✅ **Search across trips** — **shipped**. Single search input,
-   three result groups (Trips / Days / Expenses), all-client filter
-   across active + archived trips. **First fresh JSX leaf** built
-   end-to-end in React post-Phase-C — `pages/search/Search.tsx`,
-   `pages/search/mount.ts`, route case in `router.ts`, magnifying-
-   glass icon in the navbar at `#navSearchBtn`. The page proves out
-   the new substrate's authoring story: useStore selectors,
-   useMemo-cached filters, useState for query + per-group "show all"
-   expanders, no innerHTML or createElement anywhere. 2 e2e tests
-   cover (a) cross-trip match where the search hits a trip name,
-   day plan text, AND an expense logged on a _different_ trip
-   whose country happens to match the query, and (b) the
-   no-results empty state with the query echoed back. Took ~45
-   minutes. The Cmd+K command-palette modal would now be a 1-day
-   add — same component tree wrapped in a Modal, since everything
-   is already React.
+2.  ✅ **Search across trips** — **shipped**. Single search input,
+    three result groups (Trips / Days / Expenses), all-client filter
+    across active + archived trips. **First fresh JSX leaf** built
+    end-to-end in React post-Phase-C — `pages/search/Search.tsx`,
+    `pages/search/mount.ts`, route case in `router.ts`, magnifying-
+    glass icon in the navbar at `#navSearchBtn`. The page proves out
+    the new substrate's authoring story: useStore selectors,
+    useMemo-cached filters, useState for query + per-group "show all"
+    expanders, no innerHTML or createElement anywhere. 2 e2e tests
+    cover (a) cross-trip match where the search hits a trip name,
+    day plan text, AND an expense logged on a _different_ trip
+    whose country happens to match the query, and (b) the
+    no-results empty state with the query echoed back. Took ~45
+    minutes. The Cmd+K command-palette modal would now be a 1-day
+    add — same component tree wrapped in a Modal, since everything
+    is already React.
 
-3. ✅ **Trip cover photo** — **shipped** (~30 minutes incl. tests).
-   First schema-touching feature post-Phase-C. Single migration adds
-   `cover_url TEXT` to `trips`; same `try/except: pass ALTER TABLE`
-   pattern as every other column in `database.py` so legacy DBs
-   upgrade in place. Backend round-trips the value through
-   `routes/trips.py` (single-trip upsert) + `routes/data.py` (bulk
-   sync write + read mapping). Frontend additions: `coverUrl?: string
+3.  ✅ **Trip cover photo** — **shipped** (~30 minutes incl. tests).
+    First schema-touching feature post-Phase-C. Single migration adds
+    `cover_url TEXT` to `trips`; same `try/except: pass ALTER TABLE`
+    pattern as every other column in `database.py` so legacy DBs
+    upgrade in place. Backend round-trips the value through
+    `routes/trips.py` (single-trip upsert) + `routes/data.py` (bulk
+    sync write + read mapping). Frontend additions: `coverUrl?: string
 | null` on `Trip`, "Choose cover" file input wired into the Edit
-   Trip modal with live thumbnail preview + Remove button (uploads
-   via the existing `/api/upload` — already auth + MIME + magic-
-   number hardened, so no new attack surface). Display sites:
-   60×60 thumbnail on the Collections list card; cover takes priority
-   over the auto-picked first photo on the archived-trip detail
-   hero. 2 pytests prove the round-trip (set + clear) + 1 e2e
-   confirms the thumbnail renders when the API serves a `coverUrl`.
-   The active-trip Home hero is intentionally NOT a cover-photo
-   surface today — it's a Google Map by design — so the cover only
-   appears where it has a "preview tile" use case.
+    Trip modal with live thumbnail preview + Remove button (uploads
+    via the existing `/api/upload` — already auth + MIME + magic-
+    number hardened, so no new attack surface). Display sites:
+    60×60 thumbnail on the Collections list card; cover takes priority
+    over the auto-picked first photo on the archived-trip detail
+    hero. 2 pytests prove the round-trip (set + clear) + 1 e2e
+    confirms the thumbnail renders when the API serves a `coverUrl`.
+    The active-trip Home hero is intentionally NOT a cover-photo
+    surface today — it's a Google Map by design — so the cover only
+    appears where it has a "preview tile" use case.
 
-4. ✅ **Receipts on expenses** — **shipped** (~30 minutes incl.
-   bug-fix detour). Same shape as cover photo: `ALTER TABLE
+4.  ✅ **Receipts on expenses** — **shipped** (~30 minutes incl.
+    bug-fix detour). Same shape as cover photo: `ALTER TABLE
 expenses ADD COLUMN receipt_url TEXT`, threaded through
-   `routes/expenses.py` upsert + the bulk-sync writes in
-   `routes/data.py` (active + archived), surfaced as `receiptUrl`
-   on the expense object via the read mapping. Frontend: 📎 Attach
-   receipt button on the expense form with live preview thumbnail
-   (click → open in new tab) and Remove button, closure-mutable
-   `receiptUrl` threading the picker's value to the submit handler;
-   clip-icon button on History rows that opens the receipt image
-   in a new tab. The receipt URL persists across the form's edit
-   round-trip via `STATE.draftExpense.receiptUrl` so re-opening
-   an expense pre-fills the picker.
+    `routes/expenses.py` upsert + the bulk-sync writes in
+    `routes/data.py` (active + archived), surfaced as `receiptUrl`
+    on the expense object via the read mapping. Frontend: 📎 Attach
+    receipt button on the expense form with live preview thumbnail
+    (click → open in new tab) and Remove button, closure-mutable
+    `receiptUrl` threading the picker's value to the submit handler;
+    clip-icon button on History rows that opens the receipt image
+    in a new tab. The receipt URL persists across the form's edit
+    round-trip via `STATE.draftExpense.receiptUrl` so re-opening
+    an expense pre-fills the picker.
 
-    **Latent bug uncovered + fixed**: while wiring this up I
-    discovered the server was writing expense fields camelCase via
-    `/api/expenses` but reading them back from `/api/data` as
-    snake_case (`trip_id`, `category_id`, `euro_value`,
-    `receipt_url`) — frontend filters like
-    `e.tripId === STATE.activeTripId` would silently return empty
-    on cold-load. The History tab and Settlement page would have
-    appeared empty until the user added a fresh expense locally.
-    Translation now lives in both `routes/data.py` and
-    `routes/public.py` so the public archived-trip detail also
-    benefits. 2 pytests for the round-trip (set + clear), legacy
-    compat test, and 1 e2e for the receipt clip icon. Net: 161/161
-    pytests + 43/43 e2e + 20/20 visual.
+        **Latent bug uncovered + fixed**: while wiring this up I
+        discovered the server was writing expense fields camelCase via
+        `/api/expenses` but reading them back from `/api/data` as
+        snake_case (`trip_id`, `category_id`, `euro_value`,
+        `receipt_url`) — frontend filters like
+        `e.tripId === STATE.activeTripId` would silently return empty
+        on cold-load. The History tab and Settlement page would have
+        appeared empty until the user added a fresh expense locally.
+        Translation now lives in both `routes/data.py` and
+        `routes/public.py` so the public archived-trip detail also
+        benefits. 2 pytests for the round-trip (set + clear), legacy
+        compat test, and 1 e2e for the receipt clip icon. Net: 161/161
+        pytests + 43/43 e2e + 20/20 visual.
 
-5. **Trip share-via-link (read-only)** — `4-6 hours`, schema +
-   public backend route + new public frontend route + Views counter.
-   The most complex feature on the list, with security-sensitive
-   auth-bypass logic. **Pair with Phase E (production deploy)** —
-   shareable links are pointless on localhost; do them as the
-   capstone feature when the app gets a real URL. Build the new
-   frontend route as a fresh React leaf (greenfield).
+5.  **Trip share-via-link (read-only)** — `4-6 hours`, schema +
+    public backend route + new public frontend route + Views counter.
+    The most complex feature on the list, with security-sensitive
+    auth-bypass logic. **Pair with Phase E (production deploy)** —
+    shareable links are pointless on localhost; do them as the
+    capstone feature when the app gets a real URL. Build the new
+    frontend route as a fresh React leaf (greenfield).
 
 ### Social network deepening (from `VISION.md`)
 

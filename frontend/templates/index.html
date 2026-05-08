@@ -83,7 +83,50 @@
         <!-- Middle navigation sections -->
         <div style="display: flex; flex-direction: column;">
 
-        <div class="sidebar-section-label">Account</div>
+        <!-- Pages — these were in the top nav until Phase D1; on
+             mobile the top-nav links are hidden, so we list them
+             here so the burger drawer is the canonical "every page"
+             menu on small screens. Order matches the top-nav order
+             so muscle memory carries over. -->
+        <div class="sidebar-section-label">Pages</div>
+        <a href="#" class="sidebar-item" data-page="todo">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="9 11 12 14 22 4"></polyline>
+                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+            </svg>
+            To do list
+        </a>
+        <a href="#" class="sidebar-item" data-page="ai">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 3l1.9 5.7L20 10.5l-4.5 3.4L17.5 20 12 16.5 6.5 20l2-6.1L4 10.5l6.1-1.8z"></path>
+            </svg>
+            Plan with AI
+        </a>
+        <a href="#" class="sidebar-item" data-page="expenses">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="1" x2="12" y2="23"></line>
+                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+            </svg>
+            Expenses
+        </a>
+        <a href="#" class="sidebar-item" data-page="insights">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="20" x2="18" y2="10"></line>
+                <line x1="12" y1="20" x2="12" y2="4"></line>
+                <line x1="6" y1="20" x2="6" y2="14"></line>
+            </svg>
+            Insights
+        </a>
+        <a href="#" class="sidebar-item" data-page="feed">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 11a9 9 0 0 1 9 9"></path>
+                <path d="M4 4a16 16 0 0 1 16 16"></path>
+                <circle cx="5" cy="19" r="1"></circle>
+            </svg>
+            Feed
+        </a>
+
+        <div class="sidebar-section-label" style="margin-top: 16px;">Account</div>
         <a href="#" class="sidebar-item" data-page="collections">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
@@ -246,6 +289,43 @@
     <main id="app-container">
         <!-- Pages will be dynamically injected here via JS -->
     </main>
+
+    <!-- Mobile bottom-tab nav (Phase D1). Visible only on
+         max-width:720px, hidden on desktop. The four most-used pages
+         per user research live in the thumb zone; everything else
+         (Todo, AI, Expenses, Insights, Friends, Settlements, etc.)
+         is reachable via the burger drawer. Items use the same
+         `.nav-item` + `data-page` pattern as the top nav so the
+         router's existing active-state toggle covers them too. -->
+    <nav class="mobile-bottom-nav" aria-label="Primary navigation (mobile)">
+        <a href="#" class="nav-item mobile-bottom-nav__item" data-page="home" aria-label="Home">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+            </svg>
+            <span>Home</span>
+        </a>
+        <a href="#" class="nav-item mobile-bottom-nav__item" data-page="feed" aria-label="Feed">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M4 11a9 9 0 0 1 9 9"></path>
+                <path d="M4 4a16 16 0 0 1 16 16"></path>
+                <circle cx="5" cy="19" r="1"></circle>
+            </svg>
+            <span>Feed</span>
+        </a>
+        <a href="#" class="nav-item mobile-bottom-nav__item" data-page="collections" aria-label="Collections">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+            </svg>
+            <span>Collections</span>
+        </a>
+        <a href="#" class="nav-item mobile-bottom-nav__item" data-page="profile" aria-label="Profile">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                <circle cx="12" cy="7" r="4"></circle>
+            </svg>
+            <span>Profile</span>
+        </a>
+    </nav>
 
     {% if dev_mode %}
     <script type="module" src="{{ url_for('static', filename='js/src/main.js') }}"></script>
