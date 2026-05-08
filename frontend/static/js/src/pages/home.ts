@@ -20,12 +20,15 @@ import { paintWeatherChips, loadAndPaintWeather, type WeatherForecast } from './
 import { renderDayRoutePolyline } from './home/routePolyline.js';
 import { POI_CATEGORIES, pickPlaceIcon, isPrimaryMatch } from './home/poiCategories.js';
 import { openPhotoLightbox, openPdfPreview, looksLikePdfUrl } from './home/lightbox.js';
+import { applySilenceBtnVisual, updateShareBtnVisualState, openShareToFeedModal } from './home/shareModal.js';
 
 // Re-exports so existing external importers don't need to learn
 // about the home/* split. settings.ts pulls POI_CATEGORIES;
-// collections.ts pulls openPdfPreview + looksLikePdfUrl.
+// collections.ts pulls openPdfPreview + looksLikePdfUrl +
+// updateShareBtnVisualState + openShareToFeedModal.
 export { POI_CATEGORIES };
 export { openPdfPreview, looksLikePdfUrl };
+export { updateShareBtnVisualState, openShareToFeedModal };
 import { navigate } from '../router.js';
 import { showPersTab } from './settings.js';
 import { openNewTripModal, openAddDayModal, openEditTripModal, openCompanionPickerModal, openTripMembersModal } from '../modals.js';
@@ -2886,138 +2889,12 @@ const openJournalingModal = (dayId) => {
     };
 };
 
-// ── Trip-level Documents/Photos modals ───────────────────────
-// ── Share-to-feed plumbing ──────────────────────────────────────────
-// Visual state of the home trip-header Share button is driven by two
-// data attributes set after fetchShareStatus resolves on mount:
-//   data-shared     '1' → already on the user's feed (filled style)
-//                   '0' → not shared yet (outline style)
-//   data-post-id    feed_posts.id when shared, used for the Unshare flow
-
-/** Flip the Silence-trip button between outline and filled states.
- *  Outline (silenced=false) shows a normal bell on a muted gray
- *  border — "actions are visible". Filled (silenced=true) goes
- *  solid red with a bell-off icon — "trip is muted". Also swaps
- *  the SVG so the icon itself reflects the state, not just the
- *  color. Used by the click handler to repaint without a full
- *  re-render of the trip header.
- *
- *  Kept inline (not exported) because this button only lives in
- *  one place — the trip header. */
-function applySilenceBtnVisual(btn, silenced) {
-    if (!btn) return;
-    btn.dataset.silenced = silenced ? '1' : '0';
-    btn.setAttribute('aria-pressed', silenced ? 'true' : 'false');
-    btn.style.setProperty('--accent', silenced ? '255,59,48' : '127,140,156');
-    if (silenced) {
-        btn.style.background = '#ff3b30';
-        btn.style.color = 'white';
-        btn.style.borderColor = '#ff3b30';
-        btn.title = "Trip actions are silenced — click to make them visible in friends' Actions feeds";
-        btn.setAttribute('aria-label', 'Unsilence trip actions');
-        btn.innerHTML = `
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
-                <path d="M18.63 13A17.89 17.89 0 0 1 18 8"></path>
-                <path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"></path>
-                <path d="M18 8a6 6 0 0 0-9.33-5"></path>
-                <line x1="1" y1="1" x2="23" y2="23"></line>
-            </svg>
-        `;
-    } else {
-        btn.style.background = '';
-        btn.style.color = '';
-        btn.style.borderColor = '';
-        btn.title = "Silence trip actions — hide create / archive / join events from friends' Actions feeds";
-        btn.setAttribute('aria-label', 'Silence trip actions');
-        btn.innerHTML = `
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path>
-                <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
-            </svg>
-        `;
-    }
-}
-
-/** Flip the Share button between outline and filled states. Outline
- *  state inherits the standard `.icon-btn-circle` look (subtle purple
- *  tint from --accent: 88,86,214); filled state goes solid-purple with
- *  a white icon so the "already shared" state pops visually. The
- *  same purple anchors the share/repost event accent in the feed,
- *  carrying visual identity across home → feed.
- *
- *  Exported so collections.js (the new home of the Share button —
- *  rendered on public-trip detail pages only) can drive the same
- *  visual state machine without re-implementing it. */
-export function updateShareBtnVisualState(btn, shared) {
-    if (!btn) return;
-    if (shared) {
-        btn.style.background = '#5856d6';
-        btn.style.color = 'white';
-        btn.style.borderColor = '#5856d6';
-        btn.title = 'Already shared — click to unshare';
-        btn.setAttribute('aria-label', 'Unshare this trip');
-    } else {
-        // Clear the inline overrides so the .icon-btn-circle base
-        // styles (driven by --accent on the element) take back over.
-        btn.style.background = '';
-        btn.style.color = '';
-        btn.style.borderColor = '';
-        btn.title = 'Share this trip to your feed';
-        btn.setAttribute('aria-label', 'Share to feed');
-    }
-}
-
-/** Open the Share-to-feed modal: a textarea for an optional ≤280-char
- *  caption + a Cancel/Share pair. The textarea pre-fills with `seedCaption`
- *  when the user is editing an existing share. The submit callback gets
- *  the cleaned caption string (or empty for "no caption").
- *
- *  Exported because the Share button moved from home.js to the
- *  public-trip detail page in collections.js; that page reuses this
- *  modal so the share UX stays identical regardless of entry point. */
-export function openShareToFeedModal(trip, onSubmit, seedCaption = '') {
-    const { root, close } = showModal({
-        cardClass: 'card glass',
-        cardStyle: 'width: 480px; max-width: calc(100vw - 32px); padding: 28px; border-radius: 28px; background: white;',
-        innerHTML: `
-            <div style="display:flex; align-items:flex-start; justify-content:space-between; margin-bottom: 14px;">
-                <div>
-                    <h2 style="margin:0 0 4px; font-size:1.5rem; color:#002d5b; font-weight:800; letter-spacing:-0.02em;">Share to your feed</h2>
-                    <p style="margin:0; color:var(--text-secondary); font-size:0.85rem;">${esc(trip.name)}${trip.country ? ` · ${esc(trip.country)}` : ''}</p>
-                </div>
-                <button id="shareModalClose" class="close-x-btn" aria-label="Close">✕</button>
-            </div>
-            <label style="display:block; font-size:0.78rem; font-weight:700; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:6px;">Add a caption (optional)</label>
-            <textarea id="shareCaptionInput" maxlength="280" placeholder="e.g. Adding Lisbon for Easter — anyone been?"
-                style="width:100%; box-sizing:border-box; min-height: 90px; padding:12px 14px; border:1px solid rgba(0,45,91,0.12); border-radius:14px; font-size:0.95rem; font-family: inherit; color:#002d5b; background:rgba(0,113,227,0.04); resize: vertical; line-height:1.45;">${esc(seedCaption || '')}</textarea>
-            <div style="display:flex; align-items:center; justify-content:space-between; margin-top:8px;">
-                <span id="shareCaptionCount" style="font-size:0.72rem; color:var(--text-secondary); font-weight:700;">${(seedCaption || '').length}/280</span>
-                <span style="font-size:0.72rem; color:var(--text-secondary);">Friends can like, comment, repost.</span>
-            </div>
-            <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:18px;">
-                <button id="shareModalCancel" class="btn" style="padding: 10px 18px; border-radius: 999px; background:rgba(0,0,0,0.06); color:#002d5b; font-weight:700;">Cancel</button>
-                <button id="shareModalSubmit" class="btn-primary" style="padding: 10px 22px; border-radius: 999px;">Share</button>
-            </div>
-        `,
-    });
-    const textarea = (root.querySelector('#shareCaptionInput') as HTMLTextAreaElement | null);
-    const counter = (root.querySelector('#shareCaptionCount') as HTMLElement | null);
-    if (textarea && counter) {
-        textarea.addEventListener('input', () => {
-            counter.textContent = `${textarea.value.length}/280`;
-        });
-        // Defer focus so the modal's open-animation doesn't fight it.
-        setTimeout(() => textarea.focus(), 80);
-    }
-    (root.querySelector('#shareModalClose') as HTMLButtonElement | null)?.addEventListener('click', close);
-    (root.querySelector('#shareModalCancel') as HTMLButtonElement | null)?.addEventListener('click', close);
-    (root.querySelector('#shareModalSubmit') as HTMLButtonElement | null)?.addEventListener('click', async () => {
-        const caption = (textarea?.value || '').trim();
-        close();
-        await onSubmit(caption);
-    });
-}
+// applySilenceBtnVisual + updateShareBtnVisualState +
+// openShareToFeedModal moved to ./home/shareModal.ts during
+// the Phase B1 home.ts split. Imported at the top of this
+// file; the two exported pieces (updateShareBtnVisualState,
+// openShareToFeedModal) are re-exported so collections.ts's
+// existing import keeps working.
 
 // ── Trip checklist (Genesis option) ─────────────────────────────────
 // Free-form to-do list scoped to the whole trip — packing, errands,
