@@ -218,8 +218,16 @@
 
         </div> <!-- end middle nav -->
 
-        <!-- Spacer to push profile to bottom -->
-        <div style="flex: 1;"></div>
+        <!-- Bug-fix (post-D6/B1): the previous `<div style="flex: 1;">`
+             spacer competed with `.sidebar-middle` (which already has
+             `flex: 1` — see index.css ~873), so each got half the
+             column height. The spacer expanded into the visual area
+             of the middle's last items, intercepting clicks on
+             Settings + Personalization (the bottom two entries in
+             the middle block). Removing the spacer is the clean fix:
+             .sidebar-middle alone takes all the available vertical
+             space, the profile footer below sits on its own auto
+             height pinned to the bottom of the column. -->
 
         <!-- Pinned Profile / Login Footer -->
         <div style="border-top: 1px solid var(--glass-border); padding-top: 16px; margin-top: 16px; display: flex; align-items: center;">

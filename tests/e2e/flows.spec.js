@@ -434,6 +434,45 @@ test.describe('Critical flows — UI-driven', () => {
         if (testInfo.project.name === 'chromium-mobile') test.skip();
     });
 
+    test('sidebar Settings + Personalization items are clickable (no overlay intercept)', async ({ page }) => {
+        // Regression for a layout bug where a flex spacer
+        // `<div style="flex: 1;">` in the sidebar competed with
+        // `.sidebar-middle` (which already has flex: 1) for the
+        // column's vertical space. Each got half the height, the
+        // spacer expanded into the visual area of Settings +
+        // Personalization (the bottom two middle-block items), and
+        // any real user click on those items hit the spacer's
+        // empty div rather than the link — silent navigation
+        // failure.
+        //
+        // The existing helpers.navigateTo path used
+        // `el.click()` in the page context which bypasses the
+        // browser's hit-test, so this slipped past every other
+        // automated suite. This test deliberately uses Playwright's
+        // normal `.click()` (with hit-test enabled) on the visible
+        // sidebar item so a future regression of the same shape
+        // fails CI.
+        const userId = uniqueId('user');
+        await getAuthForApi(page, userId);
+        await openFreshApp(page, userId);
+
+        // Open the sidebar drawer.
+        await page.click('#hamburgerBtn');
+        await page.waitForSelector('.sidebar.open', { state: 'visible', timeout: 5000 });
+
+        // Click Settings — Playwright's .click() respects hit-test,
+        // so an overlay intercept fails the click with a Timeout.
+        await page.locator('.sidebar.open .sidebar-item[data-page="settings"]:visible').click({ timeout: 5000 });
+        await expect.poll(() => page.evaluate(() => location.hash)).toBe('#settings');
+
+        // Re-open the drawer (closed automatically on nav) and click
+        // Personalization — same flex-spacer area, same hit-test.
+        await page.click('#hamburgerBtn');
+        await page.waitForSelector('.sidebar.open', { state: 'visible', timeout: 5000 });
+        await page.locator('.sidebar.open .sidebar-item[data-page="personalization"]:visible').click({ timeout: 5000 });
+        await expect.poll(() => page.evaluate(() => location.hash)).toBe('#personalization');
+    });
+
     test('archive then unarchive a trip', async ({ page }) => {
         // Setup via API so the test focuses on the archive flow itself.
         const userId = uniqueId('user');
