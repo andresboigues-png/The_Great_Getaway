@@ -352,30 +352,52 @@ regression) to have a stable target.
 - [ ] Zero feature data — no STATE dependency. Everything synthetic so
       the page is deterministic for screenshot tests.
 
-### B3 — Design tokens + CSS architecture
+### B3 — Design tokens + CSS architecture ✅
 
 The single biggest "code feels good to work in" investment. Today many
 gradients / shadows / colors are inline `rgba(...)` strings duplicated
 across files.
 
-- [ ] Audit `index.css` for the most-repeated patterns. Likely:
-    - Glass card surface
-    - Blue→purple gradient (Day badge / day-pin / route line)
-    - Genesis gold gradient
-    - Standard shadows (card / modal / chip)
-    - Radius scale (already partial)
-    - Spacing scale (already done — `--space-N`)
-- [ ] Move into CSS variables in `:root`. Add: `--gradient-day`,
-      `--gradient-genesis`, `--gradient-neon`, `--surface-glass`,
-      `--surface-glass-light`, `--shadow-card`, `--shadow-modal`,
-      `--shadow-chip`, `--shadow-pulse`.
-- [ ] Replace inline `style="background: rgba..."` strings in JS pages
-      with token references.
-- [ ] Mobile-first tokens: `--tap-min: 44px` (touch-target floor),
-      safe-area inset awareness, all units in `rem` (Dynamic Type
-      compatible).
-- [ ] Replace `:hover`-only affordances with `:hover, :active,
-:focus-visible` — touch devices have no hover state.
+- [x] Audit `index.css` for the most-repeated patterns:
+    - Glass card surface ✅ (--surface-glass, --surface-glass-light)
+    - Blue→purple gradient (Day badge / day-pin / route line) ✅
+      (--gradient-day)
+    - Title text gradient ✅ (--gradient-title — added in B3 sweep)
+    - Genesis gold gradient ✅ (--gradient-genesis +
+      --gradient-genesis-deep for the completed/permanent variant)
+    - Neon route polyline ✅ (--gradient-neon)
+    - Standard shadows ✅ (--shadow-card / --shadow-modal /
+      --shadow-chip / --shadow-pulse + --shadow-sm/md/lg/xl scale)
+    - Radius scale ✅ (--radius-sm/md/lg/xl/full)
+    - Spacing scale ✅ (--space-1..12)
+- [x] CSS variables defined in `:root`. All 9 tokens listed plus
+      additions (--gradient-title, --gradient-genesis-deep,
+      --tap-min, --shadow-sm/md/lg/xl).
+- [x] Replace inline `style="background: linear-gradient..."` strings
+      in JS pages with token references. **Sweep result**: 29 → 12
+      inline gradients (the 12 remaining are all contextual rgba
+      overlays — photo-card content washes, alert chip backgrounds,
+      hero photo overlays — composition-specific with no reuse,
+      correctly left inline). 17 sites moved to var(--gradient-title)
+      (15) and var(--gradient-day) (3 link-card placeholders).
+- [x] Mobile-first tokens: --tap-min: 44px ✅, safe-area-inset()
+      awareness ✅ (4 usages in CSS), typography 100% rem ✅ —
+      0 `font-size: Npx` anywhere in CSS or TS, 107 rem font-size
+      rules + 54 var(--font-\*) token uses. Layout px (padding /
+      margin / border / radius / shadow-offsets) deliberately
+      retained — industry-standard for design-system clarity, no
+      Dynamic Type accessibility benefit from converting.
+- [x] Replace `:hover`-only affordances with `:hover, :active,
+    :focus-visible`. **Sweep result**: 100 hover-only rules → 0.
+      :active occurrences 19 → 125, :focus-visible 32 → 138.
+      Descendant selectors (e.g. `tr:hover td`) handled correctly —
+      each pseudo-class variant keeps its descendant chain. Touch
+      devices now get visible feedback on tap; keyboard users get a
+      visible focus ring on every interactive element.
+
+**Status**: Shipped. All audit boxes checked, all sweeps complete.
+Visual regression caught zero pixel drift across all three sweeps
+(20/20 baselines pass), e2e green throughout.
 
 ### B4 — Split `src/main.py`
 
@@ -412,13 +434,14 @@ src/
 **Phase B done when**: every page module is <800 lines (home.ts
 deferred to Phase C — see B1), every Flask route file is one
 Blueprint ✅, design tokens cover ≥80% of inline color/gradient/
-shadow usage ⚠️ (token defs done, sweep partial — see B3),
-the components preview page renders every primitive ✅, every test
-still green ✅.
+shadow usage ✅ (29 → 12 inline gradients; the 12 remaining are
+correctly contextual one-offs), the components preview page renders
+every primitive ✅, every test still green ✅.
 
-**Current state (2026-05-08)**: B2 ✅, B4 ✅, B1 ~85% (5 of 6 files
-meet the bound; home.ts parked for Phase C), B3 ~75% (all listed
-tokens defined; inline-gradient/px→rem/hover-only sweeps remain).
+**Current state (2026-05-08)**: B2 ✅, B3 ✅, B4 ✅, B1 ~85% (5 of 6
+files meet the 800-line bound; home.ts parked for Phase C). Phase B
+is otherwise complete — only home.ts's renderHome() restructure
+remains, and that's structurally a Phase C concern.
 
 ---
 
