@@ -5,7 +5,11 @@
 
 import { STATE } from './state.js';
 import { PAGES, type PageName } from './constants.js';
-import { renderHome, stopHomeSlideshow } from './pages/home.js';
+// renderHome migrated to React (Phase C3 final wave) — see ./pages/home-mount/mount.ts.
+// stopHomeSlideshow stays imported because it's called at the top of
+// every navigation to halt home's empty-state slideshow timer.
+import { stopHomeSlideshow } from './pages/home.js';
+import { mountHome } from './pages/home-mount/mount.js';
 // renderExpenses migrated to React (Phase C3) — see ./pages/expenses/mount.ts.
 // setExpensesTab is still imported from the legacy file because the
 // upload→expenses redirect needs to set the tab before navigating, and
@@ -18,15 +22,24 @@ import { mountBudgets } from './pages/budgets/mount.js';
 import { mountFriends } from './pages/friends/mount.js';
 import { mountSettlement } from './pages/settlement/mount.js';
 import { clearReactMount } from './react/reactMount.js';
-import { renderSettings, renderPersonalization } from './pages/settings.js';
+// renderSettings + renderPersonalization migrated to React (Phase C3
+// wave 5) — see ./pages/settings/mount.ts.
+import { mountSettings, mountPersonalization } from './pages/settings/mount.js';
 // renderBudgets migrated to React (Phase C3) — see ./pages/budgets/mount.ts.
-import { renderCollections } from './pages/collections.js';
-import { renderAI } from './pages/ai.js';
+// renderCollections migrated to React (Phase C3 wave 4) — see ./pages/collections-mount/mount.ts.
+import { mountCollections } from './pages/collections-mount/mount.js';
+// renderAI migrated to React (Phase C3 wave 5) — see ./pages/ai/mount.ts.
+import { mountAI } from './pages/ai/mount.js';
 // renderSettlement migrated to React (Phase C3) — see ./pages/settlement/mount.ts.
 // renderFriends migrated to React (Phase C3) — see ./pages/friends/mount.ts.
-import { renderFeed } from './pages/feed.js';
+// renderFeed migrated to React (Phase C3 wave 3) — see ./pages/feed/mount.ts.
+import { mountFeed } from './pages/feed/mount.js';
 // renderTodo migrated to React (Phase C3) — see ./pages/todo/mount.ts.
-import { renderProfile, renderLoginWall } from './pages/profile.js';
+// renderProfile migrated to React (Phase C3 wave 4) — see ./pages/profile/mount.ts.
+// renderLoginWall stays imperative for now; it's only invoked from the
+// signed-out branch above and doesn't need React's lifecycle.
+import { renderLoginWall } from './pages/profile.js';
+import { mountProfile } from './pages/profile/mount.js';
 
 let isInternalNav = false;
 /** Last page rendered. Used to distinguish "user clicked a nav link
@@ -79,7 +92,12 @@ export function navigate(
     }
 
     switch (page) {
-        case PAGES.HOME: pageEl = renderHome(); break;
+        // Phase C3 final wave: Home migrated to React. Last page to
+        // ship in React — the playbook is iron-clad by the time we
+        // got here, so this is just a thin wrapper around the
+        // existing 2,341-line renderHome() (per the 800+-line
+        // wrapper tier of the migration playbook).
+        case PAGES.HOME: mountHome(content); break;
         // Phase C3: Expenses migrated to React (thin wrapper hosts the
         // imperative renderExpenses output until full JSX conversion).
         case PAGES.EXPENSES: mountExpenses(content); break;
@@ -93,21 +111,30 @@ export function navigate(
         // <Insights /> directly into #app-container via createRoot —
         // no pageEl returned (the React root manages the DOM).
         case PAGES.INSIGHTS: mountInsights(content); break;
-        case PAGES.SETTINGS: pageEl = renderSettings(); break;
-        case PAGES.PERSONALIZATION: pageEl = renderPersonalization(); break;
+        // Phase C3 wave 5: Settings + Personalization migrated to React.
+        case PAGES.SETTINGS: mountSettings(content); break;
+        case PAGES.PERSONALIZATION: mountPersonalization(content); break;
         // Phase C3: Budgets migrated to React.
         case PAGES.BUDGETS: mountBudgets(content); break;
-        case PAGES.COLLECTIONS: pageEl = renderCollections(); break;
-        case PAGES.AI: pageEl = renderAI(); break;
+        // Phase C3 wave 4: Collections migrated to React.
+        case PAGES.COLLECTIONS: mountCollections(content); break;
+        // Phase C3 wave 5: AI planner migrated to React.
+        case PAGES.AI: mountAI(content); break;
         // Phase C3: Settlement migrated to React.
         case PAGES.SETTLEMENT: mountSettlement(content); break;
         // Phase C3: Friends migrated to React.
         case PAGES.FRIENDS: mountFriends(content); break;
-        case PAGES.FEED: pageEl = renderFeed(); break;
+        // Phase C3 wave 3: Feed migrated to React (thin wrapper).
+        case PAGES.FEED: mountFeed(content); break;
         // Phase C3: Todo migrated to React.
         case PAGES.TODO: mountTodo(content); break;
-        case PAGES.PROFILE: pageEl = renderProfile(params?.userId); break;
-        default: pageEl = renderHome();
+        // Phase C3 wave 4: Profile migrated to React. params?.userId
+        // becomes a prop the React component re-mounts on when changing.
+        case PAGES.PROFILE: mountProfile(content, params?.userId); break;
+        // Default fallback — same React mount as PAGES.HOME so unknown
+        // page values land on a working React tree, not a bare
+        // imperative element appended below the React reconciler.
+        default: mountHome(content); break;
     }
 
     if (pageEl) {
