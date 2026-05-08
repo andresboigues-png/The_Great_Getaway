@@ -64,8 +64,8 @@ def sync_data():
                 INSERT INTO trips (id, user_id, name, country, is_archived, is_public,
                                    place_id, lat, lng, viewport_json, place_types, country_code,
                                    companions_json, marked_places_json,
-                                   documents_json, photos_json, checklist_json)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                   documents_json, photos_json, checklist_json, cover_url)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     name=excluded.name,
                     country=excluded.country,
@@ -81,7 +81,8 @@ def sync_data():
                     marked_places_json=excluded.marked_places_json,
                     documents_json=excluded.documents_json,
                     photos_json=excluded.photos_json,
-                    checklist_json=excluded.checklist_json
+                    checklist_json=excluded.checklist_json,
+                    cover_url=excluded.cover_url
             ''', (t['id'], user_id, t['name'], t['country'],
                   1 if t.get('is_archived') else 0,
                   1 if t.get('isPublic') else 0,
@@ -95,7 +96,8 @@ def sync_data():
                   json.dumps(t['markedPlaces']) if isinstance(t.get('markedPlaces'), list) else None,
                   json.dumps(t['documents']) if isinstance(t.get('documents'), list) else None,
                   json.dumps(t['photos']) if isinstance(t.get('photos'), list) else None,
-                  json.dumps(t['checklist']) if isinstance(t.get('checklist'), list) else None))
+                  json.dumps(t['checklist']) if isinstance(t.get('checklist'), list) else None,
+                  t.get('coverUrl')))
             ensure_owner_member_row(cursor, t['id'], user_id)
 
         # Sync Archived Trips — same ownership gate.
@@ -110,8 +112,8 @@ def sync_data():
                 INSERT INTO trips (id, user_id, name, country, is_archived, is_public,
                                    place_id, lat, lng, viewport_json, place_types, country_code,
                                    companions_json, marked_places_json,
-                                   documents_json, photos_json)
-                VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                   documents_json, photos_json, cover_url)
+                VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     name=excluded.name,
                     country=excluded.country,
@@ -126,7 +128,8 @@ def sync_data():
                     companions_json=excluded.companions_json,
                     marked_places_json=excluded.marked_places_json,
                     documents_json=excluded.documents_json,
-                    photos_json=excluded.photos_json
+                    photos_json=excluded.photos_json,
+                    cover_url=excluded.cover_url
             ''', (t['id'], user_id, t['name'], t['country'],
                   1 if t.get('isPublic') else 0,
                   t.get('placeId'),
@@ -138,7 +141,8 @@ def sync_data():
                   json.dumps(t['companions']) if isinstance(t.get('companions'), list) else None,
                   json.dumps(t['markedPlaces']) if isinstance(t.get('markedPlaces'), list) else None,
                   json.dumps(t['documents']) if isinstance(t.get('documents'), list) else None,
-                  json.dumps(t['photos']) if isinstance(t.get('photos'), list) else None))
+                  json.dumps(t['photos']) if isinstance(t.get('photos'), list) else None,
+                  t.get('coverUrl')))
             ensure_owner_member_row(cursor, t['id'], user_id)
 
             # Expenses inside archived trips — gate per-row by role on the
@@ -309,6 +313,10 @@ def get_data():
             # Privacy flag — read at trip scope (one bool per trip,
             # set by the owner).
             t['actionsHidden'] = bool(t.pop('actions_hidden', 0))
+            # Custom cover photo URL (post-Phase-C feature). NULL for
+            # legacy rows, surfaced as `coverUrl` so frontend reads
+            # without the snake_case translation.
+            t['coverUrl'] = t.pop('cover_url', None)
 
             # Per-user archive + role come from THIS user's trip_members
             # row. Owners may not have a row yet on legacy data — fall

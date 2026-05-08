@@ -53,8 +53,8 @@ def upsert_trip():
             INSERT INTO trips (id, user_id, name, country, is_archived, is_public,
                                place_id, lat, lng, viewport_json, place_types, country_code,
                                companions_json, marked_places_json,
-                               documents_json, photos_json, checklist_json)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                               documents_json, photos_json, checklist_json, cover_url)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 name=excluded.name,
                 country=excluded.country,
@@ -70,7 +70,8 @@ def upsert_trip():
                 marked_places_json=excluded.marked_places_json,
                 documents_json=excluded.documents_json,
                 photos_json=excluded.photos_json,
-                checklist_json=excluded.checklist_json
+                checklist_json=excluded.checklist_json,
+                cover_url=excluded.cover_url
         ''', (t['id'], owner_id, t['name'], t.get('country', ''),
               1 if t.get('isArchived') else 0,
               1 if t.get('isPublic') else 0,
@@ -84,7 +85,8 @@ def upsert_trip():
               json.dumps(t['markedPlaces']) if isinstance(t.get('markedPlaces'), list) else None,
               json.dumps(t['documents']) if isinstance(t.get('documents'), list) else None,
               json.dumps(t['photos']) if isinstance(t.get('photos'), list) else None,
-              json.dumps(t['checklist']) if isinstance(t.get('checklist'), list) else None))
+              json.dumps(t['checklist']) if isinstance(t.get('checklist'), list) else None,
+              t.get('coverUrl')))
         ensure_owner_member_row(cursor, t['id'], owner_id)
         conn.commit()
     return jsonify({"status": "ok"})

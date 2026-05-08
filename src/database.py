@@ -127,6 +127,13 @@ def init_db():
             # opt-in flow on the public-trip detail page; silencing
             # a trip doesn't unshare it.
             ("actions_hidden", "ALTER TABLE trips ADD COLUMN actions_hidden INTEGER DEFAULT 0"),
+            # Custom cover photo URL — when set, the collections list
+            # card shows a thumbnail and the archived-trip detail hero
+            # uses it instead of the auto-picked first photo. NULL for
+            # legacy rows; the user picks one via the Edit Trip modal,
+            # which uploads to /api/upload and writes the returned URL
+            # back via /api/trips. See FUTURE_FEATURES.md item #2.
+            ("cover_url", "ALTER TABLE trips ADD COLUMN cover_url TEXT"),
         ]:
             try:
                 cursor.execute(ddl)

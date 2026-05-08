@@ -231,9 +231,19 @@ export function renderCollections() {
                         : null;
                     const dest = tripDestination(t);
                     const expenseCount = (t.expenses || []).filter((e: any) => !e.isSettlement).length;
+                    // Cover-photo thumb — shows when the user has set a
+                    // cover via the Edit Trip modal. Falls back silently
+                    // (no placeholder) when none is set; the card still
+                    // reads cleanly without it. Sits between the icon-
+                    // less left edge and the trip name as a 60px square.
+                    const coverThumb = t.coverUrl
+                        ? `<img src="${esc(t.coverUrl)}" alt="" data-cover-thumb class="archived-card-cover" style="width: 60px; height: 60px; border-radius: 12px; object-fit: cover; flex-shrink: 0; box-shadow: 0 4px 12px rgba(0,0,0,0.08); border: 1px solid rgba(0,0,0,0.06);">`
+                        : '';
                     return `
                     <div class="card glass card-glow-blue" style="display: flex; flex-direction: row; align-items: center; justify-content: space-between; padding: 20px; gap: 16px;">
-                        <div class="archived-trip-card" data-trip-id="${t.id}" role="button" tabindex="0" aria-label="Open ${esc(t.name)} details" style="cursor: pointer; flex: 1; min-width:0;">
+                        <div class="archived-trip-card" data-trip-id="${t.id}" role="button" tabindex="0" aria-label="Open ${esc(t.name)} details" style="cursor: pointer; flex: 1; min-width:0; display: flex; align-items: center; gap: 16px;">
+                            ${coverThumb}
+                            <div style="flex: 1; min-width: 0;">
                             <div style="display: flex; align-items: center; gap: 10px; flex-wrap:wrap;">
                                 <h3 style="margin: 0;">${esc(t.name)}</h3>
                                 ${dest && dest !== t.name ? `<span style="background: rgba(0,113,227,0.08); color: var(--accent-blue); padding: 2px 10px; border-radius: 999px; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing:0.06em;">📍 ${esc(dest)}</span>` : ''}
@@ -244,6 +254,7 @@ export function renderCollections() {
                                 ${archivedAt ? `<span title="Marked complete on ${esc(archivedAt)}">✓ ${esc(archivedAt)}</span>` : ''}
                             </div>
                             <p style="color: var(--accent-blue); margin: 8px 0 0 0; font-size: 0.95rem; font-weight: 800;">${formatHome(tripTotalSpent(t), 'EUR')}<span style="color: var(--text-secondary); font-weight: 600; font-size: 0.78rem; margin-left:6px;">total</span></p>
+                            </div>
                         </div>
                         <div style="display: flex; align-items: center; gap: 20px;">
                             <div style="display: flex; align-items: center; gap: 12px; background: rgba(0,0,0,0.03); padding: 8px 18px; border-radius: 980px; border: 1px solid rgba(0,0,0,0.08); box-shadow: inset 0 1px 2px rgba(0,0,0,0.02), 0 4px 12px rgba(0,0,0,0.03);">

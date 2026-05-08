@@ -691,9 +691,19 @@ below for details):
    page with the active trip pre-selected. Magnifying-glass icon in
    the navbar at `#navSearchBtn`. 2 e2e tests cover the cross-trip
    match + empty-state paths.
-3. Then move into Phase D, bundling **Trip cover photo +
-   Receipts** alongside the mobile sweep (D1).
-4. Phase E + **Trip share-via-link** as the launch story.
+3. ✅ **Trip cover photo** — shipped. Schema add (`cover_url TEXT`
+   on `trips`), backend wiring (upsert + sync + read mappings),
+   frontend upload via existing `/api/upload` (already MIME +
+   magic-number hardened), Edit Trip modal "Choose cover" button
+   with live preview + Remove, display priority on the Collections
+   list card thumbnail and the archived-trip detail hero. 2 pytests
+   for the round-trip (set + clear) + 1 e2e for the card thumbnail.
+4. Next: **Receipts on expenses** (~2-3h, same shape as cover photo
+   — schema add + upload + display) — finishes the "small things"
+   pre-D1 release.
+5. Then start Phase D mobile sweep (D1) with the new surfaces in
+   place.
+6. Phase E + **Trip share-via-link** as the launch story.
 
 ---
 
@@ -1076,16 +1086,35 @@ substrate" then "pair with the right infrastructure phase"):
    add — same component tree wrapped in a Modal, since everything
    is already React.
 
-3. **Trip cover photo** + **Receipts on expenses** — bundle as a
-   "small things" release. Each `2-3 hours` (schema + backend +
-   frontend). FUTURE_FEATURES.md itself recommends bundling these.
-   Both touch imperative thin-wrapper pages (Home / Collections /
-   Expenses) for display. Pair with: **Phase D (mobile-first
-   sweep)** — the cover photo's hero treatment and the receipt
-   thumbnail are exactly the kind of mobile-touch surfaces D
-   rebuilds anyway. Doing them together avoids double-handling.
+3. ✅ **Trip cover photo** — **shipped** (~30 minutes incl. tests).
+   First schema-touching feature post-Phase-C. Single migration adds
+   `cover_url TEXT` to `trips`; same `try/except: pass ALTER TABLE`
+   pattern as every other column in `database.py` so legacy DBs
+   upgrade in place. Backend round-trips the value through
+   `routes/trips.py` (single-trip upsert) + `routes/data.py` (bulk
+   sync write + read mapping). Frontend additions: `coverUrl?: string
+| null` on `Trip`, "Choose cover" file input wired into the Edit
+   Trip modal with live thumbnail preview + Remove button (uploads
+   via the existing `/api/upload` — already auth + MIME + magic-
+   number hardened, so no new attack surface). Display sites:
+   60×60 thumbnail on the Collections list card; cover takes priority
+   over the auto-picked first photo on the archived-trip detail
+   hero. 2 pytests prove the round-trip (set + clear) + 1 e2e
+   confirms the thumbnail renders when the API serves a `coverUrl`.
+   The active-trip Home hero is intentionally NOT a cover-photo
+   surface today — it's a Google Map by design — so the cover only
+   appears where it has a "preview tile" use case.
 
-4. **Trip share-via-link (read-only)** — `4-6 hours`, schema +
+4. **Receipts on expenses** — `2-3 hours`. Same shape as cover
+   photo: schema add (`receipt_url TEXT` on `expenses`), backend
+   wiring through the upsert + read paths, frontend upload via the
+   same hardened `/api/upload`, display as a small clip icon on
+   expense History rows that opens the receipt image in a lightbox.
+   FUTURE_FEATURES.md recommends bundling cover + receipts as a
+   "small things" release. Cover is now done — receipts is the
+   second half. Pair with: anytime, no phase dependency.
+
+5. **Trip share-via-link (read-only)** — `4-6 hours`, schema +
    public backend route + new public frontend route + Views counter.
    The most complex feature on the list, with security-sensitive
    auth-bypass logic. **Pair with Phase E (production deploy)** —

@@ -174,6 +174,53 @@ def test_upsert_trip_missing_data(client, auth_headers):
     assert res.status_code == 400
 
 
+def test_trip_cover_url_round_trips(client, seed_user, auth_headers):
+    """Cover photo URL persists across upsert + read (post-Phase-C
+    feature). The frontend writes `coverUrl` (camelCase) and reads it
+    back the same way; the column on disk is `cover_url`. Also confirms
+    setting it to None removes the cover (overwrite semantics)."""
+    cover = "/static/uploads/1234_test.jpg"
+    res = client.post("/api/trips", headers=auth_headers, json={
+        "trip": {
+            "id": "trip-cover", "name": "Lisbon", "country": "Portugal",
+            "coverUrl": cover,
+        },
+    })
+    assert res.status_code == 200
+
+    # Read back via /api/data — the round-trip surfaces the value as
+    # `coverUrl` (the read mapping translates from cover_url).
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    trip = next(t for t in data["trips"] if t["id"] == "trip-cover")
+    assert trip["coverUrl"] == cover
+
+    # Overwrite with None — should clear the column. Test confirms the
+    # ON CONFLICT clause writes `excluded.cover_url` (which is the new
+    # NULL) rather than COALESCE-keeping the old value.
+    res = client.post("/api/trips", headers=auth_headers, json={
+        "trip": {
+            "id": "trip-cover", "name": "Lisbon", "country": "Portugal",
+            "coverUrl": None,
+        },
+    })
+    assert res.status_code == 200
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    trip = next(t for t in data["trips"] if t["id"] == "trip-cover")
+    assert trip["coverUrl"] is None
+
+
+def test_trip_cover_url_optional(client, seed_user, auth_headers):
+    """Legacy trips (no `coverUrl` in payload) still upsert cleanly,
+    and the read returns None for that field. Backwards compat."""
+    res = client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": "trip-legacy", "name": "Old Trip", "country": "Spain"},
+    })
+    assert res.status_code == 200
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    trip = next(t for t in data["trips"] if t["id"] == "trip-legacy")
+    assert trip["coverUrl"] is None
+
+
 # ── /api/expenses ────────────────────────────────────────────────────────────
 
 def test_upsert_expense_happy_path(client, seed_user, auth_headers):

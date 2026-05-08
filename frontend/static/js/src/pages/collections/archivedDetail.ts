@@ -62,11 +62,15 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
         tripDays.reduce((n: number, d: any) => n + ((d.tickets || []).length), 0)
         + tripDocs.length;
 
-    // First photo (used as the hero background and a fallback for any
-    // day that doesn't carry its own photo). Try the trip-level store
-    // first (where new uploads land) and fall back to legacy day photos.
-    let firstPhoto = null;
-    if (tripPhotos.length > 0) firstPhoto = tripPhotos[0].src;
+    // Hero background source — priority chain (post-Phase-C feature):
+    //   1. trip.coverUrl (user's explicit pick from Edit Trip modal)
+    //   2. trip.photos[0].src (first trip-level upload, where Photos
+    //      tab uploads land)
+    //   3. day.photos[0] (legacy first day photo)
+    //   4. <none> → falls back to the gradient-only hero below.
+    let firstPhoto: string | null = null;
+    if (trip.coverUrl) firstPhoto = trip.coverUrl;
+    if (!firstPhoto && tripPhotos.length > 0) firstPhoto = tripPhotos[0].src;
     if (!firstPhoto) {
         for (const day of tripDays) {
             if (day.photos && day.photos.length > 0) { firstPhoto = day.photos[0]; break; }

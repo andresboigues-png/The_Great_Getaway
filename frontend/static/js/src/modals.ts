@@ -10,6 +10,7 @@ import {
     upsertDay,
     respondTripInvite,
     pullFromServer,
+    uploadMedia,
 } from './api.js';
 import { navigate } from './router.js';
 import { ROLE_PLANNER } from './permissions.js';
@@ -365,6 +366,27 @@ export const openEditTripModal = (trip: any) => {
                     </div>
                 </div>
                 <p id="editTripDateHint" class="form-hint" style="margin-bottom: var(--space-4); width: 100%;"></p>
+
+                <!-- Cover photo picker (post-Phase-C feature). Hidden
+                     <input type="file"> driven by a styled button so we
+                     keep the rest of the modal's glass aesthetic.
+                     Preview thumbnail appears below once a photo is set,
+                     with a "Remove" link to clear it. -->
+                <div style="margin-bottom: var(--space-4); width: 100%;">
+                    <label class="form-label">Cover photo <span style="opacity: 0.5; font-weight: 500;">(optional)</span></label>
+                    <input type="file" id="editTripCoverInput" accept="image/*" style="display: none;">
+                    <div style="display: flex; gap: var(--space-3); align-items: center;">
+                        <button type="button" id="editTripCoverPickBtn" class="btn-ghost" style="flex: 0 0 auto; padding: 10px 18px; font-size: 0.85rem; font-weight: 700;">
+                            🖼 Choose cover
+                        </button>
+                        <div id="editTripCoverPreview" style="display: none; flex: 1; align-items: center; gap: var(--space-3);">
+                            <img id="editTripCoverThumb" src="" alt="Cover preview" style="width: 56px; height: 56px; border-radius: 12px; object-fit: cover; border: 1px solid rgba(255,255,255,0.25); box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+                            <button type="button" id="editTripCoverRemoveBtn" class="btn-ghost" style="padding: 6px 12px; font-size: 0.75rem; font-weight: 700; opacity: 0.85;">Remove</button>
+                        </div>
+                        <span id="editTripCoverStatus" style="flex: 1; font-size: 0.78rem; color: rgba(255,255,255,0.7); font-weight: 600;"></span>
+                    </div>
+                </div>
+
                 <div style="display: flex; gap: var(--space-3); width: 100%; margin-top: var(--space-4);">
                     <button type="submit" id="editTripSubmitBtn" class="btn-primary" style="flex: 2;">Save Changes</button>
                     <button type="button" id="cancelEditTripBtn" class="btn-ghost" style="flex: 1;">Cancel</button>
@@ -412,6 +434,60 @@ export const openEditTripModal = (trip: any) => {
 
     const { getPicked } = _wirePlacePicker({ placeInput, hint, submitBtn, initialPlace });
 
+    // ── Cover picker wiring ─────────────────────────────────────────
+    // `coverUrl` is a closure-mutable so the submit handler reads the
+    // latest value (post-upload, post-remove) without DOM lookups.
+    // Pre-fill from the existing trip if it already has a cover, so
+    // the preview shows up on modal open and a no-op save preserves
+    // it untouched.
+    let coverUrl: string | null = trip.coverUrl || null;
+    const coverInput = (q(root, '#editTripCoverInput') as HTMLInputElement);
+    const coverPickBtn = (q(root, '#editTripCoverPickBtn') as HTMLButtonElement);
+    const coverPreview = (q(root, '#editTripCoverPreview') as HTMLDivElement);
+    const coverThumb = (q(root, '#editTripCoverThumb') as HTMLImageElement);
+    const coverRemoveBtn = (q(root, '#editTripCoverRemoveBtn') as HTMLButtonElement);
+    const coverStatus = q(root, '#editTripCoverStatus');
+
+    const refreshCoverUI = () => {
+        if (coverUrl) {
+            coverThumb.src = coverUrl;
+            coverPreview.style.display = 'flex';
+            coverStatus.textContent = '';
+        } else {
+            coverPreview.style.display = 'none';
+        }
+    };
+    refreshCoverUI();
+
+    coverPickBtn.onclick = () => coverInput.click();
+    coverInput.onchange = async () => {
+        const file = coverInput.files?.[0];
+        if (!file) return;
+        coverStatus.textContent = 'Uploading…';
+        coverPickBtn.disabled = true;
+        try {
+            const result = await uploadMedia(file);
+            if (result?.url) {
+                coverUrl = result.url;
+                refreshCoverUI();
+            } else {
+                coverStatus.textContent = 'Upload failed — try again';
+            }
+        } catch (e) {
+            console.warn('cover upload failed', e);
+            coverStatus.textContent = 'Upload failed — try again';
+        } finally {
+            coverPickBtn.disabled = false;
+            // Reset the input so re-picking the same file still fires
+            // `change` (browsers suppress duplicate selections otherwise).
+            coverInput.value = '';
+        }
+    };
+    coverRemoveBtn.onclick = () => {
+        coverUrl = null;
+        refreshCoverUI();
+    };
+
     (q(root, '#cancelEditTripBtn') as HTMLButtonElement).onclick = () => close();
     (q(root, '#editTripForm') as HTMLFormElement).onsubmit = (e) => {
         e.preventDefault();
@@ -437,6 +513,10 @@ export const openEditTripModal = (trip: any) => {
         trip.viewport = picked.viewport;
         trip.placeTypes = picked.types;
         trip.countryCode = picked.countryCode;
+        // Cover photo is opt-in — write whatever the picker last
+        // produced (URL on upload, null on Remove, unchanged-from-load
+        // when the user didn't touch the picker).
+        trip.coverUrl = coverUrl;
 
         // Saved pan/zoom is keyed by trip id and reflects the OLD location's
         // map view — clear it so the map re-zooms to the new viewport on

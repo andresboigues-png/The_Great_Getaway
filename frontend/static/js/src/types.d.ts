@@ -135,6 +135,13 @@ export interface Trip {
     /** Trip-wide photos store. Same union model as `documents` (see
      *  tripMedia.js). */
     photos?: TripPhoto[];
+    /** User-picked cover photo URL — first feature of the post-Phase-C
+     *  "small things" release. Set via the Edit Trip modal's "Choose
+     *  cover" button (which uploads to /api/upload). Display priority
+     *  on the collections list card thumbnail and the archived-trip
+     *  detail hero is `trip.coverUrl > first-day-photo > default
+     *  gradient`. NULL for legacy trips; the user has to opt in. */
+    coverUrl?: string | null;
 }
 
 /** Single row in `Trip.checklist`. `id` is a stable client-generated

@@ -621,6 +621,59 @@ test.describe('Critical flows — UI-driven', () => {
         await expect(page.locator(`[data-path-chip-day-id="${day2Id}"]`)).toBeVisible();
     });
 
+    test('trip cover photo renders on the collections card', async ({ page }) => {
+        // Trip cover photo (post-Phase-C feature). The Edit Trip modal
+        // uploads via /api/upload and sets `trip.coverUrl`; this test
+        // skips the upload UI (Playwright can drive setInputFiles but
+        // the upload requires a valid image with magic-number bytes
+        // matching the server-side allowlist — overkill for the
+        // display-priority assertion this test cares about).
+        // Instead we set coverUrl via /api/trips directly, then archive
+        // the trip and assert the thumbnail renders on the Collections
+        // list card.
+        const userId = uniqueId('user');
+        const auth = await getAuthForApi(page, userId);
+        const tripId = uniqueId('trip-cover');
+        const coverUrl = '/static/uploads/test-cover.jpg';
+
+        // Create the trip with coverUrl set, then archive it via the
+        // /archive endpoint so it lands on the Collections page.
+        await page.request.post('/api/trips', {
+            headers: auth.headers,
+            data: {
+                trip: {
+                    id: tripId,
+                    name: 'Cover Photo Trip',
+                    country: 'Portugal',
+                    coverUrl,
+                },
+            },
+        });
+        await page.request.post(`/api/trips/${tripId}/archive`, { headers: auth.headers });
+
+        // Confirm the round-trip: /api/data returns the cover URL.
+        const dataRes = await page.request.get('/api/data', { headers: auth.headers });
+        const data = await dataRes.json();
+        const trip = (data.trips || []).find((t) => t.id === tripId);
+        expect(trip).toBeTruthy();
+        expect(trip.coverUrl).toBe(coverUrl);
+
+        await openFreshApp(page, userId);
+        await page.evaluate(() => {
+            document.getElementById('sidebar')?.classList.remove('open');
+            document.getElementById('sidebarOverlay')?.classList.remove('open');
+        });
+        await navigateTo(page, 'collections');
+        // The card thumbnail uses class="archived-card-cover" + the
+        // src attribute carries the URL. Wait for the page to render
+        // the archived card first.
+        const card = page.locator('.archived-trip-card', { hasText: 'Cover Photo Trip' });
+        await card.waitFor({ state: 'visible', timeout: 5000 });
+        const thumb = card.locator('.archived-card-cover');
+        await expect(thumb).toBeVisible();
+        await expect(thumb).toHaveAttribute('src', coverUrl);
+    });
+
     test('search page finds trips, expenses, and days across active trips', async ({ page }) => {
         // Cross-trip search (post-Phase-C feature). One input, three
         // result groups (Trips / Days / Expenses), all filtered
