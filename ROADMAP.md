@@ -306,39 +306,37 @@ fails loudly ✅. Every later phase happens under this safety net.
 fear. Splitting `home.js` and `main.py` and adding design tokens makes the
 code addressable for the React migration in Phase C.
 
-### B1 — Split `pages/home.js`
+### B1 — Split `pages/home.js` ⚠️ ~85% (home.ts blocked on Phase C)
 
 5,378 lines. Refactor into focused files. The pattern that worked for
 `modals.js` in the original Phase 4 is the playbook.
 
-Target structure:
+- [x] Identify the 8–9 natural boundaries inside `home.js`. 13 modules
+      shipped under `pages/home/` covering slideshow, day-detail,
+      checklist, getting-started, weather, route-polyline, etc.
+- [x] Extract one slice at a time with the safety net (pytest + e2e + visual + tsc) catching breakage. 18 commits across N+7/N+9.
+- [x] Re-export `renderHome` through the host file so the router
+      keeps working unchanged.
+- [x] Delete dead imports / closure references the split exposes.
+- [x] **Other 5 files under 800**: settlement.ts (807→693),
+      ai.ts (810→773), collections.ts (900→410), modals.ts
+      (1005→657), feed.ts (1058→623). All shipped in this session
+      with full e2e suite green after each cut.
+- [ ] **home.ts at 2,568** — the structural limit. `renderHome()`
+      itself is 2,341 lines with 14 inner closures and 82
+      closure-bound DOM/state references. The map setup specifically
+      can't be detangled without invasive refactoring of how its
+      event handlers close over `div`, `googleMap`, polyline state,
+      etc. Three earlier extractions (slideshow, day-detail modal,
+      getting-started guide) confirmed the closure-coupling pattern
+      around the map renderer.
 
-```
-pages/home/
-  index.ts                  // orchestrator, exports renderHome
-  hero.ts                   // active-trip header (silence, edit, badge,
-                            //   local-time chip, members chips)
-  homeMap.ts                // map setup, markers, polyline, pills,
-                            //   street-view InfoWindow
-  pathTab.ts                // chip strip + Genesis card + selected-day
-                            //   card + options stack
-  companionsTab.ts          // companions card
-  dayDetailModal.ts         // the AM/PM/Eve modal + checklist + footer
-  shortlistSection.ts       // "From your to-do list" panel
-  weather.ts                // forecast fetch + chip painting
-  routePolyline.ts          // road-follow + neon pulse animation
-```
-
-- [ ] Identify the 8–9 natural boundaries inside `home.js`.
-- [ ] Extract one slice at a time. After each extraction:
-    - Tests green (pytest + Playwright).
-    - Bundle builds.
-    - Manual smoke (open the app, navigate every route).
-    - Commit.
-- [ ] Re-export `renderHome` through `pages/home/index.ts` so the router
-      and other callers don't have to know about the new structure.
-- [ ] Delete dead imports / closure references the split exposes.
-- [ ] No file >800 lines after the split.
+**Status**: 5 of 6 files now meet the bound. home.ts is parked for
+Phase C — React's component model is the natural place to detangle
+these closures (each section becomes its own component with explicit
+props, vs sharing a 2,300-line lexical scope). Trying to do it under
+the current architecture is high-risk for low return; better to
+migrate clean.
 
 ### B2 — Components preview route
 
@@ -411,10 +409,16 @@ src/
 - [ ] All pytest tests pass unchanged (the safety net catches a
       regression instantly).
 
-**Phase B done when**: every page module is <800 lines, every Flask
-route file is one Blueprint, design tokens cover ≥80% of inline
-color/gradient/shadow usage, the components preview page renders every
-primitive, every test still green.
+**Phase B done when**: every page module is <800 lines (home.ts
+deferred to Phase C — see B1), every Flask route file is one
+Blueprint ✅, design tokens cover ≥80% of inline color/gradient/
+shadow usage ⚠️ (token defs done, sweep partial — see B3),
+the components preview page renders every primitive ✅, every test
+still green ✅.
+
+**Current state (2026-05-08)**: B2 ✅, B4 ✅, B1 ~85% (5 of 6 files
+meet the bound; home.ts parked for Phase C), B3 ~75% (all listed
+tokens defined; inline-gradient/px→rem/hover-only sweeps remain).
 
 ---
 
