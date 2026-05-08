@@ -126,6 +126,14 @@ def get_public_trip(trip_id):
 
         cursor.execute("SELECT * FROM expenses WHERE trip_id = ?", (trip_id,))
         expenses = [dict(r) for r in cursor.fetchall()]
+        # Translate snake_case → camelCase for the public detail
+        # surface. Same shape as routes/data.py — both reads need to
+        # match because the frontend filters by `e.tripId`.
+        for e in expenses:
+            e['tripId'] = e.pop('trip_id', None)
+            e['categoryId'] = e.pop('category_id', None)
+            e['euroValue'] = e.pop('euro_value', None)
+            e['receiptUrl'] = e.pop('receipt_url', None)
 
         # Inline tripDays + expenses + members on the trip object. The
         # archived-trip frontend reads these from `trip.tripDays` and

@@ -322,7 +322,11 @@ test.describe('Critical flows — API-driven', () => {
         expect(matches[0].label).toBe('Cafe with friends');
         expect(matches[0].value).toBe(25);
         expect(matches[0].currency).toBe('GBP');
-        expect(matches[0].euro_value).toBeCloseTo(29, 5);
+        // /api/data now returns camelCase `euroValue` (post-Phase-C
+        // expense read-mapping fix; was previously inconsistent — the
+        // server wrote camelCase via /api/expenses but read it back as
+        // `euro_value` snake_case, breaking client-side filters).
+        expect(matches[0].euroValue).toBeCloseTo(29, 5);
     });
 
     test('settle-shape expense round-trips with country=Settlement marker', async ({ page }) => {
@@ -619,6 +623,73 @@ test.describe('Critical flows — UI-driven', () => {
 
         await expect(page.locator(`[data-path-chip-day-id="${day1Id}"]`)).toBeVisible({ timeout: 5000 });
         await expect(page.locator(`[data-path-chip-day-id="${day2Id}"]`)).toBeVisible();
+    });
+
+    test('expense receipt clip icon renders in History when receiptUrl is set', async ({ page }) => {
+        // Receipts on expenses (post-Phase-C "small things" release —
+        // sister feature to cover photo). Same test shape: skip the
+        // upload UI (real image bytes + magic-number sniff = overkill
+        // for a display-priority test), set receiptUrl directly via
+        // /api/expenses, navigate to the History tab, assert the clip
+        // icon button renders with the right data-receipt-url.
+        const userId = uniqueId('user');
+        const auth = await getAuthForApi(page, userId);
+        const tripId = uniqueId('trip-receipt');
+        const expId = uniqueId('exp-receipt');
+        const receiptUrl = '/static/uploads/test-receipt.jpg';
+
+        await createTripViaApi(page, auth.headers, {
+            id: tripId,
+            name: 'Receipt Test Trip',
+        });
+        await page.request.post('/api/expenses', {
+            headers: auth.headers,
+            data: {
+                expense: {
+                    id: expId,
+                    tripId,
+                    who: 'Andres',
+                    categoryId: 'c1',
+                    label: 'Lunch',
+                    date: '2026-06-01',
+                    country: 'Portugal',
+                    value: 25.5,
+                    currency: 'EUR',
+                    euroValue: 25.5,
+                    splits: { Andres: 100 },
+                    receiptUrl,
+                },
+            },
+        });
+
+        // Confirm round-trip via /api/data — proves the snake_case
+        // → camelCase translation kicks in (routes/data.py:expenses
+        // explicit `receipt_url → receiptUrl` mapping).
+        const dataRes = await page.request.get('/api/data', { headers: auth.headers });
+        const data = await dataRes.json();
+        const expense = (data.expenses || []).find((e) => e.id === expId);
+        expect(expense).toBeTruthy();
+        expect(expense.receiptUrl).toBe(receiptUrl);
+
+        await openFreshApp(page, userId);
+        await expect(page.locator('#tripSelector')).toContainText('Receipt Test Trip', {
+            timeout: 5000,
+        });
+        await page.selectOption('#tripSelector', tripId);
+
+        // Navigate to Expenses → History tab.
+        await page.evaluate(() => {
+            document.getElementById('sidebar')?.classList.remove('open');
+            document.getElementById('sidebarOverlay')?.classList.remove('open');
+        });
+        await navigateTo(page, 'expenses');
+        await page.click('.expenses-tabnav__tab[data-tab="history"]');
+
+        // The history row carries .expense-receipt-btn when receiptUrl
+        // is set; data-receipt-url is the same URL we wrote.
+        const receiptBtn = page.locator('.expense-receipt-btn');
+        await receiptBtn.waitFor({ state: 'visible', timeout: 5000 });
+        await expect(receiptBtn).toHaveAttribute('data-receipt-url', receiptUrl);
     });
 
     test('trip cover photo renders on the collections card', async ({ page }) => {

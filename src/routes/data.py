@@ -152,14 +152,15 @@ def sync_data():
                     if not can_edit_trip(cursor, t['id'], user_id):
                         continue
                     cursor.execute('''
-                        INSERT INTO expenses (id, trip_id, who, category_id, label, date, country, value, currency, euro_value)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        INSERT INTO expenses (id, trip_id, who, category_id, label, date, country, value, currency, euro_value, receipt_url)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         ON CONFLICT(id) DO UPDATE SET
                             who=excluded.who,
                             label=excluded.label,
                             value=excluded.value,
-                            euro_value=excluded.euro_value
-                    ''', (e['id'], t['id'], e['who'], e['categoryId'], e['label'], e['date'], e['country'], e['value'], e['currency'], e['euroValue']))
+                            euro_value=excluded.euro_value,
+                            receipt_url=excluded.receipt_url
+                    ''', (e['id'], t['id'], e['who'], e['categoryId'], e['label'], e['date'], e['country'], e['value'], e['currency'], e['euroValue'], e.get('receiptUrl')))
 
         # Sync Expenses — gate per-row. Planners and Budgeteers may write;
         # Relaxers blocked. Without this the bulk path bypasses the
@@ -168,14 +169,15 @@ def sync_data():
             if not can_edit_expenses(cursor, e.get('tripId'), user_id):
                 continue
             cursor.execute('''
-                INSERT INTO expenses (id, trip_id, who, category_id, label, date, country, value, currency, euro_value)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO expenses (id, trip_id, who, category_id, label, date, country, value, currency, euro_value, receipt_url)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     who=excluded.who,
                     label=excluded.label,
                     value=excluded.value,
-                    euro_value=excluded.euro_value
-            ''', (e['id'], e['tripId'], e['who'], e['categoryId'], e['label'], e['date'], e['country'], e['value'], e['currency'], e['euroValue']))
+                    euro_value=excluded.euro_value,
+                    receipt_url=excluded.receipt_url
+            ''', (e['id'], e['tripId'], e['who'], e['categoryId'], e['label'], e['date'], e['country'], e['value'], e['currency'], e['euroValue'], e.get('receiptUrl')))
 
         # Sync Categories
         categories = data.get("categories", [])
@@ -366,6 +368,20 @@ def get_data():
             placeholders = ','.join(['?'] * len(trip_ids))
             cursor.execute(f"SELECT * FROM expenses WHERE trip_id IN ({placeholders})", trip_ids)
             expenses = [dict(row) for row in cursor.fetchall()]
+            # Translate snake_case columns → camelCase for the
+            # frontend. Up until the post-Phase-C feature work this
+            # was missing for expenses (long-standing inconsistency —
+            # the frontend's `e.tripId` filter would silently return
+            # empty on fresh-pull because the row carried `trip_id`).
+            # Days were already translated below; matching the
+            # convention here. Receipts work today (and the
+            # archived-detail page shows expenses on cold-load) only
+            # because of this fix.
+            for e in expenses:
+                e['tripId'] = e.pop('trip_id', None)
+                e['categoryId'] = e.pop('category_id', None)
+                e['euroValue'] = e.pop('euro_value', None)
+                e['receiptUrl'] = e.pop('receipt_url', None)
 
         # Get categories
         cursor.execute("SELECT id, name, icon, color FROM categories WHERE user_id = ?", (user_id,))

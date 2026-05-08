@@ -30,8 +30,8 @@ def upsert_expense():
         if not can_edit_expenses(cursor, e["tripId"], user_id):
             return jsonify({"error": "Forbidden"}), 403
         cursor.execute('''
-            INSERT INTO expenses (id, trip_id, who, category_id, label, date, country, value, currency, euro_value)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO expenses (id, trip_id, who, category_id, label, date, country, value, currency, euro_value, receipt_url)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 who=excluded.who,
                 category_id=excluded.category_id,
@@ -40,10 +40,12 @@ def upsert_expense():
                 country=excluded.country,
                 value=excluded.value,
                 currency=excluded.currency,
-                euro_value=excluded.euro_value
+                euro_value=excluded.euro_value,
+                receipt_url=excluded.receipt_url
         ''', (e['id'], e['tripId'], e['who'], e.get('categoryId', ''),
               e.get('label', ''), e.get('date', ''), e.get('country', ''),
-              e.get('value', 0), e.get('currency', 'EUR'), e.get('euroValue', 0)))
+              e.get('value', 0), e.get('currency', 'EUR'), e.get('euroValue', 0),
+              e.get('receiptUrl')))
         conn.commit()
     return jsonify({"status": "ok"})
 

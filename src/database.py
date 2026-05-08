@@ -156,6 +156,15 @@ def init_db():
                 FOREIGN KEY(trip_id) REFERENCES trips(id)
             )
         ''')
+        # Receipt photo URL — second half of the post-Phase-C "small
+        # things" release (after cover photos). NULL for legacy rows;
+        # the user opts in by tapping 📎 on the expense form, which
+        # uploads via /api/upload and stores the returned URL here.
+        # See FUTURE_FEATURES.md item #3.
+        try:
+            cursor.execute("ALTER TABLE expenses ADD COLUMN receipt_url TEXT")
+        except Exception:
+            pass  # Column already exists
         
         # Friends Table (Many-to-Many)
         cursor.execute('''

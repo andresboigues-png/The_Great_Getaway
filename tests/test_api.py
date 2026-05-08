@@ -259,6 +259,64 @@ def test_upsert_expense_missing_payload(client, auth_headers):
     assert res.status_code == 400
 
 
+def test_expense_receipt_url_round_trips(client, seed_user, auth_headers):
+    """Receipt photo URL persists across upsert + read. Same shape as
+    test_trip_cover_url_round_trips — sister feature in the post-Phase-C
+    "small things" release."""
+    receipt = "/static/uploads/9876_receipt.jpg"
+    client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": "trip-r", "name": "Italy"},
+    })
+    res = client.post("/api/expenses", headers=auth_headers, json={
+        "expense": {
+            "id": "exp-r", "tripId": "trip-r", "who": "Me", "value": 80,
+            "currency": "EUR", "euroValue": 80, "label": "Dinner",
+            "date": "2026-01-01", "receiptUrl": receipt,
+        },
+    })
+    assert res.status_code == 200
+
+    # Read via /api/data — receipt_url surfaces as `receiptUrl` thanks
+    # to the explicit translation in routes/data.py (the rest of the
+    # row stays snake_case for back-compat).
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    expense = next(e for e in data["expenses"] if e["id"] == "exp-r")
+    assert expense["receiptUrl"] == receipt
+
+    # Overwrite with None — column should clear (proves
+    # excluded.receipt_url overwrites, not COALESCE-keeps).
+    res = client.post("/api/expenses", headers=auth_headers, json={
+        "expense": {
+            "id": "exp-r", "tripId": "trip-r", "who": "Me", "value": 80,
+            "currency": "EUR", "euroValue": 80, "label": "Dinner",
+            "date": "2026-01-01", "receiptUrl": None,
+        },
+    })
+    assert res.status_code == 200
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    expense = next(e for e in data["expenses"] if e["id"] == "exp-r")
+    assert expense["receiptUrl"] is None
+
+
+def test_expense_receipt_url_optional(client, seed_user, auth_headers):
+    """Legacy expenses (no `receiptUrl` in payload) still upsert + read
+    cleanly with receiptUrl=None. Backwards compat."""
+    client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": "trip-legacy-exp", "name": "Old"},
+    })
+    res = client.post("/api/expenses", headers=auth_headers, json={
+        "expense": {
+            "id": "exp-legacy", "tripId": "trip-legacy-exp", "who": "Me",
+            "value": 10, "currency": "EUR", "euroValue": 10,
+            "label": "Coffee", "date": "2026-01-01",
+        },
+    })
+    assert res.status_code == 200
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    expense = next(e for e in data["expenses"] if e["id"] == "exp-legacy")
+    assert expense["receiptUrl"] is None
+
+
 def test_delete_expense_happy_path(client, seed_user, auth_headers):
     """Owner can delete their own expense; row is gone after."""
     client.post("/api/trips", headers=auth_headers, json={

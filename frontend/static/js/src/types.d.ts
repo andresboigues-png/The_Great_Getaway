@@ -260,6 +260,12 @@ export interface Expense {
     /** Legacy snake_case mirror of euroValue used by some old data; readers
      *  should treat as fallback. New code writes euroValue only. */
     euro_value?: number;
+    /** Optional receipt photo URL — second half of the post-Phase-C
+     *  "small things" release (paired with `Trip.coverUrl`). Set via
+     *  the 📎 picker on the expense form, served from /static/uploads.
+     *  History rows render a clip icon when set; clicking opens a
+     *  lightbox with the image. NULL for legacy expenses. */
+    receiptUrl?: string | null;
 }
 
 export interface Budget {
@@ -298,6 +304,11 @@ export interface DraftExpense {
     value: string | number;
     currency: string;
     euroValue: string | number;
+    /** Optional receipt photo URL — set by the 📎 picker on the
+     *  expense form (uploads via /api/upload). Persists across drafts
+     *  so re-opening the form mid-edit doesn't lose the attached
+     *  receipt. */
+    receiptUrl?: string | null;
 }
 
 export interface SavedFormat {

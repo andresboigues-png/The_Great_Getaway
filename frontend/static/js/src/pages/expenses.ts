@@ -9,7 +9,7 @@
 import { STATE, emit } from '../state.js';
 import { COUNTRIES, CONVERSION_RATES, COUNTRY_TO_CURRENCY } from '../constants.js';
 import { generateId, showConfirmModal, q, formatHome, getHomeCurrency, esc } from '../utils.js';
-import { upsertExpense, deleteExpenseOnServer } from '../api.js';
+import { upsertExpense, deleteExpenseOnServer, uploadMedia } from '../api.js';
 import { navigate } from '../router.js';
 // `showPersTab` import removed — companions live per-trip now, so the
 // "no companions" helper just bounces the user to Home where the picker
@@ -197,12 +197,32 @@ function renderManualTab() {
                     <input type="number" step="0.01" id="expValue" class="glass-input-light" style="font-weight: 700;" required>
                 </div>
 
-                <div class="form-row" style="margin-bottom: var(--space-8);">
+                <div class="form-row">
                     <label class="form-label-light">Currency</label>
                     <select id="expCurrency" class="glass-input-light" required>
                         <option value="">Select Currency...</option>
                         ${Object.keys(CONVERSION_RATES).map(c => `<option value="${c}">${c}</option>`).join('')}
                     </select>
+                </div>
+
+                <!-- Receipt photo (post-Phase-C feature). Hidden file
+                     input + styled trigger button for the glass form
+                     aesthetic. Preview thumbnail with Remove + lightbox-
+                     on-click — same UX shape as the Edit Trip cover
+                     picker so users learn it once. -->
+                <div class="form-row" style="margin-bottom: var(--space-8);">
+                    <label class="form-label-light">Receipt <span style="opacity: 0.5; font-weight: 500;">(optional)</span></label>
+                    <input type="file" id="expReceiptInput" accept="image/*" style="display: none;">
+                    <div style="display: flex; gap: var(--space-3); align-items: center; width: 100%; max-width: 440px; box-sizing: border-box;">
+                        <button type="button" id="expReceiptPickBtn" class="btn-ghost" style="flex: 0 0 auto; padding: 10px 16px; font-size: 0.85rem; font-weight: 700; color: #002d5b; background: rgba(0,0,0,0.04); border: 1px solid rgba(0,0,0,0.08);">
+                            📎 Attach receipt
+                        </button>
+                        <div id="expReceiptPreview" style="display: none; align-items: center; gap: var(--space-3);">
+                            <img id="expReceiptThumb" src="" alt="Receipt preview" style="width: 48px; height: 48px; border-radius: 10px; object-fit: cover; border: 1px solid rgba(0,0,0,0.08); box-shadow: 0 4px 12px rgba(0,0,0,0.08); cursor: pointer;" title="Click to view full size">
+                            <button type="button" id="expReceiptRemoveBtn" class="btn-ghost" style="padding: 6px 12px; font-size: 0.75rem; font-weight: 700; color: #ff3b30; background: rgba(255,59,48,0.08); border: 1px solid rgba(255,59,48,0.2);">Remove</button>
+                        </div>
+                        <span id="expReceiptStatus" style="flex: 1; font-size: 0.75rem; color: rgba(0,0,0,0.5); font-weight: 600;"></span>
+                    </div>
                 </div>
 
                 <div style="margin-bottom: 40px; background: rgba(0,0,0,0.03); padding: 32px; border-radius: 32px; border: 1px solid rgba(0,0,0,0.05); width: 100%; max-width: 440px; box-sizing: border-box;">
@@ -300,6 +320,69 @@ function renderManualTab() {
         currencySelect.addEventListener('change', () => {
             currencyManuallyChosen = true;
         });
+
+        // ── Receipt picker wiring ───────────────────────────────────
+        // Closure-mutable receiptUrl threads the picker's latest value
+        // into the submit handler without a re-read. Pre-fills from
+        // STATE.draftExpense.receiptUrl when editing an existing
+        // expense (the openEditExpenseModal path copies it onto the
+        // draft before navigating here).
+        let receiptUrl: string | null = STATE.draftExpense?.receiptUrl || null;
+        const receiptInput = (q(wrapper, '#expReceiptInput') as HTMLInputElement);
+        const receiptPickBtn = (q(wrapper, '#expReceiptPickBtn') as HTMLButtonElement);
+        const receiptPreview = (q(wrapper, '#expReceiptPreview') as HTMLDivElement);
+        const receiptThumb = (q(wrapper, '#expReceiptThumb') as HTMLImageElement);
+        const receiptRemoveBtn = (q(wrapper, '#expReceiptRemoveBtn') as HTMLButtonElement);
+        const receiptStatus = q(wrapper, '#expReceiptStatus');
+
+        const refreshReceiptUI = () => {
+            if (receiptUrl) {
+                receiptThumb.src = receiptUrl;
+                receiptPreview.style.display = 'flex';
+                receiptStatus.textContent = '';
+            } else {
+                receiptPreview.style.display = 'none';
+            }
+        };
+        refreshReceiptUI();
+
+        receiptPickBtn.onclick = () => receiptInput.click();
+        receiptInput.onchange = async () => {
+            const file = receiptInput.files?.[0];
+            if (!file) return;
+            receiptStatus.textContent = 'Uploading…';
+            receiptPickBtn.disabled = true;
+            try {
+                const result = await uploadMedia(file);
+                if (result?.url) {
+                    receiptUrl = result.url;
+                    STATE.draftExpense.receiptUrl = result.url;
+                    refreshReceiptUI();
+                    emit('state:changed');
+                } else {
+                    receiptStatus.textContent = 'Upload failed — try again';
+                }
+            } catch (e) {
+                console.warn('receipt upload failed', e);
+                receiptStatus.textContent = 'Upload failed — try again';
+            } finally {
+                receiptPickBtn.disabled = false;
+                // Reset so re-picking the same file still fires `change`.
+                receiptInput.value = '';
+            }
+        };
+        receiptRemoveBtn.onclick = () => {
+            receiptUrl = null;
+            STATE.draftExpense.receiptUrl = null;
+            refreshReceiptUI();
+            emit('state:changed');
+        };
+        // Click the thumb → open the receipt in a new tab as a quick
+        // lightbox. Same pattern History rows use; keeps the editor
+        // free of full-screen modal complexity for v1.
+        receiptThumb.onclick = () => {
+            if (receiptUrl) window.open(receiptUrl, '_blank', 'noopener');
+        };
 
         // Live Save Draft
         form.querySelectorAll('input, select').forEach(el => {
@@ -474,7 +557,11 @@ function renderManualTab() {
                 value: val,
                 currency: curr,
                 euroValue: val * (CONVERSION_RATES[curr] || 1),
-                splits: splits
+                splits: splits,
+                // Receipt is opt-in — write whatever the picker last
+                // produced (URL on upload, null on Remove, unchanged-
+                // from-load if the user didn't touch it).
+                receiptUrl: receiptUrl,
             };
 
             if (isEdit) {
@@ -485,7 +572,7 @@ function renderManualTab() {
                 STATE.expenses.push(expense);
             }
 
-            STATE.draftExpense = { who: '', categoryId: '', label: '', date: '', country: '', value: '', currency: 'EUR', euroValue: '' };
+            STATE.draftExpense = { who: '', categoryId: '', label: '', date: '', country: '', value: '', currency: 'EUR', euroValue: '', receiptUrl: null };
 
             emit('state:changed');
             upsertExpense(expense);
@@ -498,6 +585,11 @@ function renderManualTab() {
             form.reset();
             activeSplitters = [];
             updateSplitUI();
+            // Clear the receipt picker too — form.reset() doesn't
+            // touch our closure-captured `receiptUrl` since the
+            // preview is driven by JS state, not the form's reset.
+            receiptUrl = null;
+            refreshReceiptUI();
         });
 
         updateSplitUI();
@@ -609,8 +701,10 @@ function renderHistoryTab() {
         </div>
     `;
 
-    // Delegated handler for per-row edit/delete in #tripExpensesList — listener
-    // attached on wrapper once; rows are re-rendered by renderTripExpenses().
+    // Delegated handler for per-row edit/delete/receipt in
+    // #tripExpensesList — one listener on wrapper since rows are
+    // re-rendered by renderTripExpenses() (rebinding a per-row
+    // listener on every keystroke filter change would leak).
     wrapper.addEventListener('click', (e) => {
         const target = (e.target as HTMLElement | null);
         if (!target) return;
@@ -618,6 +712,15 @@ function renderHistoryTab() {
         if (editBtn?.dataset.expenseId) { openEditExpenseModal(editBtn.dataset.expenseId); return; }
         const delBtn = (target.closest('.expense-delete-btn') as HTMLElement | null);
         if (delBtn?.dataset.expenseId) { deleteExpense(delBtn.dataset.expenseId); return; }
+        // Receipt button → open the receipt URL in a new tab. Native
+        // image viewer is the lightbox for v1; matches the expense-
+        // form preview's click-to-view behavior so users learn it
+        // once. A proper in-app modal lightbox can come later.
+        const recBtn = (target.closest('.expense-receipt-btn') as HTMLElement | null);
+        if (recBtn?.dataset.receiptUrl) {
+            window.open(recBtn.dataset.receiptUrl, '_blank', 'noopener');
+            return;
+        }
     });
 
     setTimeout(() => {
@@ -807,6 +910,11 @@ export function renderTripExpenses(container: HTMLElement, filters: ExpensesFilt
                 </div>
 
                 <div style="display: flex; align-items: center; gap: var(--space-3);">
+                    ${e.receiptUrl ? `
+                    <button class="icon-action-btn expense-receipt-btn" data-receipt-url="${esc(e.receiptUrl)}" aria-label="View receipt" title="View receipt" style="--accent: 138,86,190;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
+                    </button>
+                    ` : ''}
                     <div style="text-align: right;">
                         <div class="expense-row__amount">${e.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span class="expense-row__currency">${esc(e.currency)}</span></div>
                         ${convertedDisplay ? `<div class="expense-row__converted">${convertedDisplay}</div>` : ''}

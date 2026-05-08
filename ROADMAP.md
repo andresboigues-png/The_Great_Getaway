@@ -698,9 +698,18 @@ below for details):
    with live preview + Remove, display priority on the Collections
    list card thumbnail and the archived-trip detail hero. 2 pytests
    for the round-trip (set + clear) + 1 e2e for the card thumbnail.
-4. Next: **Receipts on expenses** (~2-3h, same shape as cover photo
-   — schema add + upload + display) — finishes the "small things"
-   pre-D1 release.
+4. ✅ **Receipts on expenses** — shipped. Schema add
+   (`receipt_url TEXT` on `expenses`), backend wiring through the
+   single-row + bulk-sync upsert paths, frontend "📎 Attach
+   receipt" button with live thumbnail + Remove on the expense
+   form, clip-icon button on History rows that opens the receipt
+   in a new tab. **Bonus**: this unblocked a latent snake_case bug
+   for expense reads — the server was writing camelCase via
+   `/api/expenses` but reading back as `e.trip_id` / `e.category_id`
+   / `e.euro_value` snake_case, silently breaking client-side
+   filters on cold-load. Translation now lives in
+   `routes/data.py` + `routes/public.py` for all standard expense
+   columns. 2 pytests for the round-trip + 1 e2e.
 5. Then start Phase D mobile sweep (D1) with the new surfaces in
    place.
 6. Phase E + **Trip share-via-link** as the launch story.
@@ -1105,14 +1114,33 @@ substrate" then "pair with the right infrastructure phase"):
    surface today — it's a Google Map by design — so the cover only
    appears where it has a "preview tile" use case.
 
-4. **Receipts on expenses** — `2-3 hours`. Same shape as cover
-   photo: schema add (`receipt_url TEXT` on `expenses`), backend
-   wiring through the upsert + read paths, frontend upload via the
-   same hardened `/api/upload`, display as a small clip icon on
-   expense History rows that opens the receipt image in a lightbox.
-   FUTURE_FEATURES.md recommends bundling cover + receipts as a
-   "small things" release. Cover is now done — receipts is the
-   second half. Pair with: anytime, no phase dependency.
+4. ✅ **Receipts on expenses** — **shipped** (~30 minutes incl.
+   bug-fix detour). Same shape as cover photo: `ALTER TABLE
+expenses ADD COLUMN receipt_url TEXT`, threaded through
+   `routes/expenses.py` upsert + the bulk-sync writes in
+   `routes/data.py` (active + archived), surfaced as `receiptUrl`
+   on the expense object via the read mapping. Frontend: 📎 Attach
+   receipt button on the expense form with live preview thumbnail
+   (click → open in new tab) and Remove button, closure-mutable
+   `receiptUrl` threading the picker's value to the submit handler;
+   clip-icon button on History rows that opens the receipt image
+   in a new tab. The receipt URL persists across the form's edit
+   round-trip via `STATE.draftExpense.receiptUrl` so re-opening
+   an expense pre-fills the picker.
+
+    **Latent bug uncovered + fixed**: while wiring this up I
+    discovered the server was writing expense fields camelCase via
+    `/api/expenses` but reading them back from `/api/data` as
+    snake_case (`trip_id`, `category_id`, `euro_value`,
+    `receipt_url`) — frontend filters like
+    `e.tripId === STATE.activeTripId` would silently return empty
+    on cold-load. The History tab and Settlement page would have
+    appeared empty until the user added a fresh expense locally.
+    Translation now lives in both `routes/data.py` and
+    `routes/public.py` so the public archived-trip detail also
+    benefits. 2 pytests for the round-trip (set + clear), legacy
+    compat test, and 1 e2e for the receipt clip icon. Net: 161/161
+    pytests + 43/43 e2e + 20/20 visual.
 
 5. **Trip share-via-link (read-only)** — `4-6 hours`, schema +
    public backend route + new public frontend route + Views counter.
