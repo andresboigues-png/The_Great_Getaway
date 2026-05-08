@@ -846,6 +846,33 @@ h1 {
     padding-left: 12px;
 }
 
+/* Sidebar middle-nav distributes its sections evenly down the
+   column. Each `.sidebar-section` is a self-contained block (label
+   + items); `.sidebar-middle` is `flex: 1` so it claims the space
+   between the pinned-top region (header / mobile trip controls /
+   mobile Home) and the pinned-bottom Profile/Login footer, then
+   `justify-content: space-around` spreads the sections vertically
+   with even gaps. Replaces the previous "natural-height + flex:1
+   spacers above and below" pattern that bunched everything at the
+   center with awkward gaps top + bottom on desktop. */
+.sidebar-middle {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-around;
+    gap: 12px;
+    /* Cap the spread so on a tall desktop screen the gaps don't
+       balloon to "lost in space" — without min-height, the items
+       stay close together when the viewport is short and only
+       spread out as height grows. */
+    min-height: 0;
+}
+.sidebar-section {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
 .sidebar-item {
     display: flex;
     align-items: center;
@@ -5161,19 +5188,65 @@ body.is-signed-out #sidebarOverlay {
     -webkit-overflow-scrolling: touch;
 }
 
-/* ── Sidebar items hidden on desktop, shown on mobile ───────────
-   Desktop has a top-nav row that already lists Home / Todo / AI /
-   Expenses / Insights — duplicating them in the burger drawer
-   makes the sidebar feel bloated. On mobile that top-nav row is
-   `display: none` (Phase D1), so the burger drawer is the
-   canonical "every page" menu — these items NEED to be there.
-   Items that should follow that desktop-hide / mobile-show rule
-   carry `.sidebar-item--mobile-only`; this rule hides them at
-   widths above the mobile breakpoint. */
+/* ── Viewport-scoped sidebar + navbar visibility ────────────────
+   The sidebar and the top navbar each have items that only make
+   sense on one viewport (e.g. trip-controls in the burger drawer
+   on mobile, search in the sidebar on desktop, etc.). Marker
+   classes hide each item at the wrong viewport.
+
+   - .sidebar-item--mobile-only  → shown ≤720px, hidden >720px
+   - .sidebar-item--desktop-only → shown >720px, hidden ≤720px
+   - .navbar-icon-mobile-only    → shown ≤720px, hidden >720px
+   - .nav-trips--desktop-only    → shown >720px, hidden ≤720px
+
+   Two parallel name patterns (sidebar-item-… vs navbar-icon-…) so
+   the visual distinction at the call site is obvious. */
 @media (min-width: 721px) {
-    .sidebar-item--mobile-only {
+    .sidebar-item--mobile-only,
+    .navbar-icon-mobile-only {
         display: none !important;
     }
+}
+@media (max-width: 720px) {
+    .sidebar-item--desktop-only,
+    .nav-trips--desktop-only {
+        display: none !important;
+    }
+}
+
+/* Sidebar dividers — hairline rules between sections. Marker class
+   `sidebar-divider` so a trim-pass can blanket-style every divider
+   without hunting for inline styles. */
+.sidebar-divider {
+    height: 1px;
+    background: var(--glass-border);
+    margin: 0 0 16px;
+}
+
+/* Sidebar trip controls (mobile-only). Stacked layout since the
+   sidebar is a tall column — New Trip pill on top, the selector
+   beneath it (full-width), the complete/delete icon buttons in a
+   right-aligned row underneath when an active trip exists. */
+.sidebar-trip-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+.sidebar-trip-controls__new {
+    width: 100%;
+    text-align: center;
+}
+.sidebar-trip-controls__selector {
+    width: 100%;
+    /* Override the desktop selector's min-width: 160px (which would
+       otherwise prevent the full-width fill on a narrow sidebar). */
+    min-width: 0 !important;
+}
+.sidebar-trip-controls__actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
 }
 
 /* ── Phase D1: Mobile-first responsive sweep ──────────────────────

@@ -91,125 +91,142 @@
             <button id="sidebarClose" class="sidebar-close-btn" aria-label="Close menu">&times;</button>
         </div>
 
-        <!-- Home pinned at top -->
-        <a href="#" class="sidebar-item" data-page="home" style="margin-bottom: 8px;">
+        <!-- Mobile-only trip controls. These live in the top navbar
+             on desktop (where there's room for the +New Trip pill +
+             a 160px-wide trip selector dropdown). On mobile the
+             navbar gets too cramped, so they move here to the top
+             of the burger drawer — first thing the user sees when
+             they open the menu, since switching trips is the most
+             common cross-page action. The selector is mirrored from
+             the desktop one by main.ts:updateTripSelector(). -->
+        <div class="sidebar-trip-controls sidebar-item--mobile-only">
+            <button class="btn-primary-pill sidebar-trip-controls__new" id="newTripBtnSidebar">+ New Trip</button>
+            <select id="tripSelectorSidebar" class="btn-primary-pill--inverse sidebar-trip-controls__selector">
+                <option value="">Select a Trip...</option>
+            </select>
+            <div class="sidebar-trip-controls__actions">
+                <button class="icon-btn-circle" id="completeTripBtnSidebar" style="--accent: 52,199,89; display: none;" title="Complete Trip" aria-label="Complete trip">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                </button>
+                <button class="icon-btn-circle" id="deleteTripBtnSidebar" style="--accent: 255,59,48; display: none;" title="Delete Trip" aria-label="Delete trip">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                </button>
+            </div>
+        </div>
+        <div class="sidebar-divider sidebar-item--mobile-only"></div>
+
+        <!-- Home pinned at top — mobile only (desktop has no
+             dedicated Home link in the sidebar; users tap the brand
+             text or the bottom-tab bar on mobile, but on desktop
+             Home is one click away via the brand only). -->
+        <a href="#" class="sidebar-item sidebar-item--mobile-only" data-page="home" style="margin-bottom: 8px;">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
             </svg>
             Home
         </a>
 
-        <div style="height: 1px; background: var(--glass-border); margin-bottom: 16px;"></div>
+        <div class="sidebar-divider sidebar-item--mobile-only"></div>
 
-        <!-- Equal spacer above middle nav -->
-        <div style="flex: 1;"></div>
+        <!-- Middle navigation sections — wrapped per-section so the
+             flex container can distribute them with `justify-content:
+             space-around` for an even vertical layout (especially on
+             desktop, where there are fewer items than on mobile and
+             the column would otherwise feel top-heavy).
 
-        <!-- Middle navigation sections -->
-        <div style="display: flex; flex-direction: column;">
+             Each `.sidebar-section` is a self-contained block (label
+             + items inside it). The `.sidebar-middle` parent fills
+             the available vertical space (flex: 1) and spreads the
+             sections evenly. -->
+        <div class="sidebar-middle">
 
-        <!-- Pages — these were in the top nav until Phase D1; on
-             mobile the top-nav links are hidden, so we list them
-             here so the burger drawer is the canonical "every page"
-             menu on small screens. Order matches the top-nav order
-             so muscle memory carries over.
+        <!-- Search — desktop sidebar entry. The top-banner search
+             icon is hidden on desktop (per-user request) so the
+             sidebar takes over as the search entry point. On mobile
+             the top-banner search icon stays put and this sidebar
+             item is hidden (would be redundant with the always-
+             visible top-bar icon). Sits in its own bare section so
+             the space-around math treats it as a peer of the
+             labelled sections below. -->
+        <div class="sidebar-section sidebar-item--desktop-only">
+            <a href="#" class="sidebar-item" data-page="search">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="7"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+                Search
+            </a>
+        </div>
 
-             Per-user preference: on DESKTOP these are redundant
-             with the top nav (which is visible on desktop), so the
-             four page items + the "Pages" label carry the
-             `sidebar-item--mobile-only` class — hidden via media
-             query at >720px. Mobile burger keeps them all. Feed
-             stays visible everywhere because it's also reachable
-             via the bottom-tab nav on mobile but doesn't have a
-             top-nav link on desktop, so the sidebar remains its
-             desktop entry point. -->
-        <div class="sidebar-section-label sidebar-item--mobile-only">Pages</div>
-        <a href="#" class="sidebar-item sidebar-item--mobile-only" data-page="todo">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="9 11 12 14 22 4"></polyline>
-                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
-            </svg>
-            To do list
-        </a>
-        <a href="#" class="sidebar-item sidebar-item--mobile-only" data-page="ai">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 3l1.9 5.7L20 10.5l-4.5 3.4L17.5 20 12 16.5 6.5 20l2-6.1L4 10.5l6.1-1.8z"></path>
-            </svg>
-            Plan with AI
-        </a>
-        <a href="#" class="sidebar-item sidebar-item--mobile-only" data-page="expenses">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="12" y1="1" x2="12" y2="23"></line>
-                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
-            </svg>
-            Expenses
-        </a>
-        <a href="#" class="sidebar-item sidebar-item--mobile-only" data-page="insights">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="18" y1="20" x2="18" y2="10"></line>
-                <line x1="12" y1="20" x2="12" y2="4"></line>
-                <line x1="6" y1="20" x2="6" y2="14"></line>
-            </svg>
-            Insights
-        </a>
-        <a href="#" class="sidebar-item" data-page="feed">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M4 11a9 9 0 0 1 9 9"></path>
-                <path d="M4 4a16 16 0 0 1 16 16"></path>
-                <circle cx="5" cy="19" r="1"></circle>
-            </svg>
-            Feed
-        </a>
+        <!-- Feed — mobile only. On desktop Feed is reached via the
+             top-banner feed icon. -->
+        <div class="sidebar-section sidebar-item--mobile-only">
+            <a href="#" class="sidebar-item" data-page="feed">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4 11a9 9 0 0 1 9 9"></path>
+                    <path d="M4 4a16 16 0 0 1 16 16"></path>
+                    <circle cx="5" cy="19" r="1"></circle>
+                </svg>
+                Feed
+            </a>
+        </div>
 
-        <div class="sidebar-section-label" style="margin-top: 16px;">Account</div>
-        <a href="#" class="sidebar-item" data-page="collections">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
-            </svg>
-            Collections
-        </a>
-        <a href="#" class="sidebar-item" data-page="friends">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                <circle cx="9" cy="7" r="4" />
-                <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-            </svg>
-            Your network
-        </a>
+        <div class="sidebar-section">
+            <div class="sidebar-section-label">Account</div>
+            <a href="#" class="sidebar-item" data-page="collections">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+                </svg>
+                Collections
+            </a>
+            <a href="#" class="sidebar-item" data-page="friends">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                    <circle cx="9" cy="7" r="4" />
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                </svg>
+                Your network
+            </a>
+        </div>
 
-        <div class="sidebar-section-label" style="margin-top: 16px; color: #ff9500;">Keeping track</div>
-        <a href="#" class="sidebar-item" data-page="budgets">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="2" y="7" width="20" height="14" rx="2" />
-                <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
-            </svg>
-            Budgets
-        </a>
-        <a href="#" class="sidebar-item" data-page="settlement">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-            </svg>
-            Settlements
-        </a>
+        <div class="sidebar-section">
+            <div class="sidebar-section-label" style="color: #ff9500;">Keeping track</div>
+            <a href="#" class="sidebar-item" data-page="budgets">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="2" y="7" width="20" height="14" rx="2" />
+                    <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
+                </svg>
+                Budgets
+            </a>
+            <a href="#" class="sidebar-item" data-page="settlement">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                </svg>
+                Settlements
+            </a>
+        </div>
 
-        <div class="sidebar-section-label" style="margin-top: 16px; color: #34c759;">Preferences</div>
-        <a href="#" class="sidebar-item" data-page="personalization">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z">
-                </path>
-            </svg>
-            Personalization
-        </a>
-        <a href="#" class="sidebar-item" data-page="settings">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings">
-                <path
-                    d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
-                <circle cx="12" cy="12" r="3" />
-            </svg>
-            Settings
-        </a>
+        <div class="sidebar-section">
+            <div class="sidebar-section-label" style="color: #34c759;">Preferences</div>
+            <a href="#" class="sidebar-item" data-page="personalization">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z">
+                    </path>
+                </svg>
+                Personalization
+            </a>
+            <a href="#" class="sidebar-item" data-page="settings">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings">
+                    <path
+                        d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+                    <circle cx="12" cy="12" r="3" />
+                </svg>
+                Settings
+            </a>
+        </div>
 
         </div> <!-- end middle nav -->
 
@@ -250,30 +267,11 @@
                 <span></span><span></span><span></span>
             </button>
             <div class="nav-brand">The Great Getaway</div>
-            <!-- Search (cross-trip search page — first fresh React leaf
-                 shipped post-Phase-C). Magnifying-glass icon next to the
-                 brand so it's reachable from every page without
-                 expanding the sidebar. -->
-            <a href="#" data-page="search" id="navSearchBtn" aria-label="Search" title="Search across trips, days, and expenses"
-                style="background: transparent; border: none; cursor: pointer; padding: 11px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: background 0.2s; margin-left: 8px; text-decoration: none; color: inherit; -webkit-tap-highlight-color: transparent;">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="11" cy="11" r="7"></circle>
-                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                </svg>
-            </a>
-            <!-- Feed (sits immediately left of the bell — friend activity
-                 lives in the same "stay-in-the-loop" mental cluster as
-                 notifications, so they're visually adjacent). Routes to
-                 the Feed page via data-page wiring. -->
-            <a href="#" data-page="feed" id="navFeedBtn" aria-label="Feed" title="Feed — what your friends are up to"
-                style="background: transparent; border: none; cursor: pointer; padding: 11px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: background 0.2s; margin-left: 8px; text-decoration: none; color: inherit; -webkit-tap-highlight-color: transparent;">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M4 11a9 9 0 0 1 9 9"></path>
-                    <path d="M4 4a16 16 0 0 1 16 16"></path>
-                    <circle cx="5" cy="19" r="1"></circle>
-                </svg>
-            </a>
-            <!-- Notification Bell -->
+            <!-- Notification Bell — leftmost icon (rule for both viewports
+                 now). Per-user request: on mobile, bell sits to the left of
+                 search (the swap from the previous order); on desktop the
+                 search icon is hidden entirely (it's in the sidebar
+                 instead) so bell-first is the natural reading order. -->
             <div style="position: relative; margin-left: 8px;">
                 <button id="notificationBellBtn" aria-label="Notifications" style="background: transparent; border: none; cursor: pointer; position: relative; padding: 11px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: background 0.2s; -webkit-tap-highlight-color: transparent;">
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -283,7 +281,7 @@
                     <!-- Unread Badge -->
                     <span id="notificationBadge" style="position: absolute; top: -4px; right: -4px; min-width: 18px; height: 18px; background: #ff3b30; border-radius: 10px; border: 2px solid #ffffff; display: none; color: white; font-size: 10px; font-weight: 800; align-items: center; justify-content: center; padding: 0 4px; box-sizing: border-box; line-height: 1;"></span>
                 </button>
-                
+
                 <!-- Dropdown — dark liquid-glass (Apple notification-centre
                      feel) so white text stays legible regardless of what's
                      behind the dropdown. Backdrop blur preserved. -->
@@ -297,6 +295,26 @@
                     </div>
                 </div>
             </div>
+            <!-- Search — mobile-only top-banner icon. On desktop the
+                 search entry point lives in the sidebar (cleaner top bar
+                 with more room for the trip controls). -->
+            <a href="#" data-page="search" id="navSearchBtn" class="navbar-icon-mobile-only" aria-label="Search" title="Search across trips, days, and expenses"
+                style="background: transparent; border: none; cursor: pointer; padding: 11px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: background 0.2s; margin-left: 8px; text-decoration: none; color: inherit; -webkit-tap-highlight-color: transparent;">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="7"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+            </a>
+            <!-- Feed icon — kept on both viewports. Friend activity
+                 stays adjacent to notifications regardless of viewport. -->
+            <a href="#" data-page="feed" id="navFeedBtn" aria-label="Feed" title="Feed — what your friends are up to"
+                style="background: transparent; border: none; cursor: pointer; padding: 11px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: background 0.2s; margin-left: 8px; text-decoration: none; color: inherit; -webkit-tap-highlight-color: transparent;">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4 11a9 9 0 0 1 9 9"></path>
+                    <path d="M4 4a16 16 0 0 1 16 16"></path>
+                    <circle cx="5" cy="19" r="1"></circle>
+                </svg>
+            </a>
         </div>
         <div class="nav-links">
             <a href="#" class="nav-item active" data-page="home">Home</a>
@@ -305,7 +323,9 @@
             <a href="#" class="nav-item" data-page="expenses">Expenses</a>
             <a href="#" class="nav-item" data-page="insights">Insights</a>
         </div>
-        <div class="nav-trips" style="display: flex; align-items: center; gap: 8px;">
+        <!-- Trip controls — desktop only. On mobile these move into the
+             top of the burger drawer (#newTripBtnSidebar etc.). -->
+        <div class="nav-trips nav-trips--desktop-only" style="display: flex; align-items: center; gap: 8px;">
             <button class="btn-primary-pill" id="newTripBtn">+ New Trip</button>
             <select id="tripSelector" class="btn-primary-pill--inverse" style="min-width: 160px;">
                 <option value="">Select a Trip...</option>
@@ -324,40 +344,56 @@
         <!-- Pages will be dynamically injected here via JS -->
     </main>
 
-    <!-- Mobile bottom-tab nav (Phase D1). Visible only on
-         max-width:720px, hidden on desktop. The four most-used pages
-         per user research live in the thumb zone; everything else
-         (Todo, AI, Expenses, Insights, Friends, Settlements, etc.)
-         is reachable via the burger drawer. Items use the same
-         `.nav-item` + `data-page` pattern as the top nav so the
-         router's existing active-state toggle covers them too. -->
+    <!-- Mobile bottom-tab nav. Visible only on max-width:720px,
+         hidden on desktop. Houses the four most-used "task" pages
+         (Todo, Plan with AI, Expenses, Insights) — the ones a
+         traveler hits day-to-day during a trip. Home / Feed /
+         Collections / Profile remain reachable via the burger
+         drawer.
+
+         Icons:
+         - Todo: checkmark-in-square
+         - Plan with AI: 4-point sparkle (the canonical "AI" icon
+           — distinct from the 5-point star used elsewhere)
+         - Expenses: credit card (distinct from the dollar-sign
+           icon used by Settlements in the sidebar, so the two
+           don't read as the same thing)
+         - Insights: bar chart -->
     <nav class="mobile-bottom-nav" aria-label="Primary navigation (mobile)">
-        <a href="#" class="nav-item mobile-bottom-nav__item" data-page="home" aria-label="Home">
+        <a href="#" class="nav-item mobile-bottom-nav__item" data-page="todo" aria-label="To do list">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                <polyline points="9 11 12 14 22 4"></polyline>
+                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
             </svg>
-            <span>Home</span>
+            <span>To do</span>
         </a>
-        <a href="#" class="nav-item mobile-bottom-nav__item" data-page="feed" aria-label="Feed">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M4 11a9 9 0 0 1 9 9"></path>
-                <path d="M4 4a16 16 0 0 1 16 16"></path>
-                <circle cx="5" cy="19" r="1"></circle>
+        <a href="#" class="nav-item mobile-bottom-nav__item" data-page="ai" aria-label="Plan with AI">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <!-- 4-point sparkle (the canonical AI icon — same
+                     glyph used by every "AI" surface in modern UIs
+                     including Apple Intelligence, Gemini badges, etc.). -->
+                <path d="M12 2 L13.5 9 L20.5 10.5 L13.5 12 L12 19 L10.5 12 L3.5 10.5 L10.5 9 Z"></path>
             </svg>
-            <span>Feed</span>
+            <span>Plan AI</span>
         </a>
-        <a href="#" class="nav-item mobile-bottom-nav__item" data-page="collections" aria-label="Collections">
+        <a href="#" class="nav-item mobile-bottom-nav__item" data-page="expenses" aria-label="Expenses">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+                <!-- Credit card — distinct from the dollar-sign
+                     glyph the Settlements sidebar item uses, so
+                     the two don't read as the same surface. -->
+                <rect x="2" y="6" width="20" height="14" rx="2"></rect>
+                <line x1="2" y1="11" x2="22" y2="11"></line>
+                <line x1="6" y1="16" x2="10" y2="16"></line>
             </svg>
-            <span>Collections</span>
+            <span>Expenses</span>
         </a>
-        <a href="#" class="nav-item mobile-bottom-nav__item" data-page="profile" aria-label="Profile">
+        <a href="#" class="nav-item mobile-bottom-nav__item" data-page="insights" aria-label="Insights">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                <circle cx="12" cy="7" r="4"></circle>
+                <line x1="18" y1="20" x2="18" y2="10"></line>
+                <line x1="12" y1="20" x2="12" y2="4"></line>
+                <line x1="6" y1="20" x2="6" y2="14"></line>
             </svg>
-            <span>Profile</span>
+            <span>Insights</span>
         </a>
     </nav>
 

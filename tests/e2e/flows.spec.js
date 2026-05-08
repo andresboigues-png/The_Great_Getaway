@@ -902,7 +902,11 @@ test.describe('Critical flows — UI-driven', () => {
             document.getElementById('sidebar')?.classList.remove('open');
             document.getElementById('sidebarOverlay')?.classList.remove('open');
         });
-        await page.click('#navSearchBtn');
+        // navigateTo() picks the right path per viewport: on mobile
+        // the navbar's #navSearchBtn is visible (top banner); on
+        // desktop it's hidden and the entry point lives in the
+        // sidebar burger drawer (.sidebar-item[data-page="search"]).
+        await navigateTo(page, 'search');
         await page.locator('#searchInput').waitFor({ state: 'visible', timeout: 5000 });
 
         // Empty state should show before typing.
@@ -949,7 +953,11 @@ test.describe('Critical flows — UI-driven', () => {
             document.getElementById('sidebar')?.classList.remove('open');
             document.getElementById('sidebarOverlay')?.classList.remove('open');
         });
-        await page.click('#navSearchBtn');
+        // navigateTo() picks the right path per viewport: on mobile
+        // the navbar's #navSearchBtn is visible (top banner); on
+        // desktop it's hidden and the entry point lives in the
+        // sidebar burger drawer (.sidebar-item[data-page="search"]).
+        await navigateTo(page, 'search');
         await page.locator('#searchInput').waitFor({ state: 'visible', timeout: 5000 });
 
         // Query that won't match anything — proves the no-results

@@ -137,21 +137,44 @@ function handleNotificationClick(notification: { type?: string; related_id?: str
 }
 
 function updateTripSelector() {
-    const selector = /** @type {HTMLSelectElement | null} */ (document.getElementById('tripSelector'));
-    const completeBtn = document.getElementById('completeTripBtn');
-    const deleteBtn = document.getElementById('deleteTripBtn');
-    if (!selector) return;
+    // Two trip selectors live in the DOM: #tripSelector in the desktop
+    // top navbar, #tripSelectorSidebar in the mobile burger drawer. Only
+    // one is visible at a time (CSS media queries hide the other) but
+    // both have to stay in sync — populated with the same options, the
+    // same selected value, and both fire the same onchange handler so a
+    // mid-resize switch from desktop → mobile (or back) doesn't lose the
+    // user's pick. Selectors that aren't in the DOM at all are silently
+    // skipped — handles the loose-coupled case where a future deploy
+    // strips one variant without touching this code.
+    const selectors = [
+        document.getElementById('tripSelector') as HTMLSelectElement | null,
+        document.getElementById('tripSelectorSidebar') as HTMLSelectElement | null,
+    ].filter((el): el is HTMLSelectElement => el !== null);
+
+    // Same dual-instance pattern for the per-trip action buttons —
+    // desktop has them in the navbar, mobile has them in the sidebar.
+    const completeBtns = [
+        document.getElementById('completeTripBtn'),
+        document.getElementById('completeTripBtnSidebar'),
+    ].filter((el): el is HTMLElement => el !== null);
+    const deleteBtns = [
+        document.getElementById('deleteTripBtn'),
+        document.getElementById('deleteTripBtnSidebar'),
+    ].filter((el): el is HTMLElement => el !== null);
+
+    if (selectors.length === 0) return;
 
     if (STATE.trips.length === 0) {
-        selector.innerHTML = '<option value="">No Active Trips</option>';
-        if (completeBtn) completeBtn.style.display = 'none';
-        if (deleteBtn) deleteBtn.style.display = 'none';
+        for (const sel of selectors) sel.innerHTML = '<option value="">No Active Trips</option>';
+        for (const btn of completeBtns) btn.style.display = 'none';
+        for (const btn of deleteBtns) btn.style.display = 'none';
         return;
     }
 
-    selector.innerHTML = STATE.trips.map(t => `
+    const optionsHtml = STATE.trips.map(t => `
         <option value="${esc(t.id)}" ${t.id === STATE.activeTripId ? 'selected' : ''}>${esc(t.name)}</option>
     `).join('');
+    for (const sel of selectors) sel.innerHTML = optionsHtml;
 
     // Show/hide management buttons. Archive (Complete) is per-user — any
     // member, including Relaxers, can hide their own copy. Delete is the
@@ -160,16 +183,18 @@ function updateTripSelector() {
     // keeps the UI honest.
     const hasActive = !!STATE.activeTripId;
     const activeTrip = STATE.trips.find(t => t.id === STATE.activeTripId);
-    if (completeBtn) completeBtn.style.display = hasActive ? 'flex' : 'none';
-    if (deleteBtn) deleteBtn.style.display = hasActive && canDelete(activeTrip) ? 'flex' : 'none';
+    for (const btn of completeBtns) btn.style.display = hasActive ? 'flex' : 'none';
+    for (const btn of deleteBtns) btn.style.display = hasActive && canDelete(activeTrip) ? 'flex' : 'none';
 
-    selector.onchange = (e) => {
-        const target = e.target as HTMLSelectElement | null;
-        if (!target) return;
-        STATE.activeTripId = target.value;
-        emit(EVENTS.STATE_CHANGED);          // saveState + updateTripSelector via subscriber
-        navigate(PAGES.HOME);
-    };
+    for (const sel of selectors) {
+        sel.onchange = (e) => {
+            const target = e.target as HTMLSelectElement | null;
+            if (!target) return;
+            STATE.activeTripId = target.value;
+            emit(EVENTS.STATE_CHANGED);          // saveState + updateTripSelector via subscriber (re-syncs the sibling selector)
+            navigate(PAGES.HOME);
+        };
+    }
 }
 
 // UI subscribers — kept here (not in state.js) so the data layer doesn't reach
@@ -424,13 +449,18 @@ async function init() {
         }
     });
 
-    document.getElementById('newTripBtn')?.addEventListener('click', () => {
-        openNewTripModal();
-    });
+    // Trip-controls — desktop ones live in the navbar, mobile ones live
+    // in the sidebar. Both sets fire the same handler (nav-trips.ts comment
+    // explains the dual-instance pattern). Optional-chaining the addEventListener
+    // means a future deploy that strips one set won't crash this boot.
+    document.getElementById('newTripBtn')?.addEventListener('click', () => openNewTripModal());
+    document.getElementById('newTripBtnSidebar')?.addEventListener('click', () => openNewTripModal());
 
     document.getElementById('sidebarLogoutBtn')?.addEventListener('click', () => logout());
     document.getElementById('completeTripBtn')?.addEventListener('click', archiveActiveTrip);
+    document.getElementById('completeTripBtnSidebar')?.addEventListener('click', archiveActiveTrip);
     document.getElementById('deleteTripBtn')?.addEventListener('click', deleteActiveTrip);
+    document.getElementById('deleteTripBtnSidebar')?.addEventListener('click', deleteActiveTrip);
 
     document.addEventListener('click', (e) => {
         const target = e.target as HTMLElement | null;

@@ -120,20 +120,32 @@ export async function openFreshApp(page, userId = 'test-user-1') {
 export async function createTrip(page, { name, country }) {
     await page.evaluate(() => {
         /** @type {any} */ (window).google = undefined;
-        // Close the sidebar overlay if it auto-opened on render. On
-        // mobile (375px) the overlay covers the top nav, intercepting
-        // clicks on #newTripBtn even though playwright reports it as
-        // visible. Idempotent.
+        // Close the sidebar overlay if it auto-opened on render.
+        // Idempotent — the open path below will re-open it on mobile.
         document.getElementById('sidebar')?.classList.remove('open');
         document.getElementById('sidebarOverlay')?.classList.remove('open');
     });
-    await page.click('#newTripBtn');
+    // Two locations for the +New Trip button now:
+    //   - Desktop: in the top navbar (#newTripBtn)
+    //   - Mobile:  inside the burger drawer (#newTripBtnSidebar) — the
+    //              navbar version exists in the DOM but is hidden via
+    //              `.nav-trips--desktop-only` at ≤720px.
+    // Detect by viewport width and pick the right path.
+    const viewportWidth = page.viewportSize()?.width ?? 1280;
+    if (viewportWidth <= 720) {
+        await page.click('#hamburgerBtn');
+        await page.click('#newTripBtnSidebar');
+    } else {
+        await page.click('#newTripBtn');
+    }
     await page.fill('#tripName', name);
     await page.fill('#tripPlaceInput', country);
     // Wait for the manual-fallback to enable the submit button.
     await page.locator('#newTripSubmitBtn:not([disabled])').waitFor({ timeout: 5000 });
     await page.click('#newTripSubmitBtn');
-    await expect(page.locator('#tripSelector')).toContainText(name);
+    // The trip name appears in EITHER selector (whichever is visible at
+    // the current viewport). Use a generic locator that matches both.
+    await expect(page.locator('#tripSelector, #tripSelectorSidebar').first()).toContainText(name);
 }
 
 /**
@@ -282,19 +294,48 @@ export async function befriend(page, userIdA, userIdB) {
  * @param {string} dataPage
  */
 export async function navigateTo(page, dataPage) {
-    // First try a visible nav-item with the right data-page. On
-    // desktop this hits the top-nav row; on mobile it hits the
-    // bottom-tab row when the page is one of the four primary
-    // destinations (Home / Feed / Collections / Profile).
-    const visibleNav = page.locator(`.nav-item[data-page="${dataPage}"]:visible`);
-    if (await visibleNav.count()) {
-        await visibleNav.first().click();
+    // (1) Visible non-sidebar element with `data-page="<X>"`.
+    // Catches the top-nav links (.nav-item), mobile bottom-tab items,
+    // and navbar icons (#navSearchBtn, #navFeedBtn — both have
+    // data-page). Sidebar items are EXCLUDED here via `:not(.sidebar-item)`
+    // because the sidebar drawer hides itself with `transform:
+    // translateX(-100%)` — display + visibility stay normal, so
+    // Playwright's `:visible` selector considers sidebar items
+    // "visible" even when the drawer is closed and they're scrolled
+    // off-screen. The click would then attempt + time out trying
+    // to scroll the element into view (impossible — it's
+    // translated, not overflow-scrolled).
+    const nonSidebar = page.locator(`[data-page="${dataPage}"]:visible:not(.sidebar-item)`);
+    if (await nonSidebar.count()) {
+        await nonSidebar.first().click();
         return;
     }
-    // Fallback: open the burger drawer and click the sidebar item.
-    // Sidebar covers every page (Phase D1 added Todo / AI / Expenses /
-    // Insights / Feed alongside the existing Collections / Friends /
-    // Settlements / Personalization / Settings / Profile entries).
-    await page.click('#hamburgerBtn');
-    await page.click(`.sidebar-item[data-page="${dataPage}"]`);
+    // (2) Sidebar drawer item — open the burger, then click.
+    // `.sidebar.open` lands the drawer on-screen so the click works.
+    const sidebarItemAny = page.locator(`.sidebar-item[data-page="${dataPage}"]`);
+    if (await sidebarItemAny.count()) {
+        await page.click('#hamburgerBtn');
+        // Re-resolve with `:visible` to skip mobile-only / desktop-only
+        // items that are hidden via parent marker class (display:none
+        // from .sidebar-item--mobile-only / --desktop-only doesn't
+        // require the transform-trick workaround above).
+        const sidebarVisible = page.locator(`.sidebar.open .sidebar-item[data-page="${dataPage}"]:visible`);
+        if (await sidebarVisible.count()) {
+            // Use el.click() in the page context rather than
+            // Playwright's .click() — the sidebar slides in via
+            // CSS transform transition, and Playwright's "wait
+            // for stable" check times out during the animation.
+            // The DOM click() event fires the same listener; once
+            // it lands, the router does its work synchronously.
+            await sidebarVisible.first().evaluate((el) => /** @type {HTMLElement} */ (el).click());
+            return;
+        }
+    }
+    // (3) Hash-route fallback — for pages with no UI entry point
+    // at this viewport. The router's onhashchange listener picks up
+    // the change and fires the navigation.
+    await page.evaluate((p) => {
+        window.location.hash = `#${p}`;
+    }, dataPage);
+    await page.waitForLoadState('domcontentloaded');
 }

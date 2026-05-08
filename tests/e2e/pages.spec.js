@@ -27,7 +27,10 @@ const PAGES = [
     {
         name: 'home',
         navTarget: 'home',
-        anchorSelector: '#homeHeroImg, #pathAddDayChip, #tripSelector',
+        // #tripSelector is desktop-only now (mobile uses
+        // #tripSelectorSidebar inside the burger drawer); accept
+        // either to keep the anchor cross-viewport.
+        anchorSelector: '#homeHeroImg, #pathAddDayChip, #tripSelector, #tripSelectorSidebar',
         needsActiveTrip: false,
     },
     { name: 'feed', navTarget: 'feed', anchorSelector: '.nav-brand', needsActiveTrip: false },
@@ -93,7 +96,12 @@ test.describe('Per-page render smoke', () => {
             }, navTarget);
 
             // Anchor a known visible element to confirm the page mounted.
-            await expect(page.locator(anchorSelector).first()).toBeVisible({ timeout: 5000 });
+            // The `:visible` filter on the locator is critical now that
+            // some anchors (#tripSelector) are hidden on the mobile
+            // viewport via .nav-trips--desktop-only — without it,
+            // .first() picks the hidden DOM-first match and the
+            // visibility assertion fails.
+            await expect(page.locator(anchorSelector).filter({ visible: true }).first()).toBeVisible({ timeout: 5000 });
 
             // No real console errors during render.
             const real = errors.filter((e) => !IGNORED_NOISE.some((re) => re.test(e)));
