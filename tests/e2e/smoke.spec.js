@@ -67,15 +67,15 @@ test.describe('The Great Getaway — smoke', () => {
         await expect(page.locator('#homeCreateFirstTripBtn')).toBeHidden();
     });
 
-    // SKIPPED: companions moved per-trip post-Phase G; the picker is
-    // reachable via the trip header (#tripCompanionsBtn) but the test
-    // can't reliably interact with it because the home layout has the
-    // companions card scrolled below the fold AND the post-Phase-G
-    // sidebar overlay sometimes stays open on first paint, intercepting
-    // clicks. Re-enable + fix once the home layout is split into smaller
-    // modules in Phase B (then we can target the companions card
-    // directly without needing the layout to scroll).
-    test.skip('can add a companion to a trip', async ({ page }) => {
+    // Re-enabled: home.ts split (Phase B1) closed the layout-instability
+    // problem that originally made this flake — the companions card sits
+    // in its own home-tab content block now and addCompanion()'s
+    // sidebar-overlay close + scrollIntoViewIfNeeded chain reliably
+    // reaches the trigger. Mobile-skipped because the
+    // #tripCompanionsBtn target lives below the fold on 375px viewport
+    // AND the sidebar drawer covers the trip header on mobile.
+    test('can add a companion to a trip', async ({ page }, testInfo) => {
+        if (testInfo.project.name === 'chromium-mobile') test.skip();
         await openFreshApp(page);
         await createTrip(page, { name: 'Madrid Days', country: 'Spain' });
         await addCompanion(page, 'Maria');
@@ -100,11 +100,12 @@ test.describe('The Great Getaway — smoke', () => {
         await expect(page.locator('text=Shibuya wandering').first()).toBeVisible();
     });
 
-    // SKIPPED: depends on addCompanion (see skip above). Also the
-    // country-autocomplete pattern on the expense form changed from a
-    // free-text dropdown to a constrained list — needs a flow update
-    // similar to createTrip's Google-Places fallback hack.
-    test.skip('can add an expense end-to-end', async ({ page }) => {
+    // Re-enabled now that addCompanion works (Companions tab switch in
+    // helpers.js). Mobile-skipped for the same viewport reasons as the
+    // companion test. Form submit validates `#expCurrency` non-empty
+    // — earlier version of this test omitted that and silently no-op'd.
+    test('can add an expense end-to-end', async ({ page }, testInfo) => {
+        if (testInfo.project.name === 'chromium-mobile') test.skip();
         await openFreshApp(page);
         await createTrip(page, { name: 'Rome Weekend', country: 'Italy' });
         await addCompanion(page, 'Andres');
@@ -114,17 +115,21 @@ test.describe('The Great Getaway — smoke', () => {
         await page.selectOption('#expCategory', { index: 0 });
         await page.fill('#expLabel', 'Pizza al Forno');
         await page.fill('#expDate', '2026-06-15');
-        // Country uses a custom autocomplete: click the input to open the
-        // dropdown, then click the matching item once it's visible.
+        // Country uses a custom autocomplete: click the input to open
+        // the dropdown, then click the matching item once it's visible.
         await page.click('#expCountry');
         await page.fill('#expCountry', 'Italy');
         const italyItem = page.locator('#countryDropdownList .dropdown-item[data-value="Italy"]');
         await italyItem.waitFor({ state: 'visible' });
         await italyItem.click();
         await page.fill('#expValue', '14.50');
+        await page.selectOption('#expCurrency', 'EUR');
         await page.click('#expenseForm button[type="submit"]');
 
-        // The expense list re-renders with the new row.
+        // After submit the manual tab just shows "✓ Saved — view in
+        // History" — the expense row itself lives in the History tab.
+        // Click over there to assert the row exists.
+        await page.click('.expenses-tabnav__tab[data-tab="history"]');
         await expect(page.locator('text=Pizza al Forno').first()).toBeVisible();
     });
 });

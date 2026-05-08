@@ -152,6 +152,13 @@ export async function addCompanion(page, name) {
         document.getElementById('sidebar')?.classList.remove('open');
         document.getElementById('sidebarOverlay')?.classList.remove('open');
     });
+    // The companions card sits inside the Companions tab on the home
+    // sub-tab nav (Path / Companions / Documents / Photos). Default
+    // tab is Path, which means #tripCompanionsBtn is in the DOM but
+    // its parent .home-tab-content[data-home-tab="companions"] doesn't
+    // have .is-active so it's display:none. Click the Companions tab
+    // first so the button becomes visible + clickable.
+    await page.click('.trip-tabnav__tab[data-home-tab="companions"]');
     // The companions card lives lower on the home page; the trip-cards
     // row above it pushes it past the initial viewport. Scroll the
     // edit-companions button into view so playwright can click it.
