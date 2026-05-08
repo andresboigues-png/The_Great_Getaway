@@ -106,12 +106,12 @@ function _wirePlacePicker(
     // opacity/cursor, and `.form-hint--success/--warn` modifier classes
     // express the success / failure tone. Toggling is just `.disabled`
     // and a class swap; no inline styles to keep in sync.
-    const setHintTone = (tone) => {
+    const setHintTone = (tone: 'success' | 'warn' | null) => {
         hint.classList.remove('form-hint--success', 'form-hint--warn');
         if (tone) hint.classList.add(`form-hint--${tone}`);
     };
 
-    const setPicked = (place) => {
+    const setPicked = (place: any) => {
         pickedPlace = place;
         if (place) {
             submitBtn.disabled = false;
@@ -167,7 +167,7 @@ function _wirePlacePicker(
         const vp = place.geometry.viewport;
         // The country component's short_name is the ISO 3166-1 alpha-2 code
         // ("FR", "PT", "US") — locale-invariant by definition.
-        const countryComp = (place.address_components || []).find(c => (c.types || []).includes('country'));
+        const countryComp = (place.address_components || []).find((c: any) => (c.types || []).includes('country'));
         const countryCode = countryComp ? (countryComp.short_name || null) : null;
         setPicked({
             placeId: place.place_id || '',
@@ -336,7 +336,7 @@ export const openNewTripModal = () => {
  *
  * @param {any} trip — must be a reference to a trip already in STATE.trips
  */
-export const openEditTripModal = (trip) => {
+export const openEditTripModal = (trip: any) => {
     if (!trip) return;
 
     const { root, close } = showModal({
@@ -609,7 +609,7 @@ export const openAddDayModal = () => {
  *
  * @param {string} tripId
  */
-export const openCompanionPickerModal = (tripId) => {
+export const openCompanionPickerModal = (tripId: string) => {
     const trip = STATE.trips.find(t => t.id === tripId);
     if (!trip) return;
 
@@ -635,19 +635,19 @@ export const openCompanionPickerModal = (tripId) => {
 
     // Members on the trip already (accepted invitations). Used to render
     // role badges on linked rows.
-    const membersByUserId = new Map((trip.members || []).map(m => [m.userId, m]));
+    const membersByUserId = new Map((trip.members || []).map((m: any) => [m.userId, m] as const));
 
     let cachedFriends: FriendListEntry[] = [];
 
     /** Pretty role label. */
-    const roleLabel = (/** @type {string} */ r) =>
+    const roleLabel = (r: string) =>
         r === ROLE_PLANNER ? 'Planner'
         : r === ROLE_BUDGETEER ? 'Budgeteer'
         : r === ROLE_RELAXER ? 'Relaxer'
         : r;
 
     /** Build a row for one companion currently on the trip. */
-    const buildRow = (/** @type {import('./types').Companion} */ c) => {
+    const buildRow = (c: import('./types').Companion) => {
         const isLocked = referencedNames.has(c.name);
         const linkedUserId = c.linkedUserId;
         const member = linkedUserId ? membersByUserId.get(linkedUserId) : null;
@@ -889,21 +889,21 @@ export const openCompanionPickerModal = (tripId) => {
  *  can't reshape the roster (Phase 3 keeps roster ownership owner-only),
  *  but they get the same visibility into who's involved.
  *  @param {string} tripId */
-export const openTripMembersModal = (tripId) => {
+export const openTripMembersModal = (tripId: string) => {
     const trip = STATE.trips.find(t => t.id === tripId);
     if (!trip) return;
 
     const members = trip.members || [];
-    const owner = members.find(m => m.userId === trip.ownerId);
-    const others = members.filter(m => m.userId !== trip.ownerId);
+    const owner = members.find((m: any) => m.userId === trip.ownerId);
+    const others = members.filter((m: any) => m.userId !== trip.ownerId);
 
-    const roleLabel = (/** @type {string} */ role) =>
+    const roleLabel = (role: string) =>
         role === ROLE_PLANNER ? 'Planner'
         : role === ROLE_BUDGETEER ? 'Budgeteer'
         : role === ROLE_RELAXER ? 'Relaxer'
         : role;
 
-    const memberRow = (/** @type {import('./types').TripMember} */ m, isOwnerRow) => `
+    const memberRow = (m: import('./types').TripMember, isOwnerRow: boolean) => `
         <div class="companion-row" style="cursor: default;">
             ${m.picture ? `<img src="${esc(m.picture)}" alt="" referrerpolicy="no-referrer" style="width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0; object-fit: cover;">` : ''}
             <span class="companion-row__name">${esc(m.name || m.userId)}</span>
@@ -941,7 +941,7 @@ export const openTripMembersModal = (tripId) => {
  *  /api/data poll after acceptance), so the message body is the only
  *  source of context about which trip / role.
  *  @param {{ related_id?: string | number; message?: string; title?: string }} notification */
-export const openTripInviteResponseModal = (notification) => {
+export const openTripInviteResponseModal = (notification: { related_id?: string | number; message?: string; title?: string }) => {
     const tripId = notification.related_id ? String(notification.related_id) : '';
     if (!tripId) return;
 

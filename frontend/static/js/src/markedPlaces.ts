@@ -42,29 +42,34 @@
  */
 
 /** Read marked places off a trip object (always returns an array). */
-export function getMarkedPlaces(trip) {
+export function getMarkedPlaces(trip: any): any[] {
     return Array.isArray(trip?.markedPlaces) ? trip.markedPlaces : [];
 }
 
 /** Find a marked place by its placeId. Returns the entry or undefined. */
-export function findMarkedPlace(trip, placeId) {
+export function findMarkedPlace(trip: any, placeId: string | null | undefined) {
     if (!placeId) return undefined;
-    return getMarkedPlaces(trip).find(p => p.placeId === placeId);
+    return getMarkedPlaces(trip).find((p: any) => p.placeId === placeId);
 }
 
 /** Drop a marked place entirely (called from the AI planner panel's
  *  remove button and from the Home → To do list tab). Safe no-op if
  *  the place isn't there. */
-export function removeMarkedPlace(trip, placeId) {
+export function removeMarkedPlace(trip: any, placeId: string): void {
     if (!trip || !Array.isArray(trip.markedPlaces)) return;
-    trip.markedPlaces = trip.markedPlaces.filter(p => p.placeId !== placeId);
+    trip.markedPlaces = trip.markedPlaces.filter((p: any) => p.placeId !== placeId);
 }
 
 /** Update day / time-of-day assignment on a marked place (or remove the
  *  assignment if both are null). */
-export function setMarkedPlaceAssignment(trip, placeId, dayId, timeOfDay) {
+export function setMarkedPlaceAssignment(
+    trip: any,
+    placeId: string,
+    dayId: string | null,
+    timeOfDay: 'morning' | 'afternoon' | 'evening' | null,
+): void {
     if (!trip || !Array.isArray(trip.markedPlaces)) return;
-    const entry = trip.markedPlaces.find(p => p.placeId === placeId);
+    const entry = trip.markedPlaces.find((p: any) => p.placeId === placeId);
     if (!entry) return;
     entry.dayId = dayId || null;
     entry.timeOfDay = timeOfDay || null;
@@ -85,13 +90,13 @@ export function setMarkedPlaceAssignment(trip, placeId, dayId, timeOfDay) {
  *  @param {any} place — Google Places result (uses place.place_id, name, etc.)
  *  @param {{icon?:string, color?:string}=} cat — POI_CATEGORIES entry for visuals
  */
-export function toggleTodoListMembership(trip, place, cat) {
+export function toggleTodoListMembership(trip: any, place: any, cat?: { icon?: string; color?: string }): void {
     if (!trip || !place?.place_id) return;
     if (!Array.isArray(trip.markedPlaces)) trip.markedPlaces = [];
-    const existing = trip.markedPlaces.find(p => p.placeId === place.place_id);
+    const existing = trip.markedPlaces.find((p: any) => p.placeId === place.place_id);
     if (existing) {
         // Already in to-do — remove entirely.
-        trip.markedPlaces = trip.markedPlaces.filter(p => p.placeId !== place.place_id);
+        trip.markedPlaces = trip.markedPlaces.filter((p: any) => p.placeId !== place.place_id);
         return;
     }
     /** @type {MarkedPlace} */
@@ -113,9 +118,9 @@ export function toggleTodoListMembership(trip, place, cat) {
 
 /** Toggle just the AI tick on an existing to-do entry. Used by the AI
  *  planner's checkbox. No-op if the entry isn't found. */
-export function toggleMarkedPlaceForAI(trip, placeId) {
+export function toggleMarkedPlaceForAI(trip: any, placeId: string): void {
     if (!trip || !Array.isArray(trip.markedPlaces)) return;
-    const entry = trip.markedPlaces.find(p => p.placeId === placeId);
+    const entry = trip.markedPlaces.find((p: any) => p.placeId === placeId);
     if (!entry) return;
     entry.forAI = !entry.forAI;
 }

@@ -5,7 +5,7 @@ import { navigate } from '../router.js';
 import { showModal } from '../components/Modal.js';
 import { POI_CATEGORIES } from './home.js';
 
-export const showSettingsTab = (tab) => {
+export const showSettingsTab = (tab: string) => {
     const tabs = (document.querySelectorAll('.settings-tab-btn') as NodeListOf<HTMLElement>);
     const sections = document.querySelectorAll('.settings-section');
 
@@ -24,7 +24,7 @@ export const showSettingsTab = (tab) => {
 // The Companions sub-tab was removed when companions became per-trip;
 // `tab === 'companions'` is treated as 'categories' so legacy callers
 // don't break.
-export const showPersTab = (tab) => {
+export const showPersTab = (tab: string) => {
     const menu = document.getElementById('persMenu');
     const content = document.getElementById('persContent');
     const catSection = document.getElementById('persCategories');
@@ -39,7 +39,7 @@ export const showPersTab = (tab) => {
     }
 };
 
-const deleteCategory = (id) => {
+const deleteCategory = (id: string) => {
     showConfirmModal({
         title: "Delete Category?",
         message: "This will not affect existing expenses, but you won't be able to select this category again.",
@@ -205,8 +205,7 @@ export function renderSettings() {
 
                 ${isGeneral ? (() => {
                     const generalSubTab = activeTab === 'general' ? (window.__ggGeneralSubTab || 'pills') : 'pills';
-                    /** @param {string} t */
-                    const tab = (t) => generalSubTab === t ? ' is-active' : '';
+                    const tab = (t: string) => generalSubTab === t ? ' is-active' : '';
                     const subTabnav = `
                         <div class="general-subtabs" role="tablist" aria-label="General settings sections">
                             <button type="button" class="general-subtab${tab('pills')}" data-general-sub="pills" role="tab" aria-selected="${generalSubTab === 'pills' ? 'true' : 'false'}">
@@ -333,11 +332,11 @@ export function renderSettings() {
         `;
     };
 
-    const switchSettingsTab = (tab) => {
+    const switchSettingsTab = (tab: string) => {
         div.innerHTML = buildSettingsUI(tab);
     };
 
-    const confirmReset = (type) => {
+    const confirmReset = (type: 'trips' | 'categories' | 'app') => {
         const configs = {
             trips: {
                 title: "Wipe All Trips?",
@@ -410,7 +409,7 @@ export function renderSettings() {
         switchSettingsTab('format');
     };
 
-    const removeFormatMapping = (variable) => {
+    const removeFormatMapping = (variable: string) => {
         STATE.customFormat = (STATE.customFormat || []).filter(m => m.variable !== variable);
         emit('state:changed');
         switchSettingsTab('format');
@@ -434,7 +433,7 @@ export function renderSettings() {
         switchSettingsTab('format');
     };
 
-    const deleteSavedFormat = (id) => {
+    const deleteSavedFormat = (id: string) => {
         showConfirmModal({
             title: "Delete Format?",
             message: "This mapping will no longer be available for imports.",
@@ -447,7 +446,7 @@ export function renderSettings() {
         });
     };
 
-    const editSavedFormat = (id) => {
+    const editSavedFormat = (id: string) => {
         const format = (STATE.savedFormats || []).find(f => f.id === id);
         if (!format) return;
         // Load the saved format's mappings into the active editor
@@ -494,7 +493,7 @@ export function renderSettings() {
         // state change is what we react to.
 
         const resetBtn = (target.closest('.confirm-reset-btn') as HTMLElement | null);
-        if (resetBtn?.dataset.resetType) { confirmReset(resetBtn.dataset.resetType); return; }
+        if (resetBtn?.dataset.resetType) { confirmReset(resetBtn.dataset.resetType as 'trips' | 'categories' | 'app'); return; }
 
         const removeMappingBtn = (target.closest('.remove-mapping-btn') as HTMLElement | null);
         if (removeMappingBtn?.dataset.variable) { removeFormatMapping(removeMappingBtn.dataset.variable); return; }
@@ -597,7 +596,7 @@ export function renderSettings() {
 /** Open a modal to edit an existing category's name / icon / color.
  *  Saves directly into STATE.categories, syncs to the server, and
  *  re-renders the personalization page so the row reflects the change. */
-function openEditCategoryModal(categoryId) {
+function openEditCategoryModal(categoryId: string) {
     const cat = STATE.categories.find(c => c.id === categoryId);
     if (!cat) return;
 
