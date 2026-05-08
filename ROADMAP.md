@@ -496,7 +496,7 @@ cleanly + all tests stay green, the pattern works for everything else.
       `useStore(selector)` subscribes to slices; mutations write
       `STATE.* + emit('state:changed')`.
 - [x] Mounted via the existing router: `case PAGES.INSIGHTS:
-    mountInsights(content)` replaces `pageEl = renderInsights()`.
+  mountInsights(content)` replaces `pageEl = renderInsights()`.
       Shared `clearReactMount()` runs at the top of every navigation
       so React effect cleanups (Chart.js .destroy(), etc.) flush
       before innerHTML wipes the slot.
@@ -520,32 +520,48 @@ cleanly + all tests stay green, the pattern works for everything else.
   additional .tsx page after that adds ~5K vs its imperative twin
   (the runtime amortizes).
 
-### C3 — Migrate by leaf-up topology
+### C3 — Migrate by leaf-up topology ⚠️ in progress (4/12 leaves)
 
 Order matters. Migrate small + isolated pages first; pages with the
 most dependencies last.
 
 Order:
 
-1. `insights` ✓ (Phase C2)
-2. `friends`, `todo`, `budgets` — small, mostly list views
-3. `expenses`, `settlement` — table-heavy but isolated
-4. `feed` — important, lots of state, but its data shape is clean
-5. `profile`, `collections` — heavier, more sub-views
-6. `settings` — many sub-tabs
-7. `upload`, `ai` — complex but self-contained
-8. `home` — last because it's the biggest + most-coupled. By the time
-   we get here, every other page is React, every shared component
-   exists, the playbook is iron-clad.
+1. ✅ `insights` (Phase C2)
+2. ✅ `friends`, `todo`, `budgets` — small, mostly list views (this wave)
+3. ⏳ `expenses`, `settlement` — table-heavy but isolated
+4. ⏳ `feed` — important, lots of state, but its data shape is clean
+5. ⏳ `profile`, `collections` — heavier, more sub-views
+6. ⏳ `settings` — many sub-tabs
+7. ⏳ `upload`, `ai` — complex but self-contained
+8. ⏳ `home` — last because it's the biggest + most-coupled. By the
+   time we get here, every other page is React, every shared
+   component exists, the playbook is iron-clad.
 
 Each page migration follows the same checklist:
 
-- [ ] Build the `.tsx` version.
-- [ ] Wire to the router so it mounts at the same route.
-- [ ] All existing tests pass.
-- [ ] Visual regression: zero pixel diff.
-- [ ] Delete the old file.
-- [ ] Commit.
+- [x] Build the `.tsx` version.
+- [x] Wire to the router so it mounts at the same route.
+- [x] All existing tests pass.
+- [x] Visual regression: zero pixel diff.
+- [ ] Delete the old file (deferred 1 stable session per the C2 gate).
+- [x] Commit.
+
+**Patterns confirmed across 4 migrations**:
+
+- Modals: `showModal`/`showConfirmModal` flows stay legacy (transient,
+  handle focus-trap + esc-to-close cleanly). New modals built in
+  React only when they ship for the first time.
+- Per-page UI state (filters, search input, search status) → useState.
+  Module-level state survives navigation only when it MUST (rare).
+- Helpers split: pages with substantial pure-function helpers move
+  them to `<page>/helpers.ts` so the .tsx stays focused on rendering.
+  Example: `pages/budgets/helpers.ts` (spentForBudget, budgetStatus,
+  budgetTitle, deleteBudget, openCreateBudgetModal).
+- Cross-component avatars / cards: extract small subcomponents
+  inline (e.g. Friends.tsx's `<Avatar>` and `<UserCard>`). Move
+  to `frontend/static/js/src/react/components/` only when 2+ pages
+  need them — that's the C4 extraction trigger.
 
 ### C4 — Extract shared components
 
