@@ -7,7 +7,8 @@ import { STATE } from './state.js';
 import { PAGES, type PageName } from './constants.js';
 import { renderHome, stopHomeSlideshow } from './pages/home.js';
 import { renderExpenses, setExpensesTab } from './pages/expenses.js';
-import { renderInsights } from './pages/insights.js';
+import { mountInsights } from './pages/insights/mount.js';
+import { clearReactMount } from './react/reactMount.js';
 import { renderSettings, renderPersonalization } from './pages/settings.js';
 import { renderBudgets } from './pages/budgets.js';
 import { renderCollections } from './pages/collections.js';
@@ -46,6 +47,12 @@ export function navigate(
     // assigned to a separate variable, so the timer leaked.
     stopHomeSlideshow();
 
+    // If the previous route mounted React (Phase C migrations), unmount
+    // cleanly so its effect cleanups (Chart.js destroys, event listener
+    // removal, etc.) run before the slot is wiped. No-op when no React
+    // tree is active. Must come BEFORE innerHTML='' or React will warn.
+    clearReactMount();
+
     content.innerHTML = '';
     let pageEl: HTMLElement | null = null;
 
@@ -71,7 +78,10 @@ export function navigate(
         case PAGES.UPLOAD:
             setExpensesTab('batch');
             return navigate(PAGES.EXPENSES, params, preserveScroll);
-        case PAGES.INSIGHTS: pageEl = renderInsights(); break;
+        // Phase C2: Insights migrated to React. mountInsights renders
+        // <Insights /> directly into #app-container via createRoot —
+        // no pageEl returned (the React root manages the DOM).
+        case PAGES.INSIGHTS: mountInsights(content); break;
         case PAGES.SETTINGS: pageEl = renderSettings(); break;
         case PAGES.PERSONALIZATION: pageEl = renderPersonalization(); break;
         case PAGES.BUDGETS: pageEl = renderBudgets(); break;
