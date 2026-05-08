@@ -539,6 +539,132 @@ def test_data_returns_empty_for_new_user(client, seed_user, auth_headers):
     assert body["expenses"] == []
 
 
+def test_data_returns_populated_payload(client, seed_user, auth_headers):
+    """/api/data is the boot-time pull. Pin the response shape — frontend
+    pullFromServer reads `trips`, `expenses`, `tripDays`, `categories`,
+    `budgets` off this payload + does the trip-row field rename
+    (place_id → placeId, etc.) inline."""
+    # Seed a trip + day + expense + category + budget so every list comes
+    # back non-empty.
+    client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": "trip-data", "name": "Madrid", "country": "Spain"},
+    })
+    client.post("/api/days", headers=auth_headers, json={
+        "day": {
+            "id": "day-data-1", "tripId": "trip-data", "dayNumber": 1,
+            "name": "Sol", "date": "2026-05-10",
+        },
+    })
+    client.post("/api/expenses", headers=auth_headers, json={
+        "expense": {
+            "id": "exp-data-1", "tripId": "trip-data", "who": "Me",
+            "value": 8.5, "currency": "EUR", "euroValue": 8.5,
+            "label": "Coffee", "date": "2026-05-10",
+        },
+    })
+    client.post("/api/categories", headers=auth_headers, json={
+        "categories": [{"id": "c-food", "name": "Food", "icon": "🍔", "color": "#ff3b30"}],
+    })
+    client.post("/api/budgets", headers=auth_headers, json={
+        "budget": {"id": "b-1", "tripId": "trip-data", "label": "Food", "amount": 100, "currency": "EUR"},
+    })
+
+    res = client.get("/api/data", headers=auth_headers)
+    assert res.status_code == 200
+    body = res.get_json()
+    assert len(body["trips"]) == 1
+    assert body["trips"][0]["name"] == "Madrid"
+    assert len(body["expenses"]) == 1
+    assert len(body["tripDays"]) == 1
+    assert len(body["categories"]) == 1
+    assert len(body["budgets"]) == 1
+
+
+# ── /api/sync ────────────────────────────────────────────────────────────────
+# Bulk "replace everything in one POST" path. Most write traffic goes
+# through delta endpoints now (routes/expenses.py, routes/days.py, etc.)
+# but /api/sync is preserved for legacy clients + defensive re-syncs.
+
+def test_sync_writes_trips_and_expenses(client, seed_user, auth_headers):
+    """Happy path: POST a full STATE payload, then GET /api/data and
+    assert the server holds the same trips + expenses."""
+    res = client.post("/api/sync", headers=auth_headers, json={
+        "trips": [
+            {"id": "trip-sync-1", "name": "Paris", "country": "France"},
+        ],
+        "expenses": [
+            {
+                "id": "exp-sync-1", "tripId": "trip-sync-1", "who": "Me",
+                "categoryId": "c-food", "country": "France",
+                "value": 5, "currency": "EUR", "euroValue": 5,
+                "label": "Croissant", "date": "2026-05-12",
+            },
+        ],
+    })
+    assert res.status_code == 200
+
+    # Round-trip: pull and confirm.
+    pull = client.get("/api/data", headers=auth_headers)
+    body = pull.get_json()
+    assert any(t["id"] == "trip-sync-1" for t in body["trips"])
+    assert any(e["id"] == "exp-sync-1" for e in body["expenses"])
+
+
+def test_sync_does_not_let_caller_take_over_someone_elses_trip(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """Audit-fix coverage: /api/sync used to let any caller hijack an
+    existing trip by re-syncing it (the ON CONFLICT path overwrote
+    user_id with whatever the caller passed in). The fix skips trips
+    the caller doesn't own; this test pins that the OWNER's row
+    survives a hostile sync intact."""
+    # Owner creates a trip
+    client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": "trip-mine", "name": "Original Name"},
+    })
+    # Different user fires /api/sync trying to overwrite it
+    res = client.post("/api/sync", headers=other_auth_headers, json={
+        "trips": [{"id": "trip-mine", "name": "HIJACKED"}],
+        "expenses": [],
+    })
+    # The endpoint returns 200 (partial-sync semantics — friend's
+    # legitimate own-rows still get saved) but the original trip
+    # is untouched.
+    assert res.status_code == 200
+    pull = client.get("/api/data", headers=auth_headers)
+    body = pull.get_json()
+    found = next(t for t in body["trips"] if t["id"] == "trip-mine")
+    assert found["name"] == "Original Name"  # NOT "HIJACKED"
+
+
+# ── /api/user-data DELETE (factory reset) ────────────────────────────────────
+
+def test_user_data_delete_wipes_trips_and_expenses(client, seed_user, auth_headers):
+    """Settings → Reset → Wipe triggers a DELETE /api/user-data which
+    nukes every trip + expense the caller owns. Doesn't touch the
+    user row itself — that survives so the next login still works."""
+    # Seed a trip + expense to wipe
+    client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": "trip-doomed", "name": "Going Away"},
+    })
+    client.post("/api/expenses", headers=auth_headers, json={
+        "expense": {
+            "id": "exp-doomed", "tripId": "trip-doomed", "who": "Me",
+            "value": 1, "currency": "EUR", "euroValue": 1,
+            "label": "Sad", "date": "2026-05-12",
+        },
+    })
+
+    res = client.delete("/api/user-data", headers=auth_headers)
+    assert res.status_code == 200
+
+    # Confirm the wipe
+    pull = client.get("/api/data", headers=auth_headers)
+    body = pull.get_json()
+    assert body["trips"] == []
+    assert body["expenses"] == []
+
+
 # ── Rate limiting ────────────────────────────────────────────────────────────
 
 def test_rate_limit_friends_add(temp_db, seed_user):
