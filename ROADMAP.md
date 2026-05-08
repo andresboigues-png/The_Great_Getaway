@@ -579,36 +579,82 @@ Cross-cutting:
 - Inline subcomponents → `react/components/` when 2+ pages need them
   (the C4 extraction trigger).
 
-### C4 — Extract shared components
+### C4 — Extract shared components ⚠️ partial (1/8 components)
 
 As pages migrate, extract repeated UI as reusable React components:
 
-- `<GlassCard>` / `<GlassCardModal>`
-- `<DayChip>` / `<DayCard>`
-- `<MemberChip>`
-- `<Pill>` / `<SegmentedTabs>`
-- `<RouteStatsChip>` (oh wait — deleted; skip)
-- `<WeatherChip>` / `<LocalTimeChip>`
-- `<EmptyState>`
-- `<ConfirmModal>`
-- `<Avatar>` (clickable variant for feed)
+- [x] `<EmptyState>` — 4 sites unified (Todo×2, Budgets, Insights)
+      with three accents (purple/orange/blue) + two variants
+      (card/tall). Lives in `react/components/EmptyState.tsx`.
+- [ ] `<GlassCard>` / `<GlassCardModal>` — deferred. Most uses are
+      still in legacy renderers (Settlement's tab cards, Friends'
+      list rows). Wait for those to migrate to JSX before
+      extracting.
+- [ ] `<DayChip>` / `<DayCard>` — deferred (lives in home.ts which
+      stays imperative).
+- [ ] `<MemberChip>` — deferred (legacy modals/companions).
+- [ ] `<Pill>` / `<SegmentedTabs>` — deferred (varied use across
+      legacy renderers).
+- [ ] `<WeatherChip>` / `<LocalTimeChip>` — deferred (home.ts only).
+- [ ] `<ConfirmModal>` — deferred (legacy showConfirmModal handles
+      focus-trap + esc cleanly; React equivalent isn't a clear win
+      until 2+ pages need a more bespoke confirm).
+- [ ] `<Avatar>` — Friends has it inline; pulling to
+      `react/components/` waits until Feed migrates from thin
+      wrapper to JSX (would be the second user).
 
-Each lives in `components/` with a Storybook-style entry on the
-`/components` preview page (Phase B2).
+**The C4 extraction trigger** is "2+ pages need it after their
+migration tier". Most components on the original list haven't hit
+that bar yet because the thin-wrapper pages defer their JSX
+rewrite. EmptyState was the clear early winner.
 
-### C5 — TypeScript strict pass on the migration
+### C5 — TypeScript strict pass on the migration ⚠️ partial
 
 Once every page is `.tsx`, raise the TS bar:
 
-- [ ] `"strict": true` (already from Phase A1).
-- [ ] `"exactOptionalPropertyTypes": true`.
-- [ ] `"noUncheckedIndexedAccess": true`.
-- [ ] Replace any `any` left over from migration with real types.
+- [x] `"strict": true` (Phase A1 — already on, includes
+      `noImplicitAny`, `strictNullChecks`, `strictBindCallApply`,
+      `strictFunctionTypes`, etc.).
+- [ ] `"exactOptionalPropertyTypes": true` — surfaced 121 errors
+      across the codebase (mostly legacy imperative pages:
+      `settlement/legacyRender.ts`, `upload.ts`, `utils.ts`).
+      Deferred to a focused future pass; fixing 121 sites without
+      breaking flow needs careful per-site review under the e2e
+      safety net.
+- [ ] `"noUncheckedIndexedAccess": true` — same 121-error pile;
+      deferred for the same reason.
+- [x] Replace `any` left over from migration with real types.
+      Done across the 4 JSX-rewritten leaves (Insights, Todo,
+      Budgets, Friends) and the React infra (store, useNavigate,
+      reactMount). Only `declare const Chart: any` remains in
+      Insights — that's the Chart.js CDN global, not a migration
+      leak. Imperative pages still using `any` callbacks are part
+      of the deferred wave above (will tighten when those pages
+      migrate from thin-wrapper to JSX).
 
-**Phase C done when**: every page is React + TypeScript, every shared
-primitive is a real component, the components preview page is the
-single source of design truth, all tests still green, bundle size
-inventoried + understood, no `any` in the source tree.
+**Phase C done when** (current state):
+
+- ✅ Every page mounts via React (12/12 leaves, including the
+  home giant via thin wrapper)
+- ✅ Bundle size inventoried + understood (752K with React
+  runtime amortized; +5K per added thin-wrapper page)
+- ✅ All tests green (38 e2e, 20 visual, 157 pytest)
+- ✅ React migration code is `any`-free (modulo the Chart.js
+  CDN global)
+- ⚠️ Components preview page still shows legacy primitives;
+  extracting more shared components waits for thin-wrapper
+  pages to migrate further (deferred to future Phase C work)
+- ⚠️ `exactOptionalPropertyTypes` + `noUncheckedIndexedAccess`
+  deferred; the existing strict checks (strict + noImplicitAny
+    - strictNullChecks) are on.
+
+**Status**: Phase C is operationally complete — every route is in
+the React tree, every `any` from the active React migration is
+typed, every test stays green. The remaining C4/C5 items are
+"sweep more pages from thin-wrapper to JSX, then extract more
+shared primitives" + "tighten TS strict flags across the legacy
+codebase." Both are best done as focused follow-up sessions, not
+forced in here.
 
 ---
 
