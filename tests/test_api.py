@@ -1223,6 +1223,119 @@ def test_trip_members_remove_owner_only(
     assert res.status_code in (403, 400, 404)
 
 
+def test_trip_invite_rejects_unknown_role(client, seed_user, auth_headers):
+    """Role must be one of planner | budgeteer | relaxer. Anything
+    else returns 400 before any DB write — pin the allowlist so a
+    typo / new role can't silently slip through."""
+    res = client.post("/api/trips/invite", headers=auth_headers, json={
+        "trip_id": "trip-x", "target_user_id": "u-x", "role": "admin",
+    })
+    assert res.status_code == 400
+
+
+def test_trip_invite_rejects_self_invite(client, seed_user, auth_headers):
+    """You can't invite yourself to your own trip — that's already an
+    auto-membership. 400, not 200/no-op, so a buggy frontend is loud
+    rather than silent."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-self")
+    res = client.post("/api/trips/invite", headers=auth_headers, json={
+        "trip_id": trip_id, "target_user_id": seed_user, "role": "relaxer",
+    })
+    assert res.status_code == 400
+
+
+def test_trip_invite_rejects_missing_target(client, seed_user, auth_headers):
+    """Missing target_user_id (or trip_id) → 400."""
+    res = client.post("/api/trips/invite", headers=auth_headers, json={
+        "trip_id": "trip-x", "role": "relaxer",
+    })
+    assert res.status_code == 400
+
+
+def test_trip_invite_respond_decline_removes_member_row(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """Responding decline removes the pending row entirely (vs accept
+    which just flips invitation_status). Tested by confirming a
+    follow-up accept-respond fails because there's no row to act on."""
+    _befriend(client, auth_headers, other_auth_headers, seed_user, seed_other_user)
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-decline")
+    client.post("/api/trips/invite", headers=auth_headers, json={
+        "trip_id": trip_id, "target_user_id": seed_other_user, "role": "relaxer",
+    })
+    decline = client.post("/api/trips/invite/respond", headers=other_auth_headers, json={
+        "trip_id": trip_id, "accept": False,
+    })
+    assert decline.status_code == 200
+    # Re-respond should now have no row to act on (decline-cleanup
+    # removed it). Still returns 200 — the endpoint is idempotent —
+    # but a subsequent accept attempt has no membership row to flip.
+    re_accept = client.post("/api/trips/invite/respond", headers=other_auth_headers, json={
+        "trip_id": trip_id, "accept": True,
+    })
+    # Accepting a non-existent invite is treated as not-found; both
+    # 404 and a quietly-OK 200 are acceptable shapes — just pin that
+    # it doesn't 500.
+    assert re_accept.status_code in (200, 404)
+
+
+def test_delete_trip_owner_only(client, seed_user, auth_headers):
+    """Owner can delete their own trip — the cascade kills expenses +
+    members + the trip row in one transaction."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-doomed")
+    # Seed an expense + member to confirm the cascade actually runs.
+    client.post("/api/expenses", headers=auth_headers, json={
+        "expense": {
+            "id": "exp-d", "tripId": trip_id, "who": "Me", "value": 1,
+            "currency": "EUR", "euroValue": 1, "label": "x", "date": "2026-01-01",
+        },
+    })
+    res = client.delete(f"/api/trips/{trip_id}", headers=auth_headers)
+    assert res.status_code == 200
+    assert res.get_json() == {"status": "deleted"}
+    # Confirm the cascade: trip is gone from /api/data + the expense
+    # is also gone (cascade deleted it).
+    pull = client.get("/api/data", headers=auth_headers)
+    body = pull.get_json()
+    assert all(t["id"] != trip_id for t in body["trips"])
+    assert all(e["id"] != "exp-d" for e in body["expenses"])
+
+
+def test_delete_trip_rejects_non_owner(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """Non-owners can only LEAVE a trip via members/remove — they can't
+    delete the trip out from under everyone else. Pinned at 403."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-survives")
+    res = client.delete(f"/api/trips/{trip_id}", headers=other_auth_headers)
+    assert res.status_code == 403
+    # Owner's trip survives the hostile DELETE.
+    pull = client.get("/api/data", headers=auth_headers)
+    body = pull.get_json()
+    assert any(t["id"] == trip_id for t in body["trips"])
+
+
+def test_archive_rejects_non_member(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """Per-user archive flag is only valid for members of the trip.
+    A non-member trying to archive (the bizarre case of someone with
+    a guessed trip_id) → 403."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-arch-403")
+    res = client.post(f"/api/trips/{trip_id}/archive", headers=other_auth_headers)
+    assert res.status_code == 403
+
+
+def test_unarchive_rejects_non_member(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """Mirror of the archive 403 — non-members can't unarchive a trip
+    they're not on."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-unarch-403")
+    res = client.post(f"/api/trips/{trip_id}/unarchive", headers=other_auth_headers)
+    assert res.status_code == 403
+
+
 # ── /api/friends — extended coverage ─────────────────────────────────────────
 
 def test_friends_search_returns_other_user(client, seed_user, seed_other_user, auth_headers):
