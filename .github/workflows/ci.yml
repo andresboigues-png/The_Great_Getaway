@@ -51,7 +51,7 @@ jobs:
             - run: npm run typecheck
 
     build:
-        name: Vite build
+        name: Vite build + bundle-size budget
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4
@@ -61,6 +61,13 @@ jobs:
                   cache: 'npm'
             - run: npm ci
             - run: npm run build
+            # D5: bundle-size budget. The script asserts the entry,
+            # vendor-react, per-page chunks, and first-paint estimate
+            # all stay under their gzip budgets (see
+            # scripts/check-bundle-size.mjs). Failing the gate
+            # signals a meaningful regression — review the diff and
+            # either trim or raise the cap intentionally.
+            - run: npm run check:bundle-size
 
     pytest:
         name: pytest API suite

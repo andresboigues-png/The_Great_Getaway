@@ -26,6 +26,13 @@ ngrok*.zip
 ngrok
 node_modules/
 frontend/static/js/app.bundle.js.map
+# D5: code-split chunk source maps. Same convention as app.bundle.js.map —
+# chunk JS is committed (build artefact deployed alongside the entry),
+# but the matching .map files are dev-only and bloat the repo.
+frontend/static/js/chunks/*.map
+# D5: bundle visualizer output, emitted only when ANALYZE=1 and only
+# read locally for performance audits.
+bundle-stats.html
 
 # OS junk
 .DS_Store

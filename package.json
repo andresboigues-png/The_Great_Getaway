@@ -17,6 +17,8 @@
         "test:e2e:visual": "playwright test tests/e2e/visual.spec.js",
         "test:e2e:visual:update": "playwright test tests/e2e/visual.spec.js --update-snapshots",
         "test:e2e:a11y": "playwright test tests/e2e/a11y.spec.js",
+        "build:analyze": "ANALYZE=1 vite build",
+        "check:bundle-size": "node scripts/check-bundle-size.mjs",
         "prepare": "husky"
     },
     "lint-staged": {
@@ -53,12 +55,12 @@
         "husky": "^9.1.7",
         "lint-staged": "^16.4.0",
         "prettier": "^3.8.3",
+        "rollup-plugin-visualizer": "^7.0.1",
         "typescript": "^6.0.3",
         "vite": "^8.0.10"
     },
     "dependencies": {
         "react": "^19.2.6",
-        "react-dom": "^19.2.6",
-        "zod": "^4.4.3"
+        "react-dom": "^19.2.6"
     }
 }

@@ -388,7 +388,23 @@
     {% if dev_mode %}
     <script type="module" src="{{ url_for('static', filename='js/src/main.js') }}"></script>
     {% else %}
-    <script src="{{ url_for('static', filename='js/app.bundle.js') }}?v={{ bundle_version }}" defer></script>
+    <!-- D5 (perf): bundle now ships as ES modules with code-split
+         per-route chunks. `type="module"` is mandatory for the
+         dynamic `import()` calls in router.ts to resolve. The chunks
+         live under static/js/chunks/ and load on demand on first
+         navigation; subsequent visits hit the browser cache.
+
+         Cache-busting note: we DELIBERATELY drop the `?v={{ bundle_version
+         }}` query string from this URL even though the rest of the
+         template uses it. Page chunks emit static imports of the
+         entry as `import { ... } from "../app.bundle.js"` (no query),
+         and the browser treats `app.bundle.js` and `app.bundle.js?v=X`
+         as different URLs — including the query string would cause
+         the entry to be loaded TWICE (once for the script tag, once
+         for the chunk imports), double-executing the router init.
+         Cache validation falls back to Flask's ETag / Last-Modified
+         headers, which is the right tool here anyway. -->
+    <script type="module" src="{{ url_for('static', filename='js/app.bundle.js') }}"></script>
     {% endif %}
 </body>
 

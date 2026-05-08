@@ -1,0 +1,2 @@
+import{r as e,t}from"./vendor-react-CYVQMBjw.js";import{b as n,y as r}from"../app.bundle.js";var i=e(),a=t();function o(){let e=(0,i.useRef)(null);return(0,i.useEffect)(()=>{let t=e.current;t&&(t.innerHTML=``,t.appendChild(n()))},[]),(0,a.jsx)(`div`,{ref:e})}function s(e){r(e,(0,i.createElement)(o))}export{s as mountExpenses};
+//# sourceMappingURL=mount-kPMo159a.js.map

@@ -22,7 +22,7 @@
 // tangling the new mount adapter with that existing tree.
 
 import { useEffect, useRef } from 'react';
-import { renderHome } from '../home.js';
+import { renderHome, stopHomeSlideshow } from '../home.js';
 
 export function Home() {
     const ref = useRef<HTMLDivElement | null>(null);
@@ -32,6 +32,18 @@ export function Home() {
         if (!host) return;
         host.innerHTML = '';
         host.appendChild(renderHome());
+        // D5: explicit cleanup so React unmounts the legacy tree
+        // synchronously when we navigate away. Without this, home's
+        // setInterval / rAF callbacks could fire AFTER React detached
+        // the host div but BEFORE the next page's mount lands, then
+        // try to mutate detached nodes — surfacing "Failed to execute
+        // 'removeChild' on 'Node'" page-errors. router.ts also calls
+        // stopHomeSlideshow() defensively at the top of every nav;
+        // doing it here too keeps the mount/unmount path symmetric.
+        return () => {
+            stopHomeSlideshow();
+            host.innerHTML = '';
+        };
     }, []);
 
     return <div ref={ref} />;

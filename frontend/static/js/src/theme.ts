@@ -21,7 +21,7 @@
 // any setter that flips `STATE.preferences.theme` and emits will
 // propagate without an extra hook.
 
-import { STATE, subscribe } from './state.js';
+import { STATE, subscribe, emit } from './state.js';
 import { EVENTS } from './constants.js';
 
 export type Theme = 'light' | 'dark' | 'system';
@@ -70,12 +70,16 @@ export function setTheme(theme: Theme): void {
     if (!STATE.preferences) return;
     STATE.preferences.theme = theme;
     setHtmlTheme(resolveTheme(theme));
-    // Use the imported emit so persistence + downstream consumers
-    // pick up the change. Avoids double-imports by going through
-    // the dynamic import below — kept dynamic so test environments
-    // that don't have a fully-wired state.ts don't choke at module
-    // load time.
-    void import('./state.js').then((m) => m.emit(EVENTS.STATE_CHANGED));
+    // Synchronously emit `state:changed` so persistence (saveState)
+    // runs in the same tick as the click, not one microtask later.
+    // Earlier code used a dynamic `import('./state.js').then(...)`
+    // here for "test environments without a fully-wired state.ts" —
+    // but state.ts is a hard dependency of the entry bundle, it can
+    // never be missing at runtime. The dynamic-import variant added
+    // a microtask of latency that surfaced as a visible test race
+    // under D5's code-splitting (the test read localStorage one
+    // microtask before saveState wrote to it).
+    emit(EVENTS.STATE_CHANGED);
 }
 
 /** True when the current resolved theme is 'dark'. Read once at the

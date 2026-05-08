@@ -1,0 +1,2 @@
+import{r as e,t}from"./vendor-react-CYVQMBjw.js";import{S as n,x as r,y as i}from"../app.bundle.js";var a=e(),o=t();function s(){let e=(0,a.useRef)(null);return(0,a.useEffect)(()=>{let t=e.current;if(t)return t.innerHTML=``,t.appendChild(r()),()=>{n(),t.innerHTML=``}},[]),(0,o.jsx)(`div`,{ref:e})}function c(e){i(e,(0,a.createElement)(s))}export{c as mountHome};
+//# sourceMappingURL=mount-B2pF2oaq.js.map

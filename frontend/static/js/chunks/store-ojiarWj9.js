@@ -1,0 +1,2 @@
+import{r as e}from"./vendor-react-CYVQMBjw.js";import{Q as t,Y as n,q as r}from"../app.bundle.js";var i=e();function a(e){return(0,i.useSyncExternalStore)(e=>n(t.STATE_CHANGED,e),()=>e(r),()=>e(r))}export{a as t};
+//# sourceMappingURL=store-ojiarWj9.js.map

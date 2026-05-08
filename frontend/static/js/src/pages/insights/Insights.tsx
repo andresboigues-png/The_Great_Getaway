@@ -378,6 +378,7 @@ export function Insights() {
                         <select
                             id="insightCurrencySelector"
                             className="glass-input"
+                            aria-label="Display currency for insights"
                             value={targetCurr}
                             onChange={(e) => setCurrency(e.target.value)}
                             style={{
