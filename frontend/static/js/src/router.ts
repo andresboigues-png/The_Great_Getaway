@@ -6,17 +6,23 @@
 import { STATE } from './state.js';
 import { PAGES, type PageName } from './constants.js';
 import { renderHome, stopHomeSlideshow } from './pages/home.js';
-import { renderExpenses, setExpensesTab } from './pages/expenses.js';
+// renderExpenses migrated to React (Phase C3) — see ./pages/expenses/mount.ts.
+// setExpensesTab is still imported from the legacy file because the
+// upload→expenses redirect needs to set the tab before navigating, and
+// the React wrapper reads the legacy module-level variable on mount.
+import { setExpensesTab } from './pages/expenses.js';
+import { mountExpenses } from './pages/expenses/mount.js';
 import { mountInsights } from './pages/insights/mount.js';
 import { mountTodo } from './pages/todo/mount.js';
 import { mountBudgets } from './pages/budgets/mount.js';
 import { mountFriends } from './pages/friends/mount.js';
+import { mountSettlement } from './pages/settlement/mount.js';
 import { clearReactMount } from './react/reactMount.js';
 import { renderSettings, renderPersonalization } from './pages/settings.js';
 // renderBudgets migrated to React (Phase C3) — see ./pages/budgets/mount.ts.
 import { renderCollections } from './pages/collections.js';
 import { renderAI } from './pages/ai.js';
-import { renderSettlement } from './pages/settlement.js';
+// renderSettlement migrated to React (Phase C3) — see ./pages/settlement/mount.ts.
 // renderFriends migrated to React (Phase C3) — see ./pages/friends/mount.ts.
 import { renderFeed } from './pages/feed.js';
 // renderTodo migrated to React (Phase C3) — see ./pages/todo/mount.ts.
@@ -74,7 +80,9 @@ export function navigate(
 
     switch (page) {
         case PAGES.HOME: pageEl = renderHome(); break;
-        case PAGES.EXPENSES: pageEl = renderExpenses(); break;
+        // Phase C3: Expenses migrated to React (thin wrapper hosts the
+        // imperative renderExpenses output until full JSX conversion).
+        case PAGES.EXPENSES: mountExpenses(content); break;
         // /upload was merged into /expenses (Batch tab). Recurse to expenses
         // so the URL hash + nav-item highlight reflect the canonical route
         // — old bookmarks to #upload still land on the right tab.
@@ -91,7 +99,8 @@ export function navigate(
         case PAGES.BUDGETS: mountBudgets(content); break;
         case PAGES.COLLECTIONS: pageEl = renderCollections(); break;
         case PAGES.AI: pageEl = renderAI(); break;
-        case PAGES.SETTLEMENT: pageEl = renderSettlement(); break;
+        // Phase C3: Settlement migrated to React.
+        case PAGES.SETTLEMENT: mountSettlement(content); break;
         // Phase C3: Friends migrated to React.
         case PAGES.FRIENDS: mountFriends(content); break;
         case PAGES.FEED: pageEl = renderFeed(); break;
