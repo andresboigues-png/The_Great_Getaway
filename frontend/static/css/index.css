@@ -5560,16 +5560,22 @@ body.is-signed-out #sidebarOverlay {
    on mobile, search in the sidebar on desktop, etc.). Marker
    classes hide each item at the wrong viewport.
 
-   - .sidebar-item--mobile-only  → shown ≤720px, hidden >720px
-   - .sidebar-item--desktop-only → shown >720px, hidden ≤720px
-   - .navbar-icon-mobile-only    → shown ≤720px, hidden >720px
-   - .nav-trips--desktop-only    → shown >720px, hidden ≤720px
+   - .sidebar-item--mobile-only   → shown ≤720px, hidden >720px
+   - .sidebar-item--desktop-only  → shown >720px, hidden ≤720px
+   - .navbar-icon-mobile-only     → shown ≤720px, hidden >720px
+   - .nav-trips--desktop-only     → shown >720px, hidden ≤720px
+   - .notif-feed--mobile-only     → shown ≤720px, hidden >720px
+                                    (notifications + feed icons live in
+                                    the top-banner on mobile and inside
+                                    .nav-links on desktop — this hides
+                                    the mobile copy at desktop sizes)
 
    Two parallel name patterns (sidebar-item-… vs navbar-icon-…) so
    the visual distinction at the call site is obvious. */
 @media (min-width: 721px) {
     .sidebar-item--mobile-only,
-    .navbar-icon-mobile-only {
+    .navbar-icon-mobile-only,
+    .notif-feed--mobile-only {
         display: none !important;
     }
 }
@@ -5578,6 +5584,115 @@ body.is-signed-out #sidebarOverlay {
     .nav-trips--desktop-only {
         display: none !important;
     }
+}
+
+/* Desktop notification + feed icons — duplicates of the top-banner
+   originals, mounted inside .nav-links so they bookend the page-link
+   row (bell at start, feed at end). .nav-links itself is `display:none`
+   at ≤720px so these are auto-hidden on mobile; no extra rule needed.
+
+   The bell's button + dropdown live inside a single `.notif-desktop-wrap`
+   so the dropdown's `position:absolute` anchors to the button. The
+   dropdown styling mirrors the top-banner copy (dark liquid glass,
+   Apple notification-centre feel) — see #notificationDropdown rules
+   for the canonical look. */
+.notif-desktop-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+.notif-desktop-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: background 0.2s;
+    color: inherit;
+    text-decoration: none;
+    -webkit-tap-highlight-color: transparent;
+    position: relative;
+}
+.notif-desktop-btn:hover {
+    background: rgba(0, 113, 227, 0.08);
+}
+.notif-desktop-btn:focus-visible {
+    outline: 2px solid var(--accent-blue);
+    outline-offset: 2px;
+}
+.notif-desktop-badge {
+    position: absolute;
+    top: 0;
+    right: 0;
+    min-width: 18px;
+    height: 18px;
+    background: #ff3b30;
+    border-radius: 10px;
+    border: 2px solid #ffffff;
+    display: none;
+    color: white;
+    font-size: 10px;
+    font-weight: 800;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
+    box-sizing: border-box;
+    line-height: 1;
+}
+.notif-desktop-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: 340px;
+    max-height: 420px;
+    overflow-y: auto;
+    border-radius: 18px;
+    background: rgba(18, 22, 30, 0.96);
+    backdrop-filter: saturate(180%) blur(24px);
+    -webkit-backdrop-filter: saturate(180%) blur(24px);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+    margin-top: 12px;
+    display: none;
+    z-index: 1000;
+    flex-direction: column;
+    box-sizing: border-box;
+    color: #ffffff;
+}
+.notif-desktop-dropdown__header {
+    padding: 14px 18px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: sticky;
+    top: 0;
+    background: rgba(255, 255, 255, 0.04);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    z-index: 2;
+    box-sizing: border-box;
+}
+.notif-desktop-dropdown__header h3 {
+    margin: 0;
+    font-size: 1rem;
+    color: #ffffff;
+    font-weight: 700;
+}
+.notif-desktop-mark-all {
+    background: transparent;
+    border: none;
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+.notif-desktop-list {
+    display: flex;
+    flex-direction: column;
 }
 
 /* Sidebar dividers — hairline rules between sections. Marker class

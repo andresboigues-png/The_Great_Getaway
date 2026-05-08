@@ -243,12 +243,14 @@
                 <span></span><span></span><span></span>
             </button>
             <div class="nav-brand">The Great Getaway</div>
-            <!-- Notification Bell — leftmost icon (rule for both viewports
-                 now). Per-user request: on mobile, bell sits to the left of
-                 search (the swap from the previous order); on desktop the
-                 search icon is hidden entirely (it's in the sidebar
-                 instead) so bell-first is the natural reading order. -->
-            <div style="position: relative; margin-left: 8px;">
+            <!-- Notification Bell — mobile only. Per-user request, on
+                 desktop the bell moved INTO `.nav-links` (sits just left
+                 of "Home"); the duplicate lives below inside that block.
+                 On mobile, `.nav-links` is `display:none` so this top-
+                 banner copy is the user-facing one. The CSS
+                 `.notif-feed--mobile-only` modifier hides this copy at
+                 ≥721px so the two bells never both render. -->
+            <div class="notif-feed--mobile-only" style="position: relative; margin-left: 8px;">
                 <button id="notificationBellBtn" aria-label="Notifications" style="background: transparent; border: none; cursor: pointer; position: relative; padding: 11px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: background 0.2s; -webkit-tap-highlight-color: transparent;">
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
@@ -281,9 +283,12 @@
                     <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                 </svg>
             </a>
-            <!-- Feed icon — kept on both viewports. Friend activity
-                 stays adjacent to notifications regardless of viewport. -->
-            <a href="#" data-page="feed" id="navFeedBtn" aria-label="Feed" title="Feed — what your friends are up to"
+            <!-- Feed icon — mobile only (matches the bell rule
+                 above). On desktop the duplicate sits to the right of
+                 "Insights" inside `.nav-links`. Click delegation in
+                 main.ts is `[data-page]`-based, so the duplicate
+                 picks up navigation without explicit wiring. -->
+            <a href="#" data-page="feed" id="navFeedBtn" class="notif-feed--mobile-only" aria-label="Feed" title="Feed — what your friends are up to"
                 style="background: transparent; border: none; cursor: pointer; padding: 11px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: background 0.2s; margin-left: 8px; text-decoration: none; color: inherit; -webkit-tap-highlight-color: transparent;">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M4 11a9 9 0 0 1 9 9"></path>
@@ -316,11 +321,48 @@
              The static fallback inside the <a> is the English copy
              (so the link is never blank if i18n is mid-init). -->
         <div class="nav-links">
+            <!-- Desktop notification bell — flanks the page-link row.
+                 Per-user request the bell sits just LEFT of "Home" so it
+                 reads as the first item in the nav strip. The mobile
+                 copy lives in the top-banner left block and is hidden
+                 here at ≥721px via .notif-feed--mobile-only. The two
+                 bells share state via main.ts's dual-instance pattern
+                 (both badges + lists update on every state change). -->
+            <div class="notif-desktop-wrap">
+                <button id="notificationBellBtnDesktop" aria-label="Notifications" class="notif-desktop-btn">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                        <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                    </svg>
+                    <span id="notificationBadgeDesktop" class="notif-desktop-badge"></span>
+                </button>
+                <div id="notificationDropdownDesktop" class="notif-desktop-dropdown">
+                    <div class="notif-desktop-dropdown__header">
+                        <h3>Notifications</h3>
+                        <button id="markAllReadBtnDesktop" class="notif-desktop-mark-all">Mark all read</button>
+                    </div>
+                    <div id="notificationListDesktop" class="notif-desktop-list">
+                        <div class="notification-empty">No new notifications</div>
+                    </div>
+                </div>
+            </div>
             <a href="#" class="nav-item active" data-page="home" data-i18n-key="nav.home">Home</a>
             <a href="#" class="nav-item" data-page="todo" data-i18n-key="nav.todo">To do list</a>
             <a href="#" class="nav-item" data-page="ai" data-i18n-key="nav.ai">Plan with AI ✦</a>
             <a href="#" class="nav-item" data-page="expenses" data-i18n-key="nav.expenses">Expenses</a>
             <a href="#" class="nav-item" data-page="insights" data-i18n-key="nav.insights">Insights</a>
+            <!-- Desktop feed icon — sits just RIGHT of "Insights"
+                 (per-user request, bookends the page-link row with
+                 the bell on the other side). The data-page="feed"
+                 attribute hooks into main.ts's generic [data-page]
+                 click delegation, so no explicit JS wiring needed. -->
+            <a href="#" data-page="feed" id="navFeedBtnDesktop" class="notif-desktop-btn notif-desktop-btn--feed" aria-label="Feed" title="Feed — what your friends are up to">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4 11a9 9 0 0 1 9 9"></path>
+                    <path d="M4 4a16 16 0 0 1 16 16"></path>
+                    <circle cx="5" cy="19" r="1"></circle>
+                </svg>
+            </a>
         </div>
         <!-- Trip controls — desktop only. On mobile these move into the
              top of the burger drawer (#newTripBtnSidebar etc.). -->

@@ -25,11 +25,20 @@ import { openNewTripModal, openTripInviteResponseModal } from './modals.js';
 // ── UI HELPERS ──
 
 export function updateNotificationUI() {
-    const badge = document.getElementById('notificationBadge');
+    // Two badges live in the DOM: #notificationBadge in the mobile
+    // top-banner bell, #notificationBadgeDesktop on the bell now sitting
+    // inside .nav-links (just left of "Home"). Only one is visible at a
+    // time — CSS media query hides the other — but both stay in sync so
+    // a viewport resize doesn't lose unread state. Same dual-instance
+    // pattern as the trip selector / complete + delete buttons.
     const unread = (STATE.notifications || []).filter(n => !n.is_read).length;
-    if (badge) {
-        badge.style.display = unread > 0 ? 'flex' : 'none';
-        badge.textContent = unread > 9 ? '9+' : String(unread);
+    const display = unread > 0 ? 'flex' : 'none';
+    const text = unread > 9 ? '9+' : String(unread);
+    for (const id of ['notificationBadge', 'notificationBadgeDesktop']) {
+        const badge = document.getElementById(id);
+        if (!badge) continue;
+        badge.style.display = display;
+        badge.textContent = text;
     }
 }
 
@@ -74,19 +83,28 @@ function notificationDefaultTitle(type: string) {
 }
 
 function renderNotificationDropdown() {
-    const list = document.getElementById('notificationList');
-    if (!list) return;
+    // Two list containers — mobile copy (#notificationList) + desktop
+    // copy (#notificationListDesktop). Both render the same content from
+    // STATE.notifications so opening either dropdown shows up-to-date
+    // rows regardless of which bell was clicked.
+    const lists = [
+        document.getElementById('notificationList'),
+        document.getElementById('notificationListDesktop'),
+    ].filter((el): el is HTMLElement => el !== null);
+    if (lists.length === 0) return;
 
     const notes = STATE.notifications || [];
     if (notes.length === 0) {
-        list.innerHTML = '<div class="notification-empty">No new notifications</div>';
+        for (const list of lists) {
+            list.innerHTML = '<div class="notification-empty">No new notifications</div>';
+        }
         return;
     }
 
     // Escape title + message — both are server-composed but include
     // user-controlled strings (trip names, user.name from OAuth, companion
     // names) that could carry markup if a malicious user supplied them.
-    list.innerHTML = notes.map((n, i) => `
+    const html = notes.map((n, i) => `
         <div class="notification-item ${n.is_read ? '' : 'unread'}" data-notification-index="${i}" role="button" tabindex="0">
             <div class="notification-item__title" style="--accent: ${notificationAccent(n.type)};">
                 <span class="notification-item__dot"></span>
@@ -96,14 +114,20 @@ function renderNotificationDropdown() {
             <div class="notification-item__time">${new Date(n.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
         </div>
     `).join('');
+    for (const list of lists) list.innerHTML = html;
 }
 
 /** Route a clicked notification to the page that lets the user act on it.
  *  `related_id` is a user_id for friend_* / trip_public / trip_member_removed
  *  and a trip_id for trip_invite_*; for everything else we fall back to home. */
 function handleNotificationClick(notification: { type?: string; related_id?: string | number; message?: string; title?: string; id?: string | number }) {
-    const dropdown = document.getElementById('notificationDropdown');
-    if (dropdown) dropdown.style.display = 'none';
+    // Close BOTH dropdowns — the user might have clicked from either
+    // bell, but the navigation moves them away from the navbar so
+    // either lingering open dropdown would be visually stale.
+    for (const id of ['notificationDropdown', 'notificationDropdownDesktop']) {
+        const dropdown = document.getElementById(id);
+        if (dropdown) dropdown.style.display = 'none';
+    }
 
     const relatedUserId = notification.related_id ? String(notification.related_id) : null;
 
@@ -464,20 +488,46 @@ async function init() {
         brand.onclick = () => navigate(PAGES.HOME);
     }
 
-    const bellBtn = document.getElementById('notificationBellBtn');
-    const noteDropdown = document.getElementById('notificationDropdown');
+    // Two bells, two dropdowns — mobile copy in the top-banner left
+    // block, desktop copy inside .nav-links bracketing "Home" on the
+    // left. Each bell toggles ITS OWN dropdown (the dropdown is
+    // position-anchored to its bell via CSS) but they share render +
+    // mark-as-read state, so opening either reflects the latest
+    // notifications and clears the unread badge for both.
+    const bellPairs: Array<{ btn: HTMLElement; dropdown: HTMLElement }> = [];
+    const _bellIdPairs = [
+        { btnId: 'notificationBellBtn', dropdownId: 'notificationDropdown' },
+        { btnId: 'notificationBellBtnDesktop', dropdownId: 'notificationDropdownDesktop' },
+    ];
+    for (const pair of _bellIdPairs) {
+        const btn = document.getElementById(pair.btnId);
+        const dropdown = document.getElementById(pair.dropdownId);
+        if (btn && dropdown) bellPairs.push({ btn, dropdown });
+    }
 
-    bellBtn?.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (noteDropdown) {
-            const isHidden = noteDropdown.style.display === 'none' || !noteDropdown.style.display;
-            noteDropdown.style.display = isHidden ? 'flex' : 'none';
+    /** Close every bell-dropdown other than the one passed in (or all
+     *  if none is passed). Used so opening one bell auto-closes the
+     *  other side's dropdown if that was somehow visible (e.g.,
+     *  resize mid-interaction). */
+    const closeOtherDropdowns = (keep: HTMLElement | null = null) => {
+        for (const pair of bellPairs) {
+            if (pair.dropdown !== keep) pair.dropdown.style.display = 'none';
+        }
+    };
+
+    for (const { btn, dropdown } of bellPairs) {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isHidden = dropdown.style.display === 'none' || !dropdown.style.display;
+            // Always close the OTHER dropdown when toggling one.
+            closeOtherDropdowns(isHidden ? dropdown : null);
+            dropdown.style.display = isHidden ? 'flex' : 'none';
             if (isHidden) {
                 renderNotificationDropdown();
                 markNotificationsRead(); // Mark all as read when opening the list
             }
-        }
-    });
+        });
+    }
 
     // Mobile compass — toggles the trip-controls popover. Mirrors the
     // bell-dropdown pattern. The popover is mobile-only (CSS hides it
@@ -492,11 +542,9 @@ async function init() {
         tripControlsPopover.style.display = isHidden ? 'block' : 'none';
         tripControlsBtn.setAttribute('aria-expanded', isHidden ? 'true' : 'false');
         if (isHidden) {
-            // Close the notification dropdown if it was open — only one
-            // navbar popover can be visible at a time.
-            if (noteDropdown && noteDropdown.style.display === 'flex') {
-                noteDropdown.style.display = 'none';
-            }
+            // Close any open notification dropdown — only one navbar
+            // popover can be visible at a time. Both copies handled.
+            closeOtherDropdowns();
         }
     });
     // Click outside the popover closes it. The document-level click
@@ -510,6 +558,17 @@ async function init() {
     // future deploy that strips one set won't crash this boot.
     document.getElementById('newTripBtn')?.addEventListener('click', () => openNewTripModal());
     document.getElementById('newTripBtnSidebar')?.addEventListener('click', () => openNewTripModal());
+
+    // Mark-all-read — present in BOTH dropdown copies so either bell's
+    // dropdown can dismiss the unread state in one tap. Pulls every
+    // notification from STATE down through markNotificationsRead's
+    // POST + emit cycle, which re-syncs both badges + lists.
+    for (const id of ['markAllReadBtn', 'markAllReadBtnDesktop']) {
+        document.getElementById(id)?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            markNotificationsRead();
+        });
+    }
 
     document.getElementById('sidebarLogoutBtn')?.addEventListener('click', () => logout());
     document.getElementById('completeTripBtn')?.addEventListener('click', archiveActiveTrip);
@@ -531,9 +590,19 @@ async function init() {
             return;
         }
 
-        // Close notification dropdown if clicking outside
-        if (noteDropdown && noteDropdown.style.display === 'flex' && !noteDropdown.contains(target) && target !== bellBtn) {
-            noteDropdown.style.display = 'none';
+        // Close any open notification dropdown if clicking outside.
+        // Both copies handled — outside means "outside this dropdown
+        // AND not on this dropdown's bell". A click on the OTHER bell
+        // is treated as outside (it'll open its own dropdown via the
+        // click handler, and closeOtherDropdowns there closes this
+        // one — but we keep this safety net for racing edge cases).
+        for (const pair of bellPairs) {
+            if (pair.dropdown.style.display === 'flex'
+                && !pair.dropdown.contains(target)
+                && target !== pair.btn
+                && !pair.btn.contains(target as Node)) {
+                pair.dropdown.style.display = 'none';
+            }
         }
         // Same outside-click close for the trip-controls popover.
         // Click-target-on-the-popover-itself or on its trigger button
