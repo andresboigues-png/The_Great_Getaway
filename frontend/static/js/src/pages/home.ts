@@ -1385,7 +1385,7 @@ export function renderHome() {
                     const url = streetViewUrl({ lat, lng }, { width: 280, height: 160, fov: 90 });
                     const isStartingPoint = day.dayNumber === 0;
                     const headerLabel = isStartingPoint
-                        ? '⭐ Trip Anchor'
+                        ? '⚓ Trip Anchor'
                         : `Day ${day.dayNumber}`;
                     const dayNameHtml = day.name && !isStartingPoint
                         ? `<div style="font-size:0.78rem; color:rgba(0,45,91,0.6); margin-top:2px;">${esc(day.name)}</div>`
@@ -2126,7 +2126,7 @@ export function renderHome() {
                     ? 'Trip Anchor — your trip\'s anchor'
                     : `${isToday ? 'Today · ' : ''}Day ${d.dayNumber}${d.name ? ' — ' + d.name : ''}${d.date ? ' · ' + (formatDayDate(d.date) || d.date) : ''}`;
                 const inner = isGen
-                    ? `<svg width="14" height="14" viewBox="0 0 48 48" aria-hidden="true"><path d="M 24,11 L 27.06,18.96 L 35.55,19.49 L 28.92,24.92 L 31.0,33.16 L 24,28.6 L 17,33.16 L 19.08,24.92 L 12.45,19.49 L 20.94,18.96 Z" fill="currentColor"/></svg>`
+                    ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="5" r="3"></circle><line x1="12" y1="22" x2="12" y2="8"></line><path d="M5 12H2a10 10 0 0 0 20 0h-3"></path></svg>`
                     : String(d.dayNumber);
                 return `<button type="button" class="${cls}" data-path-chip-day-id="${esc(d.id)}" title="${esc(tooltip)}" aria-label="${esc(tooltip)}" aria-pressed="${isSel}">${inner}</button>`;
             }).join('');

@@ -198,7 +198,7 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
                         onmouseout="this.style.transform='';this.style.boxShadow='0 10px 30px rgba(0,0,0,0.06)';">
                         <!-- Top: badge -->
                         <div style="display:flex; align-items:center; gap:8px;">
-                            <span style="background: ${isStartingPoint ? 'rgba(52,199,89,0.95)' : 'rgba(0,113,227,0.95)'}; color:white; padding: 4px 12px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.1em;">${isStartingPoint ? '⭐ Anchor' : `Day ${day.dayNumber}`}</span>
+                            <span style="background: ${isStartingPoint ? 'rgba(52,199,89,0.95)' : 'rgba(0,113,227,0.95)'}; color:white; padding: 4px 12px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.1em;">${isStartingPoint ? '⚓ Anchor' : `Day ${day.dayNumber}`}</span>
                         </div>
                         <!-- Bottom: name + count chips -->
                         <div>
@@ -229,7 +229,7 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
             // any legacy day-level entries (day.tickets, day.photos)
             // so old archived trips don't lose their data.
             // Anchor (Day 0) is the trip-wide bucket post-pivot —
-            // each chip explicitly says "⭐ Anchor" so users know
+            // each chip explicitly says "⚓ Anchor" so users know
             // where their trip-wide stuff lives. Numbered days get
             // a blue "Day N" chip. Orphans (legacy null-dayId
             // entries that didn't migrate because the trip lacked
@@ -238,7 +238,7 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
                 if (!id) return null;
                 const d = tripDays.find((x: any) => x.id === id);
                 if (!d) return null;
-                return Number(d.dayNumber) === 0 ? '⭐ Anchor' : `Day ${d.dayNumber}`;
+                return Number(d.dayNumber) === 0 ? '⚓ Anchor' : `Day ${d.dayNumber}`;
             };
             const isAnchorId = (id: string | null | undefined) => {
                 if (!id) return false;
@@ -247,7 +247,7 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
             };
             const dayChip = (id: string | null | undefined) => {
                 if (isAnchorId(id)) {
-                    return `<span style="background:rgba(52,199,89,0.12); color:#1a6b3c; padding:2px 10px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">⭐ Anchor</span>`;
+                    return `<span style="background:rgba(52,199,89,0.12); color:#1a6b3c; padding:2px 10px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">⚓ Anchor</span>`;
                 }
                 const lbl = dayLabel(id);
                 return lbl

@@ -170,10 +170,10 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
     const isAnchor = Number(day.dayNumber) === 0;
 
     // Header label varies — numbered days show "Day N", Anchor
-    // shows a gold "⭐ Trip Anchor" chip to match the Path tab
+    // shows a gold "⚓ Trip Anchor" chip to match the Path tab
     // styling.
     const headerChipHtml = isAnchor
-        ? `<div style="background: var(--gradient-anchor-deep); color: white; padding: var(--space-1) var(--space-3); border-radius: var(--radius-sm); font-weight: 800; font-size: var(--font-xs); text-transform: uppercase; letter-spacing: 0.06em;">⭐ Trip Anchor</div>`
+        ? `<div style="background: var(--gradient-anchor-deep); color: white; padding: var(--space-1) var(--space-3); border-radius: var(--radius-sm); font-weight: 800; font-size: var(--font-xs); text-transform: uppercase; letter-spacing: 0.06em;">⚓ Trip Anchor</div>`
         : `<div style="background: var(--accent-blue); color: white; padding: var(--space-1) var(--space-3); border-radius: var(--radius-sm); font-weight: 800; font-size: var(--font-xs); text-transform: uppercase;">Day ${day.dayNumber}</div>`;
     const headerSubtitle = isAnchor
         ? (trip?.country ? esc(shortPlaceName(trip.country)) : 'Where the trip begins')

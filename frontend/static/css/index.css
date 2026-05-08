@@ -4956,13 +4956,13 @@ h1 {
 }
 
 /* App-wide login wall — single signed-out surface rendered by the router
-   for every route while STATE.user is null. The chrome hiding rules
-   below kill the nav links, trip selector, notification bell, and
-   sidebar trigger so the only interactive surface is the wall itself. */
-body.is-signed-out .nav-links,
-body.is-signed-out .nav-trips,
-body.is-signed-out #notificationBellBtn,
-body.is-signed-out #sidebar-trigger,
+   for every route while STATE.user is null. Per-user request: the entire
+   top banner should be EMPTY pre-login (not just the page links + trip
+   selector). Hide the whole .navbar so the only interactive surface is
+   the login wall itself. Same treatment for the mobile bottom-tab nav
+   and the sidebar drawer (both meaningless without an account). */
+body.is-signed-out .navbar,
+body.is-signed-out .mobile-bottom-nav,
 body.is-signed-out #sidebar,
 body.is-signed-out #sidebarOverlay {
     display: none !important;
