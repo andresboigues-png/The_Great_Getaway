@@ -190,7 +190,7 @@ const ACTIONS_EVENT_TYPES = new Set([
  *  avatar with no click affordance. */
 function avatar(user, size = 44) {
     const initial = (user?.name || '?').charAt(0).toUpperCase();
-    const fallback = `<div style="width:${size}px; height:${size}px; border-radius:50%; background: linear-gradient(135deg, #007aff, #5856d6); color:white; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:${Math.round(size * 0.4)}px; flex-shrink:0; box-shadow: 0 2px 8px rgba(0,113,227,0.18);">${esc(initial)}</div>`;
+    const fallback = `<div style="width:${size}px; height:${size}px; border-radius:50%; background: var(--gradient-day); color:white; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:${Math.round(size * 0.4)}px; flex-shrink:0; box-shadow: 0 2px 8px rgba(0,113,227,0.18);">${esc(initial)}</div>`;
     const inner = user?.picture
         ? `<img src="${esc(user.picture)}" alt="" referrerpolicy="no-referrer"
             onerror="this.outerHTML=this.dataset.fallback;"

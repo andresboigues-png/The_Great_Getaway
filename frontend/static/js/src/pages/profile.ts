@@ -127,7 +127,7 @@ function openFriendsListModal(friends) {
         const initial = (f.name || f.email || '?').charAt(0).toUpperCase();
         const avatar = f.picture
             ? `<img src="${esc(f.picture)}" alt="" referrerpolicy="no-referrer" style="width:40px; height:40px; border-radius:50%; object-fit:cover; flex-shrink:0;">`
-            : `<div style="width:40px; height:40px; border-radius:50%; background: linear-gradient(135deg,#007aff,#5856d6); color:white; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:1rem; flex-shrink:0;">${esc(initial)}</div>`;
+            : `<div style="width:40px; height:40px; border-radius:50%; background: var(--gradient-day); color:white; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:1rem; flex-shrink:0;">${esc(initial)}</div>`;
         return `
             <button type="button" class="profile-friend-row" data-user-id="${esc(f.id)}"
                 style="display:flex; align-items:center; gap:12px; padding:10px 12px; background:transparent; border:0; border-radius:12px; cursor:pointer; width:100%; text-align:left; transition: background 0.15s;"

@@ -26,7 +26,7 @@ let cachedPending: FriendRow[] = [];
  *  the URL is broken or rate-limited. */
 function avatar(user, size = 44) {
     const initial = (user.name || user.email || '?').charAt(0).toUpperCase();
-    const fallback = `<div style="width:${size}px; height:${size}px; border-radius:50%; background: linear-gradient(135deg, #007aff, #5856d6); color:white; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:${Math.round(size * 0.4)}px; flex-shrink:0; box-shadow: 0 2px 8px rgba(0,113,227,0.18);">${esc(initial)}</div>`;
+    const fallback = `<div style="width:${size}px; height:${size}px; border-radius:50%; background: var(--gradient-day); color:white; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:${Math.round(size * 0.4)}px; flex-shrink:0; box-shadow: 0 2px 8px rgba(0,113,227,0.18);">${esc(initial)}</div>`;
     if (user.picture) {
         return `<img src="${esc(user.picture)}" alt="" referrerpolicy="no-referrer"
             onerror="this.outerHTML=this.dataset.fallback;"
@@ -53,12 +53,12 @@ function userCard(user: FriendRow, opts: UserCardOpts = {}) {
         : variant === 'search'  ? '1px solid rgba(0,113,227,0.16)'
         : '1px solid rgba(0,0,0,0.06)';
     const hover = clickable
-        ? `onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 12px 28px rgba(0,45,91,0.12)';" onmouseout="this.style.transform=''; this.style.boxShadow='0 2px 8px rgba(0,45,91,0.05)';"`
+        ? `onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 12px 28px rgba(0,45,91,0.12)';" onmouseout="this.style.transform=''; this.style.boxShadow='var(--shadow-card)';"`
         : '';
     const a11y = clickable ? 'role="button" tabindex="0"' : '';
     return `
         <div class="${rowClass}" data-user-id="${esc(user.id)}" ${a11y}
-            style="display:flex; align-items:center; gap:14px; padding: 12px 16px; background: ${bg}; border:${border}; border-radius: 16px; box-shadow: 0 2px 8px rgba(0,45,91,0.05); ${clickable ? 'cursor:pointer; transition: transform 0.25s, box-shadow 0.25s;' : ''}" ${hover}>
+            style="display:flex; align-items:center; gap:14px; padding: 12px 16px; background: ${bg}; border:${border}; border-radius: 16px; box-shadow: var(--shadow-card); ${clickable ? 'cursor:pointer; transition: transform 0.25s, box-shadow 0.25s;' : ''}" ${hover}>
             ${avatar(user)}
             <div style="flex:1; min-width:0;">
                 <div style="font-weight:800; color:#002d5b; font-size:0.95rem; line-height:1.2; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(user.name || 'Friend')}</div>

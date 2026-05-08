@@ -52,8 +52,8 @@ export function friendRow(opts) {
         <div class="${cls}" data-user-id="${esc(user.id)}"${a11y}>
             <div style="display: flex; align-items: center; gap: var(--space-3);">
                 <img src="${esc(user.picture || '')}" alt="" referrerpolicy="no-referrer"
-                    onerror="this.style.background='linear-gradient(135deg,#007aff,#5856d6)'; this.removeAttribute('src');"
-                    style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover; background: linear-gradient(135deg,#007aff,#5856d6);">
+                    onerror="this.style.background='var(--gradient-day)'; this.removeAttribute('src');"
+                    style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover; background: var(--gradient-day);">
                 <div>
                     <div style="font-weight: 600; font-size: var(--font-base);">${esc(user.name)}</div>
                     <div style="font-size: var(--font-xs); color: var(--text-secondary);">${esc(user.email)}</div>
