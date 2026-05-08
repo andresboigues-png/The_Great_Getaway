@@ -86,7 +86,12 @@ export const TRAVEL_DATA_DEFAULT = {
     f: 'Traveling is the best way to learn about the world.'
 };
 
-export const CONVERSION_RATES = {
+// Indexed by ISO 4217 currency code. Typed as `Record<string,
+// number>` (not an inline object literal) so dynamic lookups
+// like `CONVERSION_RATES[someCode]` typecheck without callers
+// having to cast — the runtime fallback (`|| 1`) handles
+// unknown codes.
+export const CONVERSION_RATES: Record<string, number> = {
     'EUR': 1,
     'USD': 0.92,
     'GBP': 1.17,
@@ -103,29 +108,36 @@ export const CONVERSION_RATES = {
     'NZD': 0.56,
     'HKD': 0.12,
     'KRW': 0.00069,
-    'ZAR': 0.049
+    'ZAR': 0.049,
 };
 
-// Display symbols paired with the codes in CONVERSION_RATES. Falls back to
-// the code itself ("CHF 12.50") when no symbol is meaningful.
-export const CURRENCY_SYMBOLS = {
+// Display symbols paired with the codes in CONVERSION_RATES.
+// Falls back to the code itself ("CHF 12.50") when no symbol
+// is meaningful. `Record<string, string>` so dynamic lookups
+// typecheck under noImplicitAny.
+export const CURRENCY_SYMBOLS: Record<string, string> = {
     'EUR': '€', 'USD': '$', 'GBP': '£', 'JPY': '¥', 'CHF': 'CHF',
     'CAD': 'C$', 'AUD': 'A$', 'CNY': '¥', 'BRL': 'R$', 'MXN': 'MX$',
     'INR': '₹', 'IDR': 'Rp', 'SGD': 'S$', 'NZD': 'NZ$', 'HKD': 'HK$',
     'KRW': '₩', 'ZAR': 'R',
 };
 
-// Map browser locale region (e.g. "en-US" → "US") to a default home currency.
-// Used only for first-time setup when the user hasn't picked one yet. Regions
-// not listed default to EUR (Eurozone is broad, and unknown is the safest
-// "neutral" choice for everyone else).
-export const LOCALE_TO_CURRENCY = {
+// Map browser locale region (e.g. "en-US" → "US") to a default
+// home currency. Used only for first-time setup when the user
+// hasn't picked one yet. Regions not listed default to EUR
+// (Eurozone is broad, and unknown is the safest "neutral"
+// choice for everyone else).
+export const LOCALE_TO_CURRENCY: Record<string, string> = {
     US: 'USD', GB: 'GBP', AU: 'AUD', CA: 'CAD', NZ: 'NZD',
     JP: 'JPY', CH: 'CHF', BR: 'BRL', MX: 'MXN', IN: 'INR',
     ID: 'IDR', SG: 'SGD', HK: 'HKD', KR: 'KRW', ZA: 'ZAR', CN: 'CNY',
 };
 
-export const DESTINATION_DATA = {
+// Country / state name → presentation media (cover image,
+// quote, fact). Indexed by display name; alias lookup happens
+// via _destLookup in utils.ts. Typed as `Record<string,
+// {i,q,f}>` so dynamic lookups are valid.
+export const DESTINATION_DATA: Record<string, { i: string; q: string; f: string }> = {
     "Afghanistan": { i: "1589192144353-8e7c107077a1", q: "Central Asia's crossroads.", f: "Did you know that Afghanistan has a population of about 37 million people? Its capital city is Kabul." },
     "Alabama": { i: "1469474968028-56623f02e42e", q: "Sweet Home Alabama.", f: "Did you know that the Alabama State has a population of about 5 million people? Its biggest city is Huntsville." },
     "Alaska": { i: "1472214103451-9374bd1c798e", q: "The Last Frontier.", f: "Did you know that the Alaska State has a population of about 733 thousand people? Its biggest city is Anchorage." },

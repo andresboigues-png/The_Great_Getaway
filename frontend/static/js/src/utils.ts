@@ -49,7 +49,7 @@ export function getHomeCurrency() {
  * @param {string} to
  * @returns {number}
  */
-export function convertCurrency(amount, from, to) {
+export function convertCurrency(amount: number, from: string, to: string): number {
     if (from === to) return amount;
     const fromRate = CONVERSION_RATES[from] || 1;  // 1 unit of `from` = X EUR
     const toRate = CONVERSION_RATES[to] || 1;       // 1 unit of `to`   = Y EUR
@@ -63,7 +63,7 @@ export function convertCurrency(amount, from, to) {
  * @param {string} from — original currency code of `amount`
  * @returns {string}
  */
-export function formatHome(amount, from = 'EUR') {
+export function formatHome(amount: number, from: string = 'EUR'): string {
     const home = getHomeCurrency();
     const converted = convertCurrency(amount, from, home);
     const sym = CURRENCY_SYMBOLS[home] || home + ' ';
@@ -71,7 +71,7 @@ export function formatHome(amount, from = 'EUR') {
 }
 
 /** Symbol lookup for any code (€, $, £, …). Falls back to the code + space. */
-export function currencySymbol(code) {
+export function currencySymbol(code: string): string {
     return CURRENCY_SYMBOLS[code] || (code + ' ');
 }
 
@@ -135,7 +135,7 @@ const _isoToEnglish = (() => {
  * @param {string | null | undefined} countryCode
  * @returns {{ q: string, i: string, f: string } | null}
  */
-function resolveByCountryCode(countryCode) {
+function resolveByCountryCode(countryCode: string | null | undefined) {
     if (!countryCode || !_isoToEnglish) return null;
     let englishName;
     try {
@@ -170,7 +170,7 @@ function resolveByCountryCode(countryCode) {
  * @param {string | null | undefined} name
  * @returns {string}
  */
-export function cleanPlaceName(name) {
+export function cleanPlaceName(name: string | null | undefined): string {
     if (!name) return '';
     return String(name).replace(/^\d{3,6}[\s,-]+/, '').replace(/\s+/g, ' ').trim();
 }
@@ -195,7 +195,7 @@ export function cleanPlaceName(name) {
  * @param {string | null | undefined} name
  * @returns {string}
  */
-export function shortPlaceName(name) {
+export function shortPlaceName(name: string | null | undefined): string {
     const cleaned = cleanPlaceName(name);
     if (!cleaned) return '';
     if (cleaned.includes(' - ')) {
@@ -207,7 +207,7 @@ export function shortPlaceName(name) {
     return firstChunk || cleaned;
 }
 
-function resolveDestinationData(countryStr) {
+function resolveDestinationData(countryStr: string | null | undefined) {
     if (!countryStr) return null;
 
     // Legacy two-part format from the old dropdown.
@@ -218,7 +218,7 @@ function resolveDestinationData(countryStr) {
     }
 
     // Walk comma parts left-to-right (most specific → least specific).
-    const parts = countryStr.split(',').map(p => p.trim()).filter(Boolean);
+    const parts = countryStr.split(',').map((p: string) => p.trim()).filter(Boolean);
     for (const part of parts) {
         const key = _destLookup[part.toLowerCase()];
         if (key) return DESTINATION_DATA[key];
@@ -290,7 +290,7 @@ export function getMediaForTrip(
     };
 }
 
-export function showLiquidAlert(msg) {
+export function showLiquidAlert(msg: string): void {
     const alert = document.createElement('div');
     alert.className = 'liquid-alert';
     alert.innerHTML = `<span>⚠️ ${msg}</span>`;
@@ -404,7 +404,7 @@ export function q(parent: ParentNode, selector: string): HTMLElement {
  *
  *  @param {unknown} v
  *  @returns {string} */
-export function esc(v) {
+export function esc(v: unknown): string {
     if (v === null || v === undefined) return '';
     return String(v)
         .replace(/&/g, '&amp;')
@@ -433,7 +433,7 @@ const _MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
  * @param {string} dateStr  YYYY-MM-DD
  * @returns {string}
  */
-export function formatDayDate(dateStr) {
+export function formatDayDate(dateStr: string | null | undefined): string {
     if (!dateStr) return '';
     const date = new Date(dateStr + 'T00:00:00Z');
     if (isNaN(date.getTime())) return '';

@@ -10,7 +10,7 @@ import { normalizeTripCompanions } from './companions.js';
 // single point that needs to change when the backend isn't co-located with
 // the frontend (e.g. the Capacitor mobile shell can't talk to localhost).
 // Exported so page-level files can use it for their direct fetches too.
-export const apiUrl = (path) => `${API_BASE_URL}${path}`;
+export const apiUrl = (path: string): string => `${API_BASE_URL}${path}`;
 
 // ── Auth token storage ──────────────────────────────────────────────────────
 // Phase G: server issues a JWT after Google verification; we store it in
@@ -21,7 +21,7 @@ export const apiUrl = (path) => `${API_BASE_URL}${path}`;
 const TOKEN_KEY = 'gg_auth_token';
 
 export const getAuthToken = () => localStorage.getItem(TOKEN_KEY);
-export const setAuthToken = (token) => {
+export const setAuthToken = (token: string | null | undefined): void => {
     if (token) localStorage.setItem(TOKEN_KEY, token);
 };
 export const clearAuthToken = () => localStorage.removeItem(TOKEN_KEY);
@@ -44,7 +44,7 @@ function _withAuth(options: RequestInit = {}): RequestInit {
  *     the stored token + STATE.user and triggers a re-render so the
  *     login wall comes back into view.
  *  Returns the raw Response so callers can branch on .ok / .status. */
-export async function apiFetch(path, options = {}) {
+export async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {
     const url = path.startsWith('http') ? path : apiUrl(path);
     const res = await fetch(url, _withAuth(options));
     if (res.status === 401 && getAuthToken()) {
@@ -110,7 +110,7 @@ export async function pullFromServer() {
         const myFirstName = me?.name?.split(' ')[0] || 'Me';
         for (const trip of allTrips) {
             if (!me || trip.ownerId !== me.id) continue;
-            const hasSelf = trip.companions.some(c => c.linkedUserId === me.id);
+            const hasSelf = trip.companions.some((c: { linkedUserId?: string }) => c.linkedUserId === me.id);
             if (!hasSelf) {
                 trip.companions.unshift({ name: myFirstName, linkedUserId: me.id });
             }
@@ -158,16 +158,16 @@ export async function pullFromServer() {
 // ── DELTA SYNC HELPERS ────────────────────────────────────────────────────────
 // These make targeted calls instead of sending the entire STATE each time.
 
-const _post = (url, body) => apiFetch(url, {
+const _post = (url: string, body: unknown) => apiFetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
+    body: JSON.stringify(body),
 }).catch(e => console.error(`POST ${url} failed:`, e));
 
-const _delete = (url, body) => apiFetch(url, {
+const _delete = (url: string, body: unknown) => apiFetch(url, {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
+    body: JSON.stringify(body),
 }).catch(e => console.error(`DELETE ${url} failed:`, e));
 
 /** Like `_post` but returns `{ ok, status, body }` so callers can branch
@@ -206,13 +206,13 @@ const _postJson = async (url: string, body: unknown): Promise<ApiJsonResult> => 
 // user_id in the body — the server ignores it anyway.
 
 /** Upsert a single trip to the server. */
-export function upsertTrip(trip) {
+export function upsertTrip(trip: any) {
     if (!STATE.user) return;
     return _post('/api/trips', { trip });
 }
 
 /** Permanently delete a trip and its expenses from the server. */
-export function deleteTrip(tripId) {
+export function deleteTrip(tripId: string) {
     if (!STATE.user) return;
     return _delete(`/api/trips/${tripId}`, {});
 }
@@ -221,7 +221,7 @@ export function deleteTrip(tripId) {
  *  flips the caller's `trip_members.is_archived`, leaving other members'
  *  state untouched. Owners additionally mirror to legacy `trips.is_archived`
  *  so collections / public-trips rendering keeps working. */
-export function archiveTripOnServer(tripId) {
+export function archiveTripOnServer(tripId: string) {
     if (!STATE.user) return;
     return _post(`/api/trips/${tripId}/archive`, {});
 }
@@ -231,7 +231,7 @@ export function archiveTripOnServer(tripId) {
  *  owners). Restore-from-Collections must call this; otherwise the
  *  trip re-archives on every reload because /api/data reads the
  *  per-user member flag, which the local STATE mutation alone can't fix. */
-export function unarchiveTripOnServer(tripId) {
+export function unarchiveTripOnServer(tripId: string) {
     if (!STATE.user) return;
     return _post(`/api/trips/${tripId}/unarchive`, {});
 }
@@ -251,7 +251,7 @@ export function unarchiveTripOnServer(tripId) {
  *  @param {string} tripId
  *  @param {string} [caption] - optional ≤280-char blurb above the trip
  */
-export function shareTripToFeed(tripId, caption) {
+export function shareTripToFeed(tripId: string, caption?: string) {
     if (!STATE.user) return Promise.resolve({ ok: false, status: 0, body: null });
     return _postJson('/api/feed/share', { trip_id: tripId, caption });
 }
@@ -264,7 +264,7 @@ export function shareTripToFeed(tripId, caption) {
  *  @param {string} tripId
  *  @param {boolean} hidden
  */
-export async function setTripActionsHidden(tripId, hidden) {
+export async function setTripActionsHidden(tripId: string, hidden: boolean) {
     if (!STATE.user) return { ok: false, status: 0, body: null };
     try {
         const res = await apiFetch(`/api/trips/${encodeURIComponent(tripId)}/silence`, {
@@ -284,7 +284,7 @@ export async function setTripActionsHidden(tripId, hidden) {
 /** Check whether the caller has already shared this trip (and read back
  *  the caption + post_id if so). Used by the home page on mount to set
  *  the Share-to-feed button's initial state without a needless write. */
-export async function fetchShareStatus(tripId) {
+export async function fetchShareStatus(tripId: string) {
     if (!STATE.user) return null;
     try {
         const res = await apiFetch(`/api/feed/share/status/${encodeURIComponent(tripId)}`);
@@ -300,7 +300,7 @@ export async function fetchShareStatus(tripId) {
  *  pointing at it so the feed doesn't end up with broken-reference
  *  cards. Author-only; idempotent — silently no-ops on someone else's
  *  post or an already-deleted one. */
-export async function unshareFeedPost(postId) {
+export async function unshareFeedPost(postId: string | number) {
     if (!STATE.user) return { ok: false, status: 0, body: null };
     try {
         const res = await apiFetch(`/api/feed/share/${postId}`, { method: 'DELETE' });
@@ -317,7 +317,7 @@ export async function unshareFeedPost(postId) {
  *  your immediate friend graph — your friends see the repost in their
  *  feed even if they don't know the original sharer. Idempotent per
  *  (caller, original_post). */
-export function repostFeedPost(postId) {
+export function repostFeedPost(postId: string | number) {
     if (!STATE.user) return Promise.resolve({ ok: false, status: 0, body: null });
     return _postJson(`/api/feed/repost/${postId}`, {});
 }
@@ -326,14 +326,14 @@ export function repostFeedPost(postId) {
  *  AND the new global count so a single round-trip lets us reconcile
  *  any drift from optimistic UI. event_id is the synthesised id from
  *  /api/feed (e.g. "trip_created_<trip>", "share_<post>"). */
-export function toggleFeedLike(eventId) {
+export function toggleFeedLike(eventId: string) {
     if (!STATE.user) return Promise.resolve({ ok: false, status: 0, body: null });
     return _postJson(`/api/feed/like/${encodeURIComponent(eventId)}`, {});
 }
 
 /** Toggle a personal bookmark on a feed event. No global count exposed
  *  (bookmarks are private — nobody sees what you save). */
-export function toggleFeedBookmark(eventId) {
+export function toggleFeedBookmark(eventId: string) {
     if (!STATE.user) return Promise.resolve({ ok: false, status: 0, body: null });
     return _postJson(`/api/feed/bookmark/${encodeURIComponent(eventId)}`, {});
 }
@@ -343,7 +343,7 @@ export function toggleFeedBookmark(eventId) {
  *  UI can append-render without re-sorting. Returns the parsed array
  *  on success or null on failure (callers treat null as "show nothing
  *  yet, will retry when user re-expands"). */
-export async function fetchFeedComments(eventId) {
+export async function fetchFeedComments(eventId: string) {
     if (!STATE.user) return null;
     try {
         const res = await apiFetch(`/api/feed/comments/${encodeURIComponent(eventId)}`);
@@ -360,7 +360,7 @@ export async function fetchFeedComments(eventId) {
  *  `body.comment` is the freshly-inserted row (server-set id + created_at)
  *  so the UI can append without a follow-up GET — saves a round-trip
  *  and avoids the "you posted but the thread is stale" race. */
-export function postFeedComment(eventId, body) {
+export function postFeedComment(eventId: string, body: string) {
     if (!STATE.user) return Promise.resolve({ ok: false, status: 0, body: null });
     return _postJson(`/api/feed/comment/${encodeURIComponent(eventId)}`, { body });
 }
@@ -368,7 +368,7 @@ export function postFeedComment(eventId, body) {
 /** Delete one of your own comments. Author-only on the server; silently
  *  no-ops if the row is already gone (idempotent DELETE). Returns
  *  `{ ok, body }` shape consistent with the other feed helpers. */
-export async function deleteFeedComment(commentId) {
+export async function deleteFeedComment(commentId: string | number) {
     if (!STATE.user) return { ok: false, status: 0, body: null };
     try {
         const res = await apiFetch(`/api/feed/comment/${commentId}`, { method: 'DELETE' });
@@ -383,7 +383,7 @@ export async function deleteFeedComment(commentId) {
 
 /** Phase 3 — invite a friend (linked-companion's user_id) to a trip with a role.
  *  Server creates a pending member row + fires `trip_invite` notification. */
-export function inviteTripMember(tripId, targetUserId, role) {
+export function inviteTripMember(tripId: string, targetUserId: string, role: string) {
     if (!STATE.user) return;
     return _post('/api/trips/invite', {
         trip_id: tripId,
@@ -395,7 +395,7 @@ export function inviteTripMember(tripId, targetUserId, role) {
 /** Accept or decline a pending trip invitation. Returns `{ok, status, body}`
  *  so the response modal can show a useful error if the invitation went
  *  stale (e.g. the trip was deleted or the user was already removed). */
-export function respondTripInvite(tripId, accept) {
+export function respondTripInvite(tripId: string, accept: boolean) {
     if (!STATE.user) return Promise.resolve({ ok: false, status: 0, body: null });
     return _postJson('/api/trips/invite/respond', {
         trip_id: tripId,
@@ -406,7 +406,7 @@ export function respondTripInvite(tripId, accept) {
 /** Planner-only — hard-remove a member from a trip. Their member row is
  *  deleted, the trip stops appearing in their /api/data response, and they
  *  get a `trip_member_removed` notification. */
-export function removeTripMember(tripId, targetUserId) {
+export function removeTripMember(tripId: string, targetUserId: string) {
     if (!STATE.user) return;
     return _post('/api/trips/members/remove', {
         trip_id: tripId,
@@ -415,13 +415,13 @@ export function removeTripMember(tripId, targetUserId) {
 }
 
 /** Upsert a single expense to the server. */
-export function upsertExpense(expense) {
+export function upsertExpense(expense: any) {
     if (!STATE.user) return;
     return _post('/api/expenses', { expense });
 }
 
 /** Delete a single expense from the server. */
-export function deleteExpenseOnServer(expenseId) {
+export function deleteExpenseOnServer(expenseId: string) {
     if (!STATE.user) return;
     return _delete(`/api/expenses/${expenseId}`, {});
 }
@@ -457,32 +457,32 @@ export function syncCategories() {
 }
 
 /** Upsert a single budget to the server. */
-export function upsertBudget(budget) {
+export function upsertBudget(budget: any) {
     if (!STATE.user) return;
     return _post('/api/budgets', { budget });
 }
 
 /** Delete a single budget from the server. */
-export function deleteBudgetOnServer(budgetId) {
+export function deleteBudgetOnServer(budgetId: string) {
     if (!STATE.user) return;
     return _delete(`/api/budgets/${budgetId}`, {});
 }
 
 /** Upsert a single trip day to the server. */
-export function upsertDay(day) {
+export function upsertDay(day: any) {
     if (!STATE.user) return;
     return _post('/api/days', { day });
 }
 
 /** Delete a single trip day from the server. */
-export function deleteDayOnServer(dayId) {
+export function deleteDayOnServer(dayId: string) {
     if (!STATE.user) return;
     return _delete(`/api/days/${dayId}`, {});
 }
 
 /** POST a file to /api/upload. Returns the parsed JSON response, or null on failure.
  *  Auth is JWT-gated server-side; apiFetch attaches the bearer header. */
-export async function uploadMedia(file) {
+export async function uploadMedia(file: File | Blob) {
     if (!STATE.user) return null;
     const formData = new FormData();
     formData.append('file', file);
@@ -523,7 +523,7 @@ export async function markNotificationsRead() {
     }
 }
 
-export async function fetchHistoricalRates(dates) {
+export async function fetchHistoricalRates(dates: string[]) {
     if (dates.length === 0) return;
 
     // Sort dates to find range
