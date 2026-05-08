@@ -2142,3 +2142,166 @@ def test_legacy_trips_share_inserts_collaborator_row(
         "friend_id": seed_other_user,
     })
     assert res.status_code == 200
+
+
+# ── helpers.py — direct unit tests for shared route helpers ──────────────────
+#
+# These functions are pure (no Flask, no app), so unit tests are cheap and
+# the coverage hits the literal lines without needing a route to drive them.
+
+def test_helpers_unwrap_legacy_plan_text_passes_clean_strings_through():
+    """The common case — already-clean text round-trips unchanged. The
+    cheap shape check (`s[0] == '"' and s[-1] == '"'`) skips the
+    json.loads call entirely on this path."""
+    from helpers import unwrap_legacy_plan_text
+    assert unwrap_legacy_plan_text("Coffee at 8am") == "Coffee at 8am"
+    assert unwrap_legacy_plan_text("") == ""
+
+
+def test_helpers_unwrap_legacy_plan_text_unwraps_json_quoted_scalar():
+    """Legacy rows have plain text wrapped by json.dumps, so a stored
+    `'"foo"'` value should unwrap to `'foo'`. Also pin the empty-string
+    legacy shape `'""'` → `''`."""
+    from helpers import unwrap_legacy_plan_text
+    assert unwrap_legacy_plan_text('"foo"') == "foo"
+    assert unwrap_legacy_plan_text('""') == ""
+    # Multi-word with embedded escapes: `'"a \"quoted\" b"'` → `'a "quoted" b'`
+    assert unwrap_legacy_plan_text('"a \\"quoted\\" b"') == 'a "quoted" b'
+
+
+def test_helpers_unwrap_legacy_plan_text_handles_non_string_input():
+    """Non-string input (None, ints, dicts) returns `or ''` — i.e. None
+    becomes empty string, truthy non-strings come through. Pin so a
+    malformed legacy row (NULL morning, integer column) doesn't 500."""
+    from helpers import unwrap_legacy_plan_text
+    assert unwrap_legacy_plan_text(None) == ""
+    assert unwrap_legacy_plan_text(0) == ""
+    # Quoted-but-not-a-string-after-parse falls through to return s
+    # (e.g. '"42"' parses to int 42 with json.loads, which is NOT
+    # `isinstance(parsed, str)` so the function returns the original).
+    # Actually, '"42"' parses to "42" (a string), so it unwraps. The
+    # genuine non-string case is `'[1,2]'` — looks JSON-ish but the
+    # shape check (must start AND end with double-quote) rejects it.
+    assert unwrap_legacy_plan_text("[1,2]") == "[1,2]"
+
+
+def test_helpers_unwrap_legacy_plan_text_returns_original_on_invalid_json():
+    """A string that looks like a quoted scalar but fails to parse
+    (truncated, bad escape) falls through to return s unchanged. The
+    function never raises."""
+    from helpers import unwrap_legacy_plan_text
+    # Starts + ends with " but invalid escape → json.loads raises →
+    # except Exception → return s.
+    assert unwrap_legacy_plan_text('"bad \\x escape"') == '"bad \\x escape"'
+
+
+def test_helpers_trip_member_role_owner_fallback(temp_db, seed_user):
+    """If the owner's trip_members row hasn't been backfilled (legacy
+    data shape), trip_member_role returns 'planner' anyway via the
+    is_trip_owner fallback. Pin so an out-of-band table truncation
+    doesn't lock the owner out of their own trip."""
+    import sqlite3
+    from helpers import trip_member_role
+
+    conn = sqlite3.connect(temp_db)
+    conn.row_factory = sqlite3.Row
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO trips (id, user_id, name, country) VALUES (?, ?, ?, ?)",
+            ("trip-owner-fallback", seed_user, "Owner Fallback", "X"),
+        )
+        # Deliberately do NOT insert into trip_members for this trip —
+        # forces the owner-fallback branch.
+        conn.commit()
+        assert trip_member_role(cursor, "trip-owner-fallback", seed_user) == "planner"
+        # Non-owner with no member row → None.
+        assert trip_member_role(cursor, "trip-owner-fallback", "nobody") is None
+    finally:
+        conn.close()
+
+
+# ── main.py — Flask app routes (home / components / sw.js / manifest) ────────
+#
+# These don't fit the API-route mold but they're real surface area and
+# 100% covered above for free if we just hit them.
+
+def test_main_home_route_renders_index(client):
+    """Default GET / returns index.html — the SPA entry point."""
+    res = client.get("/")
+    assert res.status_code == 200
+
+
+def test_main_home_route_dev_mode_param(client):
+    """?dev=1 puts the page in module-mode (no bundle). Not testing the
+    HTML body — too brittle. Pin only the success status: this exercises
+    the dev_mode = ... branch in main.py (uncovered otherwise)."""
+    res = client.get("/?dev=1")
+    assert res.status_code == 200
+
+
+def test_main_components_preview_route(client):
+    """/components is the design-token preview page. Pin the route
+    so a tidy-up doesn't quietly remove it — visual regression tests
+    rely on it for the component-rendering snapshots."""
+    res = client.get("/components")
+    assert res.status_code == 200
+
+
+def test_main_service_worker_route_sets_root_scope_header(client):
+    """/sw.js must serve with Service-Worker-Allowed: / so the SW can
+    claim the entire origin (it lives outside /static/). Pin both the
+    file existence + the header — without the header, browsers would
+    refuse to register the SW for /."""
+    res = client.get("/sw.js")
+    assert res.status_code == 200
+    assert res.headers.get("Service-Worker-Allowed") == "/"
+    # No-cache so updates roll out fast.
+    assert "no-cache" in res.headers.get("Cache-Control", "")
+
+
+def test_main_manifest_route_serves_manifest_json(client):
+    """/manifest.json — PWA install metadata. Served with the right
+    mime type so iOS Safari accepts it."""
+    res = client.get("/manifest.json")
+    assert res.status_code == 200
+    assert "manifest" in res.headers.get("Content-Type", "").lower()
+
+
+def test_main_cleanup_feed_orphans_runs_without_crashing(client):
+    """The background cleanup function runs once on boot + every 24h.
+    Pin that it doesn't crash on an empty DB — no rows to delete is the
+    common case and must return zero counts cleanly. Uses the `client`
+    fixture (not `temp_db` direct) so the schema is initialised."""
+    import main as main_module
+    result = main_module._cleanup_feed_orphans()
+    assert result == {"likes": 0, "comments": 0}
+
+
+def test_main_cleanup_feed_orphans_logs_when_rows_deleted(client, capsys):
+    """When the cleanup actually removes rows it prints a summary line.
+    Pin so a regression that swallows the output silently doesn't slip
+    through — the only signal that the daemon is doing its job is the
+    log line in stdout."""
+    import main as main_module
+    from database import get_db
+
+    with get_db() as conn:
+        c = conn.cursor()
+        c.execute(
+            "INSERT INTO feed_likes (user_id, event_id, created_at) "
+            "VALUES (?, ?, datetime('now', '-100 days'))",
+            ("user-old", "share_1"),
+        )
+        c.execute(
+            "INSERT INTO feed_comments (user_id, event_id, body, created_at) "
+            "VALUES (?, ?, ?, datetime('now', '-100 days'))",
+            ("user-old", "share_1", "old comment"),
+        )
+        conn.commit()
+
+    result = main_module._cleanup_feed_orphans()
+    assert result["likes"] >= 1
+    assert result["comments"] >= 1
+    out = capsys.readouterr().out
+    assert "removed" in out
