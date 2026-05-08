@@ -388,7 +388,7 @@ across files.
       retained — industry-standard for design-system clarity, no
       Dynamic Type accessibility benefit from converting.
 - [x] Replace `:hover`-only affordances with `:hover, :active,
-    :focus-visible`. **Sweep result**: 100 hover-only rules → 0.
+  :focus-visible`. **Sweep result**: 100 hover-only rules → 0.
       :active occurrences 19 → 125, :focus-visible 32 → 138.
       Descendant selectors (e.g. `tr:hover td`) handled correctly —
       each pseudo-class variant keeps its descendant chain. Touch
@@ -455,25 +455,34 @@ genuinely clean React codebase.
 The strategy is the **strangler pattern** — never a big-bang rewrite.
 Both worlds coexist during the transition; tests cover both.
 
-### C1 — Set up the React stack
+### C1 — Set up the React stack ✅
 
-- [ ] Add React + ReactDOM to the bundle. Use Vite's React plugin (the
-      build pipeline is already Vite-based).
-- [ ] Decide state management: **don't add Redux yet.** The current
-      `STATE` + `emit('state:changed')` pattern works fine. Wrap it in a
-      React context with a `useStore()` hook so React components can
-      subscribe. Migration to Zustand or Redux Toolkit happens only if
-      the context gets unwieldy.
-- [ ] Decide component library: **none.** Components are bespoke
-      already; importing Material/Chakra/etc. introduces a new design
-      language that fights TGG's voice. Build primitives in-house using
-      Phase B3 tokens.
-- [ ] Decide router: **keep the existing custom `router.js`** for now.
-      It already supports route params + hash-based navigation. Wrap it
-      in a `useNavigate()` hook for React components. Swap to React
-      Router only if needed (TanStack Router if migration justifies).
-- [ ] CI: ensure the bundle builds + every existing test still passes
-      with React in the picture (zero React components yet).
+- [x] Added React 19.2 + ReactDOM via @vitejs/plugin-react (automatic
+      JSX runtime; tsconfig "jsx": "react-jsx"). Bundle size unchanged
+      until the first .tsx component lands — React stays out of the
+      tree as long as nothing imports from `./react/*`.
+- [x] State adapter shipped — `frontend/static/js/src/react/store.ts`.
+      Bridges legacy `STATE` + `emit('state:changed')` to React via
+      `useSyncExternalStore` (React 18+ canonical pattern). Two
+      hooks exposed: - `useStore(selector)` — subscribes to a slice; re-renders on
+      Object.is inequality of the selected value. - `useFullStore()` — returns the whole AppState; for
+      components that need broad access during early migration.
+      Mutations still go through legacy STATE.\* + emit; both
+      imperative and React renderings stay in sync. Migration to
+      Zustand/Redux Toolkit happens only if useStore gets unwieldy.
+- [x] Component library: **none**, per ROADMAP. Build in-house using
+      B3 design tokens.
+- [x] Router adapter shipped — `frontend/static/js/src/react/useNavigate.ts`.
+      `useNavigate()` returns a stable reference to the legacy
+      `navigate(page, params, preserveScroll)`. Swap to React Router
+      only if migration justifies — for now the custom router covers
+      route params + hashchange + scroll-restoration.
+- [x] CI verified — typecheck ✅, vite build ✅, 20/20 visual ✅,
+      38/38 e2e ✅, 157/157 pytest ✅. Zero React components yet,
+      so existing imperative pages are unaffected.
+
+**Status**: Infrastructure shipped. C2 picks up the first leaf
+migration (Insights).
 
 ### C2 — Migrate the smallest leaf page first
 
