@@ -520,23 +520,27 @@ mountInsights(content)` replaces `pageEl = renderInsights()`.
   additional .tsx page after that adds ~5K vs its imperative twin
   (the runtime amortizes).
 
-### C3 — Migrate by leaf-up topology ⚠️ in progress (6/12 leaves)
+### C3 — Migrate by leaf-up topology ✅ (12/12 leaves)
 
 Order matters. Migrate small + isolated pages first; pages with the
 most dependencies last.
 
-Order:
+Order (all complete):
 
 1. ✅ `insights` (Phase C2)
-2. ✅ `friends`, `todo`, `budgets` — small, mostly list views
+2. ✅ `friends`, `todo`, `budgets` — small, mostly list views (wave 1)
 3. ✅ `expenses`, `settlement` — table-heavy but isolated (wave 2)
-4. ⏳ `feed` — important, lots of state, but its data shape is clean
-5. ⏳ `profile`, `collections` — heavier, more sub-views
-6. ⏳ `settings` — many sub-tabs
-7. ⏳ `upload`, `ai` — complex but self-contained
-8. ⏳ `home` — last because it's the biggest + most-coupled. By the
-   time we get here, every other page is React, every shared
-   component exists, the playbook is iron-clad.
+4. ✅ `feed` — important, lots of state (wave 3, thin wrapper)
+5. ✅ `profile`, `collections` — heavier, more sub-views (wave 4)
+6. ✅ `settings` + `personalization` (wave 5)
+7. ✅ `ai` — complex but self-contained (wave 5)
+   (`upload` not migrated separately — it's not a route, it's a
+   sub-tab of expenses called via setExpensesTab('batch') redirect)
+8. ✅ `home` — the giant. Last because it's the biggest +
+   most-coupled. The thin-wrapper tier handled it: 2,341 lines of
+   renderHome() stays imperative inside the React tree, B1's
+   parked "home.ts <800" goal stays parked, but every page in the
+   app now ships through the React mount lifecycle.
 
 Each page migration follows the same checklist:
 
