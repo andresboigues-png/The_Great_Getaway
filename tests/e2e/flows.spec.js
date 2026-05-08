@@ -205,6 +205,223 @@ test.describe('Critical flows — API-driven', () => {
         const bFriends = await bListRes.json();
         expect(bFriends.some((f) => f.id === userA)).toBe(true);
     });
+
+    test('reject friend deletes pending row + leaves no friendship', async ({ page }) => {
+        // Mirror of the accept flow. userA sends a request to userB;
+        // userB rejects. Pin: pending list goes empty, friend list
+        // stays empty, AND the row genuinely deletes (not flipped to
+        // some "rejected" state — the comment in friends.py is
+        // explicit about deleting so re-sends are allowed later).
+        const userA = uniqueId('userA');
+        const userB = uniqueId('userB');
+        const aAuth = await getAuthForApi(page, userA);
+        const bAuth = await getAuthForApi(page, userB);
+
+        // userA sends a request to userB.
+        const addRes = await page.request.post('/api/friends/add', {
+            headers: aAuth.headers,
+            data: { friend_id: userB },
+        });
+        expect(addRes.status()).toBe(200);
+
+        // Confirm B sees the pending request before rejecting (else
+        // the reject would 404 and we'd be testing nothing useful).
+        const pendingBefore = await page.request.get('/api/friends/pending', {
+            headers: bAuth.headers,
+        });
+        const pendingList = await pendingBefore.json();
+        expect(pendingList.some((p) => p.id === userA)).toBe(true);
+
+        // B rejects.
+        const rejectRes = await page.request.post('/api/friends/reject', {
+            headers: bAuth.headers,
+            data: { friend_id: userA },
+        });
+        expect(rejectRes.status()).toBe(200);
+        expect((await rejectRes.json()).status).toBe('success');
+
+        // Post-conditions: pending list empty, friends list empty for both.
+        const pendingAfter = await page.request.get('/api/friends/pending', {
+            headers: bAuth.headers,
+        });
+        expect((await pendingAfter.json()).some((p) => p.id === userA)).toBe(false);
+
+        const aFriends = await (await page.request.get('/api/friends/list', { headers: aAuth.headers })).json();
+        const bFriends = await (await page.request.get('/api/friends/list', { headers: bAuth.headers })).json();
+        expect(aFriends.some((f) => f.id === userB)).toBe(false);
+        expect(bFriends.some((f) => f.id === userA)).toBe(false);
+
+        // Re-send works — rejection is "not now," not "blocked."
+        const reAddRes = await page.request.post('/api/friends/add', {
+            headers: aAuth.headers,
+            data: { friend_id: userB },
+        });
+        expect(reAddRes.status()).toBe(200);
+    });
+
+    test('edit expense round-trips via UPSERT (re-POST same id updates row)', async ({ page }) => {
+        // /api/expenses uses INSERT ... ON CONFLICT(id) DO UPDATE so
+        // editing an expense is just a re-POST with the same id and
+        // updated fields. Pin: the second POST overwrites label /
+        // value / currency / euro_value (all tracked by the SET
+        // clause) and the row count stays at 1.
+        const auth = await getAuthForApi(page, uniqueId('user'));
+        const tripId = await createTripViaApi(page, auth.headers, {
+            id: uniqueId('trip-edit-exp'),
+            name: 'Edit Expense Trip',
+        });
+        const expId = uniqueId('exp');
+
+        const initial = await page.request.post('/api/expenses', {
+            headers: auth.headers,
+            data: {
+                expense: {
+                    id: expId,
+                    tripId,
+                    who: 'Me',
+                    categoryId: 'c-food',
+                    label: 'Cafe',
+                    date: '2026-06-01',
+                    country: 'Portugal',
+                    value: 10,
+                    currency: 'EUR',
+                    euroValue: 10,
+                },
+            },
+        });
+        expect(initial.status()).toBe(200);
+
+        // Re-POST with same id but new label / value / currency.
+        // The UPSERT path takes over.
+        const edited = await page.request.post('/api/expenses', {
+            headers: auth.headers,
+            data: {
+                expense: {
+                    id: expId,
+                    tripId,
+                    who: 'Me',
+                    categoryId: 'c-food',
+                    label: 'Cafe with friends',
+                    date: '2026-06-01',
+                    country: 'Portugal',
+                    value: 25,
+                    currency: 'GBP',
+                    euroValue: 29,
+                },
+            },
+        });
+        expect(edited.status()).toBe(200);
+
+        // Round-trip: GET /api/data and confirm exactly ONE row, with
+        // the edited fields. If the UPSERT regressed to two rows or
+        // the SET clause dropped a column, the assert below fails.
+        const dataRes = await page.request.get('/api/data', { headers: auth.headers });
+        const data = await dataRes.json();
+        const matches = (data.expenses || []).filter((e) => e.id === expId);
+        expect(matches).toHaveLength(1);
+        expect(matches[0].label).toBe('Cafe with friends');
+        expect(matches[0].value).toBe(25);
+        expect(matches[0].currency).toBe('GBP');
+        expect(matches[0].euro_value).toBeCloseTo(29, 5);
+    });
+
+    test('settle-shape expense round-trips with country=Settlement marker', async ({ page }) => {
+        // settleDebt() in pages/settlement.ts records a settlement as
+        // a regular expense row with country='Settlement' + a
+        // 'Settlement: A → B' label. The `splits` and `isSettlement`
+        // fields live in localStorage only (no DB columns), but the
+        // country marker DOES persist — and pages/settlement.ts's
+        // archived-trip filter keys off it. Pin: the round-trip
+        // preserves the Settlement marker so a regression that drops
+        // the country field would surface here.
+        const auth = await getAuthForApi(page, uniqueId('user'));
+        const tripId = await createTripViaApi(page, auth.headers, {
+            id: uniqueId('trip-settle'),
+            name: 'Settle Trip',
+        });
+        const settlementId = uniqueId('exp-settlement');
+
+        const settleRes = await page.request.post('/api/expenses', {
+            headers: auth.headers,
+            data: {
+                expense: {
+                    id: settlementId,
+                    tripId,
+                    who: 'Alice',
+                    categoryId: 'c-food',
+                    label: 'Settlement: Alice → Bob',
+                    date: '2026-06-15',
+                    country: 'Settlement', // critical marker
+                    value: 50,
+                    currency: 'EUR',
+                    euroValue: 50,
+                },
+            },
+        });
+        expect(settleRes.status()).toBe(200);
+
+        // GET /api/data and assert the country marker survived. The
+        // settlement-page filter does
+        // `e.tripId === t.id && e.country === 'Settlement'`, so the
+        // round-trip is the contract this test pins.
+        const dataRes = await page.request.get('/api/data', { headers: auth.headers });
+        const data = await dataRes.json();
+        const settlement = (data.expenses || []).find((e) => e.id === settlementId);
+        expect(settlement).toBeTruthy();
+        expect(settlement.country).toBe('Settlement');
+        expect(settlement.label).toBe('Settlement: Alice → Bob');
+    });
+
+    test('companions round-trip both linked + unlinked shapes intact', async ({ page }) => {
+        // Trips carry a `companions` JSON array of two shapes:
+        //   - unlinked: `{ name: 'Maria' }` — typed by the user
+        //     directly into the picker, no real account behind it
+        //   - linked:   `{ name: 'Andres', linkedUserId: 'uid-...' }`
+        //     — auto-promoted when the picker matches a friend (or
+        //     the auto-stamp for the trip owner in api.ts).
+        //
+        // Pin: POSTing both shapes through /api/trips and round-
+        // tripping via /api/data preserves the linkedUserId where
+        // present without leaking it to unlinked rows. A regression
+        // that JSON.stringify-flattens the array to plain strings
+        // (the legacy shape that pre-Phase-G surfaced as a string[])
+        // would lose the linkedUserId distinction silently.
+        const auth = await getAuthForApi(page, uniqueId('user'));
+        const tripId = uniqueId('trip-companions');
+
+        const linkedFriendId = uniqueId('linked-friend');
+        const createRes = await page.request.post('/api/trips', {
+            headers: auth.headers,
+            data: {
+                trip: {
+                    id: tripId,
+                    name: 'Companions trip',
+                    country: 'Spain',
+                    companions: [
+                        { name: 'Maria' }, // unlinked
+                        { name: 'Andres', linkedUserId: linkedFriendId }, // linked
+                    ],
+                },
+            },
+        });
+        expect(createRes.status()).toBe(200);
+
+        const dataRes = await page.request.get('/api/data', { headers: auth.headers });
+        const data = await dataRes.json();
+        const trip = (data.trips || []).find((t) => t.id === tripId);
+        expect(trip).toBeTruthy();
+        const companions = trip.companions || [];
+
+        const maria = companions.find((c) => c.name === 'Maria');
+        const andres = companions.find((c) => c.name === 'Andres');
+        expect(maria).toBeTruthy();
+        expect(andres).toBeTruthy();
+
+        // Unlinked stays unlinked (no linkedUserId leaked from elsewhere).
+        expect(maria.linkedUserId).toBeFalsy();
+        // Linked preserves the linkedUserId verbatim.
+        expect(andres.linkedUserId).toBe(linkedFriendId);
+    });
 });
 
 // ── UI-driven flows ─────────────────────────────────────────────────
