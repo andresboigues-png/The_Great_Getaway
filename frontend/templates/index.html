@@ -111,29 +111,39 @@
              mobile the top-nav links are hidden, so we list them
              here so the burger drawer is the canonical "every page"
              menu on small screens. Order matches the top-nav order
-             so muscle memory carries over. -->
-        <div class="sidebar-section-label">Pages</div>
-        <a href="#" class="sidebar-item" data-page="todo">
+             so muscle memory carries over.
+
+             Per-user preference: on DESKTOP these are redundant
+             with the top nav (which is visible on desktop), so the
+             four page items + the "Pages" label carry the
+             `sidebar-item--mobile-only` class — hidden via media
+             query at >720px. Mobile burger keeps them all. Feed
+             stays visible everywhere because it's also reachable
+             via the bottom-tab nav on mobile but doesn't have a
+             top-nav link on desktop, so the sidebar remains its
+             desktop entry point. -->
+        <div class="sidebar-section-label sidebar-item--mobile-only">Pages</div>
+        <a href="#" class="sidebar-item sidebar-item--mobile-only" data-page="todo">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="9 11 12 14 22 4"></polyline>
                 <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
             </svg>
             To do list
         </a>
-        <a href="#" class="sidebar-item" data-page="ai">
+        <a href="#" class="sidebar-item sidebar-item--mobile-only" data-page="ai">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M12 3l1.9 5.7L20 10.5l-4.5 3.4L17.5 20 12 16.5 6.5 20l2-6.1L4 10.5l6.1-1.8z"></path>
             </svg>
             Plan with AI
         </a>
-        <a href="#" class="sidebar-item" data-page="expenses">
+        <a href="#" class="sidebar-item sidebar-item--mobile-only" data-page="expenses">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <line x1="12" y1="1" x2="12" y2="23"></line>
                 <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
             </svg>
             Expenses
         </a>
-        <a href="#" class="sidebar-item" data-page="insights">
+        <a href="#" class="sidebar-item sidebar-item--mobile-only" data-page="insights">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <line x1="18" y1="20" x2="18" y2="10"></line>
                 <line x1="12" y1="20" x2="12" y2="4"></line>

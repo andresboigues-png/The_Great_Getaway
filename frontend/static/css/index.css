@@ -5161,6 +5161,21 @@ body.is-signed-out #sidebarOverlay {
     -webkit-overflow-scrolling: touch;
 }
 
+/* ── Sidebar items hidden on desktop, shown on mobile ───────────
+   Desktop has a top-nav row that already lists Home / Todo / AI /
+   Expenses / Insights — duplicating them in the burger drawer
+   makes the sidebar feel bloated. On mobile that top-nav row is
+   `display: none` (Phase D1), so the burger drawer is the
+   canonical "every page" menu — these items NEED to be there.
+   Items that should follow that desktop-hide / mobile-show rule
+   carry `.sidebar-item--mobile-only`; this rule hides them at
+   widths above the mobile breakpoint. */
+@media (min-width: 721px) {
+    .sidebar-item--mobile-only {
+        display: none !important;
+    }
+}
+
 /* ── Phase D1: Mobile-first responsive sweep ──────────────────────
    Bottom-tab nav + cramped-top-bar fixes for ≤720px. The four
    most-used pages (Home, Feed, Collections, Profile) live in the
