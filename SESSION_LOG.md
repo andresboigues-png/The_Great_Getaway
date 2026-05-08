@@ -7,12 +7,12 @@ Newest entry at the top.
 
 ---
 
-## Session N+9 — 2026-05-08 — pytest 84% → 94%, floor 60% → 90%
+## Session N+9 — 2026-05-08 — pytest 84% → 95%, floor 60% → 92%
 
 **Goal**: Continuation request — keep clearing backlog and pushing
-pytest coverage. Five low-coverage spots targeted in the same
-"target → ship → bump floor" pattern as N+8. Suite went 105 → 152
-tests; total coverage 84% → 94%; CI floor 80% → 85% → 90%.
+pytest coverage. Six low-coverage spots targeted in the same
+"target → ship → bump floor" pattern as N+8. Suite went 105 → 157
+tests; total coverage 84% → 95%; CI floor 80% → 85% → 90% → 92%.
 
 **routes/trips.py — 78% → 89% (+8 tests, commit `1c24af3`)**: edge
 cases around invite/decline/delete/archive/unarchive. Tests pin:
@@ -116,11 +116,31 @@ remaining 5 main.py uncovered lines are all boot/subprocess paths
 (GG_ALLOW_TEST_LOGIN env-gate, WERKZEUG_RUN_MAIN reloader skip,
 `__main__` entry) — accept the gap.
 
-**CI floor: 60 → 80 → 85 → 90% across N+8/N+9** (commits `6f7d341`,
-`084e1bf`, `0d16e1d`). 90% leaves ~2pp headroom on the current
-94%; tighter than before, but the suite is mature enough (152 tests)
-that a 2pp drop = ~28 uncovered lines, a real regression signal
-at this point.
+**routes/feed.py — 86% → 96% (+5 tests, commit `ff1d255`)**: the
+feed-with-data wave deferred from earlier. Added a `_make_friends(a, b)`
+helper that inserts the bidirectional accepted-friendship rows
+the feed queries pivot off. Tests pin the four event-generation
+paths + the count-attachment block:
+
+- friend_created_trip event surfaces (other-user creates trip →
+  appears in caller's feed with actor + trip detail)
+- friend_shared_trip event surfaces with caption
+- friend_reposted_trip event with original_sharer info attached
+- new_friendship surfaces in the 30-day window
+- like/bookmark/comment count attachment block (lines 265-295) —
+  fires all three on a share + asserts /api/feed surfaces
+  like_count, comment_count, is_liked, is_bookmarked
+
+Remaining 11 uncovered lines in feed.py are all defensive guards
+(`if not actor: continue`, friendship try/except outer skip on
+schema drift, `_post_owner_for_event` malformed-input branches).
+Diminishing returns — accept.
+
+**CI floor: 60 → 80 → 85 → 90 → 92% across N+8/N+9** (commits
+`6f7d341`, `084e1bf`, `0d16e1d`, plus the final 92% bump). 92%
+leaves ~3pp headroom on the current 95%; tight but right for a
+mature suite (a 3pp drop = ~40 uncovered lines, definitely a real
+regression signal).
 
 **Coverage summary (cumulative across N+8 + N+9)**:
 
@@ -131,33 +151,36 @@ at this point.
 | routes/data.py         | 24%       | **95%**   | 9           |
 | routes/days.py         | 59%       | 100%      | 4           |
 | routes/expenses.py     | 63%       | 100%      | 4           |
-| routes/feed.py         | 81%       | 86%       | 11          |
+| routes/feed.py         | 81%       | **96%**   | 16          |
 | routes/integrations.py | 21%       | **98%**   | 7           |
 | routes/public.py       | 28%       | 93%       | 4           |
 | routes/settings.py     | 28%       | 100%      | 5           |
 | routes/trips.py        | 78%       | 89%       | 8           |
 | helpers.py             | 78%       | **100%**  | 5           |
 | main.py                | 86%       | 95%       | 7           |
-| **TOTAL**              | **67%**   | **94%**   | **78**      |
+| **TOTAL**              | **67%**   | **95%**   | **83**      |
 
-77 → 152 tests across two sessions; **+27 percentage points
+77 → 157 tests across two sessions; **+28 percentage points
 total coverage**. Routes 100%-covered: auth, budgets, days,
 expenses, settings, helpers (six files at full coverage).
+feed.py + integrations.py + data.py + main.py all 95%+.
 
-**Test status at close**: pytest 152/152 passing locally, 94%
-total coverage, build green, tsc strict clean. 6 new commits this
-session (`1c24af3`, `15eeb19`, `75b36a2`, `084e1bf`, `dab7b3a`,
-`edd242d`, `0d16e1d`, `d7febf7`).
+**Test status at close**: pytest 157/157 passing locally, 95%
+total coverage, build green, tsc strict clean. Commits this
+session (in chronological order): `1c24af3`, `15eeb19`,
+`bfdc85b`, `75b36a2`, `084e1bf`, `f741827`, `dab7b3a`,
+`edd242d`, `0d16e1d`, `d7febf7`, `8a60c06`, `ff1d255` + the
+final 92% floor bump.
 
 **What remains** (the carried-over backlog continues to shrink):
 
-- routes/feed.py at 86% — feed-with-data paths (lines 119-201,
-  217, 247, 265-295). Need cross-user friendship + share fixtures
-  to exercise the events-generation block. Worth a session by
-  itself once a fixture helper is added.
 - main.py boot paths (5 lines) — GG_ALLOW_TEST_LOGIN env-gate,
   WERKZEUG_RUN_MAIN reloader skip, `__main__` entry. Subprocess-
   level — accept the gap.
+- routes/feed.py at 96% — 11 remaining lines are defensive guards
+  (`if not actor: continue` paths, friendship try/except outer
+  skip on schema drift, `_post_owner_for_event` malformed-input
+  branches). Diminishing returns.
 - B1 final-final: still parked as B-Phase-2 (renderHome's map
   setup is too deeply closure-coupled; Phase C's React migration
   is the natural place to force the boundaries).
