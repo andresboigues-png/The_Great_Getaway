@@ -1,8 +1,9 @@
 // pages/home.js
 
 import { STATE, emit } from '../state.js';
-import { INSPIRATIONAL_PAIRS } from '../constants.js';
-import { getMediaForTrip, showLiquidAlert, formatDayDate, showConfirmModal, generateId, shortPlaceName, esc } from '../utils.js';
+// INSPIRATIONAL_PAIRS + getMediaForTrip moved with the slideshow
+// controller — only home/slideshow.ts references them now.
+import { showLiquidAlert, formatDayDate, showConfirmModal, generateId, shortPlaceName, esc } from '../utils.js';
 // Share-flow imports (shareTripToFeed / fetchShareStatus /
 // unshareFeedPost) used to live here; they moved with the Share
 // button to collections.js (renderArchivedTripDetail). The
@@ -34,6 +35,13 @@ import {
     registerPathSelectionHooks,
 } from './home/pathSelection.js';
 import { appendGettingStartedGuide } from './home/gettingStartedGuide.js';
+import { setupSlideshow, stopHomeSlideshow as _stopSlideshowImpl } from './home/slideshow.js';
+
+// Re-export stopHomeSlideshow so router.ts's existing import
+// (`import { stopHomeSlideshow } from './home.js'`) keeps
+// working — the router calls it on every navigate to clear
+// any leftover timer.
+export const stopHomeSlideshow = _stopSlideshowImpl;
 
 // The day-detail modal lives in its own module but mutates
 // home.ts's `activeHomeTab` when the user clicks a Genesis
@@ -69,15 +77,11 @@ import { findMarkedPlace, toggleTodoListMembership } from '../markedPlaces.js';
 // were only ever used by the doc/photo modal block, which
 // itself relocated. No remaining references in this file.
 
-// Empty-state slideshow timer. Lives in this module; router.js calls
-// stopHomeSlideshow() on every navigate so the timer doesn't leak past home.
-let _slideshowTimer: ReturnType<typeof setInterval> | null = null;
-export function stopHomeSlideshow() {
-    if (_slideshowTimer) {
-        clearInterval(_slideshowTimer);
-        _slideshowTimer = null;
-    }
-}
+// Slideshow state moved to ./home/slideshow.ts during the
+// Phase B1 split. _slideshowTimer + stopHomeSlideshow are
+// re-exported at the top of this file so router.ts's existing
+// import keeps working without any change.
+
 let activeMarkers: Record<string, any> = {}; // Cache of Leaflet markers by day ID
 let editingDayId: string | null = null; // ID of the day currently being geolocated/pinned
 let activeMapClickListener: ((e: any) => void) | null = null; // Reference to the active map click handler
@@ -224,117 +228,14 @@ const deleteDay = (dayId: string) => {
 export function renderHome() {
     const div = document.createElement('div');
     const activeTrip = (STATE.trips && STATE.activeTripId) ? STATE.trips.find(t => t.id === STATE.activeTripId) : null;
-    let currentPhotoIdx = 0;
 
-    // Determine data based on activeTrip or default
-    let displayImages: string[] = [];
-    let displayQuotes: string[] = [];
-
-    /** The border IIFE (further down in this same render) calls
-     *  addDiscoveredCountry() each time a new ISO country code surfaces
-     *  from Nominatim. Quotes/facts/images for that country then join the
-     *  slideshow roster on its next tick. Default no-op so the no-trip
-     *  branch doesn't have to special-case it. */
-        let addDiscoveredCountry: (cc: string | null | undefined) => void = () => {};
-
-    if (!activeTrip) {
-        // Shuffled slideshow for when NO trip is selected (Inspirational Quotes ONLY)
-        displayImages = INSPIRATIONAL_PAIRS.map(p => p.i);
-        displayQuotes = INSPIRATIONAL_PAIRS.map(p => p.q);
-
-        // Shuffle the inspirational content
-        const indices = Array.from({ length: displayImages.length }, (_, i) => i);
-        indices.sort(() => Math.random() - 0.5);
-        displayImages = indices.map(i => displayImages[i]);
-        displayQuotes = indices.map(i => displayQuotes[i]);
-    } else {
-        /** @type {Set<string>} ISO codes seen for this trip. */
-        const discoveredCodes = new Set();
-        if (activeTrip.countryCode) discoveredCodes.add(activeTrip.countryCode);
-
-        // Pull country codes for already-geocoded day pins out of
-        // sessionStorage at render time — saves the wait for the async
-        // reverse-geocode loop to repopulate the roster on every reload.
-        // Day pins in OTHER countries widen the roster: a Spain-trip
-        // with a day pinned in Morocco gets quotes + facts from BOTH
-        // countries on the slideshow. The cache writer lives in the
-        // map-init block further down; new discoveries also call
-        // addDiscoveredCountry below to extend the roster live.
-        const tripDaysForRoster = (STATE.tripDays || []).filter(d => d.tripId === activeTrip.id);
-        for (const day of tripDaysForRoster) {
-            const lat = day.lat, lng = day.lon || day.lng;
-            if (typeof lat !== 'number' || typeof lng !== 'number') continue;
-            try {
-                const cached = sessionStorage.getItem(`tggDayCountry:${lat.toFixed(4)},${lng.toFixed(4)}`);
-                if (cached) discoveredCodes.add(cached);
-            } catch (_) { /* sessionStorage unavailable */ }
-        }
-
-        // Build an INTERLEAVED roster of (image, quote) and (image, fact)
-        // pairs for every country in the discovered set. The slideshow
-        // timer cycles through them every 6s so the user sees BOTH the
-        // travel quote AND the population/capital fact for each country
-        // on rotation — no more "facts never appear" because of a
-        // single-element pick + a fragile localStorage toggle. Roster
-        // is reshuffled each render so reload still rolls a fresh order.
-        const refreshSlideshowMedia = () => {
-            const data = getMediaForTrip(activeTrip, [...discoveredCodes] as string[]);
-            const pairs: { img: string; text: string }[] = [];
-            for (let i = 0; i < data.images.length; i++) {
-                const img = data.images[i];
-                const q = data.quotes[i];
-                const f = data.facts[i];
-                if (q) pairs.push({ img, text: q });
-                if (f) pairs.push({ img, text: f });
-            }
-            // Shuffle so the order doesn't rigidly read country-by-country
-            // (Italy quote → Italy fact → France quote → France fact);
-            // a mixed shuffle feels like a magazine roster.
-            for (let i = pairs.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [pairs[i], pairs[j]] = [pairs[j], pairs[i]];
-            }
-            displayImages = pairs.map(p => p.img);
-            displayQuotes = pairs.map(p => p.text);
-            // getMediaForTrip's stub fallback guarantees ≥1 entry for
-            // any non-null trip, so pairs is non-empty here. No
-            // defensive branch needed.
-            if (currentPhotoIdx >= displayImages.length) currentPhotoIdx = 0;
-        };
-        refreshSlideshowMedia();
-
-        // When the geocoder later discovers a new country for a day pin,
-        // cache it so the *next* reload's roster is wider. We deliberately
-        // don't refresh the on-screen slideshow mid-session — the
-        // existing pairs keep cycling rather than flickering as pins
-        // resolve.
-        addDiscoveredCountry = (cc) => {
-            if (!cc) return;
-            const up = cc.toUpperCase();
-            discoveredCodes.add(up);
-        };
-    }
-
-    const showNextImageAndQuote = () => {
-        if (displayImages.length <= 1) return; // No need to cycle if only 1 image
-        currentPhotoIdx = (currentPhotoIdx + 1) % displayImages.length;
-        const imgEl = (div.querySelector('#homeHeroImg') as HTMLImageElement | null);
-        const quoteEl = (div.querySelector('#homeQuote') as HTMLElement | null);
-        if (imgEl) {
-            imgEl.style.opacity = '0';
-            setTimeout(() => {
-                imgEl.src = displayImages[currentPhotoIdx];
-                imgEl.style.opacity = '1';
-            }, 800);
-        }
-        if (quoteEl) {
-            quoteEl.style.opacity = '0';
-            setTimeout(() => {
-                quoteEl.innerText = displayQuotes[currentPhotoIdx % displayQuotes.length] || "";
-                quoteEl.style.opacity = '1';
-            }, 800);
-        }
-    };
+    // Slideshow controller — owns the roster + 6s cycle + the
+    // addDiscoveredCountry callback the map's reverse-geocode
+    // loop calls when it finds a new ISO country. See
+    // ./home/slideshow.ts for the controller's full surface.
+    const slideshow = setupSlideshow(activeTrip);
+    const displayImages = slideshow.images;
+    const displayQuotes = slideshow.quotes;
 
     if (!activeTrip) {
         div.innerHTML = `
@@ -342,7 +243,7 @@ export function renderHome() {
                 <h1 style="display: inline-block; background: linear-gradient(135deg, var(--accent-blue), #9b59b6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin: 0; font-size: 3.5rem;">Let's travel.</h1>
                 <p style="color: var(--text-secondary); max-width: 440px; margin: 10px auto 0; font-size: 1.1rem;">Your next big adventure is waiting. Create a trip to start tracking expenses and planning days.</p>
             </div>
-            
+
             <div class="card glass cover-card cover-card--lg">
                 <img id="homeHeroImg" src="${displayImages[0] || ''}" alt="" style="width: 100%; height: 100%; object-fit: cover; transition: opacity 0.8s ease-in-out;">
                 <div class="cover-card__gradient"></div>
@@ -354,8 +255,7 @@ export function renderHome() {
                 </div>
             </div>
         `;
-        stopHomeSlideshow();
-        _slideshowTimer = setInterval(showNextImageAndQuote, 6000);
+        slideshow.start(div);
         div.querySelector('#homeCreateFirstTripBtn')?.addEventListener('click', () => openNewTripModal());
     } else {
         const tripExpenses = (STATE.expenses || []).filter(e => e && e.tripId === activeTrip.id);
@@ -1617,7 +1517,7 @@ export function renderHome() {
                             const pinLat = day.lat, pinLng = day.lon || day.lng;
                             if (typeof pinLat !== 'number' || typeof pinLng !== 'number') continue;
                             const code = await cachedCountryFor(pinLat, pinLng);
-                            if (code) addDiscoveredCountry(code);
+                            if (code) slideshow.addDiscoveredCountry(code);
                         }
                     })();
                 }
