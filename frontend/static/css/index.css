@@ -5483,6 +5483,32 @@ body.is-signed-out .mobile-bottom-nav {
         word-break: break-word;
         overflow-wrap: break-word;
     }
+    /* Plan with AI: the top-level 2-col grid (left controls panel +
+       right map) uses inline `grid-template-columns: 380px 1fr` on
+       desktop. On a 375px viewport that 380px first column is
+       already wider than the screen — the cards visibly overflow /
+       get clipped by the overflow-x:hidden above. Collapse to a
+       single column on mobile so the controls panel + map stack
+       vertically and each fills the viewport width. The
+       `min-height: 700px` on #aiControlsPanel (which made the
+       Requirements card flex-grow to align with the map's bottom
+       on desktop) is also relaxed on mobile — at 700px tall the
+       column would push the Generate button below the fold for no
+       visual benefit. */
+    main#app-container .ai-page-2col {
+        grid-template-columns: 1fr !important;
+    }
+    main#app-container #aiControlsPanel {
+        min-height: 0 !important;
+    }
+    /* AI page cards/inputs: max-width: 100% so any inline width
+       on a child can't push it past the viewport. */
+    main#app-container .ai-page-2col .card,
+    main#app-container .ai-page-2col input,
+    main#app-container .ai-page-2col textarea {
+        max-width: 100%;
+        box-sizing: border-box;
+    }
 
     /* ── User profile: shrink wide chrome to fit mobile ─────────
        The footprint map (#legaciesMap) is 450px tall on desktop;

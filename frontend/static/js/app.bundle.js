@@ -2363,12 +2363,19 @@ Error generating stack: `+e.message+`
                 <p style="margin:0;color:var(--text-secondary);font-size:1rem;">Planning your trip to <strong>${n}</strong></p>
             </div>
 
-            <!-- Top 2-col: Controls | Map -->
-            <div style="display:grid;grid-template-columns:380px 1fr;gap:24px;margin-bottom:32px;">
+            <!-- Top 2-col: Controls | Map. Class ai-page-2col is the
+                 anchor for the mobile media query that collapses this
+                 to a single column at 720px and below (the inline
+                 380px + 1fr already exceeds a 375px viewport, which
+                 is why the cards appeared cut off in the prior
+                 build). -->
+            <div class="ai-page-2col" style="display:grid;grid-template-columns:380px 1fr;gap:24px;margin-bottom:32px;">
 
                 <!-- Left: Controls. min-height matches the sticky map (700px) so
                      the Requirements card can flex-grow into the spare space and
-                     the Generate button bottom lines up with the map's bottom. -->
+                     the Generate button bottom lines up with the map's bottom.
+                     Mobile drops the min-height (see media query) so the cards
+                     don't push a 700px-tall column into a 600px viewport. -->
                 <div id="aiControlsPanel" style="display:flex;flex-direction:column;gap:16px;min-height:700px;">
                     <!-- AI Engine — Gemini key. Each user brings their
                          own free key so we don't burn the host's quota
