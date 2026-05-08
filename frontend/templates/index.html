@@ -107,7 +107,7 @@
              trip exists — display:none controlled by JS. -->
         <div class="sidebar-trip-controls sidebar-item--mobile-only">
             <button class="btn-primary-pill sidebar-trip-controls__new" id="newTripBtnSidebar">+ New Trip</button>
-            <select id="tripSelectorSidebar" class="btn-primary-pill--inverse sidebar-trip-controls__selector">
+            <select id="tripSelectorSidebar" class="btn-primary-pill--inverse sidebar-trip-controls__selector" aria-label="Select active trip">
                 <option value="">Select a Trip...</option>
             </select>
             <div class="sidebar-trip-controls__actions">
@@ -315,7 +315,7 @@
              top of the burger drawer (#newTripBtnSidebar etc.). -->
         <div class="nav-trips nav-trips--desktop-only" style="display: flex; align-items: center; gap: 8px;">
             <button class="btn-primary-pill" id="newTripBtn">+ New Trip</button>
-            <select id="tripSelector" class="btn-primary-pill--inverse" style="min-width: 160px;">
+            <select id="tripSelector" class="btn-primary-pill--inverse" aria-label="Select active trip" style="min-width: 160px;">
                 <option value="">Select a Trip...</option>
             </select>
             <button class="icon-btn-circle" id="completeTripBtn" style="--accent: 52,199,89; display: none;" title="Complete Trip">

@@ -106,7 +106,7 @@ export const openDayView = (day: any): void => {
                         <h4 class="text-tag" style="--accent: 88,86,214;">${Number(day.dayNumber) === 0 ? 'Trip-wide documents' : 'Documents'}${docs.length > 0 ? ` (${docs.length})` : ''}</h4>
                         ${docs.length > 0 ? `
                             <div style="display:flex; flex-direction:column; gap:6px; margin-top:8px;">
-                                ${docs.map(d => `<a href="${esc(d.url || '#')}" target="_blank" rel="noreferrer" style="font-size:0.85rem; color:var(--accent-blue); font-weight:700; text-decoration:none;">📎 ${esc(d.name || 'Document')}</a>`).join('')}
+                                ${docs.map(d => `<a href="${esc(d.url || '#')}" target="_blank" rel="noreferrer" style="font-size:0.85rem; color:#005bb8; font-weight:700; text-decoration:none;">📎 ${esc(d.name || 'Document')}</a>`).join('')}
                             </div>
                         ` : `<p style="margin: 6px 0 0; color: var(--text-secondary); font-style: italic; font-size: 0.85rem;">${Number(day.dayNumber) === 0 ? 'No trip-wide docs yet — add passports, hotels, return flights from the Documents tab.' : 'No documents for this day.'}</p>`}
                     </div>

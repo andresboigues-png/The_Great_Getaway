@@ -820,23 +820,28 @@
                 <div class="stage stage-light">
                     <div class="stage-stack">
                         <div class="form-row">
-                            <label class="form-label-light">Who Paid</label>
-                            <select class="glass-input-light">
+                            <label class="form-label-light" for="cpDemoWho">Who Paid</label>
+                            <select id="cpDemoWho" class="glass-input-light">
                                 <option>Andres</option>
                                 <option>Maria</option>
                             </select>
                         </div>
                         <div class="form-row">
-                            <label class="form-label-light">Label</label>
-                            <input type="text" class="glass-input-light" placeholder="e.g. Dinner at Mario's" />
+                            <label class="form-label-light" for="cpDemoLabel">Label</label>
+                            <input
+                                id="cpDemoLabel"
+                                type="text"
+                                class="glass-input-light"
+                                placeholder="e.g. Dinner at Mario's"
+                            />
                         </div>
                     </div>
 
                     <div class="state-label" style="margin-top: var(--space-5)">.compact-form-label + .glass-input</div>
                     <div class="stage-stack">
                         <div class="compact-form-row">
-                            <label class="compact-form-label">Trip</label>
-                            <select class="glass-input" style="width: 100%">
+                            <label class="compact-form-label" for="cpDemoTrip">Trip</label>
+                            <select id="cpDemoTrip" class="glass-input" style="width: 100%">
                                 <option>All Trips</option>
                             </select>
                         </div>
@@ -859,7 +864,11 @@
 
                     <div class="state-label" style="margin-top: var(--space-5)">.brand-select (custom chevron)</div>
                     <div style="position: relative; display: inline-block">
-                        <select class="brand-select" style="padding: 6px 28px 6px 12px">
+                        <select
+                            class="brand-select"
+                            aria-label="Demo currency selector"
+                            style="padding: 6px 28px 6px 12px"
+                        >
                             <option>EUR</option>
                             <option>USD</option>
                         </select>
@@ -1038,6 +1047,7 @@
                                 class="glass-input split-input splitter-row__pct"
                                 value="50"
                                 step="0.1"
+                                aria-label="Andres split percentage"
                             />
                             <span class="text-muted">%</span>
                             <button class="btn-x-bare" style="font-weight: 700">&times;</button>
@@ -1107,7 +1117,7 @@
                                     52.00 <span class="expense-row__currency">EUR</span>
                                 </div>
                             </div>
-                            <button class="icon-action-btn" style="--accent: 0, 113, 227">
+                            <button class="icon-action-btn" aria-label="Edit expense" style="--accent: 0, 113, 227">
                                 <svg
                                     width="16"
                                     height="16"
@@ -1116,11 +1126,12 @@
                                     stroke="currentColor"
                                     stroke-width="2.5"
                                     stroke-linecap="round"
+                                    aria-hidden="true"
                                 >
                                     <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                                 </svg>
                             </button>
-                            <button class="icon-action-btn" style="--accent: 255, 59, 48">
+                            <button class="icon-action-btn" aria-label="Delete expense" style="--accent: 255, 59, 48">
                                 <svg
                                     width="16"
                                     height="16"
@@ -1129,6 +1140,7 @@
                                     stroke="currentColor"
                                     stroke-width="2.5"
                                     stroke-linecap="round"
+                                    aria-hidden="true"
                                 >
                                     <polyline points="3 6 5 6 21 6"></polyline>
                                 </svg>
@@ -1844,6 +1856,7 @@
                             class="glass-input-modal"
                             value="Lis"
                             readonly
+                            aria-label="Place-picker query (synthetic demo)"
                             style="
                                 width: 100%;
                                 background: white;
@@ -1855,6 +1868,7 @@
                         />
                         <div
                             role="listbox"
+                            aria-label="Place predictions (synthetic demo)"
                             style="
                                 position: relative;
                                 margin-top: 4px;

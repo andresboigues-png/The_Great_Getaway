@@ -335,6 +335,22 @@ export function renderDayRoutePolyline(
     // setInterval which keeps burning CPU). Phase increments by
     // ~0.06rad per frame at 60fps → roughly 1.7s per pulse,
     // slow enough to feel alive without distracting.
+    //
+    // D3 a11y: respect `prefers-reduced-motion: reduce`. When the
+    // user has reduced-motion set in OS preferences, freeze the
+    // polyline at its mid-cycle opacity (the visual reads the same
+    // as the average frame) and skip the rAF loop entirely. No
+    // pulse, no CPU burn, but the route still renders so the
+    // information is unchanged.
+    const reduceMotion = typeof window !== 'undefined'
+        && typeof window.matchMedia === 'function'
+        && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduceMotion) {
+        haloLine.setOptions({ strokeOpacity: 0.11 });
+        glowLine.setOptions({ strokeOpacity: 0.30 });
+        coreLine.setOptions({ strokeOpacity: 0.90 });
+        return;
+    }
     const start = performance.now();
     const tick = (now: number) => {
         const t = (now - start) / 1000; // seconds

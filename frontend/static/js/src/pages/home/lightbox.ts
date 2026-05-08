@@ -62,7 +62,7 @@ export const openPdfPreview = (url: string, name?: string): void => {
                 <span style="font-size:1.1rem; line-height:1; flex-shrink:0;">📎</span>
                 <h3 style="flex:1; min-width:0; margin:0; font-size:0.95rem; font-weight:800; color:#002d5b; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${safeName}</h3>
                 <a href="${safeUrl}" target="_blank" rel="noreferrer"
-                    style="background:rgba(0,113,227,0.08); color:var(--accent-blue); border:1px solid rgba(0,113,227,0.18); padding:6px 12px; border-radius:999px; font-size:0.75rem; font-weight:800; text-decoration:none; display:inline-flex; align-items:center; gap:6px;"
+                    style="background:rgba(0,113,227,0.08); color:#005bb8; border:1px solid rgba(0,113,227,0.18); padding:6px 12px; border-radius:999px; font-size:0.75rem; font-weight:800; text-decoration:none; display:inline-flex; align-items:center; gap:6px;"
                     title="Open this PDF in a new browser tab">
                     Open in new tab ↗
                 </a>

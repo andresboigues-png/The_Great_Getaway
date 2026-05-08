@@ -129,9 +129,9 @@ export function renderAI() {
                          self-hosted setups still work. -->
                     <div class="card glass" style="padding:18px;border-color:rgba(155,89,182,0.3);flex:0 0 auto;">
                         <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
-                            <h2 class="card-title" style="font-size:0.85rem;text-transform:uppercase;letter-spacing:0.07em;color:#9b59b6;margin:0;">✦ AI Engine — Gemini</h2>
+                            <h2 class="card-title" style="font-size:0.85rem;text-transform:uppercase;letter-spacing:0.07em;color:#7c3a9e;margin:0;">✦ AI Engine — Gemini</h2>
                             <button id="aiKeyHelpBtn" type="button" title="How to get a Gemini API key" aria-label="How to get a Gemini API key"
-                                style="background:rgba(155,89,182,0.12); border:1px solid rgba(155,89,182,0.35); color:#9b59b6; width:24px; height:24px; border-radius:50%; cursor:pointer; font-weight:800; font-size:0.78rem; line-height:1; display:inline-flex; align-items:center; justify-content:center; font-family: Georgia, serif; font-style: italic;">i</button>
+                                style="background:rgba(155,89,182,0.12); border:1px solid rgba(155,89,182,0.35); color:#7c3a9e; width:24px; height:24px; border-radius:50%; cursor:pointer; font-weight:800; font-size:0.78rem; line-height:1; display:inline-flex; align-items:center; justify-content:center; font-family: Georgia, serif; font-style: italic;">i</button>
                         </div>
                         <p style="color:var(--text-secondary);font-size:0.78rem;margin:0 0 10px;">Bring your own free Gemini API key. Stored on this device only.</p>
                         <div style="position:relative;">
@@ -145,21 +145,21 @@ export function renderAI() {
                     </div>
                     <!-- Dates -->
                     <div class="card glass" style="padding:20px;flex:0 0 auto;">
-                        <h2 class="card-title" style="font-size:0.85rem;text-transform:uppercase;letter-spacing:0.07em;color:var(--accent-blue);margin-bottom:14px;">📅 Travel Dates</h2>
+                        <h2 class="card-title" style="font-size:0.85rem;text-transform:uppercase;letter-spacing:0.07em;color:#005bb8;margin-bottom:14px;">📅 Travel Dates</h2>
                         <div style="display:flex; flex-direction:column; gap:12px;">
                             <div>
-                                <label style="display:block;font-size:0.75rem;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:5px;">From</label>
+                                <label for="aiDateFrom" style="display:block;font-size:0.75rem;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:5px;">From</label>
                                 <input id="aiDateFrom" type="date" class="glass-input" value="${minDate}" style="width:100%; box-sizing: border-box;">
                             </div>
                             <div>
-                                <label style="display:block;font-size:0.75rem;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:5px;">To</label>
+                                <label for="aiDateTo" style="display:block;font-size:0.75rem;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:5px;">To</label>
                                 <input id="aiDateTo" type="date" class="glass-input" value="${maxDate}" style="width:100%; box-sizing: border-box;">
                             </div>
                         </div>
                     </div>
 
                     <div class="card glass" style="padding:20px;flex:1 1 auto;display:flex;flex-direction:column;min-height:0;">
-                        <h2 class="card-title" style="font-size:0.85rem;text-transform:uppercase;color:var(--accent-blue);margin-bottom:10px;letter-spacing:0.05em;">📝 Requirements</h2>
+                        <h2 class="card-title" style="font-size:0.85rem;text-transform:uppercase;color:#005bb8;margin-bottom:10px;letter-spacing:0.05em;">📝 Requirements</h2>
                         <textarea id="aiExtraContext" class="glass-input" style="width:100%; resize:none; font-size:0.9rem; box-sizing: border-box; flex:1 1 auto; min-height:120px;" placeholder="e.g. Vegetarian friendly, no walking more than 2km...">${savedContext}</textarea>
                     </div>
                     <!-- Generate -->
@@ -481,7 +481,7 @@ export function renderAI() {
                     <div class="card glass" style="padding: 20px; border-radius: 18px; border: 1.5px dashed rgba(155, 89, 182, 0.35); background: rgba(155, 89, 182, 0.04);">
                         <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
                             <span style="font-size: 1.2rem;">📋</span>
-                            <h3 style="margin:0; color:#9b59b6; font-weight:800; letter-spacing:-0.01em;">No to-do items yet</h3>
+                            <h3 style="margin:0; color:#7c3a9e; font-weight:800; letter-spacing:-0.01em;">No to-do items yet</h3>
                         </div>
                         <p style="margin:0 0 12px; color: var(--text-secondary); font-size: 0.9rem;">Build a to-do list of places you want the AI to consider — it gets a richer prompt and you get more relevant suggestions.</p>
                         <button id="aiGoToTodoBtn" class="btn-primary" style="padding: 10px 18px; border-radius: 999px; font-size:0.85rem;">Open To do list 📋</button>
@@ -500,7 +500,7 @@ export function renderAI() {
                     <div class="card glass" style="padding: 20px; border-radius: 18px; border: 1.5px dashed rgba(155, 89, 182, 0.35); background: rgba(155, 89, 182, 0.04);">
                         <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
                             <span style="font-size: 1.2rem;">📋</span>
-                            <h3 style="margin:0; color:#9b59b6; font-weight:800; letter-spacing:-0.01em;">${allTodo.length} item${allTodo.length === 1 ? '' : 's'} on your to-do list</h3>
+                            <h3 style="margin:0; color:#7c3a9e; font-weight:800; letter-spacing:-0.01em;">${allTodo.length} item${allTodo.length === 1 ? '' : 's'} on your to-do list</h3>
                         </div>
                         <p style="margin:0 0 12px; color: var(--text-secondary); font-size: 0.9rem;">None ticked for AI consideration yet — head to the <strong>To do list</strong> page to pick which ones you want the AI to plan around.</p>
                         <button id="aiGoToTodoBtn" class="btn-primary" style="padding: 10px 18px; border-radius: 999px; font-size:0.85rem;">Tick items in To do list 📋</button>
@@ -561,8 +561,8 @@ export function renderAI() {
                 <div class="card glass" style="padding:20px; border-radius:18px; border: 1.5px solid rgba(155, 89, 182, 0.25);">
                     <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px; flex-wrap:wrap;">
                         <span style="font-size: 1.2rem;">📋</span>
-                        <h3 style="margin:0; color:#9b59b6; font-weight:800; letter-spacing:-0.01em;">Ticked for this generation <span style="background:rgba(155,89,182,0.12); color:#9b59b6; font-size:0.7rem; padding:2px 8px; border-radius:999px; margin-left:6px;">${tickedItems.length} item${tickedItems.length === 1 ? '' : 's'}</span></h3>
-                        <button id="aiManageTodoBtn" type="button" style="margin-left:auto; background:transparent; border:0; color:var(--accent-blue); font-weight:700; font-size:0.82rem; cursor:pointer; padding:0;">Manage in To do list →</button>
+                        <h3 style="margin:0; color:#7c3a9e; font-weight:800; letter-spacing:-0.01em;">Ticked for this generation <span style="background:rgba(155,89,182,0.12); color:#7c3a9e; font-size:0.7rem; padding:2px 8px; border-radius:999px; margin-left:6px;">${tickedItems.length} item${tickedItems.length === 1 ? '' : 's'}</span></h3>
+                        <button id="aiManageTodoBtn" type="button" style="margin-left:auto; background:transparent; border:0; color:#005bb8; font-weight:700; font-size:0.82rem; cursor:pointer; padding:0;">Manage in To do list →</button>
                     </div>
                     <p style="font-size:0.82rem; color:var(--text-secondary); margin:0 0 12px; line-height:1.5;">${datesSet ? 'Pick a day and time of day for each — the AI will respect explicit slots when generating the itinerary.' : 'Set the Travel Dates above to assign these to specific days and times of day.'}</p>
                     <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap:12px;">
@@ -620,7 +620,7 @@ export function renderAI() {
             const v = (STATE.geminiApiKey || '').trim();
             if (!v) {
                 keyStatusEl.textContent = 'No key saved — paste one above to enable AI generation.';
-                keyStatusEl.style.color = '#ff9500';
+                keyStatusEl.style.color = '#a85d00';
                 return;
             }
             // Light shape check — Gemini keys start "AIza" and are ~39
@@ -628,7 +628,7 @@ export function renderAI() {
             // just hint when something looks off.
             const looksLegit = v.startsWith('AIza') && v.length >= 30;
             keyStatusEl.textContent = looksLegit ? '✓ Key saved on this device.' : '⚠ Saved, but the format looks off (Gemini keys usually start with "AIza"). Click i for help.';
-            keyStatusEl.style.color = looksLegit ? '#1a6b3c' : '#ff9500';
+            keyStatusEl.style.color = looksLegit ? '#1a6b3c' : '#a85d00';
         };
         renderKeyStatus();
 
@@ -654,7 +654,7 @@ export function renderAI() {
                     cardStyle: 'width: 520px; max-width: calc(100vw - 32px); max-height: 90vh; overflow-y: auto; padding: 28px 32px; border-radius: 28px; background: white;',
                     innerHTML: `
                         <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 12px;">
-                            <h2 style="margin:0; font-size: 1.6rem; color:#9b59b6; font-weight: 800; letter-spacing:-0.02em;">✦ Get a Gemini API key</h2>
+                            <h2 style="margin:0; font-size: 1.6rem; color:#7c3a9e; font-weight: 800; letter-spacing:-0.02em;">✦ Get a Gemini API key</h2>
                             <button id="aiKeyHelpClose" class="close-x-btn" aria-label="Close">✕</button>
                         </div>
                         <p style="margin:0 0 14px; color: var(--text-secondary); font-size: 0.92rem; line-height: 1.5;">
@@ -663,7 +663,7 @@ export function renderAI() {
                             prompt. We don't store it on our servers.
                         </p>
                         <ol style="margin: 0 0 16px 0; padding-left: 22px; color: #002d5b; font-size: 0.92rem; line-height: 1.7;">
-                            <li>Open <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" style="color: var(--accent-blue); font-weight: 700;">aistudio.google.com/app/apikey</a> in a new tab.</li>
+                            <li>Open <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" style="color: #005bb8; font-weight: 700;">aistudio.google.com/app/apikey</a> in a new tab.</li>
                             <li>Sign in with a regular Google account if prompted.</li>
                             <li>Click <strong>Create API key</strong>.</li>
                             <li>Pick <em>"Create API key in new project"</em> if you don't already have a Google Cloud project — fastest path.</li>
@@ -697,7 +697,7 @@ export function renderAI() {
                             </div>
                             <div style="margin-top:8px; font-size: 0.78rem;">
                                 See your <strong>actual</strong> numbers (and how much you've used) on Google's
-                                <a href="https://aistudio.google.com/rate-limit?timeRange=last-28-days" target="_blank" rel="noreferrer" style="color: var(--accent-blue); font-weight: 700;">rate-limit dashboard</a>.
+                                <a href="https://aistudio.google.com/rate-limit?timeRange=last-28-days" target="_blank" rel="noreferrer" style="color: #005bb8; font-weight: 700;">rate-limit dashboard</a>.
                             </div>
                         </div>
                         <div style="display:flex; justify-content:flex-end; margin-top:18px;">
@@ -754,7 +754,7 @@ export function renderAI() {
             }
             const context = userContext + markedSuffix;
             activeTrip.aiContext = userContext; activeTrip.aiNumDays = numDays; emit('state:changed');
-            outputEl.innerHTML = `<div style="text-align:center;padding:60px;"><div class="spinner-ring" style="width:40px;height:40px;border:3px solid rgba(255,255,255,0.1);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 20px;"></div><div style="color:white;font-weight:600;">Consulting Gemini AI...</div></div>`;
+            outputEl.innerHTML = `<div style="text-align:center;padding:60px;"><div class="spinner-ring" style="width:40px;height:40px;border:3px solid rgba(255,255,255,0.1);border-top-color:#005bb8;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 20px;"></div><div style="color:white;font-weight:600;">Consulting Gemini AI...</div></div>`;
             outputEl.scrollIntoView({ behavior: 'smooth' });
             try {
                 const r = await apiFetch('/api/generate_itinerary', {

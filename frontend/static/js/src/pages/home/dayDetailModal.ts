@@ -130,8 +130,8 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
         <div class="day-shortlist-section" style="margin-top: var(--space-10); padding: var(--space-6); background: rgba(155, 89, 182, 0.04); border: 1px solid rgba(155, 89, 182, 0.2); border-radius: 24px;">
             <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px; flex-wrap:wrap;">
                 <span style="font-size: 1.2rem;">📋</span>
-                <h4 style="margin:0; color:#9b59b6; font-weight:800; letter-spacing:-0.01em;">From your to-do list</h4>
-                <span class="day-shortlist-count" style="background: rgba(155,89,182,0.12); color:#9b59b6; padding: 2px 10px; border-radius:999px; font-size:0.72rem; font-weight:800;">${allShortlist.length}</span>
+                <h4 style="margin:0; color:#7c3a9e; font-weight:800; letter-spacing:-0.01em;">From your to-do list</h4>
+                <span class="day-shortlist-count" style="background: rgba(155,89,182,0.12); color:#7c3a9e; padding: 2px 10px; border-radius:999px; font-size:0.72rem; font-weight:800;">${allShortlist.length}</span>
                 ${allShortlist.length > 6 ? `
                     <input type="search" id="dayShortlistFilter" placeholder="Filter…" autocomplete="off"
                         style="margin-left:auto; max-width: 200px; padding:6px 12px; border:1px solid rgba(155,89,182,0.25); background:white; border-radius:999px; font-size:0.78rem; color:#002d5b; outline:none; font-family: inherit;">
@@ -146,7 +146,7 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
                 <div id="dayShortlistEmpty" style="display:none; padding: 16px 8px; text-align:center; color:var(--text-secondary); font-size:0.84rem;">No matches.</div>
             ` : `
                 <div style="margin-top:6px; padding: 18px 16px; border:1.5px dashed rgba(155,89,182,0.35); border-radius: 14px; background: rgba(155,89,182,0.03); color: var(--text-secondary); font-size: 0.85rem; line-height: 1.5;">
-                    No places saved yet. Open the map on Home, tap any pin, then click <strong style="color:#9b59b6;">📋 Add to to-do list</strong>. Each saved place lands here with AM / PM / Eve buttons so you can drop it into a time slot for this day in one tap.
+                    No places saved yet. Open the map on Home, tap any pin, then click <strong style="color:#7c3a9e;">📋 Add to to-do list</strong>. Each saved place lands here with AM / PM / Eve buttons so you can drop it into a time slot for this day in one tap.
                 </div>
             `}
         </div>

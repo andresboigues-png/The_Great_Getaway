@@ -154,35 +154,35 @@ function renderManualTab() {
             <form id="expenseForm" style="display: flex; flex-direction: column; align-items: center; width: 100%;">
 
                 <div class="form-row">
-                    <label class="form-label-light">Who Paid</label>
+                    <label class="form-label-light" for="expWho">Who Paid</label>
                     <select id="expWho" class="glass-input-light" required>
                         ${peopleOptions}
                     </select>
                     ${!hasTripCompanions ? `
-                    <div id="addCompanionsHelper" style="margin-top: var(--space-3); font-size: var(--font-sm); color: var(--accent-blue); font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                    <div id="addCompanionsHelper" style="margin-top: var(--space-3); font-size: var(--font-sm); color: #005bb8; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px;">
                         <span>➕</span> <span style="text-decoration: underline;">Add companions to this trip from Home</span>
                     </div>` : ''}
                 </div>
 
                 <div class="form-row">
-                    <label class="form-label-light">Category</label>
+                    <label class="form-label-light" for="expCategory">Category</label>
                     <select id="expCategory" class="glass-input-light" required>
                         ${categoryOptions}
                     </select>
                 </div>
 
                 <div class="form-row">
-                    <label class="form-label-light">Label</label>
+                    <label class="form-label-light" for="expLabel">Label</label>
                     <input type="text" id="expLabel" class="glass-input-light" placeholder="e.g. Dinner at Mario's" required>
                 </div>
 
                 <div class="form-row">
-                    <label class="form-label-light">Date</label>
+                    <label class="form-label-light" for="expDate">Date</label>
                     <input type="date" id="expDate" class="glass-input-light" required>
                 </div>
 
                 <div class="form-row" style="position: relative;" id="countrySearchContainer">
-                    <label class="form-label-light">Country</label>
+                    <label class="form-label-light" for="expCountry">Country</label>
                     <div class="custom-select-wrapper">
                         <input type="text" id="expCountry" class="glass-input-light" placeholder="Search country..." autocomplete="off">
                         <div id="countryDropdownList" class="custom-select-dropdown glass shadow-xl" style="display: none; position: absolute; top: 100%; left: 0; right: 0; z-index: 1000; max-height: 250px; overflow-y: auto; margin-top: var(--space-2); border-radius: var(--radius-xl); border: 1px solid rgba(0,0,0,0.1); background: rgba(255,255,255,0.95); backdrop-filter: blur(20px);">
@@ -193,12 +193,12 @@ function renderManualTab() {
                 </div>
 
                 <div class="form-row">
-                    <label class="form-label-light">Value</label>
+                    <label class="form-label-light" for="expValue">Value</label>
                     <input type="number" step="0.01" id="expValue" class="glass-input-light" style="font-weight: 700;" required>
                 </div>
 
                 <div class="form-row">
-                    <label class="form-label-light">Currency</label>
+                    <label class="form-label-light" for="expCurrency">Currency</label>
                     <select id="expCurrency" class="glass-input-light" required>
                         <option value="">Select Currency...</option>
                         ${Object.keys(CONVERSION_RATES).map(c => `<option value="${c}">${c}</option>`).join('')}
@@ -211,7 +211,7 @@ function renderManualTab() {
                      on-click — same UX shape as the Edit Trip cover
                      picker so users learn it once. -->
                 <div class="form-row" style="margin-bottom: var(--space-8);">
-                    <label class="form-label-light">Receipt <span style="opacity: 0.5; font-weight: 500;">(optional)</span></label>
+                    <label class="form-label-light" for="expReceiptInput">Receipt <span style="font-weight: 500; color: rgba(0,0,0,0.55);">(optional)</span></label>
                     <input type="file" id="expReceiptInput" accept="image/*" style="display: none;">
                     <div style="display: flex; gap: var(--space-3); align-items: center; width: 100%; max-width: 440px; box-sizing: border-box;">
                         <button type="button" id="expReceiptPickBtn" class="btn-ghost" style="flex: 0 0 auto; padding: 10px 16px; font-size: 0.85rem; font-weight: 700; color: #002d5b; background: rgba(0,0,0,0.04); border: 1px solid rgba(0,0,0,0.08);">
@@ -228,7 +228,7 @@ function renderManualTab() {
                 <div style="margin-bottom: 40px; background: rgba(0,0,0,0.03); padding: 32px; border-radius: 32px; border: 1px solid rgba(0,0,0,0.05); width: 100%; max-width: 440px; box-sizing: border-box;">
                     <label style="display: block; margin-bottom: 16px; font-size: 0.9rem; font-weight: 800; color: #000000; letter-spacing: -0.02em;">Split Between</label>
                     <div class="add-split-row" style="display: flex; gap: 14px; margin-bottom: 20px;">
-                        <select id="addSplitSelect" class="glass-input" style="flex: 1; padding: 14px; border-radius: 16px; background: rgba(255,255,255,0.4); color: #000000; font-weight: 600; border: 1px solid rgba(0,0,0,0.05); box-sizing: border-box;" ${!hasTripCompanions ? 'disabled' : ''}>
+                        <select id="addSplitSelect" class="glass-input" aria-label="Add a person to split the expense between" style="flex: 1; padding: 14px; border-radius: 16px; background: rgba(255,255,255,0.4); color: #000000; font-weight: 600; border: 1px solid rgba(0,0,0,0.05); box-sizing: border-box;" ${!hasTripCompanions ? 'disabled' : ''}>
                             <option value="">${hasTripCompanions ? 'Add person to split...' : 'No trip companions yet'}</option>
                             ${tripCompanionNames.map(p => `<option value="${p}">${p}</option>`).join('')}
                         </select>
@@ -638,7 +638,7 @@ function renderHistoryTab() {
                         <div style="display: flex; gap: 8px;">
                             ${canUndoBatch ? `<button id="undoLastBatchBtn" class="btn-chip-danger" title="Remove the ${undoBatch.expenseIds.length} expenses just imported">↶ Undo last batch (${undoBatch.expenseIds.length})</button>` : ''}
                             <button id="clearFiltersBtn" class="btn-chip-danger">Clear Filters</button>
-                            <span style="font-size: 0.75rem; font-weight: 700; color: var(--accent-blue); background: rgba(0,113,227,0.1); padding: 6px 14px; border-radius: 100px; text-transform: uppercase;">Smart Filters</span>
+                            <span style="font-size: 0.75rem; font-weight: 700; color: #005bb8; background: rgba(0,113,227,0.1); padding: 6px 14px; border-radius: 100px; text-transform: uppercase;">Smart Filters</span>
                         </div>
                     </div>
 

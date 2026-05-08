@@ -242,7 +242,7 @@ export function renderUpload() {
         })()}
                 </select>
                 <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 12px; line-height: 1.5;">
-                    Use your favourite app's format or <a href="#" id="uploadFormatSettingsLink" style="color: var(--accent-blue); text-decoration: none; font-weight: 600;">customize your own upload format</a> in settings.
+                    Use your favourite app's format or <a href="#" id="uploadFormatSettingsLink" style="color: #005bb8; text-decoration: none; font-weight: 600;">customize your own upload format</a> in settings.
                 </p>
                 <p id="formatNote" style="font-size:0.8rem; color:var(--text-secondary); margin-top:8px;"></p>
             </div>

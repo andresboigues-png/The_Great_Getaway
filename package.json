@@ -16,6 +16,7 @@
         "test:e2e:nonvisual": "playwright test --grep-invert='Visual regression'",
         "test:e2e:visual": "playwright test tests/e2e/visual.spec.js",
         "test:e2e:visual:update": "playwright test tests/e2e/visual.spec.js --update-snapshots",
+        "test:e2e:a11y": "playwright test tests/e2e/a11y.spec.js",
         "prepare": "husky"
     },
     "lint-staged": {
@@ -39,6 +40,8 @@
     "author": "",
     "license": "ISC",
     "devDependencies": {
+        "@axe-core/cli": "^4.11.3",
+        "@axe-core/playwright": "^4.11.3",
         "@eslint/js": "^9.39.4",
         "@playwright/test": "^1.59.1",
         "@types/react": "^19.2.14",

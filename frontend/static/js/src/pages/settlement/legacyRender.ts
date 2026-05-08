@@ -87,7 +87,7 @@ function renderTripsStrip(currentTripId: string | null): string {
                                 style="flex-shrink:0; min-width: 200px; text-align:left; background: ${isActive ? 'linear-gradient(135deg, rgba(255,214,10,0.16), rgba(255,159,10,0.08))' : 'white'}; border: 1.5px solid ${isActive ? 'rgba(255,159,10,0.55)' : 'rgba(0,0,0,0.06)'}; border-radius: 18px; padding: 14px 16px; cursor:pointer; box-shadow: ${isActive ? '0 8px 24px rgba(255,159,10,0.22)' : '0 4px 12px rgba(0,45,91,0.06)'}; display:flex; flex-direction:column; gap:6px; font: inherit; color: inherit; outline: 0; margin: 0; transition: transform 0.25s cubic-bezier(0.16,1,0.3,1), box-shadow 0.25s cubic-bezier(0.16,1,0.3,1);">
                                 <span style="font-size:0.66rem; font-weight:800; text-transform:uppercase; letter-spacing:0.1em; color:${isActive ? '#a35200' : 'var(--text-secondary)'};">Trip</span>
                                 <span style="font-size:1rem; font-weight:800; color:#002d5b; letter-spacing:-0.02em; line-height:1.15;">${esc(t.name)}</span>
-                                <span style="font-size:0.78rem; font-weight:700; color: var(--accent-blue);">${formatHome(settlementsTotal, 'EUR')} settled</span>
+                                <span style="font-size:0.78rem; font-weight:700; color: #005bb8;">${formatHome(settlementsTotal, 'EUR')} settled</span>
                             </button>
                         `;
                     })
@@ -101,10 +101,14 @@ function renderTabsNav(trip: any, activeTab: SettlementTab): string {
     const settlementsCount = (STATE.expenses || []).filter(
         (e) => e.tripId === trip.id && e.isSettlement,
     ).length;
+    // D3 contrast: active tab text uses #005bb8 (darker brand blue,
+    // 5.3:1) instead of var(--accent-blue) (#0071e3, 4.31:1) so the
+    // active state passes WCAG AA. Border/badge can keep the brand
+    // blue — they're chrome, not text.
     const tab = (key: string, label: string, badge?: number) => `
         <button class="settle-tab${activeTab === key ? ' is-active' : ''}" data-tab="${key}" type="button"
-            style="background:none; border:0; padding:12px 4px; font-size:0.95rem; font-weight:${activeTab === key ? '800' : '600'}; color:${activeTab === key ? 'var(--accent-blue)' : 'var(--text-secondary)'}; cursor:pointer; border-bottom:2px solid ${activeTab === key ? 'var(--accent-blue)' : 'transparent'}; margin-bottom:-1px; letter-spacing:-0.01em; transition: color 0.2s, border-color 0.2s;">
-            ${label}${badge !== undefined && badge > 0 ? ` <span style="background:rgba(0,113,227,0.12); color:var(--accent-blue); padding:1px 6px; border-radius:999px; font-size:0.7rem; font-weight:800; margin-left:2px;">${badge}</span>` : ''}
+            style="background:none; border:0; padding:12px 4px; font-size:0.95rem; font-weight:${activeTab === key ? '800' : '600'}; color:${activeTab === key ? '#005bb8' : 'var(--text-secondary)'}; cursor:pointer; border-bottom:2px solid ${activeTab === key ? 'var(--accent-blue)' : 'transparent'}; margin-bottom:-1px; letter-spacing:-0.01em; transition: color 0.2s, border-color 0.2s;">
+            ${label}${badge !== undefined && badge > 0 ? ` <span style="background:rgba(0,113,227,0.12); color:#005bb8; padding:1px 6px; border-radius:999px; font-size:0.7rem; font-weight:800; margin-left:2px;">${badge}</span>` : ''}
         </button>
     `;
     return `
@@ -346,7 +350,7 @@ function renderHistoryTab(trip: any, tripIsEditable: boolean): string {
                                                     ? `
                                                 <div style="display:flex; gap:6px; flex-shrink:0;">
                                                     <button class="edit-settlement-btn" data-settlement-id="${esc(s.id)}" type="button"
-                                                        style="background:rgba(0,113,227,0.08); border:1px solid rgba(0,113,227,0.22); color:var(--accent-blue); padding:5px 12px; border-radius:999px; font-size:0.72rem; font-weight:800; cursor:pointer;">Edit</button>
+                                                        style="background:rgba(0,113,227,0.08); border:1px solid rgba(0,113,227,0.22); color:#005bb8; padding:5px 12px; border-radius:999px; font-size:0.72rem; font-weight:800; cursor:pointer;">Edit</button>
                                                     <button class="unsettle-settlement-btn" data-settlement-id="${esc(s.id)}" data-trip-id="${esc(trip.id)}" type="button"
                                                         style="background:rgba(255,59,48,0.08); border:1px solid rgba(255,59,48,0.22); color:#ff3b30; padding:5px 12px; border-radius:999px; font-size:0.72rem; font-weight:800; cursor:pointer;">Unsettle</button>
                                                 </div>

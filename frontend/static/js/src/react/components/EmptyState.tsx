@@ -27,7 +27,12 @@ const ACCENTS = {
     purple: {
         border: 'rgba(155, 89, 182, 0.35)',
         background: 'rgba(155, 89, 182, 0.04)',
-        heading: '#9b59b6',
+        // D3 contrast fix: #9b59b6 hit only 4.08:1 on the page bg —
+        // axe-core flagged this as the EmptyState heading colour.
+        // #7c3a9e is a darker mid-purple (~5.5:1 on white) that still
+        // reads as the same purple family as the border/background
+        // tints above.
+        heading: '#7c3a9e',
     },
     orange: {
         border: 'rgba(255,159,10,0.32)',

@@ -2,7 +2,14 @@
 :root {
     --bg-color: #f5f5f7;
     --text-primary: #1d1d1f;
-    --text-secondary: #86868b;
+    /* D3 contrast fix: was #86868b (3.32:1 on the page background — fails
+       WCAG AA for body text). Bumped to #5a5a5e (~6.6:1 on #f5f5f7 and
+       #ffffff, ~6.0:1 on the lighter card surfaces). Kept appearance
+       readably "secondary" — still grey, still calmer than primary —
+       but now passes axe-core's color-contrast check across every page.
+       Dark-mode override at the .dark scope below keeps the darker-on-
+       dark variant unchanged. */
+    --text-secondary: #5a5a5e;
     --glass-bg: rgba(255, 255, 255, 0.72);
     --glass-border: rgba(255, 255, 255, 0.2);
     --accent-blue: #0071e3;
@@ -259,7 +266,15 @@ body {
     color: var(--accent-blue);
     font-size: 0.9rem;
     font-weight: 600;
-    opacity: 0.6;
+    /* D3 contrast fix: was opacity 0.6 (effective #66aaee, 2.39:1) →
+       0.85 (effective #2686e7, 3.62:1) → 1.0 (full #0071e3, 4.74:1).
+       The active/inactive distinction now leans on font-weight alone
+       (600 → 800 on .active) which is enough visual differentiation
+       at this size; using opacity for "inactive" was a styling shortcut
+       that traded a11y contrast for visual softness. The hover/active
+       rule below keeps the same colour but bumps weight, so the
+       tactile feel is preserved. */
+    opacity: 1;
     transition: all 0.2s ease;
 }
 
@@ -3060,7 +3075,11 @@ h1 {
 .brand-select {
     appearance: none;
     background: rgba(0, 113, 227, 0.08);
-    color: var(--accent-blue);
+    /* D3 contrast: var(--accent-blue) (#0071e3) on the rgba(0,113,227,0.08)
+       backdrop overlaid on the page bg comes out to ~3.86:1. Darker
+       brand-blue (#005bb8) lands at ~5.3:1 and still reads as the same
+       brand colour family. */
+    color: #005bb8;
     border: 1px solid rgba(0, 113, 227, 0.15);
     border-radius: var(--radius-md);
     font-weight: 700;
@@ -3726,7 +3745,10 @@ h1 {
     color: var(--accent-blue);
 }
 .expenses-tabnav__tab.is-active {
-    color: var(--accent-blue);
+    /* D3 contrast: var(--accent-blue) (#0071e3) on the page bg
+       (#f5f5f7) is 4.31:1 — just under AA's 4.5 floor. Darker variant
+       hits 5.7:1 and is still recognizably the same brand blue. */
+    color: #005bb8;
     border-bottom-color: var(--accent-blue);
     font-weight: 800;
 }
@@ -3869,7 +3891,12 @@ h1 {
     margin-bottom: var(--space-2);
     font-size: var(--font-base);
     font-weight: 800;
-    color: rgba(0,0,0,0.5);
+    /* D3 contrast fix: rgba(0,0,0,0.5) yielded ~3.95:1 on the form's
+       light-glass background — fails WCAG AA for body text (4.5:1
+       required). 0.62 black → ~5.7:1, still reads as a calmer
+       "label tone" than full-strength text-primary but now passes
+       axe. Affects every visible expense-form / split-form label. */
+    color: rgba(0,0,0,0.62);
     text-transform: uppercase;
     letter-spacing: 0.1em;
 }
@@ -4838,16 +4865,33 @@ h1 {
     border-bottom: 0;
     padding: 10px 18px;
     border-radius: 999px;
-    color: rgba(var(--accent), 0.55);
+    /* D3 contrast fix: was `rgba(var(--accent), 0.55)` — fine for blue
+       (--accent 0,113,227 → ~5.5:1) but the Feed "Actions" tab uses
+       --accent: 255, 149, 0 (orange), which at 0.55 alpha rendered as
+       #fbc06f and only hit 2.39:1 on the page background. Use the
+       grey secondary text token for the *inactive* state instead so
+       contrast is consistent regardless of accent hue; the active
+       state below still uses `rgb(var(--accent))` so each tab keeps
+       its identity colour when selected. */
+    color: var(--text-secondary);
 }
 .home-tabnav--centered .home-tabnav__tab:hover , .home-tabnav--centered .home-tabnav__tab:active , .home-tabnav--centered .home-tabnav__tab:focus-visible {
     color: rgb(var(--accent));
     background: rgba(var(--accent), 0.06);
 }
 .home-tabnav--centered .home-tabnav__tab.is-active {
-    color: rgb(var(--accent));
+    /* D3 contrast: the original `color: rgb(var(--accent))` failed AA
+       on the rgba(...) backdrop for the purple Feed-Posts tab (4.41:1
+       baseline; 3.93 once we tried darkening the bg). Use color-mix
+       to drop the active foreground to ~75% lightness — for purple
+       (88,86,214) → ~#4240a0, which clears AA on the lighter backdrop;
+       for blue (0,113,227) → ~#0055aa, also clears. color-mix is
+       Baseline-supported (Chrome 111+, Safari 16.4+, Firefox 113+) so
+       no fallback is needed. */
+    color: color-mix(in srgb, rgb(var(--accent)) 75%, black);
     background: rgba(var(--accent), 0.12);
     border-bottom: 0;
+    font-weight: 800;
 }
 
 /* Tab content swap — both blocks stay in the DOM so per-day delegated
@@ -5309,15 +5353,17 @@ body.is-signed-out #sidebarOverlay {
     gap: 2px;
     flex: 1;
     padding: 8px 4px;
-    color: var(--accent-blue);
+    /* D3 contrast: var(--accent-blue) (#0071e3) at 0.55 opacity gave
+       an effective ~#72b0ef on the white bottom-nav background — only
+       2.27:1, fails AA hard. Use the darker brand-text colour at full
+       opacity (active state still steps up to font-weight + the
+       accent-blue underline for visual emphasis). */
+    color: #005bb8;
     text-decoration: none;
     font-size: 0.65rem;
     font-weight: 700;
     letter-spacing: 0.02em;
-    /* opacity + color override the .nav-item base (which sets
-       opacity:0.6); we want bottom-tab items to read clearly even
-       when inactive — they're the primary mobile nav. */
-    opacity: 0.55;
+    opacity: 1;
     transition: opacity 0.15s ease, transform 0.05s ease;
     /* Tap target ≥ 44×44px. Padding pushes the row past 44 even
        at the 0.65rem font size + 22px icon. */
@@ -5866,5 +5912,39 @@ body.is-signed-out .mobile-bottom-nav {
        extra horizontal room this matters). */
     .expense-row__title {
         word-break: break-word;
+    }
+}
+
+/* ── Reduced motion ──────────────────────────────────────────────────
+   D3 accessibility: respect the OS-level `prefers-reduced-motion`
+   setting. Users who've checked "Reduce motion" in System Settings →
+   Accessibility (macOS) or Settings → Accessibility → Motion (iOS)
+   shouldn't get our spring/fade/slide animations — they cause
+   vestibular discomfort for some viewers and feel buggy when the user
+   has explicitly opted out.
+
+   The kill-switch pattern below disables all CSS animations + swings
+   transitions to ~0ms. We KEEP visual changes themselves (background-
+   color hover, focus ring) — only the *transition between states* is
+   instant. This is the standard a11y pattern (used by Bootstrap reset,
+   MDN, GitHub Primer). The route-polyline rAF loop is handled at the
+   JS layer in routePolyline.ts where it freezes at mid-cycle opacity
+   instead of pulsing.
+
+   `scroll-behavior: auto` defeats `scroll-behavior: smooth` so jump-
+   scrolls are instant — programmatic scrolls (`scrollIntoView`)
+   respect the user's preference automatically.
+
+   Specificity note: the universal selector + !important is intentional;
+   reduced-motion is a hard user override that should win against any
+   later authoring even if a future rule sets a longer transition. */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        animation-delay: 0s !important;
+        transition-duration: 0.01ms !important;
+        transition-delay: 0s !important;
+        scroll-behavior: auto !important;
     }
 }

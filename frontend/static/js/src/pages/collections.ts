@@ -140,7 +140,7 @@ export function renderCollections() {
                 <div style="font-size:0.82rem; color:var(--text-secondary); line-height:1.45;">
                     Trips become "completed" per-person — your friend marking it done doesn't move it for you.
                     You still have ${activeTrips.length === 1 ? 'one trip' : `${activeTrips.length} trips`} active:
-                    ${activeTrips.map(t => `<button type="button" class="goto-active-trip-btn" data-trip-id="${esc(t.id)}" style="background: rgba(0,113,227,0.08); border:1px solid rgba(0,113,227,0.2); color: var(--accent-blue); padding:2px 10px; border-radius:999px; font-size:0.75rem; font-weight:700; margin: 0 4px 4px 0; cursor:pointer;">${esc(t.name)}</button>`).join('')}
+                    ${activeTrips.map(t => `<button type="button" class="goto-active-trip-btn" data-trip-id="${esc(t.id)}" style="background: rgba(0,113,227,0.08); border:1px solid rgba(0,113,227,0.2); color: #005bb8; padding:2px 10px; border-radius:999px; font-size:0.75rem; font-weight:700; margin: 0 4px 4px 0; cursor:pointer;">${esc(t.name)}</button>`).join('')}
                     Open one and tap <strong>Mark Complete</strong> to move it here.
                 </div>
             </div>
@@ -246,14 +246,14 @@ export function renderCollections() {
                             <div style="flex: 1; min-width: 0;">
                             <div style="display: flex; align-items: center; gap: 10px; flex-wrap:wrap;">
                                 <h3 style="margin: 0;">${esc(t.name)}</h3>
-                                ${dest && dest !== t.name ? `<span style="background: rgba(0,113,227,0.08); color: var(--accent-blue); padding: 2px 10px; border-radius: 999px; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing:0.06em;">📍 ${esc(dest)}</span>` : ''}
+                                ${dest && dest !== t.name ? `<span style="background: rgba(0,113,227,0.08); color: #005bb8; padding: 2px 10px; border-radius: 999px; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing:0.06em;">📍 ${esc(dest)}</span>` : ''}
                             </div>
                             <div style="display:flex; gap:14px; flex-wrap:wrap; margin-top:6px; font-size: 0.8rem; color: var(--text-secondary);">
                                 ${startStr ? `<span>🗓️ ${esc(startStr)}${(t.tripDays?.length || 0) > 1 ? ` · ${t.tripDays.length} days` : ''}</span>` : `<span>${(t.tripDays?.length || 0)} days</span>`}
                                 <span>📒 ${expenseCount} ${expenseCount === 1 ? 'expense' : 'expenses'}</span>
                                 ${archivedAt ? `<span title="Marked complete on ${esc(archivedAt)}">✓ ${esc(archivedAt)}</span>` : ''}
                             </div>
-                            <p style="color: var(--accent-blue); margin: 8px 0 0 0; font-size: 0.95rem; font-weight: 800;">${formatHome(tripTotalSpent(t), 'EUR')}<span style="color: var(--text-secondary); font-weight: 600; font-size: 0.78rem; margin-left:6px;">total</span></p>
+                            <p style="color: #005bb8; margin: 8px 0 0 0; font-size: 0.95rem; font-weight: 800;">${formatHome(tripTotalSpent(t), 'EUR')}<span style="color: var(--text-secondary); font-weight: 600; font-size: 0.78rem; margin-left:6px;">total</span></p>
                             </div>
                         </div>
                         <div style="display: flex; align-items: center; gap: 20px;">

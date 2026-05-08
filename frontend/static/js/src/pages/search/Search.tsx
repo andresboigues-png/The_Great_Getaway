@@ -306,7 +306,11 @@ export function Search() {
                     <p style={{ margin: 0, fontWeight: 600, fontSize: '1.05rem' }}>
                         Start typing to search.
                     </p>
-                    <p style={{ margin: '8px 0 0', fontSize: '0.85rem', opacity: 0.7 }}>
+                    {/* D3 contrast: was opacity: 0.7 — that drove the
+                        subtitle to ~#89898c on the page bg, 3.2:1 (fails
+                        AA). Drop opacity and let --text-secondary
+                        (#5a5a5e, 6.6:1) carry the muted tone. */}
+                    <p style={{ margin: '8px 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
                         Trip names, countries, day plans, expense labels — all in one place.
                     </p>
                 </div>

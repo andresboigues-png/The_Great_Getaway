@@ -186,7 +186,7 @@ export function renderFeed() {
             listEl.innerHTML = `
                 <div class="card glass" style="padding: 32px; border-radius: 24px; border: 1.5px dashed rgba(155, 89, 182, 0.35); background: rgba(155, 89, 182, 0.04); text-align:center;">
                     <div style="font-size:2.4rem; margin-bottom:10px;">${bookmarkedOnly ? '🔖' : '🌱'}</div>
-                    <h3 style="margin:0 0 8px; color:#9b59b6; font-weight:800; font-size: 1.1rem;">${esc(title)}</h3>
+                    <h3 style="margin:0 0 8px; color:#7c3a9e; font-weight:800; font-size: 1.1rem;">${esc(title)}</h3>
                     <p style="margin:0; color:var(--text-secondary); font-size:0.9rem; line-height:1.5;">${body}</p>
                     <button id="feedEmptyCtaBtn" class="btn-primary" style="margin-top: 16px; padding: 10px 22px; border-radius: 999px;">${esc(ctaLabel)}</button>
                 </div>
@@ -235,7 +235,7 @@ export function renderFeed() {
                                 ${time ? `<div style="font-size: 0.72rem; color: var(--text-secondary); margin-top: 4px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;">${esc(time)}</div>` : ''}
                             </div>
                             <button type="button" class="feed-bundle-toggle" data-bundle-id="${esc(bundle.id)}"
-                                style="background:transparent; border:0; color:var(--accent-blue); cursor:pointer; padding:4px 10px; font-size:0.78rem; font-weight:800; flex-shrink:0;">${isExpanded ? 'Collapse' : 'View all'}</button>
+                                style="background:transparent; border:0; color:#005bb8; cursor:pointer; padding:4px 10px; font-size:0.78rem; font-weight:800; flex-shrink:0;">${isExpanded ? 'Collapse' : 'View all'}</button>
                         </div>
                         <div class="feed-bundle-members" style="margin-top: ${isExpanded ? '8px' : '0'}; padding-top: ${isExpanded ? '4px' : '0'}; display: ${isExpanded ? 'block' : 'none'};">
                             ${memberRowsHtml}

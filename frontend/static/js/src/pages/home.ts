@@ -543,7 +543,7 @@ export function renderHome() {
                     const safeName = esc(place.name || cat.label);
                     const safeVicinity = esc(place.vicinity || '');
                     const ratingHtml = (typeof place.rating === 'number')
-                        ? `<div style="margin-top: 6px; font-size: 0.8125rem; color: #444;"><span style="color: #ff9500;">★</span> ${place.rating.toFixed(1)}${place.user_ratings_total ? ` <span style="color: #888;">(${place.user_ratings_total})</span>` : ''}</div>`
+                        ? `<div style="margin-top: 6px; font-size: 0.8125rem; color: #444;"><span style="color: #a85d00;">★</span> ${place.rating.toFixed(1)}${place.user_ratings_total ? ` <span style="color: #888;">(${place.user_ratings_total})</span>` : ''}</div>`
                         : '';
                     const mapsUrl = place.place_id
                         ? `https://www.google.com/maps/place/?q=place_id:${encodeURIComponent(place.place_id)}`
@@ -559,7 +559,7 @@ export function renderHome() {
                     const markBtnsHtml = tripIsEditable && place.place_id ? `
                         <div style="display: flex; gap: 6px; margin-top: 10px;">
                             <button type="button" data-action="toggle-todo" data-place-id="${esc(place.place_id)}"
-                                style="flex: 1; padding: 7px 12px; border-radius: 8px; font-size: 0.75rem; font-weight: 700; cursor: pointer; border: 1.5px solid #9b59b6; background: ${isOnTodo ? '#9b59b6' : 'white'}; color: ${isOnTodo ? 'white' : '#9b59b6'};">
+                                style="flex: 1; padding: 7px 12px; border-radius: 8px; font-size: 0.75rem; font-weight: 700; cursor: pointer; border: 1.5px solid #9b59b6; background: ${isOnTodo ? '#7c3a9e' : 'white'}; color: ${isOnTodo ? 'white' : '#7c3a9e'};">
                                 ${isOnTodo ? '✓ On your to-do list' : '📋 Add to to-do list'}
                             </button>
                         </div>
@@ -1395,7 +1395,7 @@ export function renderHome() {
                         ? `<div style="font-size:0.78rem; color:rgba(0,45,91,0.6); margin-top:2px;">${esc(day.name)}</div>`
                         : '';
                     const dateHtml = day.date && !isStartingPoint
-                        ? `<div style="font-size:0.7rem; color:var(--accent-blue); font-weight:700; margin-top:2px;">📅 ${esc(formatDayDate(day.date) || day.date)}</div>`
+                        ? `<div style="font-size:0.7rem; color:#005bb8; font-weight:700; margin-top:2px;">📅 ${esc(formatDayDate(day.date) || day.date)}</div>`
                         : '';
                     const imgHtml = url
                         ? `<img src="${esc(url)}" alt="Street view of ${esc(headerLabel)}"
@@ -1977,7 +1977,7 @@ export function renderHome() {
                 if (totalDocs) subtitleParts.push(`<span style="background:rgba(88,86,214,0.12); color:#5856d6; padding:2px 8px; border-radius:999px; font-size:0.7rem; font-weight:800;">📎 ${totalDocs}</span>`);
             } else {
                 subtitleParts.push(`📅 ${formatDayDate(day.date) || 'Set date'}`);
-                if (day.lat) subtitleParts.push(`<span style="color: var(--accent-blue);">📍 Location set</span>`);
+                if (day.lat) subtitleParts.push(`<span style="color: #005bb8;">📍 Location set</span>`);
                 else subtitleParts.push(`<span class="day-card__pin-hint">📌 Pin this day</span>`);
                 // Weather slot — populated async by applyWeatherChips()
                 // after the trip's forecast lands. Empty by default
@@ -1991,7 +1991,7 @@ export function renderHome() {
             // is condensed by design, no preview body.
             const notesPreview = (isSelected && day.notes && !isAnchor) ? `
                 <div style="margin-top: 12px; padding: 12px 14px; background: rgba(0,113,227,0.04); border-radius: 14px; border-left: 3px solid var(--accent-blue);">
-                    <div style="font-size: 0.7rem; font-weight: 800; text-transform: uppercase; color: var(--accent-blue); margin-bottom: 4px; letter-spacing: 0.05em;">Journal preview</div>
+                    <div style="font-size: 0.7rem; font-weight: 800; text-transform: uppercase; color: #005bb8; margin-bottom: 4px; letter-spacing: 0.05em;">Journal preview</div>
                     <p style="margin: 0; font-size: 0.9rem; line-height: 1.45; color: #002d5b; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${esc(day.notes)}</p>
                 </div>
             ` : '';
@@ -2179,7 +2179,7 @@ export function renderHome() {
                     <button type="button" class="path-nav-btn" id="pathPrevBtn" title="Previous day" aria-label="Previous day" ${prevDisabled ? 'disabled' : ''}>
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
                     </button>
-                    <div class="path-chips" role="tablist" aria-label="Trip days">
+                    <div class="path-chips" role="group" aria-label="Trip days">
                         ${chipsHtml}
                         ${addChip}
                     </div>

@@ -183,15 +183,15 @@ export function renderSettings() {
             ${isMenu ? `
                 <div class="settings-grid">
                     <button type="button" class="card-button-reset card glass management-card settings-tab-card" data-tab="general">
-                        <h2 class="card-title" style="color: var(--accent-blue); margin: 0;">General Settings</h2>
+                        <h2 class="card-title" style="color: #005bb8; margin: 0;">General Settings</h2>
                         <p style="color: var(--text-secondary); margin: 8px 0 0;">Customise per-pill filters for the home map (minimum rating, etc.).</p>
-                        <div style="margin-top: 20px; color: var(--accent-blue); font-weight: 700; font-size: 0.85rem;">Configure &rarr;</div>
+                        <div style="margin-top: 20px; color: #005bb8; font-weight: 700; font-size: 0.85rem;">Configure &rarr;</div>
                     </button>
 
                     <button type="button" class="card-button-reset card glass management-card settings-tab-card" data-tab="format">
-                        <h2 class="card-title" style="color: #ff9500; margin: 0;">Format Options</h2>
+                        <h2 class="card-title" style="color: #a85d00; margin: 0;">Format Options</h2>
                         <p style="color: var(--text-secondary); margin: 8px 0 0;">Configure Excel import mappings and global data formats.</p>
-                        <div style="margin-top: 20px; color: #ff9500; font-weight: 700; font-size: 0.85rem;">Configure &rarr;</div>
+                        <div style="margin-top: 20px; color: #a85d00; font-weight: 700; font-size: 0.85rem;">Configure &rarr;</div>
                     </button>
 
                     <button type="button" class="card-button-reset card glass management-card danger-card settings-tab-card" data-tab="reset">
@@ -307,7 +307,7 @@ export function renderSettings() {
                     return `
                         ${subTabnav}
                         <div class="card glass" style="padding: 32px; border-radius: 28px;">
-                            <h2 style="color: var(--accent-blue); margin-top: 0;">Map pill filters</h2>
+                            <h2 style="color: #005bb8; margin-top: 0;">Map pill filters</h2>
                             <p style="color: var(--text-secondary); margin-bottom: 16px;"><strong>Show on Home</strong> (the right-side switch) toggles whether each pill appears in the home map's pill row. Useful for hiding categories you never use so the row stays compact.</p>
                             <p style="color: var(--text-secondary); margin-bottom: 16px;"><strong>Minimum rating</strong> hides results below the chosen ★. Restaurants and Hotels default to 4★+ (rating is a meaningful quality signal there); the rest default to "Any rating".</p>
                             <p style="color: var(--text-secondary); margin-bottom: 24px;"><strong>Search anchor</strong> picks where each pill searches from. <em>Day-aware</em> uses the day you've set as search center on the Home page (falls back to the trip's anchor pin). <em>Trip-wide</em> always anchors on the anchor pin so the 50 km wide search covers the whole trip — better for sparse "where are these across my whole trip" categories like Medical, Sports, Govt, Schools, Public transit.</p>
@@ -322,7 +322,7 @@ export function renderSettings() {
                 ${isReset ? `
                     <div class="settings-grid">
                         <div class="card glass" style="padding: var(--space-6);">
-                            <h3 style="color: #ff9500; margin-top: 0;">Trips & Days</h3>
+                            <h3 style="color: #a85d00; margin-top: 0;">Trips & Days</h3>
                             <p class="muted-meta">Remove all trips, itineraries, and daily logs.</p>
                             <button class="themed-block-btn confirm-reset-btn" data-reset-type="trips" style="--accent: 255,149,0;">Delete All Trips</button>
                         </div>
@@ -341,7 +341,7 @@ export function renderSettings() {
 
                 ${isFormat ? `
                     <div class="card glass" style="padding: 32px; border-radius: 28px;">
-                        <h2 style="color: #ff9500; margin-top: 0;">Custom Excel Mapping</h2>
+                        <h2 style="color: #a85d00; margin-top: 0;">Custom Excel Mapping</h2>
                         <p style="color: var(--text-secondary); margin-bottom: 24px;">Define how internal app fields map to Excel columns for seamless imports.</p>
 
                         <div id="mappingTableContainer">
@@ -719,7 +719,7 @@ export function renderPersonalization() {
 
         <div id="persMenu" class="grid-2">
             <button type="button" class="card-button-reset card glass card-glow-blue pers-tab-card" data-tab="categories">
-                <h2 class="card-title" style="color: var(--accent-blue);">Manage Categories</h2>
+                <h2 class="card-title" style="color: #005bb8;">Manage Categories</h2>
                 <p class="text-muted">Customize expense categories, icons, and colors.</p>
             </button>
         </div>
@@ -730,7 +730,7 @@ export function renderPersonalization() {
             <div id="persCategories" style="display: none;">
                 <div class="card glass card-glow-blue">
                     <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom: var(--space-4); flex-wrap:wrap;">
-                        <h2 class="card-title" style="color: var(--accent-blue); margin: 0;">Categories</h2>
+                        <h2 class="card-title" style="color: #005bb8; margin: 0;">Categories</h2>
                         <span class="cat-count-chip">${STATE.categories.length}</span>
                     </div>
                     <div class="cat-list" style="margin-bottom: var(--space-5);">

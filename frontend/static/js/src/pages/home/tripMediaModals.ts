@@ -85,7 +85,7 @@ export const openTripDocumentsModal = (trip: any): void => {
             if (isAnchorDoc(id)) return `<span style="background:rgba(212,160,23,0.14); color:#8b6e0c; padding:2px 8px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">⚓ Anchor</span>`;
             const lbl = dayLabel(id);
             return lbl
-                ? `<span style="background:rgba(0,113,227,0.08); color:var(--accent-blue); padding:2px 8px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">${esc(lbl)}</span>`
+                ? `<span style="background:rgba(0,113,227,0.08); color:#005bb8; padding:2px 8px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">${esc(lbl)}</span>`
                 : `<span style="background:rgba(0,0,0,0.05); color:rgba(0,0,0,0.45); padding:2px 8px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">Unsorted</span>`;
         };
         const groups: Map<string, any[]> = new Map();
@@ -162,7 +162,7 @@ export const openTripDocumentsModal = (trip: any): void => {
                                                 </select>
                                             ` : ''}
                                             <button type="button" class="trip-doc-edit-btn" data-doc-id="${esc(d.id)}" title="Rename / change link" aria-label="Edit ${esc(d.name)}"
-                                                style="background: rgba(0,113,227,0.08); border: 1px solid rgba(0,113,227,0.22); color:var(--accent-blue); border-radius: 8px; padding: 4px 8px; font-size:0.75rem; font-weight:800; cursor:pointer; flex-shrink:0;">✎</button>
+                                                style="background: rgba(0,113,227,0.08); border: 1px solid rgba(0,113,227,0.22); color:#005bb8; border-radius: 8px; padding: 4px 8px; font-size:0.75rem; font-weight:800; cursor:pointer; flex-shrink:0;">✎</button>
                                             <button type="button" class="trip-doc-remove-btn" data-doc-id="${esc(d.id)}" title="Remove" aria-label="Remove ${esc(d.name)}"
                                                 style="background: rgba(255,59,48,0.08); border: 1px solid rgba(255,59,48,0.25); color:#ff3b30; border-radius: 8px; padding: 4px 8px; font-size:0.75rem; font-weight:800; cursor:pointer; flex-shrink:0;">✕</button>
                                         ` : ''}
@@ -531,7 +531,7 @@ export const openAddTripDocumentModal = (trip: any): void => {
                      details). Surfacing the recipe here so users
                      don't have to learn it elsewhere. -->
                 <div style="background: rgba(0,113,227,0.06); border:1px solid rgba(0,113,227,0.18); border-radius: 12px; padding: 12px 14px; font-size:0.78rem; color:#002d5b; line-height:1.55; margin-top:4px;">
-                    <strong style="color: var(--accent-blue);">📧 Booking email without an attachment?</strong><br>
+                    <strong style="color: #005bb8;">📧 Booking email without an attachment?</strong><br>
                     Open the email in Gmail, hit <strong>Cmd&nbsp;+&nbsp;P</strong> (or Ctrl + P on Windows), pick <strong>Save as PDF</strong> as the destination, then come back here and click <strong>📤 Upload</strong> with that file. Captures the layout exactly — QR codes, dates, prices, all of it.
                 </div>
                 <label style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-secondary); margin-top:8px;">Where does it belong?</label>

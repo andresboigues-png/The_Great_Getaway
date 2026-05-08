@@ -106,12 +106,22 @@ function UserCard({ user, variant = 'neutral', onClick, rightSide, rowClass = ''
               ? '1px solid rgba(0,113,227,0.16)'
               : '1px solid rgba(0,0,0,0.06)';
     const clickable = !!onClick;
+    // D3 a11y: when rightSide has its own interactive controls (e.g.
+    // the "remove friend" button), making the whole row role="button"
+    // would create nested interactive controls (axe rule
+    // nested-interactive). Drop role/tabIndex on the row in that case
+    // — mouse click still works (the row's onClick handles it) and the
+    // child action button(s) carry keyboard activation. When rightSide
+    // is empty the whole row stays role="button" / tab-focusable, the
+    // legitimate single-action card pattern. */
+    const hasInteractiveRightSide = !!rightSide;
+    const rowIsKeyboardActivatable = clickable && !hasInteractiveRightSide;
     return (
         <div
             className={rowClass}
             data-user-id={user.id}
-            role={clickable ? 'button' : undefined}
-            tabIndex={clickable ? 0 : undefined}
+            role={rowIsKeyboardActivatable ? 'button' : undefined}
+            tabIndex={rowIsKeyboardActivatable ? 0 : undefined}
             onClick={onClick}
             onMouseOver={
                 clickable
@@ -362,7 +372,10 @@ export function Friends() {
                         alignItems: 'center',
                         gap: '8px',
                         background: 'rgba(0,113,227,0.08)',
-                        color: 'var(--accent-blue)',
+                        // D3 contrast: var(--accent-blue) on rgba(0,113,227,0.08)
+                        // overlay was 3.86:1 (fails WCAG AA). Darker brand blue
+                        // (#005bb8) clears 5.3:1 and stays in the same family.
+                        color: '#005bb8',
                         padding: '6px 14px',
                         borderRadius: '999px',
                         fontSize: '0.82rem',

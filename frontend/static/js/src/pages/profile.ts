@@ -146,7 +146,7 @@ function openFriendsListModal(friends: Array<{ id: string; name: string; email: 
         cardStyle: 'width: 440px; max-width: calc(100vw - 32px); max-height: 80vh; overflow:hidden; padding: 24px; border-radius: 24px; background: white; display:flex; flex-direction:column;',
         innerHTML: `
             <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 14px;">
-                <h2 style="margin:0; font-size:1.4rem; color:#002d5b; font-weight:800; letter-spacing:-0.02em;">Your friends <span style="background:rgba(0,113,227,0.1); color:var(--accent-blue); padding:2px 10px; border-radius:999px; font-size:0.78rem; font-weight:800; margin-left:6px; vertical-align:2px;">${friends.length}</span></h2>
+                <h2 style="margin:0; font-size:1.4rem; color:#002d5b; font-weight:800; letter-spacing:-0.02em;">Your friends <span style="background:rgba(0,113,227,0.1); color:#005bb8; padding:2px 10px; border-radius:999px; font-size:0.78rem; font-weight:800; margin-left:6px; vertical-align:2px;">${friends.length}</span></h2>
                 <button id="friendsListClose" class="close-x-btn" aria-label="Close">✕</button>
             </div>
             <div style="overflow-y:auto; display:flex; flex-direction:column; gap:4px; min-height:0;">
@@ -262,7 +262,7 @@ export function renderProfile(targetUserId: string | null | undefined = null) {
                             ${isOwnProfile ? `
                                 <button id="profileFriendsStat" type="button" style="background:none; border:0; padding:0; cursor:pointer; text-align:left; display:inline-flex; align-items:baseline; gap:4px; font-family: inherit;">
                                     <span id="profileFriendsCount" style="font-size: 1.15rem; font-weight: 700; color: var(--text-primary);">—</span>
-                                    <span style="font-size: 1.1rem; color: var(--accent-blue); font-weight: 600; text-decoration: underline; text-decoration-color: rgba(0,113,227,0.25); text-underline-offset: 3px;">friends</span>
+                                    <span style="font-size: 1.1rem; color: #005bb8; font-weight: 600; text-decoration: underline; text-decoration-color: rgba(0,113,227,0.25); text-underline-offset: 3px;">friends</span>
                                 </button>
                             ` : ''}
                         </div>
@@ -274,7 +274,7 @@ export function renderProfile(targetUserId: string | null | undefined = null) {
                             <!-- Inline Status -->
                             <div style="position: relative; display: inline-block; margin-bottom: 8px;">
                                 ${isOwnProfile ? `
-                                    <select id="profileStatus" class="brand-select" style="padding: 2px 24px 2px 10px; font-size: var(--font-base);">
+                                    <select id="profileStatus" class="brand-select" aria-label="Set your travel status" style="padding: 2px 24px 2px 10px; font-size: var(--font-base);">
                                         <option value="" disabled ${!user.status ? 'selected' : ''}>Set status...</option>
                                         <option value="Deliberating next trip" ${user.status === 'Deliberating next trip' ? 'selected' : ''}>🤔 Deliberating next trip</option>
                                         <option value="Preparing a trip right now" ${user.status === 'Preparing a trip right now' ? 'selected' : ''}>🎒 Preparing a trip right now</option>
@@ -284,7 +284,7 @@ export function renderProfile(targetUserId: string | null | undefined = null) {
                                     </select>
                                     <div class="brand-select-chevron" style="right: 8px;">▼</div>
                                 ` : `
-                                    <div style="background: rgba(0, 113, 227, 0.05); color: var(--accent-blue); border-radius: var(--radius-md); padding: var(--space-1) var(--space-3); font-size: var(--font-base); font-weight: 700; display: inline-block;">
+                                    <div style="background: rgba(0, 113, 227, 0.05); color: #005bb8; border-radius: var(--radius-md); padding: var(--space-1) var(--space-3); font-size: var(--font-base); font-weight: 700; display: inline-block;">
                                         ${user.status || 'Active Traveler'}
                                     </div>
                                 `}
