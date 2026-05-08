@@ -41,7 +41,7 @@ const expandedBundles: Set<string> = new Set();
 /** Pull the YYYY-MM-DD calendar day out of an ISO/SQLite timestamp.
  *  Used as part of the bundle key so events from different days never
  *  merge even when the actor + type match. */
-function dayKey(iso) {
+function dayKey(iso: string | null | undefined): string {
     if (!iso) return '';
     const normalised = typeof iso === 'string' && iso.includes(' ') && !iso.includes('T')
         ? iso.replace(' ', 'T') + 'Z'
@@ -65,7 +65,7 @@ function dayKey(iso) {
  *  @param {FeedEvent[]} events
  *  @returns {Array<FeedEvent | {bundled: true, id: string, type: string, actor: Actor, when: string|null, members: FeedEvent[]}>}
  */
-function bundleEvents(events) {
+function bundleEvents(events: FeedEvent[]) {
         const groups: Map<string, FeedEvent[]> = new Map();
         const out: Array<FeedEvent | {bundled: true, id: string, type: string, actor: Actor, when: string|null, members: FeedEvent[]}> = [];
     // First pass: group bundleable events by (actor, type, day); keep
@@ -113,7 +113,7 @@ function bundleEvents(events) {
  *    "Andrés started planning 3 new trips"
  *    "Andrés joined 4 trips"
  *    "Andrés just completed 2 trips" */
-function bundleLine(bundle) {
+function bundleLine(bundle: { actor: any; members: FeedEvent[]; type: string }) {
     const who = `<strong style="color:#002d5b;">${esc(bundle.actor.name)}</strong>`;
     const n = bundle.members.length;
     const noun = n === 1 ? 'trip' : 'trips';
@@ -188,7 +188,7 @@ const ACTIONS_EVENT_TYPES = new Set([
  *  button so clicking it navigates to that user's profile.
  *  Without the id (rare — anonymous events) we render the bare
  *  avatar with no click affordance. */
-function avatar(user, size = 44) {
+function avatar(user: { id?: string; name?: string; picture?: string | null } | null | undefined, size: number = 44): string {
     const initial = (user?.name || '?').charAt(0).toUpperCase();
     const fallback = `<div style="width:${size}px; height:${size}px; border-radius:50%; background: var(--gradient-day); color:white; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:${Math.round(size * 0.4)}px; flex-shrink:0; box-shadow: 0 2px 8px rgba(0,113,227,0.18);">${esc(initial)}</div>`;
     const inner = user?.picture
@@ -212,7 +212,7 @@ function avatar(user, size = 44) {
  *  "3d ago"). Falls back to a locale-formatted date for anything
  *  beyond a week so old activity reads naturally. NULL/invalid input
  *  → empty string (the card just hides the time line). */
-function relativeTime(iso) {
+function relativeTime(iso: string | null | undefined): string {
     if (!iso) return '';
     // SQLite emits 'YYYY-MM-DD HH:MM:SS' which `new Date()` parses as
     // local time on Safari but UTC on Chrome — splice in a 'T' and
@@ -244,7 +244,7 @@ function relativeTime(iso) {
  *  Posts tab — see /api/feed queries 6-7), the verb flips to second
  *  person so it reads naturally: "You shared a trip — …" instead of
  *  "Andrés shared a trip" when Andrés is the caller. */
-function eventLine(ev) {
+function eventLine(ev: any) {
     const meId = STATE.user?.id;
     const isSelf = !!meId && ev.actor?.id === meId;
     const who = isSelf
@@ -286,7 +286,7 @@ function eventLine(ev) {
 /** Per-event accent — picks a tint and emoji per type. Keeps cards
  *  visually grouped so a busy feed reads as "trips × N, friendships × M"
  *  at a glance instead of a wall of identical glass blocks. */
-function eventAccent(type) {
+function eventAccent(type: string) {
     switch (type) {
         case 'friend_created_trip':   return { color: '#0071e3', icon: '🗺️' };
         case 'friend_archived_trip':  return { color: '#34c759', icon: '🏁' };
@@ -310,7 +310,7 @@ function eventAccent(type) {
  *  @param {boolean} [filled=false]
  *  @returns {string}
  */
-function actionIconSvg(name, filled = false) {
+function actionIconSvg(name: 'heart' | 'comment' | 'repost' | 'bookmark', filled: boolean = false): string {
     const head = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">`;
     const close = `</svg>`;
     const fillAttr = filled ? ' fill="currentColor"' : '';
@@ -359,7 +359,7 @@ function actionIconSvg(name, filled = false) {
  *
  *  @param {{className: string, accent: string, dataAttrs?: string, title: string, svg: string, count?: number, countThreshold?: number, marginLeftAuto?: boolean}} opts
  */
-function actionButton(opts) {
+function actionButton(opts: { className: string; accent: string; dataAttrs?: string; title: string; svg: string; count?: number; countThreshold?: number; marginLeftAuto?: boolean }) {
     const wrapStyle = `display:inline-flex; align-items:center; gap:6px;${opts.marginLeftAuto ? ' margin-left:auto;' : ''}`;
     const threshold = opts.countThreshold ?? 1;
     // typeof guard narrows opts.count to number for the comparison below.
@@ -417,7 +417,7 @@ const ACTION_ACCENTS = {
  *   (built lazily by the click handler — empty `<div class="feed-thread">`
  *   shipped with every card so the slot is always there; only emitted
  *   for Posts since Actions don't have comments). */
-function actionsRow(ev) {
+function actionsRow(ev: any) {
     const isPost = POSTS_EVENT_TYPES.has(ev.type);
     const bookmarked = !!ev.is_bookmarked;
 
@@ -488,7 +488,7 @@ function actionsRow(ev) {
 
 /** Render a single comment row for the thread. `canDelete` is true when
  *  the current user authored the comment — adds a small ✕ button. */
-function commentRowHtml(c, canDelete) {
+function commentRowHtml(c: any, canDelete: boolean) {
     return `
         <div class="feed-comment-row" data-comment-id="${c.id}" style="display:flex; align-items:flex-start; gap:10px; padding:8px 0; border-bottom:1px dashed rgba(0,45,91,0.06);">
             ${avatar(c.author, 32)}
@@ -510,10 +510,10 @@ function commentRowHtml(c, canDelete) {
 /** Render the full thread block (comment list + add-input) into the
  *  `.feed-thread` container for an event. Called after the lazy fetch
  *  resolves and after every optimistic add/delete. */
-function renderThread(threadEl, eventId, comments) {
+function renderThread(threadEl: HTMLElement, eventId: string, comments: any[]) {
     const meId = STATE.user?.id;
     const listHtml = comments.length > 0
-        ? comments.map(c => commentRowHtml(c, c.author?.id === meId)).join('')
+        ? comments.map((c: any) => commentRowHtml(c, c.author?.id === meId)).join('')
         : '<div style="font-size:0.82rem; color:var(--text-secondary); padding:6px 0;">No comments yet — be the first.</div>';
     threadEl.innerHTML = `
         <div class="feed-comment-list">${listHtml}</div>
@@ -578,7 +578,7 @@ export function renderFeed() {
         const listEl = q(div, '#feedList');
         if (!listEl) return;
 
-        const inActiveTab = (ev) => activeFeedTab === 'posts'
+        const inActiveTab = (ev: any) => activeFeedTab === 'posts'
             ? POSTS_EVENT_TYPES.has(ev.type)
             : ACTIONS_EVENT_TYPES.has(ev.type);
         const visible = cachedEvents.filter(ev => {
@@ -840,8 +840,8 @@ export function renderFeed() {
             likeBtn.style.setProperty('--accent', newLiked ? ACTION_ACCENTS.like : ACTION_ACCENTS.muted);
             likeBtn.innerHTML = actionIconSvg('heart', newLiked);
             const countEl = (likeBtn.parentElement?.querySelector('.feed-action-count') as HTMLElement | null);
-            const renderCount = (n) => (n >= LIKE_COUNT_THRESHOLD ? String(n) : '');
-            if (countEl && ev) countEl.textContent = renderCount(ev.like_count);
+            const renderCount = (n: number) => (n >= LIKE_COUNT_THRESHOLD ? String(n) : '');
+            if (countEl && ev) countEl.textContent = renderCount(ev.like_count ?? 0);
             // Server reconcile.
             const result = await toggleFeedLike(eventId);
             if (result.ok && result.body && ev) {

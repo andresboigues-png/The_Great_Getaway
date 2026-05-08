@@ -122,8 +122,8 @@ export function renderLoginWall() {
  *  from the Friends page so the two surfaces feel like one thing.
  *  @param {{id:string,name:string,email:string,picture?:string}[]} friends
  */
-function openFriendsListModal(friends) {
-    const rowHtml = (f) => {
+function openFriendsListModal(friends: Array<{ id: string; name: string; email: string; picture?: string }>) {
+    const rowHtml = (f: { id: string; name: string; email: string; picture?: string }) => {
         const initial = (f.name || f.email || '?').charAt(0).toUpperCase();
         const avatar = f.picture
             ? `<img src="${esc(f.picture)}" alt="" referrerpolicy="no-referrer" style="width:40px; height:40px; border-radius:50%; object-fit:cover; flex-shrink:0;">`
@@ -466,7 +466,7 @@ export function renderProfile(targetUserId: string | null | undefined = null) {
                     fetch('https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_50m_admin_0_countries.geojson')
                         .then(res => res.json()).then(data => {
                             map.data.addGeoJson(data);
-                            map.data.setStyle(feature => {
+                            map.data.setStyle((feature: any) => {
                                 const iso2 = (feature.getProperty('ISO_A2') || feature.getProperty('iso_a2') || '').toUpperCase();
                                 const countryName = (feature.getProperty('NAME') || feature.getProperty('name') || feature.getProperty('admin') || "").toLowerCase();
                                 if (!iso2 && !countryName) return { visible: false };
@@ -515,7 +515,7 @@ export function renderProfile(targetUserId: string | null | undefined = null) {
                     // isPublic alone — not archived-AND-public — so the day the
                     // toggle shows up on active trips, pins follow automatically.)
                     const geocoder = new google.maps.Geocoder();
-                    const tripsByCountry = {};
+                    const tripsByCountry: Record<string, any[]> = {};
                     trips.filter(t => t.isPublic).forEach(t => {
                         const k = t.country || t.name;
                         if (k) {
@@ -524,10 +524,7 @@ export function renderProfile(targetUserId: string | null | undefined = null) {
                         }
                     });
 
-                    /** @param {any} pos
-                     *  @param {string} countryKey
-                     *  @param {any[]} tps */
-                    const placeMarker = (pos, countryKey, tps) => {
+                    const placeMarker = (pos: any, countryKey: string, tps: any[]) => {
                         const marker = new google.maps.Marker({
                             position: pos, map: map,
                             icon: { path: google.maps.SymbolPath.CIRCLE, fillOpacity: 1, fillColor: '#ff2d55', strokeColor: 'white', strokeWeight: 2, scale: tps.length > 1 ? 14 : 10 }
@@ -537,7 +534,7 @@ export function renderProfile(targetUserId: string | null | undefined = null) {
                         // small View button. Hover lifts the row +
                         // tints the surface so the rows feel like
                         // tappable surfaces, not table cells.
-                        const tripList = tps.map(t => `
+                        const tripList = tps.map((t: any) => `
                             <div class="profile-iw__trip-row">
                                 <div class="profile-iw__trip-info">
                                     <span class="profile-iw__trip-icon">🗺️</span>
@@ -582,12 +579,12 @@ export function renderProfile(targetUserId: string | null | undefined = null) {
                             // Prefer stored coords on any trip in the cluster.
                             // Falls back to Geocoder for legacy trips that
                             // were created before the Places migration.
-                            const withCoords = (tps as any).find(t => typeof t.lat === 'number' && typeof t.lng === 'number');
+                            const withCoords = (tps as any).find((t: any) => typeof t.lat === 'number' && typeof t.lng === 'number');
                             if (withCoords) {
                                 placeMarker({ lat: withCoords.lat, lng: withCoords.lng }, countryKey, (tps as any));
                                 continue; // no API call, no throttle needed
                             }
-                            geocoder.geocode({ address: countryKey }, (results, status) => {
+                            geocoder.geocode({ address: countryKey }, (results: any, status: string) => {
                                 if (status === "OK" && results[0]) {
                                     placeMarker(results[0].geometry.location, countryKey, (tps as any));
                                 }

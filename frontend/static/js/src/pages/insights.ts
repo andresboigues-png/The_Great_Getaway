@@ -326,7 +326,7 @@ export function renderInsights() {
                             grid: { color: 'rgba(255,255,255,0.05)' },
                             ticks: {
                                 maxTicksLimit: 5,
-                                callback: value => targetSym + value
+                                callback: (value: number | string) => targetSym + value,
                             }
                         }
                     }

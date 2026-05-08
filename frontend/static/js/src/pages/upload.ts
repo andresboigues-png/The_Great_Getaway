@@ -7,7 +7,7 @@ import { showSettingsTab } from './settings.js';
 import { addTripCompanion, getTripCompanionNames } from '../companions.js';
 
 // Pad number to 2 digits.
-const _pad2 = (n) => String(n).padStart(2, '0');
+const _pad2 = (n: number): string => String(n).padStart(2, '0');
 
 // Substring keyword → {icon, color} for auto-styling categories created during
 // import. Match is case-insensitive on the category name (so "Restaurant Food"
@@ -88,7 +88,7 @@ const CATEGORY_FALLBACK_PALETTE = [
  * @param {string} raw
  * @returns {Record<string, number> | null}
  */
-function parseSplitsCell(raw) {
+function parseSplitsCell(raw: unknown): Record<string, number> | null {
     if (!raw || !String(raw).trim()) return null;
     const out = ({} as Record<string, number>);
     for (const tok of String(raw).split(/[,;]/)) {
@@ -103,7 +103,7 @@ function parseSplitsCell(raw) {
 }
 
 /** Y/N-ish cell → boolean. Truthy: y/yes/true/1 (case-insensitive). */
-function parseFlagCell(raw) {
+function parseFlagCell(raw: unknown): boolean {
     if (!raw) return false;
     const s = String(raw).trim().toLowerCase();
     return s === 'y' || s === 'yes' || s === 'true' || s === '1';
@@ -113,7 +113,7 @@ function parseFlagCell(raw) {
  * @param {string} name
  * @returns {{icon: string, color: string}}
  */
-function inferCategoryStyle(name) {
+function inferCategoryStyle(name: string): { icon: string; color: string } {
     const lc = (name || '').toLowerCase();
     for (const entry of CATEGORY_KEYWORD_DEFAULTS) {
         if (lc.includes(entry.key)) return { icon: entry.icon, color: entry.color };
@@ -139,7 +139,7 @@ function inferCategoryStyle(name) {
  * @param {unknown} cell
  * @returns {string}
  */
-function parseCellDate(cell) {
+function parseCellDate(cell: unknown): string {
     if (cell === null || cell === undefined || cell === '') return '';
     // 1. Real Date — easy.
     if (cell instanceof Date && !isNaN(cell.getTime())) {
@@ -480,18 +480,17 @@ export function renderUpload() {
                             country = 'Unknown';
                         }
                     } else {
-                        /** @param {string} letter */
-                        const colToIdx = (letter) => letter ? letter.toUpperCase().charCodeAt(0) - 65 : -1;
-                        /** @param {string} varName */
-                        const get = (varName) => {
-                            const mapping = mappings.find((/** @type {{variable: string; column: string}} */ m) => m.variable === varName);
+                        const colToIdx = (letter: string) => letter ? letter.toUpperCase().charCodeAt(0) - 65 : -1;
+                        const get = (varName: string) => {
+                            const mapping = mappings.find((m: { variable: string; column: string }) => m.variable === varName);
                             if (!mapping) return '';
                             return String(row[colToIdx(mapping.column)] || '').trim();
                         };
-                        /** Raw cell read for date — keeps Date objects intact
-                         *  rather than stringifying first and losing them. */
-                        const getRaw = (varName) => {
-                            const mapping = mappings.find((/** @type {{variable: string; column: string}} */ m) => m.variable === varName);
+                        /** Raw cell read for date — keeps Date objects
+                         *  intact rather than stringifying first and
+                         *  losing them. */
+                        const getRaw = (varName: string) => {
+                            const mapping = mappings.find((m: { variable: string; column: string }) => m.variable === varName);
                             if (!mapping) return null;
                             return row[colToIdx(mapping.column)];
                         };

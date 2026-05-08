@@ -29,7 +29,7 @@ let currentTripId = (null as string | null);
 /** Compute per-person balance for a single trip (positive = is owed,
  *  negative = owes). Splits roster falls back to (a) the trip's
  *  companion list, then (b) the names referenced by existing expenses. */
-function computeTripBalances(trip) {
+function computeTripBalances(trip: any) {
     if (!trip) return { balances: {}, roster: [], expenses: [] };
     const tripExps = (STATE.expenses || []).filter(e => e.tripId === trip.id);
     const tripCompanionNames = getTripCompanionNames(trip);
@@ -126,7 +126,7 @@ function computeGlobalBalances() {
 /** Per-companion paid/share leaderboard for a trip — used by the
  *  Trip-tab summary row. "paid" is the sum of expenses they fronted;
  *  "share" is the sum of their split obligations across the trip. */
-function computeLeaderboard(trip) {
+function computeLeaderboard(trip: any) {
     if (!trip) return [];
     const exps = (STATE.expenses || []).filter(e => e.tripId === trip.id);
     const roster = getTripCompanionNames(trip);
@@ -238,7 +238,7 @@ export function renderSettlement() {
 
 // ── Markup ────────────────────────────────────────────────────────────
 
-function buildPageHtml(trip, tripIsEditable) {
+function buildPageHtml(trip: any, tripIsEditable: boolean) {
     const tripsStrip = renderTripsStrip();
     const header = `
         <div class="ai-page-header">
@@ -306,7 +306,7 @@ function renderTripsStrip() {
     `;
 }
 
-function renderTabsNav(trip) {
+function renderTabsNav(trip: any) {
     const settlementsCount = (STATE.expenses || []).filter(e => e.tripId === trip.id && e.isSettlement).length;
     const tab = (key: string, label: string, badge?: number) => `
         <button class="settle-tab${activeSettlementTab === key ? ' is-active' : ''}" data-tab="${key}" type="button"
@@ -323,7 +323,7 @@ function renderTabsNav(trip) {
     `;
 }
 
-function renderTripTab(trip, tripIsEditable) {
+function renderTripTab(trip: any, tripIsEditable: boolean) {
     const { balances } = computeTripBalances(trip);
     const debts = simplifyDebts(balances);
     const board = computeLeaderboard(trip);
@@ -438,7 +438,7 @@ function renderTripTab(trip, tripIsEditable) {
     `;
 }
 
-function renderHistoryTab(trip, tripIsEditable) {
+function renderHistoryTab(trip: any, tripIsEditable: boolean) {
     const past = (STATE.expenses || [])
         .filter(e => e.tripId === trip.id && e.isSettlement)
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -466,7 +466,7 @@ function renderHistoryTab(trip, tripIsEditable) {
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
     const yesterdayStr = yesterday.toISOString().slice(0, 10);
-    const formatGroupHeader = (key) => {
+    const formatGroupHeader = (key: string) => {
         if (key === 'undated') return 'No date';
         if (key === todayStr) return 'Today';
         if (key === yesterdayStr) return 'Yesterday';
@@ -660,7 +660,7 @@ function renderGlobalTab() {
  *  button before invoking, but we also de-dupe server-side by trusting
  *  generateId to be unique per call. The previous double-click bug
  *  was a UI-side race; the disabled-button guard fixes it. */
-function settleDebt(tripId, from, to, amount, currency, root) {
+function settleDebt(tripId: string, from: string, to: string, amount: number, currency: string, root: HTMLElement) {
     if (from === to) {
         showLiquidAlert('Sender and receiver must be different.');
         return;
@@ -693,7 +693,7 @@ function settleDebt(tripId, from, to, amount, currency, root) {
     root.innerHTML = buildPageHtml(trip || null, canEditExpenses(trip));
 }
 
-function deleteSettlement(id, tripId, root) {
+function deleteSettlement(id: string, tripId: string, root: HTMLElement) {
     showConfirmModal({
         title: 'Unsettle this payment?',
         message: 'The settlement record is removed and balances revert.',
@@ -709,7 +709,7 @@ function deleteSettlement(id, tripId, root) {
 
 // ── Modals (manual settlement + edit) ─────────────────────────────────
 
-function openManualSettleModal(tripId, root) {
+function openManualSettleModal(tripId: string, root: HTMLElement) {
     const trip = STATE.trips.find(t => t.id === tripId);
     const peopleSource = getTripCompanionNames(trip);
     const peopleOptions = peopleSource.map(p => `<option value="${esc(p)}">${esc(p)}</option>`).join('');
@@ -750,7 +750,7 @@ function openManualSettleModal(tripId, root) {
     };
 }
 
-function openEditSettlementModal(id, root) {
+function openEditSettlementModal(id: string, root: HTMLElement) {
     const s = STATE.expenses.find(e => e.id === id);
     if (!s) return;
     const trip = STATE.trips.find(t => t.id === s.tripId);

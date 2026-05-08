@@ -24,7 +24,7 @@ let cachedPending: FriendRow[] = [];
  *  Google profile pictures need referrerpolicy="no-referrer" to load
  *  reliably; the onerror handler swaps to the initials fallback if
  *  the URL is broken or rate-limited. */
-function avatar(user, size = 44) {
+function avatar(user: { name?: string; email?: string; picture?: string }, size: number = 44): string {
     const initial = (user.name || user.email || '?').charAt(0).toUpperCase();
     const fallback = `<div style="width:${size}px; height:${size}px; border-radius:50%; background: var(--gradient-day); color:white; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:${Math.round(size * 0.4)}px; flex-shrink:0; box-shadow: 0 2px 8px rgba(0,113,227,0.18);">${esc(initial)}</div>`;
     if (user.picture) {
@@ -191,7 +191,7 @@ export function renderFriends() {
         try {
             const res = await apiFetch(`/api/friends/search?q=${encodeURIComponent(query)}`);
             const allUsers = await res.json();
-            const users = allUsers.filter((/** @type {{id: string}} */ u) => u.id !== STATE.user?.id);
+            const users = allUsers.filter((u: { id: string }) => u.id !== STATE.user?.id);
             // Already-friends and already-pending shouldn't surface as
             // sendable suggestions — we filter those client-side rather
             // than on the server because friend lists are tiny.
@@ -199,7 +199,7 @@ export function renderFriends() {
                 ...cachedFriends.map(f => f.id),
                 ...cachedPending.map(p => p.id),
             ]);
-            const sendable = users.filter(u => !known.has(u.id));
+            const sendable = users.filter((u: { id: string }) => !known.has(u.id));
 
             if (users.length === 0) {
                 resultsContainer.innerHTML = `<div style="text-align:center; padding:18px; font-size:0.85rem; color:var(--text-secondary); background: rgba(0,0,0,0.02); border-radius: 14px; border: 1px dashed rgba(0,0,0,0.08);">No user found. Ask them to log in to GG first!</div>`;
@@ -211,7 +211,7 @@ export function renderFriends() {
             }
             resultsContainer.innerHTML = `
                 <div style="display:flex; flex-direction:column; gap: 8px;">
-                    ${sendable.map(u => userCard(u, {
+                    ${sendable.map((u: any) => userCard(u, {
                         variant: 'search',
                         rightSide: `<button class="send-friend-btn" data-user-id="${esc(u.id)}" type="button"
                                 style="background: var(--accent-blue); color:white; border:0; padding:8px 16px; border-radius:999px; font-weight:800; font-size:0.78rem; cursor:pointer; flex-shrink:0; box-shadow: 0 4px 12px rgba(0,113,227,0.22);">➕ Send request</button>`,
@@ -223,7 +223,7 @@ export function renderFriends() {
         }
     };
 
-    const sendFriendRequest = async (friendId) => {
+    const sendFriendRequest = async (friendId: string) => {
         if (!STATE.user || !friendId) return;
         if (friendId === STATE.user.id) {
             showLiquidAlert("You can't send a friend request to yourself!");
@@ -248,7 +248,7 @@ export function renderFriends() {
         }
     };
 
-    const acceptFriendRequest = async (friendId) => {
+    const acceptFriendRequest = async (friendId: string) => {
         if (!STATE.user || !friendId) return;
         try {
             const res = await apiFetch('/api/friends/accept', {
@@ -272,7 +272,7 @@ export function renderFriends() {
     /** Reject (decline) a pending friend request. The request just
      *  goes away — sender isn't notified, isn't blocked from sending
      *  again later. Same UX most chat apps use; keeps the flow light. */
-    const rejectFriendRequest = (friendId, friendName) => {
+    const rejectFriendRequest = (friendId: string, friendName: string) => {
         if (!STATE.user || !friendId) return;
         showConfirmModal({
             title: 'Reject this request?',
@@ -314,7 +314,7 @@ export function renderFriends() {
     /** Unfriend — removes the friendship in both directions. Quiet
      *  (no notification to the other party), confirmable, and
      *  optimistic so the row disappears right away. */
-    const removeFriend = (friendId, friendName) => {
+    const removeFriend = (friendId: string, friendName: string) => {
         if (!STATE.user || !friendId) return;
         showConfirmModal({
             title: 'Remove this friend?',

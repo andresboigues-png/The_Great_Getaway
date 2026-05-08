@@ -207,7 +207,7 @@ export function renderAI() {
         // Zoom helper. Prefers the viewport stored on the trip (set in the
         // create-modal Places picker). Falls back to a Geocoder lookup for
         // legacy trips that pre-date the migration.
-        const zoomToLocation = (location) => {
+        const zoomToLocation = (location: any) => {
             if (!googleMap) return;
 
             const aiTripMapKey = activeTrip.id + '_ai';
@@ -234,8 +234,8 @@ export function renderAI() {
             }
 
             const geocoder = new google.maps.Geocoder();
-            geocoder.geocode({ address: query }, (results, status) => {
-                if (status === "OK" && results[0]) {
+            geocoder.geocode({ address: query }, (results: any, status: string) => {
+                if (status === 'OK' && results[0]) {
                     googleMap.fitBounds(results[0].geometry.viewport);
                 }
             });
@@ -286,19 +286,19 @@ export function renderAI() {
          *      saved before the schema change. Renders as a paragraph
          *      so old saved plans still display correctly.
          *   Falls back to empty when neither exists. */
-        const renderSlotBody = (slot) => {
+        const renderSlotBody = (slot: any) => {
             if (!slot) return '';
             const items = Array.isArray(slot.items) ? slot.items.filter(Boolean) : [];
             if (items.length > 0) {
-                return `<ul class="ai-plan-block__list">${items.map(i => `<li>${esc(String(i))}</li>`).join('')}</ul>`;
+                return `<ul class="ai-plan-block__list">${items.map((i: any) => `<li>${esc(String(i))}</li>`).join('')}</ul>`;
             }
             if (slot.description) {
                 // Defensive: if a legacy description happens to use
                 // newlines for soft bullets (some old plans did),
                 // surface them as a list. Otherwise render as text.
-                const lines = String(slot.description).split(/\n+/).map(s => s.trim()).filter(Boolean);
+                const lines = String(slot.description).split(/\n+/).map((s: string) => s.trim()).filter(Boolean);
                 if (lines.length > 1) {
-                    return `<ul class="ai-plan-block__list">${lines.map(l => `<li>${esc(l.replace(/^[-•*]\s*/, ''))}</li>`).join('')}</ul>`;
+                    return `<ul class="ai-plan-block__list">${lines.map((l: string) => `<li>${esc(l.replace(/^[-•*]\s*/, ''))}</li>`).join('')}</ul>`;
                 }
                 return `<div class="ai-plan-block__desc">${esc(slot.description)}</div>`;
             }
@@ -308,19 +308,19 @@ export function renderAI() {
         /** Flatten a slot for the day-plan textarea (Accept Plan
          *  flow). Preserves the activity headline + bullet items so
          *  the user sees the same structure on the home day card. */
-        const flattenSlotForTextarea = (slot) => {
+        const flattenSlotForTextarea = (slot: any) => {
             if (!slot) return '';
             const items = Array.isArray(slot.items) ? slot.items.filter(Boolean) : [];
             if (items.length > 0) {
                 const head = slot.activity ? `${slot.activity}:` : '';
-                return [head, ...items.map(i => `- ${i}`)].filter(Boolean).join('\n');
+                return [head, ...items.map((i: any) => `- ${i}`)].filter(Boolean).join('\n');
             }
             // Legacy fallback — same shape the old code wrote.
             if (slot.activity && slot.description) return `${slot.activity}: ${slot.description}`;
             return slot.activity || slot.description || '';
         };
 
-        const renderItineraryOutput = (itinerary, numDays, country) => {
+        const renderItineraryOutput = (itinerary: any, numDays: number | string, country: string) => {
             const outputEl = q(div, '#itineraryOutput');
             if (!itinerary || !itinerary.length) {
                 outputEl.innerHTML = '';
@@ -341,7 +341,7 @@ export function renderAI() {
             const daysContainer = q(outputEl, '#itineraryDays');
             const dayDivs: HTMLDivElement[] = [];
 
-            itinerary.forEach((/** @type {any} */ day, /** @type {number} */ _i) => {
+            itinerary.forEach((day: any, _i: number) => {
                 const dayDiv = document.createElement('div');
                 dayDiv.className = 'card glass';
                 dayDiv.style.cssText = `border-radius:18px;overflow:hidden;transition:box-shadow 0.3s,border-color 0.3s;${sf}`;
@@ -391,13 +391,13 @@ export function renderAI() {
                 const bounds = new google.maps.LatLngBounds();
                 const geocoder = new google.maps.Geocoder();
 
-                const geocodeAndMark = (day, i) => {
+                const geocodeAndMark = (day: any, i: number) => {
                     let loc = day.mainLocation || day.title || country;
                     if (!day.mainLocation && day.title) {
                         loc = day.title.replace(/Exploring |Day Trip to |Visit |Touring |Arrival in |Departure from |Day \d+:? /gi, '').trim();
                     }
-                    
-                    geocoder.geocode({ address: loc + ', ' + country }, (results, status) => {
+
+                    geocoder.geocode({ address: loc + ', ' + country }, (results: any, status: string) => {
                         if (status === "OK" && results[0]) {
                             const pos = results[0].geometry.location;
                             day.lat = pos.lat(); day.lon = pos.lng();
@@ -436,7 +436,7 @@ export function renderAI() {
                         }
                     });
                 };
-                itinerary.forEach((day, i) => setTimeout(() => geocodeAndMark(day, i), i * 500));
+                itinerary.forEach((day: any, i: number) => setTimeout(() => geocodeAndMark(day, i), i * 500));
             }
 
             const acceptBtn = (document.getElementById('acceptPlanBtn') as HTMLButtonElement | null);
@@ -456,7 +456,7 @@ export function renderAI() {
                 );
                 existingNumbered.forEach(d => deleteDayOnServer(d.id));
 
-                itinerary.forEach((/** @type {any} */ dayInfo, /** @type {number} */ idx) => {
+                itinerary.forEach((dayInfo: any, idx: number) => {
                     const dayDate = dayInfo.date || (new Date().toISOString().split('T')[0]);
                     const dayId = 'day_' + Date.now() + '_' + idx;
                     /** @type {import('../types').TripDay} */
@@ -545,7 +545,7 @@ export function renderAI() {
             const tripDays = (STATE.tripDays || [])
                 .filter(d => d.tripId === activeTrip.id && d.dayNumber > 0)
                 .sort((a, b) => a.dayNumber - b.dayNumber);
-            const dayOpts = (selectedId) => `
+            const dayOpts = (selectedId: string | null | undefined) => `
                 <option value="" ${!selectedId ? 'selected' : ''}>Any day</option>
                 ${tripDays.map(d => `
                     <option value="${esc(d.id)}" ${d.id === selectedId ? 'selected' : ''}>
@@ -553,7 +553,7 @@ export function renderAI() {
                     </option>
                 `).join('')}
             `;
-            const timeOpts = (selectedTime) => `
+            const timeOpts = (selectedTime: string | null | undefined) => `
                 <option value="" ${!selectedTime ? 'selected' : ''}>Any time</option>
                 <option value="morning"   ${selectedTime === 'morning'   ? 'selected' : ''}>🌅 Morning</option>
                 <option value="afternoon" ${selectedTime === 'afternoon' ? 'selected' : ''}>☀️ Afternoon</option>
@@ -769,7 +769,7 @@ export function renderAI() {
             if (markedForAI.length > 0) {
                 const tripDays = (STATE.tripDays || [])
                     .filter(d => d.tripId === activeTrip.id && d.dayNumber > 0);
-                const dayNumberOf = (id) => tripDays.find(d => d.id === id)?.dayNumber;
+                const dayNumberOf = (id: string) => tripDays.find(d => d.id === id)?.dayNumber;
                 const lines = markedForAI.map(p => {
                     const d = p.dayId ? dayNumberOf(p.dayId) : null;
                     const dayPart = d ? `, on Day ${d}` : '';

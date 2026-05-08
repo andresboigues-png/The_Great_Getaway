@@ -12,7 +12,7 @@ import { showModal } from '../components/Modal.js';
 // in the map and could drift between the two views.
 
 /** Sum (in EUR) the trip/category/user-filtered expenses for a budget. */
-function spentForBudget(budget) {
+function spentForBudget(budget: any): number {
     let spent = 0;
     for (const e of STATE.expenses || []) {
         if (e.isSettlement) continue;
@@ -25,7 +25,7 @@ function spentForBudget(budget) {
 }
 
 /** Status tier for a budget — drives the color + label across the UI. */
-function budgetStatus(budget) {
+function budgetStatus(budget: any) {
     const spent = spentForBudget(budget);
     const target = budget.amount || 0;
     const pct = target > 0 ? (spent / target) * 100 : 0;
@@ -46,7 +46,7 @@ let budgetsFilterTrip = '';
  *  and a "Trip + All categories" budget show only the trip name with
  *  no hint of its scope. Now every dimension renders explicitly so
  *  the user can see exactly what each card targets. */
-function budgetTitle(b) {
+function budgetTitle(b: any): string {
         const parts: string[] = [];
     if (b.tripId && b.tripId !== 'all') {
         const trip = (STATE.trips || []).find(t => t.id === b.tripId);
@@ -73,7 +73,7 @@ function budgetTitle(b) {
     return parts.join(' · ');
 }
 
-const deleteBudget = (id) => {
+const deleteBudget = (id: string) => {
     const b = (STATE.budgets || []).find(x => x.id === id);
     if (!b) return;
     showConfirmModal({

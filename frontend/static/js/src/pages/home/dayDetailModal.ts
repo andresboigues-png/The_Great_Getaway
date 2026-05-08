@@ -234,7 +234,7 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
     const _slots = ['morning', 'afternoon', 'evening'];
     const _initialSlot = 'morning';
     const _renderTab = (slot: string) => {
-        const count = _countLines(day.plan?.[slot]);
+        const count = _countLines((day.plan as Record<string, string> | undefined)?.[slot]);
         const isActive = slot === _initialSlot;
         return `
             <button type="button" class="day-plan-tab${isActive ? ' is-active' : ''}" data-plan-tab="${slot}"
@@ -250,7 +250,7 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
         const isActive = slot === _initialSlot;
         return `
             <div class="day-plan-pane${isActive ? ' is-active' : ''}" data-plan-pane="${slot}" style="--accent: ${_slotAccent[slot]};">
-                <textarea class="plain-textarea plan-input" data-time="${slot}" placeholder="${_slotPlaceholder[slot]}">${esc(day.plan?.[slot] || '')}</textarea>
+                <textarea class="plain-textarea plan-input" data-time="${slot}" placeholder="${_slotPlaceholder[slot]}">${esc((day.plan as Record<string, string> | undefined)?.[slot] || '')}</textarea>
             </div>
         `;
     };

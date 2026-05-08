@@ -21,11 +21,11 @@ let activeExpensesTab: 'manual' | 'batch' | 'history' = 'manual';
 
 /** Set the active tab before rendering — used by the /upload route to land
  *  users on the Batch tab without breaking deep links from before the merge. */
-export function setExpensesTab(/** @type {'manual' | 'batch' | 'history'} */ tab) {
+export function setExpensesTab(tab: 'manual' | 'batch' | 'history') {
     activeExpensesTab = tab;
 }
 
-export const openEditExpenseModal = (id) => {
+export const openEditExpenseModal = (id: string) => {
     const e = STATE.expenses.find(exp => exp.id === id);
     if (!e) return;
     STATE.draftExpense = { ...e };
@@ -35,7 +35,7 @@ export const openEditExpenseModal = (id) => {
     navigate('expenses');
 };
 
-export const deleteExpense = (id) => {
+export const deleteExpense = (id: string) => {
     showConfirmModal({
         title: "Delete Expense?",
         message: "This action cannot be undone.",
@@ -94,7 +94,7 @@ export function renderExpenses() {
      *  tabs when the current user can't edit the active trip. Keeps the
      *  tab structure visible so there's no confusing "tab disappeared" UX,
      *  but blocks the form / file picker behind a clear explanation. */
-    function renderReadOnlyNotice(/** @type {string} */ tabLabel, /** @type {string} */ verb) {
+    function renderReadOnlyNotice(tabLabel: string, verb: string) {
         const w = document.createElement('div');
         w.innerHTML = `
             <div class="card glass" style="max-width: 520px; margin: 32px auto; padding: 36px; border-radius: 28px; text-align: center; background: rgba(255,255,255,0.6);">
@@ -320,7 +320,7 @@ function renderManualTab() {
             countryList.style.display = 'block';
         };
 
-        const selectCountry = (/** @type {HTMLElement} */ item) => {
+        const selectCountry = (item: HTMLElement) => {
             countryInput.value = item.getAttribute('data-value') ?? '';
             countryList.style.display = 'none';
             STATE.draftExpense.country = countryInput.value;
@@ -343,7 +343,7 @@ function renderManualTab() {
             countryItems.forEach(it => it.classList.remove('is-active'));
             activeIdx = -1;
         };
-        const setActive = (idx) => {
+        const setActive = (idx: number) => {
             const items = visibleItems();
             if (items.length === 0) { clearActive(); return; }
             countryItems.forEach(it => it.classList.remove('is-active'));
@@ -717,7 +717,7 @@ export function renderTripExpenses(container: HTMLElement, filters: ExpensesFilt
             break;
     }
 
-    function formatAppleDate(dateStr) {
+    function formatAppleDate(dateStr: string | null | undefined): string {
         if (!dateStr) return 'Global';
         // DD-MM-YYYY everywhere the user reads a date. Storage stays ISO
         // YYYY-MM-DD (only the rendering changes).
