@@ -388,7 +388,7 @@ across files.
       retained — industry-standard for design-system clarity, no
       Dynamic Type accessibility benefit from converting.
 - [x] Replace `:hover`-only affordances with `:hover, :active,
-  :focus-visible`. **Sweep result**: 100 hover-only rules → 0.
+:focus-visible`. **Sweep result**: 100 hover-only rules → 0.
       :active occurrences 19 → 125, :focus-visible 32 → 138.
       Descendant selectors (e.g. `tr:hover td`) handled correctly —
       each pseudo-class variant keeps its descendant chain. Touch
@@ -484,22 +484,41 @@ Both worlds coexist during the transition; tests cover both.
 **Status**: Infrastructure shipped. C2 picks up the first leaf
 migration (Insights).
 
-### C2 — Migrate the smallest leaf page first
+### C2 — Migrate the smallest leaf page first ✅ (deletion pending)
 
 Pick **`pages/insights.ts`** (340 lines) — it's small, mostly
 read-only, and exercises charts (Chart.js). If it can be migrated
 cleanly + all tests stay green, the pattern works for everything else.
 
-- [ ] Build `pages/insights/Insights.tsx` as a real React component.
-- [ ] Mount it via the existing router: when the route is `/insights`,
-      `ReactDOM.render` into `#app-container` instead of calling the
-      old `renderInsights()`.
-- [ ] All Playwright tests for /insights pass against the React
-      version.
-- [ ] Visual regression: same screenshot as before. Iterate until pixel
-      diff is zero.
-- [ ] Delete the old `pages/insights.ts` once the React version is
-      proven stable for one full session.
+- [x] Built `pages/insights/Insights.tsx` as a real React component.
+      One-for-one mirror of legacy renderInsights — same DOM,
+      same Chart.js doughnut + line chart, same data flow.
+      `useStore(selector)` subscribes to slices; mutations write
+      `STATE.* + emit('state:changed')`.
+- [x] Mounted via the existing router: `case PAGES.INSIGHTS:
+    mountInsights(content)` replaces `pageEl = renderInsights()`.
+      Shared `clearReactMount()` runs at the top of every navigation
+      so React effect cleanups (Chart.js .destroy(), etc.) flush
+      before innerHTML wipes the slot.
+- [x] Playwright tests for /insights pass against the React version
+      (pages.spec.js page-render smoke ✅).
+- [x] Visual regression: 20/20 baselines pass — no pixel drift.
+- [ ] Delete `pages/insights.ts` once the React version proves
+      stable for one full session. **Held over to next session
+      per ROADMAP gate.**
+
+**Patterns established for the rest of Phase C:**
+
+- **Chart.js in React**: `useRef` on canvas + `useEffect` with
+  cleanup that calls `chart.destroy()`. Effect dependencies use
+  array primitives' `.join('|')` for stable string keys to avoid
+  re-mount thrash on identity-change-but-content-same arrays.
+- **Strangler mount**: React tree mounts into the same
+  #app-container the legacy pages use. Both worlds coexist; the
+  router decides per-page which path to take.
+- **Bundle cost**: +186K React runtime on first migration; each
+  additional .tsx page after that adds ~5K vs its imperative twin
+  (the runtime amortizes).
 
 ### C3 — Migrate by leaf-up topology
 
