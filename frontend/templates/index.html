@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>The Great Getaway</title>
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/index.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/index.css') }}?v={{ css_version }}">
 
     <!-- PWA: installable on iOS/Android, standalone display, themed nav.
          Real PNG icons + splash screens come in Phase L. -->
@@ -354,7 +354,7 @@
     {% if dev_mode %}
     <script type="module" src="{{ url_for('static', filename='js/src/main.js') }}"></script>
     {% else %}
-    <script src="{{ url_for('static', filename='js/app.bundle.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/app.bundle.js') }}?v={{ bundle_version }}" defer></script>
     {% endif %}
 </body>
 

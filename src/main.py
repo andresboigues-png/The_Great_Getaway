@@ -154,6 +154,23 @@ def _start_cleanup_thread():
 
 _start_cleanup_thread()
 
+def _asset_version(rel_path: str) -> str:
+    """Cache-busting version string for a static asset — the file's mtime
+    in seconds. The browser caches `?v=…` URLs aggressively (good — saves
+    bandwidth on no-change visits), and the moment the file changes on
+    disk the URL changes too, forcing a re-fetch. Replaces the prior
+    behavior where users had to manually hard-reload (Cmd+Shift+R) after
+    every deploy to pick up CSS/bundle changes.
+
+    Falls back to '0' if the file is missing — the URL still works, the
+    browser just caches indefinitely until the file appears."""
+    full_path = os.path.join(app.static_folder or "", rel_path)
+    try:
+        return str(int(os.path.getmtime(full_path)))
+    except OSError:
+        return "0"
+
+
 @app.route("/")
 def home():
     """Serve the main Single Page Application (SPA) index file."""
@@ -162,7 +179,9 @@ def home():
     return render_template("index.html",
                            google_client_id=os.getenv("CLIENT_ID_GOOGLE_AUTH"),
                            google_maps_api_key=os.getenv("GOOGLE_MAPS_API_KEY"),
-                           dev_mode=dev_mode)
+                           dev_mode=dev_mode,
+                           bundle_version=_asset_version("js/app.bundle.js"),
+                           css_version=_asset_version("css/index.css"))
 
 
 @app.route("/components")
