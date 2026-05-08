@@ -7,6 +7,117 @@ Newest entry at the top.
 
 ---
 
+## Session N+9 — 2026-05-08 — feed.py edge cases + floor 80→85% (84% → 90%)
+
+**Goal**: Continuation request — keep clearing backlog and pushing
+pytest coverage. Two more low-coverage routes targeted in the same
+"target → ship → bump floor" pattern as N+8.
+
+**routes/trips.py — 78% → 89% (+8 tests, commit `1c24af3`)**: edge
+cases around invite/decline/delete/archive/unarchive. Tests pin:
+
+- invite role allowlist (`viewer`/`editor` only — no role-escalation
+  via crafted `role` field)
+- self-invite rejection (you can't invite yourself; the form already
+  filters but the server gate matters too)
+- missing target user 404 (lookup must explicitly fail, not silently
+  insert a row)
+- decline removes the trip_members row entirely (audit-fix gate —
+  decline used to flip status to "rejected" and leave a stale row)
+- delete trip cascades (members, expenses, days, budgets all get
+  cleared in the same transaction — pin so a future ALTER doesn't
+  leave orphan rows)
+- delete trip non-owner 403 (audit-fix gate)
+- archive/unarchive non-member 403s (private-trip leakage gate)
+
+**routes/integrations.py — 21% → 98% (+7 tests, commit `15eeb19`)**:
+the long-standing low-coverage outlier — Gemini AI integration
+needed HTTP mocking. Established the pattern with a `_FakeGeminiResponse`
+helper class + `monkeypatch.setattr(routes.integrations.requests,
+"post", fake_post)`. Tests cover:
+
+- `/api/config` env mapping (key field returned to client)
+- `/api/generate_itinerary` missing-key 400
+- happy path (mocked Gemini returns valid JSON)
+- markdown code-fence stripping (Gemini sometimes wraps JSON in
+  ` ```json ` blocks; strip before parsing)
+- both-models-fail → 502 (primary + fallback both 500; reachable
+  endpoint failure shouldn't 500 the caller)
+- invalid JSON in Gemini response → 500 with error envelope
+- error envelope structure (no raw error message bleed-through)
+
+This was the biggest single-file climb in the suite — 21% → 98%
+in 7 tests, +14 percentage points to total coverage.
+
+**routes/feed.py — 81% → 86% (+11 tests, commit `75b36a2`)**: the
+rejection paths and idempotent-DELETE contracts. Happy paths were
+already covered (test*feed*\*); this wave fills:
+
+| Endpoint                     | What's pinned           |
+| ---------------------------- | ----------------------- |
+| POST /share (no trip_id)     | 400                     |
+| POST /share (non-member)     | 403 ← audit-fix gate    |
+| GET /share/status (unshared) | shared:false body shape |
+| DELETE /share (unknown id)   | 200/{ok} ← idempotent   |
+| DELETE /share (non-author)   | 403                     |
+| POST /repost (unknown id)    | 404                     |
+| POST /repost (already-done)  | 200/{already_reposted}  |
+| POST /bookmark (toggle off)  | bookmarked:false        |
+| POST /comment (empty body)   | 400                     |
+| DELETE /comment (unknown id) | 200/{ok, event_id:null} |
+| POST /like (synth event_id)  | no-notification path    |
+
+The remaining feed.py uncovered lines (events generation block at
+119-201, the like/bookmark/comment count attach at 265-295) are
+all "feed-with-data" paths that need cross-user friendship
+fixtures — deferred to a later wave when those fixtures exist.
+
+**CI floor: 80% → 85% (commit `084e1bf`)**: tightened after the
+above pushed total to 90%. ~5pp headroom (5pp = ~70 lines of
+uncovered logic, big enough to be a real-regression signal vs
+noise). Floor history: 60 → 80 (N+8) → 85 (N+9). Next bump to 90%
+deferred until the feed-with-data tests land — they'll pull total
+past 92%, justifying the headroom.
+
+**Coverage summary (cumulative across N+8 + N+9)**:
+
+| File                   | N+7 (was) | N+9 (now) | Tests added |
+| ---------------------- | --------- | --------- | ----------- |
+| routes/days.py         | 59%       | 100%      | 4           |
+| routes/expenses.py     | 63%       | 100%      | 4           |
+| routes/budgets.py      | 38%       | 100%      | 4           |
+| routes/settings.py     | 28%       | 100%      | 5           |
+| routes/integrations.py | 21%       | **98%**   | 7           |
+| routes/public.py       | 28%       | 93%       | 4           |
+| routes/data.py         | 24%       | 82%       | 4           |
+| routes/auth.py         | 72%       | 76%       | 2           |
+| routes/trips.py        | 78%       | 89%       | 8           |
+| routes/feed.py         | 81%       | **86%**   | 11          |
+| **TOTAL**              | **67%**   | **90%**   | **57**      |
+
+77 → 131 tests across two sessions; +23 percentage points.
+
+**Test status at close**: pytest 131/131 passing locally, 90% total
+coverage, build green, tsc strict clean. 3 new commits this
+session (`75b36a2`, `084e1bf`, plus the N+8 carry-over `1c24af3`
+and `15eeb19` on top of `bfdc85b`'s log entry).
+
+**What remains** (the carried-over backlog continues to shrink):
+
+- routes/auth.py at 76% — Google ID token verify happy path
+  (verify_oauth2_token mocking, lines 118-142). Pattern is
+  established now (see integrations.py); pickup is straightforward
+  but lower value than the routes already done.
+- routes/feed.py at 86% — feed-with-data paths (lines 119-201,
+  217, 247, 265-295). Need cross-user friendship + share fixtures
+  to exercise the events-generation block. Worth a session by
+  itself once a fixture helper is added.
+- B1 final-final: still parked as B-Phase-2 (renderHome's map
+  setup is too deeply closure-coupled; Phase C's React migration
+  is the natural place to force the boundaries).
+
+---
+
 ## Session N+8 — 2026-05-08 — Backlog clearing + pytest push (67% → 84%)
 
 **Goal**: Continuation request — close out remaining tagged
