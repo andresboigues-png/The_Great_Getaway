@@ -144,7 +144,7 @@
    `.btn-primary:hover` etc. style blocks stay untouched (they target
    button-specific elements with their own hover/active/focus styles); this
    rule covers the generic case. */
-.has-hover-affordance:hover,
+.has-hover-affordance:hover, .has-hover-affordance:active, .has-hover-affordance:focus-visible,
 .has-hover-affordance:active,
 .has-hover-affordance:focus-visible {
     transform: translateY(-1px);
@@ -218,7 +218,7 @@ body {
     transition: all 0.2s ease;
 }
 
-.nav-item:hover,
+.nav-item:hover, .nav-item:active, .nav-item:focus-visible,
 .nav-item.active {
     opacity: 1;
     font-weight: 800;
@@ -251,7 +251,7 @@ body {
     border: 1px solid transparent !important;
 }
 
-.trip-tab:hover {
+.trip-tab:hover , .trip-tab:active , .trip-tab:focus-visible {
     background: rgba(0, 0, 0, 0.05);
     color: var(--text-primary) !important;
 }
@@ -264,7 +264,7 @@ body {
 }
 
 @media (prefers-color-scheme: dark) {
-    .trip-tab:hover {
+    .trip-tab:hover ,     .trip-tab:active ,     .trip-tab:focus-visible {
         background: rgba(255, 255, 255, 0.05);
     }
 }
@@ -307,7 +307,7 @@ body {
     transition: background-color 0.2s ease, transform 0.1s ease;
 }
 
-.btn:hover {
+.btn:hover , .btn:active , .btn:focus-visible {
     background-color: var(--accent-blue-hover);
 }
 
@@ -335,7 +335,7 @@ body {
     transition: all 0.2s ease;
 }
 
-.btn-liquid-glass:hover {
+.btn-liquid-glass:hover , .btn-liquid-glass:active , .btn-liquid-glass:focus-visible {
     background: rgba(255, 255, 255, 0.12);
     border-color: rgba(255, 255, 255, 0.4);
 }
@@ -479,7 +479,7 @@ input:checked+.slider:before {
     transition: all 0.2s;
 }
 
-.btn-complete:hover {
+.btn-complete:hover , .btn-complete:active , .btn-complete:focus-visible {
     background: rgba(52, 199, 89, 0.15);
     border-color: rgba(52, 199, 89, 0.4);
     box-shadow: 0 0 12px rgba(52, 199, 89, 0.2);
@@ -501,7 +501,7 @@ input:checked+.slider:before {
     transition: all 0.2s;
 }
 
-.btn-delete:hover {
+.btn-delete:hover , .btn-delete:active , .btn-delete:focus-visible {
     background: rgba(255, 59, 48, 0.15);
     border-color: rgba(255, 59, 48, 0.4);
 }
@@ -597,7 +597,7 @@ h1 {
     border-bottom: none;
 }
 
-.liquid-table tr:hover td {
+.liquid-table tr:hover td , .liquid-table tr:active td , .liquid-table tr:focus-visible td {
     background: rgba(255, 255, 255, 0.15);
     transition: background 0.3s ease;
 }
@@ -697,7 +697,7 @@ h1 {
     transition: transform 0.25s ease, opacity 0.25s ease;
 }
 
-.hamburger-btn:hover span {
+.hamburger-btn:hover span , .hamburger-btn:active span , .hamburger-btn:focus-visible span {
     background-color: var(--accent-blue-hover);
 }
 
@@ -777,7 +777,7 @@ h1 {
     line-height: 1;
 }
 
-.sidebar-close-btn:hover {
+.sidebar-close-btn:hover , .sidebar-close-btn:active , .sidebar-close-btn:focus-visible {
     background: var(--glass-border);
     color: var(--text-primary);
 }
@@ -806,7 +806,7 @@ h1 {
     margin-bottom: 4px;
 }
 
-.sidebar-item:hover {
+.sidebar-item:hover , .sidebar-item:active , .sidebar-item:focus-visible {
     background: rgba(0, 113, 227, 0.08);
     color: var(--accent-blue);
 }
@@ -816,7 +816,7 @@ h1 {
     stroke: var(--accent-blue);
 }
 
-.sidebar-item:hover svg {
+.sidebar-item:hover svg , .sidebar-item:active svg , .sidebar-item:focus-visible svg {
     stroke: var(--accent-blue);
 }
 
@@ -873,7 +873,7 @@ h1 {
     border-color: var(--accent-blue);
 }
 
-.tourism-tag:hover:not(.selected) {
+.tourism-tag:hover:not(.selected) , .tourism-tag:active:not(.selected) , .tourism-tag:focus-visible:not(.selected) {
     border-color: var(--accent-blue);
     color: var(--accent-blue);
 }
@@ -891,7 +891,7 @@ h1 {
     letter-spacing: 0.01em;
 }
 
-.ai-generate-btn:hover {
+.ai-generate-btn:hover , .ai-generate-btn:active , .ai-generate-btn:focus-visible {
     opacity: 0.9;
 }
 
@@ -913,7 +913,7 @@ h1 {
     transition: box-shadow 0.2s;
 }
 
-.itinerary-day:hover {
+.itinerary-day:hover , .itinerary-day:active , .itinerary-day:focus-visible {
     box-shadow: var(--shadow-md);
 }
 
@@ -928,7 +928,7 @@ h1 {
     transition: background 0.2s;
 }
 
-.itinerary-day-header:hover {
+.itinerary-day-header:hover , .itinerary-day-header:active , .itinerary-day-header:focus-visible {
     background: rgba(0, 113, 227, 0.08);
 }
 
@@ -1076,7 +1076,7 @@ h1 {
     overflow: hidden;
 }
 
-.management-card:hover {
+.management-card:hover , .management-card:active , .management-card:focus-visible {
     transform: translateY(-5px);
 }
 
@@ -1085,7 +1085,7 @@ h1 {
     background: linear-gradient(135deg, rgba(255, 59, 48, 0.05), transparent);
 }
 
-.danger-card:hover {
+.danger-card:hover , .danger-card:active , .danger-card:focus-visible {
     border-color: rgba(255, 59, 48, 0.4);
     box-shadow: 0 10px 40px rgba(255, 59, 48, 0.15);
 }
@@ -1186,7 +1186,7 @@ h1 {
     transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.btn-confirm-danger:hover {
+.btn-confirm-danger:hover , .btn-confirm-danger:active , .btn-confirm-danger:focus-visible {
     transform: scale(1.02);
     box-shadow: 0 15px 35px rgba(255, 59, 48, 0.5);
 }
@@ -1256,7 +1256,7 @@ h1 {
     cursor: pointer;
 }
 
-.day-block:hover {
+.day-block:hover , .day-block:active , .day-block:focus-visible {
     background: rgba(255, 255, 255, 1);
     transform: translateY(-15px) scale(1.04);
     border-color: var(--accent-blue);
@@ -1330,7 +1330,7 @@ h1 {
     border-radius: 10px;
 }
 
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+.custom-scrollbar::-webkit-scrollbar-thumb:hover , .custom-scrollbar::-webkit-scrollbar-thumb:active , .custom-scrollbar::-webkit-scrollbar-thumb:focus-visible {
     background: rgba(255, 255, 255, 0.2);
 }
 /* ════════════════════════════════════════════════════════════════════════
@@ -1341,7 +1341,7 @@ h1 {
    These `.is-hovered` rules duplicate the hover styling under a class
    so the preview page can demonstrate it inline. Only the components
    that are repeatedly demonstrated need these — everything else still
-   responds to live :hover. */
+   responds to live :hover. */,    responds to live :active. */,    responds to live :focus-visible. */
 .btn-primary.is-hovered { background: var(--accent-blue-hover); }
 .btn-primary.is-hovered.btn-primary--lg { transform: translateY(-2px); box-shadow: 0 20px 50px rgba(0,113,227,0.4); }
 
@@ -1459,7 +1459,7 @@ h1 {
     box-shadow: var(--shadow-button-blue);
     transition: background-color 0.15s ease, transform 0.1s ease, opacity 0.15s ease;
 }
-.btn-primary:hover { background: var(--accent-blue-hover); }
+.btn-primary:hover , .btn-primary:active , .btn-primary:focus-visible { background: var(--accent-blue-hover); }
 .btn-primary:active { transform: scale(0.98); }
 .btn-primary:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 2px; }
 .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
@@ -1477,7 +1477,7 @@ h1 {
     cursor: pointer;
     transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
 }
-.btn-ghost:hover { background: var(--glass-fill-strong); border-color: rgba(255,255,255,0.4); }
+.btn-ghost:hover , .btn-ghost:active , .btn-ghost:focus-visible { background: var(--glass-fill-strong); border-color: rgba(255,255,255,0.4); }
 .btn-ghost:active { transform: scale(0.98); }
 .btn-ghost:focus-visible { outline: 2px solid rgba(255,255,255,0.5); outline-offset: 2px; }
 
@@ -1685,7 +1685,7 @@ h1 {
     transition: background 0.18s ease, transform 0.18s ease,
                 box-shadow 0.18s ease, border-color 0.18s ease;
 }
-.map-poi-toggle-bar:hover {
+.map-poi-toggle-bar:hover , .map-poi-toggle-bar:active , .map-poi-toggle-bar:focus-visible {
     background: rgba(255, 255, 255, 1);
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(0, 113, 227, 0.14);
@@ -1747,7 +1747,7 @@ h1 {
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
     transition: background-color 0.2s ease, color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
 }
-.map-poi-toggle:hover {
+.map-poi-toggle:hover , .map-poi-toggle:active , .map-poi-toggle:focus-visible {
     transform: translateY(-1px);
     box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
 }
@@ -1860,7 +1860,7 @@ h1 {
     cursor: pointer;
     transition: background-color 0.2s ease;
 }
-.poi-filter-reset:hover {
+.poi-filter-reset:hover , .poi-filter-reset:active , .poi-filter-reset:focus-visible {
     background: rgba(0, 113, 227, 0.08);
 }
 .poi-filter-reset:focus-visible {
@@ -1886,7 +1886,7 @@ h1 {
     cursor: pointer;
     transition: background-color 0.2s ease, border-color 0.2s ease;
 }
-.general-pref-row:hover {
+.general-pref-row:hover , .general-pref-row:active , .general-pref-row:focus-visible {
     background: rgba(0, 113, 227, 0.06);
     border-color: rgba(0, 113, 227, 0.2);
 }
@@ -1930,7 +1930,7 @@ h1 {
    (camera icon on a dark scrim). Replaces JS-imperative onmouseenter/
    onmouseleave that toggled `style.opacity` on the overlay. */
 #profilePicOverlay { transition: opacity 0.2s ease; }
-#profilePicWrapper:hover #profilePicOverlay { opacity: 1; }
+#profilePicWrapper:hover #profilePicOverlay , #profilePicWrapper:active #profilePicOverlay , #profilePicWrapper:focus-visible #profilePicOverlay { opacity: 1; }
 
 /* Typography helpers — named for the look, not the context, so they
    compose freely. Dark-navy display heading + muted body subtitle. */
@@ -2201,9 +2201,9 @@ h1 {
     transition: background-color 0.15s ease;
 }
 .notification-item:last-child { border-bottom: 0; }
-.notification-item:hover { background: rgba(255,255,255,0.08); }
+.notification-item:hover , .notification-item:active , .notification-item:focus-visible { background: rgba(255,255,255,0.08); }
 .notification-item.unread { background: rgba(0,113,227,0.28); }
-.notification-item.unread:hover { background: rgba(0,113,227,0.4); }
+.notification-item.unread:hover , .notification-item.unread:active , .notification-item.unread:focus-visible { background: rgba(0,113,227,0.4); }
 .notification-item__title {
     font-weight: 700;
     font-size: var(--font-base);
@@ -2241,7 +2241,7 @@ h1 {
     color: var(--accent-blue);
     cursor: pointer;
 }
-.link-underline:hover { color: var(--accent-blue-hover); }
+.link-underline:hover , .link-underline:active , .link-underline:focus-visible { color: var(--accent-blue-hover); }
 
 /* AI itinerary plan block — Morning/Afternoon/Evening sections in the
    generated itinerary. Each call site sets `--accent: R,G,B` for the
@@ -2430,7 +2430,7 @@ h1 {
     transition: transform 0.18s ease, box-shadow 0.18s ease;
     letter-spacing: -0.01em;
 }
-.trip-companions-card__cta:hover {
+.trip-companions-card__cta:hover , .trip-companions-card__cta:active , .trip-companions-card__cta:focus-visible {
     transform: translateY(-1px);
     box-shadow: 0 10px 24px rgba(0, 113, 227, 0.38);
 }
@@ -2473,7 +2473,7 @@ h1 {
     letter-spacing: -0.01em;
     transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
 }
-.general-subtab:hover:not(.is-active):not(.is-coming-soon) {
+.general-subtab:hover:not(.is-active):not(.is-coming-soon) , .general-subtab:active:not(.is-active):not(.is-coming-soon) , .general-subtab:focus-visible:not(.is-active):not(.is-coming-soon) {
     color: var(--accent-blue);
     background: rgba(0, 113, 227, 0.06);
 }
@@ -2525,7 +2525,7 @@ h1 {
     overflow: hidden;
     transition: transform 0.18s ease, box-shadow 0.18s ease;
 }
-.format-row:hover {
+.format-row:hover , .format-row:active , .format-row:focus-visible {
     transform: translateY(-1px);
     box-shadow: 0 6px 16px rgba(0, 45, 91, 0.10);
 }
@@ -2596,7 +2596,7 @@ h1 {
     flex-shrink: 0;
     transition: background 0.15s ease, border-color 0.15s ease;
 }
-.format-row__remove:hover {
+.format-row__remove:hover , .format-row__remove:active , .format-row__remove:focus-visible {
     background: rgba(255, 59, 48, 0.14);
     border-color: rgba(255, 59, 48, 0.4);
 }
@@ -2613,7 +2613,7 @@ h1 {
     border-radius: 14px;
     transition: transform 0.18s ease, box-shadow 0.18s ease;
 }
-.saved-format-card:hover {
+.saved-format-card:hover , .saved-format-card:active , .saved-format-card:focus-visible {
     transform: translateY(-1px);
     box-shadow: 0 8px 20px rgba(0, 113, 227, 0.12);
 }
@@ -2652,7 +2652,7 @@ h1 {
     border-color: rgba(0, 113, 227, 0.28);
     color: var(--accent-blue);
 }
-.saved-format-card__btn--edit:hover {
+.saved-format-card__btn--edit:hover , .saved-format-card__btn--edit:active , .saved-format-card__btn--edit:focus-visible {
     background: rgba(0, 113, 227, 0.16);
     transform: translateY(-1px);
 }
@@ -2661,7 +2661,7 @@ h1 {
     border-color: rgba(255, 59, 48, 0.25);
     color: #ff3b30;
 }
-.saved-format-card__btn--delete:hover {
+.saved-format-card__btn--delete:hover , .saved-format-card__btn--delete:active , .saved-format-card__btn--delete:focus-visible {
     background: rgba(255, 59, 48, 0.14);
     transform: translateY(-1px);
 }
@@ -2709,7 +2709,7 @@ h1 {
     overflow: hidden;
     transition: transform 0.18s ease, box-shadow 0.18s ease;
 }
-.cat-row:hover {
+.cat-row:hover , .cat-row:active , .cat-row:focus-visible {
     transform: translateY(-1px);
     box-shadow: 0 6px 16px rgba(0, 45, 91, 0.10);
 }
@@ -2772,14 +2772,14 @@ h1 {
 .cat-row__btn--edit {
     color: var(--accent-blue);
 }
-.cat-row__btn--edit:hover {
+.cat-row__btn--edit:hover , .cat-row__btn--edit:active , .cat-row__btn--edit:focus-visible {
     background: rgba(0, 113, 227, 0.10);
     border-color: rgba(0, 113, 227, 0.32);
 }
 .cat-row__btn--delete {
     color: #ff3b30;
 }
-.cat-row__btn--delete:hover {
+.cat-row__btn--delete:hover , .cat-row__btn--delete:active , .cat-row__btn--delete:focus-visible {
     background: rgba(255, 59, 48, 0.08);
     border-color: rgba(255, 59, 48, 0.32);
 }
@@ -2870,7 +2870,7 @@ h1 {
     border-radius: 10px;
     transition: background 0.18s ease;
 }
-.profile-iw__trip-row:hover {
+.profile-iw__trip-row:hover , .profile-iw__trip-row:active , .profile-iw__trip-row:focus-visible {
     background: rgba(0, 113, 227, 0.06);
 }
 .profile-iw__trip-info {
@@ -2904,7 +2904,7 @@ h1 {
     transition: transform 0.18s ease, box-shadow 0.18s ease;
     flex-shrink: 0;
 }
-.profile-iw__view-btn:hover {
+.profile-iw__view-btn:hover , .profile-iw__view-btn:active , .profile-iw__view-btn:focus-visible {
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(0, 113, 227, 0.42);
 }
@@ -2919,7 +2919,7 @@ h1 {
     transition: transform 0.18s ease, box-shadow 0.18s ease;
     border-radius: 50%;
 }
-.feed-avatar-btn:hover {
+.feed-avatar-btn:hover , .feed-avatar-btn:active , .feed-avatar-btn:focus-visible {
     transform: translateY(-1px);
     box-shadow: 0 6px 16px rgba(0, 113, 227, 0.30);
 }
@@ -2931,8 +2931,8 @@ h1 {
 /* Feed trip card — sits below caption on share/repost events to
    anchor the post to a specific trip. Click navigates to the
    sharer's profile. The transform/shadow already live on the inline
-   style; this rule just adds the :hover state (can't inline that). */
-.feed-trip-card:hover {
+   style; this rule just adds the :hover state (can't inline that). */,    style; this rule just adds the :active state (can't inline that). */,    style; this rule just adds the :focus-visible state (can't inline that). */
+.feed-trip-card:hover , .feed-trip-card:active , .feed-trip-card:focus-visible {
     transform: translateY(-1px);
     box-shadow: 0 6px 16px rgba(0,45,91,0.10) !important;
 }
@@ -2979,7 +2979,7 @@ h1 {
     outline: none;
     transition: background-color 0.2s ease, border-color 0.2s ease;
 }
-.brand-select:hover { background: rgba(0, 113, 227, 0.14); }
+.brand-select:hover , .brand-select:active , .brand-select:focus-visible { background: rgba(0, 113, 227, 0.14); }
 .brand-select:focus-visible { border-color: var(--accent-blue); box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.18); }
 .brand-select-chevron {
     position: absolute;
@@ -3018,7 +3018,7 @@ h1 {
     padding: var(--space-1);
     transition: opacity 0.15s ease;
 }
-.btn-x-bare:hover { opacity: 0.7; }
+.btn-x-bare:hover , .btn-x-bare:active , .btn-x-bare:focus-visible { opacity: 0.7; }
 .btn-x-bare:focus-visible { outline: 2px solid #ff3b30; outline-offset: 2px; border-radius: 4px; }
 
 /* Color swatch dot — used in the categories table. */
@@ -3094,7 +3094,7 @@ h1 {
     cursor: pointer;
     transition: background-color 0.2s ease, transform 0.1s ease;
 }
-.icon-x-btn:hover { background: rgba(255,59,48,0.18); }
+.icon-x-btn:hover , .icon-x-btn:active , .icon-x-btn:focus-visible { background: rgba(255,59,48,0.18); }
 .icon-x-btn:active { transform: scale(0.95); }
 .icon-x-btn:focus-visible { outline: 2px solid #ff3b30; outline-offset: 2px; }
 
@@ -3122,7 +3122,7 @@ h1 {
     cursor: pointer;
     transition: background-color 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease;
 }
-.btn-primary-pill:hover {
+.btn-primary-pill:hover , .btn-primary-pill:active , .btn-primary-pill:focus-visible {
     background: var(--accent-blue-hover);
     transform: translateY(-1px);
     box-shadow: 0 6px 16px rgba(0, 113, 227, 0.35);
@@ -3159,7 +3159,7 @@ h1 {
     background-repeat: no-repeat;
     background-position: right var(--space-3) center;
 }
-.btn-primary-pill--inverse:hover {
+.btn-primary-pill--inverse:hover , .btn-primary-pill--inverse:active , .btn-primary-pill--inverse:focus-visible {
     background-color: rgba(0, 113, 227, 0.06);
     transform: translateY(-1px);
     box-shadow: 0 6px 16px rgba(0, 113, 227, 0.2);
@@ -3187,7 +3187,7 @@ h1 {
     cursor: pointer;
     transition: background-color 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease;
 }
-.icon-btn-circle:hover {
+.icon-btn-circle:hover , .icon-btn-circle:active , .icon-btn-circle:focus-visible {
     background: rgba(var(--accent), 0.2);
     transform: scale(1.05);
 }
@@ -3208,8 +3208,8 @@ h1 {
         0 0 16px rgba(52, 199, 89, 0.45),
         0 8px 22px rgba(52, 199, 89, 0.25);
 }
-.icon-btn-circle--glow-success:hover,
-#completeTripBtn:hover {
+.icon-btn-circle--glow-success:hover, .icon-btn-circle--glow-success:active, .icon-btn-circle--glow-success:focus-visible,
+#completeTripBtn:hover , #completeTripBtn:active , #completeTripBtn:focus-visible {
     box-shadow:
         0 0 0 2px rgba(52, 199, 89, 0.6),
         0 0 28px rgba(52, 199, 89, 0.7),
@@ -3290,7 +3290,7 @@ h1 {
     padding: var(--space-2);
     transition: color var(--duration-normal) ease;
 }
-#sidebarLogoutBtn:hover { color: #ff3b30; }
+#sidebarLogoutBtn:hover , #sidebarLogoutBtn:active , #sidebarLogoutBtn:focus-visible { color: #ff3b30; }
 #sidebarLogoutBtn:focus-visible { outline: 2px solid #ff3b30; outline-offset: 2px; border-radius: 4px; }
 
 /* Day timeline card — collapsed state slides right + tinted border on
@@ -3309,7 +3309,7 @@ h1 {
     min-width: 320px;
     transition: transform 0.4s var(--easing-smooth), border-color 0.4s var(--easing-smooth), background 0.4s var(--easing-smooth), box-shadow 0.4s var(--easing-smooth);
 }
-.day-card:not(.is-open):hover {
+.day-card:not(.is-open):hover , .day-card:not(.is-open):active , .day-card:not(.is-open):focus-visible {
     transform: translateX(8px);
     border-color: rgba(0,113,227,0.2);
 }
@@ -3351,7 +3351,7 @@ h1 {
 .day-card--unpinned.is-open {
     border-color: var(--accent-blue) !important;
 }
-.day-card:not(.is-open).day-card--unpinned:hover {
+.day-card:not(.is-open).day-card--unpinned:hover , .day-card:not(.is-open).day-card--unpinned:active , .day-card:not(.is-open).day-card--unpinned:focus-visible {
     border-color: rgba(255, 159, 10, 0.85) !important;
 }
 .day-card__pin-hint {
@@ -3408,7 +3408,7 @@ h1 {
     cursor: pointer;
     transition: background-color 0.2s ease;
 }
-.close-x-btn:hover { background: rgba(0,0,0,0.1); }
+.close-x-btn:hover , .close-x-btn:active , .close-x-btn:focus-visible { background: rgba(0,0,0,0.1); }
 .close-x-btn:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 2px; }
 
 /* Segmented toggle button — used by the insights rate-mode picker
@@ -3425,12 +3425,12 @@ h1 {
     cursor: pointer;
     transition: background-color 0.3s ease, color 0.3s ease;
 }
-.toggle-btn:hover { background: rgba(0,113,227,0.08); }
+.toggle-btn:hover , .toggle-btn:active , .toggle-btn:focus-visible { background: rgba(0,113,227,0.08); }
 .toggle-btn.active {
     background: var(--accent-blue);
     color: white;
 }
-.toggle-btn.active:hover { background: var(--accent-blue-hover); }
+.toggle-btn.active:hover , .toggle-btn.active:active , .toggle-btn.active:focus-visible { background: var(--accent-blue-hover); }
 
 /* Ranking row — used in the Top Spenders + Category Breakdown lists
    on the insights page. Number + label on the left, accent value on
@@ -3463,7 +3463,7 @@ h1 {
     cursor: pointer;
     transition: background-color 0.2s ease;
 }
-.user-row--neutral:hover { background: rgba(255,255,255,0.1); }
+.user-row--neutral:hover , .user-row--neutral:active , .user-row--neutral:focus-visible { background: rgba(255,255,255,0.1); }
 
 .user-row--warn {
     background: rgba(255,159,10,0.1);
@@ -3524,7 +3524,7 @@ h1 {
     cursor: pointer;
     transition: background-color 0.15s ease, transform 0.1s ease;
 }
-.btn-neutral:hover { background: rgba(0,0,0,0.08); }
+.btn-neutral:hover , .btn-neutral:active , .btn-neutral:focus-visible { background: rgba(0,0,0,0.08); }
 .btn-neutral:active { transform: scale(0.98); }
 .btn-neutral:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 2px; }
 
@@ -3546,14 +3546,14 @@ h1 {
     gap: 6px;
     transition: background-color var(--duration-normal) ease;
 }
-#aiZoomBadge:hover { background: rgba(255,255,255,0.2); }
+#aiZoomBadge:hover , #aiZoomBadge:active , #aiZoomBadge:focus-visible { background: rgba(255,255,255,0.2); }
 
 /* Premium glass card — empty-state hero card on the AI page. Lifts on
    hover with a stronger shadow. */
 .premium-glass-card {
     transition: transform 0.3s var(--easing-smooth), box-shadow 0.3s var(--easing-smooth);
 }
-.premium-glass-card:hover {
+.premium-glass-card:hover , .premium-glass-card:active , .premium-glass-card:focus-visible {
     transform: translateY(-5px);
     box-shadow: 0 40px 80px rgba(0,0,0,0.15), 0 15px 30px rgba(0,113,227,0.15);
 }
@@ -3572,7 +3572,7 @@ h1 {
     font-size: var(--font-sm);
     transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
 }
-.btn-logout:hover {
+.btn-logout:hover , .btn-logout:active , .btn-logout:focus-visible {
     background: rgba(255,59,48,0.1);
     color: #ff3b30;
     border-color: rgba(255,59,48,0.2);
@@ -3594,7 +3594,7 @@ h1 {
     cursor: pointer;
     transition: background-color 0.2s ease, transform 0.1s ease;
 }
-.icon-action-btn:hover { background: rgba(var(--accent, 0,113,227), 0.15); }
+.icon-action-btn:hover , .icon-action-btn:active , .icon-action-btn:focus-visible { background: rgba(var(--accent, 0,113,227), 0.15); }
 .icon-action-btn:active { transform: scale(0.96); }
 .icon-action-btn:focus-visible { outline: 2px solid rgb(var(--accent)); outline-offset: 2px; }
 
@@ -3604,7 +3604,7 @@ h1 {
 .expense-row {
     transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), background 0.3s ease, box-shadow 0.3s ease;
 }
-.expense-row:hover {
+.expense-row:hover , .expense-row:active , .expense-row:focus-visible {
     transform: scale(1.012);
     background: rgba(255,255,255,0.2);
     box-shadow: 0 20px 50px rgba(0,0,0,0.2);
@@ -3633,7 +3633,7 @@ h1 {
     transition: color 0.2s, border-color 0.2s;
     letter-spacing: -0.01em;
 }
-.expenses-tabnav__tab:hover {
+.expenses-tabnav__tab:hover , .expenses-tabnav__tab:active , .expenses-tabnav__tab:focus-visible {
     color: var(--accent-blue);
 }
 .expenses-tabnav__tab.is-active {
@@ -3655,7 +3655,7 @@ h1 {
     cursor: pointer;
     transition: background-color 0.2s ease;
 }
-.btn-chip-danger:hover { background: rgba(255,59,48,0.15); }
+.btn-chip-danger:hover , .btn-chip-danger:active , .btn-chip-danger:focus-visible { background: rgba(255,59,48,0.15); }
 
 /* `#addDayBtn` — "+ Add a new day" timeline button. Animates its
    dashed dot + text on hover. ID-scoped because it's the only one. */
@@ -3668,8 +3668,8 @@ h1 {
 }
 #addDayBtn .add-dot { transition: transform var(--duration-medium) ease; }
 #addDayBtn .add-text { transition: color var(--duration-medium) ease; }
-#addDayBtn:hover .add-dot { transform: scale(1.3); }
-#addDayBtn:hover .add-text { color: var(--accent-blue); }
+#addDayBtn:hover .add-dot , #addDayBtn:active .add-dot , #addDayBtn:focus-visible .add-dot { transform: scale(1.3); }
+#addDayBtn:hover .add-text , #addDayBtn:active .add-text , #addDayBtn:focus-visible .add-text { color: var(--accent-blue); }
 
 /* `#resetMapViewBtn` — bare button styling its inner H2 like a
    clickable trip title. ID-scoped (single instance). */
@@ -3682,7 +3682,7 @@ h1 {
     text-align: left;
 }
 #resetMapViewBtn h2 { transition: color var(--duration-normal) ease; }
-#resetMapViewBtn:hover h2 { color: var(--accent-blue); }
+#resetMapViewBtn:hover h2 , #resetMapViewBtn:active h2 , #resetMapViewBtn:focus-visible h2 { color: var(--accent-blue); }
 
 /* Guide step card on the home empty-state. Lifts on hover (replaces
    inline onmouseover/onmouseout transform). Background and border are
@@ -3691,7 +3691,7 @@ h1 {
 .guide-step-card {
     transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
-.guide-step-card:hover {
+.guide-step-card:hover , .guide-step-card:active , .guide-step-card:focus-visible {
     transform: translateY(-4px);
     box-shadow: 0 12px 24px rgba(0,0,0,0.08);
 }
@@ -3708,7 +3708,7 @@ h1 {
     cursor: pointer;
     transition: background-color 0.2s ease;
 }
-.btn-glass-light:hover { background: rgba(255,255,255,0.7); }
+.btn-glass-light:hover , .btn-glass-light:active , .btn-glass-light:focus-visible { background: rgba(255,255,255,0.7); }
 
 /* Custom-select dropdown — used by the country picker in expenses.js
    (and any future searchable dropdown). The hover rule on `.dropdown-item`
@@ -3721,7 +3721,7 @@ h1 {
     font-weight: 600;
     transition: background-color 0.2s ease;
 }
-.dropdown-item:hover,
+.dropdown-item:hover, .dropdown-item:active, .dropdown-item:focus-visible,
 .dropdown-item.is-active { background: rgba(0, 122, 255, 0.1); }
 
 /* Filter row helpers — used by the Expense History filter grid where 6
@@ -3766,7 +3766,7 @@ h1 {
     box-shadow: 0 15px 40px rgba(0,113,227,0.3);
     transition: background-color 0.15s ease, transform 0.2s ease, box-shadow 0.2s ease, opacity 0.15s ease;
 }
-.btn-primary--lg:hover {
+.btn-primary--lg:hover , .btn-primary--lg:active , .btn-primary--lg:focus-visible {
     transform: translateY(-2px);
     box-shadow: 0 20px 50px rgba(0,113,227,0.4);
 }
@@ -3833,7 +3833,7 @@ h1 {
     cursor: pointer;
     transition: background-color 0.2s ease, transform 0.1s ease;
 }
-.themed-block-btn:hover { background: rgba(var(--accent, 0,113,227), 0.18); }
+.themed-block-btn:hover , .themed-block-btn:active , .themed-block-btn:focus-visible { background: rgba(var(--accent, 0,113,227), 0.18); }
 .themed-block-btn:active { transform: scale(0.98); }
 .themed-block-btn:focus-visible { outline: 2px solid rgb(var(--accent)); outline-offset: 2px; }
 
@@ -3862,7 +3862,7 @@ h1 {
     cursor: pointer;
     transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
 }
-.icon-btn-square:hover {
+.icon-btn-square:hover , .icon-btn-square:active , .icon-btn-square:focus-visible {
     background: rgba(0,113,227,0.08);
     border-color: rgba(0,113,227,0.2);
     color: var(--accent-blue);
@@ -3887,7 +3887,7 @@ h1 {
     transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.1s ease;
     letter-spacing: -0.01em;
 }
-.trip-companions-pill:hover {
+.trip-companions-pill:hover , .trip-companions-pill:active , .trip-companions-pill:focus-visible {
     background: rgba(0,113,227,0.12);
     border-color: rgba(0,113,227,0.32);
 }
@@ -3920,13 +3920,13 @@ h1 {
     cursor: pointer;
     transition: background-color 0.15s ease, border-color 0.15s ease;
 }
-.companion-row:hover { background: rgba(0,113,227,0.06); border-color: rgba(0,113,227,0.18); }
+.companion-row:hover , .companion-row:active , .companion-row:focus-visible { background: rgba(0,113,227,0.06); border-color: rgba(0,113,227,0.18); }
 .companion-row.is-locked {
     cursor: default;
     background: rgba(52,199,89,0.06);
     border-color: rgba(52,199,89,0.2);
 }
-.companion-row.is-locked:hover { background: rgba(52,199,89,0.06); border-color: rgba(52,199,89,0.2); }
+.companion-row.is-locked:hover , .companion-row.is-locked:active , .companion-row.is-locked:focus-visible { background: rgba(52,199,89,0.06); border-color: rgba(52,199,89,0.2); }
 .companion-row__cb {
     width: 18px;
     height: 18px;
@@ -3986,7 +3986,7 @@ h1 {
     cursor: pointer;
     transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
 }
-.companion-picker-add-form__btn:hover {
+.companion-picker-add-form__btn:hover , .companion-picker-add-form__btn:active , .companion-picker-add-form__btn:focus-visible {
     background: rgba(0, 113, 227, 0.16);
     border-color: rgba(0, 113, 227, 0.48);
 }
@@ -4017,7 +4017,7 @@ h1 {
     letter-spacing: -0.01em;
     font-family: inherit;
 }
-.companion-picker-add-section__friend-btn:hover {
+.companion-picker-add-section__friend-btn:hover , .companion-picker-add-section__friend-btn:active , .companion-picker-add-section__friend-btn:focus-visible {
     background: rgba(0, 113, 227, 0.16);
     border-color: rgba(0, 113, 227, 0.48);
 }
@@ -4104,7 +4104,7 @@ h1 {
     transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
     letter-spacing: -0.01em;
 }
-.btn-link-action:hover {
+.btn-link-action:hover , .btn-link-action:active , .btn-link-action:focus-visible {
     background: rgba(0, 113, 227, 0.12);
     border-color: rgba(0, 113, 227, 0.32);
 }
@@ -4218,11 +4218,11 @@ h1 {
     opacity: 0.75;
     transition: opacity 0.2s ease, transform 0.2s ease;
 }
-.trip-tabnav__tab:hover:not(.is-active) {
+.trip-tabnav__tab:hover:not(.is-active) , .trip-tabnav__tab:active:not(.is-active) , .trip-tabnav__tab:focus-visible:not(.is-active) {
     color: var(--accent-blue);
     background: rgba(0, 113, 227, 0.06);
 }
-.trip-tabnav__tab:hover:not(.is-active) svg { opacity: 1; }
+.trip-tabnav__tab:hover:not(.is-active) svg , .trip-tabnav__tab:active:not(.is-active) svg , .trip-tabnav__tab:focus-visible:not(.is-active) svg { opacity: 1; }
 .trip-tabnav__tab.is-active {
     color: white;
     background: linear-gradient(135deg, var(--accent-blue), #5856d6);
@@ -4254,7 +4254,7 @@ h1 {
     transition: color 0.2s ease, border-color 0.2s ease;
     letter-spacing: -0.01em;
 }
-.home-tabnav__tab:hover { color: var(--accent-blue); }
+.home-tabnav__tab:hover , .home-tabnav__tab:active , .home-tabnav__tab:focus-visible { color: var(--accent-blue); }
 .home-tabnav__tab.is-active {
     color: var(--accent-blue);
     border-bottom-color: var(--accent-blue);
@@ -4345,7 +4345,7 @@ h1 {
                 box-shadow 0.18s ease, transform 0.18s ease;
     position: relative;
 }
-.day-plan-tab:hover:not(.is-active) {
+.day-plan-tab:hover:not(.is-active) , .day-plan-tab:active:not(.is-active) , .day-plan-tab:focus-visible:not(.is-active) {
     color: rgb(var(--accent));
     background: rgba(var(--accent), 0.06);
 }
@@ -4518,7 +4518,7 @@ h1 {
                 color 0.18s ease;
     box-shadow: 0 0 0 3px white;  /* "knock out" the line behind the circle */
 }
-.path-chip:hover {
+.path-chip:hover , .path-chip:active , .path-chip:focus-visible {
     background: rgba(0, 113, 227, 0.06);
 }
 .path-chip.is-selected {
@@ -4564,7 +4564,7 @@ h1 {
     border-color: rgba(255, 149, 0, 0.55);
     color: #ff9500;
 }
-.path-chip--today:not(.is-selected):hover {
+.path-chip--today:not(.is-selected):hover , .path-chip--today:not(.is-selected):active , .path-chip--today:not(.is-selected):focus-visible {
     background: rgba(255, 149, 0, 0.06);
 }
 /* Genesis = trip headquarters; styled gold across the board (chips,
@@ -4577,7 +4577,7 @@ h1 {
     border-color: #c89a18;
     color: #8b6e0c;
 }
-.path-chip--genesis:hover {
+.path-chip--genesis:hover , .path-chip--genesis:active , .path-chip--genesis:focus-visible {
     background: rgba(212, 160, 23, 0.08);
 }
 .path-chip--genesis.is-selected {
@@ -4592,7 +4592,7 @@ h1 {
     color: rgba(0, 113, 227, 0.55);
     font-size: 1rem;
 }
-.path-chip--add:hover {
+.path-chip--add:hover , .path-chip--add:active , .path-chip--add:focus-visible {
     border-color: var(--accent-blue);
     color: var(--accent-blue);
     background: rgba(0, 113, 227, 0.04);
@@ -4612,7 +4612,7 @@ h1 {
     justify-content: center;
     transition: background 0.15s ease, transform 0.15s ease;
 }
-.path-nav-btn:hover:not(:disabled) {
+.path-nav-btn:hover:not(:disabled) , .path-nav-btn:active:not(:disabled) , .path-nav-btn:focus-visible:not(:disabled) {
     background: rgba(0, 113, 227, 0.06);
     transform: scale(1.04);
 }
@@ -4709,7 +4709,7 @@ h1 {
     box-shadow: 0 6px 14px rgba(0, 113, 227, 0.22);
     transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
-.path-options-stack .path-primary-btn:hover {
+.path-options-stack .path-primary-btn:hover , .path-options-stack .path-primary-btn:active , .path-options-stack .path-primary-btn:focus-visible {
     transform: translateY(-1px);
     box-shadow: 0 8px 18px rgba(0, 113, 227, 0.3);
 }
@@ -4717,7 +4717,7 @@ h1 {
     background: linear-gradient(135deg, #e8b923, #8b6e0c);
     box-shadow: 0 6px 14px rgba(212, 160, 23, 0.28);
 }
-.path-options-stack .path-primary-btn--genesis:hover {
+.path-options-stack .path-primary-btn--genesis:hover , .path-options-stack .path-primary-btn--genesis:active , .path-options-stack .path-primary-btn--genesis:focus-visible {
     box-shadow: 0 8px 18px rgba(212, 160, 23, 0.36);
 }
 
@@ -4741,7 +4741,7 @@ h1 {
     border-radius: 999px;
     color: rgba(var(--accent), 0.55);
 }
-.home-tabnav--centered .home-tabnav__tab:hover {
+.home-tabnav--centered .home-tabnav__tab:hover , .home-tabnav--centered .home-tabnav__tab:active , .home-tabnav--centered .home-tabnav__tab:focus-visible {
     color: rgb(var(--accent));
     background: rgba(var(--accent), 0.06);
 }
@@ -4787,7 +4787,7 @@ h1 {
     letter-spacing: -0.01em;
     color: #002d5b;
 }
-.member-chip:hover {
+.member-chip:hover , .member-chip:active , .member-chip:focus-visible {
     background: rgba(255, 255, 255, 0.75);
     border-color: rgba(0, 113, 227, 0.32);
     transform: translateY(-1px);
@@ -4990,7 +4990,7 @@ body.is-signed-out #sidebarOverlay {
     letter-spacing: 0.05em;
     transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
 }
-.pill-btn-warn-hover:hover {
+.pill-btn-warn-hover:hover , .pill-btn-warn-hover:active , .pill-btn-warn-hover:focus-visible {
     background: rgba(255,59,48,0.1);
     color: #ff3b30;
     border-color: rgba(255,59,48,0.2);
@@ -5014,7 +5014,7 @@ body.is-signed-out #sidebarOverlay {
     font-weight: 700;
     transition: background-color 0.2s ease;
 }
-.upload-dropzone:hover { background: rgba(0,113,227,0.15); }
+.upload-dropzone:hover , .upload-dropzone:active , .upload-dropzone:focus-visible { background: rgba(0,113,227,0.15); }
 .upload-dropzone:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 2px; }
 
 /* Day-action button — used by every day-card action row (Pin, Journaling,
@@ -5042,25 +5042,25 @@ body.is-signed-out #sidebarOverlay {
     background: rgba(0,0,0,0.03);
     color: #002d5b;
 }
-.day-action-btn--neutral:hover { background: rgba(0,0,0,0.06); }
+.day-action-btn--neutral:hover , .day-action-btn--neutral:active , .day-action-btn--neutral:focus-visible { background: rgba(0,0,0,0.06); }
 
 .day-action-btn--brand {
     background: rgba(0,113,227,0.06);
     color: var(--accent-blue);
 }
-.day-action-btn--brand:hover { background: rgba(0,113,227,0.12); }
+.day-action-btn--brand:hover , .day-action-btn--brand:active , .day-action-btn--brand:focus-visible { background: rgba(0,113,227,0.12); }
 
 .day-action-btn--success {
     background: #34c759;
     color: white;
 }
-.day-action-btn--success:hover { background: #2eaf4f; }
+.day-action-btn--success:hover , .day-action-btn--success:active , .day-action-btn--success:focus-visible { background: #2eaf4f; }
 
 .day-action-btn--danger {
     background: rgba(255,59,48,0.06);
     color: #ff3b30;
 }
-.day-action-btn--danger:hover { background: rgba(255,59,48,0.12); }
+.day-action-btn--danger:hover , .day-action-btn--danger:active , .day-action-btn--danger:focus-visible { background: rgba(255,59,48,0.12); }
 /* `--danger` is a soft tint; `--danger-fill` is a stronger, opaque-ish
    tint used when the destructive action is the focus (e.g. the "X"
    button next to "Save Pin" — visually competing with green Save). */
@@ -5068,7 +5068,7 @@ body.is-signed-out #sidebarOverlay {
     background: rgba(255,59,48,0.1);
     color: #ff3b30;
 }
-.day-action-btn--danger-fill:hover { background: rgba(255,59,48,0.18); }
+.day-action-btn--danger-fill:hover , .day-action-btn--danger-fill:active , .day-action-btn--danger-fill:focus-visible { background: rgba(255,59,48,0.18); }
 
 /* Danger confirmation panel — used by showConfirmModal. The `.card-glass-modal`
    above is too light for high-stakes confirmations; this variant darkens the
