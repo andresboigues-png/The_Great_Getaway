@@ -72,16 +72,18 @@ jobs:
                   python-version: '3.12'
                   cache: 'pip'
             - run: pip install -r requirements.txt pytest pytest-cov
-            # `--cov-fail-under=60` is the floor agreed in ROADMAP A2 —
-            # CI fails if backend coverage drops below 60%. Floor will
-            # rise as we add tests; for now it pins the baseline so a
-            # PR can't silently regress coverage by adding code without
-            # tests.
+            # `--cov-fail-under=80` — coverage gate raised from the
+            # original 60% floor (Phase A2) after the +13-test push
+            # in Session N+8 brought the codebase from 67% → 84%.
+            # Comfortable headroom of ~4pp above the floor; future PRs
+            # can drift slightly without breaking CI but a 4-percentage-
+            # point drop would, which is right for a "real regression"
+            # signal vs noise. Bump to 85% next time the suite grows.
             - run: |
                   python -m pytest tests/test_api.py -v \
                     --cov=src \
                     --cov-report=term-missing \
-                    --cov-fail-under=60
+                    --cov-fail-under=80
             - name: Upload coverage report
               if: always()
               uses: actions/upload-artifact@v4
