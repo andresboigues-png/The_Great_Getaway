@@ -23,6 +23,8 @@ import { STATE, emit } from '../../state.js';
 import { CONVERSION_RATES, EVENTS } from '../../constants.js';
 import { fetchHistoricalRates } from '../../api.js';
 import { getHomeCurrency, currencySymbol } from '../../utils.js';
+import { EmptyState } from '../../react/components/EmptyState.js';
+import type { Expense, Category } from '../../types';
 
 // Chart is loaded via CDN in index.html and declared as a global in types.d.ts
 declare const Chart: any;
@@ -75,7 +77,7 @@ export function Insights() {
     // ── Compute trip slice + derived stats (memoized so chart effects
     //    don't thrash on unrelated re-renders) ────────────────────────────
     const tripExps = useMemo(
-        () => expenses.filter((e: any) => e.tripId === activeTripId && !e.isSettlement),
+        () => expenses.filter((e: Expense) => e.tripId === activeTripId && !e.isSettlement),
         [expenses, activeTripId],
     );
 
@@ -83,7 +85,9 @@ export function Insights() {
     // Promise resolves into rateCache; the next render picks up the
     // updated cache via useStore.
     useEffect(() => {
-        const uniqueDates = [...new Set(tripExps.map((e: any) => e.date).filter((d: any) => !!d))] as string[];
+        const uniqueDates = [
+            ...new Set(tripExps.map((e: Expense) => e.date).filter((d) => !!d)),
+        ] as string[];
         if (uniqueDates.length > 0) fetchHistoricalRates(uniqueDates).then(() => {});
     }, [tripExps]);
 
@@ -100,7 +104,7 @@ export function Insights() {
         catTotals,
         dateTotals,
     } = useMemo(() => {
-        const convertedExps: ConvertedExpense[] = tripExps.map((e: any) => {
+        const convertedExps: ConvertedExpense[] = tripExps.map((e: Expense) => {
             // Step 1: Get value in EUR
             let rateToEur = CONVERSION_RATES[e.currency] || 1;
             if (mode === 'at_trip') {
@@ -150,7 +154,7 @@ export function Insights() {
 
         // Category counts use raw tripExps (unconverted) — same as legacy.
         const catCounts: Record<string, number> = {};
-        tripExps.forEach((e: any) => {
+        tripExps.forEach((e: Expense) => {
             catCounts[e.categoryId] = (catCounts[e.categoryId] || 0) + 1;
         });
         const sortedCats = Object.entries(catCounts)
@@ -183,33 +187,19 @@ export function Insights() {
                 >
                     Insights
                 </h1>
-                <div
-                    style={{
-                        height: '60vh',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        textAlign: 'center',
-                        color: 'var(--text-secondary)',
-                    }}
-                >
-                    <div style={{ fontSize: '5rem', marginBottom: '20px', opacity: 0.5 }}>📊</div>
-                    <h2 style={{ color: 'var(--text-primary)', marginBottom: '10px' }}>
-                        No Data to Analyze Yet
-                    </h2>
-                    <p style={{ maxWidth: '400px', lineHeight: 1.5 }}>
-                        Add your travel expenses in the <b>Expenses</b> tab or upload an Excel
-                        sheet to see your spending breakdown and analytics.
-                    </p>
-                    <button
-                        className="btn"
-                        style={{ marginTop: '24px' }}
-                        onClick={() => navigate('expenses')}
-                    >
-                        Add Your First Expense
-                    </button>
-                </div>
+                <EmptyState
+                    variant="tall"
+                    emoji="📊"
+                    title="No Data to Analyze Yet"
+                    body={
+                        <>
+                            Add your travel expenses in the <b>Expenses</b> tab or upload an Excel
+                            sheet to see your spending breakdown and analytics.
+                        </>
+                    }
+                    ctaLabel="Add Your First Expense"
+                    onCta={() => navigate('expenses')}
+                />
             </div>
         );
     }
@@ -222,7 +212,7 @@ export function Insights() {
     const pieData: number[] = [];
     const pieColors: string[] = [];
     Object.keys(catTotals).forEach((catId) => {
-        const cat = categories.find((c: any) => c.id === catId);
+        const cat = categories.find((c: Category) => c.id === catId);
         pieLabels.push(cat ? `${cat.icon} ${cat.name}` : 'Unknown');
         pieColors.push(cat ? cat.color : '#ccc');
         pieData.push(catTotals[catId]);
@@ -521,7 +511,7 @@ export function Insights() {
                         }}
                     >
                         {sortedCats.slice(1).map(([catId, count], index) => {
-                            const cat = categories.find((c: any) => c.id === catId);
+                            const cat = categories.find((c: Category) => c.id === catId);
                             return (
                                 <div className="ranking-row" key={catId}>
                                     <span className="ranking-row__label">

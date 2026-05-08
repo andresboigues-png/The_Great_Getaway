@@ -20,6 +20,8 @@ import {
     deleteBudget,
     openCreateBudgetModal,
 } from './helpers.js';
+import { EmptyState } from '../../react/components/EmptyState.js';
+import type { Trip, Budget, Category } from '../../types';
 
 export function Budgets() {
     const trips = useStore((s) => s.trips);
@@ -33,11 +35,11 @@ export function Budgets() {
 
     const allBudgets = budgets || [];
     const visibleBudgets = filterTrip
-        ? allBudgets.filter((b: any) => b.tripId === filterTrip)
+        ? allBudgets.filter((b: Budget) => b.tripId === filterTrip)
         : allBudgets;
 
-    const totalAllocated = visibleBudgets.reduce((s: number, b: any) => s + (b.amount || 0), 0);
-    const totalSpent = visibleBudgets.reduce((s: number, b: any) => s + spentForBudget(b), 0);
+    const totalAllocated = visibleBudgets.reduce((s: number, b: Budget) => s + (b.amount || 0), 0);
+    const totalSpent = visibleBudgets.reduce((s: number, b: Budget) => s + spentForBudget(b), 0);
     const totalRemaining = totalAllocated - totalSpent;
     const overallPct = totalAllocated > 0 ? Math.min((totalSpent / totalAllocated) * 100, 999) : 0;
     const overallTier =
@@ -52,7 +54,7 @@ export function Budgets() {
         overallTier === 'over' ? '#ff3b30' : overallTier === 'near' ? '#ff9500' : '#34c759';
 
     const tripsInBudgets = [
-        ...new Set(allBudgets.map((b: any) => b.tripId).filter((id: string) => id && id !== 'all')),
+        ...new Set(allBudgets.map((b: Budget) => b.tripId).filter((id) => id && id !== 'all')),
     ] as string[];
     const showTripChips = tripsInBudgets.length > 1;
 
@@ -115,8 +117,8 @@ export function Budgets() {
                         </button>
                         {tripsInBudgets.map((tid) => {
                             const trip =
-                                trips.find((t: any) => t.id === tid) ||
-                                archivedTrips.find((t: any) => t.id === tid);
+                                trips.find((t: Trip) => t.id === tid) ||
+                                archivedTrips.find((t: Trip) => t.id === tid);
                             if (!trip) return null;
                             const active = filterTrip === tid;
                             return (
@@ -322,34 +324,27 @@ export function Budgets() {
                 }}
             >
                 {visibleBudgets.length === 0 ? (
-                    <div
-                        className="card glass"
-                        style={{
-                            gridColumn: '1 / -1',
-                            padding: '48px 32px',
-                            borderRadius: '28px',
-                            textAlign: 'center',
-                            border: '1.5px dashed rgba(255,159,10,0.32)',
-                            background: 'rgba(255,159,10,0.04)',
-                        }}
-                    >
-                        <div style={{ fontSize: '3rem', marginBottom: '8px' }}>💰</div>
-                        <h2 style={{ margin: '0 0 6px', color: '#a35200', fontWeight: 800 }}>
-                            No budgets {filterTrip ? 'on this trip' : 'yet'}
-                        </h2>
-                        <p style={{ margin: 0, color: 'var(--text-secondary)' }}>
-                            Click <strong>+ New budget</strong> above to set a target. You can scope
-                            it to one trip + category + person, or leave it as an account-wide cap.
-                        </p>
-                    </div>
+                    <EmptyState
+                        accent="orange"
+                        emoji="💰"
+                        title={`No budgets ${filterTrip ? 'on this trip' : 'yet'}`}
+                        body={
+                            <>
+                                Click <strong>+ New budget</strong> above to set a target. You can
+                                scope it to one trip + category + person, or leave it as an
+                                account-wide cap.
+                            </>
+                        }
+                        gridColumn="1 / -1"
+                    />
                 ) : (
-                    visibleBudgets.map((b: any) => {
+                    visibleBudgets.map((b: Budget) => {
                         const status = budgetStatus(b);
                         const variance =
                             status.tier === 'over'
                                 ? `Over by ${formatHome(status.spent - status.target, 'EUR')}`
                                 : `${formatHome(Math.max(status.target - status.spent, 0), 'EUR')} left`;
-                        const category = (categories || []).find((c: any) => c.id === b.categoryId);
+                        const category = (categories || []).find((c: Category) => c.id === b.categoryId);
                         const icon = category?.icon || '💰';
                         const accentColor = category?.color || status.color;
                         return (

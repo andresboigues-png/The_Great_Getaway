@@ -22,6 +22,18 @@ import { upsertTrip } from '../../api.js';
 import { canEdit } from '../../permissions.js';
 import { getMarkedPlaces, removeMarkedPlace, toggleMarkedPlaceForAI } from '../../markedPlaces.js';
 import { openNewTripModal } from '../../modals.js';
+import { EmptyState } from '../../react/components/EmptyState.js';
+import type { Trip } from '../../types';
+
+interface TodoMarkedPlace {
+    placeId: string;
+    name: string;
+    address?: string;
+    icon: string;
+    color: string;
+    forManual?: boolean;
+    forAI?: boolean;
+}
 
 const titleH1Style = {
     margin: '0 0 6px',
@@ -38,7 +50,7 @@ export function Todo() {
     const navigate = useNavigate();
     const trips = useStore((s) => s.trips);
     const activeTripId = useStore((s) => s.activeTripId);
-    const activeTrip = trips.find((t: any) => t.id === activeTripId);
+    const activeTrip = trips.find((t: Trip) => t.id === activeTripId);
 
     // ── EMPTY STATE: no active trip ─────────────────────────────────
     if (!activeTrip) {
@@ -50,57 +62,23 @@ export function Todo() {
                         Places to fit in somewhere on your trip
                     </p>
                 </div>
-                <div
-                    className="card glass"
-                    style={{
-                        padding: '32px',
-                        borderRadius: '24px',
-                        border: '1.5px dashed rgba(155, 89, 182, 0.35)',
-                        background: 'rgba(155, 89, 182, 0.04)',
-                        textAlign: 'center',
-                    }}
-                >
-                    <div style={{ fontSize: '2.4rem', marginBottom: '10px' }}>🧭</div>
-                    <h3
-                        style={{
-                            margin: '0 0 8px',
-                            color: '#9b59b6',
-                            fontWeight: 800,
-                            fontSize: '1.1rem',
-                        }}
-                    >
-                        No trip selected
-                    </h3>
-                    <p
-                        style={{
-                            margin: 0,
-                            color: 'var(--text-secondary)',
-                            fontSize: '0.9rem',
-                            lineHeight: 1.5,
-                        }}
-                    >
-                        The to-do list is per-trip. Create a trip first, then add places from the
-                        home-map by clicking any pin.
-                    </p>
-                    <button
-                        className="btn-primary"
-                        style={{
-                            marginTop: '16px',
-                            padding: '10px 22px',
-                            borderRadius: '999px',
-                        }}
-                        onClick={() => openNewTripModal()}
-                    >
-                        + Start Your Journey
-                    </button>
-                </div>
+                <EmptyState
+                    accent="purple"
+                    emoji="🧭"
+                    title="No trip selected"
+                    body="The to-do list is per-trip. Create a trip first, then add places from the home-map by clicking any pin."
+                    ctaLabel="+ Start Your Journey"
+                    onCta={() => openNewTripModal()}
+                />
             </div>
         );
     }
 
     const tripIsEditable = canEdit(activeTrip);
-    const todoItems = getMarkedPlaces(activeTrip).filter((p: any) => p.forManual);
-    const tickedCount = todoItems.filter((p: any) => p.forAI).length;
+    const todoItems: TodoMarkedPlace[] = getMarkedPlaces(activeTrip).filter(
+        (p: TodoMarkedPlace) => p.forManual,
+    );
+    const tickedCount = todoItems.filter((p: TodoMarkedPlace) => p.forAI).length;
 
     const handleTickToggle = (placeId: string) => {
         toggleMarkedPlaceForAI(activeTrip, placeId);
@@ -124,51 +102,20 @@ export function Todo() {
                         Places to fit in somewhere on <strong>{activeTrip.name}</strong>
                     </p>
                 </div>
-                <div
-                    className="card glass"
-                    style={{
-                        padding: '32px',
-                        borderRadius: '24px',
-                        border: '1.5px dashed rgba(155, 89, 182, 0.35)',
-                        background: 'rgba(155, 89, 182, 0.04)',
-                        textAlign: 'center',
-                    }}
-                >
-                    <div style={{ fontSize: '2.4rem', marginBottom: '10px' }}>📋</div>
-                    <h3
-                        style={{
-                            margin: '0 0 8px',
-                            color: '#9b59b6',
-                            fontWeight: 800,
-                            fontSize: '1.1rem',
-                        }}
-                    >
-                        Your to-do list is empty
-                    </h3>
-                    <p
-                        style={{
-                            margin: 0,
-                            color: 'var(--text-secondary)',
-                            fontSize: '0.9rem',
-                            lineHeight: 1.5,
-                        }}
-                    >
-                        Open the <strong>Home</strong> map, click any pin, and hit{' '}
-                        <strong>📋 Add to to-do list</strong>. Items show up here pre-ticked for
-                        AI consideration — untick the ones you want to slot manually.
-                    </p>
-                    <button
-                        className="btn-primary"
-                        style={{
-                            marginTop: '16px',
-                            padding: '10px 22px',
-                            borderRadius: '999px',
-                        }}
-                        onClick={() => navigate('home')}
-                    >
-                        Open the map
-                    </button>
-                </div>
+                <EmptyState
+                    accent="purple"
+                    emoji="📋"
+                    title="Your to-do list is empty"
+                    body={
+                        <>
+                            Open the <strong>Home</strong> map, click any pin, and hit{' '}
+                            <strong>📋 Add to to-do list</strong>. Items show up here pre-ticked for
+                            AI consideration — untick the ones you want to slot manually.
+                        </>
+                    }
+                    ctaLabel="Open the map"
+                    onCta={() => navigate('home')}
+                />
             </div>
         );
     }
@@ -257,7 +204,7 @@ export function Todo() {
                     gap: '12px',
                 }}
             >
-                {todoItems.map((p: any) => {
+                {todoItems.map((p) => {
                     const isTicked = !!p.forAI;
                     return (
                         <div
