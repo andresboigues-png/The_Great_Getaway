@@ -1149,3 +1149,48 @@ test.describe('Critical flows — UI-driven', () => {
         await expect(currency).toHaveValue('USD');
     });
 });
+
+// Mobile-only flows. The "Critical flows — UI-driven" describe above
+// skips on mobile because most of those tests target the trip-header
+// + map setup that mobile compresses heavily; the cases below are
+// genuinely mobile-only chrome (the burger-drawer paths the desktop
+// inline navbar bypasses).
+test.describe('Critical flows — UI-driven (mobile)', () => {
+    test.beforeEach(async ({}, testInfo) => {
+        if (testInfo.project.name !== 'chromium-mobile') test.skip();
+    });
+
+    test('mobile trip-controls compass: opens popover with +New Trip, selector, actions', async ({ page }) => {
+        // Per-user request the trip controls (+New Trip, selector,
+        // complete + delete) moved out of the burger drawer to a
+        // navbar-anchored popover triggered by the compass icon
+        // (#tripControlsBtn). Mobile-only — desktop still shows the
+        // controls inline in .nav-trips--desktop-only.
+        const userId = uniqueId('user');
+        await getAuthForApi(page, userId);
+        await openFreshApp(page, userId);
+
+        const compass = page.locator('#tripControlsBtn');
+        const popover = page.locator('#tripControlsPopover');
+        await expect(compass).toBeVisible();
+        await expect(popover).toBeHidden();
+
+        // Open the popover.
+        await compass.click({ timeout: 5000 });
+        await expect(popover).toBeVisible();
+        await expect(compass).toHaveAttribute('aria-expanded', 'true');
+
+        // The relocated controls all live inside the popover with
+        // the same IDs the burger-drawer block used — so the
+        // dual-instance mirroring (#tripSelector ↔ #tripSelectorSidebar)
+        // and the existing JS handlers continue to work without any
+        // change at the wiring layer.
+        await expect(popover.locator('#newTripBtnSidebar')).toBeVisible();
+        await expect(popover.locator('#tripSelectorSidebar')).toBeVisible();
+
+        // Click outside closes the popover.
+        await page.locator('main#app-container').click({ position: { x: 50, y: 400 } });
+        await expect(popover).toBeHidden();
+        await expect(compass).toHaveAttribute('aria-expanded', 'false');
+    });
+});

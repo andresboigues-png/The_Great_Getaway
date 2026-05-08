@@ -125,15 +125,26 @@ export async function createTrip(page, { name, country }) {
         document.getElementById('sidebar')?.classList.remove('open');
         document.getElementById('sidebarOverlay')?.classList.remove('open');
     });
-    // Two locations for the +New Trip button now:
+    // Two locations for the +New Trip button:
     //   - Desktop: in the top navbar (#newTripBtn)
-    //   - Mobile:  inside the burger drawer (#newTripBtnSidebar) — the
-    //              navbar version exists in the DOM but is hidden via
-    //              `.nav-trips--desktop-only` at ≤720px.
-    // Detect by viewport width and pick the right path.
+    //   - Mobile:  inside the navbar's compass-trigger popover
+    //              (#tripControlsPopover) — the controls used to live
+    //              at the top of the burger drawer; per-user request
+    //              they moved to a one-tap navbar popover. The IDs
+    //              are unchanged (`#newTripBtnSidebar` etc.) so the
+    //              dual-instance mirroring + JS handlers don't need
+    //              an update; only the host element changed.
     const viewportWidth = page.viewportSize()?.width ?? 1280;
     if (viewportWidth <= 720) {
-        await page.click('#hamburgerBtn');
+        await page.click('#tripControlsBtn');
+        // Wait for the +New Trip button INSIDE the popover to become
+        // hit-testable. Using the button itself (rather than the
+        // popover wrapper) defends against any race where the
+        // popover's `display: block` flips but the inner controls
+        // haven't laid out yet — the inner-button visibility check
+        // implicitly waits for both. The compass-button click handler
+        // is synchronous so a single retry-tolerant wait is enough.
+        await page.locator('#newTripBtnSidebar').waitFor({ state: 'visible', timeout: 8000 });
         await page.click('#newTripBtnSidebar');
     } else {
         await page.click('#newTripBtn');

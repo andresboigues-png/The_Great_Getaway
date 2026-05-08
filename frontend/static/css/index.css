@@ -940,6 +940,54 @@ body.is-signed-out .sidebar-rail {
     }
 }
 
+/* ── Mobile trip-controls popover ────────────────────────────────────
+   Per-user request the trip controls (+New Trip, selector, complete +
+   delete) moved out of the burger drawer to a navbar-anchored popover
+   triggered by the compass button (#tripControlsBtn). Mirrors the
+   notification-dropdown pattern (position: fixed pinned to the
+   viewport, glassy backdrop, fades in on toggle).
+
+   Mobile-only — desktop already shows the same controls inline in the
+   navbar via .nav-trips--desktop-only, so the popover and its trigger
+   stay hidden at ≥721px. */
+.trip-controls-popover {
+    position: fixed;
+    top: 56px;
+    left: 12px;
+    right: 12px;
+    z-index: 1000;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.96);
+    backdrop-filter: saturate(180%) blur(24px);
+    -webkit-backdrop-filter: saturate(180%) blur(24px);
+    border: 1px solid var(--glass-border);
+    box-shadow: 0 20px 50px rgba(0, 45, 91, 0.25);
+    padding: 18px;
+    box-sizing: border-box;
+}
+.trip-controls-popover .sidebar-trip-controls {
+    /* Reuse the existing burger-drawer trip-controls block styling
+       (full-width pill + selector + centred action row) — it was
+       already designed for a narrow column, perfect for a popover.
+       Override the burger-drawer-specific bottom-margin so the popover
+       hugs its own padding instead. */
+    margin: 0;
+}
+@media (min-width: 721px) {
+    /* Compass button + popover are mobile chrome; on desktop the same
+       controls live in the navbar's .nav-trips--desktop-only block. */
+    #tripControlsBtn,
+    .trip-controls-popover {
+        display: none !important;
+    }
+}
+/* Signed-out users have no trip controls to show — keep parity with
+   the rest of the chrome that hides on the login wall. */
+body.is-signed-out #tripControlsBtn,
+body.is-signed-out .trip-controls-popover {
+    display: none !important;
+}
+
 .sidebar.open {
     transform: translateX(0);
 }

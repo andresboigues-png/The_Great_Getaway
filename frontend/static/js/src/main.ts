@@ -479,10 +479,35 @@ async function init() {
         }
     });
 
+    // Mobile compass — toggles the trip-controls popover. Mirrors the
+    // bell-dropdown pattern. The popover is mobile-only (CSS hides it
+    // at ≥721px); desktop continues to show the same controls inline
+    // in the navbar's .nav-trips--desktop-only block.
+    const tripControlsBtn = document.getElementById('tripControlsBtn');
+    const tripControlsPopover = document.getElementById('tripControlsPopover');
+    tripControlsBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (!tripControlsPopover) return;
+        const isHidden = tripControlsPopover.style.display === 'none' || !tripControlsPopover.style.display;
+        tripControlsPopover.style.display = isHidden ? 'block' : 'none';
+        tripControlsBtn.setAttribute('aria-expanded', isHidden ? 'true' : 'false');
+        if (isHidden) {
+            // Close the notification dropdown if it was open — only one
+            // navbar popover can be visible at a time.
+            if (noteDropdown && noteDropdown.style.display === 'flex') {
+                noteDropdown.style.display = 'none';
+            }
+        }
+    });
+    // Click outside the popover closes it. The document-level click
+    // delegated handler below already has its own catch-all, so we
+    // hook into it via the global listener at the end of init().
+
     // Trip-controls — desktop ones live in the navbar, mobile ones live
-    // in the sidebar. Both sets fire the same handler (nav-trips.ts comment
-    // explains the dual-instance pattern). Optional-chaining the addEventListener
-    // means a future deploy that strips one set won't crash this boot.
+    // in the trip-controls popover (post compass-popup change). Both
+    // sets fire the same handler — nav-trips.ts mirrors the selector +
+    // visibility state. Optional-chaining the addEventListener means a
+    // future deploy that strips one set won't crash this boot.
     document.getElementById('newTripBtn')?.addEventListener('click', () => openNewTripModal());
     document.getElementById('newTripBtnSidebar')?.addEventListener('click', () => openNewTripModal());
 
@@ -509,6 +534,24 @@ async function init() {
         // Close notification dropdown if clicking outside
         if (noteDropdown && noteDropdown.style.display === 'flex' && !noteDropdown.contains(target) && target !== bellBtn) {
             noteDropdown.style.display = 'none';
+        }
+        // Same outside-click close for the trip-controls popover.
+        // Click-target-on-the-popover-itself or on its trigger button
+        // is allowed; everything else closes. The popover hosts an
+        // open <select> dropdown for the trip selector — Chrome's
+        // native picker fires a click in document space when an
+        // option is selected, but it doesn't bubble through the
+        // popover element, so it WOULDN'T be inside the popover —
+        // closing on selection is fine here, the user has confirmed
+        // their pick by then.
+        if (tripControlsPopover
+            && tripControlsPopover.style.display === 'block'
+            && target
+            && !tripControlsPopover.contains(target)
+            && !(tripControlsBtn && tripControlsBtn.contains(target))
+        ) {
+            tripControlsPopover.style.display = 'none';
+            if (tripControlsBtn) tripControlsBtn.setAttribute('aria-expanded', 'false');
         }
 
         // Navigation listener (delegated)

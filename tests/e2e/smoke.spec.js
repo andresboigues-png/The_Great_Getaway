@@ -146,12 +146,19 @@ test.describe('The Great Getaway — smoke', () => {
         // which the mobile sheet overrides via descendant selector
         // + !important. On mobile #newTripBtn is hidden (display:
         // none, see .nav-trips--desktop-only) — the live button is
-        // #newTripBtnSidebar inside the burger drawer. Open the
-        // burger then click that one.
+        // #newTripBtnSidebar inside the navbar's compass-trigger
+        // popover (#tripControlsPopover). Previously the controls
+        // lived at the top of the burger drawer; per-user request
+        // they moved to a one-tap navbar popover.
         await page.evaluate(() => {
             /** @type {any} */ (window).google = undefined;
         });
-        await page.click('#hamburgerBtn');
+        await page.click('#tripControlsBtn');
+        // Wait for the +New Trip button INSIDE the popover to be
+        // hit-testable (catches both the popover's display flip and
+        // the inner-control layout in one wait). Same pattern as the
+        // helpers.createTrip() mobile path.
+        await page.locator('#newTripBtnSidebar').waitFor({ state: 'visible', timeout: 8000 });
         await page.click('#newTripBtnSidebar');
         const card = page.locator('.modal-overlay .card-glass-modal').first();
         await card.waitFor({ state: 'visible', timeout: 5000 });
