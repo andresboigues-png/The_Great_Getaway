@@ -214,7 +214,7 @@ export function renderProfile(targetUserId: string | null | undefined = null) {
                                  reliably; this fallback covers the rare
                                  case where the URL is missing entirely
                                  or returns a network error. -->
-                            <div style="display: ${profilePicSrc ? 'none' : 'flex'}; align-items: center; justify-content: center; width: 140px; height: 140px; border-radius: 50%; border: 4px solid var(--bg-color); background: linear-gradient(135deg, var(--accent-blue), #5856d6); color: white; font-size: 3rem; font-weight: 800; letter-spacing: -0.04em;">
+                            <div style="display: ${profilePicSrc ? 'none' : 'flex'}; align-items: center; justify-content: center; width: 140px; height: 140px; border-radius: 50%; border: 4px solid var(--bg-color); background: var(--gradient-day); color: white; font-size: 3rem; font-weight: 800; letter-spacing: -0.04em;">
                                 ${esc((user.name || '?').slice(0, 1).toUpperCase())}
                             </div>
                         </div>

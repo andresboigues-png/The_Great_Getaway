@@ -108,7 +108,7 @@ export function renderFeed() {
     div.innerHTML = `
         <div style="max-width: 760px; margin: 0 auto;">
             <div style="padding:32px 0 24px; text-align:center;">
-                <h1 style="margin:0 0 6px;font-size:2.8rem;font-weight:800;letter-spacing:-0.04em;background:linear-gradient(135deg,var(--accent-blue),#9b59b6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Feed</h1>
+                <h1 style="margin:0 0 6px;font-size:2.8rem;font-weight:800;letter-spacing:-0.04em;background:var(--gradient-title);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Feed</h1>
                 <p style="margin:0;color:var(--text-secondary);font-size:1rem;">What your friends are up to lately</p>
             </div>
 

@@ -38,7 +38,7 @@ export function renderTodo() {
         div.innerHTML = `
             <div style="max-width: 760px; margin: 0 auto;">
                 <div style="padding:32px 0 24px; text-align:center;">
-                    <h1 style="margin:0 0 6px;font-size:2.8rem;font-weight:800;letter-spacing:-0.04em;background:linear-gradient(135deg,var(--accent-blue),#9b59b6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">To do list 📋</h1>
+                    <h1 style="margin:0 0 6px;font-size:2.8rem;font-weight:800;letter-spacing:-0.04em;background:var(--gradient-title);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">To do list 📋</h1>
                     <p style="margin:0;color:var(--text-secondary);font-size:1rem;">Places to fit in somewhere on your trip</p>
                 </div>
                 <div class="card glass" style="padding: 32px; border-radius: 24px; border: 1.5px dashed rgba(155, 89, 182, 0.35); background: rgba(155, 89, 182, 0.04); text-align:center;">
@@ -107,7 +107,7 @@ export function renderTodo() {
         div.innerHTML = `
             <div style="max-width: 760px; margin: 0 auto;">
                 <div style="padding:32px 0 24px; text-align:center;">
-                    <h1 style="margin:0 0 6px;font-size:2.8rem;font-weight:800;letter-spacing:-0.04em;background:linear-gradient(135deg,var(--accent-blue),#9b59b6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">To do list 📋</h1>
+                    <h1 style="margin:0 0 6px;font-size:2.8rem;font-weight:800;letter-spacing:-0.04em;background:var(--gradient-title);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">To do list 📋</h1>
                     <p style="margin:0;color:var(--text-secondary);font-size:1rem;">Places to fit in somewhere on <strong>${esc(activeTrip.name)}</strong></p>
                 </div>
                 <div class="card glass" style="padding: 32px; border-radius: 24px; border: 1.5px dashed rgba(155, 89, 182, 0.35); background: rgba(155, 89, 182, 0.04); text-align:center;">
@@ -151,7 +151,7 @@ export function renderTodo() {
     div.innerHTML = `
         <div style="max-width: 960px; margin: 0 auto;">
             <div style="padding:32px 0 24px; text-align:center;">
-                <h1 style="margin:0 0 6px;font-size:2.8rem;font-weight:800;letter-spacing:-0.04em;background:linear-gradient(135deg,var(--accent-blue),#9b59b6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">To do list 📋</h1>
+                <h1 style="margin:0 0 6px;font-size:2.8rem;font-weight:800;letter-spacing:-0.04em;background:var(--gradient-title);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">To do list 📋</h1>
                 <p style="margin:0;color:var(--text-secondary);font-size:1rem;">Places to fit in somewhere on <strong>${esc(activeTrip.name)}</strong></p>
             </div>
 

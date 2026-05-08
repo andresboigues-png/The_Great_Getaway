@@ -351,7 +351,7 @@ export const openTripPhotosModal = (trip: any): void => {
                         `;
                     }
                     return `
-                        <div class="trip-photo-card" data-photo-id="${esc(p.id)}" data-photo-kind="link" style="position:relative; aspect-ratio:1; border-radius:14px; overflow:hidden; background: linear-gradient(135deg, #0071e3, #5856d6); box-shadow: 0 4px 12px rgba(0,113,227,0.18); cursor:pointer; border:1px solid rgba(0,0,0,0.06); display:flex; flex-direction:column; align-items:center; justify-content:center; padding:14px; text-align:center; color:white;">
+                        <div class="trip-photo-card" data-photo-id="${esc(p.id)}" data-photo-kind="link" style="position:relative; aspect-ratio:1; border-radius:14px; overflow:hidden; background: var(--gradient-day); box-shadow: 0 4px 12px rgba(0,113,227,0.18); cursor:pointer; border:1px solid rgba(0,0,0,0.06); display:flex; flex-direction:column; align-items:center; justify-content:center; padding:14px; text-align:center; color:white;">
                             ${dayBadge}
                             ${removeBtn}
                             <div style="font-size:1.8rem; line-height:1; margin-bottom:8px;">🔗</div>

@@ -113,6 +113,12 @@
        this one reads as "completed" / "permanent" rather than "primary
        gold call-out". */
     --gradient-genesis-deep: linear-gradient(135deg, #e8b923, #8b6e0c);
+    /* --gradient-title: blue→purple text gradient used on every page's
+       h1. Distinct from --gradient-day (which is the day-badge/pin
+       surface gradient) — this one terminates at #9b59b6 (a slightly
+       different purple) for the legacy title visual identity. ~15
+       inline uses across pages/* before the B3 sweep. */
+    --gradient-title: linear-gradient(135deg, var(--accent-blue), #9b59b6);
 
     /* Glass surfaces — alongside the existing --glass-bg + --glass-fill-*.
        --surface-glass is the dark-frosted modal backdrop; --surface-glass-light
