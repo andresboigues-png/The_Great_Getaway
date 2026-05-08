@@ -7,6 +7,103 @@ Newest entry at the top.
 
 ---
 
+## Session N+6 — 2026-05-08 — Phase A3 + Phase B1 (home.ts split, 11 slices)
+
+**Goal**: close Phase A3 (the last open A item) + take a serious run
+at Phase B1 (split home.ts — the biggest remaining piece of
+architectural debt). Both done.
+
+**A3 — critical flow tests (closed)**: roadmap listed 16 specific
+user flows; existing smoke + visual suites covered ~3. Wrote 10 new
+flow tests in `tests/e2e/flows.spec.js` covering the reachable ones:
+6 API-driven (share/unshare/like/bookmark/comment/friend-accept) and
+4 UI-driven (archive↔unarchive, edit trip name, day-detail tabs,
+route-polyline precondition). Two-tier pattern: API tests use
+`page.request` for fast contract checks; UI tests drive the full
+DOM. Added 3 new helpers to `tests/e2e/helpers.js`: `getAuthForApi`,
+`createTripViaApi`, `befriend`. Mobile-skipped because the active-
+trip selector + day-detail modal both need viewport space the mobile
+project doesn't have. Documented two real bugs found + worked around
+in tests:
+
+1. `STATE.activeTripId` stays null after `/api/data` first-load
+   (boot-time "pick first trip" branch doesn't re-run after pull).
+   Tests select the trip explicitly via `#tripSelector`. Worth
+   filing.
+2. SQLite dev DB persists between e2e runs (unlike pytest's
+   per-test temp DB). Solved with a `uniqueId(prefix)` helper using
+   `Date.now()` + counter for all test-created entities.
+
+**B1 — home.ts split — MAJOR PROGRESS**: `frontend/static/js/src/
+pages/home.ts` went from 5,386 → 2,821 lines (-2,565, **-47.6%**)
+across 11 slices, each shipped to main with tests green at every
+step. New `pages/home/` directory holds the extracted modules:
+
+| Slice | Module                  | Lines | What                                                                                     |
+| ----- | ----------------------- | ----- | ---------------------------------------------------------------------------------------- |
+| 1     | `weather.ts`            | 94    | `paintWeatherChips` + `loadAndPaintWeather`                                              |
+| 2     | `routePolyline.ts`      | 348   | day-to-day route line + Routes API + Directions fallback + breathe rAF                   |
+| 3     | `poiCategories.ts`      | 216   | `POI_CATEGORIES` + `pickPlaceIcon` + `isPrimaryMatch` + pharmacy hints                   |
+| 4     | `lightbox.ts`           | 97    | `openPhotoLightbox` + `openPdfPreview` + `looksLikePdfUrl`                               |
+| 5     | `shareModal.ts`         | 156   | `applySilenceBtnVisual` + `updateShareBtnVisualState` + `openShareToFeedModal`           |
+| 6     | `tripChecklistModal.ts` | 242   | `openTripChecklistModal` (free-form trip-wide to-do list)                                |
+| 7     | `journalingModal.ts`    | 49    | `openJournalingModal` (per-day notes textarea)                                           |
+| 8     | `tripMediaModals.ts`    | 757   | 5 fns: docs/photos list-views + their add/edit/url sub-modals                            |
+| 9     | `dayViewModal.ts`       | 137   | `openDayView` (read-only day-plan modal)                                                 |
+| 10    | `dayDetailModal.ts`     | 753   | `openDayDetail` (the big editable day modal — AM/PM/Eve, shortlist drops, autosave)      |
+| 11    | `pathSelection.ts`      | 170   | `selectedDayByTrip` + `setSelectedDay` + `resolveSelectedDayId` + register-hooks pattern |
+
+**Patterns established**:
+
+- _Re-export pattern_ — when an extracted symbol is imported from
+  outside `home.ts` (settings.ts pulls `POI_CATEGORIES`,
+  collections.ts pulls 5 modal openers), home.ts re-exports it so
+  external consumers don't need to learn about the home/\* split.
+- _Closure-bridge pattern_ — when an extracted module needs to
+  mutate or read a home.ts module-level variable (`activeHomeTab` in
+  `dayDetailModal`, `_repaintPathTab` + `_onSelectedDayChange` in
+  `pathSelection`), pass setter callbacks via an opts bag or via a
+  `registerXHooks(opts)` function that home.ts calls inside
+  renderHome. Same effect, no shared mutable state across modules.
+- _Verify each slice_ — after every extraction: `tsc --noEmit` →
+  `npm run build` → `playwright visual + smoke + flows` → commit →
+  push. Caught zero regressions. Bonus: removed 3 now-unused imports
+  from home.ts (`uploadMedia`, `openPhotoLightbox`, the entire
+  `tripMedia` helper block) once their callers had migrated.
+
+**Closure bugs avoided**: `dayDetailModal` had to mutate home.ts's
+`activeHomeTab` when a Genesis quick-link landed on Documents/
+Photos. Naive extraction would've broken silently — instead the
+opts callback makes the dependency explicit + unmount-safe.
+
+**What's still in home.ts (2,821 lines)**: `renderHome()` itself
+(~2,400 LoC, the biggest fish), the day-pin action helpers
+(addDayPin / editDayPin / saveDayPin / deleteDayPin / deleteDay —
+~100 LoC, tightly coupled to `editingDayId` + `activeMapClickListener`
+module state), and ~300 lines of imports + module-level state.
+`renderHome` extraction would need careful closure analysis since
+it owns the map setup + per-render cache state. Left for a future
+session.
+
+**Test status at close**: pytest 77/77, playwright desktop+mobile
+34/34. Build green. All 11 slices shipped to main across 5 batches
+(commits `0cfee97`, `af9bb71`, `4caa082`, `538758d`, `b92fa04`,
+`0dd10aa`, `7924d38`, `4caa082`, `3d9d6d5`, `d810821` — chained via
+fast-forward merges).
+
+**Backlog still pending** (carried over from previous session):
+
+- A1.5: narrow `api.ts` response types so `noImplicitAny: true` can
+  flip (437 implicit-any errors)
+- A4 polish: bootstrap Linux visual baselines on CI (currently
+  macOS-only)
+- A2.3 backlog: re-enable companion + expense Playwright tests after
+  more home.ts thinning lands
+- B3 follow-up: bulk inline-rgba replacement with the new
+  `--surface-glass` + `--shadow-card` tokens
+
+---
+
 ## Session N+5 — 2026-05-08 — Phase B big strokes (B2/A4 + B3 + B4 done)
 
 **Goal**: keep moving through Phase B while Phase A's safety net
