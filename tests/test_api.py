@@ -98,6 +98,35 @@ def test_user_status_logged_out_with_garbage_token(client):
     assert res.get_json() == {"logged_in": False}
 
 
+def test_user_status_logged_out_when_user_deleted(client, seed_user, auth_headers, temp_db):
+    """A valid JWT pointing at a user that's since been deleted from
+    the DB should resolve as logged-out (not 500). This is the
+    factory-reset path: user wipes everything → user row goes →
+    next /api/user-status with the still-valid token returns
+    logged_in:false so the frontend re-shows the login wall."""
+    # Manually delete the user row out from under the still-valid JWT.
+    import sqlite3
+    conn = sqlite3.connect(temp_db)
+    conn.execute("DELETE FROM users WHERE id = ?", (seed_user,))
+    conn.commit()
+    conn.close()
+
+    res = client.get("/api/user-status", headers=auth_headers)
+    assert res.status_code == 200
+    assert res.get_json() == {"logged_in": False}
+
+
+def test_auth_google_rejects_missing_token(client):
+    """POST /api/auth/google with no `token` field returns 400.
+    Caller-side validation safety net — frontend always sends one,
+    but a curl-wielding attacker shouldn't hit the verify path with
+    None and crash google.oauth2."""
+    res = client.post("/api/auth/google", json={})
+    assert res.status_code == 400
+    body = res.get_json()
+    assert "Missing" in body.get("error", "")
+
+
 # ── Auth gate (decorator) ────────────────────────────────────────────────────
 
 def test_protected_endpoint_rejects_no_token(client):
