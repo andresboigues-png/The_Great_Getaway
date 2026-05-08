@@ -140,12 +140,13 @@ jobs:
         name: Playwright visual regression
         runs-on: ubuntu-latest
         timeout-minutes: 10
-        # `continue-on-error: true` so a missing Linux baseline doesn't
-        # block the PR from merging on the rest of the green checks.
-        # Once Linux baselines exist (see visual-bootstrap workflow), this
-        # job behaves like a normal blocker — set continue-on-error to
-        # false in the same PR that commits the -linux.png snapshots.
-        continue-on-error: true
+        # Linux baselines were bootstrapped via the visual-baselines-
+        # bootstrap workflow (artefact `linux-visual-baselines`,
+        # 20 PNGs committed alongside this `false` flip). The job now
+        # behaves like a normal blocker — a CSS edit that changes a
+        # button's color, a shadow's offset, etc. turns CI red within
+        # ~30 seconds with the side-by-side diff visible in the
+        # uploaded `visual-regression-report` artifact below.
         steps:
             - uses: actions/checkout@v4
 

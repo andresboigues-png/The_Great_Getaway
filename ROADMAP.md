@@ -246,28 +246,28 @@ The 5 smoke tests prove the app boots. They don't prove anything works.
 **Status**: Shipped. 38 e2e tests pass on chromium-desktop, smoke runs
 on both viewports, CI gates on the suite via `test:e2e:nonvisual`.
 
-### A4 — Visual regression baseline
+### A4 — Visual regression baseline ✅
 
 - [x] Set up Playwright `toHaveScreenshot()` against the components
       preview page — `tests/e2e/visual.spec.js` screenshots each
       preview-section by id, both viewports, with a 1% tolerance.
 - [x] Per-flow screenshot diffs — section-level rather than whole-
-      page (smaller diffs, identifiable on failure). 20 darwin
-      baselines committed to `tests/e2e/visual.spec.js-snapshots/`.
+      page (smaller diffs, identifiable on failure). 40 baselines
+      committed to `tests/e2e/visual.spec.js-snapshots/` — 20 darwin
+      (local dev) + 20 linux (CI). Bootstrapped via the
+      `visual-baselines-bootstrap` workflow.
 - [x] Failed screenshots upload to GitHub Actions artifacts — the
       `visual` job in `.github/workflows/ci.yml` uploads
-      `playwright-report/` on failure.
-- [ ] **REMAINING**: Linux baselines need bootstrapping. Playwright
-      stores baselines per (project, OS), so the committed darwin PNGs
-      don't validate on CI's Linux runner. The `visual` job currently
-      ships with `continue-on-error: true` exactly because of this —
-      a CSS regression on CI doesn't block PRs yet. To finish:
-      manually trigger the `visual-baselines-bootstrap` workflow
-      (Actions tab → "Visual baselines bootstrap" → Run workflow),
-      download the artifact, commit the `*-linux.png` files, and flip
-      `continue-on-error` to `false` in the same PR.
+      `playwright-report/` on failure (visual-regression-report
+      artefact, 14-day retention).
+- [x] CI gate is real — `continue-on-error: false`. A CSS edit that
+      changes a button's color, a shadow's offset, a gradient stop,
+      or a border-radius turns the visual job red and the PR can't
+      merge until the diff is reviewed and either fixed or
+      acknowledged via `--update-snapshots`.
 
-**Status**: Setup shipped, awaiting one-time Linux baseline bootstrap.
+**Status**: Shipped. End-to-end safety net for visual regressions
+on every push.
 
 ### A5 — Schema validation at boundaries ⤴ ✅
 
@@ -292,14 +292,11 @@ next pull retries against good data instead of overwriting STATE
 with junk.
 
 **Phase A done when**: type-strict ✅, every API route + critical user
-flow has a test ✅, visual regressions auto-detect ⚠️ (Linux baselines
-pending — see A4), schema drift fails loudly ✅. Every later phase
-happens under this safety net.
+flow has a test ✅, visual regressions auto-detect ✅, schema drift
+fails loudly ✅. Every later phase happens under this safety net.
 
-**Current state**: A1, A2, A3, A5 ✅ shipped. A4 setup ✅, awaiting one-
-time Linux baseline bootstrap (manual GitHub Actions trigger). Once
-that lands + `continue-on-error: false` flips, Phase A is genuinely
-100% closed.
+**Current state**: A1, A2, A3, A4, A5 ✅ all shipped. **Phase A is
+100% closed.**
 
 ---
 
