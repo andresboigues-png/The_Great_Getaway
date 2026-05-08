@@ -374,6 +374,73 @@ def test_delete_budget_idempotent_on_unknown_id(client, seed_user, auth_headers)
     assert res.get_json() == {"status": "deleted"}
 
 
+# ── /api/categories ──────────────────────────────────────────────────────────
+# Replace-list endpoint: every POST overwrites the user's category set
+# entirely. The frontend treats it as full-list sync (saveCategories
+# fires after every reorder/add/edit/delete). Tests pin happy path +
+# the empty-list "wipe everything" path so a user can intentionally
+# clear their categories.
+
+def test_sync_categories_replaces_list(client, seed_user, auth_headers):
+    """First POST seeds the list; second POST with a smaller list
+    replaces (doesn't merge). The DELETE-then-INSERT shape of the
+    handler means partial sends are destructive on purpose."""
+    client.post("/api/categories", headers=auth_headers, json={
+        "categories": [
+            {"id": "c1", "name": "Food", "icon": "🍔", "color": "#ff3b30"},
+            {"id": "c2", "name": "Hotel", "icon": "🏨", "color": "#5856d6"},
+        ],
+    })
+    res = client.post("/api/categories", headers=auth_headers, json={
+        "categories": [
+            {"id": "c1", "name": "Food", "icon": "🍔", "color": "#ff3b30"},
+        ],
+    })
+    assert res.status_code == 200
+
+
+def test_sync_categories_empty_list_clears(client, seed_user, auth_headers):
+    """User can intentionally wipe their categories by POSTing an
+    empty list. Empty-payload (no `categories` key) is treated the
+    same — defaults to []."""
+    res = client.post("/api/categories", headers=auth_headers, json={})
+    assert res.status_code == 200
+
+
+# ── /api/profile/update ──────────────────────────────────────────────────────
+# Patch endpoint: any of (bio, status, homeCurrency) may be present.
+# Missing fields stay untouched so callers can update one field at a
+# time. Empty payload is a no-op rather than an error.
+
+def test_update_profile_single_field(client, seed_user, auth_headers):
+    """Patching one field returns 200/{updated}."""
+    res = client.post("/api/profile/update", headers=auth_headers, json={
+        "bio": "Travel writer, occasional photographer.",
+    })
+    assert res.status_code == 200
+    assert res.get_json() == {"status": "updated"}
+
+
+def test_update_profile_multiple_fields(client, seed_user, auth_headers):
+    """Patching multiple fields in one call works — each field gets
+    spliced into the SET clause separately."""
+    res = client.post("/api/profile/update", headers=auth_headers, json={
+        "bio": "Travelling.",
+        "status": "On the road",
+        "homeCurrency": "GBP",
+    })
+    assert res.status_code == 200
+    assert res.get_json() == {"status": "updated"}
+
+
+def test_update_profile_empty_is_noop(client, seed_user, auth_headers):
+    """Empty payload — no field to patch — returns {status:noop}
+    rather than triggering a UPDATE with no SET clause."""
+    res = client.post("/api/profile/update", headers=auth_headers, json={})
+    assert res.status_code == 200
+    assert res.get_json() == {"status": "noop"}
+
+
 # ── /api/friends ─────────────────────────────────────────────────────────────
 
 def test_friend_add_happy_path(client, seed_user, seed_other_user, auth_headers):
