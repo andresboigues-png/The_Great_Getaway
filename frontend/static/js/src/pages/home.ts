@@ -542,7 +542,7 @@ export function renderHome() {
                     const safeName = esc(place.name || cat.label);
                     const safeVicinity = esc(place.vicinity || '');
                     const ratingHtml = (typeof place.rating === 'number')
-                        ? `<div style="margin-top: 6px; font-size: 13px; color: #444;"><span style="color: #ff9500;">★</span> ${place.rating.toFixed(1)}${place.user_ratings_total ? ` <span style="color: #888;">(${place.user_ratings_total})</span>` : ''}</div>`
+                        ? `<div style="margin-top: 6px; font-size: 0.8125rem; color: #444;"><span style="color: #ff9500;">★</span> ${place.rating.toFixed(1)}${place.user_ratings_total ? ` <span style="color: #888;">(${place.user_ratings_total})</span>` : ''}</div>`
                         : '';
                     const mapsUrl = place.place_id
                         ? `https://www.google.com/maps/place/?q=place_id:${encodeURIComponent(place.place_id)}`
@@ -558,7 +558,7 @@ export function renderHome() {
                     const markBtnsHtml = tripIsEditable && place.place_id ? `
                         <div style="display: flex; gap: 6px; margin-top: 10px;">
                             <button type="button" data-action="toggle-todo" data-place-id="${esc(place.place_id)}"
-                                style="flex: 1; padding: 7px 12px; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; border: 1.5px solid #9b59b6; background: ${isOnTodo ? '#9b59b6' : 'white'}; color: ${isOnTodo ? 'white' : '#9b59b6'};">
+                                style="flex: 1; padding: 7px 12px; border-radius: 8px; font-size: 0.75rem; font-weight: 700; cursor: pointer; border: 1.5px solid #9b59b6; background: ${isOnTodo ? '#9b59b6' : 'white'}; color: ${isOnTodo ? 'white' : '#9b59b6'};">
                                 ${isOnTodo ? '✓ On your to-do list' : '📋 Add to to-do list'}
                             </button>
                         </div>
@@ -570,12 +570,12 @@ export function renderHome() {
                     return `
                         <div style="font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif; min-width: 240px; max-width: 280px; padding: 4px 2px;">
                             <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
-                                <span style="font-size: 18px;">${headerIcon}</span>
-                                <strong style="font-size: 15px; color: #002d5b; line-height: 1.25;">${safeName}</strong>
+                                <span style="font-size: 1.125rem;">${headerIcon}</span>
+                                <strong style="font-size: 0.9375rem; color: #002d5b; line-height: 1.25;">${safeName}</strong>
                             </div>
-                            ${safeVicinity ? `<div style="font-size: 12px; color: #666; line-height: 1.4;">${safeVicinity}</div>` : ''}
+                            ${safeVicinity ? `<div style="font-size: 0.75rem; color: #666; line-height: 1.4;">${safeVicinity}</div>` : ''}
                             ${ratingHtml}
-                            <a href="${mapsUrl}" target="_blank" rel="noopener" style="display: inline-block; margin-top: 10px; padding: 6px 12px; background: ${cat.color}; color: white; text-decoration: none; border-radius: 8px; font-size: 12px; font-weight: 700;">View on Google Maps →</a>
+                            <a href="${mapsUrl}" target="_blank" rel="noopener" style="display: inline-block; margin-top: 10px; padding: 6px 12px; background: ${cat.color}; color: white; text-decoration: none; border-radius: 8px; font-size: 0.75rem; font-weight: 700;">View on Google Maps →</a>
                             ${markBtnsHtml}
                         </div>
                     `;
