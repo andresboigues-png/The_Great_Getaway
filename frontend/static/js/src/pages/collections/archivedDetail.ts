@@ -198,11 +198,11 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
                         onmouseout="this.style.transform='';this.style.boxShadow='0 10px 30px rgba(0,0,0,0.06)';">
                         <!-- Top: badge -->
                         <div style="display:flex; align-items:center; gap:8px;">
-                            <span style="background: ${isStartingPoint ? 'rgba(52,199,89,0.95)' : 'rgba(0,113,227,0.95)'}; color:white; padding: 4px 12px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.1em;">${isStartingPoint ? '⭐ Genesis' : `Day ${day.dayNumber}`}</span>
+                            <span style="background: ${isStartingPoint ? 'rgba(52,199,89,0.95)' : 'rgba(0,113,227,0.95)'}; color:white; padding: 4px 12px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.1em;">${isStartingPoint ? '⭐ Anchor' : `Day ${day.dayNumber}`}</span>
                         </div>
                         <!-- Bottom: name + count chips -->
                         <div>
-                            <h3 style="margin:0; font-size:1.4rem; font-weight:800; letter-spacing:-0.02em; color:${hasBg ? '#ffffff' : '#002d5b'}; line-height:1.15; ${hasBg ? 'text-shadow: 0 2px 12px rgba(0,0,0,0.4);' : ''}">${esc(day.name || (isStartingPoint ? 'Trip Genesis' : `Day ${day.dayNumber}`))}</h3>
+                            <h3 style="margin:0; font-size:1.4rem; font-weight:800; letter-spacing:-0.02em; color:${hasBg ? '#ffffff' : '#002d5b'}; line-height:1.15; ${hasBg ? 'text-shadow: 0 2px 12px rgba(0,0,0,0.4);' : ''}">${esc(day.name || (isStartingPoint ? 'Trip Anchor' : `Day ${day.dayNumber}`))}</h3>
                             <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:10px;">
                                 ${totalDayPhotos > 0 ? `<span style="background:${hasBg ? 'rgba(255,255,255,0.18)' : 'rgba(0,113,227,0.08)'}; color:${hasBg ? '#ffffff' : 'var(--accent-blue)'}; padding:3px 10px; border-radius:999px; font-size:0.7rem; font-weight:700;">📸 ${totalDayPhotos}</span>` : ''}
                                 ${totalDayDocs > 0 ? `<span style="background:${hasBg ? 'rgba(255,255,255,0.18)' : 'rgba(88,86,214,0.08)'}; color:${hasBg ? '#ffffff' : '#5856d6'}; padding:3px 10px; border-radius:999px; font-size:0.7rem; font-weight:700;">📎 ${totalDayDocs}</span>` : ''}
@@ -228,26 +228,26 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
             // Each section unions the new trip-level store with
             // any legacy day-level entries (day.tickets, day.photos)
             // so old archived trips don't lose their data.
-            // Genesis (Day 0) is the trip-wide bucket post-pivot —
-            // each chip explicitly says "⭐ Genesis" so users know
+            // Anchor (Day 0) is the trip-wide bucket post-pivot —
+            // each chip explicitly says "⭐ Anchor" so users know
             // where their trip-wide stuff lives. Numbered days get
             // a blue "Day N" chip. Orphans (legacy null-dayId
             // entries that didn't migrate because the trip lacked
-            // a Genesis day) fall back to a neutral "Unsorted" chip.
+            // a Anchor day) fall back to a neutral "Unsorted" chip.
             const dayLabel = (id: string | null | undefined) => {
                 if (!id) return null;
                 const d = tripDays.find((x: any) => x.id === id);
                 if (!d) return null;
-                return Number(d.dayNumber) === 0 ? '⭐ Genesis' : `Day ${d.dayNumber}`;
+                return Number(d.dayNumber) === 0 ? '⭐ Anchor' : `Day ${d.dayNumber}`;
             };
-            const isGenesisId = (id: string | null | undefined) => {
+            const isAnchorId = (id: string | null | undefined) => {
                 if (!id) return false;
                 const d = tripDays.find((x: any) => x.id === id);
                 return !!d && Number(d.dayNumber) === 0;
             };
             const dayChip = (id: string | null | undefined) => {
-                if (isGenesisId(id)) {
-                    return `<span style="background:rgba(52,199,89,0.12); color:#1a6b3c; padding:2px 10px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">⭐ Genesis</span>`;
+                if (isAnchorId(id)) {
+                    return `<span style="background:rgba(52,199,89,0.12); color:#1a6b3c; padding:2px 10px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">⭐ Anchor</span>`;
                 }
                 const lbl = dayLabel(id);
                 return lbl
@@ -324,8 +324,8 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
                 <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:10px; margin-bottom:24px;">
                     ${allPhotos.map(p => {
                         const lbl = dayLabel(p.dayId);
-                        // Genesis chip = green; numbered day chip = dark.
-                        const chipBg = isGenesisId(p.dayId) ? 'rgba(52,199,89,0.85)' : 'rgba(0,0,0,0.55)';
+                        // Anchor chip = green; numbered day chip = dark.
+                        const chipBg = isAnchorId(p.dayId) ? 'rgba(52,199,89,0.85)' : 'rgba(0,0,0,0.55)';
                         const chip = lbl
                             ? `<div style="position:absolute; top:6px; left:6px; background: ${chipBg}; color:white; padding:2px 8px; border-radius:999px; font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; backdrop-filter: blur(6px);">${esc(lbl)}</div>`
                             : `<div style="position:absolute; top:6px; left:6px; background: rgba(0,0,0,0.45); color:white; padding:2px 8px; border-radius:999px; font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; backdrop-filter: blur(6px);">Unsorted</div>`;

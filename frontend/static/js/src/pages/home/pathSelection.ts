@@ -3,7 +3,7 @@
 // slice. Extracted from home.ts.
 //
 // Why a dedicated module: the vertical day-by-day timeline was
-// replaced with a horizontal "wheel" — Genesis pinned + the
+// replaced with a horizontal "wheel" — Anchor pinned + the
 // user-picked day, navigated via a chip strip / prev-next /
 // keyboard / swipe. The selection persists per-trip in
 // localStorage so leaving Home and coming back lands the user
@@ -106,7 +106,7 @@ export function setSelectedDay(tripId: string, dayId: string): void {
     if (typeof hooks.repaintPathTab === 'function') hooks.repaintPathTab();
     // Notify the active home map so any active POI pills can
     // re-fetch with the new search center (the selected day's
-    // pin → Genesis fallback). Wrapped in try/catch because the
+    // pin → Anchor fallback). Wrapped in try/catch because the
     // callback closes over the home renderer's local state; if
     // the user has navigated away (e.g. to /collections) since
     // the home was last rendered, that state may reference
@@ -116,7 +116,7 @@ export function setSelectedDay(tripId: string, dayId: string): void {
         try { hooks.onSelectedDayChange(); }
         catch (e) { console.warn('[GG] onSelectedDayChange threw — likely stale home closure:', e); }
     }
-    // Map sync — pan to the selected day's pin (or, for Genesis
+    // Map sync — pan to the selected day's pin (or, for Anchor
     // with no day-pin, the trip's anchor lat/lng).
     // window.activeMap is set by the map-init block when the
     // home map mounts; if the user is on a non-home page or the
@@ -134,7 +134,7 @@ export function setSelectedDay(tripId: string, dayId: string): void {
             map.panTo({ lat, lng });
             if (typeof map.getZoom === 'function' && map.getZoom() < 13) map.setZoom(13);
         } else if (day.dayNumber === 0) {
-            // Genesis with no day-pin — fall back to the trip's
+            // Anchor with no day-pin — fall back to the trip's
             // anchor.
             const trip = (STATE.trips || []).find(t => t.id === tripId);
             if (trip && typeof trip.lat === 'number' && typeof trip.lng === 'number') {
@@ -152,7 +152,7 @@ export function setSelectedDay(tripId: string, dayId: string): void {
  *       trip)
  *    2. Day whose date matches today (handy mid-trip)
  *    3. First numbered day (dayNumber > 0)
- *    4. Genesis (dayNumber === 0) — last resort, only when no
+ *    4. Anchor (dayNumber === 0) — last resort, only when no
  *       numbered days exist yet */
 export function resolveSelectedDayId(
     activeTrip: { id: string } | null,

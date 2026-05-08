@@ -1,9 +1,9 @@
 """/api/days — single trip-day upsert + delete.
 
 Permission gate: Planner-role only (Budgeteers and Relaxers blocked).
-Day 0 (Trip Genesis) is the trip's anchor — pill epicenter searches,
+Day 0 (Trip Anchor) is the trip's anchor — pill epicenter searches,
 the wide-area POI fetch radius, and the lazy day-0 sessionStorage flag
-all key off it. The home UI hides the delete button on the genesis
+all key off it. The home UI hides the delete button on the anchor
 card; the 422 in delete_day is belt-and-braces in case a stale client
 or a curl-wielding user fires the request anyway.
 """
@@ -70,7 +70,7 @@ def delete_day(day_id):
         if not can_edit_trip(cursor, row["trip_id"], user_id):
             return jsonify({"error": "Forbidden"}), 403
         if int(row["day_number"] or 0) == 0:
-            return jsonify({"error": "Trip Genesis (day 0) anchors the trip and can't be deleted."}), 422
+            return jsonify({"error": "Trip Anchor (day 0) anchors the trip and can't be deleted."}), 422
         cursor.execute("DELETE FROM trip_days WHERE id = ?", (day_id,))
         conn.commit()
     return jsonify({"status": "deleted"})

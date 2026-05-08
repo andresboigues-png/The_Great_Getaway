@@ -87,7 +87,7 @@ export const openDayView = (day: any): void => {
                         ${day.notes ? `<p style="margin:0; white-space:pre-wrap; line-height:1.55; color:#002d5b;">${esc(day.notes)}</p>` : `<p style="margin:0; color:var(--text-secondary); font-style:italic;">No notes.</p>`}
                     </div>
                     <!-- Photos + Documents always render. For Trip
-                         Genesis these surface the trip-wide bucket
+                         Anchor these surface the trip-wide bucket
                          (passport, multi-day hotel, return flight…);
                          for numbered days they surface day-specific
                          items. The data union behind photoSrcs / docs

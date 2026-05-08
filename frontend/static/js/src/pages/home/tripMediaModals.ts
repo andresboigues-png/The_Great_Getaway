@@ -1,12 +1,12 @@
-// pages/home/tripMediaModals.ts — Genesis-option popup modals
+// pages/home/tripMediaModals.ts — Anchor-option popup modals
 // for trip-level documents + photos. Phase B1 eighth slice.
 // Extracted from home.ts.
 //
 // Documents + Photos used to live as inline tabs in the trip
-// nav; they moved to Genesis options + got their own popup
+// nav; they moved to Anchor options + got their own popup
 // modals so the tab nav stays focused on Path / Companions and
 // the trip-wide media live where they conceptually belong
-// (under Genesis).
+// (under Anchor).
 //
 // Five functions live here:
 //   - openTripDocumentsModal(trip): the docs list view, with
@@ -52,7 +52,7 @@ import {
 import { openPdfPreview, looksLikePdfUrl, openPhotoLightbox } from './lightbox.js';
 
 
-/** Documents popup modal — opened from Genesis option button.
+/** Documents popup modal — opened from Anchor option button.
  *  Renders the full doc list grouped by day, with add / edit /
  *  remove / day-reassign affordances. Sub-modals (add doc /
  *  edit doc) close THIS modal first since they trigger
@@ -65,11 +65,11 @@ export const openTripDocumentsModal = (trip: any): void => {
 
     /** Build the docs-list body. Same structural shape as the
      *  retired inline tab panel: header row (Add / Gmail-search
-     *  / count) + day-grouped doc cards. Genesis bucket first,
+     *  / count) + day-grouped doc cards. Anchor bucket first,
      *  then numbered days, then orphans. */
     const renderBody = () => {
         const docs = getAllTripDocuments(trip);
-        const genesisDay = (STATE.tripDays || [])
+        const anchorDay = (STATE.tripDays || [])
             .find(d => d.tripId === trip.id && Number(d.dayNumber) === 0);
         const numberedDays = (STATE.tripDays || [])
             .filter(d => d.tripId === trip.id && d.dayNumber > 0)
@@ -78,11 +78,11 @@ export const openTripDocumentsModal = (trip: any): void => {
             if (!id) return null;
             const day = (STATE.tripDays || []).find(d => d.id === id);
             if (!day) return null;
-            return Number(day.dayNumber) === 0 ? '⭐ Genesis' : `Day ${day.dayNumber}`;
+            return Number(day.dayNumber) === 0 ? '⭐ Anchor' : `Day ${day.dayNumber}`;
         };
-        const isGenesisDoc = (id: string | null | undefined) => !!id && id === genesisDay?.id;
+        const isAnchorDoc = (id: string | null | undefined) => !!id && id === anchorDay?.id;
         const dayChip = (id: string | null | undefined) => {
-            if (isGenesisDoc(id)) return `<span style="background:rgba(212,160,23,0.14); color:#8b6e0c; padding:2px 8px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">⭐ Genesis</span>`;
+            if (isAnchorDoc(id)) return `<span style="background:rgba(212,160,23,0.14); color:#8b6e0c; padding:2px 8px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">⭐ Anchor</span>`;
             const lbl = dayLabel(id);
             return lbl
                 ? `<span style="background:rgba(0,113,227,0.08); color:var(--accent-blue); padding:2px 8px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">${esc(lbl)}</span>`
@@ -126,7 +126,7 @@ export const openTripDocumentsModal = (trip: any): void => {
                 <div class="card glass" style="padding: 28px; border-radius: 18px; border: 1.5px dashed rgba(88,86,214,0.32); background: rgba(88,86,214,0.04); text-align:center;">
                     <div style="font-size:2rem; margin-bottom:8px;">📎</div>
                     <h3 style="margin:0 0 6px; color:#5856d6; font-weight:800;">No documents yet</h3>
-                    <p style="margin:0; color:var(--text-secondary); font-size:0.9rem;">Click <strong>📧 Search Gmail for bookings</strong> to find your confirmation emails, then drop the PDFs / links in via <strong>➕ Add document</strong>. Trip-wide docs (passport, multi-day hotel) live on <strong>⭐ Trip Genesis</strong>; day-specific ones (museum ticket) tag to a numbered day.</p>
+                    <p style="margin:0; color:var(--text-secondary); font-size:0.9rem;">Click <strong>📧 Search Gmail for bookings</strong> to find your confirmation emails, then drop the PDFs / links in via <strong>➕ Add document</strong>. Trip-wide docs (passport, multi-day hotel) live on <strong>⭐ Trip Anchor</strong>; day-specific ones (museum ticket) tag to a numbered day.</p>
                 </div>
             `;
         }
@@ -136,8 +136,8 @@ export const openTripDocumentsModal = (trip: any): void => {
                 ${sortedKeys.map(key => {
                     const items = groups.get(key) || [];
                     const orphan = key === '__orphan__';
-                    const isGen = !orphan && isGenesisDoc(key);
-                    const groupLabel = orphan ? 'Unsorted' : (isGen ? '⭐ Trip Genesis · trip-wide' : (dayLabel(key) || 'Unknown day'));
+                    const isGen = !orphan && isAnchorDoc(key);
+                    const groupLabel = orphan ? 'Unsorted' : (isGen ? '⭐ Trip Anchor · trip-wide' : (dayLabel(key) || 'Unknown day'));
                     const accent = orphan ? 'rgba(0,0,0,0.45)' : (isGen ? '#8b6e0c' : 'var(--accent-blue)');
                     return `
                         <div>
@@ -154,10 +154,10 @@ export const openTripDocumentsModal = (trip: any): void => {
                                             ${d.url ? `<div style="font-size:0.7rem; color:var(--text-secondary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(d.url)}</div>` : ''}
                                         </div>
                                         ${tripIsEditable ? `
-                                            ${d._source === 'trip' && (genesisDay || numberedDays.length > 0) ? `
+                                            ${d._source === 'trip' && (anchorDay || numberedDays.length > 0) ? `
                                                 <select class="trip-doc-day-select" data-doc-id="${esc(d.id)}"
                                                     style="padding:6px 8px; border-radius:8px; border:1px solid rgba(0,0,0,0.1); font-size:0.75rem; background:white; max-width:160px;">
-                                                    ${genesisDay ? `<option value="${esc(genesisDay.id)}" ${d.dayId === genesisDay.id ? 'selected' : ''}>⭐ Genesis</option>` : ''}
+                                                    ${anchorDay ? `<option value="${esc(anchorDay.id)}" ${d.dayId === anchorDay.id ? 'selected' : ''}>⭐ Anchor</option>` : ''}
                                                     ${numberedDays.map(nd => `<option value="${esc(nd.id)}" ${d.dayId === nd.id ? 'selected' : ''}>Day ${nd.dayNumber}</option>`).join('')}
                                                 </select>
                                             ` : ''}
@@ -268,7 +268,7 @@ export const openTripDocumentsModal = (trip: any): void => {
 };
 
 
-/** Photos popup modal — opened from Genesis option button. Same
+/** Photos popup modal — opened from Anchor option button. Same
  *  pattern as openTripDocumentsModal: full grid view with upload
  *  / add-by-link / day-reassign / remove. File-input upload is
  *  handled inline (re-wire after each repaint since the input
@@ -280,7 +280,7 @@ export const openTripPhotosModal = (trip: any): void => {
 
     const renderBody = () => {
         const photos = getAllTripPhotos(trip);
-        const genesisDayForPhotos = (STATE.tripDays || [])
+        const anchorDayForPhotos = (STATE.tripDays || [])
             .find(d => d.tripId === trip.id && Number(d.dayNumber) === 0);
         const numberedDaysForPhotos = (STATE.tripDays || [])
             .filter(d => d.tripId === trip.id && d.dayNumber > 0)
@@ -289,9 +289,9 @@ export const openTripPhotosModal = (trip: any): void => {
             if (!id) return null;
             const day = (STATE.tripDays || []).find(d => d.id === id);
             if (!day) return null;
-            return Number(day.dayNumber) === 0 ? '⭐ Genesis' : `Day ${day.dayNumber}`;
+            return Number(day.dayNumber) === 0 ? '⭐ Anchor' : `Day ${day.dayNumber}`;
         };
-        const isGenesisPhoto = (id: string | null | undefined) => !!id && id === genesisDayForPhotos?.id;
+        const isAnchorPhoto = (id: string | null | undefined) => !!id && id === anchorDayForPhotos?.id;
         const headerRow = `
             <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:14px;">
                 ${tripIsEditable ? `
@@ -314,7 +314,7 @@ export const openTripPhotosModal = (trip: any): void => {
                 <div class="card glass" style="padding: 28px; border-radius: 18px; border: 1.5px dashed rgba(52,199,89,0.32); background: rgba(52,199,89,0.04); text-align:center;">
                     <div style="font-size:2rem; margin-bottom:8px;">📸</div>
                     <h3 style="margin:0 0 6px; color:#1a6b3c; font-weight:800;">No photos yet</h3>
-                    <p style="margin:0; color:var(--text-secondary); font-size:0.9rem;">Use <strong>📤 Upload photos</strong> for files on your device, or <strong>🔗 Add by link</strong> for a Drive / Dropbox / iCloud share. New photos go to <strong>⭐ Trip Genesis</strong> (the trip-wide bucket); you can re-tag any of them to a specific day from the dropdown on each card.</p>
+                    <p style="margin:0; color:var(--text-secondary); font-size:0.9rem;">Use <strong>📤 Upload photos</strong> for files on your device, or <strong>🔗 Add by link</strong> for a Drive / Dropbox / iCloud share. New photos go to <strong>⭐ Trip Anchor</strong> (the trip-wide bucket); you can re-tag any of them to a specific day from the dropdown on each card.</p>
                 </div>
             `;
         }
@@ -326,17 +326,17 @@ export const openTripPhotosModal = (trip: any): void => {
                         || /\.(jpe?g|png|gif|webp|avif|heic|heif|bmp|tiff?|svg)(\?.*)?$/i.test(p.src || '');
                     const canEditDay = tripIsEditable && p._source === 'trip';
                     const staticChipFor = (label: string, bg: string) => `<div style="position:absolute; top:6px; left:6px; background: ${bg}; color:white; padding:2px 8px; border-radius:999px; font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; backdrop-filter: blur(6px); pointer-events:none;">${esc(label)}</div>`;
-                    const chipBg = isGenesisPhoto(p.dayId)
+                    const chipBg = isAnchorPhoto(p.dayId)
                         ? 'rgba(140,110,12,0.85)'
                         : (p.dayId ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0.45)');
                     const dayBadge = canEditDay
-                        ? `<select class="trip-photo-day-select" data-photo-id="${esc(p.id)}" title="Move to Trip Genesis or a numbered day"
+                        ? `<select class="trip-photo-day-select" data-photo-id="${esc(p.id)}" title="Move to Trip Anchor or a numbered day"
                                 style="position:absolute; top:6px; left:6px; background: ${chipBg}; color:white; border:0; padding:2px 22px 2px 10px; border-radius:999px; font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; backdrop-filter: blur(6px); cursor:pointer; appearance:none; -webkit-appearance:none; background-image: url('data:image/svg+xml;utf8,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;10&quot; height=&quot;10&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;white&quot; stroke-width=&quot;3&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;><polyline points=&quot;6 9 12 15 18 9&quot;/></svg>'); background-repeat:no-repeat; background-position: right 7px center; background-size: 8px;">
-                                ${genesisDayForPhotos ? `<option value="${esc(genesisDayForPhotos.id)}" ${p.dayId === genesisDayForPhotos.id ? 'selected' : ''}>⭐ Genesis</option>` : ''}
+                                ${anchorDayForPhotos ? `<option value="${esc(anchorDayForPhotos.id)}" ${p.dayId === anchorDayForPhotos.id ? 'selected' : ''}>⭐ Anchor</option>` : ''}
                                 ${numberedDaysForPhotos.map(nd => `<option value="${esc(nd.id)}" ${p.dayId === nd.id ? 'selected' : ''}>Day ${nd.dayNumber}</option>`).join('')}
                             </select>`
-                        : (isGenesisPhoto(p.dayId)
-                            ? staticChipFor('⭐ Genesis', 'rgba(140,110,12,0.85)')
+                        : (isAnchorPhoto(p.dayId)
+                            ? staticChipFor('⭐ Anchor', 'rgba(140,110,12,0.85)')
                             : (p.dayId ? staticChipFor(dayLabel(p.dayId) || '', 'rgba(0,0,0,0.55)') : staticChipFor('Unsorted', 'rgba(0,0,0,0.45)')));
                     const removeBtn = tripIsEditable
                         ? `<button type="button" class="trip-photo-remove-btn" data-photo-id="${esc(p.id)}" title="Remove" aria-label="Remove photo"
@@ -388,9 +388,9 @@ export const openTripPhotosModal = (trip: any): void => {
             const files = Array.from(input.files || []);
             if (files.length === 0) return;
             showLiquidAlert(`Uploading ${files.length} photo${files.length === 1 ? '' : 's'}…`);
-            const genesisDay = (STATE.tripDays || [])
+            const anchorDay = (STATE.tripDays || [])
                 .find(d => d.tripId === trip.id && Number(d.dayNumber) === 0);
-            const defaultDayId = genesisDay ? genesisDay.id : null;
+            const defaultDayId = anchorDay ? anchorDay.id : null;
             let added = 0;
             for (const file of files) {
                 try {
@@ -492,13 +492,13 @@ export const openTripPhotosModal = (trip: any): void => {
 // trips don't disappear.
 
 /** Add-document sub-modal. Opened from openTripDocumentsModal's
- *  ➕ Add document button. Genesis is the trip-wide bucket;
+ *  ➕ Add document button. Anchor is the trip-wide bucket;
  *  numbered days are alternatives the user can pick. The legacy
- *  "Trip-wide" sentinel was retired — Genesis owns that role
+ *  "Trip-wide" sentinel was retired — Anchor owns that role
  *  throughout the app now. */
 export const openAddTripDocumentModal = (trip: any): void => {
     if (!trip) return;
-    const genesisDay = (STATE.tripDays || [])
+    const anchorDay = (STATE.tripDays || [])
         .find(d => d.tripId === trip.id && Number(d.dayNumber) === 0);
     const numberedDays = (STATE.tripDays || [])
         .filter(d => d.tripId === trip.id && d.dayNumber > 0)
@@ -536,7 +536,7 @@ export const openAddTripDocumentModal = (trip: any): void => {
                 </div>
                 <label style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-secondary); margin-top:8px;">Where does it belong?</label>
                 <select id="newDocDay" class="glass-input" style="padding: var(--space-3); border-radius: 12px; background:white;">
-                    ${genesisDay ? `<option value="${esc(genesisDay.id)}" selected>⭐ Trip Genesis (passport, multi-day hotel, return flight…)</option>` : ''}
+                    ${anchorDay ? `<option value="${esc(anchorDay.id)}" selected>⭐ Trip Anchor (passport, multi-day hotel, return flight…)</option>` : ''}
                     ${numberedDays.map(d => `<option value="${esc(d.id)}">Day ${d.dayNumber}${d.date ? ` — ${formatDayDate(d.date) || d.date}` : ''}</option>`).join('')}
                 </select>
             </div>
@@ -603,7 +603,7 @@ export const openEditTripDocumentModal = (trip: any, docId: string): void => {
         return;
     }
     const isTripLevel = doc._source === 'trip';
-    const genesisDay = (STATE.tripDays || [])
+    const anchorDay = (STATE.tripDays || [])
         .find(d => d.tripId === trip.id && Number(d.dayNumber) === 0);
     const numberedDays = (STATE.tripDays || [])
         .filter(d => d.tripId === trip.id && d.dayNumber > 0)
@@ -629,7 +629,7 @@ export const openEditTripDocumentModal = (trip: any, docId: string): void => {
                 ${isTripLevel ? `
                     <label style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-secondary); margin-top:8px;">Where does it belong?</label>
                     <select id="editDocDay" class="glass-input" style="padding: var(--space-3); border-radius: 12px; background:white;">
-                        ${genesisDay ? `<option value="${esc(genesisDay.id)}" ${doc.dayId === genesisDay.id ? 'selected' : ''}>⭐ Trip Genesis (trip-wide)</option>` : ''}
+                        ${anchorDay ? `<option value="${esc(anchorDay.id)}" ${doc.dayId === anchorDay.id ? 'selected' : ''}>⭐ Trip Anchor (trip-wide)</option>` : ''}
                         ${numberedDays.map(d => `<option value="${esc(d.id)}" ${doc.dayId === d.id ? 'selected' : ''}>Day ${d.dayNumber}${d.date ? ` — ${formatDayDate(d.date) || d.date}` : ''}</option>`).join('')}
                     </select>
                 ` : ''}
@@ -712,7 +712,7 @@ export const openEditTripDocumentModal = (trip: any, docId: string): void => {
  *  both options in the help text below the input. */
 export const openAddTripPhotoUrlModal = (trip: any): void => {
     if (!trip) return;
-    const genesisDay = (STATE.tripDays || [])
+    const anchorDay = (STATE.tripDays || [])
         .find(d => d.tripId === trip.id && Number(d.dayNumber) === 0);
     const numberedDays = (STATE.tripDays || [])
         .filter(d => d.tripId === trip.id && d.dayNumber > 0)
@@ -731,7 +731,7 @@ export const openAddTripPhotoUrlModal = (trip: any): void => {
                 </div>
                 <label style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-secondary); margin-top:8px;">Where does it belong?</label>
                 <select id="newPhotoDay" class="glass-input" style="padding: var(--space-3); border-radius: 12px; background:white;">
-                    ${genesisDay ? `<option value="${esc(genesisDay.id)}" selected>⭐ Trip Genesis</option>` : ''}
+                    ${anchorDay ? `<option value="${esc(anchorDay.id)}" selected>⭐ Trip Anchor</option>` : ''}
                     ${numberedDays.map(d => `<option value="${esc(d.id)}">Day ${d.dayNumber}${d.date ? ` — ${formatDayDate(d.date) || d.date}` : ''}</option>`).join('')}
                 </select>
             </div>

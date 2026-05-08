@@ -311,7 +311,7 @@ export const openNewTripModal = () => {
         // user-supplied range. Each scaffolded day has no pin yet
         // (lat/lng=null) so the home Path renders them with the dashed
         // "needs a pin" hint. The user fills in places + plans later.
-        // Day numbering starts at 1 since the trip-genesis day (day 0)
+        // Day numbering starts at 1 since the trip-anchor day (day 0)
         // is created elsewhere as the trip's location anchor.
         const startDate = (q(root, '#tripStartDate') as HTMLInputElement).value;
         const endDate = (q(root, '#tripEndDate') as HTMLInputElement).value;
@@ -596,9 +596,9 @@ export const openAddDayModal = () => {
 
     // Logic: Only require date for the first day, auto-increment for others
     const tripDays = (STATE.tripDays || []).filter(d => d.tripId === STATE.activeTripId).sort((a, b) => a.dayNumber - b.dayNumber);
-    // Day 0 is the auto-created Trip Genesis entry — skip it when computing
+    // Day 0 is the auto-created Trip Anchor entry — skip it when computing
     // the next user-facing day number, otherwise the first added day jumps
-    // straight to "Day 2" (genesis counts as 1 in tripDays.length).
+    // straight to "Day 2" (anchor counts as 1 in tripDays.length).
     const numberedDays = tripDays.filter(d => d.dayNumber > 0);
     const maxDayNumber = numberedDays.length > 0 ? numberedDays[numberedDays.length - 1]!.dayNumber : 0;
     const nextDayNumber = maxDayNumber + 1;

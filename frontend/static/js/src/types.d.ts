@@ -111,8 +111,8 @@ export interface Trip {
     /** All accepted members of the trip. Used by the home trip header
      *  to render the avatar stack + role badges. */
     members?: TripMember[];
-    /** Genesis-level prep tasks (packing/errands/research). Surfaced
-     *  in the Genesis modal AND on every numbered-day detail modal so
+    /** Anchor-level prep tasks (packing/errands/research). Surfaced
+     *  in the Anchor modal AND on every numbered-day detail modal so
      *  users can tick items off while planning each day. Source of
      *  truth — toggling done on a day modal writes to the same array. */
     checklist?: TripChecklistItem[];
@@ -128,7 +128,7 @@ export interface Trip {
      *  replaces the older split between manual + AI lists. */
     markedPlaces?: MarkedPlace[];
     /** Trip-wide documents store. Each entry has an optional `dayId`;
-     *  trip-wide entries carry `dayId === Trip Genesis`. The Documents
+     *  trip-wide entries carry `dayId === Trip Anchor`. The Documents
      *  tab presents a UNION of these + legacy day.tickets via
      *  tripMedia.js's getAllTripDocuments(). */
     documents?: TripDocument[];
@@ -147,7 +147,7 @@ export interface Trip {
 /** Single row in `Trip.checklist`. `id` is a stable client-generated
  *  string so toggle/remove ops can target the right item without
  *  index drift. `done` flips inline; `body` is editable in the
- *  Genesis modal only (numbered-day modal is read+toggle only). */
+ *  Anchor modal only (numbered-day modal is read+toggle only). */
 export interface TripChecklistItem {
     id: string;
     body: string;
@@ -197,7 +197,7 @@ export interface Document {
 }
 
 /** Trip-wide document entry (new canonical store). Surfaced UNION-style
- *  with legacy day.tickets via tripMedia.js. `dayId` of Trip Genesis
+ *  with legacy day.tickets via tripMedia.js. `dayId` of Trip Anchor
  *  means trip-wide; any other day id means scoped to that day. */
 export interface TripDocument {
     id?: string;
@@ -397,10 +397,10 @@ export interface AppState {
  *    `minRating` is consumed; missing entries fall back to the pill's
  *    `defaultMinRating` from POI_CATEGORIES.
  *  - `pillEpicenters` — per-trip search-center anchor. Shape:
- *    { [tripId]: dayId }. Falls back to the trip's Genesis day.
- *  - `poiAnchoring` — per-pill override of "always genesis" vs
+ *    { [tripId]: dayId }. Falls back to the trip's Anchor day.
+ *  - `poiAnchoring` — per-pill override of "always anchor" vs
  *    "follow user-picked epicenter". Empty / missing = use the pill's
- *    `useGenesisAlways` flag from POI_CATEGORIES.
+ *    `useAnchorAlways` flag from POI_CATEGORIES.
  *  - `poiVisible` — which pills appear in the home pill row. Missing
  *    key OR true = visible; false = hidden. Default {} = "all pills
  *    visible".
@@ -411,7 +411,7 @@ export interface AppPreferences {
     mapDefaultPois: string[];
     poiFilters: Record<string, { minRating?: number }>;
     pillEpicenters: Record<string, string>;
-    poiAnchoring: Record<string, 'epicenter' | 'genesis'>;
+    poiAnchoring: Record<string, 'epicenter' | 'anchor'>;
     poiVisible: Record<string, boolean>;
     enabledPois: Record<string, string[]>;
     /** Color theme — `'system'` follows the OS via prefers-color-scheme,

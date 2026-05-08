@@ -101,18 +101,18 @@
 
     /* Gradients — three brand surfaces that recur dozens of times in
        inline styles: day badges / day-pins / route polylines (blue→purple),
-       Trip-genesis card surfaces (gold), and the road-following polyline
+       Trip-anchor card surfaces (gold), and the road-following polyline
        pulse (neon cyan). */
     --gradient-day: linear-gradient(135deg, #007aff, #5856d6);
-    --gradient-genesis: linear-gradient(135deg, #ffd700, #ff9500);
+    --gradient-anchor: linear-gradient(135deg, #ffd700, #ff9500);
     --gradient-neon: linear-gradient(135deg, #00e5ff, #00b8d4);
-    /* --gradient-genesis-deep: deeper-toned gold pair used for
-       checklist-done toggles + genesis day-badge + the Trip Genesis
-       chip in dayDetailModal. Distinct from --gradient-genesis (which
-       is the brighter gold→orange used on Trip-genesis card surfaces) —
+    /* --gradient-anchor-deep: deeper-toned gold pair used for
+       checklist-done toggles + anchor day-badge + the Trip Anchor
+       chip in dayDetailModal. Distinct from --gradient-anchor (which
+       is the brighter gold→orange used on Trip-anchor card surfaces) —
        this one reads as "completed" / "permanent" rather than "primary
        gold call-out". */
-    --gradient-genesis-deep: linear-gradient(135deg, #e8b923, #8b6e0c);
+    --gradient-anchor-deep: linear-gradient(135deg, #e8b923, #8b6e0c);
     /* --gradient-title: blue→purple text gradient used on every page's
        h1. Distinct from --gradient-day (which is the day-badge/pin
        surface gradient) — this one terminates at #9b59b6 (a slightly
@@ -161,7 +161,7 @@
    dark color scheme. So the CSS only needs ONE selector to cover
    both manual + system-driven dark.
 
-   Brand gradients (--gradient-day, --gradient-genesis, --gradient-
+   Brand gradients (--gradient-day, --gradient-anchor, --gradient-
    neon, --gradient-title) are NOT overridden — they're brand
    identity and read fine on either background. Same for the static
    #34c759 (success), #ff3b30 (danger), #ff9500 (warning) accents
@@ -2407,7 +2407,7 @@ h1 {
    blue pill + chip row below; promoted to a full glass card with
    a blue→purple gradient header strip so the section reads as a
    first-class part of the trip view (same visual weight as the
-   Genesis card / Path day card). The header carries an icon
+   Anchor card / Path day card). The header carries an icon
    medallion + title + count chip; the chip area shows existing
    member chips OR an empty-state hint; the CTA button at the
    bottom opens the companion picker (planner) or the read-only
@@ -3403,13 +3403,13 @@ h1 {
    strong accent-blue border across the board so the active card still
    reads as selected. */
 
-/* Genesis — the trip's location anchor. Gold to mirror the gold
+/* Anchor — the trip's location anchor. Gold to mirror the gold
    star avatar on the same card. (Recoloured from green to fit the
-   "central hub / premium anchor" identity Genesis carries.) */
-.day-card--genesis {
+   "central hub / premium anchor" identity Anchor carries.) */
+.day-card--anchor {
     border-color: rgba(212, 160, 23, 0.55) !important;
 }
-.day-card--genesis.is-open {
+.day-card--anchor.is-open {
     border-color: var(--accent-blue) !important;
 }
 
@@ -4342,9 +4342,9 @@ h1 {
     font-weight: 800;
 }
 
-/* ── Home Path tab — chip-strip + Genesis + selected day ──────────
+/* ── Home Path tab — chip-strip + Anchor + selected day ──────────
    The vertical day-by-day timeline was replaced with a horizontal
-   "wheel": Genesis pinned on the left, the user-selected day on the
+   "wheel": Anchor pinned on the left, the user-selected day on the
    right, with a clickable numbered chip strip above for jumping to
    any day directly. Visual aesthetic mirrors the OLD vertical
    timeline — circles strung along a thin gradient line — just rotated
@@ -4358,7 +4358,7 @@ h1 {
 .path-chips {
     display: flex;
     align-items: center;
-    /* Center the chip group within the strip so Genesis + the days
+    /* Center the chip group within the strip so Anchor + the days
        sit at the visual middle of the wheel as you add days, instead
        of left-anchored. `safe center` falls back to flex-start when
        the chips overflow the available width — that prevents the
@@ -4648,20 +4648,20 @@ h1 {
 .path-chip--today:not(.is-selected):hover , .path-chip--today:not(.is-selected):active , .path-chip--today:not(.is-selected):focus-visible {
     background: rgba(255, 149, 0, 0.06);
 }
-/* Genesis = trip headquarters; styled gold across the board (chips,
+/* Anchor = trip headquarters; styled gold across the board (chips,
    card, primary button) so it visually outranks numbered days and
    reads as the trip's anchor / central hub. The gold palette
    (#e8b923 → #8b6e0c) was picked to sit between the existing
    accent-blue and the sidebar's #ff9500 orange so it doesn't get
    mistaken for either. */
-.path-chip--genesis {
+.path-chip--anchor {
     border-color: #c89a18;
     color: #8b6e0c;
 }
-.path-chip--genesis:hover , .path-chip--genesis:active , .path-chip--genesis:focus-visible {
+.path-chip--anchor:hover , .path-chip--anchor:active , .path-chip--anchor:focus-visible {
     background: rgba(212, 160, 23, 0.08);
 }
-.path-chip--genesis.is-selected {
+.path-chip--anchor.is-selected {
     background: linear-gradient(135deg, #e8b923, #8b6e0c);
     color: white;
     border-color: #8b6e0c;
@@ -4712,7 +4712,7 @@ h1 {
 }
 
 /* Cards row: each "column" is a card + its OWN vertically-stacked
-   options below. Genesis owns the left column with its own slim
+   options below. Anchor owns the left column with its own slim
    set; the selected day owns the right column with the full set.
    No more shared-options-row ambiguity (each option clearly belongs
    to the card directly above it). */
@@ -4727,11 +4727,21 @@ h1 {
     gap: 10px;
     min-width: 0;
 }
-.path-column--genesis { flex: 0 0 32%; }
+.path-column--anchor { flex: 0 0 32%; }
 .path-column--selected { flex: 1 1 auto; }
 @media (max-width: 720px) {
     .path-cards-row { flex-direction: column; }
-    .path-column--genesis { flex: 0 0 auto; }
+    /* Both columns stretch full-width on mobile so the Anchor card
+       and the day cards are the same width when stacked vertically.
+       Per-user request: previously `flex: 0 0 auto` made the Anchor
+       column shrink to its content width, which read as a narrow
+       awkward chip above the wider day cards. */
+    .path-column,
+    .path-column--anchor,
+    .path-column--selected {
+        flex: 1 1 100%;
+        width: 100%;
+    }
 }
 
 .path-card {
@@ -4746,11 +4756,11 @@ h1 {
     cursor: pointer;
     transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
-.path-card--genesis {
+.path-card--anchor {
     border-color: rgba(212, 160, 23, 0.32);
     background: linear-gradient(180deg, rgba(212, 160, 23, 0.05), white);
 }
-.path-card--genesis.is-selected {
+.path-card--anchor.is-selected {
     border-color: #8b6e0c;
     box-shadow: 0 8px 22px rgba(212, 160, 23, 0.22);
 }
@@ -4779,7 +4789,7 @@ h1 {
     /* Gradient matches the day-number badge on the path card
        (linear-gradient(135deg, var(--accent-blue), #9b59b6)) so the
        "Open Full Plan" button reads as the action belonging to the
-       same day card sitting above it. Genesis variant overrides this
+       same day card sitting above it. Anchor variant overrides this
        below with the gold gradient that matches its star badge. */
     background: linear-gradient(135deg, var(--accent-blue), #9b59b6);
     color: white;
@@ -4794,11 +4804,11 @@ h1 {
     transform: translateY(-1px);
     box-shadow: 0 8px 18px rgba(0, 113, 227, 0.3);
 }
-.path-options-stack .path-primary-btn--genesis {
+.path-options-stack .path-primary-btn--anchor {
     background: linear-gradient(135deg, #e8b923, #8b6e0c);
     box-shadow: 0 6px 14px rgba(212, 160, 23, 0.28);
 }
-.path-options-stack .path-primary-btn--genesis:hover , .path-options-stack .path-primary-btn--genesis:active , .path-options-stack .path-primary-btn--genesis:focus-visible {
+.path-options-stack .path-primary-btn--anchor:hover , .path-options-stack .path-primary-btn--anchor:active , .path-options-stack .path-primary-btn--anchor:focus-visible {
     box-shadow: 0 8px 18px rgba(212, 160, 23, 0.36);
 }
 
@@ -5225,12 +5235,21 @@ body.is-signed-out #sidebarOverlay {
 
 /* Sidebar trip controls (mobile-only). Stacked layout since the
    sidebar is a tall column — New Trip pill on top, the selector
-   beneath it (full-width), the complete/delete icon buttons in a
-   right-aligned row underneath when an active trip exists. */
+   beneath it (full-width), the complete/delete icon buttons stacked
+   BELOW the selector and CENTERED in their own row.
+
+   Per-user spec: action buttons aren't a right-edge afterthought
+   — they're a deliberate centered pair that reads as a paired
+   "complete or delete this trip" affordance.
+
+   The selector's tap target is bumped to a real 44px+ height
+   (Apple HIG min) so the dropdown options inherit a comfortable
+   row height too — fixes the previous "selector opens too small /
+   weird" issue where a tiny trigger produced a tiny option list. */
 .sidebar-trip-controls {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 10px;
     margin-bottom: 16px;
 }
 .sidebar-trip-controls__new {
@@ -5242,11 +5261,21 @@ body.is-signed-out #sidebarOverlay {
     /* Override the desktop selector's min-width: 160px (which would
        otherwise prevent the full-width fill on a narrow sidebar). */
     min-width: 0 !important;
+    min-height: 44px;
+    padding: 10px 14px;
+    font-size: 0.9rem;
+    box-sizing: border-box;
+    text-align: center;
+    text-align-last: center;
 }
 .sidebar-trip-controls__actions {
     display: flex;
-    gap: 8px;
-    justify-content: flex-end;
+    gap: 14px;
+    /* Centered (was flex-end). When an active trip exists both
+       buttons render — owner sees Complete + Delete; non-owner
+       sees Complete only. Either way the pair sits centered. */
+    justify-content: center;
+    align-items: center;
 }
 
 /* ── Phase D1: Mobile-first responsive sweep ──────────────────────
@@ -5387,6 +5416,82 @@ body.is-signed-out .mobile-bottom-nav {
     main#app-container textarea,
     main#app-container button {
         scroll-margin-bottom: calc(96px + env(safe-area-inset-bottom));
+    }
+
+    /* ── Expense form: stack split-add row vertically on mobile ───
+       The Split Between section's "Add person..." dropdown +
+       "+ Add" button sit side-by-side on desktop. On a 375px
+       screen the dropdown gets crushed to <200px and the +Add
+       button hugs the right edge — stacked layout reads better
+       and gives the "+ Add" button proper full-width tap area
+       (per-user request to put the +Add button below the dropdown). */
+    .add-split-row {
+        flex-direction: column !important;
+    }
+    .add-split-row #addSplitBtn {
+        width: 100%;
+    }
+
+    /* ── Notification dropdown: clamp to viewport on mobile ──────
+       Inline `width: 340px` on the dropdown puts the right edge
+       past the screen edge on a 375px viewport (especially with
+       the bell button positioned in the middle of the navbar).
+       Override to a viewport-safe width, anchor to the right of
+       the bell, and constrain max-width so the menu never clips. */
+    #notificationDropdown {
+        width: calc(100vw - 24px) !important;
+        max-width: 340px;
+        left: auto !important;
+        right: 0 !important;
+        max-height: calc(100vh - 80px);
+    }
+
+    /* ── Insights cards: one per row on mobile ───────────────────
+       Insights page uses .grid-2 (the utility class for 2-column
+       grids) for the summary card pairs. At 375px each cell is
+       <175px which crushes the metric numbers. Force single-column
+       so each card gets the full viewport width. .grid-2 is the
+       canonical 2-column wrapper used app-wide; this rule covers
+       Insights AND any other page that uses it. */
+    .grid-2 {
+        grid-template-columns: 1fr !important;
+        gap: 16px;
+    }
+    /* Inline `gridTemplateColumns: '1fr 1fr'` from the Insights
+       Summary block needs the same override. The descendant +
+       attribute selector matches it specifically. */
+    main#app-container [style*="gridTemplateColumns"],
+    main#app-container [style*="grid-template-columns: 1fr 1fr"] {
+        grid-template-columns: 1fr !important;
+    }
+
+    /* ── Universal mobile overflow guard ──────────────────────────
+       Every page lives inside #app-container. Forcing
+       `overflow-x: hidden` here means no page can produce a
+       horizontal scrollbar on mobile, regardless of what its
+       internal layout does. Generous fallback for the Plan with AI
+       page + Profile page + any future page that ships with a
+       wide flex/grid layout the author forgot to make responsive. */
+    main#app-container {
+        overflow-x: hidden;
+    }
+    /* AI planner content: wrap long unbroken strings (place names
+       without spaces, URLs, etc.) so they don't push siblings
+       sideways when the parent is overflow:hidden. Scope to the
+       page wrapper to avoid affecting other pages' headings. */
+    main#app-container .ai-page-header * {
+        word-break: break-word;
+        overflow-wrap: break-word;
+    }
+
+    /* ── User profile: shrink wide chrome to fit mobile ─────────
+       The footprint map (#legaciesMap) is 450px tall on desktop;
+       on a phone that's nearly half the viewport. Trim to 280px
+       and clamp width so the page reads as a tight one-screen
+       summary. */
+    main#app-container #legaciesMap {
+        height: 280px !important;
+        max-width: 100%;
     }
 
     /* ── Mobile modal sheet variant ─────────────────────────────

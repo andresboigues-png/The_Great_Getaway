@@ -98,7 +98,13 @@
              of the burger drawer — first thing the user sees when
              they open the menu, since switching trips is the most
              common cross-page action. The selector is mirrored from
-             the desktop one by main.ts:updateTripSelector(). -->
+             the desktop one by main.ts:updateTripSelector().
+
+             Layout (per-user spec): full-width +New Trip pill, then
+             the selector beneath it, then the Complete/Delete pair
+             stacked BELOW the selector and CENTERED (not right-
+             aligned). The actions row only renders when an active
+             trip exists — display:none controlled by JS. -->
         <div class="sidebar-trip-controls sidebar-item--mobile-only">
             <button class="btn-primary-pill sidebar-trip-controls__new" id="newTripBtnSidebar">+ New Trip</button>
             <select id="tripSelectorSidebar" class="btn-primary-pill--inverse sidebar-trip-controls__selector">
@@ -115,18 +121,13 @@
         </div>
         <div class="sidebar-divider sidebar-item--mobile-only"></div>
 
-        <!-- Home pinned at top — mobile only (desktop has no
-             dedicated Home link in the sidebar; users tap the brand
-             text or the bottom-tab bar on mobile, but on desktop
-             Home is one click away via the brand only). -->
-        <a href="#" class="sidebar-item sidebar-item--mobile-only" data-page="home" style="margin-bottom: 8px;">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-            </svg>
-            Home
-        </a>
+        <!-- Home + Feed sidebar items removed on both viewports per
+             user request. Mobile reaches Home via the brand text
+             tap (#nav-brand fires navigate('home')) and Feed via the
+             top-bar #navFeedBtn icon — both visible on mobile.
+             Desktop reaches Home via brand + the top-nav Home link;
+             Feed via the top-bar feed icon. -->
 
-        <div class="sidebar-divider sidebar-item--mobile-only"></div>
 
         <!-- Middle navigation sections — wrapped per-section so the
              flex container can distribute them with `justify-content:
@@ -155,19 +156,6 @@
                     <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                 </svg>
                 Search
-            </a>
-        </div>
-
-        <!-- Feed — mobile only. On desktop Feed is reached via the
-             top-banner feed icon. -->
-        <div class="sidebar-section sidebar-item--mobile-only">
-            <a href="#" class="sidebar-item" data-page="feed">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M4 11a9 9 0 0 1 9 9"></path>
-                    <path d="M4 4a16 16 0 0 1 16 16"></path>
-                    <circle cx="5" cy="19" r="1"></circle>
-                </svg>
-                Feed
             </a>
         </div>
 

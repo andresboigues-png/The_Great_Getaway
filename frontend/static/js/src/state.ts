@@ -65,12 +65,12 @@ export const STATE: AppState = {
      *    defaultMinRating in POI_CATEGORIES (see pages/home.js).
      *  - `pillEpicenters` holds the search center the user picked per
      *    trip. Shape: { [tripId]: dayId }. Falls back to the trip's
-     *    genesis day when unset. The user toggles this from the day
+     *    anchor day when unset. The user toggles this from the day
      *    actions panel ("Set as search center").
-     *  - `poiAnchoring` is the per-pill override of "always use genesis"
+     *  - `poiAnchoring` is the per-pill override of "always use anchor"
      *    vs "use the user-picked day epicenter". Shape:
-     *    { [pillKey]: 'epicenter' | 'genesis' }. Empty / missing keys
-     *    fall back to the category's useGenesisAlways flag in
+     *    { [pillKey]: 'epicenter' | 'anchor' }. Empty / missing keys
+     *    fall back to the category's useAnchorAlways flag in
      *    POI_CATEGORIES (see pages/home.js). The user customises this
      *    in Settings → General.
      *  - `poiVisible` controls which pills appear in the home pill row.
@@ -145,11 +145,11 @@ export function loadState() {
     // objects with `.name`. Without this an older browser session would
     // crash on `chip.name.charAt(...)` because `chip.name` was undefined
     // (the iterator was reading a bare string instead of an object).
-    // Helper: every trip should have a Day-0 / Trip-Genesis row;
+    // Helper: every trip should have a Day-0 / Trip-Anchor row;
     // openNewTripModal stamps one for new trips, but archived legacy
     // data may not. We use it as the canonical "trip-wide" bucket
     // for documents and photos — see the migration below.
-    const findGenesisId = (tripId: string, pool: Array<{ id: string; dayNumber: number; tripId?: string }>): string | null => {
+    const findAnchorId = (tripId: string, pool: Array<{ id: string; dayNumber: number; tripId?: string }>): string | null => {
         const g = (pool || []).find(d => d.tripId === tripId && Number(d.dayNumber) === 0);
         return g ? g.id : null;
     };
@@ -172,26 +172,26 @@ export function loadState() {
             if (p && p.forAI && !p.forManual) p.forManual = true;
         }
         // Trip-level Documents and Photos. Each entry has an optional
-        // dayId; "trip-wide" means dayId === Trip Genesis (Day 0).
+        // dayId; "trip-wide" means dayId === Trip Anchor (Day 0).
         // Earlier snapshots used dayId: null to mean trip-wide; this
-        // migration moves those to dayId: genesisId so the data has a
+        // migration moves those to dayId: anchorId so the data has a
         // single canonical representation. The Photos / Documents tabs
-        // and the Genesis day card both now key off Genesis as the
+        // and the Anchor day card both now key off Anchor as the
         // trip-wide bucket.
         if (!Array.isArray(trip.documents)) trip.documents = [];
         if (!Array.isArray(trip.photos)) trip.photos = [];
         // Trip checklist — packing / errands / pre-trip tasks. Surfaced
-        // as a Genesis option (Genesis is the trip's central hub).
+        // as a Anchor option (Anchor is the trip's central hub).
         // Each item: { id, body, done, created_at }. Always-array
         // shape so read sites can drop the `(trip.checklist || [])` dance.
         if (!Array.isArray(trip.checklist)) trip.checklist = [];
-        const genesisId = findGenesisId(trip.id, STATE.tripDays || []);
-        if (genesisId) {
+        const anchorId = findAnchorId(trip.id, STATE.tripDays || []);
+        if (anchorId) {
             for (const d of trip.documents) {
-                if (d && (d.dayId === null || d.dayId === undefined)) d.dayId = genesisId;
+                if (d && (d.dayId === null || d.dayId === undefined)) d.dayId = anchorId;
             }
             for (const p of trip.photos) {
-                if (p && (p.dayId === null || p.dayId === undefined)) p.dayId = genesisId;
+                if (p && (p.dayId === null || p.dayId === undefined)) p.dayId = anchorId;
             }
         }
     }
@@ -206,15 +206,15 @@ export function loadState() {
         if (!Array.isArray(trip.photos)) trip.photos = [];
         if (!Array.isArray(trip.checklist)) trip.checklist = [];
         // Archived trips carry their tripDays nested on the trip
-        // object (see collections.js restoreTrip), so Genesis lookup
+        // object (see collections.js restoreTrip), so Anchor lookup
         // pulls from there rather than STATE.tripDays.
-        const genesisId = findGenesisId(trip.id, trip.tripDays || []);
-        if (genesisId) {
+        const anchorId = findAnchorId(trip.id, trip.tripDays || []);
+        if (anchorId) {
             for (const d of trip.documents) {
-                if (d && (d.dayId === null || d.dayId === undefined)) d.dayId = genesisId;
+                if (d && (d.dayId === null || d.dayId === undefined)) d.dayId = anchorId;
             }
             for (const p of trip.photos) {
-                if (p && (p.dayId === null || p.dayId === undefined)) p.dayId = genesisId;
+                if (p && (p.dayId === null || p.dayId === undefined)) p.dayId = anchorId;
             }
         }
     }

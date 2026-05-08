@@ -227,7 +227,7 @@ function renderManualTab() {
 
                 <div style="margin-bottom: 40px; background: rgba(0,0,0,0.03); padding: 32px; border-radius: 32px; border: 1px solid rgba(0,0,0,0.05); width: 100%; max-width: 440px; box-sizing: border-box;">
                     <label style="display: block; margin-bottom: 16px; font-size: 0.9rem; font-weight: 800; color: #000000; letter-spacing: -0.02em;">Split Between</label>
-                    <div style="display: flex; gap: 14px; margin-bottom: 20px;">
+                    <div class="add-split-row" style="display: flex; gap: 14px; margin-bottom: 20px;">
                         <select id="addSplitSelect" class="glass-input" style="flex: 1; padding: 14px; border-radius: 16px; background: rgba(255,255,255,0.4); color: #000000; font-weight: 600; border: 1px solid rgba(0,0,0,0.05); box-sizing: border-box;" ${!hasTripCompanions ? 'disabled' : ''}>
                             <option value="">${hasTripCompanions ? 'Add person to split...' : 'No trip companions yet'}</option>
                             ${tripCompanionNames.map(p => `<option value="${p}">${p}</option>`).join('')}

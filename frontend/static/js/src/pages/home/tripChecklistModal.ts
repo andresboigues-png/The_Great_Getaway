@@ -3,8 +3,8 @@
 // home.ts.
 //
 // Free-form to-do list scoped to the whole trip — packing,
-// errands, pre-trip tasks. Surfaced as a Genesis option
-// (Genesis is the trip's central hub). Stored as
+// errands, pre-trip tasks. Surfaced as a Anchor option
+// (Anchor is the trip's central hub). Stored as
 // `trip.checklist` (array of {id, body, done, created_at});
 // persisted via upsertTrip + the new checklist_json column.
 // Distinct from /todo (places-to-visit list) — checklist is
@@ -70,7 +70,7 @@ export const openTripChecklistModal = (trip: any): void => {
         return `
             <div class="checklist-row${editingMarker}" data-item-id="${id}" style="display:flex; align-items:center; gap:10px; padding:10px 12px; background:white; border:1px solid rgba(0,45,91,0.06); border-radius:12px;">
                 <button type="button" class="checklist-toggle-btn" data-item-id="${id}" ${editable ? '' : 'disabled'} aria-pressed="${done}" title="${done ? 'Mark not done' : 'Mark done'}"
-                    style="flex-shrink:0; width:22px; height:22px; border-radius:50%; border:2px solid ${done ? '#8b6e0c' : 'rgba(0,113,227,0.3)'}; background:${done ? 'var(--gradient-genesis-deep)' : 'white'}; color:white; cursor:${editable ? 'pointer' : 'default'}; display:inline-flex; align-items:center; justify-content:center; padding:0;">
+                    style="flex-shrink:0; width:22px; height:22px; border-radius:50%; border:2px solid ${done ? '#8b6e0c' : 'rgba(0,113,227,0.3)'}; background:${done ? 'var(--gradient-anchor-deep)' : 'white'}; color:white; cursor:${editable ? 'pointer' : 'default'}; display:inline-flex; align-items:center; justify-content:center; padding:0;">
                     ${done ? `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>` : ''}
                 </button>
                 ${bodyHtml}

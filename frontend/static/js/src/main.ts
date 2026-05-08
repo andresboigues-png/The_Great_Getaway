@@ -396,7 +396,7 @@ async function init() {
         const trips = [...new Set(STATE.tripDays.map(d => d.tripId))];
         trips.forEach(tId => {
             const days = STATE.tripDays.filter(d => d.tripId === tId).sort((a, b) => {
-                // `!= null` (not `&&`) so Day 0 / Trip Genesis isn't treated
+                // `!= null` (not `&&`) so Day 0 / Trip Anchor isn't treated
                 // as "missing" — its dayNumber is legitimately 0, which is
                 // falsy, and the falsy form would silently rewrite it.
                 if (a.dayNumber != null && b.dayNumber != null) return a.dayNumber - b.dayNumber;

@@ -211,7 +211,7 @@ export async function fetchDayRoutePath(legs: Leg[]): Promise<RouteResult | null
 /**
  * Paint the day-to-day route polyline on the home hero map.
  * Connects consecutive numbered day pins (Day 1 → Day 2 → … →
- * Day N). Skips Genesis (dayNumber === 0) — Genesis is a
+ * Day N). Skips Anchor (dayNumber === 0) — Anchor is a
  * trip-wide anchor, not a calendar position, so including it
  * as the route's "Day 0" would imply travel from the hub to
  * Day 1 which isn't a real travel leg.

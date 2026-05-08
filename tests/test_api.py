@@ -417,9 +417,9 @@ def test_delete_day_idempotent_on_unknown_id(client, seed_user, auth_headers):
     assert res.get_json() == {"status": "deleted"}
 
 
-def test_delete_day_rejects_genesis(client, seed_user, auth_headers):
-    """Day 0 (Trip Genesis) is the trip's anchor and can't be deleted —
-    the home UI hides the delete button on the genesis card; this 422
+def test_delete_day_rejects_anchor(client, seed_user, auth_headers):
+    """Day 0 (Trip Anchor) is the trip's anchor and can't be deleted —
+    the home UI hides the delete button on the anchor card; this 422
     is the belt-and-braces backend gate against curl-wielding users
     or stale clients firing the request anyway."""
     client.post("/api/trips", headers=auth_headers, json={
@@ -427,14 +427,14 @@ def test_delete_day_rejects_genesis(client, seed_user, auth_headers):
     })
     client.post("/api/days", headers=auth_headers, json={
         "day": {
-            "id": "day-genesis", "tripId": "trip-1", "dayNumber": 0,
-            "name": "Trip Genesis",
+            "id": "day-anchor", "tripId": "trip-1", "dayNumber": 0,
+            "name": "Trip Anchor",
         },
     })
-    res = client.delete("/api/days/day-genesis", headers=auth_headers)
+    res = client.delete("/api/days/day-anchor", headers=auth_headers)
     assert res.status_code == 422
     body = res.get_json()
-    assert "Genesis" in body["error"]
+    assert "Anchor" in body["error"]
 
 
 def test_delete_day_rejects_non_planner(

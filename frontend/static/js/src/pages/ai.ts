@@ -412,7 +412,7 @@ export function renderAI() {
                 // trip rather than appending. Without this, the AI plan
                 // would stack on top of any auto-scaffolded days the user
                 // got from entering dates on New Trip — dayNumbers 1,2,3
-                // would all be duplicated. The trip-genesis day (dayNumber=0)
+                // would all be duplicated. The trip-anchor day (dayNumber=0)
                 // is preserved because it's the trip's location anchor.
                 const existingNumbered = STATE.tripDays.filter(
                     d => d.tripId === activeTrip.id && d.dayNumber > 0

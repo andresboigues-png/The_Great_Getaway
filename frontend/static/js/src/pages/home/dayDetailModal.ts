@@ -7,13 +7,13 @@
 //     shortlist places into the matching slot, day-level
 //     personal notes textarea, trip-wide checklist preview,
 //     debounced auto-save on every keystroke.
-//   - Genesis (dayNumber === 0): single big "Trip notes /
+//   - Anchor (dayNumber === 0): single big "Trip notes /
 //     journal" textarea + quick-link chips that route to the
 //     trip checklist / Documents tab / Photos tab.
 //
 // Closure dependency: openDayDetail used to mutate the
 // home.ts-local `activeHomeTab` variable to switch the home
-// page's sub-tab when the user clicked a Genesis quick-link
+// page's sub-tab when the user clicked a Anchor quick-link
 // (Documents / Photos). Now that this lives in its own module,
 // home.ts passes a `setActiveHomeTab` callback to bridge the
 // gap — same effect, no shared module-level state.
@@ -34,14 +34,14 @@ import { openTripChecklistModal } from './tripChecklistModal.js';
 import { openDayView } from './dayViewModal.js';
 
 
-/** What home tabs a Genesis quick-link can navigate to. Matches
+/** What home tabs a Anchor quick-link can navigate to. Matches
  *  the activeHomeTab union in home.ts. */
 export type HomeTab = 'days' | 'companions' | 'documents' | 'photos';
 
 
 /** Options bag for openDayDetail. The `setActiveHomeTab`
  *  callback bridges the closure dep on home.ts's `activeHomeTab`
- *  module-level variable — when the user clicks a Genesis
+ *  module-level variable — when the user clicks a Anchor
  *  quick-link (Documents / Photos), we call this to flip the
  *  home page's tab and trigger a re-render. */
 export interface OpenDayDetailOptions {
@@ -160,54 +160,54 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
     // after this fn returns.
     let flushPendingOnExit: (() => void) | null = null;
 
-    // Genesis is the trip's central hub, not a calendar day with
-    // a morning/afternoon/evening schedule. Render a Genesis-
+    // Anchor is the trip's central hub, not a calendar day with
+    // a morning/afternoon/evening schedule. Render a Anchor-
     // specific body that swaps the AM/PM/Eve trio for ONE big
     // "Trip notes / journal" textarea + quick-link chips to the
-    // surfaces Genesis really anchors (Trip checklist, Photos,
+    // surfaces Anchor really anchors (Trip checklist, Photos,
     // Documents). Numbered days keep the existing AM/PM/Eve
     // layout.
-    const isGenesis = Number(day.dayNumber) === 0;
+    const isAnchor = Number(day.dayNumber) === 0;
 
-    // Header label varies — numbered days show "Day N", Genesis
-    // shows a gold "⭐ Trip Genesis" chip to match the Path tab
+    // Header label varies — numbered days show "Day N", Anchor
+    // shows a gold "⭐ Trip Anchor" chip to match the Path tab
     // styling.
-    const headerChipHtml = isGenesis
-        ? `<div style="background: var(--gradient-genesis-deep); color: white; padding: var(--space-1) var(--space-3); border-radius: var(--radius-sm); font-weight: 800; font-size: var(--font-xs); text-transform: uppercase; letter-spacing: 0.06em;">⭐ Trip Genesis</div>`
+    const headerChipHtml = isAnchor
+        ? `<div style="background: var(--gradient-anchor-deep); color: white; padding: var(--space-1) var(--space-3); border-radius: var(--radius-sm); font-weight: 800; font-size: var(--font-xs); text-transform: uppercase; letter-spacing: 0.06em;">⭐ Trip Anchor</div>`
         : `<div style="background: var(--accent-blue); color: white; padding: var(--space-1) var(--space-3); border-radius: var(--radius-sm); font-weight: 800; font-size: var(--font-xs); text-transform: uppercase;">Day ${day.dayNumber}</div>`;
-    const headerSubtitle = isGenesis
+    const headerSubtitle = isAnchor
         ? (trip?.country ? esc(shortPlaceName(trip.country)) : 'Where the trip begins')
         : esc(formatDayDate(day.date));
-    const headerTitle = isGenesis ? 'Trip Genesis' : esc(day.name);
+    const headerTitle = isAnchor ? 'Trip Anchor' : esc(day.name);
 
-    // Genesis body: quick-links row + single "Trip notes"
+    // Anchor body: quick-links row + single "Trip notes"
     // textarea on the left; Expert Tip + Done on the right. No
     // AM/PM/Eve, no "From your to-do list" drop section (no time
     // slots to drop into).
-    const genesisQuickLinksHtml = `
+    const anchorQuickLinksHtml = `
         <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom: var(--space-6);">
-            <button type="button" class="genesis-quicklink-btn" data-target="checklist"
+            <button type="button" class="anchor-quicklink-btn" data-target="checklist"
                 style="display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:999px; background:rgba(212,160,23,0.1); border:1px solid rgba(212,160,23,0.3); color:#8b6e0c; font-weight:700; font-size:0.82rem; cursor:pointer;">
                 📝 Trip checklist
             </button>
-            <button type="button" class="genesis-quicklink-btn" data-target="documents"
+            <button type="button" class="anchor-quicklink-btn" data-target="documents"
                 style="display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:999px; background:rgba(88,86,214,0.08); border:1px solid rgba(88,86,214,0.25); color:#5856d6; font-weight:700; font-size:0.82rem; cursor:pointer;">
                 📎 Documents
             </button>
-            <button type="button" class="genesis-quicklink-btn" data-target="photos"
+            <button type="button" class="anchor-quicklink-btn" data-target="photos"
                 style="display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:999px; background:rgba(52,199,89,0.08); border:1px solid rgba(52,199,89,0.25); color:#1a6b3c; font-weight:700; font-size:0.82rem; cursor:pointer;">
                 📸 Photos
             </button>
         </div>
     `;
-    // Genesis body — single-column. Used to be split 2-col with
+    // Anchor body — single-column. Used to be split 2-col with
     // the right column holding ONLY the Done button, which
     // looked awkward (a wide notes textarea then a tall empty
     // column with a single button). Done moved to a proper
-    // footer below; Genesis now uses the full modal width for
+    // footer below; Anchor now uses the full modal width for
     // its quick-links + notes textarea.
-    const genesisBodyHtml = `
-        ${genesisQuickLinksHtml}
+    const anchorBodyHtml = `
+        ${anchorQuickLinksHtml}
         <div class="subcard-soft" style="display:flex; flex-direction:column;">
             <h4 class="text-tag" style="--accent: 212,160,23;">Trip notes & journal</h4>
             <textarea id="detailNotes" class="plain-textarea" placeholder="What this trip is about, highlights, things to remember…" style="min-height: 320px;">${esc(day.notes || '')}</textarea>
@@ -264,12 +264,12 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
             </div>
         </div>
     `;
-    // Trip checklist panel — surfaces the Genesis-level
+    // Trip checklist panel — surfaces the Anchor-level
     // checklist on every day's modal so users can tick off prep
     // tasks while planning each day. Source of truth lives on
-    // `trip.checklist` (managed via Genesis → Trip checklist
+    // `trip.checklist` (managed via Anchor → Trip checklist
     // option). Click-to-toggle here writes through to that same
-    // array; full add/edit/delete stays on the Genesis modal to
+    // array; full add/edit/delete stays on the Anchor modal to
     // keep one editing surface.
     const checklistPanelHtml = (() => {
         const items = (trip?.checklist || []);
@@ -278,7 +278,7 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
             return `
                 <div style="background: rgba(212,160,23,0.04); padding: var(--space-5); border-radius: 24px; border: 1.5px dashed rgba(212,160,23,0.32);">
                     <h4 class="text-tag" style="--accent: 212,160,23;">📝 Trip checklist</h4>
-                    <p style="margin: 6px 0 8px; font-size: 0.82rem; color: var(--text-secondary); line-height:1.45;">No tasks yet — open Trip Genesis → 📝 Trip checklist to add packing/errand tasks. They'll appear here on every day.</p>
+                    <p style="margin: 6px 0 8px; font-size: 0.82rem; color: var(--text-secondary); line-height:1.45;">No tasks yet — open Trip Anchor → 📝 Trip checklist to add packing/errand tasks. They'll appear here on every day.</p>
                 </div>
             `;
         }
@@ -288,7 +288,7 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
             return `
                 <div class="day-checklist-row" data-item-id="${id}" style="display:flex; align-items:center; gap:10px; padding:6px 0;">
                     <button type="button" class="day-checklist-toggle" data-item-id="${id}" aria-pressed="${done}" title="${done ? 'Mark not done' : 'Mark done'}"
-                        style="flex-shrink:0; width:20px; height:20px; border-radius:50%; border:2px solid ${done ? '#8b6e0c' : 'rgba(0,113,227,0.3)'}; background:${done ? 'var(--gradient-genesis-deep)' : 'white'}; color:white; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; padding:0;">
+                        style="flex-shrink:0; width:20px; height:20px; border-radius:50%; border:2px solid ${done ? '#8b6e0c' : 'rgba(0,113,227,0.3)'}; background:${done ? 'var(--gradient-anchor-deep)' : 'white'}; color:white; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; padding:0;">
                         ${done ? `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>` : ''}
                     </button>
                     <span style="flex:1; min-width:0; font-size:0.88rem; line-height:1.4; color:#002d5b; ${done ? 'color:rgba(0,45,91,0.4); text-decoration:line-through;' : ''}">${esc(item.body || '')}</span>
@@ -304,7 +304,7 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
                 <div id="dayChecklistRows" style="display:flex; flex-direction:column;">
                     ${rowsHtml}
                 </div>
-                <button type="button" id="dayChecklistManageBtn" style="margin-top:6px; background:transparent; border:0; color:#8b6e0c; font-weight:700; font-size:0.78rem; cursor:pointer; padding:0;">Manage in Trip Genesis →</button>
+                <button type="button" id="dayChecklistManageBtn" style="margin-top:6px; background:transparent; border:0; color:#8b6e0c; font-weight:700; font-size:0.78rem; cursor:pointer; padding:0;">Manage in Trip Anchor →</button>
             </div>
         `;
     })();
@@ -335,16 +335,16 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
     `;
 
     // Body section structure:
-    //  - Genesis: single-column body (used to be 2-col with
+    //  - Anchor: single-column body (used to be 2-col with
     //    right column = Done button only; awkward).
     //  - Numbered: 2-column grid (left = AM/PM/Eve, right =
     //    Notes + Checklist), then the To-do list section
     //    spanning full width.
     //  - Both: shared footer below with Done + autosave status.
-    const bodyHtml = isGenesis
+    const bodyHtml = isAnchor
         ? `
             <div style="display: flex; flex-direction: column; gap: var(--space-6);">
-                ${genesisBodyHtml}
+                ${anchorBodyHtml}
             </div>
         `
         : `
@@ -379,13 +379,13 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
         onClose: () => flushPendingOnExit?.(),
     });
 
-    // Genesis quick-links — clicking a chip closes the modal
+    // Anchor quick-links — clicking a chip closes the modal
     // and routes to the right surface. Trip checklist gets the
     // modal we built earlier; Documents/Photos switch to those
     // Home tabs via the setActiveHomeTab callback (closure
     // bridge to home.ts's activeHomeTab module-level var).
-    if (isGenesis) {
-        root.querySelectorAll('.genesis-quicklink-btn').forEach(btn => {
+    if (isAnchor) {
+        root.querySelectorAll('.anchor-quicklink-btn').forEach(btn => {
             (btn as HTMLButtonElement).onclick = () => {
                 const target = (btn as HTMLElement).dataset.target;
                 close();
@@ -400,12 +400,12 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
     }
 
     // Numbered-day Trip checklist panel — toggle done state
-    // inline + link out to the full Genesis modal for
+    // inline + link out to the full Anchor modal for
     // add/edit/delete. The checklist source of truth is
-    // `trip.checklist` (Genesis-level), so toggling here writes
+    // `trip.checklist` (Anchor-level), so toggling here writes
     // to the same array, persists via upsertTrip, and shows up
     // consistently on every day's modal.
-    if (!isGenesis && trip) {
+    if (!isAnchor && trip) {
         const checkSvg = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
         root.querySelectorAll('.day-checklist-toggle').forEach(btn => {
             (btn as HTMLButtonElement).onclick = () => {
@@ -421,7 +421,7 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
                 const newDone = !!item.done;
                 (btn as HTMLElement).style.borderColor = newDone ? '#8b6e0c' : 'rgba(0,113,227,0.3)';
                 (btn as HTMLElement).style.background = newDone
-                    ? 'var(--gradient-genesis-deep)' : 'white';
+                    ? 'var(--gradient-anchor-deep)' : 'white';
                 btn.innerHTML = newDone ? checkSvg : '';
                 btn.setAttribute('aria-pressed', newDone ? 'true' : 'false');
                 const span = (btn.parentElement?.querySelector('span') as HTMLElement | null);
@@ -465,10 +465,10 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
     };
 
     // Pull the current textarea values into `day`. Pure DOM->
-    // state read. Genesis renders WITHOUT the AM/PM/Eve
+    // state read. Anchor renders WITHOUT the AM/PM/Eve
     // textareas (no schedule — it's the trip's central hub, not
     // a calendar day). Guard so we don't blast `day.plan` with
-    // empty strings on every keystroke for Genesis — that would
+    // empty strings on every keystroke for Anchor — that would
     // silently wipe any legacy plan data and break round-
     // tripping.
     const syncDayFromInputs = () => {

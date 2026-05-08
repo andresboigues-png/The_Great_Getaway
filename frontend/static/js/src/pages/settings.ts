@@ -265,19 +265,19 @@ export function renderSettings() {
                                 <option value="${v}" ${v === userMin ? 'selected' : ''}>${v === 0 ? 'Any rating' : `${v}★ +`}</option>
                             `).join('');
                             // Anchor mode: user override (Settings) wins,
-                            // else the category's useGenesisAlways default.
+                            // else the category's useAnchorAlways default.
                             const userAnchor = anchoring[c.key];
-                            const effectiveAnchor = (userAnchor === 'genesis' || userAnchor === 'epicenter')
+                            const effectiveAnchor = (userAnchor === 'anchor' || userAnchor === 'epicenter')
                                 ? userAnchor
-                                : (c.useGenesisAlways ? 'genesis' : 'epicenter');
-                            const defaultAnchor = c.useGenesisAlways ? 'genesis' : 'epicenter';
+                                : (c.useAnchorAlways ? 'anchor' : 'epicenter');
+                            const defaultAnchor = c.useAnchorAlways ? 'anchor' : 'epicenter';
                             const anchorOpts = `
                                 <option value="epicenter" ${effectiveAnchor === 'epicenter' ? 'selected' : ''}>📍 Day-aware</option>
-                                <option value="genesis"   ${effectiveAnchor === 'genesis' ? 'selected' : ''}>🌐 Trip-wide</option>
+                                <option value="anchor"   ${effectiveAnchor === 'anchor' ? 'selected' : ''}>🌐 Trip-wide</option>
                             `;
                             const isVisible = visibility[c.key] !== false; // default true
                             const isRatingCustom = userMin !== c.defaultMinRating;
-                            const isAnchorCustom = (userAnchor === 'genesis' || userAnchor === 'epicenter')
+                            const isAnchorCustom = (userAnchor === 'anchor' || userAnchor === 'epicenter')
                                 && userAnchor !== defaultAnchor;
                             const isVisibilityCustom = !isVisible; // default = visible, so hidden = customised
                             const isCustom = isRatingCustom || isAnchorCustom || isVisibilityCustom;
@@ -288,13 +288,13 @@ export function renderSettings() {
                                         <div class="poi-filter-row__label">${esc(c.label)}</div>
                                         <div class="poi-filter-row__hint">${esc(c.tooltip)}</div>
                                     </div>
-                                    <select class="poi-anchor-mode" data-poi="${c.key}" aria-label="Search anchor for ${esc(c.label)}" title="Day-aware = uses the day you've picked as search center on Home (falls back to genesis). Trip-wide = always anchored on the trip's genesis pin.">
+                                    <select class="poi-anchor-mode" data-poi="${c.key}" aria-label="Search anchor for ${esc(c.label)}" title="Day-aware = uses the day you've picked as search center on Home (falls back to anchor). Trip-wide = always anchored on the trip's anchor pin.">
                                         ${anchorOpts}
                                     </select>
                                     <select class="poi-filter-rating" data-poi="${c.key}" aria-label="Minimum rating for ${esc(c.label)}">
                                         ${ratingOpts}
                                     </select>
-                                    <span class="poi-filter-row__default" title="Defaults: ${c.defaultMinRating === 0 ? 'Any rating' : c.defaultMinRating + '★+'} / ${defaultAnchor === 'genesis' ? 'Trip-wide' : 'Day-aware'} / shown">
+                                    <span class="poi-filter-row__default" title="Defaults: ${c.defaultMinRating === 0 ? 'Any rating' : c.defaultMinRating + '★+'} / ${defaultAnchor === 'anchor' ? 'Trip-wide' : 'Day-aware'} / shown">
                                         ${isCustom ? '<button type="button" class="poi-filter-reset" data-poi="' + c.key + '" title="Reset rating, anchor, and visibility to default">Reset</button>' : '<span class="muted">Default</span>'}
                                     </span>
                                     <label class="switch poi-visibility-switch" title="${isVisible ? 'Visible on the home pill row — switch off to hide.' : 'Hidden from the home pill row — switch on to show.'}">
@@ -310,7 +310,7 @@ export function renderSettings() {
                             <h2 style="color: var(--accent-blue); margin-top: 0;">Map pill filters</h2>
                             <p style="color: var(--text-secondary); margin-bottom: 16px;"><strong>Show on Home</strong> (the right-side switch) toggles whether each pill appears in the home map's pill row. Useful for hiding categories you never use so the row stays compact.</p>
                             <p style="color: var(--text-secondary); margin-bottom: 16px;"><strong>Minimum rating</strong> hides results below the chosen ★. Restaurants and Hotels default to 4★+ (rating is a meaningful quality signal there); the rest default to "Any rating".</p>
-                            <p style="color: var(--text-secondary); margin-bottom: 24px;"><strong>Search anchor</strong> picks where each pill searches from. <em>Day-aware</em> uses the day you've set as search center on the Home page (falls back to the trip's genesis pin). <em>Trip-wide</em> always anchors on the genesis pin so the 50 km wide search covers the whole trip — better for sparse "where are these across my whole trip" categories like Medical, Sports, Govt, Schools, Public transit.</p>
+                            <p style="color: var(--text-secondary); margin-bottom: 24px;"><strong>Search anchor</strong> picks where each pill searches from. <em>Day-aware</em> uses the day you've set as search center on the Home page (falls back to the trip's anchor pin). <em>Trip-wide</em> always anchors on the anchor pin so the 50 km wide search covers the whole trip — better for sparse "where are these across my whole trip" categories like Medical, Sports, Govt, Schools, Public transit.</p>
                             <div class="poi-filter-list">
                                 ${rows}
                             </div>
@@ -586,7 +586,7 @@ export function renderSettings() {
             const key = (anchorSel as HTMLElement).dataset.poi;
             if (!key) return;
             const value = (anchorSel as HTMLSelectElement).value;
-            if (value !== 'genesis' && value !== 'epicenter') return;
+            if (value !== 'anchor' && value !== 'epicenter') return;
             ensurePoiPrefs();
             STATE.preferences.poiAnchoring[key] = value;
             emit('state:changed');
