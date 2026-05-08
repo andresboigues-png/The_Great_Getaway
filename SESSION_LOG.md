@@ -7,11 +7,12 @@ Newest entry at the top.
 
 ---
 
-## Session N+9 — 2026-05-08 — feed.py edge cases + floor 80→85% (84% → 90%)
+## Session N+9 — 2026-05-08 — pytest 84% → 94%, floor 60% → 90%
 
 **Goal**: Continuation request — keep clearing backlog and pushing
-pytest coverage. Two more low-coverage routes targeted in the same
-"target → ship → bump floor" pattern as N+8.
+pytest coverage. Five low-coverage spots targeted in the same
+"target → ship → bump floor" pattern as N+8. Suite went 105 → 152
+tests; total coverage 84% → 94%; CI floor 80% → 85% → 90%.
 
 **routes/trips.py — 78% → 89% (+8 tests, commit `1c24af3`)**: edge
 cases around invite/decline/delete/archive/unarchive. Tests pin:
@@ -72,46 +73,91 @@ The remaining feed.py uncovered lines (events generation block at
 all "feed-with-data" paths that need cross-user friendship
 fixtures — deferred to a later wave when those fixtures exist.
 
-**CI floor: 80% → 85% (commit `084e1bf`)**: tightened after the
-above pushed total to 90%. ~5pp headroom (5pp = ~70 lines of
-uncovered logic, big enough to be a real-regression signal vs
-noise). Floor history: 60 → 80 (N+8) → 85 (N+9). Next bump to 90%
-deferred until the feed-with-data tests land — they'll pull total
-past 92%, justifying the headroom.
+**routes/auth.py — 76% → 100% (+4 tests, commit `dab7b3a`)**: the
+production Google verify happy path (lines 118-142). Used the
+integrations.py mocking pattern — `monkeypatch.setattr(routes.auth.
+id_token, "verify_oauth2_token", fake_verify)` to drive the real
+branch without a network call. Tests pin: happy path with idinfo →
+JWT; `credential` field as alternative to `token` (Google GIS lib
+default name); repeat sign-in preserves bio/status/home_currency
+from DB row; ValueError → 401 (not 500).
+
+**routes/data.py — 82% → 95% (+5 tests, commit `edd242d`)**: the
+lower-traffic /api/sync branches. Tests pin:
+
+- archived_trips block (with nested expenses) — separate code
+  path from active trips, was 0% covered. Note: documented a
+  known quirk where the bulk-sync sets is_archived=1 on the
+  trips row, but ensure_owner_member_row inserts a member row
+  with archived=0; isArchived in /api/data response surfaces
+  from the member row, so it shows false. The new flow uses
+  /api/trips/<id>/archive which toggles the member-row flag
+  directly.
+- categories DELETE-then-INSERT + budgets replace mode + trip_days
+  insert in one payload (round-trip via /api/data, all three keys
+  back)
+- budgets replace-mode "drop by omission" contract
+- budgets unconditional wipe (when key absent → defaults to [] →
+  unconditional DELETE)
+- legacy /api/trips/share collaborator-table endpoint (preserved
+  for non-migrated clients; UNION'd into /api/data response)
+
+**helpers.py — 78% → 100% + main.py — 86% → 95% (+12 tests, commit
+`d7febf7`)**: small files, both in one commit. helpers.py is pure
+(no Flask) so unit tests are direct: unwrap_legacy_plan_text passes
+clean strings through, unwraps `'"foo"'` legacy shape, handles
+None/0/non-string, returns original on parse failure;
+trip_member_role owner-fallback when member row missing.
+
+main.py route block: GET / (default + ?dev=1), GET /components,
+GET /sw.js (Service-Worker-Allowed: / header), GET /manifest.json,
+plus \_cleanup_feed_orphans (empty + with-rows logging path). The
+remaining 5 main.py uncovered lines are all boot/subprocess paths
+(GG_ALLOW_TEST_LOGIN env-gate, WERKZEUG_RUN_MAIN reloader skip,
+`__main__` entry) — accept the gap.
+
+**CI floor: 60 → 80 → 85 → 90% across N+8/N+9** (commits `6f7d341`,
+`084e1bf`, `0d16e1d`). 90% leaves ~2pp headroom on the current
+94%; tighter than before, but the suite is mature enough (152 tests)
+that a 2pp drop = ~28 uncovered lines, a real regression signal
+at this point.
 
 **Coverage summary (cumulative across N+8 + N+9)**:
 
 | File                   | N+7 (was) | N+9 (now) | Tests added |
 | ---------------------- | --------- | --------- | ----------- |
+| routes/auth.py         | 72%       | **100%**  | 6           |
+| routes/budgets.py      | 38%       | 100%      | 4           |
+| routes/data.py         | 24%       | **95%**   | 9           |
 | routes/days.py         | 59%       | 100%      | 4           |
 | routes/expenses.py     | 63%       | 100%      | 4           |
-| routes/budgets.py      | 38%       | 100%      | 4           |
-| routes/settings.py     | 28%       | 100%      | 5           |
+| routes/feed.py         | 81%       | 86%       | 11          |
 | routes/integrations.py | 21%       | **98%**   | 7           |
 | routes/public.py       | 28%       | 93%       | 4           |
-| routes/data.py         | 24%       | 82%       | 4           |
-| routes/auth.py         | 72%       | 76%       | 2           |
+| routes/settings.py     | 28%       | 100%      | 5           |
 | routes/trips.py        | 78%       | 89%       | 8           |
-| routes/feed.py         | 81%       | **86%**   | 11          |
-| **TOTAL**              | **67%**   | **90%**   | **57**      |
+| helpers.py             | 78%       | **100%**  | 5           |
+| main.py                | 86%       | 95%       | 7           |
+| **TOTAL**              | **67%**   | **94%**   | **78**      |
 
-77 → 131 tests across two sessions; +23 percentage points.
+77 → 152 tests across two sessions; **+27 percentage points
+total coverage**. Routes 100%-covered: auth, budgets, days,
+expenses, settings, helpers (six files at full coverage).
 
-**Test status at close**: pytest 131/131 passing locally, 90% total
-coverage, build green, tsc strict clean. 3 new commits this
-session (`75b36a2`, `084e1bf`, plus the N+8 carry-over `1c24af3`
-and `15eeb19` on top of `bfdc85b`'s log entry).
+**Test status at close**: pytest 152/152 passing locally, 94%
+total coverage, build green, tsc strict clean. 6 new commits this
+session (`1c24af3`, `15eeb19`, `75b36a2`, `084e1bf`, `dab7b3a`,
+`edd242d`, `0d16e1d`, `d7febf7`).
 
 **What remains** (the carried-over backlog continues to shrink):
 
-- routes/auth.py at 76% — Google ID token verify happy path
-  (verify_oauth2_token mocking, lines 118-142). Pattern is
-  established now (see integrations.py); pickup is straightforward
-  but lower value than the routes already done.
 - routes/feed.py at 86% — feed-with-data paths (lines 119-201,
   217, 247, 265-295). Need cross-user friendship + share fixtures
   to exercise the events-generation block. Worth a session by
   itself once a fixture helper is added.
+- main.py boot paths (5 lines) — GG_ALLOW_TEST_LOGIN env-gate,
+  WERKZEUG_RUN_MAIN reloader skip, `__main__` entry. Subprocess-
+  level — accept the gap.
 - B1 final-final: still parked as B-Phase-2 (renderHome's map
   setup is too deeply closure-coupled; Phase C's React migration
   is the natural place to force the boundaries).
