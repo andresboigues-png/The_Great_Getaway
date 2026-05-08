@@ -206,7 +206,7 @@ export const openNewTripModal = () => {
                     <input type="text" id="tripPlaceInput" class="glass-input-modal" placeholder="Search a country, city, or address..." autocomplete="off">
                     <p id="tripPlaceHint" class="form-hint">Pick a suggestion to confirm the location.</p>
                 </div>
-                <div style="display: flex; gap: var(--space-3); width: 100%; margin-bottom: var(--space-2);">
+                <div class="form-row-split" style="display: flex; gap: var(--space-3); width: 100%; margin-bottom: var(--space-2);">
                     <div style="flex: 1;">
                         <label class="form-label">Start date <span style="opacity: 0.5; font-weight: 500;">(optional)</span></label>
                         <input type="date" id="tripStartDate" class="glass-input-modal">
@@ -355,7 +355,7 @@ export const openEditTripModal = (trip: any) => {
                     <input type="text" id="editTripPlaceInput" class="glass-input-modal" placeholder="Search a country, city, or address..." autocomplete="off">
                     <p id="editTripPlaceHint" class="form-hint">Pick a new suggestion to change the location, or just rename.</p>
                 </div>
-                <div style="display: flex; gap: var(--space-3); width: 100%; margin-bottom: var(--space-2);">
+                <div class="form-row-split" style="display: flex; gap: var(--space-3); width: 100%; margin-bottom: var(--space-2);">
                     <div style="flex: 1;">
                         <label class="form-label">Start date <span style="opacity: 0.5; font-weight: 500;">(optional)</span></label>
                         <input type="date" id="editTripStartDate" class="glass-input-modal">

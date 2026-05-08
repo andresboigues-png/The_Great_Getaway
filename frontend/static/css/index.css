@@ -5100,6 +5100,22 @@ body.is-signed-out #sidebarOverlay {
     animation: modalPop 0.4s var(--easing-smooth);
 }
 
+/* ── iOS momentum scrolling on scrollable containers ────────────
+   `-webkit-overflow-scrolling: touch` enables fling-and-decay
+   scrolling on iOS Safari for any element with `overflow:auto/scroll`.
+   Browsers do this natively for the document; for in-page
+   containers (sidebar, dropdowns, modal sheets, picker sheets) it
+   requires an explicit opt-in. Applying broadly via attribute
+   selectors so any future overflow:auto element picks it up
+   automatically — no per-site update needed. */
+[style*="overflow-y: auto"],
+[style*="overflow: auto"],
+.sidebar,
+.modal-overlay,
+.companion-picker-friend-sheet {
+    -webkit-overflow-scrolling: touch;
+}
+
 /* ── Phase D1: Mobile-first responsive sweep ──────────────────────
    Bottom-tab nav + cramped-top-bar fixes for ≤720px. The four
    most-used pages (Home, Feed, Collections, Profile) live in the
@@ -5343,5 +5359,45 @@ body.is-signed-out .mobile-bottom-nav {
 @media (max-width: 720px) {
     .expense-history-filters {
         grid-template-columns: 1fr;
+    }
+
+    /* `.form-row-split` is the opt-in marker for "this row should
+       stack vertically on mobile." Used by the New Trip + Edit Trip
+       modals' Start/End date pairs, which read as cramped half-
+       width pickers at 375px (each ~140px after the modal's own
+       padding). The class doesn't fight the inline `display: flex`
+       — it just adds the `flex-direction: column` that the inline
+       style doesn't set, letting flexbox cascade naturally. */
+    .form-row-split {
+        flex-direction: column !important;
+        align-items: stretch !important;
+    }
+
+    /* ── Expense History row: column layout on mobile ──────────
+       Desktop has [icon + title + meta]  ←→  [receipt + amount +
+       actions] in a single row. At 375px that crushes the meta
+       text and pushes the amount tight against the actions. On
+       mobile we flip to column: top row is icon + title-stack
+       (already its own flex unit via the inline left-block), bottom
+       row right-aligns the receipt / amount / edit / delete cluster
+       so the amount stays the eye-catcher.
+
+       `> div:nth-child(2)` is the right-side block (the inline
+       structure has exactly two children). Forcing
+       `justify-content: flex-end` makes the receipt + amount +
+       actions cluster on the right edge of the card. */
+    .expense-row {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 12px;
+    }
+    .expense-row > div:nth-child(2) {
+        justify-content: flex-end !important;
+    }
+    /* Allow long expense titles to wrap rather than truncate (the
+       desktop layout never truncates either, but at 375px with no
+       extra horizontal room this matters). */
+    .expense-row__title {
+        word-break: break-word;
     }
 }
