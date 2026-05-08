@@ -423,6 +423,15 @@ export interface AppPreferences {
      *  installs; legacy snapshots without this field also default to
      *  'system' via the theme manager's `?? 'system'` guard. */
     theme?: 'light' | 'dark' | 'system';
+    /** Display language for the app's user-facing strings. The i18n
+     *  module (i18n.ts) reads this via getLocale() on every t() call;
+     *  setLocale() writes here + emits state:changed. Default falls
+     *  back to navigator.language's primary tag (mapped onto a
+     *  shipped locale) when this field is missing — see
+     *  detectBrowserLocale in i18n.ts. Phase D6 ships 'en' + 'pt'
+     *  (founder's market is Portugal); future locales add to the
+     *  union by extending Locale in i18n.ts. */
+    locale?: 'en' | 'pt';
 }
 
 /** Event names emitted via state.emit / subscribed via state.subscribe. */

@@ -5,6 +5,7 @@ import { navigate } from '../router.js';
 import { showModal } from '../components/Modal.js';
 import { POI_CATEGORIES } from './home.js';
 import { setTheme } from '../theme.js';
+import { t, getLocale, setLocale, type Locale } from '../i18n.js';
 
 export const showSettingsTab = (tab: string) => {
     const tabs = (document.querySelectorAll('.settings-tab-btn') as NodeListOf<HTMLElement>);
@@ -236,15 +237,41 @@ export function renderSettings() {
                                 <span class="theme-option-card__check" aria-hidden="true">${currentTheme === value ? '✓' : ''}</span>
                             </button>
                         `;
+                        // D6 (i18n): Language picker as a second card
+                        // in the Appearance sub-tab. Sits below theme,
+                        // sharing the same card chrome. The handler
+                        // delegated below calls setLocale() which
+                        // writes STATE.preferences.locale + emits
+                        // state:changed; the existing
+                        // paintI18nBindings subscriber (main.ts) then
+                        // re-paints every nav-link / aria-label etc.
+                        // to the new language without a reload.
+                        const currentLocale = getLocale();
+                        const langOpt = (value: Locale, label: string, native: string) => `
+                            <button type="button" class="theme-option-card${currentLocale === value ? ' is-active' : ''}" data-locale-value="${value}">
+                                <span class="theme-option-card__icon" aria-hidden="true">🌐</span>
+                                <span class="theme-option-card__label">${label}</span>
+                                <span class="theme-option-card__body">${native}</span>
+                                <span class="theme-option-card__check" aria-hidden="true">${currentLocale === value ? '✓' : ''}</span>
+                            </button>
+                        `;
                         return `
                             ${subTabnav}
                             <div class="card glass" style="padding: 32px; border-radius: 28px;">
-                                <h2 style="color: #5856d6; margin-top: 0;">Appearance</h2>
+                                <h2 style="color: #5856d6; margin-top: 0;">${t('settings.appearance')}</h2>
                                 <p style="color: var(--text-secondary); margin-bottom: 24px;">Pick a theme. <strong>System</strong> follows your device's appearance setting and updates live when it changes.</p>
                                 <div class="theme-options">
-                                    ${opt('light', 'Light', '☀️', 'Bright surfaces, dark text. Classic.')}
-                                    ${opt('dark', 'Dark', '🌙', 'Dark surfaces, light text. Easy on the eyes after sundown.')}
-                                    ${opt('system', 'System', '🖥️', 'Follow your device. Auto-switches when your OS does.')}
+                                    ${opt('light', t('settings.themeLight'), '☀️', 'Bright surfaces, dark text. Classic.')}
+                                    ${opt('dark', t('settings.themeDark'), '🌙', 'Dark surfaces, light text. Easy on the eyes after sundown.')}
+                                    ${opt('system', t('settings.themeSystem'), '🖥️', 'Follow your device. Auto-switches when your OS does.')}
+                                </div>
+                            </div>
+                            <div class="card glass" style="padding: 32px; border-radius: 28px; margin-top: 24px;">
+                                <h2 style="color: #5856d6; margin-top: 0;">${t('settings.language')}</h2>
+                                <p style="color: var(--text-secondary); margin-bottom: 24px;">${t('settings.languageDesc')}</p>
+                                <div class="theme-options">
+                                    ${langOpt('en', t('settings.languageEnglish'), 'English')}
+                                    ${langOpt('pt', t('settings.languagePortuguese'), 'Português')}
                                 </div>
                             </div>
                         `;
@@ -528,6 +555,19 @@ export function renderSettings() {
             const value = themeBtn.dataset.themeValue;
             if (value === 'light' || value === 'dark' || value === 'system') {
                 setTheme(value);
+                (window as any).__ggGeneralSubTab = 'appearance';
+                switchSettingsTab('general');
+            }
+            return;
+        }
+        // D6 (i18n): Language picker in the same Appearance sub-tab.
+        // Same flow as theme — setLocale() writes STATE + emits;
+        // switchSettingsTab re-renders the General tab and the
+        // sub-tab preservation keeps the user on Appearance.
+        if (themeBtn?.dataset.localeValue) {
+            const value = themeBtn.dataset.localeValue;
+            if (value === 'en' || value === 'pt') {
+                setLocale(value);
                 (window as any).__ggGeneralSubTab = 'appearance';
                 switchSettingsTab('general');
             }

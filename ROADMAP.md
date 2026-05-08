@@ -1070,15 +1070,69 @@ original ≤250 KB minified target is comfortably met for first-
 paint; per-page navigations are well under it. Image hosting and
 Lighthouse audit defer to E (production deploy).
 
-### D6 — Internationalization scaffold
+### D6 — Internationalization scaffold ✅ (foundation shipped, growth via wrap-as-touched)
 
-Not full translation today; just the scaffold so adding a language is
-mechanical later.
+Not full translation today; the foundation. Hand-rolled, no library —
+total i18n cost is ~110 LOC for the lookup + table-shape types, ~50
+LOC for the picker UI, ~zero KB for the en+pt tables (literal strings
+in TS).
 
-- [ ] Wrap user-facing strings in `t('home.welcome')`-style keys.
-- [ ] Single `en.json` + a `pt.json` skeleton (founder's market).
-- [ ] Locale picker in settings; defaults to browser language.
-- [ ] Date / currency formatters use locale.
+- [x] **`t('home.welcome')`-style keys** — `frontend/static/js/src/
+i18n.ts` exposes `t(key)` with **compile-time** type safety via a
+      recursive `_DotPath<Translations>` union derived from `en.ts`.
+      Calling `t('nav.foo')` is a TS error if `nav.foo` doesn't exist
+      (verified by adding a deliberate bogus call and watching `tsc`
+      flag it). Wrapping spreads gradually as future PRs touch
+      surfaces — login wall + navbar links + the Appearance sub-tab
+      land in this commit; the rest of the app follows naturally.
+- [x] **`en.ts` + `pt.ts` skeletons** — `frontend/static/js/src/
+locales/en.ts` is the canonical key tree (~30 keys across common /
+      nav / login / settings / profile namespaces). `pt.ts` mirrors
+      the SHAPE via the `Translations` type — a missing key in pt is
+      a `tsc` error at build time. European Portuguese for the
+      founder's market; pt-BR can fork later.
+- [x] **Locale picker in Settings** — Settings → General → Appearance
+      sub-tab now hosts a Language card alongside the existing Theme
+      card (matching `.theme-option-card` chrome). Click writes
+      `STATE.preferences.locale` via `setLocale()` (i18n.ts), emits
+      `state:changed` so saveState persists, and `paintI18nBindings`
+      in main.ts re-paints every `[data-i18n-key]` in the static
+      template without a reload. New users default to the browser's
+      language via `detectBrowserLocale` — `navigator.language` mapped
+      onto the shipped locale union, falling back to `en` for unknown
+      tags.
+- [x] **Date / currency formatters use locale** — `formatHome()` now
+      delegates to `Intl.NumberFormat` with the active locale (pt-PT
+      users see `12,34 €`, en-US users see `€12.34`). `formatDayDate()`
+      uses `Intl.DateTimeFormat` so month abbreviations follow the
+      locale (en-US: `Apr 6`; pt-PT: `6 abr.`). The "year appended
+      when different from current" rule stays presentation logic in
+      utils.ts so each locale picks up its own year-glue convention
+      automatically (`Apr 6, 2025` vs `6 abr. de 2025`).
+
+**E2e gate**: `tests/e2e/flows.spec.js` ships a `language picker
+switches navbar copy + persists to localStorage` test that clicks
+Português, asserts the navbar "Home" text becomes "Início", verifies
+localStorage persistence, then switches back. `tsc --strict` is the
+mechanical gate for the wider rollout: any string still hard-coded
+just doesn't go through `t()` until a PR notices it.
+
+**Convention for future PRs**:
+
+1. When a page is touched, wrap any user-facing string it owns in
+   `t('namespace.key')` — typically `nav.*`, `<page>.*`, or
+   `common.*`.
+2. Add the new key to `locales/en.ts` (canonical) and `locales/pt.ts`
+   (TypeScript will block the commit if pt is missing the key).
+3. Static-template strings in `index.html` use
+   `data-i18n-key="namespace.key"` — `paintI18nBindings()` in main.ts
+   hydrates them on boot + every state:changed.
+
+**Status**: Foundation done. The wrapping spread is intentionally
+gradual — wrapping every string in one mega-PR would create a huge
+diff with no behaviour change. Wrapping happens organically as B1's
+JSX rewrite of home.ts and any future feature work touches each
+surface; the type system enforces parity at every step.
 
 **Phase D done when**: every page works at 375px and 1920px, dark mode
 is shippable, axe + Lighthouse both pass at ≥90, animations are
@@ -1397,19 +1451,19 @@ expenses ADD COLUMN receipt_url TEXT`, threaded through
     round-trip via `STATE.draftExpense.receiptUrl` so re-opening
     an expense pre-fills the picker.
 
-                                **Latent bug uncovered + fixed**: while wiring this up I
-                                discovered the server was writing expense fields camelCase via
-                                `/api/expenses` but reading them back from `/api/data` as
-                                snake_case (`trip_id`, `category_id`, `euro_value`,
-                                `receipt_url`) — frontend filters like
-                                `e.tripId === STATE.activeTripId` would silently return empty
-                                on cold-load. The History tab and Settlement page would have
-                                appeared empty until the user added a fresh expense locally.
-                                Translation now lives in both `routes/data.py` and
-                                `routes/public.py` so the public archived-trip detail also
-                                benefits. 2 pytests for the round-trip (set + clear), legacy
-                                compat test, and 1 e2e for the receipt clip icon. Net: 161/161
-                                pytests + 43/43 e2e + 20/20 visual.
+                                    **Latent bug uncovered + fixed**: while wiring this up I
+                                    discovered the server was writing expense fields camelCase via
+                                    `/api/expenses` but reading them back from `/api/data` as
+                                    snake_case (`trip_id`, `category_id`, `euro_value`,
+                                    `receipt_url`) — frontend filters like
+                                    `e.tripId === STATE.activeTripId` would silently return empty
+                                    on cold-load. The History tab and Settlement page would have
+                                    appeared empty until the user added a fresh expense locally.
+                                    Translation now lives in both `routes/data.py` and
+                                    `routes/public.py` so the public archived-trip detail also
+                                    benefits. 2 pytests for the round-trip (set + clear), legacy
+                                    compat test, and 1 e2e for the receipt clip icon. Net: 161/161
+                                    pytests + 43/43 e2e + 20/20 visual.
 
 5.  **Trip share-via-link (read-only)** — `4-6 hours`, schema +
     public backend route + new public frontend route + Views counter.

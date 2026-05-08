@@ -6,6 +6,7 @@ import { navigate } from '../router.js';
 import { viewArchivedDetails } from './collections.js';
 import { showModal } from '../components/Modal.js';
 import { applyMapTheme } from '../theme.js';
+import { t } from '../i18n.js';
 
 export const logout = async () => {
     try {
@@ -58,31 +59,35 @@ export const logout = async () => {
 export function renderLoginWall() {
     const div = document.createElement('div');
     const isReturning = STATE.hasLoggedInBefore;
+    // D6 (i18n): all user-facing strings flow through t(). Brand
+    // name kept un-translated (it's a proper noun). Returning vs
+    // new-user copy switches via the per-state key on subtitle +
+    // CTA card title.
     div.innerHTML = `
         <div class="login-wall">
             <div class="login-wall__inner">
-                <h1 class="login-wall__title" style="background: linear-gradient(135deg, #0071e3 0%, #ff9500 50%, #34c759 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">The Great Getaway</h1>
-                <p class="login-wall__subtitle">${isReturning ? 'Welcome back. Sign in to pick up where you left off.' : 'Plan trips, split expenses, and bring friends along — all synced across devices.'}</p>
+                <h1 class="login-wall__title" style="background: linear-gradient(135deg, #0071e3 0%, #ff9500 50%, #34c759 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">${t('login.brand')}</h1>
+                <p class="login-wall__subtitle">${isReturning ? t('login.subtitleReturning') : t('login.subtitleNewUser')}</p>
 
                 <div class="login-wall__features">
                     <div class="login-wall__feature">
                         <span class="login-wall__feature-icon">🗺️</span>
-                        <div><strong>Trips &amp; days</strong><span>Plan and journal each day of your journey.</span></div>
+                        <div><strong>${t('login.feature1Title')}</strong><span>${t('login.feature1Body')}</span></div>
                     </div>
                     <div class="login-wall__feature">
                         <span class="login-wall__feature-icon">💸</span>
-                        <div><strong>Shared expenses</strong><span>Split costs and settle up cleanly.</span></div>
+                        <div><strong>${t('login.feature2Title')}</strong><span>${t('login.feature2Body')}</span></div>
                     </div>
                     <div class="login-wall__feature">
                         <span class="login-wall__feature-icon">👥</span>
-                        <div><strong>Friends &amp; companions</strong><span>Invite people to plan along with you.</span></div>
+                        <div><strong>${t('login.feature3Title')}</strong><span>${t('login.feature3Body')}</span></div>
                     </div>
                 </div>
 
                 <div class="card glass login-wall__card">
-                    <h2 class="login-wall__card-title">${isReturning ? 'Sign back in' : 'Create your account with Google'}</h2>
+                    <h2 class="login-wall__card-title">${isReturning ? t('login.ctaCardTitleReturning') : t('login.ctaCardTitleNewUser')}</h2>
                     <div id="loginWallBtnContainer" class="login-wall__btn-container"></div>
-                    <p class="login-wall__fineprint">Your data is tied to your Google account and synced server-side; signing out clears the local copy.</p>
+                    <p class="login-wall__fineprint">${t('login.finePrint')}</p>
                 </div>
             </div>
         </div>

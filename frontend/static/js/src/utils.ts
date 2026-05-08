@@ -3,6 +3,7 @@
 import { TRAVEL_DATA_DEFAULT, DESTINATION_DATA, CONVERSION_RATES, CURRENCY_SYMBOLS, LOCALE_TO_CURRENCY } from './constants.js';
 import { STATE } from './state.js';
 import { showModal } from './components/Modal.js';
+import { formatCurrency, formatDateShort, getIntlLocale } from './i18n.js';
 
 // ── Home currency helpers ─────────────────────────────────────────────────
 // Display preference layered on top of the existing EUR-denominated storage.
@@ -61,6 +62,14 @@ export function convertCurrency(amount: number, from: string, to: string): numbe
 /**
  * Format an amount in the user's home currency with the right symbol and
  * 2 decimals. Convenience wrapper used by every display site.
+ *
+ * D6 (i18n): the formatting now goes through `Intl.NumberFormat` via
+ * i18n.formatCurrency so a Portuguese user sees "12,34 €" and an English
+ * user sees "€12.34" — same input, locale-aware separators + symbol
+ * placement. The fallback to manual `${sym}${amount}` formatting kicks
+ * in only if Intl rejects the currency code (e.g. an obscure code we
+ * support in CONVERSION_RATES that's not in the CLDR data).
+ *
  * @param {number} amount
  * @param {string} from — original currency code of `amount`
  * @returns {string}
@@ -68,8 +77,7 @@ export function convertCurrency(amount: number, from: string, to: string): numbe
 export function formatHome(amount: number, from: string = 'EUR'): string {
     const home = getHomeCurrency();
     const converted = convertCurrency(amount, from, home);
-    const sym = CURRENCY_SYMBOLS[home] || home + ' ';
-    return `${sym}${converted.toFixed(2)}`;
+    return formatCurrency(converted, home);
 }
 
 /** Symbol lookup for any code (€, $, £, …). Falls back to the code + space. */
@@ -419,21 +427,23 @@ export function esc(v: unknown): string {
         .replace(/'/g, '&#39;');
 }
 
-// Short English month abbreviations — kept locale-invariant on
-// purpose so the display format reads the same regardless of the
-// user's browser locale ("Apr 6" everywhere, not "avr. 6" / "Abr 6").
-const _MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
 /**
  * Format a stored date for display. Input is canonical YYYY-MM-DD
- * (sortable, browser-safe). Output is "Mon D" (e.g. "Apr 6") —
- * compact, locale-invariant, and the format the user requested.
+ * (sortable, browser-safe). Output is "Mon D" (e.g. "Apr 6") in the
+ * active locale — Portuguese users see "6 abr.", English see "Apr 6".
  * If the resulting year differs from the current year we append it
- * (e.g. "Apr 6, 2025") so multi-year displays stay unambiguous;
- * same-year dates drop the year for brevity.
+ * (e.g. "Apr 6, 2025" / "6 abr. de 2025") so multi-year displays
+ * stay unambiguous; same-year dates drop the year for brevity.
  *
  * UTC parsing avoids midnight-near-DST timezone shifts.
+ *
+ * D6 (i18n): switched from a hard-coded English month abbreviation
+ * table to Intl.DateTimeFormat via i18n.formatDateShort. The
+ * "year appended when different from current" rule still lives here,
+ * not in the formatter (the rule is presentation logic, not locale
+ * data). Years are appended via Intl when needed so the locale's
+ * own year-separator convention (`, ` in en-US, ` de ` in pt-PT)
+ * is respected.
  *
  * @param {string} dateStr  YYYY-MM-DD
  * @returns {string}
@@ -442,9 +452,21 @@ export function formatDayDate(dateStr: string | null | undefined): string {
     if (!dateStr) return '';
     const date = new Date(dateStr + 'T00:00:00Z');
     if (isNaN(date.getTime())) return '';
-    const day = date.getUTCDate();
-    const month = _MONTHS_SHORT[date.getUTCMonth()];
     const year = date.getUTCFullYear();
     const currentYear = new Date().getUTCFullYear();
-    return year === currentYear ? `${month} ${day}` : `${month} ${day}, ${year}`;
+    if (year === currentYear) {
+        return formatDateShort(date);
+    }
+    // Different year — let Intl include it so the locale's own
+    // year-glue convention applies (en-US: "Apr 6, 2025"; pt-PT:
+    // "6 abr. de 2025").
+    try {
+        return new Intl.DateTimeFormat(getIntlLocale(), {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+        }).format(date);
+    } catch {
+        return `${formatDateShort(date)}, ${year}`;
+    }
 }

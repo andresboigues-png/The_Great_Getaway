@@ -685,6 +685,57 @@ test.describe('Critical flows — UI-driven', () => {
         expect(persistedTheme).toBe('light');
     });
 
+    test('language picker switches navbar copy + persists to localStorage', async ({ page }) => {
+        // Phase D6: Settings → General → Appearance hosts the language
+        // picker (`en` / `pt`). Picking pt rewrites STATE.preferences.
+        // locale and emits state:changed; main.ts's paintI18nBindings
+        // subscriber re-paints every `[data-i18n-key]` in the DOM
+        // (the navbar links live in the static template, hence the
+        // hydration via main.ts on boot + on every emit).
+        const userId = uniqueId('user');
+        await getAuthForApi(page, userId);
+        await openFreshApp(page, userId);
+
+        // Sanity: navbar link starts as English ("Home").
+        const homeLink = page.locator('.nav-links .nav-item[data-page="home"]');
+        await expect(homeLink).toHaveText('Home');
+
+        // Navigate to Settings → General → Appearance.
+        await page.evaluate(() => {
+            document.getElementById('sidebar')?.classList.remove('open');
+            document.getElementById('sidebarOverlay')?.classList.remove('open');
+        });
+        await navigateTo(page, 'settings');
+        const generalCard = page.locator('.settings-tab-card[data-tab="general"]');
+        await generalCard.waitFor({ state: 'visible', timeout: 5000 });
+        await generalCard.click();
+        const appearanceSubTab = page.locator('.general-subtab[data-general-sub="appearance"]');
+        await appearanceSubTab.waitFor({ state: 'visible', timeout: 5000 });
+        await appearanceSubTab.click();
+
+        // Click Português; expect the navbar text to update without a
+        // page reload (paintI18nBindings re-runs on state:changed).
+        const ptBtn = page.locator('.theme-option-card[data-locale-value="pt"]');
+        await ptBtn.waitFor({ state: 'visible', timeout: 5000 });
+        await ptBtn.click();
+        await expect(homeLink).toHaveText('Início');
+
+        // Persistence: the choice lives in STATE.preferences.locale,
+        // saved to localStorage on every state:changed emit.
+        const persistedLocale = await page.evaluate(() => {
+            const raw = localStorage.getItem('theGreatEscapeState');
+            if (!raw) return null;
+            const s = JSON.parse(raw);
+            return (s.preferences || {}).locale;
+        });
+        expect(persistedLocale).toBe('pt');
+
+        // Switching back to English re-paints the original copy.
+        const enBtn = page.locator('.theme-option-card[data-locale-value="en"]');
+        await enBtn.click();
+        await expect(homeLink).toHaveText('Home');
+    });
+
     test('system theme follows prefers-color-scheme on boot (no FOUC)', async ({ browser }) => {
         // Verifies the inline <head> script in index.html sets
         // data-theme="dark" BEFORE first paint when (a) the user

@@ -1,5 +1,6 @@
 import { STATE, loadState, emit, subscribe } from './state.js';
 import { initThemeManager } from './theme.js';
+import { t, type TranslationKey } from './i18n.js';
 import { syncWithServer, pullFromServer, fetchNotifications, markNotificationsRead, deleteTrip, archiveTripOnServer, apiUrl, apiFetch, setAuthToken, clearAuthToken } from './api.js';
 import { showConfirmModal, esc } from './utils.js';
 import { navigate } from './router.js';
@@ -359,6 +360,29 @@ function initGoogleLogin() {
     tryInit();
 }
 
+// ── i18n hydration for static template strings ──
+//
+// Elements in index.html that need translation declare their key
+// via `data-i18n-key="nav.home"` (text content) or
+// `data-i18n-aria-label="..."` / `data-i18n-title="..."` for those
+// attributes. paintI18nBindings walks them and sets the right
+// property from the active locale. Runs on boot and on every
+// state:changed so a locale switch re-paints without a reload.
+function paintI18nBindings(): void {
+    document.querySelectorAll<HTMLElement>('[data-i18n-key]').forEach((el) => {
+        const key = el.getAttribute('data-i18n-key') as TranslationKey | null;
+        if (key) el.textContent = t(key);
+    });
+    document.querySelectorAll<HTMLElement>('[data-i18n-aria-label]').forEach((el) => {
+        const key = el.getAttribute('data-i18n-aria-label') as TranslationKey | null;
+        if (key) el.setAttribute('aria-label', t(key));
+    });
+    document.querySelectorAll<HTMLElement>('[data-i18n-title]').forEach((el) => {
+        const key = el.getAttribute('data-i18n-title') as TranslationKey | null;
+        if (key) el.setAttribute('title', t(key));
+    });
+}
+
 // ── INITIALIZATION ──
 
 async function init() {
@@ -411,7 +435,13 @@ async function init() {
     updateUserUI();
     updateNotificationUI();
     updateTripSelector();
-    
+
+    // D6 (i18n): paint i18n bindings on boot + re-paint on every
+    // state:changed (so a locale switch in Settings updates without
+    // a reload). Cheap — walks `[data-i18n-key]` and sets textContent.
+    paintI18nBindings();
+    subscribe(EVENTS.STATE_CHANGED, paintI18nBindings);
+
     // Determine start page based on hash or default to home
     const startPage = resolvePage(window.location.hash.replace('#', '') || PAGES.HOME);
     navigate(startPage);
