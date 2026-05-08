@@ -19,11 +19,13 @@ import { fetchTimeZone, formatLocalTime, streetViewUrl } from '../googleMapsServ
 import { paintWeatherChips, loadAndPaintWeather, type WeatherForecast } from './home/weather.js';
 import { renderDayRoutePolyline } from './home/routePolyline.js';
 import { POI_CATEGORIES, pickPlaceIcon, isPrimaryMatch } from './home/poiCategories.js';
+import { openPhotoLightbox, openPdfPreview, looksLikePdfUrl } from './home/lightbox.js';
 
-// Re-export POI_CATEGORIES so settings.ts's existing import
-// (`import { POI_CATEGORIES } from './home.js'`) keeps working.
-// Settings doesn't need to know home was split into modules.
+// Re-exports so existing external importers don't need to learn
+// about the home/* split. settings.ts pulls POI_CATEGORIES;
+// collections.ts pulls openPdfPreview + looksLikePdfUrl.
 export { POI_CATEGORIES };
+export { openPdfPreview, looksLikePdfUrl };
 import { navigate } from '../router.js';
 import { showPersTab } from './settings.js';
 import { openNewTripModal, openAddDayModal, openEditTripModal, openCompanionPickerModal, openTripMembersModal } from '../modals.js';
@@ -3950,77 +3952,11 @@ const openAddTripPhotoUrlModal = (trip) => {
 
 /** Lightweight image lightbox — single src, click anywhere to close.
  *  Reuses the showModal infra so Esc + backdrop dismissal "just work". */
-const openPhotoLightbox = (src) => {
-    if (!src) return;
-    const { root, close } = showModal({
-        cardClass: 'card glass',
-        cardStyle: 'background: transparent; border: 0; padding: 0; max-width: 92vw; max-height: 92vh;',
-        innerHTML: `<img src="${esc(src)}" alt="Trip photo" style="display:block; max-width: 92vw; max-height: 92vh; border-radius: 18px; object-fit: contain; box-shadow: 0 30px 80px rgba(0,0,0,0.4);">`,
-    });
-    root.addEventListener('click', () => close());
-};
-
-/** In-app PDF preview. Renders the file in a borderless `<iframe>`
- *  inside a large modal so the user doesn't have to leave GG to read
- *  a booking confirmation. Browser-native PDF viewer handles rendering
- *  + zoom + page nav + download — works on Chrome, Safari, Firefox.
- *
- *  Caveat: cross-origin PDFs (Google Drive share links, some hosts)
- *  may set `X-Frame-Options: DENY` or `Content-Security-Policy:
- *  frame-ancestors none`, blocking the iframe entirely. We can't
- *  reliably detect that ahead of time (the load event fires either
- *  way), so the modal always carries an "Open in new tab ↗" button
- *  as a guaranteed fallback. Same-origin PDFs (anything we host via
- *  /api/upload/...) always work.
- *
- *  @param {string} url
- *  @param {string} [name] - display name in the modal header
- */
-export const openPdfPreview = (url, name) => {
-    if (!url) return;
-    const safeUrl = esc(url);
-    const safeName = esc(name || 'Document');
-    const { root, close } = showModal({
-        cardClass: 'card glass',
-        cardStyle: 'width: min(1100px, 96vw); height: min(880px, 92vh); padding: 0; background: white; border: 1px solid rgba(0,0,0,0.08); border-radius: 18px; overflow: hidden; display: flex; flex-direction: column;',
-        innerHTML: `
-            <!-- Header bar — name + actions. Sticks to the top of
-                 the modal card; iframe takes the rest. -->
-            <div style="display:flex; align-items:center; gap:12px; padding: 10px 14px 10px 18px; border-bottom: 1px solid rgba(0,0,0,0.07); background: rgba(245,247,250,0.95); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); flex-shrink:0;">
-                <span style="font-size:1.1rem; line-height:1; flex-shrink:0;">📎</span>
-                <h3 style="flex:1; min-width:0; margin:0; font-size:0.95rem; font-weight:800; color:#002d5b; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${safeName}</h3>
-                <a href="${safeUrl}" target="_blank" rel="noreferrer"
-                    style="background:rgba(0,113,227,0.08); color:var(--accent-blue); border:1px solid rgba(0,113,227,0.18); padding:6px 12px; border-radius:999px; font-size:0.75rem; font-weight:800; text-decoration:none; display:inline-flex; align-items:center; gap:6px;"
-                    title="Open this PDF in a new browser tab">
-                    Open in new tab ↗
-                </a>
-                <button id="closePdfPreviewBtn" type="button" aria-label="Close"
-                    style="background:rgba(0,0,0,0.04); border:0; color:rgba(0,0,0,0.55); width:30px; height:30px; border-radius:50%; cursor:pointer; font-size:0.95rem; line-height:1; flex-shrink:0;">✕</button>
-            </div>
-            <!-- Body — iframe fills the rest. The #toolbar=0 fragment
-                 hint asks Chrome to hide its built-in toolbar (cleaner
-                 inline view); ignored by Safari/Firefox without harm. -->
-            <iframe src="${safeUrl}#toolbar=1&navpanes=0" title="${safeName}"
-                style="flex:1; border:0; display:block; background:#f5f7fa; min-height:0;"
-                referrerpolicy="no-referrer"></iframe>
-        `,
-    });
-    (q(root, '#closePdfPreviewBtn') as HTMLButtonElement).onclick = () => close();
-};
-
-/** Detect whether a URL points to something we can preview inline
- *  via the browser's native PDF viewer. Conservative — we only flip
- *  the in-app preview for clear PDF signals. Anything else (Drive
- *  share pages, generic links) keeps the existing "open in new tab"
- *  behaviour. */
-export const looksLikePdfUrl = (url) => {
-    if (!url) return false;
-    if (/^data:application\/pdf/i.test(url)) return true;
-    // Strip query string + fragment before checking the extension —
-    // many CDN URLs append ?token=... or #page=2.
-    const cleaned = url.split(/[?#]/)[0];
-    return /\.pdf$/i.test(cleaned);
-};
+// openPhotoLightbox + openPdfPreview + looksLikePdfUrl moved
+// to ./home/lightbox.ts during the Phase B1 home.ts split.
+// Imported at the top of this file; openPdfPreview +
+// looksLikePdfUrl are re-exported so collections.ts's existing
+// import keeps working.
 
 
 /** Read-only modal for viewing a day's plan. Used in two places:
