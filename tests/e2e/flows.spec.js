@@ -434,6 +434,75 @@ test.describe('Critical flows — UI-driven', () => {
         if (testInfo.project.name === 'chromium-mobile') test.skip();
     });
 
+    test('to-do list AI-tick checkbox toggles + persists to STATE', async ({ page }) => {
+        // Regression for "to-do list tagging for AI not working".
+        // The Todo page renders one checkbox per markedPlace; clicking
+        // it calls toggleMarkedPlaceForAI, which mutates
+        // `entry.forAI` deeply on the trip object then emits
+        // state:changed. Pre-fix the React store's
+        // useSyncExternalStore snapshot was `selector(STATE)` —
+        // returning the same `STATE.trips` reference each render —
+        // so React's Object.is check saw no change and skipped the
+        // re-render. Visible bug: checkbox flips its underlying
+        // data but doesn't update its rendered checked state.
+        // Post-fix: store snapshot is a monotonic version counter
+        // bumped on every emit, forcing re-render on every state
+        // change regardless of selector identity.
+        const userId = uniqueId('user');
+        const auth = await getAuthForApi(page, userId);
+        const tripId = uniqueId('trip-todo');
+        // Seed a trip with one marked place (forManual:true so it
+        // shows on the to-do list, forAI:false so we can flip it).
+        await createTripViaApi(page, auth.headers, {
+            id: tripId,
+            name: 'Todo Test Trip',
+            country: 'Spain',
+            markedPlaces: [
+                {
+                    placeId: 'p-1',
+                    name: 'Test Place',
+                    icon: '📍',
+                    color: '#0071e3',
+                    forManual: true,
+                    forAI: false,
+                },
+            ],
+        });
+        await openFreshApp(page, userId);
+        // Pick the seeded trip via the trip selector (mirrors both
+        // navbar + sidebar selectors).
+        await page.locator('#tripSelector, #tripSelectorSidebar').first().selectOption(tripId);
+
+        // Navigate to the to-do list.
+        await page.evaluate(() => {
+            document.getElementById('sidebar')?.classList.remove('open');
+            document.getElementById('sidebarOverlay')?.classList.remove('open');
+        });
+        await navigateTo(page, 'todo');
+
+        // The seeded place renders one row with a checkbox. forAI
+        // starts false → checkbox unchecked, count "0/1 ticked".
+        const checkbox = page.locator('input.todo-ai-tick').first();
+        await checkbox.waitFor({ state: 'visible', timeout: 5000 });
+        await expect(checkbox).not.toBeChecked();
+        await expect(page.locator('text=0/1 ticked for AI consideration')).toBeVisible();
+
+        // Click the checkbox: flips entry.forAI true, the React
+        // store re-renders, the checkbox visually flips checked AND
+        // the counter row updates to "1/1".
+        await checkbox.click();
+        await expect(checkbox).toBeChecked();
+        await expect(page.locator('text=1/1 ticked for AI consideration')).toBeVisible();
+
+        // Click again: flips back to false. Both the checkbox and
+        // the counter must follow the underlying data — same shape
+        // of bug would silently stick at the post-flip state if
+        // the store re-render is broken.
+        await checkbox.click();
+        await expect(checkbox).not.toBeChecked();
+        await expect(page.locator('text=0/1 ticked for AI consideration')).toBeVisible();
+    });
+
     test('desktop sidebar rail is visible and clicks navigate to deep pages', async ({ page }) => {
         // Per-user request: an always-visible icon rail on the left
         // edge of the viewport at desktop sizes that bypasses the

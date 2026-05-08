@@ -850,12 +850,19 @@ h1 {
     border-radius: 12px;
     color: var(--text-primary);
     text-decoration: none;
-    transition: background 0.18s ease, color 0.18s ease, transform 0.05s ease;
+    transition: background 0.18s ease, transform 0.05s ease;
+}
+/* Match the burger drawer's icon styling: SVG stroke is the brand
+   accent-blue regardless of hover/focus, since the rail items have
+   no text label and the icon IS the only chrome on each row. The
+   hover/active state adds a subtle background tint for affordance
+   without re-tinting the glyph. */
+.sidebar-rail__item svg {
+    stroke: var(--accent-blue);
 }
 .sidebar-rail__item:hover,
 .sidebar-rail__item:focus-visible {
     background: rgba(0, 113, 227, 0.08);
-    color: #005bb8;
     outline: none;
 }
 .sidebar-rail__item:active {
@@ -863,9 +870,10 @@ h1 {
 }
 .sidebar-rail__item.active {
     /* The .active class is set by main.ts's nav-item highlight on
-       navigation. Match the existing nav-item active emphasis. */
+       navigation. Match the existing nav-item active emphasis with
+       a stronger backdrop tint — the icon stroke colour stays
+       constant per the rule above. */
     background: rgba(0, 113, 227, 0.14);
-    color: #005bb8;
 }
 /* Coloured section dot — small circle replacing the burger drawer's
    labelled section headers. The colour is per-section and threaded
@@ -933,6 +941,24 @@ body.is-signed-out .sidebar-rail {
     /* Modal overlays cover the whole viewport — keep them above the
        rail via the existing modal z-index, no new rule needed
        (.modal-overlay is z-index 2000+). */
+
+    /* Align the hamburger button's centerline with the rail's
+       centerline (rail is 64px wide, centered at viewport x=32).
+       Currently the navbar's `padding: 0 40px` puts the hamburger
+       at x=40-84; pulling it back via `position: relative; left`
+       slides just the button (and its inner span lines) without
+       reshuffling the flex siblings (brand text + nav-icon
+       buttons), so the rest of the navbar layout stays stable. */
+    .hamburger-btn {
+        position: relative;
+        left: -30px;
+    }
+    /* The flex container holding hamburger + brand + bell etc. is
+       inline-styled with `gap: 16px`. The hamburger's negative
+       offset pulls back into the rail column visually; the gap
+       still applies between the hamburger's source-order position
+       and the brand, but since `position: relative` doesn't change
+       the layout box, the brand stays at its original spot. */
 }
 @media (max-width: 720px) {
     .sidebar-rail {

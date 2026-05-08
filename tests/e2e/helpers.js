@@ -244,16 +244,25 @@ export async function createTripViaApi(ctx, headers, trip = {}) {
     /** @type {import('@playwright/test').APIRequestContext} */
     const api = 'request' in ctx ? ctx.request : ctx;
     const id = trip.id || `trip-flow-${Math.random().toString(36).slice(2, 8)}`;
+    /** @type {Record<string, any>} */
+    const tripPayload = {
+        id,
+        name: trip.name || 'Flow Test Trip',
+        country: trip.country || 'Portugal',
+        isPublic: trip.isPublic ?? false,
+    };
+    // Forward optional fields when the test seeds them — the
+    // upsert-trip endpoint accepts these as serialised JSON columns
+    // (see routes/trips.py). Skipping when undefined so the server
+    // falls back to its own defaults (NULL / empty array).
+    if (trip.markedPlaces !== undefined) tripPayload.markedPlaces = trip.markedPlaces;
+    if (trip.companions !== undefined) tripPayload.companions = trip.companions;
+    if (trip.documents !== undefined) tripPayload.documents = trip.documents;
+    if (trip.photos !== undefined) tripPayload.photos = trip.photos;
+    if (trip.checklist !== undefined) tripPayload.checklist = trip.checklist;
     const res = await api.post('/api/trips', {
         headers,
-        data: {
-            trip: {
-                id,
-                name: trip.name || 'Flow Test Trip',
-                country: trip.country || 'Portugal',
-                isPublic: trip.isPublic ?? false,
-            },
-        },
+        data: { trip: tripPayload },
     });
     if (!res.ok()) throw new Error(`createTripViaApi failed: ${res.status()} ${await res.text()}`);
     return id;
