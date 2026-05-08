@@ -315,7 +315,7 @@ fails loudly ✅. Every later phase happens under this safety net.
 fear. Splitting `home.js` and `main.py` and adding design tokens makes the
 code addressable for the React migration in Phase C.
 
-### B1 — Split `pages/home.js` ⚠️ ~85% (home.ts blocked on Phase C)
+### B1 — Split `pages/home.js` ⚠️ in progress (home.ts 2,580 → 2,345 → ?)
 
 5,378 lines. Refactor into focused files. The pattern that worked for
 `modals.js` in the original Phase 4 is the playbook.
@@ -323,7 +323,7 @@ code addressable for the React migration in Phase C.
 - [x] Identify the 8–9 natural boundaries inside `home.js`. 13 modules
       shipped under `pages/home/` covering slideshow, day-detail,
       checklist, getting-started, weather, route-polyline, etc.
-- [x] Extract one slice at a time with the safety net (pytest + e2e + visual + tsc) catching breakage. 18 commits across N+7/N+9.
+- [x] Extract one slice at a time with the safety net (pytest + e2e + visual + tsc) catching breakage. 18 commits across N+7/N+9, plus the post-Phase-C slices below.
 - [x] Re-export `renderHome` through the host file so the router
       keeps working unchanged.
 - [x] Delete dead imports / closure references the split exposes.
@@ -331,21 +331,34 @@ code addressable for the React migration in Phase C.
       ai.ts (810→773), collections.ts (900→410), modals.ts
       (1005→657), feed.ts (1058→623). All shipped in this session
       with full e2e suite green after each cut.
-- [ ] **home.ts at 2,568** — the structural limit. `renderHome()`
-      itself is 2,341 lines with 14 inner closures and 82
-      closure-bound DOM/state references. The map setup specifically
-      can't be detangled without invasive refactoring of how its
-      event handlers close over `div`, `googleMap`, polyline state,
-      etc. Three earlier extractions (slideshow, day-detail modal,
-      getting-started guide) confirmed the closure-coupling pattern
-      around the map renderer.
+- [ ] **home.ts shrinking pass-by-pass** — Phase C closed by
+      wrapping renderHome in a 38-line thin React component
+      (Home.tsx). The interior decomposition is now happening as
+      a multi-session arc with one self-contained slice per commit:
 
-**Status**: 5 of 6 files now meet the bound. home.ts is parked for
-Phase C — React's component model is the natural place to detangle
-these closures (each section becomes its own component with explicit
-props, vs sharing a 2,300-line lexical scope). Trying to do it under
-the current architecture is high-risk for low return; better to
-migrate clean.
+    | Slice                                            | Lines | home.ts after | Status |
+    | ------------------------------------------------ | ----: | ------------: | ------ |
+    | Path-tab HTML builders (`pages/home/pathTab.ts`) |   235 |         2,345 | ✅     |
+    | Map-search banner closures                       |     ? |             ? | ⏳     |
+    | Day markers + Anchor pin SVG construction        |     ? |             ? | ⏳     |
+    | POI category palette + Places-API integration    |     ? |             ? | ⏳     |
+    | Day-card + welcome-state HTML builders           |     ? |             ? | ⏳     |
+    | Map setup + polyline animation init              |     ? |             ? | ⏳     |
+    | Hash listeners + closing wiring                  |     ? |             ? | ⏳     |
+    | …                                                |       |               |        |
+
+        Pacing is "one clean slice per session"; each commit is
+        reviewable, behaviour-preserving (full safety net green), and
+        shrinks home.ts by 200-400 lines. Goal is home.ts under 800
+        lines (the bound the rest of B1 targets).
+
+**Status**: First post-Phase-C slice landed (path tab → pathTab.ts,
+−235 lines). home.ts is no longer parked — React's mount infra
+(Phase C) plus the proven slice-by-slice playbook makes the
+decomposition a measurable per-commit grind. The map setup
+(polyline rAF, marker construction, place searches) is the
+heaviest cluster and ships last; everything around it slices
+cleanly first.
 
 ### B2 — Components preview route ✅
 
@@ -1451,19 +1464,19 @@ expenses ADD COLUMN receipt_url TEXT`, threaded through
     round-trip via `STATE.draftExpense.receiptUrl` so re-opening
     an expense pre-fills the picker.
 
-                                    **Latent bug uncovered + fixed**: while wiring this up I
-                                    discovered the server was writing expense fields camelCase via
-                                    `/api/expenses` but reading them back from `/api/data` as
-                                    snake_case (`trip_id`, `category_id`, `euro_value`,
-                                    `receipt_url`) — frontend filters like
-                                    `e.tripId === STATE.activeTripId` would silently return empty
-                                    on cold-load. The History tab and Settlement page would have
-                                    appeared empty until the user added a fresh expense locally.
-                                    Translation now lives in both `routes/data.py` and
-                                    `routes/public.py` so the public archived-trip detail also
-                                    benefits. 2 pytests for the round-trip (set + clear), legacy
-                                    compat test, and 1 e2e for the receipt clip icon. Net: 161/161
-                                    pytests + 43/43 e2e + 20/20 visual.
+                                        **Latent bug uncovered + fixed**: while wiring this up I
+                                        discovered the server was writing expense fields camelCase via
+                                        `/api/expenses` but reading them back from `/api/data` as
+                                        snake_case (`trip_id`, `category_id`, `euro_value`,
+                                        `receipt_url`) — frontend filters like
+                                        `e.tripId === STATE.activeTripId` would silently return empty
+                                        on cold-load. The History tab and Settlement page would have
+                                        appeared empty until the user added a fresh expense locally.
+                                        Translation now lives in both `routes/data.py` and
+                                        `routes/public.py` so the public archived-trip detail also
+                                        benefits. 2 pytests for the round-trip (set + clear), legacy
+                                        compat test, and 1 e2e for the receipt clip icon. Net: 161/161
+                                        pytests + 43/43 e2e + 20/20 visual.
 
 5.  **Trip share-via-link (read-only)** — `4-6 hours`, schema +
     public backend route + new public frontend route + Views counter.
