@@ -725,12 +725,11 @@ test.describe('Critical flows — UI-driven', () => {
     });
 
     test('language picker switches navbar copy + persists to localStorage', async ({ page }) => {
-        // Phase D6: Settings → General → Appearance hosts the language
-        // picker (`en` / `pt`). Picking pt rewrites STATE.preferences.
-        // locale and emits state:changed; main.ts's paintI18nBindings
-        // subscriber re-paints every `[data-i18n-key]` in the DOM
-        // (the navbar links live in the static template, hence the
-        // hydration via main.ts on boot + on every emit).
+        // Phase D6: Settings → General has three peer sub-tabs:
+        // Map pills, Appearance, and (per user request) Language as
+        // its own card. Picking pt rewrites STATE.preferences.locale
+        // and emits state:changed; main.ts's paintI18nBindings
+        // subscriber re-paints every `[data-i18n-key]` in the DOM.
         const userId = uniqueId('user');
         await getAuthForApi(page, userId);
         await openFreshApp(page, userId);
@@ -739,7 +738,7 @@ test.describe('Critical flows — UI-driven', () => {
         const homeLink = page.locator('.nav-links .nav-item[data-page="home"]');
         await expect(homeLink).toHaveText('Home');
 
-        // Navigate to Settings → General → Appearance.
+        // Navigate to Settings → General → Language.
         await page.evaluate(() => {
             document.getElementById('sidebar')?.classList.remove('open');
             document.getElementById('sidebarOverlay')?.classList.remove('open');
@@ -748,9 +747,9 @@ test.describe('Critical flows — UI-driven', () => {
         const generalCard = page.locator('.settings-tab-card[data-tab="general"]');
         await generalCard.waitFor({ state: 'visible', timeout: 5000 });
         await generalCard.click();
-        const appearanceSubTab = page.locator('.general-subtab[data-general-sub="appearance"]');
-        await appearanceSubTab.waitFor({ state: 'visible', timeout: 5000 });
-        await appearanceSubTab.click();
+        const languageSubTab = page.locator('.general-subtab[data-general-sub="language"]');
+        await languageSubTab.waitFor({ state: 'visible', timeout: 5000 });
+        await languageSubTab.click();
 
         // Click Português; expect the navbar text to update without a
         // page reload (paintI18nBindings re-runs on state:changed).

@@ -208,6 +208,10 @@ export function renderSettings() {
                 ${isGeneral ? (() => {
                     const generalSubTab = activeTab === 'general' ? (window.__ggGeneralSubTab || 'pills') : 'pills';
                     const tab = (t: string) => generalSubTab === t ? ' is-active' : '';
+                    // Three peer sub-tabs: Map pills, Appearance, Language.
+                    // Per-user request the Language picker is now its own
+                    // sub-tab next to Appearance (was nested inside it
+                    // when D6 first shipped).
                     const subTabnav = `
                         <div class="general-subtabs" role="tablist" aria-label="General settings sections">
                             <button type="button" class="general-subtab${tab('pills')}" data-general-sub="pills" role="tab" aria-selected="${generalSubTab === 'pills' ? 'true' : 'false'}">
@@ -216,7 +220,11 @@ export function renderSettings() {
                             </button>
                             <button type="button" class="general-subtab${tab('appearance')}" data-general-sub="appearance" role="tab" aria-selected="${generalSubTab === 'appearance' ? 'true' : 'false'}">
                                 <span class="general-subtab__icon">🎨</span>
-                                <span class="general-subtab__label">Appearance</span>
+                                <span class="general-subtab__label">${t('settings.appearance')}</span>
+                            </button>
+                            <button type="button" class="general-subtab${tab('language')}" data-general-sub="language" role="tab" aria-selected="${generalSubTab === 'language' ? 'true' : 'false'}">
+                                <span class="general-subtab__icon">🌐</span>
+                                <span class="general-subtab__label">${t('settings.language')}</span>
                             </button>
                         </div>
                     `;
@@ -237,15 +245,26 @@ export function renderSettings() {
                                 <span class="theme-option-card__check" aria-hidden="true">${currentTheme === value ? '✓' : ''}</span>
                             </button>
                         `;
-                        // D6 (i18n): Language picker as a second card
-                        // in the Appearance sub-tab. Sits below theme,
-                        // sharing the same card chrome. The handler
-                        // delegated below calls setLocale() which
-                        // writes STATE.preferences.locale + emits
-                        // state:changed; the existing
-                        // paintI18nBindings subscriber (main.ts) then
-                        // re-paints every nav-link / aria-label etc.
-                        // to the new language without a reload.
+                        return `
+                            ${subTabnav}
+                            <div class="card glass" style="padding: 32px; border-radius: 28px;">
+                                <h2 style="color: #5856d6; margin-top: 0;">${t('settings.appearance')}</h2>
+                                <p style="color: var(--text-secondary); margin-bottom: 24px;">Pick a theme. <strong>System</strong> follows your device's appearance setting and updates live when it changes.</p>
+                                <div class="theme-options">
+                                    ${opt('light', t('settings.themeLight'), '☀️', 'Bright surfaces, dark text. Classic.')}
+                                    ${opt('dark', t('settings.themeDark'), '🌙', 'Dark surfaces, light text. Easy on the eyes after sundown.')}
+                                    ${opt('system', t('settings.themeSystem'), '🖥️', 'Follow your device. Auto-switches when your OS does.')}
+                                </div>
+                            </div>
+                        `;
+                    }
+                    if (generalSubTab === 'language') {
+                        // D6 (i18n) Language picker, hoisted out of
+                        // Appearance into its own peer sub-tab per user
+                        // request. Same `.theme-option-card` chrome the
+                        // theme picker uses; same delegated click flow
+                        // (setLocale + state:changed + paintI18nBindings
+                        // re-paint).
                         const currentLocale = getLocale();
                         const langOpt = (value: Locale, label: string, native: string) => `
                             <button type="button" class="theme-option-card${currentLocale === value ? ' is-active' : ''}" data-locale-value="${value}">
@@ -258,15 +277,6 @@ export function renderSettings() {
                         return `
                             ${subTabnav}
                             <div class="card glass" style="padding: 32px; border-radius: 28px;">
-                                <h2 style="color: #5856d6; margin-top: 0;">${t('settings.appearance')}</h2>
-                                <p style="color: var(--text-secondary); margin-bottom: 24px;">Pick a theme. <strong>System</strong> follows your device's appearance setting and updates live when it changes.</p>
-                                <div class="theme-options">
-                                    ${opt('light', t('settings.themeLight'), '☀️', 'Bright surfaces, dark text. Classic.')}
-                                    ${opt('dark', t('settings.themeDark'), '🌙', 'Dark surfaces, light text. Easy on the eyes after sundown.')}
-                                    ${opt('system', t('settings.themeSystem'), '🖥️', 'Follow your device. Auto-switches when your OS does.')}
-                                </div>
-                            </div>
-                            <div class="card glass" style="padding: 32px; border-radius: 28px; margin-top: 24px;">
                                 <h2 style="color: #5856d6; margin-top: 0;">${t('settings.language')}</h2>
                                 <p style="color: var(--text-secondary); margin-bottom: 24px;">${t('settings.languageDesc')}</p>
                                 <div class="theme-options">
@@ -560,15 +570,17 @@ export function renderSettings() {
             }
             return;
         }
-        // D6 (i18n): Language picker in the same Appearance sub-tab.
-        // Same flow as theme — setLocale() writes STATE + emits;
-        // switchSettingsTab re-renders the General tab and the
-        // sub-tab preservation keeps the user on Appearance.
+        // D6 (i18n): Language picker. Now lives in its own peer
+        // sub-tab next to Appearance (per user request). Same flow as
+        // theme — setLocale() writes STATE + emits; switchSettingsTab
+        // re-renders General; we set __ggGeneralSubTab = 'language'
+        // so the user lands back on the language card after the
+        // selection rather than getting punted to Map pills.
         if (themeBtn?.dataset.localeValue) {
             const value = themeBtn.dataset.localeValue;
             if (value === 'en' || value === 'pt') {
                 setLocale(value);
-                (window as any).__ggGeneralSubTab = 'appearance';
+                (window as any).__ggGeneralSubTab = 'language';
                 switchSettingsTab('general');
             }
             return;
