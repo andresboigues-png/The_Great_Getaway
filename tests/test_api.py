@@ -1631,3 +1631,189 @@ def test_generate_itinerary_500_on_invalid_json_in_response(
     assert res.status_code == 500
     body = res.get_json()
     assert "error" in body
+
+
+# ── Feed edge cases — pin audit-fix gates + idempotent-DELETE contracts ──────
+#
+# The happy paths above (test_feed_*) cover the main read/write loops; this
+# block pins the rejection paths and the no-op-not-404 idempotency that the
+# frontend relies on. Most of these correspond to specific lines in
+# src/routes/feed.py that previously had zero coverage — see N+9 SESSION_LOG
+# entry for the file → uncovered-line mapping.
+
+def test_feed_share_rejects_missing_trip_id_400(client, seed_user, auth_headers):
+    """`/api/feed/share` with no trip_id 400s — the frontend never sends
+    this shape today, but the gate keeps a future caller-bug from creating
+    orphan post rows pointing at NULL."""
+    res = client.post("/api/feed/share", headers=auth_headers, json={
+        "caption": "no trip",
+    })
+    assert res.status_code == 400
+    assert "trip_id" in (res.get_json().get("error", "")).lower()
+
+
+def test_feed_share_rejects_non_member_403(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """Audit-fix gate: caller must own the trip OR be an accepted member.
+    seed_other_user creates a private trip; seed_user (no membership)
+    can't share it. Without this gate, anyone with a guessed trip_id
+    could surface someone else's trip on the public feed."""
+    trip_id = _create_trip(
+        client, other_auth_headers, trip_id="trip-share-403",
+    )
+    res = client.post("/api/feed/share", headers=auth_headers, json={
+        "trip_id": trip_id,
+    })
+    assert res.status_code == 403
+    assert res.get_json().get("error") == "Forbidden"
+
+
+def test_feed_share_status_returns_false_when_unshared(
+    client, seed_user, auth_headers,
+):
+    """Default state for a not-yet-shared trip — pin so the home Share
+    button mounts in the right initial state without firing a write."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-status-false")
+    res = client.get(
+        f"/api/feed/share/status/{trip_id}", headers=auth_headers,
+    )
+    assert res.status_code == 200
+    body = res.get_json()
+    assert body.get("shared") is False
+    assert body.get("post_id") is None
+    assert body.get("caption") is None
+
+
+def test_feed_unshare_returns_ok_for_unknown_post(client, seed_user, auth_headers):
+    """Idempotent DELETE: unknown post_id returns 200/{status:'ok'}, NOT
+    404. The frontend optimistically un-shares before the round-trip, so a
+    double-click would hit a missing row — 404 there would surface a
+    spurious error toast."""
+    res = client.delete("/api/feed/share/9999999", headers=auth_headers)
+    assert res.status_code == 200
+    assert res.get_json().get("status") == "ok"
+
+
+def test_feed_unshare_rejects_non_author_403(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """seed_other_user creates a share; seed_user can't delete it.
+    Author-only gate prevents drive-by takedowns of someone else's
+    feed activity."""
+    trip_id = _create_trip(
+        client, other_auth_headers, trip_id="trip-unshare-403",
+    )
+    res = client.post("/api/feed/share", headers=other_auth_headers, json={
+        "trip_id": trip_id,
+    })
+    post_id = res.get_json()["post_id"]
+
+    res = client.delete(f"/api/feed/share/{post_id}", headers=auth_headers)
+    assert res.status_code == 403
+    assert res.get_json().get("error") == "Forbidden"
+
+
+def test_feed_repost_404_for_unknown_post(client, seed_user, auth_headers):
+    """Reposting a non-existent post_id returns 404 (NOT idempotent —
+    you can't repost something that doesn't exist; differs from the
+    DELETE pattern above which is intentionally idempotent)."""
+    res = client.post("/api/feed/repost/9999999", headers=auth_headers)
+    assert res.status_code == 404
+    assert "not found" in (res.get_json().get("error", "")).lower()
+
+
+def test_feed_repost_already_reposted_idempotent(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """Re-reposting the same post returns the existing repost_id with
+    status: 'already_reposted'. Pin so a double-click on the repost
+    button doesn't multiply the user's feed."""
+    trip_id = _create_trip(
+        client, other_auth_headers, trip_id="trip-already-repost",
+    )
+    res = client.post("/api/feed/share", headers=other_auth_headers, json={
+        "trip_id": trip_id,
+    })
+    post_id = res.get_json()["post_id"]
+
+    res = client.post(f"/api/feed/repost/{post_id}", headers=auth_headers)
+    first_repost_id = res.get_json()["post_id"]
+
+    res = client.post(f"/api/feed/repost/{post_id}", headers=auth_headers)
+    body = res.get_json()
+    assert body.get("status") == "already_reposted"
+    assert body.get("post_id") == first_repost_id
+
+
+def test_feed_bookmark_toggles_off(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """Second POST to the same /bookmark/<event_id> deletes the row.
+    Bookmarks are private (no global count), but the toggle off path
+    still needs pinning — without it a regression could leave bookmarks
+    one-shot only."""
+    trip_id = _create_trip(
+        client, other_auth_headers, trip_id="trip-bookmark-toggle",
+    )
+    share_res = client.post("/api/feed/share", headers=other_auth_headers, json={
+        "trip_id": trip_id,
+    })
+    event_id = f"share_{share_res.get_json()['post_id']}"
+
+    res = client.post(f"/api/feed/bookmark/{event_id}", headers=auth_headers)
+    assert res.get_json().get("bookmarked") is True
+
+    # Toggle off.
+    res = client.post(f"/api/feed/bookmark/{event_id}", headers=auth_headers)
+    assert res.status_code == 200
+    assert res.get_json().get("bookmarked") is False
+
+
+def test_feed_comment_rejects_empty_body_400(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """Whitespace-only body 400s — without this gate the comments table
+    would accumulate empty rows from misclicks on the submit button."""
+    trip_id = _create_trip(
+        client, other_auth_headers, trip_id="trip-empty-comment",
+    )
+    share_res = client.post("/api/feed/share", headers=other_auth_headers, json={
+        "trip_id": trip_id,
+    })
+    event_id = f"share_{share_res.get_json()['post_id']}"
+
+    res = client.post(f"/api/feed/comment/{event_id}", headers=auth_headers, json={
+        "body": "   ",  # whitespace strips to ""
+    })
+    assert res.status_code == 400
+    assert "empty" in (res.get_json().get("error", "")).lower()
+
+
+def test_feed_comment_delete_ok_for_unknown_id(client, seed_user, auth_headers):
+    """Idempotent DELETE for unknown comment_id — returns 200/{event_id:None},
+    matching the unshare pattern. Frontend can blindly retry without a
+    spurious error toast."""
+    res = client.delete("/api/feed/comment/9999999", headers=auth_headers)
+    assert res.status_code == 200
+    body = res.get_json()
+    assert body.get("status") == "ok"
+    assert body.get("event_id") is None
+
+
+def test_feed_like_on_synthesised_event_id_skips_notification(
+    client, seed_user, auth_headers,
+):
+    """Liking a non-share event (e.g. trip_created_X) doesn't fire a
+    notification — _post_owner_for_event returns None for unknown
+    prefixes. Pin so a future regression doesn't spam users with
+    notifications for engagement on synthesised events."""
+    # The like itself succeeds even when the event wasn't synthesised
+    # by the feed — feed_likes is a generic key/value table.
+    res = client.post(
+        "/api/feed/like/trip_created_trip-fake", headers=auth_headers,
+    )
+    assert res.status_code == 200
+    body = res.get_json()
+    assert body.get("liked") is True
+    assert body.get("count") == 1
