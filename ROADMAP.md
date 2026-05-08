@@ -198,34 +198,30 @@ work is mechanical: rename, fix the `tsc --noEmit` warnings as we go.
 escape hatches added by the migration, pre-commit + CI block on type
 errors.
 
-### A2 — Pytest coverage to the routes shipped post-Phase G
+### A2 — Pytest coverage to the routes shipped post-Phase G ⤴ ✅
 
 Phase G scaffolded pytest. Every endpoint shipped after that has zero
 test coverage today.
 
-- [ ] One happy-path + one error case per route, minimum. Routes to
-      cover:
-    - `/api/feed`, `/api/feed/share`, `/api/feed/share/<post_id>`
-      (DELETE), `/api/feed/share/status/<trip_id>`,
-      `/api/feed/repost`, `/api/feed/comments/<event_id>`
-      (GET + POST + DELETE), `/api/feed/like/<event_id>`,
-      `/api/feed/bookmark/<event_id>`.
-    - `/api/public-trip/<trip_id>`, `/api/public-profile/<user_id>`.
-    - `/api/trips/<trip_id>/silence`,
-      `/api/trips/<trip_id>/archive`, `/api/trips/<trip_id>/unarchive`.
-    - `/api/trips/invite`, `/api/trips/invite/respond`,
-      `/api/trips/members/remove`.
-    - `/api/friends/*`.
-    - `/api/notifications/*`.
-- [ ] Auth fixtures: helpers that issue a real JWT for a synthetic user
-      (no mocking the auth layer — test the real gate).
-- [ ] DB fixtures: each test runs against a fresh SQLite in-memory DB so
-      tests are hermetic + parallel-safe.
-- [ ] Coverage report (`pytest-cov`). CI fails if backend coverage drops
-      below an agreed floor (start at 60%, raise as it grows).
+- [x] One happy-path + one error case per route, minimum. Every route
+      listed (feed, public-trip, public-profile, trip silence/archive/
+      unarchive, invite, friends, notifications) is now covered. See
+      `tests/test_api.py` for the full surface. Sessions N+8/N+9 took
+      coverage from 67% → 95% across ~80 new tests.
+- [x] Auth fixtures: `seed_user` / `seed_other_user` / `auth_headers` /
+      `other_auth_headers` issue real JWTs via `auth.issue_token`. No
+      mocking the auth layer — `@require_auth` is exercised on every
+      request.
+- [x] DB fixtures: `temp_db` gives each test a fresh SQLite file via
+      `GG_DB_PATH`, then `init_db()` runs the full schema. Tests are
+      hermetic + parallel-safe.
+- [x] Coverage report (`pytest-cov`). CI floor stepped 60 → 80 → 85 →
+      90 → 92% across N+8/N+9. Routes 100%-covered: auth, budgets,
+      days, expenses, settings, helpers. feed.py at 96%, integrations.py
+      at 98%, data.py at 95%, trips.py at 89%. Total 95%.
 
-**Done when**: every API route has tests, CI runs them on every push, an
-intentional regression in any route turns CI red.
+**Status**: Shipped. 157 pytest tests pass on every push; an intentional
+regression in any of the listed routes turns CI red within seconds.
 
 ### A3 — Playwright suite to ~20 tests covering critical user flows
 
@@ -256,19 +252,27 @@ red.
 **Done when**: a CSS edit that changes a button's color turns CI red
 within 30 seconds, with a side-by-side diff visible.
 
-### A5 — Schema validation at boundaries
+### A5 — Schema validation at boundaries ⤴ ✅
 
-- [ ] Zod (or similar) validators for `/api/data` response and
-      `localStorage` load. Bad data fails loudly with a useful error
-      message instead of breaking 5 levels deep.
-- [ ] Validators co-located with their `types.d.ts` definitions so the
-      shape lives in one place.
-- [ ] Sentry-tagged errors when validation fails — high-signal alert
-      on the day a backend change drifts.
+- [x] Zod validators for `/api/data` response and `localStorage` load.
+      Bad data fails loudly at the boundary instead of corrupting
+      STATE and crashing 5 levels deep. See `frontend/static/js/src/schemas.ts`
+      (`validateServerData`, `validateLoadedState`).
+- [x] Validators co-located in `schemas.ts` — kept separate from
+      `types.d.ts` because they're runtime values, not types. The
+      types interfaces (`ServerDataPayload`, etc.) live alongside the
+      runtime validators in the same file, so the shape still lives
+      in one place.
+- [x] Sentry-tagged errors when validation fails — `_reportSchemaFail`
+      drops a breadcrumb + `captureMessage` tagged
+      `schema-validation-failed: <boundary>` on every miss. Best-effort
+      (no-ops if the SDK never loaded behind a CDN block).
 
-**Done when**: a malformed `/api/data` payload (or a corrupted
-localStorage) produces a clear error in Sentry instead of a ghost UI
-state.
+**Status**: Shipped. A malformed `/api/data` payload triggers
+`console.warn('[schema] /api/data failed validation:', issues)` plus
+the Sentry capture; pullFromServer skips the corrupt update so the
+next pull retries against good data instead of overwriting STATE
+with junk.
 
 **Phase A done when**: type-strict, every API route + critical user flow
 has a test, visual regressions auto-detect, schema drift fails loudly.
@@ -353,7 +357,7 @@ across files.
       safe-area inset awareness, all units in `rem` (Dynamic Type
       compatible).
 - [ ] Replace `:hover`-only affordances with `:hover, :active,
-    :focus-visible` — touch devices have no hover state.
+  :focus-visible` — touch devices have no hover state.
 
 ### B4 — Split `src/main.py`
 
@@ -647,7 +651,7 @@ impression. Deploy after the React + polish work is done.
 - [ ] **Sentry production environment** verified — production errors
       tagged correctly + filterable from dev.
 - [ ] **Structured logging**: replace `print()` with `logging.info(...,
-    extra={"user_id": ..., "trip_id": ...})`. Logs ship to a central
+  extra={"user_id": ..., "trip_id": ...})`. Logs ship to a central
       sink (Better Stack / Logtail / Papertrail) with 7-day retention.
 - [ ] **Performance monitoring**: Sentry Performance (already loaded
       from Phase A4 of the original roadmap) — set `tracesSampleRate`
