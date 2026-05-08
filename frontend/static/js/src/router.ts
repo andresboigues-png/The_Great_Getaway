@@ -8,15 +8,18 @@ import { PAGES, type PageName } from './constants.js';
 import { renderHome, stopHomeSlideshow } from './pages/home.js';
 import { renderExpenses, setExpensesTab } from './pages/expenses.js';
 import { mountInsights } from './pages/insights/mount.js';
+import { mountTodo } from './pages/todo/mount.js';
+import { mountBudgets } from './pages/budgets/mount.js';
+import { mountFriends } from './pages/friends/mount.js';
 import { clearReactMount } from './react/reactMount.js';
 import { renderSettings, renderPersonalization } from './pages/settings.js';
-import { renderBudgets } from './pages/budgets.js';
+// renderBudgets migrated to React (Phase C3) — see ./pages/budgets/mount.ts.
 import { renderCollections } from './pages/collections.js';
 import { renderAI } from './pages/ai.js';
 import { renderSettlement } from './pages/settlement.js';
-import { renderFriends } from './pages/friends.js';
+// renderFriends migrated to React (Phase C3) — see ./pages/friends/mount.ts.
 import { renderFeed } from './pages/feed.js';
-import { renderTodo } from './pages/todo.js';
+// renderTodo migrated to React (Phase C3) — see ./pages/todo/mount.ts.
 import { renderProfile, renderLoginWall } from './pages/profile.js';
 
 let isInternalNav = false;
@@ -84,13 +87,16 @@ export function navigate(
         case PAGES.INSIGHTS: mountInsights(content); break;
         case PAGES.SETTINGS: pageEl = renderSettings(); break;
         case PAGES.PERSONALIZATION: pageEl = renderPersonalization(); break;
-        case PAGES.BUDGETS: pageEl = renderBudgets(); break;
+        // Phase C3: Budgets migrated to React.
+        case PAGES.BUDGETS: mountBudgets(content); break;
         case PAGES.COLLECTIONS: pageEl = renderCollections(); break;
         case PAGES.AI: pageEl = renderAI(); break;
         case PAGES.SETTLEMENT: pageEl = renderSettlement(); break;
-        case PAGES.FRIENDS: pageEl = renderFriends(); break;
+        // Phase C3: Friends migrated to React.
+        case PAGES.FRIENDS: mountFriends(content); break;
         case PAGES.FEED: pageEl = renderFeed(); break;
-        case PAGES.TODO: pageEl = renderTodo(); break;
+        // Phase C3: Todo migrated to React.
+        case PAGES.TODO: mountTodo(content); break;
         case PAGES.PROFILE: pageEl = renderProfile(params?.userId); break;
         default: pageEl = renderHome();
     }
