@@ -868,6 +868,97 @@ def test_public_profile_returns_user_for_known_id(client, seed_user):
     assert "trips" in body
 
 
+def test_public_trip_returns_full_payload_when_public(client, seed_user, auth_headers):
+    """Happy path: a public trip with days + expenses returns the
+    archived-trip-shape payload the frontend's renderArchivedTripDetail
+    consumes (trip metadata + tripDays + expenses + members + owner)."""
+    # Owner creates a trip + a day + an expense, then flags it public.
+    client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": "trip-public", "name": "Lisbon", "isPublic": True},
+    })
+    client.post("/api/days", headers=auth_headers, json={
+        "day": {
+            "id": "day-pub-1", "tripId": "trip-public", "dayNumber": 1,
+            "name": "Alfama", "date": "2026-04-15",
+        },
+    })
+    client.post("/api/expenses", headers=auth_headers, json={
+        "expense": {
+            "id": "exp-pub-1", "tripId": "trip-public", "who": "Me",
+            "value": 12.5, "currency": "EUR", "euroValue": 12.5,
+            "label": "Pastel de nata", "date": "2026-04-15",
+        },
+    })
+    # Anonymous (no auth headers) — public trip is unauthenticated.
+    res = client.get("/api/public-trip/trip-public")
+    assert res.status_code == 200
+    body = res.get_json()
+    trip = body["trip"]
+    assert trip["name"] == "Lisbon"
+    assert trip["isPublic"] is True
+    assert trip["ownerId"] == seed_user
+    # tripDays + expenses are inlined on the trip object — that's what
+    # the frontend's archived-trip renderer reads from.
+    assert len(trip["tripDays"]) == 1
+    assert trip["tripDays"][0]["name"] == "Alfama"
+    assert len(trip["expenses"]) == 1
+    assert trip["expenses"][0]["label"] == "Pastel de nata"
+    # Owner block is the minimum the renderer needs.
+    assert body["owner"]["name"] == "Test User"
+
+
+def test_public_trip_404_when_private_to_anonymous(client, seed_user, auth_headers):
+    """Privacy gate: a private trip returns 404 (NOT 403) to a non-member
+    so a probing client can't enumerate which trip IDs exist."""
+    client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": "trip-private", "name": "Secret"},  # isPublic defaults to false
+    })
+    # Anonymous request — no auth header.
+    res = client.get("/api/public-trip/trip-private")
+    assert res.status_code == 404
+
+
+def test_public_trip_visible_to_owner_when_private(client, seed_user, auth_headers):
+    """Owner sees their own private trip even though it isn't public —
+    the gate falls through when caller is the trip's user_id."""
+    client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": "trip-mine", "name": "My private trip"},
+    })
+    res = client.get("/api/public-trip/trip-mine", headers=auth_headers)
+    assert res.status_code == 200
+    body = res.get_json()
+    assert body["trip"]["name"] == "My private trip"
+
+
+def test_public_profile_lists_public_and_archived_trips(
+    client, seed_user, auth_headers,
+):
+    """Profile endpoint returns the user's public OR archived trips so
+    friends-map pins render. Pin the response shape — frontend's
+    `pages/profile.ts` map-init keys off `isPublic`/`isArchived` flags
+    on each trip item."""
+    # Public trip
+    client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": "t-pub", "name": "Public", "isPublic": True},
+    })
+    # Private trip (should NOT surface here)
+    client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": "t-priv", "name": "Private"},
+    })
+    res = client.get(f"/api/public-profile/{seed_user}")
+    assert res.status_code == 200
+    body = res.get_json()
+    # Only the public trip lands here. (Archived also would but we
+    # don't archive in this test — covered by a separate flow.)
+    trip_ids = {t["id"] for t in body["trips"]}
+    assert "t-pub" in trip_ids
+    assert "t-priv" not in trip_ids
+    # Each trip carries the shape friends-map pins consume.
+    for t in body["trips"]:
+        assert "isPublic" in t
+        assert "isArchived" in t
+
+
 # ── /api/trips/<id>/silence | archive | unarchive ────────────────────────────
 
 def test_trip_silence_toggle(client, seed_user, auth_headers):
