@@ -2309,7 +2309,13 @@ body.is-signed-out .trip-controls-popover {
 }
 .cover-card__content {
     position: absolute;
-    bottom: var(--space-10);
+    /* Per-user feedback the quote was sitting too high on the map
+       square — pulled the bottom offset from var(--space-10) (40px)
+       down to var(--space-3) (12px) so the fact strip sits closer to
+       the bottom edge of the cover image, leaving more of the map
+       visible above it. Side offsets stay generous to keep the line
+       length comfortable on wide screens. */
+    bottom: var(--space-3);
     left: var(--space-10);
     right: var(--space-10);
 }
@@ -3396,11 +3402,32 @@ body.is-signed-out .trip-controls-popover {
 .gm-style .gm-style-iw-tc::after {
     background: white !important;
 }
-/* Hide Google's close button — our InfoWindow is small + the
-   user can dismiss by clicking the map. Avoids a dangling X
-   floating over our gradient header. */
+/* Phase G v3 — Google's native close X re-enabled. Per-user feedback,
+   InfoWindows would sometimes refuse to dismiss (the click-on-empty-
+   map handler doesn't fire if the user accidentally clicks another
+   marker / a control), so an always-visible close button is the
+   reliable escape hatch. Style overrides keep it visually subtle so
+   it doesn't fight the GG-aesthetic header gradient on profile-iw
+   variants. */
 .gm-style .gm-style-iw button.gm-ui-hover-effect {
-    display: none !important;
+    /* Position in the top-right corner of the bubble. Slightly
+       inset so it doesn't sit flush against the rounded edge. */
+    top: 4px !important;
+    right: 4px !important;
+    width: 28px !important;
+    height: 28px !important;
+    opacity: 0.7;
+    transition: opacity 0.15s ease, background 0.15s ease;
+    border-radius: 50% !important;
+}
+.gm-style .gm-style-iw button.gm-ui-hover-effect:hover {
+    opacity: 1;
+    background: rgba(0, 0, 0, 0.06) !important;
+}
+.gm-style .gm-style-iw button.gm-ui-hover-effect > span {
+    /* Google ships a transparent SVG glyph; the alpha mask makes it
+       fade with the parent button's opacity. */
+    margin: 4px !important;
 }
 
 /* Phase G v3 — generic GG InfoWindow chrome. Mirrors the
@@ -5081,15 +5108,24 @@ body.is-signed-out .trip-controls-popover {
 }
 .day-plan-tab {
     flex: 1;
+    /* `min-width: 0` lets the flex item shrink below its content's
+       intrinsic width when the row is tight; otherwise the longer
+       label ("Afternoon") would force the tab to overflow.
+       `overflow: hidden` clips at the rounded edge. */
+    min-width: 0;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 7px;
-    padding: 10px 12px;
+    /* Phase G v3 — tightened gap (7→5) and horizontal padding
+       (12→8) so all three tabs (Morning / Afternoon / Evening) +
+       their count chips fit cleanly on a tight row at the
+       desktop modal width and on mobile. */
+    gap: 5px;
+    padding: 9px 8px;
     border: 0;
     background: transparent;
     border-radius: 14px;
-    font-size: 0.82rem;
+    font-size: 0.78rem;
     font-weight: 700;
     color: var(--text-secondary);
     cursor: pointer;
@@ -5097,6 +5133,11 @@ body.is-signed-out .trip-controls-popover {
     transition: background 0.18s ease, color 0.18s ease,
                 box-shadow 0.18s ease, transform 0.18s ease;
     position: relative;
+    /* Truncate the label if a translation makes it longer than the
+       column. The icon + count chip stay visible because they're
+       siblings outside the truncated span. */
+    white-space: nowrap;
+    overflow: hidden;
 }
 .day-plan-tab:hover:not(.is-active) , .day-plan-tab:active:not(.is-active) , .day-plan-tab:focus-visible:not(.is-active) {
     color: rgb(var(--accent));
@@ -5108,25 +5149,35 @@ body.is-signed-out .trip-controls-popover {
     box-shadow: 0 4px 12px rgba(var(--accent), 0.32);
 }
 .day-plan-tab__icon {
-    font-size: 0.95rem;
+    font-size: 0.92rem;
     line-height: 1;
+    flex-shrink: 0;
 }
 .day-plan-tab__label {
     font-weight: 800;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    /* The label can shrink (and ellipsis-truncate) when the row is
+       cramped — keeps the icon + count chip visible on every tab. */
+    min-width: 0;
 }
 /* Count chip — empty when the slot has zero lines (rule below
    collapses it so the tab doesn't carry an empty pill). */
 .day-plan-tab__count {
-    font-size: 0.66rem;
+    font-size: 0.64rem;
     font-weight: 800;
     line-height: 1;
-    padding: 2px 6px;
+    padding: 2px 5px;
     border-radius: 999px;
-    min-width: 18px;
+    /* min-width was 18px; tightened to 16px so two-digit counts
+       (e.g. "12") still fit while single-digit ones don't bloat the
+       chip into a fat circle. */
+    min-width: 16px;
     text-align: center;
     background: rgba(var(--accent), 0.16);
     color: rgb(var(--accent));
     transition: background 0.18s ease, color 0.18s ease;
+    flex-shrink: 0;
 }
 .day-plan-tab.is-active .day-plan-tab__count {
     background: rgba(255, 255, 255, 0.25);

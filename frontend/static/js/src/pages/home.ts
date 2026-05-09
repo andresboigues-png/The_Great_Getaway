@@ -648,6 +648,19 @@ export function renderHome() {
                     });
                     marker.addListener('click', () => {
                         const iw = getInfoWindow();
+                        // Toggle: re-clicking the same POI marker
+                        // closes the InfoWindow rather than re-opening
+                        // it. Per-user feedback this is the intuitive
+                        // "I'm done with this" gesture; without it the
+                        // user had to find the close X or click empty
+                        // map (and the ".gm-style-iw button" rule used
+                        // to hide that X entirely).
+                        const anchor = (iw as any).getAnchor?.();
+                        const iwIsOpen = !!(iw as any).getMap?.();
+                        if (iwIsOpen && anchor === marker) {
+                            iw.close();
+                            return;
+                        }
                         iw.setContent(buildInfoWindowHtml(cat, place));
                         // domready fires AFTER the InfoWindow's DOM is
                         // mounted (or remounted, if setContent runs

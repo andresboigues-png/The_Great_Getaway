@@ -167,6 +167,18 @@ export function paintDayMarkers(ctx: DayMarkersContext): Record<string, google.m
             marker.addListener('click', () => {
                 const pos = marker.getPosition();
                 if (!pos) return;
+                // Toggle: re-clicking the same marker closes the IW.
+                // See the matching note in todoMarkers.ts — same UX
+                // expectation across every marker type.
+                const iw = ctx.getInfoWindow ? ctx.getInfoWindow() : (dayPinInfoWindow ?? null);
+                if (iw) {
+                    const anchor = (iw as any).getAnchor?.();
+                    const iwIsOpen = !!(iw as any).getMap?.();
+                    if (iwIsOpen && anchor === marker) {
+                        iw.close();
+                        return;
+                    }
+                }
                 map.panTo(pos);
                 if (typeof map.getZoom === 'function' && (map.getZoom() ?? 0) < 13) map.setZoom(13);
                 openDayPinInfoWindow(marker, day);

@@ -91,28 +91,41 @@ export function paintTodoMarkers(ctx: TodoMarkersContext): Record<string, google
         return todoInfoWindow;
     };
 
-    /** InfoWindow content matching the POI InfoWindow's compact style
-     *  (240-280px, header emoji + name, vicinity, rating, "View on
-     *  Google Maps" pill button) — per-user feedback the to-do
-     *  banner should look the same as a regular place banner, just
-     *  with a small "On your to-do list" indicator. We keep the
-     *  AI-supplied photo + why + fact when present, but render them
-     *  compact so the IW doesn't overflow Google's container. */
+    /** InfoWindow content for to-do markers. Layout (top-down):
+     *    1. Top row: 📋 + "ON YOUR TO-DO LIST" pill chip — the small
+     *       indicator the user asked for, sitting on its own row so a
+     *       wrapping title doesn't push it sideways.
+     *    2. Place name (full-width below).
+     *    3. Photo block (when AI-supplied).
+     *    4. Address + ★ rating.
+     *    5. Why / Fact (when AI-supplied).
+     *    6. Day chip (when day-pinned + viewing from Anchor).
+     *    7. Full-width "View on Google Maps" pill button.
+     *  Width 260-300px. Padding generous so the rounded card breathes.
+     *  The reset of inline styles match the POI InfoWindow style
+     *  (font, type scale, padding) so a place that's both POI and
+     *  to-do reads consistently across both windows. */
     const openTodoInfoWindow = (marker: google.maps.Marker, place: any) => {
         const iw = getIw();
         const displayName = place.verifiedName || place.name || 'Place';
-        // Photo block — compact (110px tall) so the IW stays visually
-        // tight. Only shown when the AI plan supplied photoUrl;
-        // manual adds without a photo skip this block entirely.
         const photoHtml = place.photoUrl
             ? `<img src="${esc(place.photoUrl)}" alt="" referrerpolicy="no-referrer" loading="lazy"
-                style="display:block; width:100%; height:110px; object-fit:cover; border-radius:10px; margin-bottom:8px; background:rgba(0,0,0,0.05);">`
+                style="display:block; width:100%; height:120px; object-fit:cover; border-radius:10px; margin-top:8px; background:rgba(0,0,0,0.05);">`
             : '';
         const ratingHtml = (typeof place.rating === 'number')
-            ? `<div style="margin-top:6px; font-size:0.78rem; color:#444;"><span style="color:#a85d00;">★</span> ${place.rating.toFixed(1)}${typeof place.userRatingsTotal === 'number' ? ` <span style="color:#888;">(${place.userRatingsTotal.toLocaleString()})</span>` : ''}</div>`
+            ? `<span style="font-size:0.78rem; color:#444; font-weight:600;"><span style="color:#a85d00;">★</span> ${place.rating.toFixed(1)}${typeof place.userRatingsTotal === 'number' ? ` <span style="color:#888; font-weight:500;">(${place.userRatingsTotal.toLocaleString()})</span>` : ''}</span>`
             : '';
         const addressHtml = place.address
-            ? `<div style="font-size:0.74rem; color:#666; margin-top:4px; line-height:1.4;">${esc(place.address)}</div>`
+            ? `<div style="font-size:0.74rem; color:#666; line-height:1.4;">${esc(place.address)}</div>`
+            : '';
+        // Address + rating on one line when both exist (compact);
+        // either alone takes the full row so we don't dangle stars in
+        // the middle of an empty line.
+        const addressRatingHtml = (place.address || typeof place.rating === 'number')
+            ? `<div style="margin-top:8px; display:flex; flex-direction:column; gap:4px;">
+                ${addressHtml}
+                ${ratingHtml ? `<div>${ratingHtml}</div>` : ''}
+            </div>`
             : '';
         const whyHtml = place.why
             ? `<div style="font-size:0.78rem; color:#002d5b; margin-top:8px; line-height:1.4; font-weight:500;">${esc(place.why)}</div>`
@@ -120,34 +133,25 @@ export function paintTodoMarkers(ctx: TodoMarkersContext): Record<string, google
         const factHtml = place.fact
             ? `<div style="font-size:0.72rem; color:#666; margin-top:4px; line-height:1.4; font-style:italic;">✨ ${esc(place.fact)}</div>`
             : '';
-        // "Day N" chip when the place is day-pinned and the user is
-        // on Anchor view — so they can see the assignment at a
-        // glance. Hidden on a per-day view since the user already
-        // knows which day they're on.
         const assignedDay = place.dayId ? days.find(d => d.id === place.dayId) : null;
         const dayChipHtml = (assignedDay && selectedIsAnchor && assignedDay.dayNumber > 0)
-            ? `<div style="margin-top:8px;"><span style="display:inline-block; padding:3px 10px; border-radius:999px; background:rgba(0,113,227,0.12); color:#005bb8; font-size:0.66rem; font-weight:800; letter-spacing:0.06em; text-transform:uppercase;">Day ${assignedDay.dayNumber}${assignedDay.name ? ` · ${esc(assignedDay.name)}` : ''}</span></div>`
+            ? `<div style="margin-top:10px;"><span style="display:inline-block; padding:3px 10px; border-radius:999px; background:rgba(0,113,227,0.12); color:#005bb8; font-size:0.66rem; font-weight:800; letter-spacing:0.06em; text-transform:uppercase;">Day ${assignedDay.dayNumber}${assignedDay.name ? ` · ${esc(assignedDay.name)}` : ''}</span></div>`
             : '';
         const href = place.mapsUrl
             || (place.placeId ? `https://www.google.com/maps/place/?q=place_id:${encodeURIComponent(place.placeId)}` : '');
         const linkHtml = href
             ? `<a href="${esc(href)}" target="_blank" rel="noopener noreferrer"
-                style="display:inline-block; margin-top:10px; padding:6px 12px; background:#9b59b6; color:white; text-decoration:none; border-radius:8px; font-size:0.75rem; font-weight:700;">View on Google Maps →</a>`
+                style="display:block; margin-top:12px; padding:9px 14px; background:linear-gradient(135deg,#9b59b6 0%,#5856d6 100%); color:white; text-decoration:none; border-radius:10px; font-size:0.82rem; font-weight:700; text-align:center; box-shadow:0 3px 10px rgba(155,89,182,0.28);">View on Google Maps →</a>`
             : '';
-        // Layout matches the POI InfoWindow (buildInfoWindowHtml in
-        // home.ts) — same min-width / max-width / padding / font /
-        // header-row pattern. The only added element is the small
-        // "On your to-do list" pill chip beside the name.
         const html = `
-            <div style="font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif; min-width:240px; max-width:280px; padding:4px 2px;">
-                <div style="display:flex; align-items:center; gap:6px; margin-bottom:6px; flex-wrap:wrap;">
-                    <span style="font-size:1.05rem;">📋</span>
-                    <strong style="font-size:0.94rem; color:#002d5b; line-height:1.25; flex:1; min-width:0;">${esc(displayName)}</strong>
-                    <span style="display:inline-flex; align-items:center; padding:2px 7px; border-radius:999px; background:rgba(155,89,182,0.14); color:#7c3a9e; font-size:0.6rem; font-weight:800; letter-spacing:0.06em; text-transform:uppercase; flex-shrink:0;">On to-do</span>
+            <div style="font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif; min-width:260px; max-width:300px; padding:8px 10px 4px;">
+                <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+                    <span style="display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; border-radius:6px; background:rgba(155,89,182,0.14); color:#7c3a9e; font-size:0.85rem;">📋</span>
+                    <span style="display:inline-flex; align-items:center; padding:2px 8px; border-radius:999px; background:rgba(155,89,182,0.14); color:#7c3a9e; font-size:0.6rem; font-weight:800; letter-spacing:0.08em; text-transform:uppercase;">On your to-do list</span>
                 </div>
+                <div style="font-size:0.98rem; font-weight:800; color:#002d5b; line-height:1.25; letter-spacing:-0.01em;">${esc(displayName)}</div>
                 ${photoHtml}
-                ${addressHtml}
-                ${ratingHtml}
+                ${addressRatingHtml}
                 ${whyHtml}
                 ${factHtml}
                 ${dayChipHtml}
@@ -199,6 +203,20 @@ export function paintTodoMarkers(ctx: TodoMarkersContext): Record<string, google
         marker.addListener('click', () => {
             const pos = marker.getPosition();
             if (!pos) return;
+            // Toggle: clicking the marker that currently owns the
+            // open InfoWindow closes it. Without this, the only ways
+            // to dismiss were "click the map" (easy to miss when the
+            // map is dense with other markers) or hit Google's native
+            // X — neither obvious. Re-clicking the same marker is the
+            // intuitive "I'm done with this" gesture.
+            const iw = getIw();
+            const anchor = (iw as any).getAnchor?.();
+            const iwIsOnThisMarker = anchor === marker;
+            const iwIsOpen = !!(iw as any).getMap?.();
+            if (iwIsOpen && iwIsOnThisMarker) {
+                iw.close();
+                return;
+            }
             map.panTo(pos);
             if (typeof map.getZoom === 'function' && (map.getZoom() ?? 0) < 14) map.setZoom(14);
             openTodoInfoWindow(marker, place);
