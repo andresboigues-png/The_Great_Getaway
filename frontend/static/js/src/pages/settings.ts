@@ -283,6 +283,7 @@ export function renderSettings() {
                                     ${langOpt('en', t('settings.languageEnglish'), 'English')}
                                     ${langOpt('pt', t('settings.languagePortuguese'), 'Português')}
                                     ${langOpt('es', t('settings.languageSpanish'), 'Español')}
+                                    ${langOpt('fr', t('settings.languageFrench'), 'Français')}
                                 </div>
                             </div>
                         `;
@@ -579,14 +580,28 @@ export function renderSettings() {
         // re-renders General; we set __ggGeneralSubTab = 'language'
         // so the user lands back on the language card after the
         // selection rather than getting punted to Map pills.
+        //
+        // i18n session 2: setLocale is now async (it awaits the locale
+        // chunk load before flipping the active locale, so the user
+        // never sees a flash of English while pt/es/fr loads). We
+        // await it before re-rendering so the new strings are in
+        // memory when switchSettingsTab repaints. Errors get a toast
+        // and leave the previous selection in place.
         if (themeBtn?.dataset.localeValue) {
             const value = themeBtn.dataset.localeValue;
             // Keep this list in lockstep with the Locale union in i18n.ts
             // and the langOpt() calls in renderGeneral above.
-            if (value === 'en' || value === 'pt' || value === 'es') {
-                setLocale(value);
-                (window as any).__ggGeneralSubTab = 'language';
-                switchSettingsTab('general');
+            if (value === 'en' || value === 'pt' || value === 'es' || value === 'fr') {
+                (async () => {
+                    try {
+                        await setLocale(value);
+                        (window as any).__ggGeneralSubTab = 'language';
+                        switchSettingsTab('general');
+                    } catch (err) {
+                        console.error('setLocale failed:', err);
+                        showLiquidAlert(t('toasts.loadFailed'));
+                    }
+                })();
             }
             return;
         }

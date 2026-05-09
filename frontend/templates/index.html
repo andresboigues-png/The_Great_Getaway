@@ -265,11 +265,11 @@
                      behind the dropdown. Backdrop blur preserved. -->
                 <div id="notificationDropdown" style="position: absolute; top: 100%; left: 0; width: 340px; max-height: 420px; overflow-y: auto; border-radius: 18px; background: rgba(18, 22, 30, 0.96); backdrop-filter: saturate(180%) blur(24px); -webkit-backdrop-filter: saturate(180%) blur(24px); border: 1px solid rgba(255,255,255,0.18); box-shadow: 0 20px 50px rgba(0,0,0,0.45); margin-top: 12px; display: none; z-index: 1000; flex-direction: column; box-sizing: border-box; color: #ffffff;">
                     <div style="padding: 14px 18px; border-bottom: 1px solid rgba(255,255,255,0.12); display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; background: rgba(255,255,255,0.04); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); z-index: 2; box-sizing: border-box;">
-                        <h3 style="margin: 0; font-size: 1rem; color: #ffffff; font-weight: 700;">Notifications</h3>
-                        <button id="markAllReadBtn" style="background: transparent; border: none; color: rgba(255,255,255,0.85); font-size: 0.8rem; font-weight: 600; cursor: pointer;">Mark all read</button>
+                        <h3 style="margin: 0; font-size: 1rem; color: #ffffff; font-weight: 700;" data-i18n-key="nav.notifications">Notifications</h3>
+                        <button id="markAllReadBtn" style="background: transparent; border: none; color: rgba(255,255,255,0.85); font-size: 0.8rem; font-weight: 600; cursor: pointer;" data-i18n-key="nav.markAllRead">Mark all read</button>
                     </div>
                     <div id="notificationList" style="display: flex; flex-direction: column;">
-                        <div class="notification-empty">No new notifications</div>
+                        <div class="notification-empty" data-i18n-key="nav.notificationsEmpty">No new notifications</div>
                     </div>
                 </div>
             </div>
@@ -338,11 +338,11 @@
                 </button>
                 <div id="notificationDropdownDesktop" class="notif-desktop-dropdown">
                     <div class="notif-desktop-dropdown__header">
-                        <h3>Notifications</h3>
-                        <button id="markAllReadBtnDesktop" class="notif-desktop-mark-all">Mark all read</button>
+                        <h3 data-i18n-key="nav.notifications">Notifications</h3>
+                        <button id="markAllReadBtnDesktop" class="notif-desktop-mark-all" data-i18n-key="nav.markAllRead">Mark all read</button>
                     </div>
                     <div id="notificationListDesktop" class="notif-desktop-list">
-                        <div class="notification-empty">No new notifications</div>
+                        <div class="notification-empty" data-i18n-key="nav.notificationsEmpty">No new notifications</div>
                     </div>
                 </div>
             </div>

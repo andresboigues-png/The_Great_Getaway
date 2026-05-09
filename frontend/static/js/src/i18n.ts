@@ -1,14 +1,15 @@
-// i18n.ts — internationalization scaffold (Phase D6).
+// i18n.ts — internationalization scaffold (Phase D6 + i18n session 2).
 //
-// Hand-rolled, no library. The whole module is ~80 LOC and ships
-// with two translation tables (en + pt). The design goal is "adding
-// a third locale is a single new file"; the design non-goal is
-// runtime-pluggable locale packs via the network.
+// Hand-rolled, no library. The whole module is ~120 LOC and ships
+// 'en' eagerly (fallback baseline + most users); pt/es/fr load on
+// demand as separate chunks. The design goal is "adding a new locale
+// is a single new file"; the design non-goal is runtime-pluggable
+// locale packs via the network.
 //
 // USAGE:
-//   import { t, getLocale, setLocale } from './i18n.js';
-//   t('nav.home')                       // → 'Home' / 'Início'
-//   t('common.save')                    // → 'Save' / 'Guardar'
+//   import { t, getLocale, setLocale, loadLocale } from './i18n.js';
+//   t('nav.home')                       // → 'Home' / 'Início' / 'Inicio'
+//   t('common.save')                    // → 'Save' / 'Guardar' / 'Guardar'
 //
 // TYPE SAFETY:
 //   `t` is generic on a literal-template-string param. The TS
@@ -19,42 +20,104 @@
 //
 // LOCALE STATE:
 //   STATE.preferences.locale is the SOURCE OF TRUTH. setLocale()
-//   writes there + emits state:changed (so saveState persists +
-//   any subscribed pages re-render with the new strings). The
-//   locale-aware Intl formatters in utils.ts read getLocale() at
-//   call time so date/currency strings match the picked language.
+//   awaits the chunk load, writes there + emits state:changed (so
+//   saveState persists + any subscribed pages re-render with the new
+//   strings). The locale-aware Intl formatters resolve the active
+//   locale at call time so date/currency strings match.
+//
+// LAZY-LOADING (i18n session 2):
+//   Each non-en locale lives in its own chunk via dynamic import().
+//   loadLocale(l) returns immediately if already loaded, otherwise
+//   awaits the import and stores the table. main.ts's init() awaits
+//   loadLocale(getLocale()) BEFORE the first paint so t() always
+//   resolves to the right strings synchronously after boot. setLocale
+//   in turn awaits before flipping the active locale, so the picker
+//   never shows a flash of English.
 //
 // FORMATTERS (date, number, currency):
-//   `formatDate` and `formatCurrency` below are thin wrappers
+//   `formatCurrency` and `formatDateShort` below are thin wrappers
 //   around Intl.DateTimeFormat / Intl.NumberFormat that resolve the
 //   locale via getLocale(). Existing utils.ts helpers (formatDayDate,
 //   formatHome) delegate to these so call sites don't change.
 //
 // FALLBACK:
 //   The active table comes from LOCALE_TABLES[locale]. If a locale
-//   is missing from LOCALE_TABLES (shouldn't happen at runtime since
-//   we ship en + pt), we fall back to en. There's NO per-key
-//   fallback to en — every locale must mirror the en shape, enforced
-//   by the Translations type at compile time.
+//   is missing (e.g. its chunk failed to load), we fall back to en.
+//   There's NO per-key fallback to en — every locale must mirror the
+//   en shape, enforced by the Translations type at compile time.
 
 import { STATE, emit } from './state.js';
 import { EVENTS } from './constants.js';
 import { en, type Translations } from './locales/en.js';
-import { pt } from './locales/pt.js';
-import { es } from './locales/es.js';
 
-export type Locale = 'en' | 'pt' | 'es';
+export type Locale = 'en' | 'pt' | 'es' | 'fr';
 
-const LOCALE_TABLES: Record<Locale, Translations> = { en, pt, es };
+/** In-memory cache of loaded translation tables. 'en' is always
+ *  present (eagerly imported); the rest get filled by loadLocale() on
+ *  first request. Marked Partial so a caller using the active locale
+ *  before its chunk has loaded gets a clean undefined → en fallback
+ *  rather than a TypeScript lie. */
+const LOCALE_TABLES: Partial<Record<Locale, Translations>> = { en };
+
+/** Map from Locale → dynamic-import factory for its translation table.
+ *  Vite/Rollup splits each `import('./locales/{lang}.js')` into a
+ *  separate chunk because of the static literal path. We MUST use a
+ *  static literal per locale (not a computed `import('./locales/' + l)`)
+ *  for code-splitting to work. */
+const LOCALE_LOADERS: Record<Exclude<Locale, 'en'>, () => Promise<{ default?: Translations } | Record<string, Translations>>> = {
+    pt: () => import('./locales/pt.js'),
+    es: () => import('./locales/es.js'),
+    fr: () => import('./locales/fr.js'),
+};
+
+/** In-flight loads — coalesces concurrent loadLocale() calls for the
+ *  same locale into a single import() so we don't race two fetches
+ *  for the same chunk. Cleared after the load resolves. */
+const PENDING_LOADS: Partial<Record<Locale, Promise<void>>> = {};
+
+/** Ensure the given locale's translation table is loaded into
+ *  LOCALE_TABLES. Returns immediately if already cached or if the
+ *  locale is 'en' (always eager). Coalesces concurrent calls.
+ *
+ *  On import failure (network error, chunk-load error) the rejection
+ *  bubbles to the caller — pages should handle this with a fallback
+ *  to en. In practice main.ts.init() catches and console.errors;
+ *  setLocale rejects so the picker can re-show the previous selection.
+ */
+export async function loadLocale(locale: Locale): Promise<void> {
+    if (LOCALE_TABLES[locale]) return;
+    if (locale === 'en') return; // always eager
+    const pending = PENDING_LOADS[locale];
+    if (pending) return pending;
+    const loader = LOCALE_LOADERS[locale as Exclude<Locale, 'en'>];
+    const promise = (async () => {
+        const mod = await loader();
+        // Locale modules export their table as a named export matching
+        // the locale ('pt', 'es', 'fr'). Resolve from either the named
+        // export or a `default` if a future locale ships that way.
+        const table = (mod as Record<string, Translations>)[locale]
+            ?? (mod as { default?: Translations }).default;
+        if (!table) {
+            throw new Error(`i18n: locale module for "${locale}" did not export a table`);
+        }
+        LOCALE_TABLES[locale] = table;
+    })();
+    PENDING_LOADS[locale] = promise;
+    try {
+        await promise;
+    } finally {
+        delete PENDING_LOADS[locale];
+    }
+}
 
 // ── Locale state ────────────────────────────────────────────────────
 
 /** Set of locales we ship; used to validate STATE.preferences.locale
  *  on read in case localStorage was edited by hand. */
-const KNOWN_LOCALES: readonly Locale[] = ['en', 'pt', 'es'] as const;
+const KNOWN_LOCALES: readonly Locale[] = ['en', 'pt', 'es', 'fr'] as const;
 
 /** Best-guess default from the browser. `navigator.language` is
- *  formatted as `{lang}-{region}` (e.g. 'pt-PT', 'en-GB'). We map
+ *  formatted as `{lang}-{region}` (e.g. 'pt-PT', 'fr-CA'). We map
  *  by language prefix only — region variants currently fall under
  *  their language. */
 function detectBrowserLocale(): Locale {
@@ -73,13 +136,17 @@ export function getLocale(): Locale {
     return detectBrowserLocale();
 }
 
-/** Programmatic locale setter — mirrors theme.ts's setTheme. Writes
- *  the preference back to STATE and emits state:changed (which
- *  triggers saveState + any subscribed page re-renders). The active
- *  page should subscribe to EVENTS.STATE_CHANGED so it re-renders
- *  with the new strings. */
-export function setLocale(locale: Locale): void {
+/** Programmatic locale setter — mirrors theme.ts's setTheme. Awaits
+ *  the chunk load BEFORE writing to STATE so the next render sees
+ *  the new strings synchronously. The active page should subscribe
+ *  to EVENTS.STATE_CHANGED to re-render with the new strings.
+ *
+ *  If the chunk fails to load (network error), STATE is left
+ *  unchanged and the rejection bubbles — the picker should re-show
+ *  the previous selection and surface a toast. */
+export async function setLocale(locale: Locale): Promise<void> {
     if (!STATE.preferences) return;
+    await loadLocale(locale);
     STATE.preferences.locale = locale;
     emit(EVENTS.STATE_CHANGED);
 }
@@ -115,14 +182,19 @@ export type TranslationKey = _DotPath<Translations>;
  *  are left as `{name}` so the bug is visible in the UI rather than
  *  silently dropped.
  *
+ *  Falls back to 'en' if the active locale's chunk hasn't loaded yet
+ *  (shouldn't happen post-init since main.ts awaits loadLocale, but
+ *  defense in depth for any pre-init render path).
+ *
  *  The TypeScript signature guarantees the key exists at compile time,
  *  so runtime fallback is just an empty string in case of malformed
- *  data (defense in depth — should never fire in practice). */
+ *  data. */
 export function t(
     key: TranslationKey,
     params?: Record<string, string | number>,
 ): string {
-    const table = LOCALE_TABLES[getLocale()] ?? en;
+    const active = getLocale();
+    const table = LOCALE_TABLES[active] ?? en;
     const parts = key.split('.');
     let cur: unknown = table;
     for (const part of parts) {
@@ -154,11 +226,14 @@ export function t(
  *  en-GB). Founder's market is Portugal, hence pt-PT. Spanish defaults
  *  to es-ES (Spain) over es-MX/AR — date and currency separators differ
  *  across regions, but Spain's conventions are the most widely
- *  understood across the Iberian-Latin axis we serve. */
+ *  understood across the Iberian-Latin axis we serve. French is fr-FR
+ *  for the same reason — France's conventions are the most widely
+ *  understood across the francophone world. */
 const INTL_LOCALE_TAGS: Record<Locale, string> = {
     en: 'en-US',
     pt: 'pt-PT',
     es: 'es-ES',
+    fr: 'fr-FR',
 };
 
 /** The BCP-47 tag for the active locale. Cheap accessor for any
@@ -187,7 +262,7 @@ export function formatCurrency(amount: number, currency: string): string {
 
 /** Format a Date as a short, human-readable string in the active
  *  locale. Used by formatDayDate in utils.ts. Example: 'Apr 6'
- *  (en-US) / '6 abr.' (pt-PT). */
+ *  (en-US) / '6 abr.' (pt-PT) / '6 abr.' (es-ES) / '6 avr.' (fr-FR). */
 export function formatDateShort(date: Date): string {
     try {
         return new Intl.DateTimeFormat(getIntlLocale(), {

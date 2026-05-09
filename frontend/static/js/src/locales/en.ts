@@ -54,6 +54,7 @@ export const en = {
         newTrip: '+ New Trip',
         notifications: 'Notifications',
         markAllRead: 'Mark all read',
+        notificationsEmpty: 'No new notifications',
     },
     login: {
         brand: 'The Great Getaway',
@@ -84,6 +85,7 @@ export const en = {
         languageEnglish: 'English',
         languagePortuguese: 'Português',
         languageSpanish: 'Español',
+        languageFrench: 'Français',
     },
     profile: {
         logOut: 'Log Out',

@@ -315,4 +315,4 @@ import{r as e,t}from"./vendor-react-CYVQMBjw.js";import{$ as n,C as r,E as i,H a
                         <button id="aiRetryBtn" type="button" style="padding:10px 22px;border-radius:999px;border:0;background:var(--accent-blue);color:white;font-size:0.92rem;font-weight:700;cursor:pointer;box-shadow:0 4px 12px rgba(0,113,227,0.28);">Try again</button>
                     </div>
                 `,m(n),r.querySelector(`#aiRetryBtn`)?.addEventListener(`click`,()=>H())}finally{V&&(V.disabled=!1,V.innerHTML=_)}};V?.addEventListener(`click`,H)},0),e}var M=t();function N(){let e=(0,C.useRef)(null);return(0,C.useEffect)(()=>{let t=e.current;t&&(t.innerHTML=``,t.appendChild(j()))},[]),(0,M.jsx)(`div`,{ref:e})}function P(e){S(e,(0,C.createElement)(N))}export{P as mountAI};
-//# sourceMappingURL=mount-B3R9p0G7.js.map
+//# sourceMappingURL=mount-Dr6bKKYt.js.map

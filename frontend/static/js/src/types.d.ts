@@ -468,10 +468,11 @@ export interface AppPreferences {
      *  setLocale() writes here + emits state:changed. Default falls
      *  back to navigator.language's primary tag (mapped onto a
      *  shipped locale) when this field is missing — see
-     *  detectBrowserLocale in i18n.ts. Phase D6 ships 'en' + 'pt';
-     *  i18n session 1 added 'es' (largest non-English travel market).
-     *  Future locales add to the union by extending Locale in i18n.ts. */
-    locale?: 'en' | 'pt' | 'es';
+     *  detectBrowserLocale in i18n.ts. Phase D6 shipped 'en' + 'pt';
+     *  i18n session 1 added 'es'; session 2 added 'fr' and switched
+     *  to lazy-loaded locale chunks. Cap is 4 locales for now —
+     *  EN/PT/ES/FR — per product scope. */
+    locale?: 'en' | 'pt' | 'es' | 'fr';
 }
 
 /** Event names emitted via state.emit / subscribed via state.subscribe. */

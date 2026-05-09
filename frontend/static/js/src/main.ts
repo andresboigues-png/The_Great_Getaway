@@ -1,6 +1,6 @@
 import { STATE, loadState, emit, subscribe } from './state.js';
 import { initThemeManager } from './theme.js';
-import { t, type TranslationKey } from './i18n.js';
+import { t, type TranslationKey, loadLocale, getLocale } from './i18n.js';
 import { syncWithServer, pullFromServer, fetchNotifications, markNotificationsRead, deleteTrip, archiveTripOnServer, apiUrl, apiFetch, setAuthToken, clearAuthToken } from './api.js';
 import { showConfirmModal, esc } from './utils.js';
 import { navigate } from './router.js';
@@ -95,8 +95,12 @@ function renderNotificationDropdown() {
 
     const notes = STATE.notifications || [];
     if (notes.length === 0) {
+        // i18n session 2: localized via t() so the empty-state matches the
+        // user's picked language. esc() not needed — t() returns a known
+        // string from our own translation tables, never user input.
+        const emptyText = t('nav.notificationsEmpty');
         for (const list of lists) {
-            list.innerHTML = '<div class="notification-empty">No new notifications</div>';
+            list.innerHTML = `<div class="notification-empty">${emptyText}</div>`;
         }
         return;
     }
@@ -417,6 +421,17 @@ async function init() {
     // Cheap (one attribute set + one media-query listen), runs once.
     initThemeManager();
 
+    // i18n session 2 — locales beyond 'en' load lazily as separate
+    // chunks. Await the active locale's load BEFORE the first paint
+    // so t() resolves synchronously to the right strings (no flash
+    // of English on a pt/es/fr user's first paint). 'en' is no-op.
+    // Failures fall back to the eager 'en' table inside t() — we just
+    // log so QA can spot a broken chunk.
+    try {
+        await loadLocale(getLocale());
+    } catch (err) {
+        console.error('i18n: failed to load active locale, falling back to en:', err);
+    }
 
     // Check session: apiFetch attaches the stored JWT (if any). The
     // server returns logged_in:true with the user payload when the token

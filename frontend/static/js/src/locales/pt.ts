@@ -49,6 +49,7 @@ export const pt: Translations = {
         newTrip: '+ Nova viagem',
         notifications: 'Notificações',
         markAllRead: 'Marcar todas como lidas',
+        notificationsEmpty: 'Sem notificações novas',
     },
     login: {
         brand: 'The Great Getaway',
@@ -78,6 +79,7 @@ export const pt: Translations = {
         languageEnglish: 'English',
         languagePortuguese: 'Português',
         languageSpanish: 'Español',
+        languageFrench: 'Français',
     },
     profile: {
         logOut: 'Terminar sessão',
