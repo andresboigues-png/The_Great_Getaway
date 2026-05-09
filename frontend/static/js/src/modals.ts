@@ -46,6 +46,59 @@ interface PickedPlace {
  *  @param startDate - 'YYYY-MM-DD'
  *  @param endDate - 'YYYY-MM-DD'
  */
+/** Round 4 audit fix — shared date-range validation helper used by
+ *  the New Trip + Edit Trip modals. Sets `min` on the end-date input
+ *  whenever the start-date changes so the native browser picker
+ *  greys out dates before start. Belt-and-suspenders: also wires
+ *  setCustomValidity so a manually-typed (non-picker) invalid end
+ *  date fails native form validation on submit. The hint paragraph
+ *  flips to a red error message inline; reverts to the original
+ *  copy when the user fixes it.
+ *
+ *  @param root      Modal root for q() lookups.
+ *  @param startId   ID of the start-date <input type="date">.
+ *  @param endId     ID of the end-date <input type="date">.
+ *  @param hintId    ID of the <p class="form-hint"> beneath them.
+ *                   Used for the inline error message swap.
+ */
+function _wireDateRangeValidation(
+    root: HTMLElement,
+    startId: string,
+    endId: string,
+    hintId: string,
+): void {
+    const startEl = q(root, `#${startId}`) as HTMLInputElement | null;
+    const endEl = q(root, `#${endId}`) as HTMLInputElement | null;
+    const hintEl = q(root, `#${hintId}`) as HTMLElement | null;
+    if (!startEl || !endEl) return;
+    const _origHint = hintEl?.textContent || '';
+    const _origColor = hintEl ? hintEl.style.color : '';
+    const updateValidity = (): void => {
+        // Sync `min` so the native picker UI itself prevents invalid
+        // picks before the user even sees them.
+        endEl.min = startEl.value || '';
+        if (startEl.value && endEl.value && endEl.value < startEl.value) {
+            if (hintEl) {
+                hintEl.textContent = 'End date must be on or after the start date.';
+                hintEl.style.color = '#a82424';
+            }
+            endEl.setCustomValidity('End date must be on or after the start date.');
+        } else {
+            if (hintEl) {
+                hintEl.textContent = _origHint;
+                hintEl.style.color = _origColor;
+            }
+            endEl.setCustomValidity('');
+        }
+    };
+    startEl.addEventListener('change', updateValidity);
+    endEl.addEventListener('change', updateValidity);
+    // Initial pass so a pre-filled form (Edit Trip) gets the min
+    // attribute synced before the user touches anything.
+    updateValidity();
+}
+
+
 function _scaffoldTripDays(
     tripId: string,
     startDate: string,
@@ -216,7 +269,7 @@ export const openNewTripModal = () => {
                         <input type="date" id="tripEndDate" class="glass-input-modal">
                     </div>
                 </div>
-                <p class="form-hint" style="margin-bottom: var(--space-4); width: 100%;">If you fill these in, we'll create one empty Path day per date — you can pin places later.</p>
+                <p class="form-hint" id="tripDateHint" style="margin-bottom: var(--space-4); width: 100%;">If you fill these in, we'll create one empty Path day per date — you can pin places later.</p>
                 <div style="display: flex; gap: var(--space-3); width: 100%; margin-top: var(--space-4);">
                     <button type="submit" id="newTripSubmitBtn" class="btn-primary" style="flex: 2;" disabled>Create Trip</button>
                     <button type="button" id="cancelTripBtn" class="btn-ghost" style="flex: 1;">Cancel</button>
@@ -230,6 +283,8 @@ export const openNewTripModal = () => {
     const submitBtn = (q(root, '#newTripSubmitBtn') as HTMLButtonElement);
 
     const { getPicked } = _wirePlacePicker({ placeInput, hint, submitBtn });
+
+    _wireDateRangeValidation(root, 'tripStartDate', 'tripEndDate', 'tripDateHint');
 
     (q(root, '#cancelTripBtn') as HTMLButtonElement).onclick = () => close();
     (q(root, '#newTripForm') as HTMLFormElement).onsubmit = (e) => {
@@ -381,7 +436,7 @@ export const openEditTripModal = (trip: any) => {
                         </button>
                         <div id="editTripCoverPreview" style="display: none; flex: 1; align-items: center; gap: var(--space-3);">
                             <img id="editTripCoverThumb" src="" alt="Cover preview" style="width: 56px; height: 56px; border-radius: 12px; object-fit: cover; border: 1px solid rgba(255,255,255,0.25); box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
-                            <button type="button" id="editTripCoverRemoveBtn" class="btn-ghost" style="padding: 6px 12px; font-size: 0.75rem; font-weight: 700; opacity: 0.85;">Remove</button>
+                            <button type="button" id="editTripCoverRemoveBtn" class="btn-ghost" style="padding: 10px 16px; min-height: var(--tap-min); font-size: 0.78rem; font-weight: 700; opacity: 0.85; border-radius: 8px; cursor: pointer;">Remove</button>
                         </div>
                         <span id="editTripCoverStatus" style="flex: 1; font-size: 0.78rem; color: rgba(255,255,255,0.7); font-weight: 600;"></span>
                     </div>
@@ -433,6 +488,13 @@ export const openEditTripModal = (trip: any) => {
         : null;
 
     const { getPicked } = _wirePlacePicker({ placeInput, hint, submitBtn, initialPlace });
+
+    // Round 4 audit fix — same date-range validation as the New Trip
+    // modal. Important here too because Edit Trip pre-fills both
+    // dates, so the user dragging the start past the end would land
+    // an invalid range; native min-attribute + setCustomValidity
+    // both catch it.
+    _wireDateRangeValidation(root, 'editTripStartDate', 'editTripEndDate', 'editTripDateHint');
 
     // ── Cover picker wiring ─────────────────────────────────────────
     // `coverUrl` is a closure-mutable so the submit handler reads the

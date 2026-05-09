@@ -153,8 +153,9 @@ export function renderAI() {
                             </div>
                             <div>
                                 <label for="aiDateTo" style="display:block;font-size:0.75rem;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:5px;">To</label>
-                                <input id="aiDateTo" type="date" class="glass-input" value="${maxDate}" style="width:100%; box-sizing: border-box;">
+                                <input id="aiDateTo" type="date" class="glass-input" value="${maxDate}" style="width:100%; box-sizing: border-box;" min="${minDate}">
                             </div>
+                            <p id="aiDateHint" style="margin:0; font-size:0.74rem; color:var(--text-secondary); line-height:1.45;">Pick the start and end of your trip — Gemini will plan one day per date.</p>
                         </div>
                     </div>
 
@@ -214,6 +215,39 @@ export function renderAI() {
         </div>`;
 
     setTimeout(() => {
+        // Round 4 audit fix — date range validation. Same pattern as
+        // the New Trip / Edit Trip modals: sync `min` on the to-date
+        // when the from-date changes, swap inline hint copy when the
+        // user manages to pick an invalid range. The setCustomValidity
+        // on the to-date input means the eventual Generate button
+        // click ALSO can't sneak through with end < start.
+        const _dateFromEl = div.querySelector('#aiDateFrom') as HTMLInputElement | null;
+        const _dateToEl = div.querySelector('#aiDateTo') as HTMLInputElement | null;
+        const _dateHint = div.querySelector('#aiDateHint') as HTMLElement | null;
+        if (_dateFromEl && _dateToEl) {
+            const _origHint = _dateHint?.textContent || '';
+            const _origColor = _dateHint?.style.color || '';
+            const updateDateValidity = (): void => {
+                _dateToEl.min = _dateFromEl.value || '';
+                if (_dateFromEl.value && _dateToEl.value && _dateToEl.value < _dateFromEl.value) {
+                    if (_dateHint) {
+                        _dateHint.textContent = 'End date must be on or after the start date.';
+                        _dateHint.style.color = '#a82424';
+                    }
+                    _dateToEl.setCustomValidity('End date must be on or after the start date.');
+                } else {
+                    if (_dateHint) {
+                        _dateHint.textContent = _origHint;
+                        _dateHint.style.color = _origColor;
+                    }
+                    _dateToEl.setCustomValidity('');
+                }
+            };
+            _dateFromEl.addEventListener('change', updateDateValidity);
+            _dateToEl.addEventListener('change', updateDateValidity);
+            updateDateValidity();
+        }
+
         // Zoom helper. Prefers the viewport stored on the trip (set in the
         // create-modal Places picker). Falls back to a Geocoder lookup for
         // legacy trips that pre-date the migration.
@@ -785,6 +819,15 @@ export function renderAI() {
             const ctxInput = (document.getElementById('aiExtraContext') as HTMLTextAreaElement | null);
             const userContext = ctxInput?.value ?? '';
             if (!dateFrom || !dateTo) { showLiquidAlert('Pick your travel dates first.'); return; }
+            // Round 4 audit fix — defence-in-depth: the inline
+            // validator above syncs `min` + setCustomValidity, but if
+            // the user somehow bypasses both (e.g. JS-disabled picker,
+            // typed-not-clicked), reject the bad range explicitly with
+            // a toast rather than firing the request.
+            if (dateTo < dateFrom) {
+                showLiquidAlert('End date must be on or after the start date.');
+                return;
+            }
             const from = new Date(dateFrom), to = new Date(dateTo);
             const numDays = Math.max(1, Math.round((to.getTime() - from.getTime()) / 86400000) + 1);
 

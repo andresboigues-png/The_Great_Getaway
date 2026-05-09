@@ -233,7 +233,7 @@ function renderManualTab() {
                         </button>
                         <div id="expReceiptPreview" style="display: none; align-items: center; gap: var(--space-3);">
                             <img id="expReceiptThumb" src="" alt="Receipt preview" style="width: 48px; height: 48px; border-radius: 10px; object-fit: cover; border: 1px solid rgba(0,0,0,0.08); box-shadow: 0 4px 12px rgba(0,0,0,0.08); cursor: pointer;" title="Click to view full size">
-                            <button type="button" id="expReceiptRemoveBtn" class="btn-ghost" style="padding: 6px 12px; font-size: 0.75rem; font-weight: 700; color: #ff3b30; background: rgba(255,59,48,0.08); border: 1px solid rgba(255,59,48,0.2);">Remove</button>
+                            <button type="button" id="expReceiptRemoveBtn" class="btn-ghost" style="padding: 10px 16px; min-height: var(--tap-min); font-size: 0.78rem; font-weight: 700; color: #ff3b30; background: rgba(255,59,48,0.08); border: 1px solid rgba(255,59,48,0.2); border-radius: 8px; cursor: pointer;">Remove</button>
                         </div>
                         <span id="expReceiptStatus" style="flex: 1; font-size: 0.75rem; color: rgba(0,0,0,0.5); font-weight: 600;"></span>
                     </div>

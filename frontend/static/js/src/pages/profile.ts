@@ -316,7 +316,7 @@ export function renderProfile(targetUserId: string | null | undefined = null) {
                                 </div>
 
                                 <div style="margin-top: 8px;">
-                                    <button id="saveProfileBtn" class="btn btn-small" style="background: var(--text-primary); color: var(--bg-color); padding: 6px 16px; border-radius: 8px; font-weight: 700; font-size: 0.8rem; opacity: 0; transition: opacity 0.3s; pointer-events: none;">Save Profile</button>
+                                    <button id="saveProfileBtn" class="btn btn-small" style="background: var(--text-primary); color: var(--bg-color); padding: 10px 18px; min-height: var(--tap-min); border-radius: 999px; border: 0; font-weight: 700; font-size: 0.85rem; opacity: 0; transition: opacity 0.3s; pointer-events: none; cursor: pointer;">Save Profile</button>
                                 </div>
                             ` : `
                                 <p style="font-size: 0.95rem; color: var(--text-primary); line-height: 1.5; margin: 4px 0;">${user.bio || 'No bio yet.'}</p>
