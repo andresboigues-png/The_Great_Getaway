@@ -42,6 +42,7 @@ import { openNewTripModal } from '../../modals.js';
 import { showConfirmModal, showLiquidAlert } from '../../utils.js';
 import { EmptyState } from '../../react/components/EmptyState.js';
 import type { Trip } from '../../types';
+import { t, tn } from '../../i18n.js';
 
 interface TodoMarkedPlace {
     placeId: string;
@@ -154,8 +155,8 @@ function TodoRow({ place: p, isTicked, tripIsEditable, onTickToggle, onRemove }:
                         }}
                         title={
                             isTicked
-                                ? 'Ticked — AI will consider this place'
-                                : 'Tick to have the AI consider this place'
+                                ? t('todo.tickedAriaTrue')
+                                : t('todo.tickedAriaFalse')
                         }
                     >
                         <input
@@ -298,7 +299,7 @@ function TodoRow({ place: p, isTicked, tripIsEditable, onTickToggle, onRemove }:
                         )}
                         {p.source === 'ai' && (
                             <span
-                                title="Added by the AI planner"
+                                title={t('todo.addedByAi')}
                                 style={{
                                     display: 'inline-flex',
                                     alignItems: 'center',
@@ -326,7 +327,7 @@ function TodoRow({ place: p, isTicked, tripIsEditable, onTickToggle, onRemove }:
                     <button
                         type="button"
                         onClick={() => setExpanded((v) => !v)}
-                        title={expanded ? 'Hide details' : 'Show details'}
+                        title={expanded ? t('todo.hideDetails') : t('todo.showDetails')}
                         aria-label={expanded ? 'Hide details' : 'Show details'}
                         aria-expanded={expanded}
                         style={{
@@ -360,7 +361,7 @@ function TodoRow({ place: p, isTicked, tripIsEditable, onTickToggle, onRemove }:
                         type="button"
                         className="todo-remove-btn"
                         data-place-id={p.placeId}
-                        title="Remove from to-do list"
+                        title={t('todo.removeBtnTooltip')}
                         aria-label={`Remove ${p.name}`}
                         onClick={() => onRemove(p.placeId)}
                         style={{
@@ -524,17 +525,17 @@ export function Todo() {
         return (
             <div style={{ maxWidth: '760px', margin: '0 auto' }}>
                 <div style={{ padding: '32px 0 24px', textAlign: 'center' }}>
-                    <h1 style={titleH1Style}>To do list 📋</h1>
+                    <h1 style={titleH1Style}>{t('todo.title')}</h1>
                     <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '1rem' }}>
-                        Places to fit in somewhere on your trip
+                        {t('todo.subtitleNoTrip')}
                     </p>
                 </div>
                 <EmptyState
                     accent="purple"
                     emoji="🧭"
-                    title="No trip selected"
-                    body="The to-do list is per-trip. Create a trip first, then add places from the home-map by clicking any pin."
-                    ctaLabel="+ Start Your Journey"
+                    title={t('todo.emptyNoTripTitle')}
+                    body={t('todo.emptyNoTripBody')}
+                    ctaLabel={t('todo.emptyNoTripCta')}
                     onCta={() => openNewTripModal()}
                 />
             </div>
@@ -569,15 +570,19 @@ export function Todo() {
      *  lose before tapping through. */
     const handleClearAll = () => {
         showConfirmModal({
-            title: 'Clear the to-do list?',
-            message: `This removes all ${todoItems.length} place${todoItems.length === 1 ? '' : 's'} from the to-do list for "${activeTrip.name}". This can't be undone.`,
-            confirmText: 'Clear list',
+            title: t('todo.clearConfirmTitle'),
+            // Plural-aware message (one vs many) keeps the count grammatical
+            // in every locale via the {count}/{trip} interpolation pattern.
+            message: todoItems.length === 1
+                ? t('todo.clearConfirmMessageOne', { trip: activeTrip.name })
+                : t('todo.clearConfirmMessageMany', { count: todoItems.length, trip: activeTrip.name }),
+            confirmText: t('todo.clearConfirmBtn'),
             confirmColor: '#ff3b30',
             onConfirm: () => {
                 clearAllMarkedPlaces(activeTrip);
                 emit(EVENTS.STATE_CHANGED);
                 upsertTrip(activeTrip);
-                showLiquidAlert('To-do list cleared.');
+                showLiquidAlert(t('todo.clearedToast'));
             },
         });
     };
@@ -587,23 +592,28 @@ export function Todo() {
         return (
             <div style={{ maxWidth: '760px', margin: '0 auto' }}>
                 <div style={{ padding: '32px 0 24px', textAlign: 'center' }}>
-                    <h1 style={titleH1Style}>To do list 📋</h1>
-                    <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '1rem' }}>
-                        Places to fit in somewhere on <strong>{activeTrip.name}</strong>
-                    </p>
+                    <h1 style={titleH1Style}>{t('todo.title')}</h1>
+                    <p
+                        style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '1rem' }}
+                        // Subtitle has inline <strong> markup with the trip
+                        // name; render via dangerouslySetInnerHTML so the
+                        // markup in the locale string lands as actual HTML.
+                        // {trip} interpolation in i18n.ts uses a regex
+                        // String.replace, which is safe — the only injection
+                        // surface is activeTrip.name, which we esc()'d at
+                        // creation. Belt-and-suspenders here: we still trust
+                        // STATE.activeTrip names because the user typed them.
+                        dangerouslySetInnerHTML={{
+                            __html: t('todo.subtitleWithTrip', { trip: activeTrip.name }),
+                        }}
+                    />
                 </div>
                 <EmptyState
                     accent="purple"
                     emoji="📋"
-                    title="Your to-do list is empty"
-                    body={
-                        <>
-                            Open the <strong>Home</strong> map, click any pin, and hit{' '}
-                            <strong>📋 Add to to-do list</strong>. Items show up here pre-ticked for
-                            AI consideration — untick the ones you want to slot manually.
-                        </>
-                    }
-                    ctaLabel="Open the map"
+                    title={t('todo.emptyNoItemsTitle')}
+                    body={t('todo.emptyNoItemsBody')}
+                    ctaLabel={t('todo.emptyNoItemsCta')}
                     onCta={() => navigate('home')}
                 />
             </div>
@@ -650,10 +660,13 @@ export function Todo() {
     return (
         <div style={{ maxWidth: '760px', margin: '0 auto' }}>
             <div style={{ padding: '32px 0 24px', textAlign: 'center' }}>
-                <h1 style={titleH1Style}>To do list 📋</h1>
-                <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '1rem' }}>
-                    Places to fit in somewhere on <strong>{activeTrip.name}</strong>
-                </p>
+                <h1 style={titleH1Style}>{t('todo.title')}</h1>
+                <p
+                    style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '1rem' }}
+                    dangerouslySetInnerHTML={{
+                        __html: t('todo.subtitleWithTrip', { trip: activeTrip.name }),
+                    }}
+                />
             </div>
 
             <div
@@ -688,7 +701,7 @@ export function Todo() {
                                 lineHeight: 1.2,
                             }}
                         >
-                            {todoItems.length} item{todoItems.length === 1 ? '' : 's'}
+                            {tn('todo.itemCount', todoItems.length)}
                         </div>
                         <div
                             style={{
@@ -697,7 +710,7 @@ export function Todo() {
                                 marginTop: '2px',
                             }}
                         >
-                            {tickedCount}/{todoItems.length} ticked for AI consideration
+                            {t('todo.tickedSummary', { ticked: tickedCount, total: todoItems.length })}
                         </div>
                     </div>
                 </div>
@@ -706,7 +719,7 @@ export function Todo() {
                         <button
                             type="button"
                             onClick={handleClearAll}
-                            title="Remove every place from this trip's to-do list"
+                            title={t('todo.clearAllTooltip')}
                             style={{
                                 padding: '9px 14px',
                                 borderRadius: '999px',
@@ -727,7 +740,7 @@ export function Todo() {
                                 e.currentTarget.style.borderColor = 'rgba(255, 59, 48, 0.28)';
                             }}
                         >
-                            🗑 Clear all
+                            {t('todo.clearAllBtn')}
                         </button>
                     )}
                     <button

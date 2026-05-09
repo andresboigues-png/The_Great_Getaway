@@ -19,6 +19,7 @@ import {
 import { upsertBudget, deleteBudgetOnServer } from '../../api.js';
 import { getTripCompanionNames } from '../../companions.js';
 import { showModal } from '../../components/Modal.js';
+import { t } from '../../i18n.js';
 
 /** Sum (in EUR) the trip/category/user-filtered expenses for a budget. */
 export function spentForBudget(budget: any): number {
@@ -40,10 +41,10 @@ export function budgetStatus(budget: any) {
     const target = budget.amount || 0;
     const pct = target > 0 ? (spent / target) * 100 : 0;
     if (target > 0 && spent > target)
-        return { tier: 'over' as const, color: '#ff3b30', label: 'Over budget', spent, target, pct };
+        return { tier: 'over' as const, color: '#ff3b30', label: t('budgets.statusLabelOver'), spent, target, pct };
     if (target > 0 && pct > 80)
-        return { tier: 'near' as const, color: '#ff9500', label: 'Near limit', spent, target, pct };
-    return { tier: 'ok' as const, color: '#34c759', label: 'On track', spent, target, pct };
+        return { tier: 'near' as const, color: '#ff9500', label: t('budgets.statusLabelNear'), spent, target, pct };
+    return { tier: 'ok' as const, color: '#34c759', label: t('budgets.statusLabelOk'), spent, target, pct };
 }
 
 /** Build a human-readable title for a budget's combination of filters.
@@ -51,23 +52,25 @@ export function budgetStatus(budget: any) {
 export function budgetTitle(b: any): string {
     const parts: string[] = [];
     if (b.tripId && b.tripId !== 'all') {
-        const trip = (STATE.trips || []).find((t) => t.id === b.tripId);
-        const archived = (STATE.archivedTrips || []).find((t) => t.id === b.tripId);
+        // Renamed local from `t` to `trip` to avoid shadowing the
+        // imported `t` (i18n lookup function).
+        const trip = (STATE.trips || []).find((tr) => tr.id === b.tripId);
+        const archived = (STATE.archivedTrips || []).find((tr) => tr.id === b.tripId);
         const name = trip?.name || archived?.name;
         if (name) parts.push(name);
     } else {
-        parts.push('All trips');
+        parts.push(t('budgets.titleAllTrips'));
     }
     if (b.categoryId && b.categoryId !== 'all') {
         const cat = (STATE.categories || []).find((c) => c.id === b.categoryId);
         if (cat) parts.push(`${cat.icon ? cat.icon + ' ' : ''}${cat.name}`);
     } else {
-        parts.push('All categories');
+        parts.push(t('budgets.titleAllCategories'));
     }
     if (b.user && b.user !== 'all') {
         parts.push(b.user);
     } else {
-        parts.push('Everyone');
+        parts.push(t('budgets.titleEveryone'));
     }
     return parts.join(' · ');
 }
@@ -79,15 +82,18 @@ export const deleteBudget = (id: string) => {
     const b = (STATE.budgets || []).find((x) => x.id === id);
     if (!b) return;
     showConfirmModal({
-        title: 'Delete this budget?',
-        message: `${budgetTitle(b)} — ${formatHome(b.amount, 'EUR')}. The expenses themselves stay; only the budget target is removed.`,
-        confirmText: 'Delete',
+        title: t('budgets.deleteConfirmTitle'),
+        message: t('budgets.deleteConfirmMessage', {
+            title: budgetTitle(b),
+            amount: formatHome(b.amount, 'EUR'),
+        }),
+        confirmText: t('budgets.deleteConfirmBtn'),
         onConfirm: () => {
             STATE.budgets = STATE.budgets.filter((x) => x.id !== id);
             emit(EVENTS.STATE_CHANGED);
             const p = deleteBudgetOnServer(id);
             if (p) p.catch((err) => console.error('Delete budget failed:', err));
-            showLiquidAlert('Budget deleted.');
+            showLiquidAlert(t('budgets.deletedToast'));
         },
     });
 };
@@ -101,8 +107,10 @@ export const openCreateBudgetModal = () => {
     const activeTripId = STATE.activeTripId || '';
     const tripOpts = (STATE.trips || [])
         .map(
-            (t) =>
-                `<option value="${esc(t.id)}" ${t.id === activeTripId ? 'selected' : ''}>${esc(t.name)}</option>`,
+            // Renamed param from `t` to `tr` to avoid shadowing the i18n
+            // `t` import.
+            (tr) =>
+                `<option value="${esc(tr.id)}" ${tr.id === activeTripId ? 'selected' : ''}>${esc(tr.name)}</option>`,
         )
         .join('');
     const catOpts = (STATE.categories || [])
@@ -112,7 +120,7 @@ export const openCreateBudgetModal = () => {
         )
         .join('');
     const allCompanionNames = Array.from(
-        new Set((STATE.trips || []).flatMap((t) => getTripCompanionNames(t))),
+        new Set((STATE.trips || []).flatMap((tr) => getTripCompanionNames(tr))),
     ).sort();
     const userOpts = allCompanionNames.map((g) => `<option value="${esc(g)}">${esc(g)}</option>`).join('');
     const home = getHomeCurrency();
@@ -125,22 +133,22 @@ export const openCreateBudgetModal = () => {
         cardStyle:
             'width: 480px; max-width: calc(100vw - 32px); max-height: 90vh; overflow-y: auto;',
         innerHTML: `
-            <h2 class="h2-display">New budget</h2>
-            <p class="text-subtitle">Set a spending ceiling — track it against the matching expenses.</p>
+            <h2 class="h2-display">${t('budgets.createTitle')}</h2>
+            <p class="text-subtitle">${t('budgets.createSubtitle')}</p>
             <div style="display: flex; flex-direction: column; gap: var(--space-3); margin: var(--space-4) 0 var(--space-6);">
-                <label style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-secondary);">Trip</label>
+                <label style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-secondary);">${t('budgets.createTripLabel')}</label>
                 <select id="newBudTrip" class="glass-input" style="padding: var(--space-3); border-radius: 12px; background:white;">
-                    <option value="all" ${!activeTripId ? 'selected' : ''}>All trips</option>${tripOpts}
+                    <option value="all" ${!activeTripId ? 'selected' : ''}>${t('budgets.createTripAll')}</option>${tripOpts}
                 </select>
-                <label style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-secondary); margin-top:8px;">Category</label>
+                <label style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-secondary); margin-top:8px;">${t('budgets.createCategoryLabel')}</label>
                 <select id="newBudCat" class="glass-input" style="padding: var(--space-3); border-radius: 12px; background:white;">
-                    <option value="all">All categories</option>${catOpts}
+                    <option value="all">${t('budgets.createCategoryAll')}</option>${catOpts}
                 </select>
-                <label style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-secondary); margin-top:8px;">Person</label>
+                <label style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-secondary); margin-top:8px;">${t('budgets.createPersonLabel')}</label>
                 <select id="newBudUser" class="glass-input" style="padding: var(--space-3); border-radius: 12px; background:white;">
-                    <option value="all">Everyone on the trip</option>${userOpts}
+                    <option value="all">${t('budgets.createPersonAll')}</option>${userOpts}
                 </select>
-                <label style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-secondary); margin-top:8px;">Target amount</label>
+                <label style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-secondary); margin-top:8px;">${t('budgets.createTargetLabel')}</label>
                 <div style="display: grid; grid-template-columns: 1fr 110px; gap: var(--space-3);">
                     <input type="number" id="newBudAmt" class="glass-input" placeholder="1000" min="0" step="any" style="padding: var(--space-3); border-radius: 12px;">
                     <select id="newBudCurr" class="glass-input" style="padding: var(--space-3); border-radius: 12px; background:white;">${currOpts}</select>
@@ -148,8 +156,8 @@ export const openCreateBudgetModal = () => {
                 <div id="newBudStatus" style="font-size:0.72rem; color: var(--text-secondary); min-height:1em; font-weight:700;"></div>
             </div>
             <div style="display:flex; gap: var(--space-3);">
-                <button id="newBudCancelBtn" class="btn-neutral" style="flex:1; border-radius: var(--radius-lg);">Cancel</button>
-                <button id="newBudSaveBtn" class="btn-primary" style="flex:2; border-radius: var(--radius-lg);">Save budget</button>
+                <button id="newBudCancelBtn" class="btn-neutral" style="flex:1; border-radius: var(--radius-lg);">${t('budgets.createCancelBtn')}</button>
+                <button id="newBudSaveBtn" class="btn-primary" style="flex:2; border-radius: var(--radius-lg);">${t('budgets.createSaveBtn')}</button>
             </div>
         `,
     });
@@ -159,14 +167,14 @@ export const openCreateBudgetModal = () => {
         const amtRaw = (q(root, '#newBudAmt') as HTMLInputElement).value;
         const amt = parseFloat(amtRaw);
         if (!Number.isFinite(amt) || amt <= 0) {
-            statusEl.textContent = 'Enter a valid positive amount.';
+            statusEl.textContent = t('budgets.createInvalidAmount');
             statusEl.style.color = '#ff9500';
             return;
         }
         const curr = (q(root, '#newBudCurr') as HTMLSelectElement).value;
         const rate = CONVERSION_RATES[curr];
         if (rate === undefined) {
-            statusEl.textContent = `Unknown currency "${curr}" — pick one from the list.`;
+            statusEl.textContent = t('budgets.createUnknownCurrency', { curr });
             statusEl.style.color = '#ff3b30';
             return;
         }
@@ -182,16 +190,16 @@ export const openCreateBudgetModal = () => {
         };
         STATE.budgets.push(budget);
         emit(EVENTS.STATE_CHANGED);
-        statusEl.textContent = 'Saving…';
+        statusEl.textContent = t('budgets.createSavingStatus');
         statusEl.style.color = 'var(--text-secondary)';
         try {
             await upsertBudget(budget);
             close();
-            showLiquidAlert('Budget saved.');
+            showLiquidAlert(t('budgets.createSavedToast'));
         } catch (err) {
             STATE.budgets = STATE.budgets.filter((b) => b.id !== budget.id);
             emit(EVENTS.STATE_CHANGED);
-            statusEl.textContent = `Save failed (${(err as Error).message}). Try again.`;
+            statusEl.textContent = t('budgets.createSaveFailed', { message: (err as Error).message });
             statusEl.style.color = '#ff3b30';
         }
     };

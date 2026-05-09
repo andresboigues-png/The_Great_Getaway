@@ -301,11 +301,9 @@ export function Friends() {
         if (!user || !friendId) return;
         showConfirmModal({
             title: t('friends.toastRejectConfirmTitle'),
-            // Confirm-modal body left in English-source for now (the
-            // {friendName} interpolation pattern + ", you can still
-            // accept later if they re-send" branching is a future
-            // candidate for a t()-with-params key).
-            message: `Decline the friend request from ${friendName}? You can still accept later if they re-send.`,
+            // i18n session 4: closed the loose end with a {name}-
+            // interpolated key. Body localizes per active locale.
+            message: t('friends.toastRejectConfirmMessage', { name: friendName }),
             confirmText: t('friends.toastRejectConfirmBtn'),
             onConfirm: async () => {
                 // Optimistic local removal
@@ -334,9 +332,9 @@ export function Friends() {
         if (!user || !friendId) return;
         showConfirmModal({
             title: t('friends.toastRemoveConfirmTitle'),
-            // See note above on rejectFriendRequest — body deferred
-            // to a future sweep with proper {friendName} interpolation.
-            message: `${friendName} will be removed from your friends list. They won't be notified, and you can always send a new request later.`,
+            // i18n session 4: closed the loose end with a {name}-
+            // interpolated key.
+            message: t('friends.toastRemoveConfirmMessage', { name: friendName }),
             confirmText: t('friends.toastRemoveConfirmBtn'),
             onConfirm: async () => {
                 setFriends((curr) => curr.filter((f) => f.id !== friendId));

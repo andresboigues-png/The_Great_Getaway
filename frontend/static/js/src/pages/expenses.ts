@@ -16,7 +16,7 @@ import { navigate } from '../router.js';
 // lives. Personalization no longer has a companions sub-tab.
 import { renderUpload } from './upload.js';
 import { canEditExpenses } from '../permissions.js';
-import { t } from '../i18n.js';
+import { t, tn } from '../i18n.js';
 
 let activeExpensesTab: 'manual' | 'batch' | 'history' = 'manual';
 
@@ -828,11 +828,10 @@ function renderHistoryTab() {
                 if (!batch || !Array.isArray(batch.expenseIds) || batch.expenseIds.length === 0) return;
                 showConfirmModal({
                     title: t('expenses.undoBatchTitle'),
-                    // Message uses {count} interpolation; "Removes the X
-                    // expenses..." stays English-source for now —
-                    // candidate for a tn() plural form in a future
-                    // sweep. Title + button are localized via t().
-                    message: `Removes the ${batch.expenseIds.length} expenses imported in your most recent upload. This cannot be undone.`,
+                    // i18n session 4: closed the loose end with a plural
+                    // tn() form. one/other branches stay grammatical in
+                    // every locale.
+                    message: tn('expenses.undoBatchMessage', batch.expenseIds.length),
                     confirmText: t('expenses.undoBatchBtn'),
                     onConfirm: () => {
                         const ids = new Set(batch.expenseIds);

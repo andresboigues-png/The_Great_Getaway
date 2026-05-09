@@ -11,6 +11,7 @@ import { showModal } from '../components/Modal.js';
 import { applyMapTheme } from '../theme.js';
 import { navigate } from '../router.js';
 import { renderSlotBody, flattenSlotForTextarea } from './ai/slots.js';
+import { t } from '../i18n.js';
 
 let googleMap: any = null;
 let mapMarkers: any[] = [];
@@ -23,7 +24,7 @@ export function renderAI() {
     if (!activeTrip) {
         div.innerHTML = `
             <div style="padding:32px 0 24px;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text',sans-serif;">
-                <h1 style="margin:0 0 6px;font-size:2.8rem;font-weight:800;letter-spacing:-0.04em;background:var(--gradient-title);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Plan with AI ✦</h1>
+                <h1 style="margin:0 0 6px;font-size:2.8rem;font-weight:800;letter-spacing:-0.04em;background:var(--gradient-title);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">${t('ai.title')}</h1>
                 <p style="margin:0;color:var(--text-secondary);font-size:1rem;">Your AI-powered travel planner</p>
             </div>
             <div style="position: relative; width: 100%; height: calc(100vh - 200px); min-height: 480px; border-radius: 20px; overflow: hidden; box-shadow: 0 40px 100px rgba(0,0,0,0.15);">
@@ -31,8 +32,8 @@ export function renderAI() {
                 <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(255,255,255,0.05);backdrop-filter:blur(25px) saturate(180%);-webkit-backdrop-filter:blur(25px) saturate(180%);z-index:1000;">
                     <div class="premium-glass-card" style="text-align:center;color:#002d5b;padding:48px;max-width:500px;background:rgba(255,255,255,0.6);border-radius:36px;border:1px solid rgba(255,255,255,0.8);box-shadow: 0 30px 60px rgba(0,0,0,0.1), 0 10px 20px rgba(0,0,0,0.05);">
                         <div style="font-size:4.5rem;margin-bottom:24px;filter:drop-shadow(0 10px 15px rgba(0,0,0,0.1));">🧭</div>
-                        <h2 style="font-size:2rem;font-weight:800;margin-bottom:16px;letter-spacing:-0.03em;">Ready for a new adventure?</h2>
-                        <p style="font-size:1.15rem;opacity:0.85;line-height:1.6;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',sans-serif;margin-bottom:32px;">To generate a personalized AI itinerary, you'll need to create a trip first.</p>
+                        <h2 style="font-size:2rem;font-weight:800;margin-bottom:16px;letter-spacing:-0.03em;">${t('ai.noTripTitle')}</h2>
+                        <p style="font-size:1.15rem;opacity:0.85;line-height:1.6;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',sans-serif;margin-bottom:32px;">${t('ai.noTripBody')}</p>
                         <button id="aiStartJourneyBtn" class="btn-primary btn-primary--lg" style="max-width: none; width: auto; padding: 16px 36px; font-size: 1.15rem;">+ Start Your Journey</button>
                     </div>
                 </div>
@@ -99,9 +100,9 @@ export function renderAI() {
             <!-- Header -->
             <div style="padding:32px 0 24px;">
                 <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;">
-                    <h1 style="margin:0;font-size:2.8rem;font-weight:800;letter-spacing:-0.04em;background:var(--gradient-title);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Plan with AI ✦</h1>
+                    <h1 style="margin:0;font-size:2.8rem;font-weight:800;letter-spacing:-0.04em;background:var(--gradient-title);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">${t('ai.title')}</h1>
                 </div>
-                <p style="margin:0;color:var(--text-secondary);font-size:1rem;">Planning your trip to <strong>${tripCountry}</strong></p>
+                <p style="margin:0;color:var(--text-secondary);font-size:1rem;">${t('ai.subtitlePlanning', { country: esc(tripCountry) })}</p>
             </div>
 
             <!-- Top 2-col: Controls | Map. Class ai-page-2col is the
@@ -129,7 +130,7 @@ export function renderAI() {
                          self-hosted setups still work. -->
                     <div class="card glass" style="padding:18px;border-color:rgba(155,89,182,0.3);flex:0 0 auto;">
                         <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
-                            <h2 class="card-title" style="font-size:0.85rem;text-transform:uppercase;letter-spacing:0.07em;color:#7c3a9e;margin:0;">✦ AI Engine — Gemini</h2>
+                            <h2 class="card-title" style="font-size:0.85rem;text-transform:uppercase;letter-spacing:0.07em;color:#7c3a9e;margin:0;">${t('ai.sectionAiEngine')}</h2>
                             <button id="aiKeyHelpBtn" type="button" title="How to get a Gemini API key" aria-label="How to get a Gemini API key"
                                 style="background:rgba(155,89,182,0.12); border:1px solid rgba(155,89,182,0.35); color:#7c3a9e; width:24px; height:24px; border-radius:50%; cursor:pointer; font-weight:800; font-size:0.78rem; line-height:1; display:inline-flex; align-items:center; justify-content:center; font-family: Georgia, serif; font-style: italic;">i</button>
                         </div>
@@ -145,7 +146,7 @@ export function renderAI() {
                     </div>
                     <!-- Dates -->
                     <div class="card glass" style="padding:20px;flex:0 0 auto;">
-                        <h2 class="card-title" style="font-size:0.85rem;text-transform:uppercase;letter-spacing:0.07em;color:#005bb8;margin-bottom:14px;">📅 Travel Dates</h2>
+                        <h2 class="card-title" style="font-size:0.85rem;text-transform:uppercase;letter-spacing:0.07em;color:#005bb8;margin-bottom:14px;">${t('ai.sectionTravelDates')}</h2>
                         <div style="display:flex; flex-direction:column; gap:12px;">
                             <div>
                                 <label for="aiDateFrom" style="display:block;font-size:0.75rem;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:5px;">From</label>
@@ -160,12 +161,12 @@ export function renderAI() {
                     </div>
 
                     <div class="card glass" style="padding:20px;flex:1 1 auto;display:flex;flex-direction:column;min-height:0;">
-                        <h2 class="card-title" style="font-size:0.85rem;text-transform:uppercase;color:#005bb8;margin-bottom:10px;letter-spacing:0.05em;">📝 Requirements</h2>
+                        <h2 class="card-title" style="font-size:0.85rem;text-transform:uppercase;color:#005bb8;margin-bottom:10px;letter-spacing:0.05em;">${t('ai.sectionRequirements')}</h2>
                         <textarea id="aiExtraContext" class="glass-input" style="width:100%; resize:none; font-size:0.9rem; box-sizing: border-box; flex:1 1 auto; min-height:120px;" placeholder="e.g. Vegetarian friendly, no walking more than 2km...">${savedContext}</textarea>
                     </div>
                     <!-- Generate -->
                     ${tripIsEditable
-                        ? `<button id="generateBtn" class="ai-generate-btn" style="width:100%; border-radius: var(--radius-lg);flex:0 0 auto;">✦ Generate My Itinerary</button>`
+                        ? `<button id="generateBtn" class="ai-generate-btn" style="width:100%; border-radius: var(--radius-lg);flex:0 0 auto;">${t('ai.generateBtn')}</button>`
                         : (() => {
                             // Role-aware copy. Relaxers + Budgeteers
                             // both land here (canEdit returns false
@@ -342,13 +343,13 @@ export function renderAI() {
                              so the headline reads clearly against the light
                              page background AND ties visually to the day
                              cards below. -->
-                        <h2 style="margin:0;font-size:2rem;font-weight:800;letter-spacing:-0.03em;background:var(--gradient-title);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;${sf}">${numDays}-Day ${country} Itinerary</h2>
-                        <p style="color:var(--text-secondary);margin:6px 0 0;font-size:0.9rem;">Generated by Gemini AI</p>
+                        <h2 style="margin:0;font-size:2rem;font-weight:800;letter-spacing:-0.03em;background:var(--gradient-title);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;${sf}">${t('ai.resultHeading', { numDays, country })}</h2>
+                        <p style="color:var(--text-secondary);margin:6px 0 0;font-size:0.9rem;">${t('ai.resultGeneratedBy')}</p>
                     </div>
-                    <div style="font-size:0.78rem;color:var(--text-secondary);background:var(--glass-bg);border:1px solid var(--glass-border);padding:5px 14px;border-radius:980px;">✦ AI-Generated</div>
+                    <div style="font-size:0.78rem;color:var(--text-secondary);background:var(--glass-bg);border:1px solid var(--glass-border);padding:5px 14px;border-radius:980px;">${t('ai.resultBadge')}</div>
                 </div>
                 <div id="itineraryDays" style="display:flex;flex-direction:column;gap:16px;"></div>
-                ${tripIsEditable ? `<div style="display:flex;gap:12px;margin-top:24px;"><button id="acceptPlanBtn" class="btn" style="flex:2;background:var(--accent-blue);color:white;padding:16px;font-size:1.1rem;border-radius:16px;font-weight:700;box-shadow:0 10px 20px rgba(0,122,255,0.2);cursor:pointer;">Accept Plan & Add to Trip</button></div>` : ''}`;
+                ${tripIsEditable ? `<div style="display:flex;gap:12px;margin-top:24px;"><button id="acceptPlanBtn" class="btn" style="flex:2;background:var(--accent-blue);color:white;padding:16px;font-size:1.1rem;border-radius:16px;font-weight:700;box-shadow:0 10px 20px rgba(0,122,255,0.2);cursor:pointer;">${t('ai.acceptPlanBtn')}</button></div>` : ''}`;
 
             const daysContainer = q(outputEl, '#itineraryDays');
             const dayDivs: HTMLDivElement[] = [];
@@ -818,14 +819,14 @@ export function renderAI() {
             const dateTo = (q(div, '#aiDateTo') as HTMLInputElement).value;
             const ctxInput = (document.getElementById('aiExtraContext') as HTMLTextAreaElement | null);
             const userContext = ctxInput?.value ?? '';
-            if (!dateFrom || !dateTo) { showLiquidAlert('Pick your travel dates first.'); return; }
+            if (!dateFrom || !dateTo) { showLiquidAlert(t('ai.toastPickDates')); return; }
             // Round 4 audit fix — defence-in-depth: the inline
             // validator above syncs `min` + setCustomValidity, but if
             // the user somehow bypasses both (e.g. JS-disabled picker,
             // typed-not-clicked), reject the bad range explicitly with
             // a toast rather than firing the request.
             if (dateTo < dateFrom) {
-                showLiquidAlert('End date must be on or after the start date.');
+                showLiquidAlert(t('ai.toastEndBeforeStart'));
                 return;
             }
             const from = new Date(dateFrom), to = new Date(dateTo);
@@ -857,7 +858,7 @@ export function renderAI() {
             }
             const context = userContext + markedSuffix;
             activeTrip.aiContext = userContext; activeTrip.aiNumDays = numDays; emit('state:changed');
-            outputEl.innerHTML = `<div style="text-align:center;padding:60px;"><div class="spinner-ring" style="width:40px;height:40px;border:3px solid rgba(0,113,227,0.15);border-top-color:#005bb8;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 20px;"></div><div style="color:var(--text-primary);font-weight:600;">Consulting Gemini AI…</div><div style="color:var(--text-secondary);font-size:0.82rem;margin-top:6px;">This usually takes 5-15 seconds. Maps lookups for each place add a few more.</div></div>`;
+            outputEl.innerHTML = `<div style="text-align:center;padding:60px;"><div class="spinner-ring" style="width:40px;height:40px;border:3px solid rgba(0,113,227,0.15);border-top-color:#005bb8;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 20px;"></div><div style="color:var(--text-primary);font-weight:600;">${t('ai.loadingTitle')}</div><div style="color:var(--text-secondary);font-size:0.82rem;margin-top:6px;">${t('ai.loadingBody')}</div></div>`;
             outputEl.scrollIntoView({ behavior: 'smooth' });
             // Round 2 audit fix: disable the Generate button + flip its
             // label so a second click during the in-flight request
@@ -867,7 +868,7 @@ export function renderAI() {
             const _origLabel = generateBtn?.innerHTML || '';
             if (generateBtn) {
                 generateBtn.disabled = true;
-                generateBtn.innerHTML = '⌛ Generating…';
+                generateBtn.innerHTML = t('ai.generatingBtn');
             }
             try {
                 const r = await apiFetch('/api/generate_itinerary', {
@@ -901,20 +902,20 @@ export function renderAI() {
                 // scrolled down to see the form).
                 const rawMsg = (e as Error).message || '';
                 // Common Gemini failure modes get human-readable hints.
-                let friendlyMsg = 'Something went wrong while generating your plan.';
+                let friendlyMsg = t('ai.errorGeneric');
                 let hint = '';
                 if (/UNAVAILABLE|503|overloaded/i.test(rawMsg)) {
-                    friendlyMsg = 'Gemini is overloaded right now.';
-                    hint = 'This usually clears in 30-60 seconds.';
+                    friendlyMsg = t('ai.errorOverloaded');
+                    hint = t('ai.errorOverloadedHint');
                 } else if (/quota|limit|RESOURCE_EXHAUSTED|429/i.test(rawMsg)) {
-                    friendlyMsg = 'Daily AI quota reached for this key.';
-                    hint = 'Try again tomorrow, or use a different Gemini key in Settings → AI Engine.';
+                    friendlyMsg = t('ai.errorQuota');
+                    hint = t('ai.errorQuotaHint');
                 } else if (/key|api[_ ]?key|UNAUTHENTICATED|401|403/i.test(rawMsg)) {
-                    friendlyMsg = 'AI key isn\'t accepted by Gemini.';
-                    hint = 'Open Settings → AI Engine and check the key, or generate a new one.';
+                    friendlyMsg = t('ai.errorBadKey');
+                    hint = t('ai.errorBadKeyHint');
                 } else if (/network|fetch|timed?[\- ]?out|ECONN/i.test(rawMsg)) {
-                    friendlyMsg = 'Network hiccup talking to the AI.';
-                    hint = 'Check your connection and retry.';
+                    friendlyMsg = t('ai.errorNetwork');
+                    hint = t('ai.errorNetworkHint');
                 }
                 outputEl.innerHTML = `
                     <div class="card glass" style="text-align:center;padding:32px 28px;">
@@ -922,10 +923,10 @@ export function renderAI() {
                         <h2 style="color:#a82424;margin:0 0 6px;font-size:1.2rem;">${esc(friendlyMsg)}</h2>
                         ${hint ? `<p style="margin:0 0 18px;color:var(--text-secondary);font-size:0.9rem;line-height:1.5;">${esc(hint)}</p>` : ''}
                         <details style="margin:0 0 18px;text-align:left;background:rgba(255,59,48,0.04);border:1px solid rgba(255,59,48,0.16);border-radius:10px;padding:8px 12px;">
-                            <summary style="cursor:pointer;font-size:0.78rem;font-weight:700;color:#7c3a9e;">Technical details</summary>
-                            <pre style="margin:8px 0 0;font-size:0.72rem;color:#666;font-family:monospace;white-space:pre-wrap;word-break:break-word;">${esc(rawMsg || 'Unknown error')}</pre>
+                            <summary style="cursor:pointer;font-size:0.78rem;font-weight:700;color:#7c3a9e;">${t('ai.errorTechnicalDetails')}</summary>
+                            <pre style="margin:8px 0 0;font-size:0.72rem;color:#666;font-family:monospace;white-space:pre-wrap;word-break:break-word;">${esc(rawMsg || t('ai.errorUnknown'))}</pre>
                         </details>
-                        <button id="aiRetryBtn" type="button" style="padding:10px 22px;border-radius:999px;border:0;background:var(--accent-blue);color:white;font-size:0.92rem;font-weight:700;cursor:pointer;box-shadow:0 4px 12px rgba(0,113,227,0.28);">Try again</button>
+                        <button id="aiRetryBtn" type="button" style="padding:10px 22px;border-radius:999px;border:0;background:var(--accent-blue);color:white;font-size:0.92rem;font-weight:700;cursor:pointer;box-shadow:0 4px 12px rgba(0,113,227,0.28);">${t('ai.errorRetryBtn')}</button>
                     </div>
                 `;
                 showLiquidAlert(friendlyMsg);

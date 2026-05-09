@@ -25,6 +25,7 @@ import { fetchHistoricalRates } from '../../api.js';
 import { getHomeCurrency, currencySymbol } from '../../utils.js';
 import { EmptyState } from '../../react/components/EmptyState.js';
 import type { Expense, Category } from '../../types';
+import { t } from '../../i18n.js';
 
 // Chart is loaded via CDN in index.html and declared as a global in types.d.ts
 declare const Chart: any;
@@ -65,10 +66,10 @@ export function Insights() {
                         backgroundClip: 'text',
                     }}
                 >
-                    Insights
+                    {t('insights.title')}
                 </h1>
                 <div className="card glass">
-                    <p>Please select a trip.</p>
+                    <p>{t('insights.emptyNoTripBody')}</p>
                 </div>
             </div>
         );
@@ -147,7 +148,7 @@ export function Insights() {
         convertedExps.forEach((e) => {
             catTotals[e.categoryId] = (catTotals[e.categoryId] || 0) + e.displayValue;
             spenderTotals[e.who] = (spenderTotals[e.who] || 0) + e.displayValue;
-            const d = e.date || 'Unknown';
+            const d = e.date || t('insights.unknownDate');
             dateTotals[d] = (dateTotals[d] || 0) + e.displayValue;
         });
 
@@ -188,19 +189,17 @@ export function Insights() {
                         backgroundClip: 'text',
                     }}
                 >
-                    Insights
+                    {t('insights.title')}
                 </h1>
                 <EmptyState
                     variant="tall"
                     emoji="📊"
-                    title="No Data to Analyze Yet"
-                    body={
-                        <>
-                            Add your travel expenses in the <b>Expenses</b> tab or upload an Excel
-                            sheet to see your spending breakdown and analytics.
-                        </>
-                    }
-                    ctaLabel="Add Your First Expense"
+                    title={t('insights.emptyNoExpensesTitle')}
+                    // Body holds inline <b> markup; render as HTML so the
+                    // bold renders. Source string is from our own
+                    // translation tables (no user input), safe to inject.
+                    body={<span dangerouslySetInnerHTML={{ __html: t('insights.emptyNoExpensesBody') }} />}
+                    ctaLabel={t('insights.emptyNoExpensesCta')}
                     onCta={() => navigate('expenses')}
                 />
             </div>
@@ -217,7 +216,7 @@ export function Insights() {
     const pieColors: string[] = [];
     Object.keys(catTotals).forEach((catId) => {
         const cat = categories.find((c: Category) => c.id === catId);
-        pieLabels.push(cat ? `${cat.icon} ${cat.name}` : 'Unknown');
+        pieLabels.push(cat ? `${cat.icon} ${cat.name}` : t('insights.unknownCategory'));
         pieColors.push(cat ? cat.color : '#ccc');
         pieData.push(catTotals[catId] ?? 0);
     });
@@ -346,7 +345,7 @@ export function Insights() {
                             fontSize: '1.1rem',
                         }}
                     >
-                        Your travel spending at a glance.
+                        {t('insights.subtitle')}
                     </p>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
@@ -364,13 +363,13 @@ export function Insights() {
                             className={`toggle-btn rate-mode-btn ${mode === 'at_trip' ? 'active' : ''}`}
                             onClick={() => setMode('at_trip')}
                         >
-                            At Trip
+                            {t('insights.rateModeAtTrip')}
                         </button>
                         <button
                             className={`toggle-btn rate-mode-btn ${mode === 'today' ? 'active' : ''}`}
                             onClick={() => setMode('today')}
                         >
-                            Today
+                            {t('insights.rateModeToday')}
                         </button>
                     </div>
 
@@ -378,7 +377,7 @@ export function Insights() {
                         <select
                             id="insightCurrencySelector"
                             className="glass-input"
-                            aria-label="Display currency for insights"
+                            aria-label={t('insights.currencySelectorAriaLabel')}
                             value={targetCurr}
                             onChange={(e) => setCurrency(e.target.value)}
                             style={{
@@ -402,7 +401,7 @@ export function Insights() {
             {/* Hero Row: Totals */}
             <div style={{ marginBottom: 'var(--space-8)' }}>
                 <div className="card glass hero-stat-card">
-                    <h2 className="card-title hero-stat-card__title">Total Spent on your trip</h2>
+                    <h2 className="card-title hero-stat-card__title">{t('insights.heroTitle')}</h2>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--space-3)' }}>
                         <h1 className="hero-stat-card__value">
                             {targetSym}
@@ -410,9 +409,17 @@ export function Insights() {
                         </h1>
                         <span className="hero-stat-card__currency">{targetCurr}</span>
                     </div>
-                    <p className="hero-stat-card__sub">
-                        Spent across <strong>{totalCount}</strong> transactions during your travels.
-                    </p>
+                    <p
+                        className="hero-stat-card__sub"
+                        // {count} interpolation rolls in the transaction
+                        // count; <strong> markup ships in the locale
+                        // string and renders via dangerouslySetInnerHTML.
+                        // Source string is from our own translation
+                        // tables — no user input — so injection-safe.
+                        dangerouslySetInnerHTML={{
+                            __html: t('insights.heroSubText', { count: totalCount }),
+                        }}
+                    />
                 </div>
             </div>
 
@@ -422,7 +429,7 @@ export function Insights() {
                 style={{ gridTemplateColumns: '1fr 1fr', marginBottom: 'var(--space-8)' }}
             >
                 <div className="card glass">
-                    <h2 className="card-title metric-label">Avg. Daily Spend</h2>
+                    <h2 className="card-title metric-label">{t('insights.avgDaily')}</h2>
                     <h1 className="metric-value">
                         {targetSym}
                         {(totalDisplay / (Object.keys(dateTotals).length || 1)).toFixed(2)}
@@ -434,13 +441,13 @@ export function Insights() {
                                 marginLeft: 'var(--space-2)',
                             }}
                         >
-                            / day
+                            {t('insights.avgDailySuffix')}
                         </small>
                     </h1>
                 </div>
                 {highestExpense && (
                     <div className="card glass">
-                        <h2 className="card-title metric-label">Single Peak</h2>
+                        <h2 className="card-title metric-label">{t('insights.singlePeak')}</h2>
                         <h1 className="metric-value" style={{ color: '#ff3b30' }}>
                             {targetSym}
                             {highestExpense.displayValue.toFixed(2)}
@@ -458,7 +465,7 @@ export function Insights() {
             {/* Rankings Grid */}
             <div className="grid-2" style={{ marginBottom: '32px' }}>
                 <div className="card glass" style={{ padding: '28px' }}>
-                    <h2 className="card-title">Top Spenders</h2>
+                    <h2 className="card-title">{t('insights.topSpenders')}</h2>
                     <div style={{ marginBottom: '20px' }}>
                         <h1 style={{ margin: 0, fontSize: '2rem', color: 'var(--text-primary)' }}>
                             {topSpender}
@@ -496,7 +503,7 @@ export function Insights() {
                 </div>
 
                 <div className="card glass" style={{ padding: '28px' }}>
-                    <h2 className="card-title">Category Breakdown</h2>
+                    <h2 className="card-title">{t('insights.categoryBreakdown')}</h2>
                     <div
                         style={{
                             position: 'relative',
@@ -520,9 +527,9 @@ export function Insights() {
                             return (
                                 <div className="ranking-row" key={catId}>
                                     <span className="ranking-row__label">
-                                        {index + 2}. {cat ? cat.icon + ' ' + cat.name : 'Unknown'}
+                                        {index + 2}. {cat ? cat.icon + ' ' + cat.name : t('insights.unknownCategory')}
                                     </span>
-                                    <span className="ranking-row__value">{count} trans.</span>
+                                    <span className="ranking-row__value">{count} {t('insights.transactionsAbbrev')}</span>
                                 </div>
                             );
                         })}
@@ -541,10 +548,10 @@ export function Insights() {
                     }}
                 >
                     <h2 className="card-title" style={{ margin: 0 }}>
-                        Spending Timeline
+                        {t('insights.timelineTitle')}
                     </h2>
                     <div style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-                        Chronological flow of your expenses
+                        {t('insights.timelineSubtitle')}
                     </div>
                 </div>
                 <div style={{ position: 'relative', height: '350px', width: '100%' }}>

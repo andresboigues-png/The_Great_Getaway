@@ -31,6 +31,7 @@ import {
     computeGlobalBalances,
     computeLeaderboard,
 } from './balances.js';
+import { t, tn } from '../../i18n.js';
 
 export type SettlementTab = 'trip' | 'history' | 'global';
 
@@ -45,8 +46,8 @@ export function buildPageHtml(
     const tripsStrip = renderTripsStrip(currentTripId);
     const header = `
         <div class="ai-page-header">
-            <h1 class="gradient-text" style="--g-from: #ffd60a; --g-to: #ff9f0a;">Settlements</h1>
-            <p>Calculate who owes what and settle up fairly.</p>
+            <h1 class="gradient-text" style="--g-from: #ffd60a; --g-to: #ff9f0a;">${t('settlement.title')}</h1>
+            <p>${t('settlement.subtitle')}</p>
         </div>
         ${tripsStrip}
     `;
@@ -56,8 +57,8 @@ export function buildPageHtml(
             ${header}
             <div class="card glass" style="text-align: center; padding: 60px 32px; margin-top: 24px; border-radius: 28px;">
                 <div style="font-size: 4rem; margin-bottom: 12px;">⚖️</div>
-                <h2 style="margin:0 0 6px;">No trips yet</h2>
-                <p class="text-muted">Create a trip and add expenses to see settlement calculations.</p>
+                <h2 style="margin:0 0 6px;">${t('settlement.noTripsTitle')}</h2>
+                <p class="text-muted">${t('settlement.noTripsBody')}</p>
             </div>
         `;
     }
@@ -80,35 +81,37 @@ function renderTripsStrip(currentTripId: string | null): string {
     // vertical room, and on a 20-trip account it doesn't push the
     // settlement view halfway down the page. Settlements-total chip
     // for the picked trip moves to a small pill beside the select.
-    const activeTrip = STATE.trips.find((t) => t.id === currentTripId);
+    const activeTrip = STATE.trips.find((tr) => tr.id === currentTripId);
     const settledTotal = activeTrip
         ? (STATE.expenses || [])
             .filter((e) => e.tripId === activeTrip.id && e.isSettlement)
             .reduce((sum, e) => sum + (e.euroValue || 0), 0)
         : 0;
     const optionsHtml = STATE.trips
-        .map((t) => {
+        // Renamed map param from `t` to `tr` so the imported i18n `t`
+        // helper isn't shadowed.
+        .map((tr) => {
             const total = (STATE.expenses || [])
-                .filter((e) => e.tripId === t.id && e.isSettlement)
+                .filter((e) => e.tripId === tr.id && e.isSettlement)
                 .reduce((sum, e) => sum + (e.euroValue || 0), 0);
-            const totalLabel = total > 0 ? ` — ${formatHome(total, 'EUR')} settled` : '';
-            return `<option value="${esc(t.id)}"${t.id === currentTripId ? ' selected' : ''}>${esc(t.name)}${totalLabel}</option>`;
+            const totalLabel = total > 0 ? ` — ${formatHome(total, 'EUR')} ${t('settlement.settledSuffix')}` : '';
+            return `<option value="${esc(tr.id)}"${tr.id === currentTripId ? ' selected' : ''}>${esc(tr.name)}${totalLabel}</option>`;
         })
         .join('');
     return `
         <div class="settlement-trip-picker" style="margin-top: 18px; margin-bottom: 16px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
             <label for="settlementTripSelect" style="display:inline-flex; align-items:center; gap:8px; font-size:0.74rem; font-weight:800; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-secondary); flex-shrink:0;">
                 <span style="font-size:0.95rem;">⚖️</span>
-                Trip
+                ${t('settlement.tripPickerLabel')}
             </label>
             <select id="settlementTripSelect" class="settlement-trip-select"
-                aria-label="Settlement trip"
+                aria-label="${t('settlement.tripPickerAriaLabel')}"
                 style="flex:1; min-width:200px; max-width:380px; padding:10px 14px; border-radius:12px; border:1.5px solid rgba(255,159,10,0.4); background:linear-gradient(135deg, rgba(255,214,10,0.08), rgba(255,159,10,0.04)); font-size:0.92rem; font-weight:700; color:#002d5b; cursor:pointer; outline:none; font-family:inherit; transition: border-color 0.18s ease, box-shadow 0.18s ease;">
                 ${optionsHtml}
             </select>
             ${activeTrip && settledTotal > 0 ? `
                 <span style="display:inline-flex; align-items:center; padding:6px 12px; border-radius:999px; background:rgba(0,113,227,0.08); color:#005bb8; font-size:0.78rem; font-weight:800; flex-shrink:0;">
-                    ${formatHome(settledTotal, 'EUR')} settled
+                    ${formatHome(settledTotal, 'EUR')} ${t('settlement.settledSuffix')}
                 </span>
             ` : ''}
         </div>
@@ -131,9 +134,9 @@ function renderTabsNav(trip: any, activeTab: SettlementTab): string {
     `;
     return `
         <nav style="display:flex; gap:36px; border-bottom: 1px solid rgba(0,113,227,0.25); margin: 22px 0 22px; padding: 0 4px;">
-            ${tab('trip', 'This trip')}
-            ${tab('history', 'History', settlementsCount)}
-            ${tab('global', 'Cross-trip')}
+            ${tab('trip', t('settlement.tabThisTrip'))}
+            ${tab('history', t('settlement.tabHistory'), settlementsCount)}
+            ${tab('global', t('settlement.tabCrossTrip'))}
         </nav>
     `;
 }
@@ -154,14 +157,14 @@ function renderTripTab(trip: any, tripIsEditable: boolean): string {
         <div class="card glass" style="margin-bottom: 18px; padding: 22px 26px; border-radius: 28px; background: linear-gradient(135deg, rgba(255,214,10,0.05), rgba(255,159,10,0.03)); border:1px solid rgba(255,159,10,0.18);">
             <div style="display:flex; flex-wrap:wrap; gap:24px; align-items:center; justify-content:space-between;">
                 <div style="min-width:0;">
-                    <div style="font-size:0.66rem; font-weight:800; text-transform:uppercase; letter-spacing:0.12em; color:var(--text-secondary); margin-bottom:6px;">Trip total</div>
+                    <div style="font-size:0.66rem; font-weight:800; text-transform:uppercase; letter-spacing:0.12em; color:var(--text-secondary); margin-bottom:6px;">${t('settlement.tripTotal')}</div>
                     <div style="font-size:2rem; font-weight:800; color:#002d5b; letter-spacing:-0.02em;">${formatHome(totalPaid, 'EUR')}</div>
                 </div>
                 ${
                     topPaid
                         ? `
                     <div style="text-align:center; min-width:120px;">
-                        <div style="font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.12em; color:#34c759;">💸 Top payer</div>
+                        <div style="font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.12em; color:#34c759;">${t('settlement.topPayer')}</div>
                         <div style="font-size:1.1rem; font-weight:800; color:#002d5b; margin-top:4px;">${esc(topPaid.name)}</div>
                         <div style="font-size:0.78rem; font-weight:700; color:var(--text-secondary);">${formatHome(topPaid.paid, 'EUR')}</div>
                     </div>
@@ -292,8 +295,8 @@ function renderHistoryTab(trip: any, tripIsEditable: boolean): string {
         return `
             <div class="card glass" style="padding: 48px 32px; text-align:center; border-radius: 28px; border:1.5px dashed rgba(0,113,227,0.3); background: rgba(0,113,227,0.04);">
                 <div style="font-size:2.5rem; margin-bottom: 8px;">📜</div>
-                <h2 style="margin:0 0 6px; color:#002d5b;">No past settlements yet</h2>
-                <p class="text-muted" style="margin:0;">Once payments are recorded between companions, they show up here as a timeline.</p>
+                <h2 style="margin:0 0 6px; color:#002d5b;">${t('settlement.historyEmptyTitle')}</h2>
+                <p class="text-muted" style="margin:0;">${t('settlement.historyEmptyBody')}</p>
             </div>
         `;
     }
@@ -309,9 +312,9 @@ function renderHistoryTab(trip: any, tripIsEditable: boolean): string {
     yesterday.setDate(yesterday.getDate() - 1);
     const yesterdayStr = yesterday.toISOString().slice(0, 10);
     const formatGroupHeader = (key: string) => {
-        if (key === 'undated') return 'No date';
-        if (key === todayStr) return 'Today';
-        if (key === yesterdayStr) return 'Yesterday';
+        if (key === 'undated') return t('settlement.historyDateNoDate');
+        if (key === todayStr) return t('settlement.historyDateToday');
+        if (key === yesterdayStr) return t('settlement.historyDateYesterday');
         const d = new Date(key);
         if (isNaN(d.getTime())) return key;
         return d.toLocaleDateString(undefined, {
@@ -330,8 +333,8 @@ function renderHistoryTab(trip: any, tripIsEditable: boolean): string {
     return `
         <div class="card glass" style="padding: 22px 24px; border-radius: 28px;">
             <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
-                <h3 style="margin:0; font-size:1.05rem; color:#002d5b; font-weight:800; letter-spacing:-0.02em;">Past settlements</h3>
-                <span style="font-size:0.7rem; font-weight:800; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.1em;">${past.length} recorded</span>
+                <h3 style="margin:0; font-size:1.05rem; color:#002d5b; font-weight:800; letter-spacing:-0.02em;">${t('settlement.historyTitle')}</h3>
+                <span style="font-size:0.7rem; font-weight:800; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.1em;">${t('settlement.historyRecorded', { count: past.length })}</span>
             </div>
             <div style="display:flex; flex-direction:column; gap:18px;">
                 ${sortedKeys
@@ -344,7 +347,7 @@ function renderHistoryTab(trip: any, tripIsEditable: boolean): string {
                         <div>
                             <div style="display:flex; align-items:baseline; justify-content:space-between; margin-bottom:8px; padding: 0 4px;">
                                 <h4 style="margin:0; font-size:0.7rem; font-weight:800; text-transform:uppercase; letter-spacing:0.12em; color:var(--text-secondary);">${esc(formatGroupHeader(key))}</h4>
-                                <span style="font-size:0.72rem; font-weight:700; color:var(--text-secondary);">${formatHome(totalForDay, 'EUR')} · ${items.length} ${items.length === 1 ? 'settlement' : 'settlements'}</span>
+                                <span style="font-size:0.72rem; font-weight:700; color:var(--text-secondary);">${tn('settlement.historyDayTotalPlural', items.length, { amount: formatHome(totalForDay, 'EUR') })}</span>
                             </div>
                             <div style="display:flex; flex-direction:column; gap:8px;">
                                 ${items
@@ -359,7 +362,7 @@ function renderHistoryTab(trip: any, tripIsEditable: boolean): string {
                                                     <span style="font-weight:800; color:#002d5b; font-size:0.95rem;">${esc(s.who)}</span>
                                                     <span style="color:rgba(0,0,0,0.3); font-weight:600;">→</span>
                                                     <span style="font-weight:800; color:#002d5b; font-size:0.95rem;">${esc(toPerson)}</span>
-                                                    <span style="display:inline-flex; align-items:center; gap:3px; background:rgba(52,199,89,0.12); color:#1a6b3c; padding:1px 8px; border-radius:999px; font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">✓ Settled</span>
+                                                    <span style="display:inline-flex; align-items:center; gap:3px; background:rgba(52,199,89,0.12); color:#1a6b3c; padding:1px 8px; border-radius:999px; font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">${t('settlement.historyChipSettled')}</span>
                                                 </div>
                                             </div>
                                             <div style="font-size:1rem; font-weight:800; color:#1a6b3c; flex-shrink:0;">${formatHome(s.euroValue || 0, 'EUR')}</div>
@@ -368,9 +371,9 @@ function renderHistoryTab(trip: any, tripIsEditable: boolean): string {
                                                     ? `
                                                 <div style="display:flex; gap:6px; flex-shrink:0;">
                                                     <button class="edit-settlement-btn" data-settlement-id="${esc(s.id)}" type="button"
-                                                        style="background:rgba(0,113,227,0.08); border:1px solid rgba(0,113,227,0.22); color:#005bb8; padding:5px 12px; border-radius:999px; font-size:0.72rem; font-weight:800; cursor:pointer;">Edit</button>
+                                                        style="background:rgba(0,113,227,0.08); border:1px solid rgba(0,113,227,0.22); color:#005bb8; padding:5px 12px; border-radius:999px; font-size:0.72rem; font-weight:800; cursor:pointer;">${t('settlement.historyEditBtn')}</button>
                                                     <button class="unsettle-settlement-btn" data-settlement-id="${esc(s.id)}" data-trip-id="${esc(trip.id)}" type="button"
-                                                        style="background:rgba(255,59,48,0.08); border:1px solid rgba(255,59,48,0.22); color:#ff3b30; padding:5px 12px; border-radius:999px; font-size:0.72rem; font-weight:800; cursor:pointer;">Unsettle</button>
+                                                        style="background:rgba(255,59,48,0.08); border:1px solid rgba(255,59,48,0.22); color:#ff3b30; padding:5px 12px; border-radius:999px; font-size:0.72rem; font-weight:800; cursor:pointer;">${t('settlement.historyUnsettleBtn')}</button>
                                                 </div>
                                             `
                                                     : ''
@@ -399,8 +402,8 @@ function renderGlobalTab(): string {
         return `
             <div class="card glass" style="padding: 48px 32px; text-align:center; border-radius: 28px; border:1.5px dashed rgba(0,113,227,0.3); background: rgba(0,113,227,0.04);">
                 <div style="font-size:2.5rem; margin-bottom: 8px;">🌍</div>
-                <h2 style="margin:0 0 6px; color:#002d5b;">No companions yet</h2>
-                <p class="text-muted" style="margin:0;">Add companions to a trip and log expenses to see cross-trip balances.</p>
+                <h2 style="margin:0 0 6px; color:#002d5b;">${t('settlement.crossTripEmptyTitle')}</h2>
+                <p class="text-muted" style="margin:0;">${t('settlement.crossTripEmptyBody')}</p>
             </div>
         `;
     }
@@ -410,8 +413,8 @@ function renderGlobalTab(): string {
     return `
         <div class="card glass" style="padding: 22px 24px; border-radius: 28px;">
             <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
-                <h3 style="margin:0; font-size:1.05rem; color:#002d5b; font-weight:800; letter-spacing:-0.02em;">🌍 Cross-trip balances</h3>
-                <span style="font-size:0.7rem; font-weight:800; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.1em;">Across all trips · active + completed</span>
+                <h3 style="margin:0; font-size:1.05rem; color:#002d5b; font-weight:800; letter-spacing:-0.02em;">${t('settlement.crossTripTitle')}</h3>
+                <span style="font-size:0.7rem; font-weight:800; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.1em;">${t('settlement.crossTripSubtitle')}</span>
             </div>
             <div style="display:flex; flex-direction:column; gap:8px;">
                 ${sorted
@@ -508,11 +511,11 @@ export function settleDebt(
     currency: string,
 ): void {
     if (from === to) {
-        showLiquidAlert('Sender and receiver must be different.');
+        showLiquidAlert(t('settlement.toastSenderEqualsReceiver'));
         return;
     }
     if (!Number.isFinite(amount) || amount <= 0) {
-        showLiquidAlert('Amount must be a positive number.');
+        showLiquidAlert(t('settlement.toastAmountInvalid'));
         return;
     }
     const euroValue = convertCurrency(amount, currency, 'EUR');
@@ -525,7 +528,7 @@ export function settleDebt(
         currency: currency,
         who: from,
         categoryId: STATE.categories[0]?.id ?? '',
-        country: 'Settlement',
+        country: t('settlement.expenseCountry'),
         date: new Date().toISOString().split('T')[0] ?? '',
         splits: { [to]: 100 },
         isSettlement: true,
@@ -537,9 +540,9 @@ export function settleDebt(
 
 export function deleteSettlement(id: string): void {
     showConfirmModal({
-        title: 'Unsettle this payment?',
-        message: 'The settlement record is removed and balances revert.',
-        confirmText: 'Unsettle',
+        title: t('settlement.toastUnsettleConfirmTitle'),
+        message: t('settlement.toastUnsettleConfirmMessage'),
+        confirmText: t('settlement.toastUnsettleConfirmBtn'),
         onConfirm: () => {
             STATE.expenses = STATE.expenses.filter((e) => e.id !== id);
             emit(EVENTS.STATE_CHANGED);
@@ -550,7 +553,7 @@ export function deleteSettlement(id: string): void {
 // ── Modals ────────────────────────────────────────────────────────────
 
 export function openManualSettleModal(tripId: string): void {
-    const trip = STATE.trips.find((t) => t.id === tripId);
+    const trip = STATE.trips.find((tr) => tr.id === tripId);
     const peopleSource = getTripCompanionNames(trip);
     const peopleOptions = peopleSource.map((p) => `<option value="${esc(p)}">${esc(p)}</option>`).join('');
     const home = getHomeCurrency();
@@ -559,8 +562,8 @@ export function openManualSettleModal(tripId: string): void {
         variant: 'glass-light',
         cardStyle: 'width: 440px; max-width: calc(100vw - 32px);',
         innerHTML: `
-            <h2 class="h2-display">Manual settlement</h2>
-            <p class="text-subtitle">Record a payment that already happened off-app.</p>
+            <h2 class="h2-display">${t('settlement.manualTitle')}</h2>
+            <p class="text-subtitle">${t('settlement.manualSubtitle')}</p>
             <form id="manualSettleForm" style="display:flex; flex-direction:column; gap: var(--space-3); margin-top: var(--space-4);">
                 <label class="form-label">From</label>
                 <select id="manualSettleFrom" class="glass-input" style="padding: var(--space-3); border-radius: 12px; background:white;">${peopleOptions}</select>
@@ -582,7 +585,7 @@ export function openManualSettleModal(tripId: string): void {
         const to = (q(modalRoot, '#manualSettleTo') as HTMLSelectElement).value;
         const amount = parseFloat((q(modalRoot, '#manualSettleAmount') as HTMLInputElement).value);
         if (from === to) {
-            showLiquidAlert('Sender and receiver must be different.');
+            showLiquidAlert(t('settlement.toastSenderEqualsReceiver'));
             return;
         }
         settleDebt(tripId, from, to, amount, home);
@@ -593,7 +596,7 @@ export function openManualSettleModal(tripId: string): void {
 export function openEditSettlementModal(id: string): void {
     const s = STATE.expenses.find((e) => e.id === id);
     if (!s) return;
-    const trip = STATE.trips.find((t) => t.id === s.tripId);
+    const trip = STATE.trips.find((tr) => tr.id === s.tripId);
     const peopleSource = getTripCompanionNames(trip);
     const fromOpts = peopleSource
         .map((p) => `<option value="${esc(p)}" ${s.who === p ? 'selected' : ''}>${esc(p)}</option>`)
@@ -608,7 +611,7 @@ export function openEditSettlementModal(id: string): void {
         variant: 'glass-light',
         cardStyle: 'width: 440px; max-width: calc(100vw - 32px);',
         innerHTML: `
-            <h2 class="h2-display">Edit settlement</h2>
+            <h2 class="h2-display">${t('settlement.editTitle')}</h2>
             <form id="editSettlementForm" style="display:flex; flex-direction:column; gap: var(--space-3); margin-top: var(--space-4);">
                 <label class="form-label">From</label>
                 <select id="editSettleFrom" class="glass-input" style="padding: var(--space-3); border-radius: 12px; background:white;">${fromOpts}</select>
@@ -633,7 +636,7 @@ export function openEditSettlementModal(id: string): void {
         const amount = parseFloat((q(modalRoot, '#editSettleAmount') as HTMLInputElement).value);
         const date = (q(modalRoot, '#editSettleDate') as HTMLInputElement).value;
         if (from === to) {
-            showLiquidAlert('Sender and receiver must be different.');
+            showLiquidAlert(t('settlement.toastSenderEqualsReceiver'));
             return;
         }
         s.who = from;

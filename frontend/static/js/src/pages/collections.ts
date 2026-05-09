@@ -5,6 +5,7 @@ import { apiFetch } from '../api.js';
 import { wireRoleButtonKeys } from '../components/Keyboard.js';
 import { toggleTripPrivacy, restoreTrip, deleteArchivedTrip } from './collections/handlers.js';
 import { renderArchivedTripDetail } from './collections/archivedDetail.js';
+import { t, tn } from '../i18n.js';
 
 // Re-export for the two external consumers (profile.ts archived-trips
 // section, feed.ts share/repost trip-card click-through). The renderer
@@ -136,12 +137,11 @@ export function renderCollections() {
         <div style="margin-top: 16px; background: rgba(0,113,227,0.06); border: 1px solid rgba(0,113,227,0.18); border-radius: 16px; padding: 14px 18px; display:flex; gap:12px; align-items:flex-start;">
             <span style="font-size:1.4rem; line-height:1;">💡</span>
             <div style="flex:1; min-width:0;">
-                <div style="font-weight:800; color:#002d5b; margin-bottom:4px;">Looking for a trip a friend already finished?</div>
+                <div style="font-weight:800; color:#002d5b; margin-bottom:4px;">${t('collections.hintTitle')}</div>
                 <div style="font-size:0.82rem; color:var(--text-secondary); line-height:1.45;">
-                    Trips become "completed" per-person — your friend marking it done doesn't move it for you.
-                    You still have ${activeTrips.length === 1 ? 'one trip' : `${activeTrips.length} trips`} active:
-                    ${activeTrips.map(t => `<button type="button" class="goto-active-trip-btn" data-trip-id="${esc(t.id)}" style="background: rgba(0,113,227,0.08); border:1px solid rgba(0,113,227,0.2); color: #005bb8; padding:2px 10px; border-radius:999px; font-size:0.75rem; font-weight:700; margin: 0 4px 4px 0; cursor:pointer;">${esc(t.name)}</button>`).join('')}
-                    Open one and tap <strong>Mark Complete</strong> to move it here.
+                    ${activeTrips.length === 1 ? t('collections.hintBodyOne') : t('collections.hintBodyMany', { count: activeTrips.length })}
+                    ${activeTrips.map(trip => `<button type="button" class="goto-active-trip-btn" data-trip-id="${esc(trip.id)}" style="background: rgba(0,113,227,0.08); border:1px solid rgba(0,113,227,0.2); color: #005bb8; padding:2px 10px; border-radius:999px; font-size:0.75rem; font-weight:700; margin: 0 4px 4px 0; cursor:pointer;">${esc(trip.name)}</button>`).join('')}
+                    ${t('collections.hintBodyOpen')}
                 </div>
             </div>
         </div>
@@ -159,27 +159,27 @@ export function renderCollections() {
                     <circle cx="11" cy="11" r="7"></circle>
                     <path d="M21 21l-4.35-4.35"></path>
                 </svg>
-                <input type="search" id="colSearchInput" autocomplete="off" placeholder="Search by name or destination…" value="${esc(collectionsSearchText)}"
+                <input type="search" id="colSearchInput" autocomplete="off" placeholder="${t('collections.searchPlaceholder')}" value="${esc(collectionsSearchText)}"
                     style="width:100%; box-sizing:border-box; padding: 8px 12px 8px 34px; border:1px solid rgba(0,0,0,0.08); border-radius: 999px; font-size:0.85rem; background:white; font-weight:600; color:#002d5b; outline:0;">
             </div>
 
             <!-- Sort dropdown -->
             <select id="colSortSelect" title="Sort"
                 style="padding: 8px 28px 8px 14px; border:1px solid rgba(0,0,0,0.08); border-radius: 999px; font-size:0.8rem; background: white; font-weight:700; color:#002d5b; cursor:pointer; appearance:none; -webkit-appearance:none; background-image: url('data:image/svg+xml;utf8,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;12&quot; height=&quot;12&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;%23002d5b&quot; stroke-width=&quot;3&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;><polyline points=&quot;6 9 12 15 18 9&quot;/></svg>'); background-repeat:no-repeat; background-position: right 10px center; background-size: 10px;">
-                <option value="recent"        ${collectionsSort === 'recent'        ? 'selected' : ''}>↓ Recently completed</option>
-                <option value="oldest"        ${collectionsSort === 'oldest'        ? 'selected' : ''}>↑ Oldest completed</option>
-                <option value="tripStartDesc" ${collectionsSort === 'tripStartDesc' ? 'selected' : ''}>↓ Trip start date (newest)</option>
-                <option value="tripStartAsc"  ${collectionsSort === 'tripStartAsc'  ? 'selected' : ''}>↑ Trip start date (oldest)</option>
-                <option value="nameAsc"       ${collectionsSort === 'nameAsc'       ? 'selected' : ''}>A → Z (trip name)</option>
-                <option value="nameDesc"      ${collectionsSort === 'nameDesc'      ? 'selected' : ''}>Z → A (trip name)</option>
-                <option value="spentDesc"     ${collectionsSort === 'spentDesc'     ? 'selected' : ''}>💰 Most spent</option>
-                <option value="daysDesc"      ${collectionsSort === 'daysDesc'      ? 'selected' : ''}>🗓️ Longest (most days)</option>
+                <option value="recent"        ${collectionsSort === 'recent'        ? 'selected' : ''}>${t('collections.sortRecent')}</option>
+                <option value="oldest"        ${collectionsSort === 'oldest'        ? 'selected' : ''}>${t('collections.sortOldest')}</option>
+                <option value="tripStartDesc" ${collectionsSort === 'tripStartDesc' ? 'selected' : ''}>${t('collections.sortTripStartDesc')}</option>
+                <option value="tripStartAsc"  ${collectionsSort === 'tripStartAsc'  ? 'selected' : ''}>${t('collections.sortTripStartAsc')}</option>
+                <option value="nameAsc"       ${collectionsSort === 'nameAsc'       ? 'selected' : ''}>${t('collections.sortNameAsc')}</option>
+                <option value="nameDesc"      ${collectionsSort === 'nameDesc'      ? 'selected' : ''}>${t('collections.sortNameDesc')}</option>
+                <option value="spentDesc"     ${collectionsSort === 'spentDesc'     ? 'selected' : ''}>${t('collections.sortSpentDesc')}</option>
+                <option value="daysDesc"      ${collectionsSort === 'daysDesc'      ? 'selected' : ''}>${t('collections.sortDaysDesc')}</option>
             </select>
 
             ${availableYears.length > 1 ? `
                 <select id="colYearSelect" title="Filter by year"
                     style="padding: 8px 28px 8px 14px; border:1px solid rgba(0,0,0,0.08); border-radius: 999px; font-size:0.8rem; background: white; font-weight:700; color:#002d5b; cursor:pointer; appearance:none; -webkit-appearance:none; background-image: url('data:image/svg+xml;utf8,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;12&quot; height=&quot;12&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;%23002d5b&quot; stroke-width=&quot;3&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;><polyline points=&quot;6 9 12 15 18 9&quot;/></svg>'); background-repeat:no-repeat; background-position: right 10px center; background-size: 10px;">
-                    <option value="" ${!collectionsFilterYear ? 'selected' : ''}>All years</option>
+                    <option value="" ${!collectionsFilterYear ? 'selected' : ''}>${t('collections.filterAllYears')}</option>
                     ${availableYears.map(y => `<option value="${y}" ${String(y) === collectionsFilterYear ? 'selected' : ''}>${y}</option>`).join('')}
                 </select>
             ` : ''}
@@ -187,28 +187,28 @@ export function renderCollections() {
             ${availableDestinations.length > 1 ? `
                 <select id="colDestSelect" title="Filter by destination"
                     style="padding: 8px 28px 8px 14px; border:1px solid rgba(0,0,0,0.08); border-radius: 999px; font-size:0.8rem; background: white; font-weight:700; color:#002d5b; cursor:pointer; appearance:none; -webkit-appearance:none; max-width:180px; background-image: url('data:image/svg+xml;utf8,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;12&quot; height=&quot;12&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;%23002d5b&quot; stroke-width=&quot;3&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;><polyline points=&quot;6 9 12 15 18 9&quot;/></svg>'); background-repeat:no-repeat; background-position: right 10px center; background-size: 10px;">
-                    <option value="" ${!collectionsFilterDestination ? 'selected' : ''}>All destinations</option>
+                    <option value="" ${!collectionsFilterDestination ? 'selected' : ''}>${t('collections.filterAllDestinations')}</option>
                     ${availableDestinations.map(d => `<option value="${esc(d)}" ${d === collectionsFilterDestination ? 'selected' : ''}>📍 ${esc(d)}</option>`).join('')}
                 </select>
             ` : ''}
 
             ${(collectionsSearchText || collectionsFilterYear || collectionsFilterDestination) ? `
-                <button id="colClearFiltersBtn" type="button" title="Clear filters"
+                <button id="colClearFiltersBtn" type="button" title="${t('collections.clearFilters')}"
                     style="background: rgba(255,59,48,0.08); border:1px solid rgba(255,59,48,0.22); color:#ff3b30; padding:7px 14px; border-radius:999px; font-size:0.78rem; font-weight:800; cursor:pointer;">
-                    ✕ Clear filters
+                    ${t('collections.clearFilters')}
                 </button>
             ` : ''}
 
             <span style="margin-left:auto; font-size:0.78rem; color:var(--text-secondary); font-weight:700;">
-                ${filteredTrips.length} of ${archived.length}
+                ${t('collections.countOf', { shown: filteredTrips.length, total: archived.length })}
             </span>
         </div>
     `;
 
     div.innerHTML = `
         <div class="ai-page-header">
-            <h1 class="gradient-text" style="--g-from: #007aff; --g-to: #5856d6;">Collections</h1>
-            <p>Your completed travel memories and trip photos.</p>
+            <h1 class="gradient-text" style="--g-from: #007aff; --g-to: #5856d6;">${t('collections.title')}</h1>
+            <p>${t('collections.subtitle')}</p>
         </div>
 
         ${stillActiveHint}
@@ -216,58 +216,58 @@ export function renderCollections() {
         ${sortFilterBar}
 
         <div class="trip-nav glass" style="margin-top: 24px; display: none;">
-            <button class="trip-tab active" id="tabArchived">Completed Trips</button>
+            <button class="trip-tab active" id="tabArchived">${t('collections.completedTripsTab')}</button>
         </div>
 
         <div id="colArchived" class="col-tab-content">
             <div class="grid-2" style="margin-top: 16px;">
-                ${archived.length > 0 ? (filteredTrips.length > 0 ? filteredTrips.map(t => {
-                    const start = tripStartDate(t);
-                    const archivedAt = t.archivedAt
-                        ? new Date(t.archivedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+                ${archived.length > 0 ? (filteredTrips.length > 0 ? filteredTrips.map(trip => {
+                    const start = tripStartDate(trip);
+                    const archivedAt = trip.archivedAt
+                        ? new Date(trip.archivedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
                         : null;
                     const startStr = start
                         ? new Date(start).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
                         : null;
-                    const dest = tripDestination(t);
-                    const expenseCount = (t.expenses || []).filter((e: any) => !e.isSettlement).length;
+                    const dest = tripDestination(trip);
+                    const expenseCount = (trip.expenses || []).filter((e: any) => !e.isSettlement).length;
                     // Cover-photo thumb — shows when the user has set a
                     // cover via the Edit Trip modal. Falls back silently
                     // (no placeholder) when none is set; the card still
                     // reads cleanly without it. Sits between the icon-
                     // less left edge and the trip name as a 60px square.
-                    const coverThumb = t.coverUrl
-                        ? `<img src="${esc(t.coverUrl)}" alt="" data-cover-thumb class="archived-card-cover" style="width: 60px; height: 60px; border-radius: 12px; object-fit: cover; flex-shrink: 0; box-shadow: 0 4px 12px rgba(0,0,0,0.08); border: 1px solid rgba(0,0,0,0.06);">`
+                    const coverThumb = trip.coverUrl
+                        ? `<img src="${esc(trip.coverUrl)}" alt="" data-cover-thumb class="archived-card-cover" style="width: 60px; height: 60px; border-radius: 12px; object-fit: cover; flex-shrink: 0; box-shadow: 0 4px 12px rgba(0,0,0,0.08); border: 1px solid rgba(0,0,0,0.06);">`
                         : '';
                     return `
                     <div class="card glass card-glow-blue collections-row" style="display: flex; flex-direction: row; align-items: center; justify-content: space-between; padding: 20px; gap: 16px;">
-                        <div class="archived-trip-card collections-row__main" data-trip-id="${t.id}" role="button" tabindex="0" aria-label="Open ${esc(t.name)} details" style="cursor: pointer; flex: 1; min-width:0; display: flex; align-items: center; gap: 16px;">
+                        <div class="archived-trip-card collections-row__main" data-trip-id="${trip.id}" role="button" tabindex="0" aria-label="Open ${esc(trip.name)} details" style="cursor: pointer; flex: 1; min-width:0; display: flex; align-items: center; gap: 16px;">
                             ${coverThumb}
                             <div style="flex: 1; min-width: 0;">
                             <div style="display: flex; align-items: center; gap: 10px; flex-wrap:wrap;">
-                                <h3 style="margin: 0;">${esc(t.name)}</h3>
-                                ${dest && dest !== t.name ? `<span style="background: rgba(0,113,227,0.08); color: #005bb8; padding: 2px 10px; border-radius: 999px; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing:0.06em;">📍 ${esc(dest)}</span>` : ''}
+                                <h3 style="margin: 0;">${esc(trip.name)}</h3>
+                                ${dest && dest !== trip.name ? `<span style="background: rgba(0,113,227,0.08); color: #005bb8; padding: 2px 10px; border-radius: 999px; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing:0.06em;">📍 ${esc(dest)}</span>` : ''}
                             </div>
                             <div style="display:flex; gap:14px; flex-wrap:wrap; margin-top:6px; font-size: 0.8rem; color: var(--text-secondary);">
-                                ${startStr ? `<span>🗓️ ${esc(startStr)}${(t.tripDays?.length || 0) > 1 ? ` · ${t.tripDays.length} days` : ''}</span>` : `<span>${(t.tripDays?.length || 0)} days</span>`}
-                                <span>📒 ${expenseCount} ${expenseCount === 1 ? 'expense' : 'expenses'}</span>
-                                ${archivedAt ? `<span title="Marked complete on ${esc(archivedAt)}">✓ ${esc(archivedAt)}</span>` : ''}
+                                ${startStr ? `<span>🗓️ ${esc(startStr)}${(trip.tripDays?.length || 0) > 1 ? ` · ${tn('collections.dayCount', trip.tripDays.length)}` : ''}</span>` : `<span>${tn('collections.dayCount', (trip.tripDays?.length || 0))}</span>`}
+                                <span>📒 ${tn('collections.expenseCount', expenseCount)}</span>
+                                ${archivedAt ? `<span title="${t('collections.cardMarkedCompleteOn', { date: esc(archivedAt) })}">✓ ${esc(archivedAt)}</span>` : ''}
                             </div>
-                            <p style="color: #005bb8; margin: 8px 0 0 0; font-size: 0.95rem; font-weight: 800;">${formatHome(tripTotalSpent(t), 'EUR')}<span style="color: var(--text-secondary); font-weight: 600; font-size: 0.78rem; margin-left:6px;">total</span></p>
+                            <p style="color: #005bb8; margin: 8px 0 0 0; font-size: 0.95rem; font-weight: 800;">${formatHome(tripTotalSpent(trip), 'EUR')}<span style="color: var(--text-secondary); font-weight: 600; font-size: 0.78rem; margin-left:6px;">${t('collections.cardTotal')}</span></p>
                             </div>
                         </div>
                         <div class="collections-row__actions" style="display: flex; align-items: center; gap: 20px;">
                             <div class="collections-row__public-toggle" style="display: flex; align-items: center; gap: 12px; background: rgba(0,0,0,0.03); padding: 8px 18px; border-radius: 980px; border: 1px solid rgba(0,0,0,0.08); box-shadow: inset 0 1px 2px rgba(0,0,0,0.02), 0 4px 12px rgba(0,0,0,0.03);">
-                                <span id="publicLabel-${esc(t.id)}" style="width: 85px; display: inline-block; text-align: right; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); color: ${t.isPublic ? '#34c759' : 'rgba(0,0,0,0.3)'}; text-shadow: ${t.isPublic ? '0 0 12px rgba(52, 199, 89, 0.6)' : 'none'};">${t.isPublic ? 'Public' : 'Not public'}</span>
+                                <span id="publicLabel-${esc(trip.id)}" style="width: 85px; display: inline-block; text-align: right; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); color: ${trip.isPublic ? '#34c759' : 'rgba(0,0,0,0.3)'}; text-shadow: ${trip.isPublic ? '0 0 12px rgba(52, 199, 89, 0.6)' : 'none'};">${trip.isPublic ? t('collections.publicLabel') : t('collections.notPublicLabel')}</span>
                                 <label class="switch" style="transform: scale(0.75);">
-                                    <input type="checkbox" class="trip-privacy-toggle" data-trip-id="${esc(t.id)}" ${t.isPublic ? 'checked' : ''}>
+                                    <input type="checkbox" class="trip-privacy-toggle" data-trip-id="${esc(trip.id)}" ${trip.isPublic ? 'checked' : ''}>
                                     <span class="slider"></span>
                                 </label>
                             </div>
                             <div class="collections-row__divider" style="width: 1px; height: 30px; background: var(--glass-border);"></div>
                             <div style="display: flex; gap: var(--space-2);">
-                                <button class="btn-primary restore-trip-btn" data-trip-id="${esc(t.id)}" style="padding: var(--space-2) var(--space-4); font-size: var(--font-sm);">Restore</button>
-                                <button class="icon-action-btn delete-archived-btn" data-trip-id="${esc(t.id)}" style="--accent: 255,59,48;" title="Delete Permanently" aria-label="Delete trip permanently">
+                                <button class="btn-primary restore-trip-btn" data-trip-id="${esc(trip.id)}" style="padding: var(--space-2) var(--space-4); font-size: var(--font-sm);">${t('collections.restoreBtn')}</button>
+                                <button class="icon-action-btn delete-archived-btn" data-trip-id="${esc(trip.id)}" style="--accent: 255,59,48;" title="${t('collections.deletePermanentlyTooltip')}" aria-label="${t('collections.deletePermanentlyAriaLabel')}">
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
                                 </button>
                             </div>
@@ -277,14 +277,14 @@ export function renderCollections() {
                 }).join('') : `
                     <div class="card glass" style="grid-column: 1 / -1; text-align: center; padding: 48px 32px;">
                         <div style="font-size: 3rem; margin-bottom: 12px;">🔍</div>
-                        <h2 style="margin:0 0 6px;">No matches</h2>
-                        <p class="text-muted" style="margin:0;">No completed trips match your current sort + filter. Try clearing filters or broadening the search.</p>
+                        <h2 style="margin:0 0 6px;">${t('collections.emptyNoMatchesTitle')}</h2>
+                        <p class="text-muted" style="margin:0;">${t('collections.emptyNoMatchesBody')}</p>
                     </div>
                 `) : `
                     <div class="card glass" style="grid-column: 1 / -1; text-align: center; padding: 60px;">
                         <div style="font-size: 4rem; margin-bottom: 20px;">📚</div>
-                        <h2>No completed trips</h2>
-                        <p class="text-muted">Your travel history will appear here once you complete a trip.</p>
+                        <h2>${t('collections.emptyNoTripsTitle')}</h2>
+                        <p class="text-muted">${t('collections.emptyNoTripsBody')}</p>
                     </div>
                 `}
             </div>
@@ -390,7 +390,7 @@ export const viewArchivedDetails = async (id: string) => {
     // Slow path — foreign trip. Show a loading placeholder so the
     // user gets feedback while the request is in flight, then swap
     // in the rendered content (or a not-found message) when it lands.
-    content.innerHTML = `<div style="padding:60px 20px; text-align:center; color:var(--text-secondary); font-size:0.95rem;">Loading trip…</div>`;
+    content.innerHTML = `<div style="padding:60px 20px; text-align:center; color:var(--text-secondary); font-size:0.95rem;">${t('collections.loadingTrip')}</div>`;
     try {
         // apiFetch attaches the bearer token automatically when the
         // user is logged in — needed so the endpoint can grant
@@ -399,19 +399,19 @@ export const viewArchivedDetails = async (id: string) => {
         // logged-out feed views too).
         const res = await apiFetch(`/api/public-trip/${encodeURIComponent(id)}`);
         if (!res.ok) {
-            content.innerHTML = `<div style="padding:60px 20px; text-align:center; color:var(--text-secondary);">This trip isn't available — it may be private or deleted.</div>`;
+            content.innerHTML = `<div style="padding:60px 20px; text-align:center; color:var(--text-secondary);">${t('collections.tripUnavailable')}</div>`;
             return;
         }
         const data = await res.json();
         if (!data?.trip) {
-            content.innerHTML = `<div style="padding:60px 20px; text-align:center; color:var(--text-secondary);">Trip not found.</div>`;
+            content.innerHTML = `<div style="padding:60px 20px; text-align:center; color:var(--text-secondary);">${t('collections.tripNotFound')}</div>`;
             return;
         }
         content.innerHTML = '';
         content.appendChild(renderArchivedTripDetail(data.trip));
     } catch (err) {
         console.error('viewArchivedDetails fetch failed:', err);
-        content.innerHTML = `<div style="padding:60px 20px; text-align:center; color:var(--text-secondary);">Couldn't load this trip — try again in a moment.</div>`;
+        content.innerHTML = `<div style="padding:60px 20px; text-align:center; color:var(--text-secondary);">${t('collections.loadFailed')}</div>`;
     }
 };
 

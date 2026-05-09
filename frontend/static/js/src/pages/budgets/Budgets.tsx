@@ -22,6 +22,7 @@ import {
 } from './helpers.js';
 import { EmptyState } from '../../react/components/EmptyState.js';
 import type { Trip, Budget, Category } from '../../types';
+import { t, tn } from '../../i18n.js';
 
 export function Budgets() {
     const trips = useStore((s) => s.trips);
@@ -62,9 +63,9 @@ export function Budgets() {
         <div>
             <div className="ai-page-header">
                 <h1 className="gradient-text" style={{ ['--g-from' as any]: '#ffd60a', ['--g-to' as any]: '#ff9f0a' }}>
-                    Budgets
+                    {t('budgets.title')}
                 </h1>
-                <p>Set spending ceilings and track them across trips.</p>
+                <p>{t('budgets.subtitle')}</p>
             </div>
 
             {/* Action row: Create + (optional) trip filter chips */}
@@ -92,7 +93,7 @@ export function Budgets() {
                         boxShadow: '0 8px 24px rgba(255,159,10,0.32)',
                     }}
                 >
-                    + New budget
+                    {t('budgets.newBudgetBtn')}
                 </button>
                 {showTripChips && (
                     <>
@@ -113,7 +114,7 @@ export function Budgets() {
                                 cursor: 'pointer',
                             }}
                         >
-                            All trips
+                            {t('budgets.filterAllTrips')}
                         </button>
                         {tripsInBudgets.map((tid) => {
                             const trip =
@@ -153,7 +154,7 @@ export function Budgets() {
                         fontWeight: 700,
                     }}
                 >
-                    {visibleBudgets.length} {visibleBudgets.length === 1 ? 'budget' : 'budgets'}
+                    {tn('budgets.countLabel', visibleBudgets.length)}
                 </span>
             </div>
 
@@ -191,7 +192,7 @@ export function Budgets() {
                                     marginBottom: '6px',
                                 }}
                             >
-                                {filterTrip ? 'Trip overview' : 'Overall'}
+                                {filterTrip ? t('budgets.overallTrip') : t('budgets.overallAll')}
                             </div>
                             <div
                                 style={{
@@ -211,7 +212,7 @@ export function Budgets() {
                                             color: 'var(--text-secondary)',
                                         }}
                                     >
-                                        Spent
+                                        {t('budgets.overallSpent')}
                                     </div>
                                     <div
                                         style={{
@@ -235,7 +236,7 @@ export function Budgets() {
                                             color: 'var(--text-secondary)',
                                         }}
                                     >
-                                        Allocated
+                                        {t('budgets.overallAllocated')}
                                     </div>
                                     <div
                                         style={{
@@ -261,7 +262,7 @@ export function Budgets() {
                                     color: 'var(--text-secondary)',
                                 }}
                             >
-                                {totalRemaining >= 0 ? 'Remaining' : 'Over by'}
+                                {totalRemaining >= 0 ? t('budgets.overallRemaining') : t('budgets.overallOverBy')}
                             </div>
                             <div
                                 style={{
@@ -284,10 +285,10 @@ export function Budgets() {
                                 }}
                             >
                                 {overallTier === 'over'
-                                    ? '⚠ Over budget'
+                                    ? t('budgets.statusOverBudget')
                                     : overallTier === 'near'
-                                      ? '⚡ Near limit'
-                                      : '✓ On track'}
+                                      ? t('budgets.statusNearLimit')
+                                      : t('budgets.statusOnTrack')}
                             </div>
                         </div>
                     </div>
@@ -327,14 +328,11 @@ export function Budgets() {
                     <EmptyState
                         accent="orange"
                         emoji="💰"
-                        title={`No budgets ${filterTrip ? 'on this trip' : 'yet'}`}
-                        body={
-                            <>
-                                Click <strong>+ New budget</strong> above to set a target. You can
-                                scope it to one trip + category + person, or leave it as an
-                                account-wide cap.
-                            </>
-                        }
+                        title={filterTrip ? t('budgets.emptyTitleFilter') : t('budgets.emptyTitleNoFilter')}
+                        // Body holds inline <strong> markup; render as
+                        // HTML so the bold lands. Source string is from
+                        // our own translation tables — injection-safe.
+                        body={<span dangerouslySetInnerHTML={{ __html: t('budgets.emptyBody') }} />}
                         gridColumn="1 / -1"
                     />
                 ) : (
@@ -342,8 +340,8 @@ export function Budgets() {
                         const status = budgetStatus(b);
                         const variance =
                             status.tier === 'over'
-                                ? `Over by ${formatHome(status.spent - status.target, 'EUR')}`
-                                : `${formatHome(Math.max(status.target - status.spent, 0), 'EUR')} left`;
+                                ? t('budgets.cardOverBy', { amount: formatHome(status.spent - status.target, 'EUR') })
+                                : t('budgets.cardLeftSuffix', { amount: formatHome(Math.max(status.target - status.spent, 0), 'EUR') });
                         const category = (categories || []).find((c: Category) => c.id === b.categoryId);
                         const icon = category?.icon || '💰';
                         const accentColor = category?.color || status.color;
@@ -410,9 +408,9 @@ export function Budgets() {
                                                 marginTop: '2px',
                                             }}
                                         >
-                                            Target {formatHome(b.amount, 'EUR')}
+                                            {t('budgets.cardTarget', { amount: formatHome(b.amount, 'EUR') })}
                                             {b.originalCurrency && b.originalCurrency !== 'EUR'
-                                                ? ` · was ${formatHome(b.originalAmount || 0, b.originalCurrency)}`
+                                                ? t('budgets.cardTargetWasSuffix', { original: formatHome(b.originalAmount || 0, b.originalCurrency) })
                                                 : ''}
                                         </div>
                                     </div>
@@ -460,7 +458,7 @@ export function Budgets() {
                                                 fontWeight: 600,
                                             }}
                                         >
-                                            spent · {variance}
+                                            {t('budgets.cardSpentVariance', { variance })}
                                         </span>
                                     </div>
                                     <div
@@ -492,7 +490,7 @@ export function Budgets() {
                                             fontWeight: 700,
                                         }}
                                     >
-                                        <span>{Math.round(status.pct)}% used</span>
+                                        <span>{t('budgets.cardPctUsed', { pct: Math.round(status.pct) })}</span>
                                         <button
                                             type="button"
                                             onClick={() => deleteBudget(b.id)}
@@ -508,7 +506,7 @@ export function Budgets() {
                                                 letterSpacing: '0.06em',
                                             }}
                                         >
-                                            Delete
+                                            {t('budgets.cardDelete')}
                                         </button>
                                     </div>
                                 </div>

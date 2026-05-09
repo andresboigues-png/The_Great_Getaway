@@ -28,6 +28,7 @@ import {
     openEditSettlementModal,
     type SettlementTab,
 } from './legacyRender.js';
+import { t } from '../../i18n.js';
 
 export function Settlement() {
     const trips = useStore((s) => s.trips);
@@ -101,7 +102,7 @@ export function Settlement() {
             !settleBtn.disabled
         ) {
             settleBtn.disabled = true;
-            settleBtn.textContent = 'Recording…';
+            settleBtn.textContent = t('settlement.recordingBtn');
             settleDebt(
                 settleBtn.dataset.tripId,
                 settleBtn.dataset.from,

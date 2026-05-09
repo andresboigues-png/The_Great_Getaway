@@ -23,6 +23,7 @@ import { EVENTS } from '../../constants.js';
 import { setSelectedDay } from '../home/pathSelection.js';
 import { EmptyState } from '../../react/components/EmptyState.js';
 import type { Trip, TripDay, Expense } from '../../types';
+import { t, tn } from '../../i18n.js';
 
 // ── Tunables ────────────────────────────────────────────────────────
 // Per-section visible cap before the user has to click "Show all".
@@ -291,21 +292,21 @@ export function Search() {
     return (
         <div style={{ maxWidth: '760px', margin: '0 auto', padding: '0 16px' }}>
             <div style={{ padding: '32px 0 18px', textAlign: 'center' }}>
-                <h1 style={titleH1Style}>Search 🔍</h1>
+                <h1 style={titleH1Style}>{t('search.title')}</h1>
                 <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '1rem' }}>
-                    Across every trip, day, and expense — active and archived.
+                    {t('search.subtitle')}
                 </p>
             </div>
 
             <input
                 id="searchInput"
                 type="text"
-                placeholder="Search trips, days, expenses…"
+                placeholder={t('search.inputPlaceholder')}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 style={inputStyle}
                 autoFocus
-                aria-label="Search across trips, days, and expenses"
+                aria-label={t('search.inputAriaLabel')}
             />
 
             {/* Empty state — no query yet. Different copy from "no
@@ -321,14 +322,14 @@ export function Search() {
                 >
                     <div style={{ fontSize: '3rem', marginBottom: '12px' }}>🔎</div>
                     <p style={{ margin: 0, fontWeight: 600, fontSize: '1.05rem' }}>
-                        Start typing to search.
+                        {t('search.emptyPrompt')}
                     </p>
                     {/* D3 contrast: was opacity: 0.7 — that drove the
                         subtitle to ~#89898c on the page bg, 3.2:1 (fails
                         AA). Drop opacity and let --text-secondary
                         (#5a5a5e, 6.6:1) carry the muted tone. */}
                     <p style={{ margin: '8px 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                        Trip names, countries, day plans, expense labels — all in one place.
+                        {t('search.emptyPromptHint')}
                     </p>
                 </div>
             )}
@@ -345,8 +346,8 @@ export function Search() {
                     <EmptyState
                         accent="blue"
                         emoji="🤷"
-                        title={`No matches for "${query}"`}
-                        body="Try a shorter term, a country name, or part of a day's plan."
+                        title={t('search.noResultsTitle', { query })}
+                        body={t('search.noResultsBody')}
                     />
                 </div>
             )}
@@ -362,13 +363,13 @@ export function Search() {
                             fontWeight: 600,
                         }}
                     >
-                        {totalHits} result{totalHits === 1 ? '' : 's'} for &ldquo;{query}&rdquo;
+                        {tn('search.resultCount', totalHits, { query })}
                     </div>
 
                     {/* ── Trips ─────────────────────────────────── */}
                     {results.trips.length > 0 && (
                         <ResultGroupSection
-                            label="Trips"
+                            label={t('search.groupTrips')}
                             group="trips"
                             count={results.trips.length}
                             visible={showAll.trips ? results.trips.length : VISIBLE_LIMIT}
@@ -381,7 +382,7 @@ export function Search() {
                                         key={`trip-${hit.trip.id}`}
                                         emoji="🧳"
                                         title={hit.trip.name}
-                                        subtitle={hit.trip.country || 'No country set'}
+                                        subtitle={hit.trip.country || t('search.noCountry')}
                                         archived={hit.archived}
                                         onClick={() => goToTrip(hit.trip, hit.archived)}
                                     />
@@ -392,7 +393,7 @@ export function Search() {
                     {/* ── Days ──────────────────────────────────── */}
                     {results.days.length > 0 && (
                         <ResultGroupSection
-                            label="Days"
+                            label={t('search.groupDays')}
                             group="days"
                             count={results.days.length}
                             visible={showAll.days ? results.days.length : VISIBLE_LIMIT}
@@ -406,7 +407,9 @@ export function Search() {
                                         emoji="📅"
                                         title={
                                             hit.day.name ||
-                                            `Day ${hit.day.dayNumber || '?'}`
+                                            (hit.day.dayNumber
+                                                ? t('search.dayFallback', { num: hit.day.dayNumber })
+                                                : t('search.dayFallbackUnknown'))
                                         }
                                         subtitle={`${hit.trip.name}${
                                             hit.day.date ? ` · ${hit.day.date}` : ''
@@ -421,7 +424,7 @@ export function Search() {
                     {/* ── Expenses ──────────────────────────────── */}
                     {results.expenses.length > 0 && (
                         <ResultGroupSection
-                            label="Expenses"
+                            label={t('search.groupExpenses')}
                             group="expenses"
                             count={results.expenses.length}
                             visible={
@@ -438,11 +441,11 @@ export function Search() {
                                     <ResultRow
                                         key={`expense-${hit.expense.id}`}
                                         emoji="💸"
-                                        title={hit.expense.label || '(no label)'}
+                                        title={hit.expense.label || t('search.expenseNoLabel')}
                                         subtitle={`${formatAmount(
                                             hit.expense.value,
                                             hit.expense.currency,
-                                        )} · ${hit.expense.who || 'no payer'}${
+                                        )} · ${hit.expense.who || t('search.expenseNoPayer')}${
                                             hit.trip ? ` · ${hit.trip.name}` : ''
                                         }`}
                                         archived={hit.archived}
@@ -551,7 +554,7 @@ function ResultRow({
                     {subtitle}
                 </div>
             </div>
-            {archived && <span style={archivedPillStyle}>Archived</span>}
+            {archived && <span style={archivedPillStyle}>{t('search.archivedPill')}</span>}
         </button>
     );
 }

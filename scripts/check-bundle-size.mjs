@@ -34,18 +34,21 @@ const CHUNKS_DIR = resolve(JS_DIR, 'chunks');
 // load lazily on navigation and don't affect time-to-interactive on
 // first visit.
 const LIMITS = {
-    entry: 112 * 1024,            // 112 KB gzip — currently ~109 KB
+    entry: 115 * 1024,            // 115 KB gzip — currently ~112 KB
     vendorReact: 65 * 1024,       // 65 KB gzip — currently ~58 KB
     pageChunkMax: 15 * 1024,      // 15 KB gzip per page chunk — currently top is ~12 KB
-    firstPaintGzipMax: 181 * 1024, // 181 KB gzip first-paint.
-                                   // i18n session 1 added the es.ts locale
-                                   // (~2.7 KB gzip) to the entry chunk; each
-                                   // future locale adds another ~2.5-3 KB while
-                                   // they ship eagerly. Budget is set with one
-                                   // more locale's headroom; before adding a
-                                   // 4th locale we should lazy-load locale
-                                   // tables (only load the active one) rather
-                                   // than keep raising the gate.
+    firstPaintGzipMax: 184 * 1024, // 184 KB gzip first-paint.
+                                   // i18n session 4 sweep across collections /
+                                   // ai / todo / search / insights / budgets /
+                                   // settlement added ~3 KB of t() call sites
+                                   // + the en.ts source-of-truth growth (every
+                                   // new key ships its English copy in the
+                                   // entry chunk, even though pt/es/fr load
+                                   // lazily). Adding a 5th locale (if we ever
+                                   // expand beyond EN/PT/ES/FR) costs ~0 KB at
+                                   // first-paint thanks to the lazy-load
+                                   // refactor in session 2 — only en.ts growth
+                                   // moves this number.
 };
 
 function gzipSize(filePath) {

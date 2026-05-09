@@ -118,6 +118,320 @@ export const en = {
         saveFailed: "Couldn't save your profile (HTTP {status}). Try again.",
         saveNetwork: "Network error — couldn't save your profile.",
     },
+    settlement: {
+        // Page header.
+        title: 'Settlements',
+        subtitle: 'Calculate who owes what and settle up fairly.',
+        // Empty state — no trips at all.
+        noTripsTitle: 'No trips yet',
+        noTripsBody: 'Create a trip and add expenses to see settlement calculations.',
+        // Trips strip + label.
+        tripPickerLabel: 'Trip',
+        tripPickerAriaLabel: 'Settlement trip',
+        // Tabs.
+        tabThisTrip: 'This trip',
+        tabHistory: 'History',
+        tabCrossTrip: 'Cross-trip',
+        // Trip-tab leaderboard card.
+        tripTotal: 'Trip total',
+        topPayer: '💸 Top payer',
+        // History tab.
+        historyTitle: 'Past settlements',
+        historyRecorded: '{count} recorded',
+        historyDayTotalPlural: {
+            one: '{amount} · {count} settlement',
+            other: '{amount} · {count} settlements',
+        },
+        historyEmptyTitle: 'No past settlements yet',
+        historyEmptyBody: 'Once payments are recorded between companions, they show up here as a timeline.',
+        historyDateNoDate: 'No date',
+        historyDateToday: 'Today',
+        historyDateYesterday: 'Yesterday',
+        historyChipSettled: '✓ Settled',
+        historyEditBtn: 'Edit',
+        historyUnsettleBtn: 'Unsettle',
+        // Cross-trip tab.
+        crossTripTitle: '🌍 Cross-trip balances',
+        crossTripSubtitle: 'Across all trips · active + completed',
+        crossTripEmptyTitle: 'No companions yet',
+        crossTripEmptyBody: 'Add companions to a trip and log expenses to see cross-trip balances.',
+        // Settle button + toasts.
+        recordingBtn: 'Recording…',
+        toastSenderEqualsReceiver: 'Sender and receiver must be different.',
+        toastAmountInvalid: 'Amount must be a positive number.',
+        toastUnsettleConfirmTitle: 'Unsettle this payment?',
+        toastUnsettleConfirmMessage: 'The settlement record is removed and balances revert.',
+        toastUnsettleConfirmBtn: 'Unsettle',
+        // Manual settlement modal.
+        manualTitle: 'Manual settlement',
+        manualSubtitle: 'Record a payment that already happened off-app.',
+        editTitle: 'Edit settlement',
+        // Special expense category label for settlements.
+        expenseCountry: 'Settlement',
+        // Strip pill label.
+        settledSuffix: 'settled',
+    },
+    budgets: {
+        // Page header.
+        title: 'Budgets',
+        subtitle: 'Set spending ceilings and track them across trips.',
+        // Action row.
+        newBudgetBtn: '+ New budget',
+        filterAllTrips: 'All trips',
+        // Stat row.
+        countLabel: {
+            one: '{count} budget',
+            other: '{count} budgets',
+        },
+        // Overall card.
+        overallTrip: 'Trip overview',
+        overallAll: 'Overall',
+        overallSpent: 'Spent',
+        overallAllocated: 'Allocated',
+        overallRemaining: 'Remaining',
+        overallOverBy: 'Over by',
+        statusOverBudget: '⚠ Over budget',
+        statusNearLimit: '⚡ Near limit',
+        statusOnTrack: '✓ On track',
+        // Card chips (also from helpers.ts budgetStatus).
+        statusLabelOver: 'Over budget',
+        statusLabelNear: 'Near limit',
+        statusLabelOk: 'On track',
+        // Card targets / variance.
+        cardTarget: 'Target {amount}',
+        cardTargetWasSuffix: ' · was {original}',
+        cardOverBy: 'Over by {amount}',
+        cardLeftSuffix: '{amount} left',
+        cardSpentVariance: 'spent · {variance}',
+        cardPctUsed: '{pct}% used',
+        cardDelete: 'Delete',
+        // budgetTitle composition.
+        titleAllTrips: 'All trips',
+        titleAllCategories: 'All categories',
+        titleEveryone: 'Everyone',
+        // Empty state.
+        emptyTitleNoFilter: 'No budgets yet',
+        emptyTitleFilter: 'No budgets on this trip',
+        emptyBody: 'Click <strong>+ New budget</strong> above to set a target. You can scope it to one trip + category + person, or leave it as an account-wide cap.',
+        // Delete confirm + toast.
+        deleteConfirmTitle: 'Delete this budget?',
+        deleteConfirmMessage: '{title} — {amount}. The expenses themselves stay; only the budget target is removed.',
+        deleteConfirmBtn: 'Delete',
+        deletedToast: 'Budget deleted.',
+        // Create modal.
+        createTitle: 'New budget',
+        createSubtitle: 'Set a spending ceiling — track it against the matching expenses.',
+        createTripLabel: 'Trip',
+        createCategoryLabel: 'Category',
+        createPersonLabel: 'Person',
+        createTargetLabel: 'Target amount',
+        createTripAll: 'All trips',
+        createCategoryAll: 'All categories',
+        createPersonAll: 'Everyone on the trip',
+        createCancelBtn: 'Cancel',
+        createSaveBtn: 'Save budget',
+        createInvalidAmount: 'Enter a valid positive amount.',
+        createUnknownCurrency: 'Unknown currency "{curr}" — pick one from the list.',
+        createSavingStatus: 'Saving…',
+        createSavedToast: 'Budget saved.',
+        createSaveFailed: 'Save failed ({message}). Try again.',
+    },
+    insights: {
+        // Page header.
+        title: 'Insights',
+        subtitle: 'Your travel spending at a glance.',
+        // Empty states.
+        emptyNoTripBody: 'Please select a trip.',
+        emptyNoExpensesTitle: 'No Data to Analyze Yet',
+        emptyNoExpensesBody: 'Add your travel expenses in the <b>Expenses</b> tab or upload an Excel sheet to see your spending breakdown and analytics.',
+        emptyNoExpensesCta: 'Add Your First Expense',
+        // Rate-mode toggle.
+        rateModeAtTrip: 'At Trip',
+        rateModeToday: 'Today',
+        currencySelectorAriaLabel: 'Display currency for insights',
+        // Hero stat card.
+        heroTitle: 'Total Spent on your trip',
+        heroSubText: 'Spent across <strong>{count}</strong> transactions during your travels.',
+        // Summary metrics.
+        avgDaily: 'Avg. Daily Spend',
+        avgDailySuffix: '/ day',
+        singlePeak: 'Single Peak',
+        // Rankings.
+        topSpenders: 'Top Spenders',
+        categoryBreakdown: 'Category Breakdown',
+        unknownCategory: 'Unknown',
+        transactionsAbbrev: 'trans.',
+        // Timeline.
+        timelineTitle: 'Spending Timeline',
+        timelineSubtitle: 'Chronological flow of your expenses',
+        // Date-grouping fallback.
+        unknownDate: 'Unknown',
+    },
+    search: {
+        // Page header.
+        title: 'Search 🔍',
+        subtitle: 'Across every trip, day, and expense — active and archived.',
+        // Input.
+        inputPlaceholder: 'Search trips, days, expenses…',
+        inputAriaLabel: 'Search across trips, days, and expenses',
+        // Pre-query empty state.
+        emptyPrompt: 'Start typing to search.',
+        emptyPromptHint: 'Trip names, countries, day plans, expense labels — all in one place.',
+        // No results.
+        noResultsTitle: 'No matches for "{query}"',
+        noResultsBody: "Try a shorter term, a country name, or part of a day's plan.",
+        // Result count line.
+        resultCount: {
+            one: '{count} result for "{query}"',
+            other: '{count} results for "{query}"',
+        },
+        // Group labels.
+        groupTrips: 'Trips',
+        groupDays: 'Days',
+        groupExpenses: 'Expenses',
+        // Row fallbacks.
+        noCountry: 'No country set',
+        dayFallback: 'Day {num}',
+        dayFallbackUnknown: 'Day ?',
+        expenseNoLabel: '(no label)',
+        expenseNoPayer: 'no payer',
+        archivedPill: 'Archived',
+    },
+    todo: {
+        // Page header.
+        title: 'To do list 📋',
+        subtitleNoTrip: 'Places to fit in somewhere on your trip',
+        subtitleWithTrip: 'Places to fit in somewhere on <strong>{trip}</strong>',
+        // Empty states.
+        emptyNoTripTitle: 'No trip selected',
+        emptyNoTripBody: 'The to-do list is per-trip. Create a trip first, then add places from the home-map by clicking any pin.',
+        emptyNoTripCta: '+ Start Your Journey',
+        emptyNoItemsTitle: 'Your to-do list is empty',
+        // The body text uses inline <strong> markup; we keep the React
+        // version as a static fragment in Todo.tsx and translate the
+        // surrounding plain text via t() — see file for the full
+        // pattern. This key holds the simple-string variant for any
+        // future imperative renders.
+        emptyNoItemsBody: 'Open the Home map, click any pin, and hit "📋 Add to to-do list". Items show up here pre-ticked for AI consideration — untick the ones you want to slot manually.',
+        emptyNoItemsCta: 'Open the map',
+        // Stats row (count + ticked count).
+        itemCount: {
+            one: '{count} item',
+            other: '{count} items',
+        },
+        tickedSummary: '{ticked}/{total} ticked for AI consideration',
+        // Tooltips.
+        tickedAriaTrue: 'Ticked — AI will consider this place',
+        tickedAriaFalse: 'Tick to have the AI consider this place',
+        addedByAi: 'Added by the AI planner',
+        showDetails: 'Show details',
+        hideDetails: 'Hide details',
+        removeBtnTooltip: 'Remove from to-do list',
+        clearAllBtn: '🗑 Clear all',
+        clearAllTooltip: "Remove every place from this trip's to-do list",
+        // Confirm + toast.
+        clearConfirmTitle: 'Clear the to-do list?',
+        clearConfirmMessageOne: 'This removes the only place from the to-do list for "{trip}". This can\'t be undone.',
+        clearConfirmMessageMany: 'This removes all {count} places from the to-do list for "{trip}". This can\'t be undone.',
+        clearConfirmBtn: 'Clear list',
+        clearedToast: 'To-do list cleared.',
+    },
+    ai: {
+        // Page header.
+        title: 'Plan with AI ✦',
+        // Pre-trip empty-state.
+        noTripTitle: 'Ready for a new adventure?',
+        noTripBody: "To generate a personalized AI itinerary, you'll need to create a trip first.",
+        // Page subtitle (with destination interpolated).
+        subtitlePlanning: 'Planning your trip to <strong>{country}</strong>',
+        // Section labels.
+        sectionTravelDates: '📅 Travel Dates',
+        sectionRequirements: '📝 Requirements',
+        sectionAiEngine: '✦ AI Engine — Gemini',
+        // Generate button — idle + in-flight.
+        generateBtn: '✦ Generate My Itinerary',
+        generatingBtn: '⌛ Generating…',
+        // Loading state.
+        loadingTitle: 'Consulting Gemini AI…',
+        loadingBody: 'This usually takes 5-15 seconds. Maps lookups for each place add a few more.',
+        // Result section.
+        resultHeading: '{numDays}-Day {country} Itinerary',
+        resultGeneratedBy: 'Generated by Gemini AI',
+        resultBadge: '✦ AI-Generated',
+        acceptPlanBtn: 'Accept Plan & Add to Trip',
+        // Validation toasts.
+        toastPickDates: 'Pick your travel dates first.',
+        toastEndBeforeStart: 'End date must be on or after the start date.',
+        // Error friendly messages.
+        errorGeneric: 'Something went wrong while generating your plan.',
+        errorOverloaded: 'Gemini is overloaded right now.',
+        errorOverloadedHint: 'This usually clears in 30-60 seconds.',
+        errorQuota: 'Daily AI quota reached for this key.',
+        errorQuotaHint: 'Try again tomorrow, or use a different Gemini key in Settings → AI Engine.',
+        errorBadKey: "AI key isn't accepted by Gemini.",
+        errorBadKeyHint: 'Open Settings → AI Engine and check the key, or generate a new one.',
+        errorNetwork: 'Network hiccup talking to the AI.',
+        errorNetworkHint: 'Check your connection and retry.',
+        // Error card actions.
+        errorTechnicalDetails: 'Technical details',
+        errorUnknown: 'Unknown error',
+        errorRetryBtn: 'Try again',
+    },
+    collections: {
+        // Page header.
+        title: 'Collections',
+        subtitle: 'Your completed travel memories and trip photos.',
+        // Active-trips hint banner shown when the user has trips that
+        // aren't archived yet (so they understand the per-person
+        // archive model).
+        hintTitle: 'Looking for a trip a friend already finished?',
+        hintBodyOne: 'Trips become "completed" per-person — your friend marking it done doesn\'t move it for you. You still have one trip active:',
+        hintBodyMany: 'Trips become "completed" per-person — your friend marking it done doesn\'t move it for you. You still have {count} trips active:',
+        hintBodyOpen: 'Open one and tap <strong>Mark Complete</strong> to move it here.',
+        // Search + filter bar.
+        searchPlaceholder: 'Search by name or destination…',
+        sortRecent: '↓ Recently completed',
+        sortOldest: '↑ Oldest completed',
+        sortTripStartDesc: '↓ Trip start date (newest)',
+        sortTripStartAsc: '↑ Trip start date (oldest)',
+        sortNameAsc: 'A → Z (trip name)',
+        sortNameDesc: 'Z → A (trip name)',
+        sortSpentDesc: '💰 Most spent',
+        sortDaysDesc: '🗓️ Longest (most days)',
+        filterAllYears: 'All years',
+        filterAllDestinations: 'All destinations',
+        clearFilters: '✕ Clear filters',
+        countOf: '{shown} of {total}',
+        // Tab + card labels.
+        completedTripsTab: 'Completed Trips',
+        publicLabel: 'Public',
+        notPublicLabel: 'Not public',
+        restoreBtn: 'Restore',
+        deletePermanentlyTooltip: 'Delete Permanently',
+        deletePermanentlyAriaLabel: 'Delete trip permanently',
+        // Card body labels.
+        cardTotal: 'total',
+        cardMarkedCompleteOn: 'Marked complete on {date}',
+        // Empty states.
+        emptyNoMatchesTitle: 'No matches',
+        emptyNoMatchesBody: 'No completed trips match your current sort + filter. Try clearing filters or broadening the search.',
+        emptyNoTripsTitle: 'No completed trips',
+        emptyNoTripsBody: 'Your travel history will appear here once you complete a trip.',
+        // Plurals.
+        expenseCount: {
+            one: '{count} expense',
+            other: '{count} expenses',
+        },
+        dayCount: {
+            one: '{count} day',
+            other: '{count} days',
+        },
+        // Loading + error states for cross-user trip fetches.
+        loadingTrip: 'Loading trip…',
+        tripUnavailable: 'This trip isn\'t available — it may be private or deleted.',
+        tripNotFound: 'Trip not found.',
+        loadFailed: "Couldn't load this trip — try again in a moment.",
+    },
     friends: {
         // Page header.
         title: 'Friends',
@@ -151,11 +465,13 @@ export const en = {
         toastAcceptFailed: 'Failed to accept request.',
         toastAcceptFailedNetwork: 'Failed to accept request — try again.',
         toastRejectConfirmTitle: 'Reject this request?',
+        toastRejectConfirmMessage: 'Decline the friend request from {name}? You can still accept later if they re-send.',
         toastRejectConfirmBtn: 'Reject',
         toastRejectDone: 'Request declined.',
         toastRejectFailed: 'Could not decline.',
         toastRejectFailedNetwork: 'Could not decline — try again.',
         toastRemoveConfirmTitle: 'Remove this friend?',
+        toastRemoveConfirmMessage: "{name} will be removed from your friends list. They won't be notified, and you can always send a new request later.",
         toastRemoveConfirmBtn: 'Remove',
         toastRemoveDone: 'Friend removed.',
         toastRemoveFailed: 'Could not remove.',
@@ -190,6 +506,10 @@ export const en = {
         sortPayerAZ: 'Payer (A–Z)',
         // History — undo batch import.
         undoBatchTitle: 'Undo last batch?',
+        undoBatchMessage: {
+            one: 'Removes the only expense imported in your most recent upload. This cannot be undone.',
+            other: 'Removes the {count} expenses imported in your most recent upload. This cannot be undone.',
+        },
         undoBatchBtn: 'Undo batch',
         // Empty states.
         noExpensesYet: 'No expenses for this trip yet',
