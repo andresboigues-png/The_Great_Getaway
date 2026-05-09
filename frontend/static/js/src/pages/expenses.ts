@@ -16,6 +16,7 @@ import { navigate } from '../router.js';
 // lives. Personalization no longer has a companions sub-tab.
 import { renderUpload } from './upload.js';
 import { canEditExpenses } from '../permissions.js';
+import { t } from '../i18n.js';
 
 let activeExpensesTab: 'manual' | 'batch' | 'history' = 'manual';
 
@@ -581,8 +582,8 @@ function renderManualTab() {
                 if (Math.abs(totalSplit - 100) > 0.5) {
                     // Round 6 audit fix — use the app's toast helper instead
                     // of native alert() for visual consistency with the rest
-                    // of the validation flow.
-                    showLiquidAlert("Percentages must add up to exactly 100%");
+                    // of the validation flow. i18n session 1: pipe through t().
+                    showLiquidAlert(t('validation.percentagesMustSum'));
                     return;
                 }
             } else {
@@ -593,11 +594,11 @@ function renderManualTab() {
             const curr = (q(wrapper, '#expCurrency') as HTMLSelectElement).value.toUpperCase();
 
             if (isNaN(val) || val <= 0) {
-                showLiquidAlert("Please enter a valid expense value.");
+                showLiquidAlert(t('validation.invalidExpenseValue'));
                 return;
             }
             if (!curr) {
-                showLiquidAlert("Please select a currency.");
+                showLiquidAlert(t('validation.currencyRequired'));
                 return;
             }
 

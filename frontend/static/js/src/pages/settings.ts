@@ -282,6 +282,7 @@ export function renderSettings() {
                                 <div class="theme-options">
                                     ${langOpt('en', t('settings.languageEnglish'), 'English')}
                                     ${langOpt('pt', t('settings.languagePortuguese'), 'Português')}
+                                    ${langOpt('es', t('settings.languageSpanish'), 'Español')}
                                 </div>
                             </div>
                         `;
@@ -483,7 +484,8 @@ export function renderSettings() {
         const mapped = new Set(fmt.map(m => m.variable === 'categoryId' ? 'category' : m.variable));
         const missing = MANDATORY.filter(v => !mapped.has(v));
         // Round 6 audit fix — switch to showLiquidAlert toast for consistency.
-        if (missing.length > 0) { showLiquidAlert(`Missing required fields: ${missing.join(', ')}`); return; }
+        // i18n session 1: pipe through t() with {fields} interpolation.
+        if (missing.length > 0) { showLiquidAlert(t('validation.missingRequiredFields', { fields: missing.join(', ') })); return; }
         const name = ((document.getElementById('formatNameInput') as HTMLInputElement | null)?.value || '').trim();
         if (!name) return;
         STATE.savedFormats = STATE.savedFormats || [];
@@ -579,7 +581,9 @@ export function renderSettings() {
         // selection rather than getting punted to Map pills.
         if (themeBtn?.dataset.localeValue) {
             const value = themeBtn.dataset.localeValue;
-            if (value === 'en' || value === 'pt') {
+            // Keep this list in lockstep with the Locale union in i18n.ts
+            // and the langOpt() calls in renderGeneral above.
+            if (value === 'en' || value === 'pt' || value === 'es') {
                 setLocale(value);
                 (window as any).__ggGeneralSubTab = 'language';
                 switchSettingsTab('general');

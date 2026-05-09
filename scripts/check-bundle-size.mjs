@@ -34,15 +34,18 @@ const CHUNKS_DIR = resolve(JS_DIR, 'chunks');
 // load lazily on navigation and don't affect time-to-interactive on
 // first visit.
 const LIMITS = {
-    entry: 110 * 1024,            // 110 KB gzip — currently ~106 KB
+    entry: 112 * 1024,            // 112 KB gzip — currently ~109 KB
     vendorReact: 65 * 1024,       // 65 KB gzip — currently ~58 KB
     pageChunkMax: 15 * 1024,      // 15 KB gzip per page chunk — currently top is ~12 KB
-    firstPaintGzipMax: 178 * 1024, // 178 KB gzip first-paint — 4 polish rounds added
-                                   // ~3 KB of well-justified user-visible weight
-                                   // (touch targets, error toasts, profile-photo
-                                   // upload flow, mobile camera badge). Still well
-                                   // under the "10-20% above shipping" guideline
-                                   // — current shipping is ~176 KB.
+    firstPaintGzipMax: 181 * 1024, // 181 KB gzip first-paint.
+                                   // i18n session 1 added the es.ts locale
+                                   // (~2.7 KB gzip) to the entry chunk; each
+                                   // future locale adds another ~2.5-3 KB while
+                                   // they ship eagerly. Budget is set with one
+                                   // more locale's headroom; before adding a
+                                   // 4th locale we should lazy-load locale
+                                   // tables (only load the active one) rather
+                                   // than keep raising the gate.
 };
 
 function gzipSize(filePath) {

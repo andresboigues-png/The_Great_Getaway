@@ -5,6 +5,7 @@ import { syncWithServer } from '../api.js';
 import { navigate } from '../router.js';
 import { showSettingsTab } from './settings.js';
 import { addTripCompanion, getTripCompanionNames } from '../companions.js';
+import { t } from '../i18n.js';
 
 // Pad number to 2 digits.
 const _pad2 = (n: number): string => String(n).padStart(2, '0');
@@ -425,7 +426,8 @@ export function renderUpload() {
         q(div, '#uploadBtn').addEventListener('click', () => {
             if (!STATE.activeTripId) {
                 // Round 6 audit fix — toast instead of native alert().
-                showLiquidAlert("Please select or create a trip first!");
+                // i18n session 1: pipe through t() for localization.
+                showLiquidAlert(t('validation.selectTripFirst'));
                 return;
             }
             const activeTripId = STATE.activeTripId;

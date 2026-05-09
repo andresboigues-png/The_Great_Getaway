@@ -41,16 +41,17 @@ import { STATE, emit } from './state.js';
 import { EVENTS } from './constants.js';
 import { en, type Translations } from './locales/en.js';
 import { pt } from './locales/pt.js';
+import { es } from './locales/es.js';
 
-export type Locale = 'en' | 'pt';
+export type Locale = 'en' | 'pt' | 'es';
 
-const LOCALE_TABLES: Record<Locale, Translations> = { en, pt };
+const LOCALE_TABLES: Record<Locale, Translations> = { en, pt, es };
 
 // ── Locale state ────────────────────────────────────────────────────
 
 /** Set of locales we ship; used to validate STATE.preferences.locale
  *  on read in case localStorage was edited by hand. */
-const KNOWN_LOCALES: readonly Locale[] = ['en', 'pt'] as const;
+const KNOWN_LOCALES: readonly Locale[] = ['en', 'pt', 'es'] as const;
 
 /** Best-guess default from the browser. `navigator.language` is
  *  formatted as `{lang}-{region}` (e.g. 'pt-PT', 'en-GB'). We map
@@ -101,12 +102,26 @@ type _DotPath<T, Prefix extends string = ''> = {
 
 export type TranslationKey = _DotPath<Translations>;
 
-/** Look up a translation by dotted key. Returns the active locale's
- *  string for that key. The TypeScript signature guarantees the key
- *  exists at compile time, so runtime fallback is just an empty
- *  string in case of malformed data (defense in depth — should never
- *  fire in practice). */
-export function t(key: TranslationKey): string {
+/** Look up a translation by dotted key, with optional placeholder
+ *  interpolation. Returns the active locale's string for that key.
+ *
+ *  Placeholders use `{name}` syntax in the source string; pass the
+ *  values as the second argument:
+ *
+ *      t('toasts.photoSaveFailed', { status: 500 })
+ *      t('validation.missingRequiredFields', { fields: 'date, value' })
+ *
+ *  Numeric values are stringified via String(); missing placeholders
+ *  are left as `{name}` so the bug is visible in the UI rather than
+ *  silently dropped.
+ *
+ *  The TypeScript signature guarantees the key exists at compile time,
+ *  so runtime fallback is just an empty string in case of malformed
+ *  data (defense in depth — should never fire in practice). */
+export function t(
+    key: TranslationKey,
+    params?: Record<string, string | number>,
+): string {
     const table = LOCALE_TABLES[getLocale()] ?? en;
     const parts = key.split('.');
     let cur: unknown = table;
@@ -117,7 +132,14 @@ export function t(key: TranslationKey): string {
             return '';
         }
     }
-    return typeof cur === 'string' ? cur : '';
+    if (typeof cur !== 'string') return '';
+    if (!params) return cur;
+    // Replace `{name}` with params[name]. Anything missing stays as
+    // the literal placeholder so it surfaces in QA instead of
+    // silently rendering blanks.
+    return cur.replace(/\{(\w+)\}/g, (_, name) =>
+        name in params ? String(params[name]) : `{${name}}`,
+    );
 }
 
 // ── Locale-aware formatters ─────────────────────────────────────────
@@ -126,14 +148,17 @@ export function t(key: TranslationKey): string {
 // formatHome) so the existing call sites pick up locale support
 // without churn.
 
-/** Map a Locale ('en' | 'pt') to the BCP-47 tag we hand to Intl.
- *  We pick concrete regions ('en-US', 'pt-PT') so the format is
- *  consistent — Intl will pick a region default otherwise (e.g.
- *  'en' on Chrome resolves to en-US, on Safari maybe en-GB).
- *  Founder's market is Portugal, hence pt-PT. */
+/** Map a Locale to the BCP-47 tag we hand to Intl. We pick concrete
+ *  regions so the format is consistent — Intl picks a region default
+ *  otherwise (e.g. 'en' on Chrome resolves to en-US, on Safari maybe
+ *  en-GB). Founder's market is Portugal, hence pt-PT. Spanish defaults
+ *  to es-ES (Spain) over es-MX/AR — date and currency separators differ
+ *  across regions, but Spain's conventions are the most widely
+ *  understood across the Iberian-Latin axis we serve. */
 const INTL_LOCALE_TAGS: Record<Locale, string> = {
     en: 'en-US',
     pt: 'pt-PT',
+    es: 'es-ES',
 };
 
 /** The BCP-47 tag for the active locale. Cheap accessor for any

@@ -435,7 +435,7 @@ export function renderProfile(targetUserId: string | null | undefined = null) {
                                 STATE.user.status = newStatus;
                                 STATE.user.homeCurrency = newHomeCurrency;
                                 emit('state:changed'); saveBtn.style.opacity = '0'; saveBtn.style.pointerEvents = 'none';
-                                showLiquidAlert("Profile updated!");
+                                showLiquidAlert(t('profile.updated'));
                             } else {
                                 // Round 2 audit fix: was a silent
                                 // failure — user clicked Save, nothing
@@ -444,10 +444,13 @@ export function renderProfile(targetUserId: string | null | undefined = null) {
                                 // explanation. Now we surface the
                                 // server's status code as a useful
                                 // toast so they know to retry.
+                                // i18n session 1: piped through t() with
+                                // {status} interpolation so the message
+                                // localizes per the user's language.
                                 showLiquidAlert(
                                     res.status === 401
-                                        ? 'Sign in expired — refresh the page.'
-                                        : `Couldn't save your profile (HTTP ${res.status}). Try again.`,
+                                        ? t('profile.photoSessionExpired')
+                                        : t('profile.saveFailed', { status: res.status }),
                                 );
                             }
                         } catch(e) {
@@ -456,7 +459,7 @@ export function renderProfile(targetUserId: string | null | undefined = null) {
                             // a toast so the user knows their save
                             // didn't land + they should retry.
                             console.error('Profile update failed:', e);
-                            showLiquidAlert("Network error — couldn't save your profile.");
+                            showLiquidAlert(t('profile.saveNetwork'));
                         }
                     };
                 }
@@ -496,7 +499,12 @@ export function renderProfile(targetUserId: string | null | undefined = null) {
                     // Real upload.
                     const uploaded = await uploadMedia(file);
                     if (!uploaded?.url) {
-                        const msg = uploaded?.error || "Couldn't upload your photo — try again.";
+                        // The server's `error` field (when present) is
+                        // already user-facing prose from the upload route;
+                        // we keep it as-is rather than re-keying. Falling
+                        // back to the localized generic when no server
+                        // message is given.
+                        const msg = uploaded?.error || t('profile.photoUploadFailed');
                         showLiquidAlert(msg);
                         // Revert preview to the previous server-side photo.
                         if (display) display.src = STATE.user.picture || '';
@@ -515,8 +523,8 @@ export function renderProfile(targetUserId: string | null | undefined = null) {
                             const body = await res.json().catch(() => ({}));
                             const msg = body?.error
                                 || (res.status === 401
-                                    ? 'Sign in expired — refresh the page.'
-                                    : `Couldn't save your photo (HTTP ${res.status}).`);
+                                    ? t('profile.photoSessionExpired')
+                                    : t('profile.photoSaveFailed', { status: res.status }));
                             showLiquidAlert(msg);
                             if (display) display.src = STATE.user.picture || '';
                             input.value = '';
@@ -527,10 +535,10 @@ export function renderProfile(targetUserId: string | null | undefined = null) {
                         // up the new URL on the next state-change emit.
                         STATE.user.picture = uploaded.url;
                         emit('state:changed');
-                        showLiquidAlert('Profile photo updated.');
+                        showLiquidAlert(t('profile.photoUploaded'));
                     } catch (err) {
                         console.error('profile/update picture failed:', err);
-                        showLiquidAlert("Network error — couldn't save your photo.");
+                        showLiquidAlert(t('profile.photoSaveNetwork'));
                         if (display) display.src = STATE.user.picture || '';
                     } finally {
                         // Reset so re-picking the same file fires change.
