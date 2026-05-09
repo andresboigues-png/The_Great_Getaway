@@ -226,7 +226,10 @@ export interface MarkedPlace {
     /** Reverse-geocoded street address — populated post-pick when
      *  available; the To-do detail card and place modal use it. */
     address?: string;
-    /** Google Place identifier when available — used to ground AI plans. */
+    /** Google Place identifier when available — used to ground AI plans
+     *  AND (Phase G) to dedup against home POI markers + AI itinerary
+     *  cards. Two MarkedPlace entries with the same placeId render as
+     *  one marker on the map. */
     placeId?: string;
     lat?: number;
     lng?: number;
@@ -236,8 +239,36 @@ export interface MarkedPlace {
     forAI?: boolean;
     /** Optional category emoji / icon for legend pinning. */
     icon?: string;
+    /** Optional category colour (hex string). */
+    color?: string;
+    /** Optional day this place belongs to (used by the home map's
+     *  to-do marker filter — Anchor selected → show all, specific
+     *  day selected → show only this day's). Null = no day assigned. */
+    dayId?: string | null;
+    /** Optional time-of-day slot the AI assigned this place to. */
+    timeOfDay?: 'morning' | 'afternoon' | 'evening' | null;
     /** ISO timestamp when added. */
     addedAt?: string;
+
+    // ── Phase G — Maps Grounding fields ──────────────────────────────
+    /** True when Places API (slice 1) or Maps Grounding (future slice)
+     *  resolved the place to a real placeId. Items left over from
+     *  pre-G never carry this flag (treated as `false` by readers
+     *  that need it). */
+    verified?: boolean;
+    /** Canonical name from Places API (`displayName.text`). May differ
+     *  from `name` when the LLM used a colloquial form. */
+    verifiedName?: string;
+    /** Pre-built Places API NEW media endpoint URL — to-do list cards
+     *  and AI day-card photos hot-link this. */
+    photoUrl?: string;
+    /** Average rating from Places (0-5, one decimal). */
+    rating?: number;
+    /** Total user-rating count — used for the compact "(12k)" chip. */
+    userRatingsTotal?: number;
+    /** Canonical short Google Maps URL. Falls back to a place_id
+     *  deep link in the renderer if absent. */
+    mapsUrl?: string;
 }
 
 export interface Expense {

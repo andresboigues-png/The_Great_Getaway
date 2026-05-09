@@ -38,6 +38,7 @@ import { buildPathTabHtml } from './home/pathTab.js';
 import { buildEmptyStateHtml, pickGreeting } from './home/welcomeCard.js';
 import { wireMapSearchBanner } from './home/mapSearch.js';
 import { paintDayMarkers } from './home/dayMarkers.js';
+import { paintTodoMarkers } from './home/todoMarkers.js';
 import { appendGettingStartedGuide } from './home/gettingStartedGuide.js';
 import { setupSlideshow, stopHomeSlideshow as _stopSlideshowImpl } from './home/slideshow.js';
 
@@ -1047,6 +1048,19 @@ export function renderHome() {
                 // toggle of the same day instant.
                 registerPathSelectionHooks({
                     onSelectedDayChange: () => {
+                        // Phase G slice 2: re-paint to-do markers on
+                        // every wheel-day change. Anchor selected →
+                        // shows every marked place; specific day →
+                        // shows only that day's. The repaint is cheap
+                        // (a handful of small SVG markers per render);
+                        // doing it inline beats a full home re-render
+                        // which would tear down the map.
+                        // NB: defined further down in this scope after
+                        // paintDayMarkers — closure capture works
+                        // because this hook fires post-render.
+                        // eslint-disable-next-line @typescript-eslint/no-use-before-define
+                        repaintTodoMarkers();
+
                         if (enabledPois.size === 0) return;
                         enabledPois.forEach(key => {
                             // Skip categories that always anchor
@@ -1086,6 +1100,29 @@ export function renderHome() {
                 // it — pin-save re-renders the home page anyway.
                 const currentTripDays = activeTrip ? (STATE.tripDays || []).filter(d => d.tripId === activeTrip.id) : [];
                 paintDayMarkers({ map, activeTrip, days: currentTripDays, editingDayId });
+
+                // Phase G slice 2 — to-do markers. Render every marked
+                // place that has lat/lng + forManual === true, filtered
+                // by the wheel-selected day:
+                //   - Anchor (or no selection) → all places visible
+                //   - Specific day → only that day's places visible
+                // Stored in a closure-scope variable so the path-
+                // selection-change hook below can clear + re-paint
+                // without a full home re-render. Each repaint clears
+                // every marker's `setMap(null)` so old markers don't
+                // leak (Google Maps keeps them in the map's internal
+                // overlay list otherwise).
+                let todoMarkers: Record<string, google.maps.Marker> = {};
+                const repaintTodoMarkers = () => {
+                    for (const m of Object.values(todoMarkers)) m.setMap(null);
+                    todoMarkers = paintTodoMarkers({
+                        map,
+                        activeTrip,
+                        days: currentTripDays,
+                        selectedDayId: activeTrip ? (getSelectedDayId(activeTrip.id) || null) : null,
+                    });
+                };
+                repaintTodoMarkers();
 
                 // Day-to-day route line — connects consecutive
                 // numbered day pins (Day 1 → Day 2 → … → Day N) so

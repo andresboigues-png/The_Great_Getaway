@@ -1766,6 +1766,7 @@ def test_generate_itinerary_places_verification_enriches_items(
                     "id": f"ChIJ-{abs(hash(text_query)) % 100000}",
                     "displayName": {"text": text_query.split(" in ")[0]},
                     "formattedAddress": "Some real address, Barcelona, Spain",
+                    "location": {"latitude": 41.4036, "longitude": 2.1744},
                     "rating": 4.7,
                     "userRatingCount": 12345,
                     "googleMapsUri": "https://maps.app.goo.gl/fakeshort",
@@ -1792,6 +1793,11 @@ def test_generate_itinerary_places_verification_enriches_items(
     assert morning_items[0]["address"] == "Some real address, Barcelona, Spain"
     assert morning_items[0]["photoUrl"].startswith("https://places.googleapis.com/v1/")
     assert "fake-maps-key" in morning_items[0]["photoUrl"]
+    # Phase G slice 2 — lat/lng plumbed through so the home map can
+    # render to-do markers for AI-suggested places without a separate
+    # Place Details fetch.
+    assert morning_items[0]["lat"] == 41.4036
+    assert morning_items[0]["lng"] == 2.1744
     # Hallucination — unverified, no enrichment fields.
     assert morning_items[1]["text"].startswith("Made-up Place")
     assert morning_items[1]["verified"] is False

@@ -1,19 +1,19 @@
-import{r as e,t}from"./vendor-react-CYVQMBjw.js";import{C as n,G as r,H as i,J as a,K as o,L as s,M as c,P as l,R as u,T as d,h as f,k as p,m,p as h,q as g,r as _,t as v,y}from"../app.bundle.js";var b=e();function x(e){if(!e)return``;let t=Array.isArray(e.items)?e.items.filter(Boolean):[];if(t.length>0)return`<ul class="ai-plan-block__list">${t.map(e=>S(e)).join(``)}</ul>`;if(e.description){let t=String(e.description).split(/\n+/).map(e=>e.trim()).filter(Boolean);return t.length>1?`<ul class="ai-plan-block__list">${t.map(e=>`<li>${s(e.replace(/^[-•*]\s*/,``))}</li>`).join(``)}</ul>`:`<div class="ai-plan-block__desc">${s(e.description)}</div>`}return``}function S(e){if(typeof e==`string`)return`<li class="ai-plan-block__item">${s(e)}</li>`;if(!e||typeof e!=`object`)return``;let t=e,n=String(t.text||``);if(!n)return``;if(t.verified&&t.placeId){let e=t.photoUrl?`<img class="ai-place-card__photo" src="${s(t.photoUrl)}" alt="" referrerpolicy="no-referrer" loading="lazy">`:`<div class="ai-place-card__photo ai-place-card__photo--empty" aria-hidden="true">📍</div>`,r=typeof t.rating==`number`?`<span class="ai-place-card__rating">★ ${t.rating.toFixed(1)}${t.userRatingsTotal?` <span class="ai-place-card__rating-count">(${C(t.userRatingsTotal)})</span>`:``}</span>`:``,i=t.address?`<span class="ai-place-card__address">${s(t.address)}</span>`:``,a=t.mapsUrl||`https://www.google.com/maps/place/?q=place_id:${encodeURIComponent(t.placeId)}`,o=t.verifiedName||n;return`
+import{r as e,t}from"./vendor-react-CYVQMBjw.js";import{A as n,C as r,E as i,F as a,J as o,K as s,N as c,R as l,U as u,Y as d,h as f,m as p,p as m,q as h,r as g,t as _,w as v,y,z as b}from"../app.bundle.js";var x=e();function S(e){if(!e)return``;let t=Array.isArray(e.items)?e.items.filter(Boolean):[];if(t.length>0)return`<ul class="ai-plan-block__list">${t.map(e=>C(e)).join(``)}</ul>`;if(e.description){let t=String(e.description).split(/\n+/).map(e=>e.trim()).filter(Boolean);return t.length>1?`<ul class="ai-plan-block__list">${t.map(e=>`<li>${l(e.replace(/^[-•*]\s*/,``))}</li>`).join(``)}</ul>`:`<div class="ai-plan-block__desc">${l(e.description)}</div>`}return``}function C(e){if(typeof e==`string`)return`<li class="ai-plan-block__item">${l(e)}</li>`;if(!e||typeof e!=`object`)return``;let t=e,n=String(t.text||``);if(!n)return``;if(t.verified&&t.placeId){let e=t.photoUrl?`<img class="ai-place-card__photo" src="${l(t.photoUrl)}" alt="" referrerpolicy="no-referrer" loading="lazy">`:`<div class="ai-place-card__photo ai-place-card__photo--empty" aria-hidden="true">📍</div>`,r=typeof t.rating==`number`?`<span class="ai-place-card__rating">★ ${t.rating.toFixed(1)}${t.userRatingsTotal?` <span class="ai-place-card__rating-count">(${w(t.userRatingsTotal)})</span>`:``}</span>`:``,i=t.address?`<span class="ai-place-card__address">${l(t.address)}</span>`:``,a=t.mapsUrl||`https://www.google.com/maps/place/?q=place_id:${encodeURIComponent(t.placeId)}`,o=t.verifiedName||n;return`
             <li class="ai-plan-block__item ai-plan-block__item--card">
-                <a class="ai-place-card" href="${s(a)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${s(o)} on Google Maps">
+                <a class="ai-place-card" href="${l(a)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${l(o)} on Google Maps">
                     ${e}
                     <div class="ai-place-card__body">
-                        <span class="ai-place-card__name">${s(o)}</span>
+                        <span class="ai-place-card__name">${l(o)}</span>
                         ${r}
                         ${i}
                     </div>
                 </a>
             </li>`}return`
         <li class="ai-plan-block__item ai-plan-block__item--unverified">
-            <span class="ai-plan-block__item-text">${s(n)}</span>
+            <span class="ai-plan-block__item-text">${l(n)}</span>
             <span class="ai-plan-block__unverified-chip" title="The Places lookup couldn't resolve this. Worth double-checking before adding to your plan.">unverified</span>
-        </li>`}function C(e){return!Number.isFinite(e)||e<0?``:e<1e3?String(e):e<1e6?`${(Math.round(e/100)/10).toFixed(1).replace(/\.0$/,``)}k`:`${(Math.round(e/1e5)/10).toFixed(1).replace(/\.0$/,``)}M`}function w(e){return typeof e==`string`?e:e&&typeof e==`object`&&typeof e.text==`string`?e.text:String(e??``)}function T(e){if(!e)return``;let t=Array.isArray(e.items)?e.items.filter(Boolean):[];return t.length>0?[e.activity?`${e.activity}:`:``,...t.map(e=>`- ${w(e)}`)].filter(Boolean).join(`
-`):e.activity&&e.description?`${e.activity}: ${e.description}`:e.activity||e.description||``}var E=null,D=[];function O(){let e=document.createElement(`div`),t=g.trips.find(e=>e.id===g.activeTripId);if(!t)return e.innerHTML=`
+        </li>`}function w(e){return!Number.isFinite(e)||e<0?``:e<1e3?String(e):e<1e6?`${(Math.round(e/100)/10).toFixed(1).replace(/\.0$/,``)}k`:`${(Math.round(e/1e5)/10).toFixed(1).replace(/\.0$/,``)}M`}function T(e){return typeof e==`string`?e:e&&typeof e==`object`&&typeof e.text==`string`?e.text:String(e??``)}function E(e){if(!e)return``;let t=Array.isArray(e.items)?e.items.filter(Boolean):[];return t.length>0?[e.activity?`${e.activity}:`:``,...t.map(e=>`- ${T(e)}`)].filter(Boolean).join(`
+`):e.activity&&e.description?`${e.activity}: ${e.description}`:e.activity||e.description||``}var D=null,O=[];function k(){let e=document.createElement(`div`),t=o.trips.find(e=>e.id===o.activeTripId);if(!t)return e.innerHTML=`
             <div style="padding:32px 0 24px;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text',sans-serif;">
                 <h1 style="margin:0 0 6px;font-size:2.8rem;font-weight:800;letter-spacing:-0.04em;background:var(--gradient-title);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Plan with AI ✦</h1>
                 <p style="margin:0;color:var(--text-secondary);font-size:1rem;">Your AI-powered travel planner</p>
@@ -28,8 +28,8 @@ import{r as e,t}from"./vendor-react-CYVQMBjw.js";import{C as n,G as r,H as i,J a
                         <button id="aiStartJourneyBtn" class="btn-primary btn-primary--lg" style="max-width: none; width: auto; padding: 16px 36px; font-size: 1.15rem;">+ Start Your Journey</button>
                     </div>
                 </div>
-            </div>`,setTimeout(()=>{e.querySelector(`#aiStartJourneyBtn`)?.addEventListener(`click`,()=>p()),typeof google<`u`&&google.maps&&o(new google.maps.Map(document.getElementById(`emptyMap`),{center:{lat:20,lng:0},zoom:2,minZoom:2,restriction:{latLngBounds:{north:85,south:-85,west:-180,east:180},strictBounds:!0},styles:[]}),[])},100),e;let y=t.country||``,b=(g.tripDays||[]).filter(e=>e.tripId===g.activeTripId&&e.dayNumber>0&&e.date).map(e=>e.date).sort(),S=g.expenses.filter(e=>e.tripId===g.activeTripId&&e.date).sort((e,t)=>e.date.localeCompare(t.date)).map(e=>e.date),C=t.dateFrom||b[0]||S[0]||``,w=t.dateTo||b[b.length-1]||S[S.length-1]||``,O=t.aiPlan||null,k=t.aiContext||``,A=t.aiNumDays||1,j=c(t),M=`font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text',sans-serif;`;return e.innerHTML=`
-        <div style="${M}">
+            </div>`,setTimeout(()=>{e.querySelector(`#aiStartJourneyBtn`)?.addEventListener(`click`,()=>n()),typeof google<`u`&&google.maps&&h(new google.maps.Map(document.getElementById(`emptyMap`),{center:{lat:20,lng:0},zoom:2,minZoom:2,restriction:{latLngBounds:{north:85,south:-85,west:-180,east:180},strictBounds:!0},styles:[]}),[])},100),e;let y=t.country||``,x=(o.tripDays||[]).filter(e=>e.tripId===o.activeTripId&&e.dayNumber>0&&e.date).map(e=>e.date).sort(),C=o.expenses.filter(e=>e.tripId===o.activeTripId&&e.date).sort((e,t)=>e.date.localeCompare(t.date)).map(e=>e.date),w=t.dateFrom||x[0]||C[0]||``,T=t.dateTo||x[x.length-1]||C[C.length-1]||``,k=t.aiPlan||null,A=t.aiContext||``,j=t.aiNumDays||1,M=c(t),N=`font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text',sans-serif;`;return e.innerHTML=`
+        <div style="${N}">
             <!-- Header -->
             <div style="padding:32px 0 24px;">
                 <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;">
@@ -70,7 +70,7 @@ import{r as e,t}from"./vendor-react-CYVQMBjw.js";import{C as n,G as r,H as i,J a
                         <p style="color:var(--text-secondary);font-size:0.78rem;margin:0 0 10px;">Bring your own free Gemini API key. Stored on this device only.</p>
                         <div style="position:relative;">
                             <input id="aiKeyInput" type="password" placeholder="Paste your Gemini API key…" autocomplete="off" spellcheck="false"
-                                value="${s(g.geminiApiKey||``)}"
+                                value="${l(o.geminiApiKey||``)}"
                                 style="width:100%; box-sizing:border-box; padding:10px 42px 10px 12px; border:1px solid rgba(0,0,0,0.12); border-radius:10px; font-size:0.85rem; font-family: 'SF Mono', monospace; background:white; color:#002d5b;">
                             <button id="aiKeyToggleBtn" type="button" title="Show / hide key" aria-label="Toggle visibility"
                                 style="position:absolute; right:6px; top:50%; transform:translateY(-50%); background:transparent; border:0; cursor:pointer; padding:4px 8px; color:rgba(0,0,0,0.5); font-size:0.95rem; line-height:1;">👁</button>
@@ -83,21 +83,21 @@ import{r as e,t}from"./vendor-react-CYVQMBjw.js";import{C as n,G as r,H as i,J a
                         <div style="display:flex; flex-direction:column; gap:12px;">
                             <div>
                                 <label for="aiDateFrom" style="display:block;font-size:0.75rem;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:5px;">From</label>
-                                <input id="aiDateFrom" type="date" class="glass-input" value="${C}" style="width:100%; box-sizing: border-box;">
+                                <input id="aiDateFrom" type="date" class="glass-input" value="${w}" style="width:100%; box-sizing: border-box;">
                             </div>
                             <div>
                                 <label for="aiDateTo" style="display:block;font-size:0.75rem;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:5px;">To</label>
-                                <input id="aiDateTo" type="date" class="glass-input" value="${w}" style="width:100%; box-sizing: border-box;">
+                                <input id="aiDateTo" type="date" class="glass-input" value="${T}" style="width:100%; box-sizing: border-box;">
                             </div>
                         </div>
                     </div>
 
                     <div class="card glass" style="padding:20px;flex:1 1 auto;display:flex;flex-direction:column;min-height:0;">
                         <h2 class="card-title" style="font-size:0.85rem;text-transform:uppercase;color:#005bb8;margin-bottom:10px;letter-spacing:0.05em;">📝 Requirements</h2>
-                        <textarea id="aiExtraContext" class="glass-input" style="width:100%; resize:none; font-size:0.9rem; box-sizing: border-box; flex:1 1 auto; min-height:120px;" placeholder="e.g. Vegetarian friendly, no walking more than 2km...">${k}</textarea>
+                        <textarea id="aiExtraContext" class="glass-input" style="width:100%; resize:none; font-size:0.9rem; box-sizing: border-box; flex:1 1 auto; min-height:120px;" placeholder="e.g. Vegetarian friendly, no walking more than 2km...">${A}</textarea>
                     </div>
                     <!-- Generate -->
-                    ${j?`<button id="generateBtn" class="ai-generate-btn" style="width:100%; border-radius: var(--radius-lg);flex:0 0 auto;">✦ Generate My Itinerary</button>`:(()=>{let e=l(t);return`<div class="card glass" style="padding:16px; border-radius: var(--radius-lg); text-align:center; color: var(--text-secondary); font-size: 0.85rem; flex:0 0 auto;">
+                    ${M?`<button id="generateBtn" class="ai-generate-btn" style="width:100%; border-radius: var(--radius-lg);flex:0 0 auto;">✦ Generate My Itinerary</button>`:(()=>{let e=a(t);return`<div class="card glass" style="padding:16px; border-radius: var(--radius-lg); text-align:center; color: var(--text-secondary); font-size: 0.85rem; flex:0 0 auto;">
                                 👁 You're a ${e===`budgeteer`?`Budgeteer`:e===`relaxer`?`Relaxer`:`observer`} on this trip — ${e===`budgeteer`?`you handle the trip's expenses but the itinerary is up to the Planners.`:`generating a new plan is up to the Planners.`}
                             </div>`})()}
                 </div>
@@ -128,16 +128,21 @@ import{r as e,t}from"./vendor-react-CYVQMBjw.js";import{C as n,G as r,H as i,J a
 
             <!-- Itinerary Output (full-width below) -->
             <div id="itineraryOutput" style="margin-bottom: 60px;"></div>
-        </div>`,setTimeout(()=>{let c=e=>{if(!E)return;let n=t.id+`_ai`;if(g.mapViews&&g.mapViews[n]){let e=g.mapViews[n];E.setCenter({lat:e.lat,lng:e.lng}),E.setZoom(e.zoom);return}if(t.viewport){let e=t.viewport;E.fitBounds(new google.maps.LatLngBounds({lat:e.south,lng:e.west},{lat:e.north,lng:e.east}));return}let r=e.replace(/\(USA\)/g,``).trim();r.includes(` - `)&&(r=r.split(` - `)[1]+`, USA`),new google.maps.Geocoder().geocode({address:r},(e,t)=>{t===`OK`&&e[0]&&E.fitBounds(e[0].geometry.viewport)})};if(typeof google<`u`&&google.maps){let n=document.getElementById(`aiGoogleMap`);n&&(E=new google.maps.Map(n,{center:{lat:20,lng:0},zoom:2,minZoom:2,mapTypeId:`roadmap`,disableDefaultUI:!0,restriction:{latLngBounds:{north:85,south:-85,west:-180,east:180},strictBounds:!0},styles:[]}),o(E,[]),c(y),E.addListener(`idle`,()=>{let e=t.id+`_ai`;g.mapViews||={};let n=E.getCenter();g.mapViews[e]={lat:n.lat(),lng:n.lng(),zoom:E.getZoom()},a(`state:changed`)}));let r=e.querySelector(`#aiZoomBadge`);r&&(r.onclick=()=>{let e=t.id+`_ai`;g.mapViews&&g.mapViews[e]&&delete g.mapViews[e],c(y)})}let l=O,p=(n,r,o)=>{let c=i(e,`#itineraryOutput`);if(!n||!n.length){c.innerHTML=``;return}c.innerHTML=`
+        </div>`,setTimeout(()=>{let n=e=>{if(!D)return;let n=t.id+`_ai`;if(o.mapViews&&o.mapViews[n]){let e=o.mapViews[n];D.setCenter({lat:e.lat,lng:e.lng}),D.setZoom(e.zoom);return}if(t.viewport){let e=t.viewport;D.fitBounds(new google.maps.LatLngBounds({lat:e.south,lng:e.west},{lat:e.north,lng:e.east}));return}let r=e.replace(/\(USA\)/g,``).trim();r.includes(` - `)&&(r=r.split(` - `)[1]+`, USA`),new google.maps.Geocoder().geocode({address:r},(e,t)=>{t===`OK`&&e[0]&&D.fitBounds(e[0].geometry.viewport)})};if(typeof google<`u`&&google.maps){let r=document.getElementById(`aiGoogleMap`);r&&(D=new google.maps.Map(r,{center:{lat:20,lng:0},zoom:2,minZoom:2,mapTypeId:`roadmap`,disableDefaultUI:!0,restriction:{latLngBounds:{north:85,south:-85,west:-180,east:180},strictBounds:!0},styles:[]}),h(D,[]),n(y),D.addListener(`idle`,()=>{let e=t.id+`_ai`;o.mapViews||={};let n=D.getCenter();o.mapViews[e]={lat:n.lat(),lng:n.lng(),zoom:D.getZoom()},d(`state:changed`)}));let i=e.querySelector(`#aiZoomBadge`);i&&(i.onclick=()=>{let e=t.id+`_ai`;o.mapViews&&o.mapViews[e]&&delete o.mapViews[e],n(y)})}let a=k,c=(n,i,a)=>{let s=u(e,`#itineraryOutput`);if(!n||!n.length){s.innerHTML=``;return}s.innerHTML=`
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
                     <div>
-                        <h2 style="margin:0;font-size:2rem;font-weight:800;letter-spacing:-0.03em;color:white;${M}">${r}-Day ${o} Itinerary</h2>
+                        <!-- Phase G UX: text colour switched from white to a
+                             blue→purple gradient (matching the day-chip vibe)
+                             so the headline reads clearly against the light
+                             page background AND ties visually to the day
+                             cards below. -->
+                        <h2 style="margin:0;font-size:2rem;font-weight:800;letter-spacing:-0.03em;background:var(--gradient-title);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;${N}">${i}-Day ${a} Itinerary</h2>
                         <p style="color:var(--text-secondary);margin:6px 0 0;font-size:0.9rem;">Generated by Gemini AI</p>
                     </div>
                     <div style="font-size:0.78rem;color:var(--text-secondary);background:var(--glass-bg);border:1px solid var(--glass-border);padding:5px 14px;border-radius:980px;">✦ AI-Generated</div>
                 </div>
                 <div id="itineraryDays" style="display:flex;flex-direction:column;gap:16px;"></div>
-                ${j?`<div style="display:flex;gap:12px;margin-top:24px;"><button id="acceptPlanBtn" class="btn" style="flex:2;background:var(--accent-blue);color:white;padding:16px;font-size:1.1rem;border-radius:16px;font-weight:700;box-shadow:0 10px 20px rgba(0,122,255,0.2);cursor:pointer;">Accept Plan & Add to Trip</button></div>`:``}`;let l=i(c,`#itineraryDays`),u=[];if(n.forEach((e,t)=>{let n=document.createElement(`div`);n.className=`card glass`,n.style.cssText=`border-radius:18px;overflow:hidden;transition:box-shadow 0.3s,border-color 0.3s;${M}`,n.innerHTML=`
+                ${M?`<div style="display:flex;gap:12px;margin-top:24px;"><button id="acceptPlanBtn" class="btn" style="flex:2;background:var(--accent-blue);color:white;padding:16px;font-size:1.1rem;border-radius:16px;font-weight:700;box-shadow:0 10px 20px rgba(0,122,255,0.2);cursor:pointer;">Accept Plan & Add to Trip</button></div>`:``}`;let c=u(s,`#itineraryDays`),f=[];if(n.forEach((e,t)=>{let n=document.createElement(`div`);n.className=`card glass`,n.style.cssText=`border-radius:18px;overflow:hidden;transition:box-shadow 0.3s,border-color 0.3s;${N}`,n.innerHTML=`
                     <div style="display:flex;align-items:stretch;">
                         <div class="ai-day-chip">
                             <span style="color:rgba(255,255,255,0.7);font-size:0.65rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;">Day</span>
@@ -145,24 +150,29 @@ import{r as e,t}from"./vendor-react-CYVQMBjw.js";import{C as n,G as r,H as i,J a
                         </div>
                         <div style="flex:1;padding:var(--space-6) 28px;">
                             <div style="margin-bottom:var(--space-5);">
-                                <h3 style="margin:0 0 var(--space-1);font-size:1.2rem;font-weight:700;letter-spacing:-0.02em;color:white;">${e.title||`Day `+e.day}</h3>
+                                <!-- Phase G UX: was color:white which is invisible against
+                                     the .card.glass white surface this row sits in. Switching
+                                     to --text-primary (dark on light) restores legibility
+                                     without touching the day-chip on the left, which retains
+                                     its dark gradient + white glyph. -->
+                                <h3 style="margin:0 0 var(--space-1);font-size:1.2rem;font-weight:700;letter-spacing:-0.02em;color:var(--text-primary);">${e.title||`Day `+e.day}</h3>
                                 <span style="font-size:var(--font-base);color:var(--text-secondary);">${e.date||``}</span>
                             </div>
                             <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--space-4);">
                                 <div class="ai-plan-block" style="--accent: 0,113,227;">
                                     <div class="ai-plan-block__tag">🌅 Morning</div>
-                                    <div class="ai-plan-block__title">${s(e.morning?.activity||``)}</div>
-                                    ${x(e.morning)}
+                                    <div class="ai-plan-block__title">${l(e.morning?.activity||``)}</div>
+                                    ${S(e.morning)}
                                 </div>
                                 <div class="ai-plan-block" style="--accent: 255,149,0;">
                                     <div class="ai-plan-block__tag">☀️ Afternoon</div>
-                                    <div class="ai-plan-block__title">${s(e.afternoon?.activity||``)}</div>
-                                    ${x(e.afternoon)}
+                                    <div class="ai-plan-block__title">${l(e.afternoon?.activity||``)}</div>
+                                    ${S(e.afternoon)}
                                 </div>
                                 <div class="ai-plan-block" style="--accent: 155,89,182;">
                                     <div class="ai-plan-block__tag">🌙 Evening</div>
-                                    <div class="ai-plan-block__title">${s(e.evening?.activity||``)}</div>
-                                    ${x(e.evening)}
+                                    <div class="ai-plan-block__title">${l(e.evening?.activity||``)}</div>
+                                    ${S(e.evening)}
                                 </div>
                             </div>
                             <!-- 💡 Pro Tip block was removed app-wide
@@ -170,7 +180,7 @@ import{r as e,t}from"./vendor-react-CYVQMBjw.js";import{C as n,G as r,H as i,J a
                                  ship a per-day tip line; no more. -->
 
                         </div>
-                    </div>`,l.appendChild(n),u.push(n)}),E){D.forEach(e=>e.setMap(null)),D=[];let e=new google.maps.LatLngBounds,t=new google.maps.Geocoder,r=(n,r)=>{let i=n.mainLocation||n.title||o;!n.mainLocation&&n.title&&(i=n.title.replace(/Exploring |Day Trip to |Visit |Touring |Arrival in |Departure from |Day \d+:? /gi,``).trim()),t.geocode({address:i+`, `+o},(t,i)=>{if(i===`OK`&&t[0]){let i=t[0].geometry.location;n.lat=i.lat(),n.lon=i.lng();let a=new google.maps.Marker({position:i,map:E,label:{text:String(n.day),color:`white`,fontWeight:`800`},icon:{path:google.maps.SymbolPath.CIRCLE,scale:16,fillColor:`#0071e3`,fillOpacity:1,strokeWeight:2,strokeColor:`white`}});a.addListener(`click`,()=>{u.forEach(e=>{e.style.boxShadow=``,e.style.borderColor=``});let e=u[r];e&&(e.style.boxShadow=`0 0 0 3px var(--accent-blue), 0 8px 32px rgba(0,113,227,0.25)`,e.style.borderColor=`var(--accent-blue)`,e.scrollIntoView({behavior:`smooth`,block:`center`}))}),D.push(a),e.extend(i),D.length>0&&E.fitBounds(e)}})};n.forEach((e,t)=>setTimeout(()=>r(e,t),t*500))}let d=document.getElementById(`acceptPlanBtn`);d&&(d.onclick=()=>{if(!n)return;let e=g.tripDays.filter(e=>e.tripId===t.id&&e.dayNumber>0);g.tripDays=g.tripDays.filter(e=>!(e.tripId===t.id&&e.dayNumber>0)),e.forEach(e=>_(e.id)),n.forEach((e,n)=>{let r=e.date||new Date().toISOString().split(`T`)[0],i={id:`day_`+Date.now()+`_`+n,tripId:t.id,date:r,name:e.title||`Day ${n+1}`,dayNumber:n+1,lat:e.lat,lng:e.lon,photos:[],tickets:[],notes:``,plan:{morning:T(e.morning),afternoon:T(e.afternoon),evening:T(e.evening)}};g.tripDays.push(i),h(i)}),a(`state:changed`),d.innerHTML=`✓ Plan Accepted! (View in Home)`,d.style.background=`#34c759`,d.disabled=!0})},b=()=>{let r=e.querySelector(`#aiTodoListPanel`);if(!r)return;let i=n(t).filter(e=>e.forManual),o=i.filter(e=>e.forAI);if(i.length===0){r.innerHTML=`
+                    </div>`,c.appendChild(n),f.push(n)}),D){O.forEach(e=>e.setMap(null)),O=[];let e=new google.maps.LatLngBounds,t=new google.maps.Geocoder,r=(n,r)=>{let i=n.mainLocation||n.title||a;!n.mainLocation&&n.title&&(i=n.title.replace(/Exploring |Day Trip to |Visit |Touring |Arrival in |Departure from |Day \d+:? /gi,``).trim()),t.geocode({address:i+`, `+a},(t,i)=>{if(i===`OK`&&t[0]){let i=t[0].geometry.location;n.lat=i.lat(),n.lon=i.lng();let a=new google.maps.Marker({position:i,map:D,label:{text:String(n.day),color:`white`,fontWeight:`800`},icon:{path:google.maps.SymbolPath.CIRCLE,scale:16,fillColor:`#0071e3`,fillOpacity:1,strokeWeight:2,strokeColor:`white`}});a.addListener(`click`,()=>{f.forEach(e=>{e.style.boxShadow=``,e.style.borderColor=``});let e=f[r];e&&(e.style.boxShadow=`0 0 0 3px var(--accent-blue), 0 8px 32px rgba(0,113,227,0.25)`,e.style.borderColor=`var(--accent-blue)`,e.scrollIntoView({behavior:`smooth`,block:`center`}))}),O.push(a),e.extend(i),O.length>0&&D.fitBounds(e)}})};n.forEach((e,t)=>setTimeout(()=>r(e,t),t*500))}let h=document.getElementById(`acceptPlanBtn`);h&&(h.onclick=()=>{if(!n)return;let e=o.tripDays.filter(e=>e.tripId===t.id&&e.dayNumber>0);o.tripDays=o.tripDays.filter(e=>!(e.tripId===t.id&&e.dayNumber>0)),e.forEach(e=>g(e.id)),n.forEach((e,n)=>{let i=e.date||new Date().toISOString().split(`T`)[0],a=`day_`+Date.now()+`_`+n,s={id:a,tripId:t.id,date:i,name:e.title||`Day ${n+1}`,dayNumber:n+1,lat:e.lat,lng:e.lon,photos:[],tickets:[],notes:``,plan:{morning:E(e.morning),afternoon:E(e.afternoon),evening:E(e.evening)}};o.tripDays.push(s),m(s);let c=[[`morning`,e.morning],[`afternoon`,e.afternoon],[`evening`,e.evening]];for(let[e,n]of c){let i=Array.isArray(n?.items)?n.items:[];for(let n of i)r(t,n,a,e)}}),p(t),d(`state:changed`),h.innerHTML=`✓ Plan Accepted! (View in Home)`,h.style.background=`#34c759`,h.disabled=!0})},x=()=>{let n=e.querySelector(`#aiTodoListPanel`);if(!n)return;let r=v(t).filter(e=>e.forManual),a=r.filter(e=>e.forAI);if(r.length===0){n.innerHTML=`
                     <div class="card glass" style="padding: 20px; border-radius: 18px; border: 1.5px dashed rgba(155, 89, 182, 0.35); background: rgba(155, 89, 182, 0.04);">
                         <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
                             <span style="font-size: 1.2rem;">📋</span>
@@ -179,62 +189,62 @@ import{r as e,t}from"./vendor-react-CYVQMBjw.js";import{C as n,G as r,H as i,J a
                         <p style="margin:0 0 12px; color: var(--text-secondary); font-size: 0.9rem;">Build a to-do list of places you want the AI to consider — it gets a richer prompt and you get more relevant suggestions.</p>
                         <button id="aiGoToTodoBtn" class="btn-primary" style="padding: 10px 18px; border-radius: 999px; font-size:0.85rem;">Open To do list 📋</button>
                     </div>
-                `,r.querySelector(`#aiGoToTodoBtn`)?.addEventListener(`click`,()=>f(`todo`));return}if(o.length===0){r.innerHTML=`
+                `,n.querySelector(`#aiGoToTodoBtn`)?.addEventListener(`click`,()=>f(`todo`));return}if(a.length===0){n.innerHTML=`
                     <div class="card glass" style="padding: 20px; border-radius: 18px; border: 1.5px dashed rgba(155, 89, 182, 0.35); background: rgba(155, 89, 182, 0.04);">
                         <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
                             <span style="font-size: 1.2rem;">📋</span>
-                            <h3 style="margin:0; color:#7c3a9e; font-weight:800; letter-spacing:-0.01em;">${i.length} item${i.length===1?``:`s`} on your to-do list</h3>
+                            <h3 style="margin:0; color:#7c3a9e; font-weight:800; letter-spacing:-0.01em;">${r.length} item${r.length===1?``:`s`} on your to-do list</h3>
                         </div>
                         <p style="margin:0 0 12px; color: var(--text-secondary); font-size: 0.9rem;">None ticked for AI consideration yet — head to the <strong>To do list</strong> page to pick which ones you want the AI to plan around.</p>
                         <button id="aiGoToTodoBtn" class="btn-primary" style="padding: 10px 18px; border-radius: 999px; font-size:0.85rem;">Tick items in To do list 📋</button>
                     </div>
-                `,r.querySelector(`#aiGoToTodoBtn`)?.addEventListener(`click`,()=>f(`todo`));return}let c=e.querySelector(`#aiDateFrom`),l=e.querySelector(`#aiDateTo`),p=!!(c?.value&&l?.value),h=(g.tripDays||[]).filter(e=>e.tripId===t.id&&e.dayNumber>0).sort((e,t)=>e.dayNumber-t.dayNumber),_=e=>`
+                `,n.querySelector(`#aiGoToTodoBtn`)?.addEventListener(`click`,()=>f(`todo`));return}let s=e.querySelector(`#aiDateFrom`),c=e.querySelector(`#aiDateTo`),u=!!(s?.value&&c?.value),m=(o.tripDays||[]).filter(e=>e.tripId===t.id&&e.dayNumber>0).sort((e,t)=>e.dayNumber-t.dayNumber),h=e=>`
                 <option value="" ${e?``:`selected`}>Any day</option>
-                ${h.map(t=>`
-                    <option value="${s(t.id)}" ${t.id===e?`selected`:``}>
-                        Day ${t.dayNumber}${t.date?` — ${u(t.date)||t.date}`:``}
+                ${m.map(t=>`
+                    <option value="${l(t.id)}" ${t.id===e?`selected`:``}>
+                        Day ${t.dayNumber}${t.date?` — ${b(t.date)||t.date}`:``}
                     </option>
                 `).join(``)}
-            `,v=e=>`
+            `,g=e=>`
                 <option value="" ${e?``:`selected`}>Any time</option>
                 <option value="morning"   ${e===`morning`?`selected`:``}>🌅 Morning</option>
                 <option value="afternoon" ${e===`afternoon`?`selected`:``}>☀️ Afternoon</option>
                 <option value="evening"   ${e===`evening`?`selected`:``}>🌙 Evening</option>
-            `,y=o.map(e=>`
-                <div class="ai-marked-card" data-place-id="${s(e.placeId)}" style="background:white; border:1.5px solid ${e.color}; border-radius:14px; padding:14px; box-shadow: 0 4px 12px rgba(0,0,0,0.06); display:flex; flex-direction:column; gap:10px; min-height: 0;">
+            `,_=a.map(e=>`
+                <div class="ai-marked-card" data-place-id="${l(e.placeId)}" style="background:white; border:1.5px solid ${e.color}; border-radius:14px; padding:14px; box-shadow: 0 4px 12px rgba(0,0,0,0.06); display:flex; flex-direction:column; gap:10px; min-height: 0;">
                     <div style="display:flex; align-items:flex-start; gap:10px;">
                         <span style="font-size:1.4rem; line-height:1;">${e.icon}</span>
                         <div style="flex:1; min-width:0;">
-                            <div style="font-weight:800; color:#002d5b; font-size:0.95rem; line-height:1.25;">${s(e.name)}</div>
-                            ${e.address?`<div style="font-size:0.75rem; color:var(--text-secondary); margin-top:2px;">${s(e.address)}</div>`:``}
+                            <div style="font-weight:800; color:#002d5b; font-size:0.95rem; line-height:1.25;">${l(e.name)}</div>
+                            ${e.address?`<div style="font-size:0.75rem; color:var(--text-secondary); margin-top:2px;">${l(e.address)}</div>`:``}
                         </div>
                     </div>
-                    ${p?`
+                    ${u?`
                         <div style="display:flex; gap:8px; min-width:0;">
-                            <select class="marked-day-select" data-place-id="${s(e.placeId)}" style="flex:1 1 0; min-width:0; max-width:100%; padding:6px 8px; border-radius:8px; border:1px solid rgba(0,0,0,0.1); font-size:0.78rem; background:white;">
-                                ${_(e.dayId)}
+                            <select class="marked-day-select" data-place-id="${l(e.placeId)}" style="flex:1 1 0; min-width:0; max-width:100%; padding:6px 8px; border-radius:8px; border:1px solid rgba(0,0,0,0.1); font-size:0.78rem; background:white;">
+                                ${h(e.dayId)}
                             </select>
-                            <select class="marked-time-select" data-place-id="${s(e.placeId)}" style="flex:1 1 0; min-width:0; max-width:100%; padding:6px 8px; border-radius:8px; border:1px solid rgba(0,0,0,0.1); font-size:0.78rem; background:white;">
-                                ${v(e.timeOfDay)}
+                            <select class="marked-time-select" data-place-id="${l(e.placeId)}" style="flex:1 1 0; min-width:0; max-width:100%; padding:6px 8px; border-radius:8px; border:1px solid rgba(0,0,0,0.1); font-size:0.78rem; background:white;">
+                                ${g(e.timeOfDay)}
                             </select>
                         </div>
                     `:`
                         <div style="font-size:0.75rem; color:var(--text-secondary); font-style:italic;">Set Travel Dates above to assign this to a specific day / time of day.</div>
                     `}
                 </div>
-            `).join(``);r.innerHTML=`
+            `).join(``);n.innerHTML=`
                 <div class="card glass" style="padding:20px; border-radius:18px; border: 1.5px solid rgba(155, 89, 182, 0.25);">
                     <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px; flex-wrap:wrap;">
                         <span style="font-size: 1.2rem;">📋</span>
-                        <h3 style="margin:0; color:#7c3a9e; font-weight:800; letter-spacing:-0.01em;">Ticked for this generation <span style="background:rgba(155,89,182,0.12); color:#7c3a9e; font-size:0.7rem; padding:2px 8px; border-radius:999px; margin-left:6px;">${o.length} item${o.length===1?``:`s`}</span></h3>
+                        <h3 style="margin:0; color:#7c3a9e; font-weight:800; letter-spacing:-0.01em;">Ticked for this generation <span style="background:rgba(155,89,182,0.12); color:#7c3a9e; font-size:0.7rem; padding:2px 8px; border-radius:999px; margin-left:6px;">${a.length} item${a.length===1?``:`s`}</span></h3>
                         <button id="aiManageTodoBtn" type="button" style="margin-left:auto; background:transparent; border:0; color:#005bb8; font-weight:700; font-size:0.82rem; cursor:pointer; padding:0;">Manage in To do list →</button>
                     </div>
-                    <p style="font-size:0.82rem; color:var(--text-secondary); margin:0 0 12px; line-height:1.5;">${p?`Pick a day and time of day for each — the AI will respect explicit slots when generating the itinerary.`:`Set the Travel Dates above to assign these to specific days and times of day.`}</p>
+                    <p style="font-size:0.82rem; color:var(--text-secondary); margin:0 0 12px; line-height:1.5;">${u?`Pick a day and time of day for each — the AI will respect explicit slots when generating the itinerary.`:`Set the Travel Dates above to assign these to specific days and times of day.`}</p>
                     <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap:12px;">
-                        ${y}
+                        ${_}
                     </div>
                 </div>
-            `,r.querySelector(`#aiManageTodoBtn`)?.addEventListener(`click`,()=>f(`todo`)),r.querySelectorAll(`.marked-day-select, .marked-time-select`).forEach(e=>{e.onchange=()=>{let n=e.dataset.placeId;if(!n)return;let i=r.querySelector(`.ai-marked-card[data-place-id="${n}"]`);if(!i)return;let o=i.querySelector(`.marked-day-select`),s=i.querySelector(`.marked-time-select`);d(t,n,o?.value||null,s?.value||null),a(`state:changed`),m(t)}})};b(),l&&p(l,A,y);let S=e.querySelector(`#aiExtraContext`);S&&(S.oninput=e=>{t.aiContext=e.target.value,a(`state:changed`)});let C=e.querySelector(`#aiKeyInput`),w=e.querySelector(`#aiKeyToggleBtn`),k=e.querySelector(`#aiKeyHelpBtn`),N=e.querySelector(`#aiKeyStatus`),P=()=>{if(!N)return;let e=(g.geminiApiKey||``).trim();if(!e){N.textContent=`No key saved — paste one above to enable AI generation.`,N.style.color=`#a85d00`;return}let t=e.startsWith(`AIza`)&&e.length>=30;N.textContent=t?`✓ Key saved on this device.`:`⚠ Saved, but the format looks off (Gemini keys usually start with "AIza"). Click i for help.`,N.style.color=t?`#1a6b3c`:`#a85d00`};P(),C&&C.addEventListener(`input`,()=>{g.geminiApiKey=C.value,a(`state:changed`),P()}),w&&C&&w.addEventListener(`click`,()=>{let e=C.type===`text`;C.type=e?`password`:`text`,w.textContent=e?`👁`:`🙈`,w.title=e?`Show key`:`Hide key`}),k&&k.addEventListener(`click`,()=>{let{root:e,close:t}=r({cardClass:`card glass`,cardStyle:`width: 520px; max-width: calc(100vw - 32px); max-height: 90vh; overflow-y: auto; padding: 28px 32px; border-radius: 28px; background: white;`,innerHTML:`
+            `,n.querySelector(`#aiManageTodoBtn`)?.addEventListener(`click`,()=>f(`todo`)),n.querySelectorAll(`.marked-day-select, .marked-time-select`).forEach(e=>{e.onchange=()=>{let r=e.dataset.placeId;if(!r)return;let a=n.querySelector(`.ai-marked-card[data-place-id="${r}"]`);if(!a)return;let o=a.querySelector(`.marked-day-select`),s=a.querySelector(`.marked-time-select`);i(t,r,o?.value||null,s?.value||null),d(`state:changed`),p(t)}})};x(),a&&c(a,j,y);let C=e.querySelector(`#aiExtraContext`);C&&(C.oninput=e=>{t.aiContext=e.target.value,d(`state:changed`)});let w=e.querySelector(`#aiKeyInput`),T=e.querySelector(`#aiKeyToggleBtn`),A=e.querySelector(`#aiKeyHelpBtn`),P=e.querySelector(`#aiKeyStatus`),F=()=>{if(!P)return;let e=(o.geminiApiKey||``).trim();if(!e){P.textContent=`No key saved — paste one above to enable AI generation.`,P.style.color=`#a85d00`;return}let t=e.startsWith(`AIza`)&&e.length>=30;P.textContent=t?`✓ Key saved on this device.`:`⚠ Saved, but the format looks off (Gemini keys usually start with "AIza"). Click i for help.`,P.style.color=t?`#1a6b3c`:`#a85d00`};F(),w&&w.addEventListener(`input`,()=>{o.geminiApiKey=w.value,d(`state:changed`),F()}),T&&w&&T.addEventListener(`click`,()=>{let e=w.type===`text`;w.type=e?`password`:`text`,T.textContent=e?`👁`:`🙈`,T.title=e?`Show key`:`Hide key`}),A&&A.addEventListener(`click`,()=>{let{root:e,close:t}=s({cardClass:`card glass`,cardStyle:`width: 520px; max-width: calc(100vw - 32px); max-height: 90vh; overflow-y: auto; padding: 28px 32px; border-radius: 28px; background: white;`,innerHTML:`
                         <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 12px;">
                             <h2 style="margin:0; font-size: 1.6rem; color:#7c3a9e; font-weight: 800; letter-spacing:-0.02em;">✦ Get a Gemini API key</h2>
                             <button id="aiKeyHelpClose" class="close-x-btn" aria-label="Close">✕</button>
@@ -285,6 +295,6 @@ import{r as e,t}from"./vendor-react-CYVQMBjw.js";import{C as n,G as r,H as i,J a
                         <div style="display:flex; justify-content:flex-end; margin-top:18px;">
                             <button id="aiKeyHelpDone" class="btn-primary" style="padding: 10px 22px; border-radius: 999px;">Got it</button>
                         </div>
-                    `});e.querySelector(`#aiKeyHelpClose`)?.addEventListener(`click`,t),e.querySelector(`#aiKeyHelpDone`)?.addEventListener(`click`,t)}),[`#aiDateFrom`,`#aiDateTo`].forEach(t=>{let n=e.querySelector(t);n&&n.addEventListener(`change`,()=>b())}),e.querySelector(`#generateBtn`)?.addEventListener(`click`,async()=>{let r=i(e,`#itineraryOutput`),o=i(e,`#aiDateFrom`).value,s=i(e,`#aiDateTo`).value,c=document.getElementById(`aiExtraContext`)?.value??``;if(!o||!s){alert(`Please select your travel dates.`);return}let u=new Date(o),d=new Date(s),f=Math.max(1,Math.round((d.getTime()-u.getTime())/864e5)+1),m=n(t).filter(e=>e.forAI&&e.forManual),h=``;if(m.length>0){let e=(g.tripDays||[]).filter(e=>e.tripId===t.id&&e.dayNumber>0),n=t=>e.find(e=>e.id===t)?.dayNumber;h=`\n\nThe user has marked these specific places to include in the itinerary. Please incorporate them where they fit, respecting any day/time assignments where given:\n${m.map(e=>{let t=e.dayId?n(e.dayId):null,r=t?`, on Day ${t}`:``,i=e.timeOfDay?`, ${e.timeOfDay}`:``,a=e.address?` (${e.address})`:``;return`- ${e.name}${a}${r}${i}`}).join(`
-`)}`}let _=c+h;t.aiContext=c,t.aiNumDays=f,a(`state:changed`),r.innerHTML=`<div style="text-align:center;padding:60px;"><div class="spinner-ring" style="width:40px;height:40px;border:3px solid rgba(255,255,255,0.1);border-top-color:#005bb8;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 20px;"></div><div style="color:white;font-weight:600;">Consulting Gemini AI...</div></div>`,r.scrollIntoView({behavior:`smooth`});try{let e=await(await v(`/api/generate_itinerary`,{method:`POST`,headers:{"Content-Type":`application/json`},body:JSON.stringify({destination:y,numDays:f,dateFrom:o,dateTo:s,context:_,gemini_key:(g.geminiApiKey||``).trim()})})).json();if(e.error)throw Error(e.error);l=e.itinerary,l==null?delete t.aiPlan:t.aiPlan=l,a(`state:changed`),p(l,f,y),r.scrollIntoView({behavior:`smooth`})}catch(e){r.innerHTML=`<div class="card glass" style="text-align:center;padding:40px;"><h2 style="color:#ff3b30;">Generation Failed</h2><p>${e.message}</p></div>`}})},0),e}var k=t();function A(){let e=(0,b.useRef)(null);return(0,b.useEffect)(()=>{let t=e.current;t&&(t.innerHTML=``,t.appendChild(O()))},[]),(0,k.jsx)(`div`,{ref:e})}function j(e){y(e,(0,b.createElement)(A))}export{j as mountAI};
-//# sourceMappingURL=mount-Cm4CvWph.js.map
+                    `});e.querySelector(`#aiKeyHelpClose`)?.addEventListener(`click`,t),e.querySelector(`#aiKeyHelpDone`)?.addEventListener(`click`,t)}),[`#aiDateFrom`,`#aiDateTo`].forEach(t=>{let n=e.querySelector(t);n&&n.addEventListener(`change`,()=>x())}),e.querySelector(`#generateBtn`)?.addEventListener(`click`,async()=>{let n=u(e,`#itineraryOutput`),r=u(e,`#aiDateFrom`).value,i=u(e,`#aiDateTo`).value,s=document.getElementById(`aiExtraContext`)?.value??``;if(!r||!i){alert(`Please select your travel dates.`);return}let l=new Date(r),f=new Date(i),p=Math.max(1,Math.round((f.getTime()-l.getTime())/864e5)+1),m=v(t).filter(e=>e.forAI&&e.forManual),h=``;if(m.length>0){let e=(o.tripDays||[]).filter(e=>e.tripId===t.id&&e.dayNumber>0),n=t=>e.find(e=>e.id===t)?.dayNumber;h=`\n\nThe user has marked these specific places to include in the itinerary. Please incorporate them where they fit, respecting any day/time assignments where given:\n${m.map(e=>{let t=e.dayId?n(e.dayId):null,r=t?`, on Day ${t}`:``,i=e.timeOfDay?`, ${e.timeOfDay}`:``,a=e.address?` (${e.address})`:``;return`- ${e.name}${a}${r}${i}`}).join(`
+`)}`}let g=s+h;t.aiContext=s,t.aiNumDays=p,d(`state:changed`),n.innerHTML=`<div style="text-align:center;padding:60px;"><div class="spinner-ring" style="width:40px;height:40px;border:3px solid rgba(0,113,227,0.15);border-top-color:#005bb8;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 20px;"></div><div style="color:var(--text-primary);font-weight:600;">Consulting Gemini AI...</div></div>`,n.scrollIntoView({behavior:`smooth`});try{let e=await(await _(`/api/generate_itinerary`,{method:`POST`,headers:{"Content-Type":`application/json`},body:JSON.stringify({destination:y,numDays:p,dateFrom:r,dateTo:i,context:g,gemini_key:(o.geminiApiKey||``).trim()})})).json();if(e.error)throw Error(e.error);a=e.itinerary,a==null?delete t.aiPlan:t.aiPlan=a,d(`state:changed`),c(a,p,y),n.scrollIntoView({behavior:`smooth`})}catch(e){n.innerHTML=`<div class="card glass" style="text-align:center;padding:40px;"><h2 style="color:#ff3b30;">Generation Failed</h2><p>${e.message}</p></div>`}})},0),e}var A=t();function j(){let e=(0,x.useRef)(null);return(0,x.useEffect)(()=>{let t=e.current;t&&(t.innerHTML=``,t.appendChild(k()))},[]),(0,A.jsx)(`div`,{ref:e})}function M(e){y(e,(0,x.createElement)(j))}export{M as mountAI};
+//# sourceMappingURL=mount-D-B7Kjtf.js.map

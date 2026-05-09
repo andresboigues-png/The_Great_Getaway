@@ -46,9 +46,18 @@ def _verify_place(query: str, destination: str, api_key: str) -> dict | None:
         headers = {
             "Content-Type": "application/json",
             "X-Goog-Api-Key": api_key,
+            # FieldMask:
+            #   - id, displayName, formattedAddress, location, photos.name
+            #     are Places API NEW "Basic Data" tier (cheapest).
+            #   - rating, userRatingCount are "Advanced Data" tier.
+            # Pricing is set by the highest tier in the mask, so we're
+            # already paying Advanced. Adding `location` (Basic) is
+            # free at this tier and gives the frontend the lat/lng it
+            # needs to render an AI-suggested place as a to-do marker
+            # on the home map without a separate Place Details fetch.
             "X-Goog-FieldMask": (
                 "places.id,places.displayName,places.formattedAddress,"
-                "places.rating,places.userRatingCount,"
+                "places.location,places.rating,places.userRatingCount,"
                 "places.googleMapsUri,places.photos.name"
             ),
         }
@@ -75,6 +84,7 @@ def _verify_place(query: str, destination: str, api_key: str) -> dict | None:
                     f"https://places.googleapis.com/v1/{photo_name}/media"
                     f"?key={api_key}&maxWidthPx=480&maxHeightPx=320"
                 )
+        location = p.get("location") or {}
         return {
             "placeId": p.get("id"),
             "verifiedName": (p.get("displayName") or {}).get("text"),
@@ -83,6 +93,12 @@ def _verify_place(query: str, destination: str, api_key: str) -> dict | None:
             "userRatingsTotal": p.get("userRatingCount"),
             "mapsUrl": p.get("googleMapsUri"),
             "photoUrl": photo_url,
+            # Phase G slice 2: lat/lng so the frontend can drop a
+            # to-do marker for AI-suggested places without a separate
+            # Place Details fetch. Added to FieldMask above (Basic
+            # tier — free at the Advanced tier we're already paying).
+            "lat": location.get("latitude"),
+            "lng": location.get("longitude"),
         }
     except Exception as e:
         logger.warning(f"Places verification error for '{text_query}': {e}")

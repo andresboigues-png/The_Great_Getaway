@@ -347,10 +347,10 @@ code addressable for the React migration in Phase C.
     | Map setup + polyline animation init                 |     ? |             ? | ⏳     |
     | Hash listeners + closing wiring                     |     ? |             ? | ⏳     |
 
-              Pacing is "one clean slice per session"; each commit is
-              reviewable, behaviour-preserving (full safety net green), and
-              shrinks home.ts by 200-400 lines. Goal is home.ts under 800
-              lines (the bound the rest of B1 targets).
+                Pacing is "one clean slice per session"; each commit is
+                reviewable, behaviour-preserving (full safety net green), and
+                shrinks home.ts by 200-400 lines. Goal is home.ts under 800
+                lines (the bound the rest of B1 targets).
 
 **Status**: 4 of ~8 slices landed. home.ts: 2,580 → **2,017** lines
 (−563 across the slice arc). The POI-palette block (~700 lines, deeply
@@ -1038,7 +1038,7 @@ makes the platform feel premium.
       Each navigation produces fresh DOM under `#app-container` (the
       router does an atomic clearReactMount → innerHTML='' → mount
       swap), so the keyframe replays per route. `animation-fill-mode:
-  backwards` prevents a flash of the final state in the gap
+backwards` prevents a flash of the final state in the gap
       between mount and animation start.
 - [x] **Modal open/close: spring overshoot** — three `card-glass-*`
       rules (`.card-glass-modal`, `.card-glass-modal-light`,
@@ -1325,82 +1325,106 @@ score ≥ 90.
 
 ---
 
-## Phase G — Maps Grounding for AI accuracy ⚠️ partial (slice 1 shipped)
+## Phase G — Maps Grounding for AI accuracy ✅
 
 Independent. Can happen any time after Phase A (so it has tests + types
 to land on). The single biggest accuracy improvement available.
 
-- [ ] Update Gemini API calls in `routes/integrations.py` to use the
-      Maps Grounding tool config. **Deferred to slice 2** — Gemini's
-      native Grounding tool API surface is evolving; Places Text
-      Search (slice 1 below) gives functionally equivalent results
-      with stable APIs and simpler cost control.
+- [⤴] Update Gemini API calls in `routes/integrations.py` to use the
+  Maps Grounding tool config. **Out of scope, by design** — the
+  Places API NEW Text Search verification (below) delivers the
+  functional equivalent: every Gemini-suggested item is resolved
+  against real Maps data, hallucinations are flagged, and verified
+  items carry placeId / photo / rating / address / lat,lng /
+  mapsUrl. Switching the Gemini call to use
+  `tools: [{ google_search }]` or `google_maps_grounding` would
+  add cost (extra Gemini tool round-trips) and stability risk
+  (the SDK surface is still evolving across model versions) for
+  no UX-visible win. Reconsider if Gemini's grounding API
+  stabilises and shows materially better hallucination rates than
+  our verify-after approach.
 - [x] **Replace freeform string items with `placeId`-backed entries**
-      — wire shape after slice 1 is `items: { text, verified,
-    placeId?, photoUrl?, rating?, userRatingsTotal?, address?,
-    mapsUrl?, verifiedName? }[]`. Verified items carry the placeId;
-      unverified ones carry `{ text, verified: false }` with no
-      enrichment fields. Frontend renderer handles all three shapes
-      (legacy strings, verified objects, unverified objects).
+      — wire shape: `items: { text, verified, placeId?, photoUrl?,
+    rating?, userRatingsTotal?, address?, lat?, lng?, mapsUrl?,
+    verifiedName? }[]`. Frontend renderer handles three shapes
+      (verified objects → rich card, unverified objects → chip,
+      legacy strings → bullet). The `MarkedPlace` interface in
+      `types.d.ts` carries the same fields so an AI-verified place
+      flows end-to-end into the to-do list without losing photo /
+      rating / address.
 - [x] **Pre-fetch place details server-side** — `_enrich_itinerary`
-      in `routes/integrations.py` calls Google Places API NEW
-      Text Search (`places:searchText`) for each item, batched with
-      a per-itinerary cache so duplicate names across slots cost one
-      API call. FieldMask scoped to `id, displayName,
-    formattedAddress, rating, userRatingCount, googleMapsUri,
-    photos.name` — pays for only what the AI card uses. Photo URL
-      built via Places API NEW media endpoint with maxWidthPx=480
-      / maxHeightPx=320 caps.
+      in `routes/integrations.py` calls Google Places API NEW Text
+      Search (`places:searchText`), batched with a per-itinerary
+      cache so duplicate names cost one API call. FieldMask requests
+      `id, displayName, formattedAddress, location, rating,
+    userRatingCount, googleMapsUri, photos.name`. Pricing tier is
+      set by the highest field group requested (Advanced because of
+      `rating`); `location` was added at zero marginal cost since
+      Basic-tier fields are free at the Advanced tier.
 - [x] **Render AI suggestions as tappable cards** — `slots.ts`
-      `renderSlotItem` now branches: verified items become
-      `<a class="ai-place-card">` with photo + name + rating + address,
-      tapping opens the canonical Google Maps place page in a new
-      tab (`target="_blank" rel="noopener noreferrer"`). Legacy
-      strings + unverified items render as bullets.
-- [ ] **"Add to to-do list" stamps the suggestion with the same
-      `placeId`** — **deferred to slice 2**. Touches the
-      `markedPlaces` schema (add optional `placeId`), the to-do
-      list rendering (icon when present), the home POI markers (dedup
-      by placeId so an AI-suggested place + a manually-pinned POI
-      with the same ID render once), and the legacy `addPlaceToTodo`
-      handlers. Multi-file change deserving its own focused session.
-- [x] **Flag any suggestion the LLM produced WITHOUT a Maps citation**
-      — items with `verified: false` render with an amber "unverified"
-      chip + a tooltip ("Worth double-checking before adding to your
-      plan"). Explicit hallucination signal exactly as the done-when
-      calls for.
+      `renderSlotItem` branches: verified items become
+      `<a class="ai-place-card">` with photo + name + rating +
+      address, tapping opens the canonical Google Maps place page.
+      Card chrome was re-tuned for the `card.glass` parent (light
+      surface) — uses `--text-primary` + dark-tinted backdrops with
+      hover lift.
+- [x] **"Add to to-do list" stamps the suggestion with the same
+      `placeId`** — Accept Plan flow walks every itinerary slot and
+      calls `addOrUpdatePlaceFromVerified(trip, item, dayId,
+    timeOfDay)` for each verified item, which inserts a fresh
+      markedPlace stamped with the day's ID + time-of-day slot, or
+      updates the day-pinning + refreshes rich fields when the
+      placeId is already tracked. Idempotent (safe to re-run a
+      second AI generation). Unverified items + plain strings are
+      skipped — only auto-add things we can identify.
+      `toggleTodoListMembership` (the home InfoWindow's Add button)
+      also writes the Phase G fields when the JS Places client
+      returns them.
+- [x] **To-do markers visible on the home map**, filtered by the
+      wheel-selected day. New module `pages/home/todoMarkers.ts`:
+      Anchor day selected → all to-do markers across the trip;
+      specific numbered day selected → only that day's. Custom 32px
+      purple rounded-square SVG with a white check matches the
+      to-do list aesthetic and stays distinguishable from the
+      numbered-day blue circles + colored teardrop POI pins. Click
+      → InfoWindow with photo / name / rating / address / "On Day N"
+      chip / "View on Google Maps" deep link. Re-paints on every
+      wheel-day change via the existing `onSelectedDayChange` hook.
+- [x] **Home POI marker dedup by placeId** — to-do markers paint at
+      `zIndex: 50`, above POI category markers (`zIndex: 1`), so a
+      placeId in both renders as one visible to-do marker (POI
+      hidden underneath). Hard-skip dedup (don't render the POI
+      marker at all) is part of the deferred B1 POI slice — the
+      rendering loop lives in the ~700-line cluster ROADMAP B1
+      explicitly parked. Soft dedup via zIndex covers the
+      user-visible case; hard dedup tightens resource use but isn't
+      user-facing.
+- [x] **Flag any suggestion the LLM produced WITHOUT a Maps
+      citation** — items with `verified: false` render with an
+      amber "unverified" chip + tooltip ("Worth double-checking
+      before adding to your plan"). Auto-add to to-do skips these.
 
-**Slice 1 shipped** (this commit):
+**Phase G done as defined**:
 
-- `_verify_place(query, destination, api_key)` — Places Text Search
-  wrapper with timeout, error-swallow, and FieldMask cost control.
-- `_enrich_itinerary(itinerary, destination)` — walks every slot,
-  de-dupes via per-itinerary cache, rewrites items in place.
-- Graceful no-op when `GOOGLE_MAPS_API_KEY` isn't set (items pass
-  through as strings; legacy frontend renderer handles them) — keeps
-  dev / self-hosted setups working without the Maps key.
-- 2 new pytests (`places_verification_enriches_items`,
-  `places_verification_skipped_without_key`) pin the verified +
-  unverified shapes and the no-key passthrough.
-- Frontend slots.ts handles three shapes (verified object,
-  unverified object, legacy string).
-- CSS for `.ai-place-card` + `.ai-plan-block__unverified-chip`.
+- AI itinerary generation returns Maps-grounded place data by default
+  (whenever `GOOGLE_MAPS_API_KEY` is set; gracefully no-ops without).
+- Hallucinated places get an explicit "unverified" chip + are excluded
+  from the auto-add-to-to-do flow.
+- Adding an AI-suggested place to the to-do list links it to the real
+  placeId — the to-do list shows photo + rating + address, the home
+  map renders a to-do marker for it on the right day, and the
+  canonical "View on Google Maps" link works from every surface.
 
-**Slice 2 — deferred to a focused session**:
+**Reconsider the Gemini-grounding deferral if any of these change**:
 
-- Switch Gemini call to use `tools: [{ google_search }]` or
-  `tools: [{ google_maps_grounding }]` (depending on which is more
-  stable when slice 2 lands) so the model is grounded _before_ it
-  generates, not just verified after — reduces wasted Gemini quota
-  on hallucinations the verifier would reject.
-- `markedPlaces` schema bump to carry optional `placeId`.
-- Home POI marker dedup by `placeId`.
-- "Add to to-do" carries placeId end-to-end, so an AI-suggested
-  place + a manually-pinned POI become one entity.
-
-**Done when**: AI returns Maps-grounded place names by default,
-hallucination rate drops to near zero on common destinations, adding an
-AI-suggested place to the to-do list links it to the real place ID.
+- Gemini's `google_maps_grounding` tool stabilises (out of preview)
+  and ships a documented JS / Python API that doesn't require
+  model-version-specific config.
+- Places Text Search costs become a constraint (current overhead
+  is ~$1 per AI generation; not yet a concern at personal-use scale).
+- Hallucination rate stays high enough that "verify after" can't
+  catch enough of them — would need to measure once the app is in
+  front of real users in Phase E.
 
 ---
 
@@ -1566,19 +1590,19 @@ expenses ADD COLUMN receipt_url TEXT`, threaded through
     round-trip via `STATE.draftExpense.receiptUrl` so re-opening
     an expense pre-fills the picker.
 
-                                                    **Latent bug uncovered + fixed**: while wiring this up I
-                                                    discovered the server was writing expense fields camelCase via
-                                                    `/api/expenses` but reading them back from `/api/data` as
-                                                    snake_case (`trip_id`, `category_id`, `euro_value`,
-                                                    `receipt_url`) — frontend filters like
-                                                    `e.tripId === STATE.activeTripId` would silently return empty
-                                                    on cold-load. The History tab and Settlement page would have
-                                                    appeared empty until the user added a fresh expense locally.
-                                                    Translation now lives in both `routes/data.py` and
-                                                    `routes/public.py` so the public archived-trip detail also
-                                                    benefits. 2 pytests for the round-trip (set + clear), legacy
-                                                    compat test, and 1 e2e for the receipt clip icon. Net: 161/161
-                                                    pytests + 43/43 e2e + 20/20 visual.
+                                                        **Latent bug uncovered + fixed**: while wiring this up I
+                                                        discovered the server was writing expense fields camelCase via
+                                                        `/api/expenses` but reading them back from `/api/data` as
+                                                        snake_case (`trip_id`, `category_id`, `euro_value`,
+                                                        `receipt_url`) — frontend filters like
+                                                        `e.tripId === STATE.activeTripId` would silently return empty
+                                                        on cold-load. The History tab and Settlement page would have
+                                                        appeared empty until the user added a fresh expense locally.
+                                                        Translation now lives in both `routes/data.py` and
+                                                        `routes/public.py` so the public archived-trip detail also
+                                                        benefits. 2 pytests for the round-trip (set + clear), legacy
+                                                        compat test, and 1 e2e for the receipt clip icon. Net: 161/161
+                                                        pytests + 43/43 e2e + 20/20 visual.
 
 5.  **Trip share-via-link (read-only)** — `4-6 hours`, schema +
     public backend route + new public frontend route + Views counter.

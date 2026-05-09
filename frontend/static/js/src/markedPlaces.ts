@@ -100,7 +100,7 @@ export function toggleTodoListMembership(trip: any, place: any, cat?: { icon?: s
         return;
     }
     /** @type {MarkedPlace} */
-    const fresh = {
+    const fresh: any = {
         placeId: place.place_id,
         name: place.name || '',
         address: place.vicinity || place.formatted_address || '',
@@ -112,7 +112,22 @@ export function toggleTodoListMembership(trip: any, place: any, cat?: { icon?: s
         forManual: true,    // present in the To-do list
         dayId: null,
         timeOfDay: null,
+        // Phase G slice 2: when the InfoWindow's place came from a
+        // Places search (it always does — POI pills + free-form
+        // search both go through PlacesService), it already has a
+        // place_id so we mark verified:true. Rating + photo aren't
+        // available from the JS Places client without a separate
+        // getDetails call (a cost we don't want to pay automatically
+        // for every "Add to to-do" click); to-do markers still render
+        // since lat/lng are on this entry. Items added via the
+        // home-map flow won't show photos in the to-do list, but
+        // items added via Accept Plan WILL — the gap closes when the
+        // user runs an AI generation that includes the place.
+        verified: true,
     };
+    if (place.rating != null) fresh.rating = place.rating;
+    if (place.user_ratings_total != null) fresh.userRatingsTotal = place.user_ratings_total;
+    if (place.url) fresh.mapsUrl = place.url;
     trip.markedPlaces.push(fresh);
 }
 
@@ -123,4 +138,95 @@ export function toggleMarkedPlaceForAI(trip: any, placeId: string): void {
     const entry = trip.markedPlaces.find((p: any) => p.placeId === placeId);
     if (!entry) return;
     entry.forAI = !entry.forAI;
+}
+
+/** Phase G slice 2 — verified-place item from a Gemini-enriched
+ *  itinerary. The shape emitted by `_enrich_itinerary` server-side
+ *  (see routes/integrations.py). */
+export interface VerifiedAIItem {
+    text: string;
+    verified: boolean;
+    placeId?: string;
+    photoUrl?: string;
+    rating?: number;
+    userRatingsTotal?: number;
+    address?: string;
+    mapsUrl?: string;
+    verifiedName?: string;
+    lat?: number;
+    lng?: number;
+}
+
+/** Phase G slice 2 — push a verified AI itinerary item into the
+ *  trip's to-do list, carrying the full Place details so the to-do
+ *  list, map markers, and AI day cards all share one source of
+ *  truth. Three behaviours by placeId:
+ *
+ *    1. Place isn't tracked yet  → insert a fresh entry stamped with
+ *       this item's dayId / timeOfDay so the home map's per-day
+ *       to-do filter can find it.
+ *    2. Place is tracked AND has a different dayId → re-stamp with
+ *       this dayId. The most-recent Accept Plan wins; users who run
+ *       multiple AI generations don't end up with stale day pinning.
+ *    3. Place is tracked AND already has THIS dayId → no-op
+ *       (idempotent — safe to call from re-renders).
+ *
+ *  Unverified items (verified:false OR no placeId) are skipped — we
+ *  only auto-add places we can identify, otherwise we'd litter the
+ *  to-do list with the LLM's freeform suggestions. */
+export function addOrUpdatePlaceFromVerified(
+    trip: any,
+    item: VerifiedAIItem,
+    dayId: string | null,
+    timeOfDay: 'morning' | 'afternoon' | 'evening' | null = null,
+): void {
+    if (!trip || !item || !item.verified || !item.placeId) return;
+    if (!Array.isArray(trip.markedPlaces)) trip.markedPlaces = [];
+    const existing = trip.markedPlaces.find((p: any) => p.placeId === item.placeId);
+    if (existing) {
+        // Refresh rich fields so a second AI run picks up updated
+        // photo URLs / ratings (these can drift, e.g. ratings tick
+        // up over time). Day pinning re-stamps to the most recent
+        // generation's assignment.
+        existing.dayId = dayId ?? existing.dayId ?? null;
+        existing.timeOfDay = timeOfDay ?? existing.timeOfDay ?? null;
+        existing.verified = true;
+        if (item.verifiedName) existing.verifiedName = item.verifiedName;
+        if (item.photoUrl) existing.photoUrl = item.photoUrl;
+        if (typeof item.rating === 'number') existing.rating = item.rating;
+        if (typeof item.userRatingsTotal === 'number') existing.userRatingsTotal = item.userRatingsTotal;
+        if (item.address) existing.address = item.address;
+        if (item.mapsUrl) existing.mapsUrl = item.mapsUrl;
+        // Don't flip forManual / forAI off — the user may have
+        // already curated these flags on a previous addition.
+        if (!existing.forManual) existing.forManual = true;
+        return;
+    }
+    const fresh: any = {
+        placeId: item.placeId,
+        name: item.verifiedName || item.text || '',
+        address: item.address || '',
+        // Lat/lng come from Places API NEW's location field — added
+        // to the FieldMask in routes/integrations.py at Basic-tier
+        // pricing (free since we're already paying Advanced for
+        // rating). Falls back to 0 if a future Places response drops
+        // location for some reason — to-do marker rendering checks
+        // truthy lat/lng so 0,0 won't accidentally drop a marker
+        // off the coast of West Africa.
+        lat: typeof item.lat === 'number' ? item.lat : 0,
+        lng: typeof item.lng === 'number' ? item.lng : 0,
+        icon: '📋',
+        color: '#9b59b6',
+        forAI: true,
+        forManual: true,
+        dayId: dayId || null,
+        timeOfDay: timeOfDay || null,
+        verified: true,
+        verifiedName: item.verifiedName,
+        photoUrl: item.photoUrl,
+        rating: item.rating,
+        userRatingsTotal: item.userRatingsTotal,
+        mapsUrl: item.mapsUrl,
+    };
+    trip.markedPlaces.push(fresh);
 }
