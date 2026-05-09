@@ -146,18 +146,36 @@ def _enrich_itinerary(itinerary: list, destination: str) -> list:
                 continue
             new_items = []
             for raw in items:
-                # Defensive: Gemini sometimes returns nested objects
-                # when prompt drift produces structured items. Coerce
-                # anything non-string to its string form.
-                text = raw if isinstance(raw, str) else str(raw or "")
-                text = text.strip()
+                # Three input shapes supported:
+                #   1. NEW (post-Phase-G refresh) — { name, why, fact }
+                #      objects from the updated Gemini prompt.
+                #   2. Pre-G plain strings — older itineraries cached
+                #      in trip.aiPlan from before the prompt update.
+                #   3. Anything else — coerced to string for safety.
+                if isinstance(raw, dict):
+                    text = str(raw.get("name") or "").strip()
+                    why = str(raw.get("why") or "").strip()
+                    fact = str(raw.get("fact") or "").strip()
+                elif isinstance(raw, str):
+                    text = raw.strip()
+                    why = ""
+                    fact = ""
+                else:
+                    text = str(raw or "").strip()
+                    why = ""
+                    fact = ""
                 if not text:
                     continue
                 meta = resolve(text)
+                base = {"text": text}
+                if why:
+                    base["why"] = why
+                if fact:
+                    base["fact"] = fact
                 if meta and meta.get("placeId"):
-                    new_items.append({"text": text, "verified": True, **meta})
+                    new_items.append({**base, "verified": True, **meta})
                 else:
-                    new_items.append({"text": text, "verified": False})
+                    new_items.append({**base, "verified": False})
             slot["items"] = new_items
     return itinerary
 
@@ -202,7 +220,14 @@ def generate_itinerary():
     CRITICAL INSTRUCTION: You MUST return ONLY valid JSON. Do not wrap the JSON in markdown blocks.
 
     For EACH day provide morning, afternoon, evening time slots with REAL specific place names in {destination}.
-    Each slot has an `activity` (the headline) and an `items` array — 2 to 4 short, concrete action bullets the traveler will do (visit a place, try a dish, take a photo at a viewpoint, etc.). Each item should be a single phrase, not a paragraph.
+    Each slot has an `activity` (the headline) and an `items` array of 2-4 places to visit during that slot, in the order the traveler should visit them.
+
+    Each item is an object with three fields:
+      - `name`:  the REAL specific place name (the LLM-grounded suggestion). This is what the user is going there to see / do / eat.
+      - `why`:   ONE short sentence (max ~18 words) explaining why this place was chosen — what makes it worth the stop, why it pairs well with the rest of the day, or what kind of traveller it suits. Direct and concrete, no fluff.
+      - `fact`:  ONE short surprising fact (max ~22 words) about the place — historical, cultural, or quirky. Avoid generic statements ("it's famous") — give the user something they didn't already know that they'd be excited to mention.
+    Both `why` and `fact` MUST be filled (non-empty strings). They appear under the place card in the UI; an empty string would render an awkward gap.
+
     Also include a "mainLocation" field with the name of the most iconic place visited that day (used for map geocoding).
 
     Schema:
@@ -212,9 +237,15 @@ def generate_itinerary():
         "date": "{date_from}",
         "title": "Day title",
         "mainLocation": "Specific place name",
-        "morning": {{"activity": "headline", "items": ["bullet 1", "bullet 2", "bullet 3"]}},
-        "afternoon": {{"activity": "headline", "items": ["bullet 1", "bullet 2", "bullet 3"]}},
-        "evening": {{"activity": "headline", "items": ["bullet 1", "bullet 2", "bullet 3"]}}
+        "morning": {{
+          "activity": "headline",
+          "items": [
+            {{"name": "Place name", "why": "Why this place fits here.", "fact": "Surprising fact about it."}},
+            {{"name": "Another place", "why": "...", "fact": "..."}}
+          ]
+        }},
+        "afternoon": {{ "activity": "headline", "items": [{{...}}, {{...}}] }},
+        "evening":   {{ "activity": "headline", "items": [{{...}}, {{...}}] }}
       }}
     ]
     """

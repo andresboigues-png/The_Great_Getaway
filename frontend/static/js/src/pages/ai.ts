@@ -6,7 +6,7 @@ import { canEdit, getMyRole, ROLE_BUDGETEER, ROLE_RELAXER } from '../permissions
 // removeMarkedPlace + toggleMarkedPlaceForAI moved to /todo. The AI
 // page now only READS the to-do list (filtered to the AI-ticked subset)
 // and writes back day/time-of-day assignments via setMarkedPlaceAssignment.
-import { getMarkedPlaces, setMarkedPlaceAssignment, addOrUpdatePlaceFromVerified } from '../markedPlaces.js';
+import { getMarkedPlaces, setMarkedPlaceAssignment, addOrUpdatePlaceFromVerified, dropAITaggedPlaces } from '../markedPlaces.js';
 import { showModal } from '../components/Modal.js';
 import { applyMapTheme } from '../theme.js';
 import { navigate } from '../router.js';
@@ -438,6 +438,17 @@ export function renderAI() {
                     d => !(d.tripId === activeTrip.id && d.dayNumber > 0)
                 );
                 existingNumbered.forEach(d => deleteDayOnServer(d.id));
+
+                // Phase G v3 — smart-replace the previous AI run's
+                // to-do items so the list doesn't accumulate every
+                // generation. Only entries whose `source === 'ai'`
+                // get dropped — manually-added places (from the home
+                // map's Add-to-to-do button) survive untouched. After
+                // this, the new itinerary's verified items are pushed
+                // by addOrUpdatePlaceFromVerified below, each stamped
+                // `source: 'ai'` so the next Accept Plan can do the
+                // same cleanup.
+                dropAITaggedPlaces(activeTrip);
 
                 itinerary.forEach((dayInfo: any, idx: number) => {
                     const dayDate = dayInfo.date || (new Date().toISOString().split('T')[0]);

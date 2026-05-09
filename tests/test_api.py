@@ -1736,8 +1736,19 @@ def test_generate_itinerary_places_verification_enriches_items(
 
     fake_itinerary = [{
         "day": 1, "date": "2026-04-15", "title": "Arrival",
-        "morning": {"activity": "Coffee", "items": ["Sagrada Familia", "Made-up Place That Doesn't Exist 9999"]},
-        "afternoon": {"activity": "Walk", "items": ["Park Güell"]},
+        "morning": {
+            "activity": "Coffee",
+            "items": [
+                {"name": "Sagrada Familia", "why": "Iconic Gaudí basilica.", "fact": "Construction started in 1882."},
+                {"name": "Made-up Place That Doesn't Exist 9999", "why": "Why field.", "fact": "Fact field."},
+            ],
+        },
+        "afternoon": {
+            "activity": "Walk",
+            "items": [
+                {"name": "Park Güell", "why": "Hilltop mosaics.", "fact": "Originally designed as a housing project."},
+            ],
+        },
         "evening": {"activity": "Dinner", "items": []},
     }]
     # Precompute the Gemini response body BEFORE defining fake_post —
@@ -1798,10 +1809,16 @@ def test_generate_itinerary_places_verification_enriches_items(
     # Place Details fetch.
     assert morning_items[0]["lat"] == 41.4036
     assert morning_items[0]["lng"] == 2.1744
-    # Hallucination — unverified, no enrichment fields.
+    # Phase G v3 — why/fact context preserved through verification.
+    assert morning_items[0]["why"] == "Iconic Gaudí basilica."
+    assert morning_items[0]["fact"] == "Construction started in 1882."
+    # Hallucination — unverified, no Maps enrichment fields, but the
+    # why/fact context still survives so the user can see what the LLM
+    # was reaching for.
     assert morning_items[1]["text"].startswith("Made-up Place")
     assert morning_items[1]["verified"] is False
     assert "placeId" not in morning_items[1]
+    assert morning_items[1]["why"] == "Why field."
     # Afternoon item is also verified via the cache (same fake-post path).
     assert afternoon_items[0]["verified"] is True
 
@@ -1841,7 +1858,10 @@ def test_generate_itinerary_places_verification_skipped_without_key(
         "destination": "Tokyo", "numDays": 1, "gemini_key": "byo-key",
     })
     assert res.status_code == 200
-    # Items stay as plain strings — wire-shape unchanged from pre-G.
+    # Wire shape: legacy string items pass through unchanged when the
+    # Places-verification path is skipped (no GOOGLE_MAPS_API_KEY).
+    # Pre-Phase-G itineraries cached on trip.aiPlan still have this
+    # shape so the back-compat is critical.
     assert res.get_json()["itinerary"][0]["morning"]["items"] == ["Some Cafe", "Another Place"]
     # And we did NOT call Places API (no quota burned without a key).
     assert len(places_calls) == 0

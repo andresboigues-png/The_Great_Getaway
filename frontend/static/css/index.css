@@ -2835,6 +2835,29 @@ body.is-signed-out .trip-controls-popover {
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
 }
+/* Phase G v3 — LLM-supplied "why this place" line. Sits under the
+   address in the place card; reads as a confident body sentence
+   ("Iconic Gaudí basilica, must-see for first-time visitors")
+   instead of address-style metadata. */
+.ai-place-card__why {
+    margin-top: 6px;
+    font-size: 0.78rem;
+    color: var(--text-primary);
+    line-height: 1.4;
+    font-weight: 500;
+}
+/* Phase G v3 — LLM-supplied surprising fact. Italic + secondary
+   colour so it visually separates from the why line above ("here's
+   why we picked it" vs "here's something cool to know"). The ✨
+   prefix gets included in the rendered text, not as a CSS pseudo,
+   so it's part of the sentence the user reads. */
+.ai-place-card__fact {
+    margin-top: 4px;
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+    line-height: 1.4;
+    font-style: italic;
+}
 
 /* Phase G — unverified item. The LLM mentioned a place the Places API
    couldn't resolve. Render the text + a small amber chip so the user
@@ -5009,6 +5032,103 @@ body.is-signed-out .trip-controls-popover {
     /* Disable browser-native resize handle — the textarea now grows
        with the pane, not the user-drag. */
     resize: none;
+}
+
+/* Phase G v3 — Day-detail modal: rich place cards above each
+   slot's textarea. The list is read-only (clicking a card opens
+   the place on Google Maps); the textarea below remains the
+   user's editable freeform notes. Stack of cards with a tinted
+   "Pinned to this slot" header chip above. */
+.day-plan-places {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+.day-plan-places__label {
+    font-size: 0.7rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: rgb(var(--accent));
+    padding: 4px 10px;
+    background: rgba(var(--accent), 0.1);
+    border-radius: 999px;
+    align-self: flex-start;
+}
+.day-plan-place {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px;
+    border-radius: 12px;
+    background: rgba(var(--accent), 0.05);
+    border: 1px solid rgba(var(--accent), 0.18);
+    text-decoration: none;
+    color: inherit;
+    transition: background 0.18s var(--easing-smooth),
+                border-color 0.18s var(--easing-smooth),
+                transform 0.2s var(--easing-spring);
+}
+.day-plan-place[href]:hover,
+.day-plan-place[href]:focus-visible {
+    background: rgba(var(--accent), 0.1);
+    border-color: rgba(var(--accent), 0.36);
+    transform: translateY(-1px);
+}
+.day-plan-place[href]:focus-visible {
+    outline: 2px solid rgb(var(--accent));
+    outline-offset: 2px;
+}
+.day-plan-place__photo {
+    flex-shrink: 0;
+    width: 56px;
+    height: 56px;
+    object-fit: cover;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.05);
+}
+.day-plan-place__photo--empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+}
+.day-plan-place__body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+.day-plan-place__head {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.day-plan-place__name {
+    font-weight: 800;
+    font-size: 0.92rem;
+    color: var(--text-primary);
+    line-height: 1.25;
+}
+.day-plan-place__rating {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #c47c00;
+}
+.day-plan-place__why {
+    font-size: 0.78rem;
+    color: var(--text-primary);
+    line-height: 1.4;
+    margin-top: 2px;
+}
+.day-plan-place__fact {
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    line-height: 1.4;
+    font-style: italic;
 }
 .day-plan-pane textarea.plan-input:focus {
     border-color: rgb(var(--accent));

@@ -20,8 +20,14 @@ import { emit } from '../../state.js';
 import { EVENTS } from '../../constants.js';
 import { upsertTrip } from '../../api.js';
 import { canEdit } from '../../permissions.js';
-import { getMarkedPlaces, removeMarkedPlace, toggleMarkedPlaceForAI } from '../../markedPlaces.js';
+import {
+    getMarkedPlaces,
+    removeMarkedPlace,
+    toggleMarkedPlaceForAI,
+    clearAllMarkedPlaces,
+} from '../../markedPlaces.js';
 import { openNewTripModal } from '../../modals.js';
+import { showConfirmModal, showLiquidAlert } from '../../utils.js';
 import { EmptyState } from '../../react/components/EmptyState.js';
 import type { Trip } from '../../types';
 
@@ -33,6 +39,16 @@ interface TodoMarkedPlace {
     color: string;
     forManual?: boolean;
     forAI?: boolean;
+    /** Phase G v3 — LLM-supplied context shown under the place name
+     *  on the to-do card. */
+    why?: string;
+    fact?: string;
+    /** Phase G — Maps photo URL when the place was Maps-grounded. */
+    photoUrl?: string;
+    /** Phase G v3 — provenance. AI-sourced items get a small chip so
+     *  the user knows which entries came from the planner vs. their
+     *  own home-map adds. */
+    source?: 'ai' | 'manual';
 }
 
 const titleH1Style = {
@@ -90,6 +106,29 @@ export function Todo() {
         removeMarkedPlace(activeTrip, placeId);
         emit(EVENTS.STATE_CHANGED);
         upsertTrip(activeTrip);
+    };
+
+    /** Phase G v3 — "Clean slate" wipe of the to-do list. The user
+     *  asked for this for two scenarios:
+     *    1. "I want to start over" — got too cramped to be useful.
+     *    2. "I'm running a fresh AI generation and want to drop the
+     *       previous AI's items AND my manual ones in one click."
+     *  Confirmation modal protects against accidental wipe — the
+     *  message includes the count so the user knows what they'll
+     *  lose before tapping through. */
+    const handleClearAll = () => {
+        showConfirmModal({
+            title: 'Clear the to-do list?',
+            message: `This removes all ${todoItems.length} place${todoItems.length === 1 ? '' : 's'} from the to-do list for "${activeTrip.name}". This can't be undone.`,
+            confirmText: 'Clear list',
+            confirmColor: '#ff3b30',
+            onConfirm: () => {
+                clearAllMarkedPlaces(activeTrip);
+                emit(EVENTS.STATE_CHANGED);
+                upsertTrip(activeTrip);
+                showLiquidAlert('To-do list cleared.');
+            },
+        });
     };
 
     // ── EMPTY STATE: trip but no to-do items ────────────────────────
@@ -175,13 +214,49 @@ export function Todo() {
                         </div>
                     </div>
                 </div>
-                <button
-                    className="btn-primary"
-                    style={{ padding: '10px 18px', borderRadius: '999px', fontSize: '0.85rem' }}
-                    onClick={() => navigate('ai')}
-                >
-                    Plan with AI ✦
-                </button>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    {/* Phase G v3 — "Clear all" sits next to the Plan-with-AI
+                        button so the two list-management actions live side by
+                        side. Subtle red-tinted secondary button: it's a
+                        destructive action but hand-confirmed via showConfirmModal
+                        before anything happens, so the visual weight stays
+                        muted vs the primary AI CTA. */}
+                    {tripIsEditable && (
+                        <button
+                            type="button"
+                            onClick={handleClearAll}
+                            title="Remove every place from this trip's to-do list"
+                            style={{
+                                padding: '10px 14px',
+                                borderRadius: '999px',
+                                fontSize: '0.78rem',
+                                fontWeight: 700,
+                                background: 'rgba(255, 59, 48, 0.08)',
+                                color: '#c73128',
+                                border: '1px solid rgba(255, 59, 48, 0.28)',
+                                cursor: 'pointer',
+                                transition: 'background 0.18s ease, border-color 0.18s ease',
+                            }}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.background = 'rgba(255, 59, 48, 0.14)';
+                                e.currentTarget.style.borderColor = 'rgba(255, 59, 48, 0.45)';
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.background = 'rgba(255, 59, 48, 0.08)';
+                                e.currentTarget.style.borderColor = 'rgba(255, 59, 48, 0.28)';
+                            }}
+                        >
+                            🗑 Clear all
+                        </button>
+                    )}
+                    <button
+                        className="btn-primary"
+                        style={{ padding: '10px 18px', borderRadius: '999px', fontSize: '0.85rem' }}
+                        onClick={() => navigate('ai')}
+                    >
+                        Plan with AI ✦
+                    </button>
+                </div>
             </div>
 
             <div
@@ -262,17 +337,67 @@ export function Todo() {
                                         />
                                     </label>
                                 )}
-                                <span style={{ fontSize: '1.4rem', lineHeight: 1 }}>{p.icon}</span>
+                                {/* Show photo when the place was Maps-grounded
+                                    (typically AI-added items). Falls back to the
+                                    category icon when there's no photo, so the
+                                    visual hierarchy stays consistent across rows. */}
+                                {p.photoUrl ? (
+                                    <img
+                                        src={p.photoUrl}
+                                        alt=""
+                                        referrerPolicy="no-referrer"
+                                        loading="lazy"
+                                        style={{
+                                            width: '44px',
+                                            height: '44px',
+                                            borderRadius: '8px',
+                                            objectFit: 'cover',
+                                            flexShrink: 0,
+                                            background: 'rgba(0, 0, 0, 0.05)',
+                                        }}
+                                    />
+                                ) : (
+                                    <span style={{ fontSize: '1.4rem', lineHeight: 1 }}>{p.icon}</span>
+                                )}
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                     <div
                                         style={{
-                                            fontWeight: 800,
-                                            color: '#002d5b',
-                                            fontSize: '0.95rem',
-                                            lineHeight: 1.25,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '6px',
+                                            flexWrap: 'wrap',
                                         }}
                                     >
-                                        {p.name}
+                                        <div
+                                            style={{
+                                                fontWeight: 800,
+                                                color: '#002d5b',
+                                                fontSize: '0.95rem',
+                                                lineHeight: 1.25,
+                                            }}
+                                        >
+                                            {p.name}
+                                        </div>
+                                        {p.source === 'ai' && (
+                                            <span
+                                                title="Added by the AI planner"
+                                                style={{
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    padding: '1px 6px',
+                                                    borderRadius: '999px',
+                                                    background: 'rgba(155, 89, 182, 0.12)',
+                                                    color: '#7d3c98',
+                                                    border: '1px solid rgba(155, 89, 182, 0.32)',
+                                                    fontSize: '0.6rem',
+                                                    fontWeight: 800,
+                                                    letterSpacing: '0.06em',
+                                                    textTransform: 'uppercase',
+                                                }}
+                                            >
+                                                ✦ AI
+                                            </span>
+                                        )}
                                     </div>
                                     {p.address && (
                                         <div
@@ -283,6 +408,35 @@ export function Todo() {
                                             }}
                                         >
                                             {p.address}
+                                        </div>
+                                    )}
+                                    {/* Phase G v3 — LLM context. Only shows when
+                                        the AI generated these fields; manual
+                                        adds don't have why/fact so this stays
+                                        empty for them. */}
+                                    {p.why && (
+                                        <div
+                                            style={{
+                                                fontSize: '0.78rem',
+                                                color: 'var(--text-primary)',
+                                                marginTop: '6px',
+                                                lineHeight: 1.4,
+                                            }}
+                                        >
+                                            {p.why}
+                                        </div>
+                                    )}
+                                    {p.fact && (
+                                        <div
+                                            style={{
+                                                fontSize: '0.72rem',
+                                                color: 'var(--text-secondary)',
+                                                marginTop: '4px',
+                                                lineHeight: 1.4,
+                                                fontStyle: 'italic',
+                                            }}
+                                        >
+                                            ✨ {p.fact}
                                         </div>
                                     )}
                                 </div>

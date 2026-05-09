@@ -246,10 +246,70 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
             </button>
         `;
     };
+    /** Phase G v3 — for each pane, render a "places for this slot"
+     *  strip ABOVE the textarea. Pulls from `trip.markedPlaces`
+     *  filtered by `dayId === day.id && timeOfDay === slot`. The
+     *  textarea below remains the user's free-form notes; the place
+     *  cards are read-only previews of what the AI plan / Add-to-todo
+     *  flow stamped on this slot. Cards link out to Google Maps so
+     *  the user can verify hours / get directions / etc. */
+    const _renderPlacesForSlot = (slot: string): string => {
+        if (!trip) return '';
+        const places = (trip.markedPlaces || []).filter(
+            (p: any) =>
+                p
+                && p.forManual
+                && p.dayId === day.id
+                && p.timeOfDay === slot,
+        );
+        if (places.length === 0) return '';
+        const cardsHtml = places.map((p: any) => {
+            const photoHtml = p.photoUrl
+                ? `<img class="day-plan-place__photo" src="${esc(p.photoUrl)}" alt="" referrerpolicy="no-referrer" loading="lazy">`
+                : `<div class="day-plan-place__photo day-plan-place__photo--empty" aria-hidden="true">${esc(p.icon || '📍')}</div>`;
+            const ratingHtml = (typeof p.rating === 'number')
+                ? `<span class="day-plan-place__rating">★ ${p.rating.toFixed(1)}</span>`
+                : '';
+            const whyHtml = p.why
+                ? `<div class="day-plan-place__why">${esc(p.why)}</div>`
+                : '';
+            const factHtml = p.fact
+                ? `<div class="day-plan-place__fact">✨ ${esc(p.fact)}</div>`
+                : '';
+            const href = p.mapsUrl
+                || (p.placeId
+                    ? `https://www.google.com/maps/place/?q=place_id:${encodeURIComponent(p.placeId)}`
+                    : '');
+            const wrapTag = href ? 'a' : 'div';
+            const hrefAttr = href
+                ? ` href="${esc(href)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${esc(p.verifiedName || p.name)} on Google Maps"`
+                : '';
+            return `
+                <${wrapTag} class="day-plan-place"${hrefAttr}>
+                    ${photoHtml}
+                    <div class="day-plan-place__body">
+                        <div class="day-plan-place__head">
+                            <span class="day-plan-place__name">${esc(p.verifiedName || p.name || 'Place')}</span>
+                            ${ratingHtml}
+                        </div>
+                        ${whyHtml}
+                        ${factHtml}
+                    </div>
+                </${wrapTag}>
+            `;
+        }).join('');
+        return `
+            <div class="day-plan-places" style="--accent: ${_slotAccent[slot]};">
+                <div class="day-plan-places__label">${_slotIcon[slot]} ${places.length} place${places.length === 1 ? '' : 's'} pinned to this slot</div>
+                ${cardsHtml}
+            </div>
+        `;
+    };
     const _renderPane = (slot: string) => {
         const isActive = slot === _initialSlot;
         return `
             <div class="day-plan-pane${isActive ? ' is-active' : ''}" data-plan-pane="${slot}" style="--accent: ${_slotAccent[slot]};">
+                ${_renderPlacesForSlot(slot)}
                 <textarea class="plain-textarea plan-input" data-time="${slot}" placeholder="${_slotPlaceholder[slot]}">${esc((day.plan as Record<string, string> | undefined)?.[slot] || '')}</textarea>
             </div>
         `;

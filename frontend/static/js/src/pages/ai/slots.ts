@@ -34,6 +34,10 @@ interface VerifiedSlotItem {
     address?: string;
     mapsUrl?: string;
     verifiedName?: string;
+    /** LLM-supplied "why this place" sentence (Phase G v3). */
+    why?: string;
+    /** LLM-supplied surprising fact (Phase G v3). */
+    fact?: string;
 }
 
 /** Render a single time-slot body. Three shapes are supported (see
@@ -78,10 +82,10 @@ function renderSlotItem(item: any): string {
 
     if (v.verified && v.placeId) {
         // Verified — rich card. Photo on left, name + rating + address
-        // on right, the whole thing wrapping in an <a> so a tap opens
-        // the canonical Google Maps place page in a new tab. The
-        // `target="_blank" + rel="noopener noreferrer"` combo is the
-        // standard "open external link without leaking referrer".
+        // + why + fact on right, the whole thing wrapping in an <a>
+        // so a tap opens the canonical Google Maps place page in a
+        // new tab. `target="_blank" + rel="noopener noreferrer"` is
+        // the standard "open external link without leaking referrer".
         const photoHtml = v.photoUrl
             ? `<img class="ai-place-card__photo" src="${esc(v.photoUrl)}" alt="" referrerpolicy="no-referrer" loading="lazy">`
             : '<div class="ai-place-card__photo ai-place-card__photo--empty" aria-hidden="true">📍</div>';
@@ -90,6 +94,17 @@ function renderSlotItem(item: any): string {
             : '';
         const addressHtml = v.address
             ? `<span class="ai-place-card__address">${esc(v.address)}</span>`
+            : '';
+        // Phase G v3 — render the LLM's "why this place" and "fun
+        // fact" lines under the address. `why` reads as a confident
+        // sentence in the body color; `fact` is italic + the secondary
+        // accent so the two stay visually distinct ("here's why we
+        // picked it" vs "here's something cool to know").
+        const whyHtml = v.why
+            ? `<span class="ai-place-card__why">${esc(v.why)}</span>`
+            : '';
+        const factHtml = v.fact
+            ? `<span class="ai-place-card__fact">✨ ${esc(v.fact)}</span>`
             : '';
         // Use mapsUrl from the server when present (the canonical short
         // URL); fall back to the search-by-place-id deep link, which
@@ -104,6 +119,8 @@ function renderSlotItem(item: any): string {
                         <span class="ai-place-card__name">${esc(displayName)}</span>
                         ${ratingHtml}
                         ${addressHtml}
+                        ${whyHtml}
+                        ${factHtml}
                     </div>
                 </a>
             </li>`;
@@ -112,11 +129,23 @@ function renderSlotItem(item: any): string {
     // Unverified — Places lookup couldn't resolve this. Render the LLM
     // text as a regular bullet but stamp it with an "unverified" chip
     // so the user knows to fact-check. Title attribute spells out the
-    // meaning for keyboard / screen-reader users.
+    // meaning for keyboard / screen-reader users. Phase G v3: keep
+    // the why/fact context if present so the LLM's reasoning still
+    // shows even when the place couldn't be Maps-grounded.
+    const unverifiedWhy = v.why
+        ? `<span class="ai-place-card__why" style="margin-top:4px;">${esc(v.why)}</span>`
+        : '';
+    const unverifiedFact = v.fact
+        ? `<span class="ai-place-card__fact" style="margin-top:2px;">✨ ${esc(v.fact)}</span>`
+        : '';
     return `
         <li class="ai-plan-block__item ai-plan-block__item--unverified">
-            <span class="ai-plan-block__item-text">${esc(text)}</span>
-            <span class="ai-plan-block__unverified-chip" title="The Places lookup couldn't resolve this. Worth double-checking before adding to your plan.">unverified</span>
+            <div style="display:flex; align-items:baseline; gap:6px; flex-wrap:wrap;">
+                <span class="ai-plan-block__item-text">${esc(text)}</span>
+                <span class="ai-plan-block__unverified-chip" title="The Places lookup couldn't resolve this. Worth double-checking before adding to your plan.">unverified</span>
+            </div>
+            ${unverifiedWhy}
+            ${unverifiedFact}
         </li>`;
 }
 

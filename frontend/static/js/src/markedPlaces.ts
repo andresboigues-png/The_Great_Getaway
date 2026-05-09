@@ -124,6 +124,10 @@ export function toggleTodoListMembership(trip: any, place: any, cat?: { icon?: s
         // items added via Accept Plan WILL — the gap closes when the
         // user runs an AI generation that includes the place.
         verified: true,
+        // Provenance — manual additions survive a smart-replace
+        // when the user runs an AI plan. Only AI-sourced markedPlaces
+        // get dropped on Accept Plan.
+        source: 'manual',
     };
     if (place.rating != null) fresh.rating = place.rating;
     if (place.user_ratings_total != null) fresh.userRatingsTotal = place.user_ratings_total;
@@ -155,6 +159,10 @@ export interface VerifiedAIItem {
     verifiedName?: string;
     lat?: number;
     lng?: number;
+    /** LLM-supplied "why this place" sentence. */
+    why?: string;
+    /** LLM-supplied surprising fact about the place. */
+    fact?: string;
 }
 
 /** Phase G slice 2 — push a verified AI itinerary item into the
@@ -191,12 +199,22 @@ export function addOrUpdatePlaceFromVerified(
         existing.dayId = dayId ?? existing.dayId ?? null;
         existing.timeOfDay = timeOfDay ?? existing.timeOfDay ?? null;
         existing.verified = true;
+        // Provenance — once an AI plan touches a place, we mark it
+        // as AI-sourced so a future Accept Plan can cleanly replace
+        // it. If the user had originally added it manually, the
+        // smart-replace flow's "keep manuals" check (see
+        // dropAITaggedPlaces) actually looks at source — so flipping
+        // this is OK: a place ALSO promoted to an AI run is treated
+        // as part of the AI generation set going forward.
+        existing.source = 'ai';
         if (item.verifiedName) existing.verifiedName = item.verifiedName;
         if (item.photoUrl) existing.photoUrl = item.photoUrl;
         if (typeof item.rating === 'number') existing.rating = item.rating;
         if (typeof item.userRatingsTotal === 'number') existing.userRatingsTotal = item.userRatingsTotal;
         if (item.address) existing.address = item.address;
         if (item.mapsUrl) existing.mapsUrl = item.mapsUrl;
+        if (item.why) existing.why = item.why;
+        if (item.fact) existing.fact = item.fact;
         // Don't flip forManual / forAI off — the user may have
         // already curated these flags on a previous addition.
         if (!existing.forManual) existing.forManual = true;
@@ -227,6 +245,35 @@ export function addOrUpdatePlaceFromVerified(
         rating: item.rating,
         userRatingsTotal: item.userRatingsTotal,
         mapsUrl: item.mapsUrl,
+        why: item.why,
+        fact: item.fact,
+        // Provenance — see dropAITaggedPlaces for the cleanup contract.
+        source: 'ai',
     };
     trip.markedPlaces.push(fresh);
+}
+
+/** Drop every markedPlace whose `source === 'ai'` from the trip.
+ *  Used by Accept Plan to cleanly replace the previous AI run's
+ *  items WITHOUT clobbering manually-added ones (the user's home-map
+ *  picks stay; only the previous LLM-suggested set is wiped). Safe
+ *  no-op if the trip has no markedPlaces or no AI-sourced ones.
+ *
+ *  Pre-Phase-G-v3 entries don't carry `source` at all — they're
+ *  treated as manual (the safer default — never auto-delete an item
+ *  whose origin we can't be sure of). The cost is that on the FIRST
+ *  Accept Plan after upgrading, those legacy items stay; subsequent
+ *  AI runs replace cleanly because the new items DO carry source. */
+export function dropAITaggedPlaces(trip: any): void {
+    if (!trip || !Array.isArray(trip.markedPlaces)) return;
+    trip.markedPlaces = trip.markedPlaces.filter((p: any) => p?.source !== 'ai');
+}
+
+/** Drop EVERY markedPlace from the trip — the "Clean slate" path
+ *  the user invokes from the to-do page when they want to start
+ *  over. Skips the source filter; this is the user's explicit
+ *  "wipe it all" action, no smart replacement. */
+export function clearAllMarkedPlaces(trip: any): void {
+    if (!trip) return;
+    trip.markedPlaces = [];
 }

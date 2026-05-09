@@ -269,6 +269,17 @@ export interface MarkedPlace {
     /** Canonical short Google Maps URL. Falls back to a place_id
      *  deep link in the renderer if absent. */
     mapsUrl?: string;
+    /** LLM-supplied "why this place" copy — one short sentence the
+     *  AI plan card + day-detail modal pane render under the name. */
+    why?: string;
+    /** LLM-supplied surprising fact — one short sentence rendered as
+     *  the small italic line under the why. */
+    fact?: string;
+    /** Provenance — 'ai' for items added via Accept Plan, 'manual'
+     *  for items the user added themselves via the home InfoWindow.
+     *  Used by Accept Plan to cleanly replace the previous AI run's
+     *  items WITHOUT clobbering manually-added ones. */
+    source?: 'ai' | 'manual';
 }
 
 export interface Expense {
