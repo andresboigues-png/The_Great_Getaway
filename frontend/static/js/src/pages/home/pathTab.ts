@@ -25,6 +25,51 @@
 import { esc, formatDayDate, shortPlaceName } from '../../utils.js';
 import { resolveSelectedDayId } from './pathSelection.js';
 
+/** Per-day collapse state for the path-card option stacks. Persists
+ *  across re-renders in localStorage so a user who's hidden a day's
+ *  options sees them stay hidden after a wheel-day change or any
+ *  other re-render. Keyed by day id (not tripId+dayId because day
+ *  ids are already unique across trips). */
+const COLLAPSED_KEY = 'home_path_card_collapsed_day_ids';
+function loadCollapsedSet(): Set<string> {
+    try {
+        const raw = localStorage.getItem(COLLAPSED_KEY);
+        if (!raw) return new Set();
+        const arr = JSON.parse(raw);
+        return new Set(Array.isArray(arr) ? arr : []);
+    } catch (_) {
+        return new Set();
+    }
+}
+function saveCollapsedSet(s: Set<string>): void {
+    try {
+        localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...s]));
+    } catch (_) { /* quota exceeded — drop silently */ }
+}
+
+/** Toggle a day's collapsed state. Called from home.ts's path-tab
+ *  click delegation when the chevron button is clicked. Returns the
+ *  new state (true = now collapsed) so the caller can update the
+ *  DOM class without a full repaint. */
+export function togglePathCardCollapsed(dayId: string): boolean {
+    const set = loadCollapsedSet();
+    if (set.has(dayId)) {
+        set.delete(dayId);
+        saveCollapsedSet(set);
+        return false;
+    }
+    set.add(dayId);
+    saveCollapsedSet(set);
+    return true;
+}
+
+/** Read-only check used by buildPathTabHtml when stamping the
+ *  initial collapsed class on each path column. Exported so other
+ *  surfaces (e.g. mobile compact views) can match the state. */
+export function isPathCardCollapsed(dayId: string): boolean {
+    return loadCollapsedSet().has(dayId);
+}
+
 /** Inputs `buildPathTabHtml` needs to render the Path tab. Owned by
  *  the caller (renderHome) so the path-tab module stays a pure
  *  function — no module-level state, easy to swap or test. */
@@ -101,6 +146,21 @@ function buildDayCardBody(
             <p style="margin: 0; font-size: 0.9rem; line-height: 1.45; color: #002d5b; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${esc(day.notes)}</p>
         </div>
     ` : '';
+    // Chevron button — clicking this collapses / expands the options
+    // stack below this day card. Aria-label includes the day name so
+    // screen-readers announce it as "Toggle options for Day 3" (etc.).
+    // Persists via localStorage (see togglePathCardCollapsed in home.ts).
+    // The chevron points DOWN by default (options visible) and rotates
+    // up via CSS on `.path-column.is-collapsed` so the visual matches
+    // the state.
+    const chevronBtn = `
+        <button type="button" class="path-card-collapse-btn" data-day-id="${esc(day.id)}"
+            aria-label="Toggle options for ${esc(title)}" title="Hide / show options">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+        </button>
+    `;
     return `
         <div style="display:flex; align-items:center; gap:14px;">
             ${badge}
@@ -110,6 +170,7 @@ function buildDayCardBody(
                     ${subtitleParts.map(p => `<span>${p}</span>`).join('<span style="opacity:0.4;">·</span>')}
                 </div>
             </div>
+            ${chevronBtn}
         </div>
         ${notesPreview}
     `;
@@ -233,8 +294,9 @@ export function buildPathTabHtml(ctx: PathTabContext): string {
     const columns: string[] = [];
     if (anchor) {
         const anchorIsSelected = selectedDay?.id === anchor.id;
+        const anchorCollapsed = isPathCardCollapsed(anchor.id);
         columns.push(`
-            <div class="path-column path-column--anchor">
+            <div class="path-column path-column--anchor${anchorCollapsed ? ' is-collapsed' : ''}">
                 <div class="path-card path-card--anchor${anchorIsSelected ? ' is-selected' : ''}" data-day-id="${esc(anchor.id)}">
                     ${buildDayCardBody(anchor, { isAnchor: true, isSelected: anchorIsSelected }, activeTrip)}
                 </div>
@@ -243,8 +305,9 @@ export function buildPathTabHtml(ctx: PathTabContext): string {
         `);
     }
     if (selectedDay && selectedDay.dayNumber > 0) {
+        const selCollapsed = isPathCardCollapsed(selectedDay.id);
         columns.push(`
-            <div class="path-column path-column--selected">
+            <div class="path-column path-column--selected${selCollapsed ? ' is-collapsed' : ''}">
                 <div class="path-card path-card--selected" data-day-id="${esc(selectedDay.id)}">
                     ${buildDayCardBody(selectedDay, { isAnchor: false, isSelected: true }, activeTrip)}
                 </div>

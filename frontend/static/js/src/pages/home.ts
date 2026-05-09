@@ -34,7 +34,7 @@ import {
     clearSelectedDay,
     registerPathSelectionHooks,
 } from './home/pathSelection.js';
-import { buildPathTabHtml } from './home/pathTab.js';
+import { buildPathTabHtml, togglePathCardCollapsed } from './home/pathTab.js';
 import { buildEmptyStateHtml, pickGreeting } from './home/welcomeCard.js';
 import { wireMapSearchBanner } from './home/mapSearch.js';
 import { paintDayMarkers } from './home/dayMarkers.js';
@@ -584,7 +584,23 @@ export function renderHome() {
                         });
                     };
                     todoBtn.onclick = () => {
-                        toggleTodoListMembership(activeTrip, place, cat);
+                        // Phase G v3 — pass the wheel-selected day so a
+                        // manual add lands directly on that day's plan
+                        // panes ("anytime" section). Falls through to
+                        // unassigned (null) when the user is on Anchor
+                        // — those items stay visible in the to-do list
+                        // and the user can assign a day later via the
+                        // AI page.
+                        const sortedDays = [...(STATE.tripDays || [])]
+                            .filter(d => d.tripId === activeTrip.id)
+                            .sort((a, b) => a.dayNumber - b.dayNumber);
+                        const selectedId = resolveSelectedDayId(activeTrip, sortedDays);
+                        const selectedDay = sortedDays.find(d => d.id === selectedId);
+                        // Anchor (dayNumber === 0) is "trip-wide" — adds
+                        // there leave dayId null so the place doesn't
+                        // accidentally pin to Anchor day's pane.
+                        const dayIdForAdd = selectedDay && selectedDay.dayNumber > 0 ? selectedDay.id : null;
+                        toggleTodoListMembership(activeTrip, place, cat, dayIdForAdd);
                         emit('state:changed');
                         upsertTrip(activeTrip);
                         refresh();
@@ -1985,6 +2001,26 @@ export function renderHome() {
             // Prev/next nav buttons — step through sortedDays by ±1.
             if (target.closest('#pathPrevBtn')) { stepSelectedDay(-1); return; }
             if (target.closest('#pathNextBtn')) { stepSelectedDay(+1); return; }
+            // Day-card collapse chevron — toggles the options stack
+            // hide/show beneath this column. Persists per-day in
+            // localStorage so the state survives wheel-day changes
+            // and any other re-render. Caught BEFORE the path-card
+            // click handler below so a chevron tap doesn't also select
+            // the day. The DOM toggle happens inline (no full repaint
+            // needed) — the parent column flips its `.is-collapsed`
+            // class and the CSS transition handles the slide.
+            const collapseBtn = (target.closest('.path-card-collapse-btn') as HTMLElement | null);
+            if (collapseBtn?.dataset.dayId) {
+                e.stopPropagation();
+                e.preventDefault();
+                const dayId = collapseBtn.dataset.dayId;
+                const nowCollapsed = togglePathCardCollapsed(dayId);
+                const column = collapseBtn.closest('.path-column');
+                if (column) {
+                    column.classList.toggle('is-collapsed', nowCollapsed);
+                }
+                return;
+            }
             // Chip click — jump straight to that day.
             const chip = (target.closest('.path-chip[data-path-chip-day-id]') as HTMLElement | null);
             if (chip?.dataset.pathChipDayId && activeTrip) {

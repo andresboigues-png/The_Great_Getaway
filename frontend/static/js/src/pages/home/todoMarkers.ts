@@ -91,61 +91,67 @@ export function paintTodoMarkers(ctx: TodoMarkersContext): Record<string, google
         return todoInfoWindow;
     };
 
-    /** GG-aesthetic InfoWindow content for a to-do marker. The first
-     *  pass packed everything inline-styled and felt cramped; this
-     *  build uses the existing `.gg-iw-*` classes (defined in
-     *  index.css alongside the POI InfoWindow chrome) so the layout
-     *  matches the rest of the app — gradient header strip, rounded
-     *  photo block, pill-shape "View on Maps" button, generous
-     *  padding. The structure mirrors the AI page's verified place
-     *  card so users see one consistent pattern across surfaces. */
+    /** InfoWindow content matching the POI InfoWindow's compact style
+     *  (240-280px, header emoji + name, vicinity, rating, "View on
+     *  Google Maps" pill button) — per-user feedback the to-do
+     *  banner should look the same as a regular place banner, just
+     *  with a small "On your to-do list" indicator. We keep the
+     *  AI-supplied photo + why + fact when present, but render them
+     *  compact so the IW doesn't overflow Google's container. */
     const openTodoInfoWindow = (marker: google.maps.Marker, place: any) => {
         const iw = getIw();
         const displayName = place.verifiedName || place.name || 'Place';
+        // Photo block — compact (110px tall) so the IW stays visually
+        // tight. Only shown when the AI plan supplied photoUrl;
+        // manual adds without a photo skip this block entirely.
         const photoHtml = place.photoUrl
-            ? `<div class="gg-iw__photo"><img src="${esc(place.photoUrl)}" alt="" referrerpolicy="no-referrer" loading="lazy"></div>`
+            ? `<img src="${esc(place.photoUrl)}" alt="" referrerpolicy="no-referrer" loading="lazy"
+                style="display:block; width:100%; height:110px; object-fit:cover; border-radius:10px; margin-bottom:8px; background:rgba(0,0,0,0.05);">`
             : '';
         const ratingHtml = (typeof place.rating === 'number')
-            ? `<span class="gg-iw__rating">★ ${place.rating.toFixed(1)}${typeof place.userRatingsTotal === 'number' ? ` <span class="gg-iw__rating-count">(${place.userRatingsTotal.toLocaleString()})</span>` : ''}</span>`
+            ? `<div style="margin-top:6px; font-size:0.78rem; color:#444;"><span style="color:#a85d00;">★</span> ${place.rating.toFixed(1)}${typeof place.userRatingsTotal === 'number' ? ` <span style="color:#888;">(${place.userRatingsTotal.toLocaleString()})</span>` : ''}</div>`
             : '';
         const addressHtml = place.address
-            ? `<div class="gg-iw__address">${esc(place.address)}</div>`
+            ? `<div style="font-size:0.74rem; color:#666; margin-top:4px; line-height:1.4;">${esc(place.address)}</div>`
             : '';
         const whyHtml = place.why
-            ? `<div class="gg-iw__why">${esc(place.why)}</div>`
+            ? `<div style="font-size:0.78rem; color:#002d5b; margin-top:8px; line-height:1.4; font-weight:500;">${esc(place.why)}</div>`
             : '';
         const factHtml = place.fact
-            ? `<div class="gg-iw__fact">✨ ${esc(place.fact)}</div>`
+            ? `<div style="font-size:0.72rem; color:#666; margin-top:4px; line-height:1.4; font-style:italic;">✨ ${esc(place.fact)}</div>`
             : '';
-        // "On Day N" footer chip — only when the place is day-pinned
-        // AND the user is on Anchor view (so they can see the
-        // assignment without already knowing). Hidden on a per-day
-        // view since they already know which day they're on.
+        // "Day N" chip when the place is day-pinned and the user is
+        // on Anchor view — so they can see the assignment at a
+        // glance. Hidden on a per-day view since the user already
+        // knows which day they're on.
         const assignedDay = place.dayId ? days.find(d => d.id === place.dayId) : null;
         const dayChipHtml = (assignedDay && selectedIsAnchor && assignedDay.dayNumber > 0)
-            ? `<span class="gg-iw__day-chip">Day ${assignedDay.dayNumber}${assignedDay.name ? ` · ${esc(assignedDay.name)}` : ''}</span>`
+            ? `<div style="margin-top:8px;"><span style="display:inline-block; padding:3px 10px; border-radius:999px; background:rgba(0,113,227,0.12); color:#005bb8; font-size:0.66rem; font-weight:800; letter-spacing:0.06em; text-transform:uppercase;">Day ${assignedDay.dayNumber}${assignedDay.name ? ` · ${esc(assignedDay.name)}` : ''}</span></div>`
             : '';
         const href = place.mapsUrl
             || (place.placeId ? `https://www.google.com/maps/place/?q=place_id:${encodeURIComponent(place.placeId)}` : '');
         const linkHtml = href
-            ? `<a class="gg-iw__cta" href="${esc(href)}" target="_blank" rel="noopener noreferrer">View on Google Maps →</a>`
+            ? `<a href="${esc(href)}" target="_blank" rel="noopener noreferrer"
+                style="display:inline-block; margin-top:10px; padding:6px 12px; background:#9b59b6; color:white; text-decoration:none; border-radius:8px; font-size:0.75rem; font-weight:700;">View on Google Maps →</a>`
             : '';
+        // Layout matches the POI InfoWindow (buildInfoWindowHtml in
+        // home.ts) — same min-width / max-width / padding / font /
+        // header-row pattern. The only added element is the small
+        // "On your to-do list" pill chip beside the name.
         const html = `
-            <div class="gg-iw gg-iw--todo">
-                <div class="gg-iw__header">
-                    <span class="gg-iw__header-icon">📋</span>
-                    <span class="gg-iw__header-text">On your to-do list</span>
+            <div style="font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif; min-width:240px; max-width:280px; padding:4px 2px;">
+                <div style="display:flex; align-items:center; gap:6px; margin-bottom:6px; flex-wrap:wrap;">
+                    <span style="font-size:1.05rem;">📋</span>
+                    <strong style="font-size:0.94rem; color:#002d5b; line-height:1.25; flex:1; min-width:0;">${esc(displayName)}</strong>
+                    <span style="display:inline-flex; align-items:center; padding:2px 7px; border-radius:999px; background:rgba(155,89,182,0.14); color:#7c3a9e; font-size:0.6rem; font-weight:800; letter-spacing:0.06em; text-transform:uppercase; flex-shrink:0;">On to-do</span>
                 </div>
-                <div class="gg-iw__body">
-                    ${photoHtml}
-                    <div class="gg-iw__name">${esc(displayName)}</div>
-                    ${ratingHtml}
-                    ${addressHtml}
-                    ${whyHtml}
-                    ${factHtml}
-                    ${dayChipHtml}
-                    ${linkHtml}
-                </div>
+                ${photoHtml}
+                ${addressHtml}
+                ${ratingHtml}
+                ${whyHtml}
+                ${factHtml}
+                ${dayChipHtml}
+                ${linkHtml}
             </div>
         `;
         iw.setContent(html);

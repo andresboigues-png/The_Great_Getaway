@@ -83,14 +83,26 @@ export function setMarkedPlaceAssignment(
  *  is "I added this place to consider; yes the AI should consider it"; the
  *  user unticks in the AI panel for places they want to slot manually only.
  *
+ *  When `currentDayId` is provided, the new entry is also stamped with
+ *  that dayId so it shows up in that day's plan panes immediately. The
+ *  caller (home InfoWindow) passes the wheel-selected day so a "+ Add
+ *  to to-do" click while looking at Day 3 lands the place on Day 3's
+ *  plan with no further user action needed.
+ *
  *  Remove semantics: if the place IS tracked, drop it entirely — there's no
  *  "in to-do but invisible" state in the merged model.
  *
  *  @param {any} trip
  *  @param {any} place — Google Places result (uses place.place_id, name, etc.)
  *  @param {{icon?:string, color?:string}=} cat — POI_CATEGORIES entry for visuals
+ *  @param {string|null} [currentDayId] — wheel-selected day to auto-pin to.
  */
-export function toggleTodoListMembership(trip: any, place: any, cat?: { icon?: string; color?: string }): void {
+export function toggleTodoListMembership(
+    trip: any,
+    place: any,
+    cat?: { icon?: string; color?: string },
+    currentDayId?: string | null,
+): void {
     if (!trip || !place?.place_id) return;
     if (!Array.isArray(trip.markedPlaces)) trip.markedPlaces = [];
     const existing = trip.markedPlaces.find((p: any) => p.placeId === place.place_id);
@@ -110,7 +122,13 @@ export function toggleTodoListMembership(trip: any, place: any, cat?: { icon?: s
         color: cat?.color || '#9b59b6',
         forAI: true,        // pre-ticked for AI by default — see helper docs
         forManual: true,    // present in the To-do list
-        dayId: null,
+        // Auto-pin to the wheel-selected day so manual adds show up
+        // in that day's plan panes immediately. Falls back to
+        // unassigned (null) when no day is selected (e.g. user adds
+        // from the Anchor view), in which case the place stays
+        // visible in the to-do list but doesn't slot into a day
+        // until the user assigns one via the AI page.
+        dayId: currentDayId || null,
         timeOfDay: null,
         // Phase G slice 2: when the InfoWindow's place came from a
         // Places search (it always does — POI pills + free-form

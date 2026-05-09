@@ -5260,6 +5260,186 @@ body.is-signed-out .trip-controls-popover {
     font-weight: 700;
     color: #c47c00;
 }
+/* Phase G v3 — "Anytime" chip on items pinned to a day without
+   a specific time-of-day (the manual-add flow). Distinguishes them
+   from AI-slotted morning/PM/evening items so the user knows the
+   AI page can promote them to a specific slot. */
+.day-plan-place__anytime {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: rgba(0, 113, 227, 0.1);
+    color: var(--accent-blue);
+    border: 1px solid rgba(0, 113, 227, 0.28);
+    font-size: 0.6rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    cursor: help;
+}
+
+/* Phase G v3 — Day-detail modal chrome. Class-based replacement of
+   the previous inline `width: 800px; padding: var(--space-12); …`
+   so the mobile media query below can override cleanly without
+   inline-style specificity wars. Desktop dimensions match the
+   prior inline values 1:1. */
+.day-detail-modal {
+    width: 800px;
+    max-height: 90vh;
+    overflow-y: auto;
+    padding: var(--space-12);
+    border-radius: 48px;
+    background: white;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+}
+.day-detail-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: var(--space-10);
+    gap: var(--space-3);
+}
+.day-detail-header__inner {
+    flex: 1;
+    min-width: 0;
+}
+.day-detail-header__chip-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin-bottom: var(--space-2);
+    flex-wrap: wrap;
+}
+.day-detail-header__subtitle {
+    color: var(--text-secondary);
+    font-weight: 600;
+    font-size: var(--font-base);
+}
+.day-detail-header__title {
+    font-size: 2.5rem;
+    color: #002d5b;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    margin: 0;
+    line-height: 1.1;
+    overflow-wrap: anywhere;
+}
+.day-detail-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+}
+.day-detail-body--numbered {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-10);
+}
+.day-detail-body__left,
+.day-detail-body__right {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+    /* min-width:0 prevents the textarea/cards from forcing a wider
+       grid track on long content. Same idea as the .nav-links flex
+       child fix elsewhere. */
+    min-width: 0;
+}
+
+/* Mobile: convert the day-detail modal to a bottom-sheet. The
+   existing `.card-glass-modal` mobile rule doesn't catch this modal
+   because we use cardClass `card glass day-detail-modal` (not
+   .card-glass-modal). Replicate the sheet behaviour here so the
+   day-detail experience matches the rest of the modal surfaces. */
+@media (max-width: 720px) {
+    /* Anchor any modal-overlay containing a .day-detail-modal to
+       the bottom of the viewport. Same technique as the
+       .card-glass-modal sheet. */
+    .modal-overlay:has(.day-detail-modal) {
+        align-items: flex-end !important;
+        padding: 0 !important;
+    }
+    .day-detail-modal {
+        /* Full-width sheet, scroll inside, rounded top + flush
+           bottom flush against the viewport edge with safe-area
+           padding for iPhones with home indicators. */
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: var(--space-6) var(--space-5) calc(var(--space-6) + env(safe-area-inset-bottom));
+        border-radius: 24px 24px 0 0;
+        max-height: calc(100dvh - 56px);
+        max-height: calc(100vh - 56px);
+        animation: sheetSlideUp 0.32s var(--easing-smooth);
+    }
+    /* Drag-handle pill at the top — visual cue that this is a
+       dismissible sheet (matches the .card-glass-modal pattern). */
+    .day-detail-modal::before {
+        content: '';
+        display: block;
+        width: 40px;
+        height: 4px;
+        margin: -2px auto 14px;
+        background: rgba(0, 45, 91, 0.16);
+        border-radius: 2px;
+    }
+    /* Header — smaller title so it fits a 375px viewport without
+       wrapping awkwardly. Close button drops to its own anchor in
+       the corner. */
+    .day-detail-header {
+        margin-bottom: var(--space-6);
+    }
+    .day-detail-header__title {
+        font-size: 1.65rem;
+        letter-spacing: -0.03em;
+    }
+    .day-detail-header__chip-row {
+        gap: var(--space-2);
+    }
+    /* Stack the two-column body on mobile — left (plan tabs) and
+       right (notes + checklist) pile vertically with a smaller gap
+       so the tall textarea doesn't push the right block off-screen. */
+    .day-detail-body--numbered {
+        grid-template-columns: 1fr;
+        gap: var(--space-5);
+    }
+    /* Tighter slot tabs + plan place cards — the touch targets stay
+       usable but the vertical footprint shrinks so more fits in one
+       sheet view. */
+    .day-plan-tab {
+        padding: 8px 6px;
+        font-size: 0.78rem;
+        gap: 4px;
+    }
+    .day-plan-tab__icon {
+        font-size: 0.92rem;
+    }
+    .day-plan-tab__label {
+        font-size: 0.74rem;
+    }
+    .day-plan-pane textarea.plan-input {
+        min-height: 140px;
+    }
+    /* Smaller photo + tighter card padding so the rich place cards
+       fit in a portrait-phone column without horizontal overflow. */
+    .day-plan-place {
+        padding: 8px;
+        gap: 8px;
+    }
+    .day-plan-place__photo {
+        width: 48px;
+        height: 48px;
+    }
+    .day-plan-place__name {
+        font-size: 0.86rem;
+    }
+    .day-plan-place__why {
+        font-size: 0.74rem;
+    }
+    .day-plan-place__fact {
+        font-size: 0.68rem;
+    }
+}
 .day-plan-place__why {
     font-size: 0.78rem;
     color: var(--text-primary);
@@ -5565,6 +5745,58 @@ body.is-signed-out .trip-controls-popover {
     border-color: rgba(0, 113, 227, 0.22);
     background: linear-gradient(180deg, rgba(0, 113, 227, 0.03), white);
     box-shadow: 0 8px 22px rgba(0, 113, 227, 0.1);
+}
+
+/* Phase G v3 — collapse chevron on each day card header. Tinted
+   accent-blue on hover. Rotates 180° when the parent column has
+   `.is-collapsed` so the icon visually matches the state. */
+.path-card-collapse-btn {
+    flex-shrink: 0;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: rgba(0, 113, 227, 0.06);
+    color: var(--accent-blue);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.18s ease, transform 0.3s var(--easing-spring);
+}
+.path-card-collapse-btn:hover,
+.path-card-collapse-btn:focus-visible {
+    background: rgba(0, 113, 227, 0.14);
+}
+.path-card-collapse-btn:focus-visible {
+    outline: 2px solid var(--accent-blue);
+    outline-offset: 2px;
+}
+.path-column.is-collapsed .path-card-collapse-btn {
+    transform: rotate(-180deg);
+}
+
+/* Smooth slide-up of the options stack on collapse. Animating
+   max-height instead of height so the stack content's intrinsic
+   height drives the expanded size — no magic-number tracking when
+   the button list changes between Anchor / numbered / pin-edit. */
+.path-options-stack {
+    overflow: hidden;
+    /* Generous max-height when expanded (covers any practical button
+       list). The transition collapses to 0 fast enough to feel
+       responsive but slow enough to register as a single motion. */
+    max-height: 600px;
+    opacity: 1;
+    transition: max-height 0.32s var(--easing-spring),
+                opacity 0.2s var(--easing-smooth),
+                margin-top 0.32s var(--easing-spring);
+}
+.path-column.is-collapsed .path-options-stack {
+    max-height: 0;
+    opacity: 0;
+    margin-top: 0;
+    pointer-events: none;
 }
 
 /* Per-card vertical options stack — buttons stretch the column width

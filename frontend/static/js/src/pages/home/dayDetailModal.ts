@@ -248,11 +248,16 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
     };
     /** Phase G v3 — for each pane, render a "places for this slot"
      *  strip ABOVE the textarea. Pulls from `trip.markedPlaces`
-     *  filtered by `dayId === day.id && timeOfDay === slot`. The
-     *  textarea below remains the user's free-form notes; the place
-     *  cards are read-only previews of what the AI plan / Add-to-todo
-     *  flow stamped on this slot. Cards link out to Google Maps so
-     *  the user can verify hours / get directions / etc. */
+     *  filtered by `dayId === day.id`:
+     *    - Items WITH a matching timeOfDay → that slot's pane only
+     *      (AI plan items have these; the AI assigns morning/PM/eve).
+     *    - Items WITHOUT a timeOfDay (manual adds via the home
+     *      InfoWindow) → render in EVERY slot pane so the user sees
+     *      them no matter which time-of-day tab they're on. The user
+     *      hasn't committed them to a slot yet; surfacing in all
+     *      three keeps them top-of-mind without requiring them to
+     *      click through to the AI page to assign.
+     *  The textarea below remains the user's free-form notes. */
     const _renderPlacesForSlot = (slot: string): string => {
         if (!trip) return '';
         const places = (trip.markedPlaces || []).filter(
@@ -260,7 +265,7 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
                 p
                 && p.forManual
                 && p.dayId === day.id
-                && p.timeOfDay === slot,
+                && (p.timeOfDay === slot || !p.timeOfDay),
         );
         if (places.length === 0) return '';
         const cardsHtml = places.map((p: any) => {
@@ -269,6 +274,13 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
                 : `<div class="day-plan-place__photo day-plan-place__photo--empty" aria-hidden="true">${esc(p.icon || '📍')}</div>`;
             const ratingHtml = (typeof p.rating === 'number')
                 ? `<span class="day-plan-place__rating">★ ${p.rating.toFixed(1)}</span>`
+                : '';
+            // "Anytime" chip for items without a specific timeOfDay
+            // (manual adds). Distinguishes them from AI-slotted items
+            // so the user knows they're not strictly morning/PM/eve;
+            // the AI page can promote them to a specific slot later.
+            const anytimeHtml = !p.timeOfDay
+                ? `<span class="day-plan-place__anytime" title="Pinned to this day, no specific time-of-day yet">Anytime</span>`
                 : '';
             const whyHtml = p.why
                 ? `<div class="day-plan-place__why">${esc(p.why)}</div>`
@@ -290,6 +302,7 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
                     <div class="day-plan-place__body">
                         <div class="day-plan-place__head">
                             <span class="day-plan-place__name">${esc(p.verifiedName || p.name || 'Place')}</span>
+                            ${anytimeHtml}
                             ${ratingHtml}
                         </div>
                         ${whyHtml}
@@ -403,16 +416,16 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
     //  - Both: shared footer below with Done + autosave status.
     const bodyHtml = isAnchor
         ? `
-            <div style="display: flex; flex-direction: column; gap: var(--space-6);">
+            <div class="day-detail-body day-detail-body--anchor">
                 ${anchorBodyHtml}
             </div>
         `
         : `
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-10);">
-                <div style="display: flex; flex-direction: column; gap: var(--space-6);">
+            <div class="day-detail-body day-detail-body--numbered">
+                <div class="day-detail-body__left">
                     ${numberedDayLeftHtml}
                 </div>
-                <div style="display: flex; flex-direction: column; gap: var(--space-6);">
+                <div class="day-detail-body__right">
                     ${numberedDayRightHtml}
                 </div>
             </div>
@@ -420,16 +433,21 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
         `;
 
     const { root, close } = showModal({
-        cardClass: 'card glass',
-        cardStyle: 'width: 800px; max-height: 90vh; overflow-y: auto; padding: var(--space-12); border-radius: 48px; background: white; border: 1px solid rgba(0,0,0,0.1);',
+        // Phase G v3 — class moved from inline width:800px to a
+        // dedicated `.day-detail-modal` class so mobile (≤720px) can
+        // override to bottom-sheet without inline-style specificity
+        // wars. Desktop dimensions live alongside the mobile rules
+        // in index.css under `.day-detail-modal`.
+        cardClass: 'card glass day-detail-modal',
+        cardStyle: '',
         innerHTML: `
-            <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: var(--space-10);">
-                <div>
-                    <div style="display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-2);">
+            <div class="day-detail-header">
+                <div class="day-detail-header__inner">
+                    <div class="day-detail-header__chip-row">
                         ${headerChipHtml}
-                        <div style="color: var(--text-secondary); font-weight: 600; font-size: var(--font-base);">${headerSubtitle}</div>
+                        <div class="day-detail-header__subtitle">${headerSubtitle}</div>
                     </div>
-                    <h2 style="font-size: 2.5rem; color: #002d5b; font-weight: 800; letter-spacing: -0.04em; margin: 0;">${headerTitle}</h2>
+                    <h2 class="day-detail-header__title">${headerTitle}</h2>
                 </div>
                 <button id="closeDetailBtn" class="close-x-btn" aria-label="Close">✕</button>
             </div>
