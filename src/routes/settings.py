@@ -77,6 +77,17 @@ def update_profile():
                 "error": "picture URL must be from /api/upload or empty",
             }), 400
 
+    # i18n session 3 — language follows the user across devices.
+    # Allowlist matches the Locale union in i18n.ts; anything else
+    # gets rejected so we never end up with junk in the DB that the
+    # frontend's KNOWN_LOCALES gate would then silently fall back from.
+    if "language" in payload:
+        lang = payload.get("language")
+        if lang is not None and lang not in ("en", "pt", "es", "fr"):
+            return jsonify({
+                "error": "language must be one of en, pt, es, fr (or null)",
+            }), 400
+
     fields = []
     values = []
     for key, column in (
@@ -84,6 +95,7 @@ def update_profile():
         ("status", "status"),
         ("homeCurrency", "home_currency"),
         ("picture", "picture"),
+        ("language", "language"),
     ):
         if key in payload:
             fields.append(f"{column} = ?")

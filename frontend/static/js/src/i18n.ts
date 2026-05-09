@@ -49,6 +49,7 @@
 import { STATE, emit } from './state.js';
 import { EVENTS } from './constants.js';
 import { en, type Translations } from './locales/en.js';
+import { apiFetch } from './api.js';
 
 export type Locale = 'en' | 'pt' | 'es' | 'fr';
 
@@ -141,6 +142,15 @@ export function getLocale(): Locale {
  *  the new strings synchronously. The active page should subscribe
  *  to EVENTS.STATE_CHANGED to re-render with the new strings.
  *
+ *  i18n session 3: also persists the choice to the server so the
+ *  locale follows the user across devices. The /api/profile/update
+ *  POST is fire-and-forget — the local STATE flip is the source of
+ *  truth for the current session, and a network error just leaves
+ *  the server-side copy stale until the next setLocale or page
+ *  reload (where /api/user-status would re-pull the saved value).
+ *  We log on failure so QA spots a broken endpoint, but don't block
+ *  the UI on it.
+ *
  *  If the chunk fails to load (network error), STATE is left
  *  unchanged and the rejection bubbles — the picker should re-show
  *  the previous selection and surface a toast. */
@@ -148,7 +158,35 @@ export async function setLocale(locale: Locale): Promise<void> {
     if (!STATE.preferences) return;
     await loadLocale(locale);
     STATE.preferences.locale = locale;
+    if (STATE.user) {
+        STATE.user.language = locale;
+    }
     emit(EVENTS.STATE_CHANGED);
+    // Persist to server. Static import of apiFetch keeps the chunk
+    // graph stable — an earlier draft of this used dynamic
+    // import('./api.js') to avoid a hard dep, but Vite's chunker
+    // then split api.ts into a shared chunk that loaded after
+    // router.ts read PAGES (constants), crashing init with
+    // "Cannot read 'HOME' of undefined". Static import puts api.ts
+    // back in the canonical eager-import position. Anonymous users
+    // skip — they have no row to write to. Failure is fire-and-
+    // forget: STATE flip already happened, so a flaky network just
+    // leaves the server-side copy stale until the next setLocale
+    // or page reload (where /api/user-status re-pulls).
+    if (STATE.user) {
+        try {
+            const res = await apiFetch('/api/profile/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ language: locale }),
+            });
+            if (!res.ok) {
+                console.warn(`setLocale: server persist failed (HTTP ${res.status})`);
+            }
+        } catch (err) {
+            console.warn('setLocale: server persist failed', err);
+        }
+    }
 }
 
 // ── Type-safe key lookup ────────────────────────────────────────────
@@ -211,6 +249,68 @@ export function t(
     // silently rendering blanks.
     return cur.replace(/\{(\w+)\}/g, (_, name) =>
         name in params ? String(params[name]) : `{${name}}`,
+    );
+}
+
+// ── Plural rules ────────────────────────────────────────────────────
+// English has just two plural forms (one / other), but other locales
+// don't. Russian has three, Polish four, Arabic six. Even though our
+// shipped locales (en/pt/es/fr) all use the same one/other split,
+// going through Intl.PluralRules now means future locales drop in
+// without rewriting call sites.
+//
+// CONVENTION: a "plural key" is a parent object whose children are
+// CLDR plural-category names — usually 'one' and 'other'. Example:
+//
+//   profile: {
+//     publicTripsCount: {
+//       one:   '{count} public trip',
+//       other: '{count} public trips',
+//     },
+//   },
+//
+// Then call `tn('profile.publicTripsCount', count)` and it picks the
+// right form for the active locale's count rule. {count} interpolates
+// automatically; pass extra params via the third arg.
+//
+// We don't preload an Intl.PluralRules instance — the constructor is
+// cheap and constructing per-call keeps things stateless. If this ever
+// shows up in a perf trace, cache by getIntlLocale().
+
+/** Look up a plural-form translation. The key MUST point at a parent
+ *  object whose children are CLDR plural categories ('one', 'other',
+ *  etc.). Falls back to 'other' if the resolved category isn't present
+ *  for that key. {count} is auto-interpolated; extra params via the
+ *  third arg are interpolated alongside.
+ *
+ *  Note: TranslationKey points at string leaves; this helper takes
+ *  `string` with a comment-only contract so the caller passes the
+ *  parent object's path. A future enhancement could derive a
+ *  PluralKey type from the en.ts shape.
+ */
+export function tn(
+    key: string,
+    count: number,
+    params?: Record<string, string | number>,
+): string {
+    const active = getLocale();
+    const table = LOCALE_TABLES[active] ?? en;
+    const parts = key.split('.');
+    let cur: unknown = table;
+    for (const part of parts) {
+        if (cur && typeof cur === 'object' && part in (cur as Record<string, unknown>)) {
+            cur = (cur as Record<string, unknown>)[part];
+        } else {
+            return '';
+        }
+    }
+    if (!cur || typeof cur !== 'object') return '';
+    const forms = cur as Record<string, string>;
+    const category = new Intl.PluralRules(getIntlLocale()).select(count);
+    const template = forms[category] ?? forms.other ?? '';
+    const merged = { count, ...(params || {}) };
+    return template.replace(/\{(\w+)\}/g, (_, name) =>
+        name in merged ? String(merged[name as keyof typeof merged]) : `{${name}}`,
     );
 }
 

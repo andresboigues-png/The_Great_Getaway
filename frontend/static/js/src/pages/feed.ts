@@ -23,6 +23,7 @@ import { apiFetch, toggleFeedLike, toggleFeedBookmark, repostFeedPost,
          unshareFeedPost } from '../api.js';
 import { esc, q, showLiquidAlert, showConfirmModal, buildEmptyCardHtml } from '../utils.js';
 import { navigate } from '../router.js';
+import { t } from '../i18n.js';
 import { viewArchivedDetails } from './collections.js';
 import {
     LIKE_COUNT_THRESHOLD,
@@ -98,14 +99,14 @@ function renderThread(threadEl: HTMLElement, eventId: string, comments: any[]) {
     const meId = STATE.user?.id;
     const listHtml = comments.length > 0
         ? comments.map((c: any) => commentRowHtml(c, c.author?.id === meId)).join('')
-        : '<div style="font-size:0.82rem; color:var(--text-secondary); padding:6px 0;">No comments yet — be the first.</div>';
+        : `<div style="font-size:0.82rem; color:var(--text-secondary); padding:6px 0;">${t('feed.commentsEmpty')}</div>`;
     threadEl.innerHTML = `
         <div class="feed-comment-list">${listHtml}</div>
         <form class="feed-comment-form" data-event-id="${esc(eventId)}" style="display:flex; gap:8px; margin-top:10px;">
             <input type="text" name="body" placeholder="Add a comment…" maxlength="500" autocomplete="off"
                 style="flex:1; min-width:0; padding:8px 12px; border:1px solid rgba(0,45,91,0.12); border-radius:999px; font-size:0.85rem; background:rgba(0,113,227,0.04); color:#002d5b; font-family: inherit;">
             <button type="submit" class="feed-comment-submit" title="Post comment" aria-label="Post comment"
-                style="background:var(--accent-blue); color:white; border:0; padding:8px 16px; border-radius:999px; font-size:0.82rem; font-weight:800; cursor:pointer;">Post</button>
+                style="background:var(--accent-blue); color:white; border:0; padding:8px 16px; border-radius:999px; font-size:0.82rem; font-weight:800; cursor:pointer;">${t('feed.commentSubmit')}</button>
         </form>
     `;
 }
@@ -127,8 +128,8 @@ export function renderFeed() {
     div.innerHTML = `
         <div style="max-width: 760px; margin: 0 auto;">
             <div style="padding:32px 0 24px; text-align:center;">
-                <h1 style="margin:0 0 6px;font-size:2.8rem;font-weight:800;letter-spacing:-0.04em;background:var(--gradient-title);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Feed</h1>
-                <p style="margin:0;color:var(--text-secondary);font-size:1rem;">What your friends are up to lately</p>
+                <h1 style="margin:0 0 6px;font-size:2.8rem;font-weight:800;letter-spacing:-0.04em;background:var(--gradient-title);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">${t('feed.title')}</h1>
+                <p style="margin:0;color:var(--text-secondary);font-size:1rem;">${t('feed.subtitle')}</p>
             </div>
 
             <!-- Phase G v3 — class-based layout (was a position:absolute
@@ -145,13 +146,13 @@ export function renderFeed() {
                      to scan at a glance. --accent is consumed by the
                      home-tabnav--centered CSS rules. -->
                 <nav class="home-tabnav home-tabnav--centered" role="tablist" aria-label="Feed sections">
-                    <button class="home-tabnav__tab${activeFeedTab === 'posts' ? ' is-active' : ''}" data-feed-tab="posts" role="tab" type="button" style="--accent: 88, 86, 214;">Posts</button>
-                    <button class="home-tabnav__tab${activeFeedTab === 'actions' ? ' is-active' : ''}" data-feed-tab="actions" role="tab" type="button" style="--accent: 255, 149, 0;">Actions</button>
+                    <button class="home-tabnav__tab${activeFeedTab === 'posts' ? ' is-active' : ''}" data-feed-tab="posts" role="tab" type="button" style="--accent: 88, 86, 214;">${t('feed.tabPosts')}</button>
+                    <button class="home-tabnav__tab${activeFeedTab === 'actions' ? ' is-active' : ''}" data-feed-tab="actions" role="tab" type="button" style="--accent: 255, 149, 0;">${t('feed.tabActions')}</button>
                 </nav>
                 <label class="apple-toggle feed-tabs-row__bookmark" id="feedBookmarkToggle" title="Filter to bookmarked items only">
                     <input type="checkbox" class="apple-toggle__input" ${bookmarkedOnly ? 'checked' : ''}>
                     <span class="apple-toggle__track"><span class="apple-toggle__thumb"></span></span>
-                    <span class="apple-toggle__label">🔖 Bookmarked</span>
+                    <span class="apple-toggle__label">${t('feed.bookmarkToggleLabel')}</span>
                 </label>
             </div>
 
@@ -183,7 +184,7 @@ export function renderFeed() {
             listEl.innerHTML = `
                 <div class="card glass" style="padding: 32px; border-radius: 24px; text-align:center;">
                     <div class="spinner-ring" style="width:32px; height:32px; border:3px solid rgba(155,89,182,0.18); border-top-color:#7c3a9e; border-radius:50%; animation:spin 1s linear infinite; margin: 0 auto 14px;"></div>
-                    <div style="color: var(--text-secondary); font-size: 0.88rem; font-weight: 600;">Loading the feed…</div>
+                    <div style="color: var(--text-secondary); font-size: 0.88rem; font-weight: 600;">${t('feed.loading')}</div>
                 </div>
             `;
             return;
@@ -205,9 +206,9 @@ export function renderFeed() {
             // message regardless of what they're actually looking at.
             let title, body, ctaLabel, ctaAction;
             if (bookmarkedOnly) {
-                title = activeFeedTab === 'posts' ? 'No bookmarked posts yet' : 'No bookmarked actions yet';
-                body = `Tap 🔖 on any card to save it for later — bookmarks are private and never expire.`;
-                ctaLabel = 'Show all';
+                title = activeFeedTab === 'posts' ? t('feed.emptyBookmarkedPostsTitle') : t('feed.emptyBookmarkedActionsTitle');
+                body = t('feed.emptyBookmarkedBody');
+                ctaLabel = t('feed.emptyBookmarkedCta');
                 ctaAction = () => {
                     bookmarkedOnly = false;
                     const toggleInput = (div.querySelector('#feedBookmarkToggle .apple-toggle__input') as HTMLInputElement | null);
@@ -215,18 +216,18 @@ export function renderFeed() {
                     paintList();
                 };
             } else if (activeFeedTab === 'posts') {
-                title = 'No posts yet';
-                body = `Posts are trips your friends shared (or reposted) for the world to see. Share one of your own from the trip header to kick things off — or check the <strong>Actions</strong> tab for what's been happening behind the scenes.`;
-                ctaLabel = 'See Actions';
+                title = t('feed.emptyPostsTitle');
+                body = t('feed.emptyPostsBody');
+                ctaLabel = t('feed.emptyPostsCta');
                 ctaAction = () => {
                     activeFeedTab = 'actions';
                     paintList();
                     div.querySelectorAll('.home-tabnav__tab').forEach(b => b.classList.toggle('is-active', (b as HTMLElement).dataset.feedTab === 'actions'));
                 };
             } else {
-                title = 'Quiet over here';
-                body = `When your friends create trips, complete adventures or join in on plans, you'll see it here. Add more friends in <strong>Your network</strong> to grow the feed.`;
-                ctaLabel = 'Go to Your network';
+                title = t('feed.emptyActionsTitle');
+                body = t('feed.emptyActionsBody');
+                ctaLabel = t('feed.emptyActionsCta');
                 ctaAction = () => navigate('friends');
             }
             // Round 3 audit fix: was inline ad-hoc empty card; now uses
@@ -287,7 +288,7 @@ export function renderFeed() {
                                 ${time ? `<div style="font-size: 0.72rem; color: var(--text-secondary); margin-top: 4px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;">${esc(time)}</div>` : ''}
                             </div>
                             <button type="button" class="feed-bundle-toggle" data-bundle-id="${esc(bundle.id)}"
-                                style="background:transparent; border:0; color:#005bb8; cursor:pointer; padding:4px 10px; font-size:0.78rem; font-weight:800; flex-shrink:0;">${isExpanded ? 'Collapse' : 'View all'}</button>
+                                style="background:transparent; border:0; color:#005bb8; cursor:pointer; padding:4px 10px; font-size:0.78rem; font-weight:800; flex-shrink:0;">${isExpanded ? t('feed.bundleCollapse') : t('feed.bundleViewAll')}</button>
                         </div>
                         <div class="feed-bundle-members" style="margin-top: ${isExpanded ? '8px' : '0'}; padding-top: ${isExpanded ? '4px' : '0'}; display: ${isExpanded ? 'block' : 'none'};">
                             ${memberRowsHtml}
@@ -322,7 +323,7 @@ export function renderFeed() {
                         style="margin-top:10px; width:100%; text-align:left; background:white; border:1px solid rgba(88,86,214,0.22); border-left:4px solid #5856d6; border-radius:14px; padding:12px 14px; cursor:pointer; display:flex; align-items:center; gap:12px; box-shadow:0 2px 8px rgba(0,45,91,0.04); transition: transform 0.15s ease, box-shadow 0.15s ease;">
                         <span style="font-size:1.6rem; line-height:1; flex-shrink:0;">🗺️</span>
                         <div style="flex:1; min-width:0;">
-                            <div style="font-weight:800; color:#002d5b; font-size:0.98rem; line-height:1.25; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(ev.trip.name || 'Trip')}</div>
+                            <div style="font-weight:800; color:#002d5b; font-size:0.98rem; line-height:1.25; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(ev.trip.name || t('feed.tripFallback'))}</div>
                             ${country ? `<div style="font-size:0.78rem; color:var(--text-secondary); font-weight:600; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">📍 ${country}</div>` : ''}
                         </div>
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="color:#5856d6; flex-shrink:0;"><polyline points="9 18 15 12 9 6"></polyline></svg>
@@ -537,7 +538,7 @@ export function renderFeed() {
             if (cachedThreads[eventId]) {
                 renderThread(threadEl, eventId, cachedThreads[eventId]);
             } else {
-                threadEl.innerHTML = '<div style="font-size:0.82rem; color:var(--text-secondary); padding:6px 0;">Loading…</div>';
+                threadEl.innerHTML = `<div style="font-size:0.82rem; color:var(--text-secondary); padding:6px 0;">${t('feed.commentsLoading')}</div>`;
                 const comments = await fetchFeedComments(eventId);
                 cachedThreads[eventId] = comments || [];
                 renderThread(threadEl, eventId, cachedThreads[eventId]);
@@ -586,13 +587,13 @@ export function renderFeed() {
         if (unshareBtn?.dataset.postId) {
             const postId = Number(unshareBtn.dataset.postId);
             showConfirmModal({
-                title: 'Unshare this trip?',
-                message: `It'll disappear from your friends' feeds. Any reposts of it will be removed too. This can't be undone.`,
-                confirmText: 'Unshare',
+                title: t('feed.toastUnshareConfirmTitle'),
+                message: t('feed.toastUnshareConfirmMessage'),
+                confirmText: t('feed.toastUnshareConfirmBtn'),
                 onConfirm: async () => {
                     const result = await unshareFeedPost(postId);
                     if (!result || !result.ok) {
-                        showLiquidAlert("Couldn't unshare — try again in a moment.");
+                        showLiquidAlert(t('feed.toastUnshareFailed'));
                         return;
                     }
                     // Refresh from the server. The unshare cascades to
@@ -602,7 +603,7 @@ export function renderFeed() {
                     // accurately in memory. Refresh re-fetches the
                     // authoritative list.
                     await refresh();
-                    showLiquidAlert('Removed from your feed.');
+                    showLiquidAlert(t('feed.toastRemovedFromFeed'));
                 },
             });
             return;
@@ -620,7 +621,7 @@ export function renderFeed() {
             const result = await repostFeedPost(postId);
             if (result.ok && result.body?.status !== 'same_user') {
                 const wasAlready = result.body?.status === 'already_reposted';
-                showLiquidAlert(wasAlready ? 'Already reposted' : 'Reposted to your feed');
+                showLiquidAlert(wasAlready ? t('feed.toastAlreadyReposted') : t('feed.toastReposted'));
                 // Settle into the "reposted" state: green tint + a
                 // checkmark glyph in place of the cycle icon. Stays
                 // disabled — reposting twice is a no-op server-side
@@ -634,11 +635,11 @@ export function renderFeed() {
             } else if (result.body?.status === 'same_user') {
                 repostBtn.disabled = false;
                 repostBtn.style.setProperty('--accent', origAccent);
-                showLiquidAlert("That's your own share — no need to repost it.");
+                showLiquidAlert(t('feed.toastRepostOwnShare'));
             } else {
                 repostBtn.disabled = false;
                 repostBtn.style.setProperty('--accent', origAccent);
-                showLiquidAlert('Repost failed — try again in a moment.');
+                showLiquidAlert(t('feed.toastRepostFailed'));
             }
             return;
         }

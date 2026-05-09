@@ -442,6 +442,24 @@ async function init() {
         const data = await res.json();
         if (data.logged_in) {
             STATE.user = data.user;
+            // i18n session 3 — hydrate STATE.preferences.locale from
+            // the server-persisted value so the user's choice survives
+            // a device switch. Server wins because it's the source of
+            // truth for cross-device consistency: if Device A picked 'fr'
+            // and Device B's localStorage still says 'en', the next boot
+            // on Device B should respect 'fr'. Only writes when the
+            // server actually has a value (legacy users return null and
+            // we keep the localStorage / browser-locale default in
+            // place). loadLocale-await is idempotent + cached, so the
+            // additional load if locale changed is cheap.
+            const serverLang = data.user?.language as ('en' | 'pt' | 'es' | 'fr' | null | undefined);
+            if (serverLang && STATE.preferences) {
+                if (STATE.preferences.locale !== serverLang) {
+                    STATE.preferences.locale = serverLang;
+                    try { await loadLocale(serverLang); }
+                    catch (err) { console.error('i18n: failed to load server locale:', err); }
+                }
+            }
             await syncWithServer();
             await pullFromServer();
             fetchNotifications();

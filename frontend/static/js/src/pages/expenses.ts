@@ -38,9 +38,9 @@ export const openEditExpenseModal = (id: string) => {
 
 export const deleteExpense = (id: string) => {
     showConfirmModal({
-        title: "Delete Expense?",
-        message: "This action cannot be undone.",
-        confirmText: "Delete",
+        title: t('expenses.deleteConfirmTitle'),
+        message: t('expenses.deleteConfirmMessage'),
+        confirmText: t('expenses.deleteConfirmBtn'),
         onConfirm: () => {
             STATE.expenses = STATE.expenses.filter(e => e.id !== id);
 
@@ -56,12 +56,12 @@ export function renderExpenses() {
     const div = document.createElement('div');
 
     if (!STATE.activeTripId) {
-        div.innerHTML = `<h1 style="display: inline-block; background: var(--gradient-title); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Expenses</h1><div class="card glass"><p>Please select a trip first.</p></div>`;
+        div.innerHTML = `<h1 style="display: inline-block; background: var(--gradient-title); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">${t('expenses.title')}</h1><div class="card glass"><p>${t('validation.selectTripFirst')}</p></div>`;
         return div;
     }
 
     div.innerHTML = `
-        <h1 style="display: inline-block; background: var(--gradient-title); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin-bottom: 12px;">Expenses</h1>
+        <h1 style="display: inline-block; background: var(--gradient-title); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin-bottom: 12px;">${t('expenses.title')}</h1>
         <nav class="expenses-tabnav" role="tablist">
             <button class="expenses-tabnav__tab" data-tab="manual" role="tab">Manual Upload</button>
             <button class="expenses-tabnav__tab" data-tab="batch" role="tab">Batch Upload</button>
@@ -215,7 +215,7 @@ function renderManualTab() {
                 <div class="form-row">
                     <label class="form-label-light" for="expCurrency">Currency</label>
                     <select id="expCurrency" class="glass-input-light" required>
-                        <option value="">Select Currency...</option>
+                        <option value="">${t('expenses.currencyPlaceholder')}</option>
                         ${Object.keys(CONVERSION_RATES).map(c => `<option value="${c}">${c}</option>`).join('')}
                     </select>
                 </div>
@@ -241,10 +241,10 @@ function renderManualTab() {
                 </div>
 
                 <div style="margin-bottom: 40px; background: rgba(0,0,0,0.03); padding: 32px; border-radius: 32px; border: 1px solid rgba(0,0,0,0.05); width: 100%; max-width: 440px; box-sizing: border-box;">
-                    <label style="display: block; margin-bottom: 16px; font-size: 0.9rem; font-weight: 800; color: #000000; letter-spacing: -0.02em;">Split Between</label>
+                    <label style="display: block; margin-bottom: 16px; font-size: 0.9rem; font-weight: 800; color: #000000; letter-spacing: -0.02em;">${t('expenses.splitBetween')}</label>
                     <div class="add-split-row" style="display: flex; gap: 14px; margin-bottom: 20px;">
                         <select id="addSplitSelect" class="glass-input" aria-label="Add a person to split the expense between" style="flex: 1; padding: 14px; border-radius: 16px; background: rgba(255,255,255,0.4); color: #000000; font-weight: 600; border: 1px solid rgba(0,0,0,0.05); box-sizing: border-box;" ${!hasTripCompanions ? 'disabled' : ''}>
-                            <option value="">${hasTripCompanions ? 'Add person to split...' : 'No trip companions yet'}</option>
+                            <option value="">${hasTripCompanions ? t('expenses.addPersonToSplit') : t('expenses.noCompanionsYet')}</option>
                             ${tripCompanionNames.map(p => `<option value="${p}">${p}</option>`).join('')}
                         </select>
                         <button type="button" id="addSplitBtn" class="btn btn-small" style="padding: 0 24px; height: 50px; border-radius: 16px; background: #0071e3; color: #ffffff; font-weight: 700;">+ Add</button>
@@ -365,7 +365,7 @@ function renderManualTab() {
         receiptInput.onchange = async () => {
             const file = receiptInput.files?.[0];
             if (!file) return;
-            receiptStatus.textContent = 'Uploading…';
+            receiptStatus.textContent = t('expenses.uploading');
             receiptPickBtn.disabled = true;
             try {
                 const result = await uploadMedia(file);
@@ -378,13 +378,13 @@ function renderManualTab() {
                     // Round 1 audit fix: surface the structured error
                     // message from uploadMedia (file too big, MIME wrong,
                     // network down) instead of a generic "Upload failed".
-                    const msg = result?.error || 'Upload failed — try again.';
+                    const msg = result?.error || t('expenses.uploadFailed');
                     receiptStatus.textContent = msg;
                     showLiquidAlert(msg);
                 }
             } catch (e) {
                 console.warn('receipt upload failed', e);
-                const msg = 'Upload failed — try again.';
+                const msg = t('expenses.uploadFailed');
                 receiptStatus.textContent = msg;
                 showLiquidAlert(msg);
             } finally {
@@ -695,11 +695,11 @@ function renderHistoryTab() {
             <div style="margin-bottom: 40px; padding: 0 10px;">
                 <div class="card glass" style="padding: 32px; border-radius: 32px; background: linear-gradient(135deg, rgba(255,255,255,0.4), rgba(255,255,255,0.1)); border: 1px solid rgba(255,255,255,0.5); box-shadow: 0 20px 50px rgba(0,0,0,0.05);">
                     <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px;">
-                        <h2 style="font-size: 1.8rem; font-weight: 800; letter-spacing: -0.04em; margin: 0;">Expense History</h2>
+                        <h2 style="font-size: 1.8rem; font-weight: 800; letter-spacing: -0.04em; margin: 0;">${t('expenses.historyTitle')}</h2>
                         <div style="display: flex; gap: 8px;">
-                            ${canUndoBatch ? `<button id="undoLastBatchBtn" class="btn-chip-danger" title="Remove the ${undoBatch.expenseIds.length} expenses just imported">↶ Undo last batch (${undoBatch.expenseIds.length})</button>` : ''}
+                            ${canUndoBatch ? `<button id="undoLastBatchBtn" class="btn-chip-danger" title="Remove the ${undoBatch.expenseIds.length} expenses just imported">↶ ${t('expenses.undoBatchBtn')} (${undoBatch.expenseIds.length})</button>` : ''}
                             <button id="clearFiltersBtn" class="btn-chip-danger">Clear Filters</button>
-                            <span style="font-size: 0.75rem; font-weight: 700; color: #005bb8; background: rgba(0,113,227,0.1); padding: 6px 14px; border-radius: 100px; text-transform: uppercase;">Smart Filters</span>
+                            <span style="font-size: 0.75rem; font-weight: 700; color: #005bb8; background: rgba(0,113,227,0.1); padding: 6px 14px; border-radius: 100px; text-transform: uppercase;">${t('expenses.smartFiltersBadge')}</span>
                         </div>
                     </div>
 
@@ -714,7 +714,7 @@ function renderHistoryTab() {
                         <div>
                             <label class="filter-label">Category</label>
                             <select id="filterCategory" class="filter-input">
-                                <option value="all">All Categories</option>
+                                <option value="all">${t('expenses.filterAllCategories')}</option>
                                 ${STATE.categories.map(c => `<option value="${c.id}">${c.icon} ${c.name}</option>`).join('')}
                                 <option value="settlement">🤝 Settlement</option>
                             </select>
@@ -722,19 +722,19 @@ function renderHistoryTab() {
                         <div>
                             <label class="filter-label">Payer</label>
                             <select id="filterWho" class="filter-input">
-                                <option value="all">Everyone</option>
+                                <option value="all">${t('expenses.filterEveryone')}</option>
                                 ${tripPayers.map(p => `<option value="${p}">${p}</option>`).join('')}
                             </select>
                         </div>
                         <div>
                             <label class="filter-label">Sort By</label>
                             <select id="filterSort" class="filter-input">
-                                <option value="date_desc">Newest first</option>
-                                <option value="date_asc">Oldest first</option>
-                                <option value="value_desc">Highest amount</option>
-                                <option value="value_asc">Lowest amount</option>
-                                <option value="label_asc">Label (A–Z)</option>
-                                <option value="who_asc">Payer (A–Z)</option>
+                                <option value="date_desc">${t('expenses.sortNewestFirst')}</option>
+                                <option value="date_asc">${t('expenses.sortOldestFirst')}</option>
+                                <option value="value_desc">${t('expenses.sortHighestAmount')}</option>
+                                <option value="value_asc">${t('expenses.sortLowestAmount')}</option>
+                                <option value="label_asc">${t('expenses.sortLabelAZ')}</option>
+                                <option value="who_asc">${t('expenses.sortPayerAZ')}</option>
                             </select>
                         </div>
 
@@ -827,9 +827,13 @@ function renderHistoryTab() {
                 const batch = STATE.lastImportBatch;
                 if (!batch || !Array.isArray(batch.expenseIds) || batch.expenseIds.length === 0) return;
                 showConfirmModal({
-                    title: 'Undo last batch?',
+                    title: t('expenses.undoBatchTitle'),
+                    // Message uses {count} interpolation; "Removes the X
+                    // expenses..." stays English-source for now —
+                    // candidate for a tn() plural form in a future
+                    // sweep. Title + button are localized via t().
                     message: `Removes the ${batch.expenseIds.length} expenses imported in your most recent upload. This cannot be undone.`,
-                    confirmText: 'Undo batch',
+                    confirmText: t('expenses.undoBatchBtn'),
                     onConfirm: () => {
                         const ids = new Set(batch.expenseIds);
                         STATE.expenses = STATE.expenses.filter(e => !ids.has(e.id));
@@ -916,11 +920,11 @@ export function renderTripExpenses(container: HTMLElement, filters: ExpensesFilt
     }
 
     function formatAppleDate(dateStr: string | null | undefined): string {
-        if (!dateStr) return 'Global';
+        if (!dateStr) return t('expenses.globalGroup');
         // DD-MM-YYYY everywhere the user reads a date. Storage stays ISO
         // YYYY-MM-DD (only the rendering changes).
         const date = new Date(dateStr + 'T00:00:00Z');
-        if (isNaN(date.getTime())) return 'Global';
+        if (isNaN(date.getTime())) return t('expenses.globalGroup');
         const dd = String(date.getUTCDate()).padStart(2, '0');
         const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
         const yyyy = date.getUTCFullYear();
@@ -936,7 +940,10 @@ export function renderTripExpenses(container: HTMLElement, filters: ExpensesFilt
         container.innerHTML = buildEmptyCardHtml({
             accent: 'orange',
             emoji: '💸',
-            title: 'No expenses for this trip yet',
+            title: t('expenses.noExpensesYet'),
+            // Body left in English for this round — the empty-state is
+            // visible only when there are no expenses, lower priority
+            // than the always-visible page title / filters / buttons.
             body: 'Add your first expense above — split with companions, attach a receipt, and the totals will roll up here.',
         });
         return;

@@ -92,9 +92,21 @@ export const en = {
         setStatus: 'Set status…',
         addBio: 'Add a bio…',
         homeCurrencyLabel: "Home currency — what you'll see totals and insights in",
-        publicTrips: 'public trips',
-        countries: 'countries',
-        friends: 'friends',
+        // Plural-form labels for the profile stat row (count is rendered
+        // separately so it can take its own font-weight). Use via
+        // tn('profile.publicTripsLabel', count) etc.
+        publicTripsLabel: {
+            one: 'public trip',
+            other: 'public trips',
+        },
+        countriesLabel: {
+            one: 'country',
+            other: 'countries',
+        },
+        friendsLabel: {
+            one: 'friend',
+            other: 'friends',
+        },
         // Photo upload + sync flow (Round 5 polish).
         photoUploaded: 'Profile photo updated.',
         photoUploadFailed: "Couldn't upload your photo — try again.",
@@ -105,6 +117,125 @@ export const en = {
         updated: 'Profile updated!',
         saveFailed: "Couldn't save your profile (HTTP {status}). Try again.",
         saveNetwork: "Network error — couldn't save your profile.",
+    },
+    friends: {
+        // Page header.
+        title: 'Friends',
+        subtitle: 'Connect with other travellers. Friends can join your trips, share itineraries, and split expenses.',
+        // Stat chips.
+        statPending: 'pending',
+        // Search section.
+        findFriendsTitle: '🔍 Find friends',
+        searchByEmailLabel: 'Search by email',
+        sendRequestBtn: '➕ Send request',
+        // Pending requests section.
+        pendingTitle: '⏳ Pending requests',
+        pendingNeedReply: 'Need your reply',
+        rejectRequestTooltip: 'Reject request',
+        rejectRequestAriaLabel: 'Reject friend request',
+        acceptRequestTooltip: 'Accept request',
+        acceptRequestAriaLabel: 'Accept friend request',
+        // Friends list section.
+        yourFriendsTitle: '👥 Your friends',
+        removeFriendTooltip: 'Remove friend',
+        // Empty state — no friends yet.
+        emptyTitle: 'No friends yet',
+        emptyBody: "Search above by email to send your first friend request — once they accept, you'll see each other's trips here.",
+        // Card fallback when name is missing.
+        cardFallbackName: 'Friend',
+        // Toasts — request flows.
+        toastSelfRequest: "You can't send a friend request to yourself!",
+        toastSendFailed: 'Failed to send request.',
+        toastSendFailedNetwork: 'Failed to send request — try again.',
+        toastAccepted: 'Friend request accepted!',
+        toastAcceptFailed: 'Failed to accept request.',
+        toastAcceptFailedNetwork: 'Failed to accept request — try again.',
+        toastRejectConfirmTitle: 'Reject this request?',
+        toastRejectConfirmBtn: 'Reject',
+        toastRejectDone: 'Request declined.',
+        toastRejectFailed: 'Could not decline.',
+        toastRejectFailedNetwork: 'Could not decline — try again.',
+        toastRemoveConfirmTitle: 'Remove this friend?',
+        toastRemoveConfirmBtn: 'Remove',
+        toastRemoveDone: 'Friend removed.',
+        toastRemoveFailed: 'Could not remove.',
+        toastRemoveFailedNetwork: 'Could not remove — try again.',
+    },
+    expenses: {
+        // Page header.
+        title: 'Expenses',
+        historyTitle: 'Expense History',
+        // Delete-expense confirm modal.
+        deleteConfirmTitle: 'Delete Expense?',
+        deleteConfirmMessage: 'This action cannot be undone.',
+        deleteConfirmBtn: 'Delete',
+        // Manual-tab form labels & options.
+        splitBetween: 'Split Between',
+        addPersonToSplit: 'Add person to split…',
+        noCompanionsYet: 'No trip companions yet',
+        addCompanionsCta: 'Add companions to this trip from Home',
+        currencyPlaceholder: 'Select Currency…',
+        // Receipt upload status.
+        uploading: 'Uploading…',
+        uploadFailed: 'Upload failed — try again.',
+        // History tab — filter row.
+        smartFiltersBadge: 'Smart Filters',
+        filterAllCategories: 'All Categories',
+        filterEveryone: 'Everyone',
+        sortNewestFirst: 'Newest first',
+        sortOldestFirst: 'Oldest first',
+        sortHighestAmount: 'Highest amount',
+        sortLowestAmount: 'Lowest amount',
+        sortLabelAZ: 'Label (A–Z)',
+        sortPayerAZ: 'Payer (A–Z)',
+        // History — undo batch import.
+        undoBatchTitle: 'Undo last batch?',
+        undoBatchBtn: 'Undo batch',
+        // Empty states.
+        noExpensesYet: 'No expenses for this trip yet',
+        // Date-group fallback for expenses without a date.
+        globalGroup: 'Global',
+    },
+    feed: {
+        // Page header.
+        title: 'Feed',
+        subtitle: 'What your friends are up to lately',
+        // Tab labels.
+        tabPosts: 'Posts',
+        tabActions: 'Actions',
+        bookmarkToggleLabel: '🔖 Bookmarked',
+        // Initial loader before first /api/feed response lands.
+        loading: 'Loading the feed…',
+        // Empty states (3 distinct branches).
+        emptyBookmarkedPostsTitle: 'No bookmarked posts yet',
+        emptyBookmarkedActionsTitle: 'No bookmarked actions yet',
+        emptyBookmarkedBody: 'Tap 🔖 on any card to save it for later — bookmarks are private and never expire.',
+        emptyBookmarkedCta: 'Show all',
+        emptyPostsTitle: 'No posts yet',
+        emptyPostsBody: 'Posts are trips your friends shared (or reposted) for the world to see. Share one of your own from the trip header to kick things off — or check the <strong>Actions</strong> tab for what\'s been happening behind the scenes.',
+        emptyPostsCta: 'See Actions',
+        emptyActionsTitle: 'Quiet over here',
+        emptyActionsBody: 'When your friends create trips, complete adventures or join in on plans, you\'ll see it here. Add more friends in <strong>Your network</strong> to grow the feed.',
+        emptyActionsCta: 'Go to Your network',
+        // Bundle expand affordance ("View all"/"Collapse" toggle on aggregated rows).
+        bundleViewAll: 'View all',
+        bundleCollapse: 'Collapse',
+        // Comments thread.
+        commentsLoading: 'Loading…',
+        commentsEmpty: 'No comments yet — be the first.',
+        commentSubmit: 'Post',
+        // Trip-card fallback when the trip's name is empty / unset.
+        tripFallback: 'Trip',
+        // Toasts on repost / unshare flows.
+        toastUnshareConfirmTitle: 'Unshare this trip?',
+        toastUnshareConfirmMessage: "It'll disappear from your friends' feeds. Any reposts of it will be removed too. This can't be undone.",
+        toastUnshareConfirmBtn: 'Unshare',
+        toastUnshareFailed: "Couldn't unshare — try again in a moment.",
+        toastRemovedFromFeed: 'Removed from your feed.',
+        toastAlreadyReposted: 'Already reposted',
+        toastReposted: 'Reposted to your feed',
+        toastRepostFailed: 'Repost failed — try again in a moment.',
+        toastRepostOwnShare: "That's your own share — no need to repost it.",
     },
     home: {
         // Pre-trip empty-state hero (welcomeCard.ts buildEmptyStateHtml).

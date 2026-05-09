@@ -15,6 +15,7 @@ import { useNavigate } from '../../react/useNavigate.js';
 import { apiFetch } from '../../api.js';
 import { showLiquidAlert, showConfirmModal } from '../../utils.js';
 import { EmptyState } from '../../react/components/EmptyState.js';
+import { t, tn } from '../../i18n.js';
 
 interface FriendRow {
     id: string;
@@ -166,7 +167,7 @@ function UserCard({ user, variant = 'neutral', onClick, rightSide, rowClass = ''
                         whiteSpace: 'nowrap',
                     }}
                 >
-                    {user.name || 'Friend'}
+                    {user.name || t('friends.cardFallbackName')}
                 </div>
                 <div
                     style={{
@@ -250,7 +251,7 @@ export function Friends() {
     const sendFriendRequest = async (friendId: string) => {
         if (!user || !friendId) return;
         if (friendId === user.id) {
-            showLiquidAlert("You can't send a friend request to yourself!");
+            showLiquidAlert(t('friends.toastSelfRequest'));
             return;
         }
         try {
@@ -265,10 +266,13 @@ export function Friends() {
                 setSearchStatus({ kind: 'sent' });
                 updateFriendsList();
             } else if (data.status === 'error') {
-                showLiquidAlert(data.message || 'Failed to send request.');
+                // Server messages (data.message) come from the API and
+                // are passed through as-is — they're typically already
+                // user-readable. Generic fallback localized via t().
+                showLiquidAlert(data.message || t('friends.toastSendFailed'));
             }
         } catch (e) {
-            showLiquidAlert('Failed to send request — try again.');
+            showLiquidAlert(t('friends.toastSendFailedNetwork'));
         }
     };
 
@@ -282,23 +286,27 @@ export function Friends() {
             });
             const data = await res.json();
             if (data.status === 'success') {
-                showLiquidAlert('Friend request accepted!');
+                showLiquidAlert(t('friends.toastAccepted'));
                 updateFriendsList();
             } else {
-                showLiquidAlert(data.message || 'Failed to accept request.');
+                showLiquidAlert(data.message || t('friends.toastAcceptFailed'));
             }
         } catch (e) {
             console.error('Error accepting friend:', e);
-            showLiquidAlert('Failed to accept request — try again.');
+            showLiquidAlert(t('friends.toastAcceptFailedNetwork'));
         }
     };
 
     const rejectFriendRequest = (friendId: string, friendName: string) => {
         if (!user || !friendId) return;
         showConfirmModal({
-            title: 'Reject this request?',
+            title: t('friends.toastRejectConfirmTitle'),
+            // Confirm-modal body left in English-source for now (the
+            // {friendName} interpolation pattern + ", you can still
+            // accept later if they re-send" branching is a future
+            // candidate for a t()-with-params key).
             message: `Decline the friend request from ${friendName}? You can still accept later if they re-send.`,
-            confirmText: 'Reject',
+            confirmText: t('friends.toastRejectConfirmBtn'),
             onConfirm: async () => {
                 // Optimistic local removal
                 setPending((curr) => curr.filter((p) => p.id !== friendId));
@@ -310,12 +318,12 @@ export function Friends() {
                     });
                     const data = await res.json();
                     if (data.status === 'success') {
-                        showLiquidAlert('Request declined.');
+                        showLiquidAlert(t('friends.toastRejectDone'));
                     } else {
-                        showLiquidAlert(data.message || 'Could not decline.');
+                        showLiquidAlert(data.message || t('friends.toastRejectFailed'));
                     }
                 } catch (err) {
-                    showLiquidAlert('Could not decline — try again.');
+                    showLiquidAlert(t('friends.toastRejectFailedNetwork'));
                 }
                 updateFriendsList();
             },
@@ -325,9 +333,11 @@ export function Friends() {
     const removeFriend = (friendId: string, friendName: string) => {
         if (!user || !friendId) return;
         showConfirmModal({
-            title: 'Remove this friend?',
+            title: t('friends.toastRemoveConfirmTitle'),
+            // See note above on rejectFriendRequest — body deferred
+            // to a future sweep with proper {friendName} interpolation.
             message: `${friendName} will be removed from your friends list. They won't be notified, and you can always send a new request later.`,
-            confirmText: 'Remove',
+            confirmText: t('friends.toastRemoveConfirmBtn'),
             onConfirm: async () => {
                 setFriends((curr) => curr.filter((f) => f.id !== friendId));
                 try {
@@ -338,12 +348,12 @@ export function Friends() {
                     });
                     const data = await res.json();
                     if (data.status === 'success') {
-                        showLiquidAlert('Friend removed.');
+                        showLiquidAlert(t('friends.toastRemoveDone'));
                     } else {
-                        showLiquidAlert(data.message || 'Could not remove.');
+                        showLiquidAlert(data.message || t('friends.toastRemoveFailed'));
                     }
                 } catch (err) {
-                    showLiquidAlert('Could not remove — try again.');
+                    showLiquidAlert(t('friends.toastRemoveFailedNetwork'));
                 }
                 updateFriendsList();
             },
@@ -357,11 +367,10 @@ export function Friends() {
                     className="gradient-text"
                     style={{ ['--g-from' as any]: '#007aff', ['--g-to' as any]: '#5856d6' }}
                 >
-                    Friends
+                    {t('friends.title')}
                 </h1>
                 <p>
-                    Connect with other travellers. Friends can join your trips, share itineraries,
-                    and split expenses.
+                    {t('friends.subtitle')}
                 </p>
             </div>
 
@@ -384,7 +393,7 @@ export function Friends() {
                     }}
                 >
                     <span style={{ fontSize: '0.95rem', lineHeight: 1 }}>👥</span>
-                    {friends.length} {friends.length === 1 ? 'friend' : 'friends'}
+                    {friends.length} {tn('profile.friendsLabel', friends.length)}
                 </span>
                 {pending.length > 0 && (
                     <span
@@ -401,7 +410,7 @@ export function Friends() {
                         }}
                     >
                         <span style={{ fontSize: '0.95rem', lineHeight: 1 }}>⏳</span>
-                        {pending.length} pending
+                        {pending.length} {t('friends.statPending')}
                     </span>
                 )}
             </div>
@@ -428,7 +437,7 @@ export function Friends() {
                             letterSpacing: '-0.02em',
                         }}
                     >
-                        🔍 Find friends
+                        {t('friends.findFriendsTitle')}
                     </h3>
                     <span
                         style={{
@@ -439,7 +448,7 @@ export function Friends() {
                             letterSpacing: '0.1em',
                         }}
                     >
-                        Search by email
+                        {t('friends.searchByEmailLabel')}
                     </span>
                 </div>
                 <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
@@ -602,7 +611,7 @@ export function Friends() {
                                                 boxShadow: '0 4px 12px rgba(0,113,227,0.22)',
                                             }}
                                         >
-                                            ➕ Send request
+                                            {t('friends.sendRequestBtn')}
                                         </button>
                                     }
                                 />
@@ -642,7 +651,7 @@ export function Friends() {
                                 letterSpacing: '-0.02em',
                             }}
                         >
-                            ⏳ Pending requests
+                            {t('friends.pendingTitle')}
                         </h3>
                         <span
                             style={{
@@ -653,7 +662,7 @@ export function Friends() {
                                 letterSpacing: '0.1em',
                             }}
                         >
-                            Need your reply
+                            {t('friends.pendingNeedReply')}
                         </span>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -678,8 +687,8 @@ export function Friends() {
                                                 rejectFriendRequest(p.id, p.name || p.email || 'this person')
                                             }
                                             style={{ ['--accent' as any]: '255,59,48' }}
-                                            title="Reject request"
-                                            aria-label="Reject friend request"
+                                            title={t('friends.rejectRequestTooltip')}
+                                            aria-label={t('friends.rejectRequestAriaLabel')}
                                         >
                                             <svg
                                                 width="14"
@@ -701,8 +710,8 @@ export function Friends() {
                                             type="button"
                                             onClick={() => acceptFriendRequest(p.id)}
                                             style={{ ['--accent' as any]: '52,199,89' }}
-                                            title="Accept request"
-                                            aria-label="Accept friend request"
+                                            title={t('friends.acceptRequestTooltip')}
+                                            aria-label={t('friends.acceptRequestAriaLabel')}
                                         >
                                             <svg
                                                 width="14"
@@ -748,7 +757,7 @@ export function Friends() {
                             letterSpacing: '-0.02em',
                         }}
                     >
-                        👥 Your friends
+                        {t('friends.yourFriendsTitle')}
                     </h3>
                     <span
                         style={{
@@ -770,8 +779,8 @@ export function Friends() {
                         <EmptyState
                             accent="blue"
                             emoji="🤝"
-                            title="No friends yet"
-                            body="Search above by email to send your first friend request — once they accept, you'll see each other's trips here."
+                            title={t('friends.emptyTitle')}
+                            body={t('friends.emptyBody')}
                         />
                     ) : (
                         friends.map((f) => (
@@ -793,7 +802,7 @@ export function Friends() {
                                         <button
                                             className="remove-friend-btn"
                                             type="button"
-                                            title="Remove friend"
+                                            title={t('friends.removeFriendTooltip')}
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 removeFriend(f.id, f.name || f.email || 'this friend');

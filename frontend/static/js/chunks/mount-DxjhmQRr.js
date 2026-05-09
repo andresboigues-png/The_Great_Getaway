@@ -1,0 +1,2 @@
+import{r as e,t}from"./vendor-react-CYVQMBjw.js";import{x as n,y as r}from"../app.bundle.js";var i=e(),a=t();function o(){let e=(0,i.useRef)(null);return(0,i.useEffect)(()=>{let t=e.current;t&&(t.innerHTML=``,t.appendChild(r()))},[]),(0,a.jsx)(`div`,{ref:e})}function s(e){n(e,(0,i.createElement)(o))}export{s as mountCollections};
+//# sourceMappingURL=mount-DxjhmQRr.js.map

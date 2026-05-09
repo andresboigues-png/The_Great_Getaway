@@ -37,7 +37,7 @@ def user_status():
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT id, email, name, picture, bio, status, home_currency FROM users WHERE id = ?",
+            "SELECT id, email, name, picture, bio, status, home_currency, language FROM users WHERE id = ?",
             (user_id,),
         )
         row = cursor.fetchone()
@@ -54,6 +54,10 @@ def user_status():
             "bio": row["bio"] or "",
             "status": row["status"] or "",
             "homeCurrency": row["home_currency"],
+            # i18n session 3 — null for users who never set a preference;
+            # the frontend then derives from navigator.language via
+            # detectBrowserLocale (i18n.ts).
+            "language": row["language"],
         },
     })
 
@@ -106,6 +110,9 @@ def google_auth():
                 "bio": "",
                 "status": "",
                 "homeCurrency": None,
+                # Test users start with no locale preference — frontend
+                # falls back to navigator.language.
+                "language": None,
             },
         })
 
@@ -130,12 +137,13 @@ def google_auth():
                     picture=excluded.picture
             ''', (user_id, email, name, picture))
 
-            cursor.execute("SELECT bio, status, home_currency FROM users WHERE id = ?", (user_id,))
+            cursor.execute("SELECT bio, status, home_currency, language FROM users WHERE id = ?", (user_id,))
             user_row = cursor.fetchone()
             db_bio = user_row['bio'] if user_row else ""
             db_status = user_row['status'] if user_row else ""
             # NULL means "never set" — frontend defaults from browser locale.
             db_home_currency = user_row['home_currency'] if user_row else None
+            db_language = user_row['language'] if user_row else None
 
             conn.commit()
 
@@ -153,6 +161,10 @@ def google_auth():
                 "bio": db_bio or "",
                 "status": db_status or "",
                 "homeCurrency": db_home_currency,
+                # i18n session 3 — null until the user picks a locale in
+                # Settings. Frontend's detectBrowserLocale handles the
+                # default before that happens.
+                "language": db_language,
             },
         })
     except ValueError as e:

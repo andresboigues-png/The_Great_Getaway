@@ -18,6 +18,13 @@ export interface User {
      *  callers should use `getHomeCurrency()` which falls back to the
      *  browser-locale default. */
     homeCurrency?: string | null;
+    /** i18n session 3 — server-persisted display language. NULL/undefined
+     *  for users who haven't picked yet (boot derives from
+     *  navigator.language via detectBrowserLocale in i18n.ts). Backed
+     *  by the `language` column on the users table; written via
+     *  /api/profile/update from setLocale; read on /api/user-status
+     *  and hydrated into STATE.preferences.locale on app boot. */
+    language?: 'en' | 'pt' | 'es' | 'fr' | null;
 }
 
 export interface Category {

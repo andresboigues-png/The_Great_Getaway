@@ -632,6 +632,77 @@ def test_update_profile_picture_rejects_non_string(client, seed_user, auth_heade
     assert res.get_json()["error"] == "picture must be a string"
 
 
+# ── /api/profile/update — language (i18n session 3) ──────────────────────────
+# Locale follows the user across devices: setLocale on the frontend
+# POSTs the chosen value here, and /api/user-status returns it on
+# next boot so the picker survives device switches. The allowlist
+# matches the Locale union in i18n.ts; any other value gets a 400 so
+# we never end up with junk in the DB.
+
+def test_update_profile_language_accepts_en(client, seed_user, auth_headers):
+    res = client.post("/api/profile/update", headers=auth_headers, json={"language": "en"})
+    assert res.status_code == 200
+    assert res.get_json()["status"] == "updated"
+
+
+def test_update_profile_language_accepts_pt(client, seed_user, auth_headers):
+    res = client.post("/api/profile/update", headers=auth_headers, json={"language": "pt"})
+    assert res.status_code == 200
+
+
+def test_update_profile_language_accepts_es(client, seed_user, auth_headers):
+    res = client.post("/api/profile/update", headers=auth_headers, json={"language": "es"})
+    assert res.status_code == 200
+
+
+def test_update_profile_language_accepts_fr(client, seed_user, auth_headers):
+    res = client.post("/api/profile/update", headers=auth_headers, json={"language": "fr"})
+    assert res.status_code == 200
+
+
+def test_update_profile_language_accepts_null_clears(client, seed_user, auth_headers):
+    """Explicit null is the "reset to browser default" semantic — the
+    frontend's detectBrowserLocale takes over until the user picks again."""
+    res = client.post("/api/profile/update", headers=auth_headers, json={"language": None})
+    assert res.status_code == 200
+
+
+def test_update_profile_language_rejects_unknown(client, seed_user, auth_headers):
+    """Any string outside the en/pt/es/fr allowlist is a 400. Prevents
+    a manipulated client from writing junk that the frontend's
+    KNOWN_LOCALES gate would then silently fall back from."""
+    res = client.post("/api/profile/update", headers=auth_headers, json={"language": "xx"})
+    assert res.status_code == 400
+    assert "en, pt, es, fr" in res.get_json()["error"]
+
+
+def test_update_profile_language_rejects_non_string(client, seed_user, auth_headers):
+    """Numeric/object payloads also get 400 (anything not in the allowlist)."""
+    res = client.post("/api/profile/update", headers=auth_headers, json={"language": 42})
+    assert res.status_code == 400
+
+
+def test_user_status_returns_language(client, seed_user, auth_headers):
+    """Once a user picks a locale, /api/user-status returns it on the
+    next boot so STATE.preferences.locale hydrates from the server
+    instead of guessing from navigator.language."""
+    client.post("/api/profile/update", headers=auth_headers, json={"language": "fr"})
+    res = client.get("/api/user-status", headers=auth_headers)
+    assert res.status_code == 200
+    body = res.get_json()
+    assert body["logged_in"] is True
+    assert body["user"]["language"] == "fr"
+
+
+def test_user_status_returns_null_language_for_legacy_users(client, seed_user, auth_headers):
+    """A user who hasn't picked a locale yet gets language: null —
+    NOT an empty string, NOT 'en'. The frontend's getLocale handles
+    the null case via detectBrowserLocale."""
+    res = client.get("/api/user-status", headers=auth_headers)
+    assert res.status_code == 200
+    assert res.get_json()["user"]["language"] is None
+
+
 # ── /api/friends ─────────────────────────────────────────────────────────────
 
 def test_friend_add_happy_path(client, seed_user, seed_other_user, auth_headers):

@@ -6,7 +6,7 @@ import { navigate } from '../router.js';
 import { viewArchivedDetails } from './collections.js';
 import { showModal } from '../components/Modal.js';
 import { applyMapTheme } from '../theme.js';
-import { t } from '../i18n.js';
+import { t, tn } from '../i18n.js';
 
 export const logout = async () => {
     try {
@@ -269,16 +269,16 @@ export function renderProfile(targetUserId: string | null | undefined = null) {
                         <div class="profile-stats" style="display: flex; gap: 32px; margin-bottom: 24px; flex-wrap: wrap;">
                             <div style="text-align: left;">
                                 <span style="font-size: 1.15rem; font-weight: 700; color: var(--text-primary);">${trips.length}</span>
-                                <span style="font-size: 1.1rem; color: var(--text-primary); font-weight: 400; margin-left: 4px;">public trips</span>
+                                <span style="font-size: 1.1rem; color: var(--text-primary); font-weight: 400; margin-left: 4px;">${tn('profile.publicTripsLabel', trips.length)}</span>
                             </div>
                             <div style="text-align: left;">
                                 <span style="font-size: 1.15rem; font-weight: 700; color: var(--text-primary);">${uniqueCountries.length}</span>
-                                <span style="font-size: 1.1rem; color: var(--text-primary); font-weight: 400; margin-left: 4px;">countries</span>
+                                <span style="font-size: 1.1rem; color: var(--text-primary); font-weight: 400; margin-left: 4px;">${tn('profile.countriesLabel', uniqueCountries.length)}</span>
                             </div>
                             ${isOwnProfile ? `
                                 <button id="profileFriendsStat" type="button" style="background:none; border:0; padding:0; cursor:pointer; text-align:left; display:inline-flex; align-items:baseline; gap:4px; font-family: inherit;">
                                     <span id="profileFriendsCount" style="font-size: 1.15rem; font-weight: 700; color: var(--text-primary);">—</span>
-                                    <span style="font-size: 1.1rem; color: #005bb8; font-weight: 600; text-decoration: underline; text-decoration-color: rgba(0,113,227,0.25); text-underline-offset: 3px;">friends</span>
+                                    <span id="profileFriendsLabel" style="font-size: 1.1rem; color: #005bb8; font-weight: 600; text-decoration: underline; text-decoration-color: rgba(0,113,227,0.25); text-underline-offset: 3px;">${tn('profile.friendsLabel', 0)}</span>
                                 </button>
                             ` : ''}
                         </div>
@@ -382,12 +382,19 @@ export function renderProfile(targetUserId: string | null | undefined = null) {
             if (isOwnProfile && STATE.user) {
                 const friendsBtn = (div.querySelector('#profileFriendsStat') as HTMLElement | null);
                 const friendsCountEl = (div.querySelector('#profileFriendsCount') as HTMLElement | null);
+                const friendsLabelEl = (div.querySelector('#profileFriendsLabel') as HTMLElement | null);
                 apiFetch('/api/friends/list')
                     .then(r => r.ok ? r.json() : [])
                     .then(list => {
                         if (!Array.isArray(list)) return;
                         friendsCache = list;
                         if (friendsCountEl) friendsCountEl.textContent = String(list.length);
+                        // i18n session 3 — refresh the plural label now
+                        // that we know the actual count (initial render
+                        // used 0 as a placeholder that picked the
+                        // 'other' form). Same template, just the
+                        // matching plural category for the active locale.
+                        if (friendsLabelEl) friendsLabelEl.textContent = tn('profile.friendsLabel', list.length);
                     })
                     .catch(() => { /* leave the "—" placeholder */ });
                 if (friendsBtn) {

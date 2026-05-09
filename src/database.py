@@ -40,6 +40,15 @@ def init_db():
         try:
             cursor.execute("ALTER TABLE users ADD COLUMN home_currency TEXT")
         except Exception: pass
+        # i18n session 3 — language follows the user across devices.
+        # Stored as the 2-letter Locale code ('en' | 'pt' | 'es' | 'fr')
+        # or NULL for legacy users (frontend then derives from browser
+        # locale via detectBrowserLocale, same convention as
+        # home_currency above). Allowlist validation lives in
+        # routes/settings.py to keep arbitrary strings out of the DB.
+        try:
+            cursor.execute("ALTER TABLE users ADD COLUMN language TEXT")
+        except Exception: pass
         
         # Trips Table (Linked to an owner)
         cursor.execute('''
