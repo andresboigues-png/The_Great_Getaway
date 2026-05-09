@@ -265,7 +265,16 @@ export function saveState() {
     if (STATE.tripDays) {
         STATE.tripDays.forEach(d => { if (!d.tickets) d.tickets = []; });
     }
-    localStorage.setItem('theGreatEscapeState', JSON.stringify(STATE));
+    // Round 6 audit fix — localStorage.setItem throws QuotaExceededError in
+    // Safari private-browsing mode (and on hard quota hits in any browser).
+    // Without the guard, every state mutation crashes the whole app for
+    // Safari incognito users. Server-side sync is the source of truth, so
+    // dropping local persistence is recoverable; we just log + carry on.
+    try {
+        localStorage.setItem('theGreatEscapeState', JSON.stringify(STATE));
+    } catch (e) {
+        console.warn('saveState: localStorage write failed (quota or private mode)', e);
+    }
     // Pure persistence — UI updates and server deltas are handled by separate
     // subscribers (see main.js) and explicit call sites.
 }

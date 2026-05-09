@@ -1,5 +1,5 @@
 import { STATE, emit } from '../state.js';
-import { generateId, showConfirmModal, q, esc } from '../utils.js';
+import { generateId, showConfirmModal, showLiquidAlert, q, esc } from '../utils.js';
 import { syncCategories, apiFetch } from '../api.js';
 import { navigate } from '../router.js';
 import { showModal } from '../components/Modal.js';
@@ -482,7 +482,8 @@ export function renderSettings() {
         const fmt = STATE.customFormat || [];
         const mapped = new Set(fmt.map(m => m.variable === 'categoryId' ? 'category' : m.variable));
         const missing = MANDATORY.filter(v => !mapped.has(v));
-        if (missing.length > 0) return alert(`Missing required fields: ${missing.join(', ')}`);
+        // Round 6 audit fix — switch to showLiquidAlert toast for consistency.
+        if (missing.length > 0) { showLiquidAlert(`Missing required fields: ${missing.join(', ')}`); return; }
         const name = ((document.getElementById('formatNameInput') as HTMLInputElement | null)?.value || '').trim();
         if (!name) return;
         STATE.savedFormats = STATE.savedFormats || [];

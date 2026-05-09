@@ -579,7 +579,10 @@ function renderManualTab() {
                 });
 
                 if (Math.abs(totalSplit - 100) > 0.5) {
-                    alert("Percentages must add up to exactly 100%");
+                    // Round 6 audit fix — use the app's toast helper instead
+                    // of native alert() for visual consistency with the rest
+                    // of the validation flow.
+                    showLiquidAlert("Percentages must add up to exactly 100%");
                     return;
                 }
             } else {
@@ -590,11 +593,11 @@ function renderManualTab() {
             const curr = (q(wrapper, '#expCurrency') as HTMLSelectElement).value.toUpperCase();
 
             if (isNaN(val) || val <= 0) {
-                alert("Please enter a valid expense value.");
+                showLiquidAlert("Please enter a valid expense value.");
                 return;
             }
             if (!curr) {
-                alert("Please select a currency.");
+                showLiquidAlert("Please select a currency.");
                 return;
             }
 

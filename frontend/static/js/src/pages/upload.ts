@@ -1,6 +1,6 @@
 import { STATE, emit } from '../state.js';
 import { CONVERSION_RATES } from '../constants.js';
-import { generateId, q } from '../utils.js';
+import { generateId, q, showLiquidAlert } from '../utils.js';
 import { syncWithServer } from '../api.js';
 import { navigate } from '../router.js';
 import { showSettingsTab } from './settings.js';
@@ -424,7 +424,8 @@ export function renderUpload() {
 
         q(div, '#uploadBtn').addEventListener('click', () => {
             if (!STATE.activeTripId) {
-                alert("Please select or create a trip first!");
+                // Round 6 audit fix — toast instead of native alert().
+                showLiquidAlert("Please select or create a trip first!");
                 return;
             }
             const activeTripId = STATE.activeTripId;

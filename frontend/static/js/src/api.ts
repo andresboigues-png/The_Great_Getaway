@@ -21,11 +21,24 @@ export const apiUrl = (path: string): string => `${API_BASE_URL}${path}`;
 
 const TOKEN_KEY = 'gg_auth_token';
 
-export const getAuthToken = () => localStorage.getItem(TOKEN_KEY);
-export const setAuthToken = (token: string | null | undefined): void => {
-    if (token) localStorage.setItem(TOKEN_KEY, token);
+// Round 6 audit fix — wrap all three localStorage hits in try/catch.
+// Safari private-browsing mode throws QuotaExceededError on setItem; getItem
+// and removeItem are technically no-ops but throwing in some old WebKit
+// builds. Failing silently is the right call here — without a token the
+// user just sees the login wall, which is what we'd want anyway.
+export const getAuthToken = (): string | null => {
+    try { return localStorage.getItem(TOKEN_KEY); }
+    catch { return null; }
 };
-export const clearAuthToken = () => localStorage.removeItem(TOKEN_KEY);
+export const setAuthToken = (token: string | null | undefined): void => {
+    if (!token) return;
+    try { localStorage.setItem(TOKEN_KEY, token); }
+    catch (e) { console.warn('setAuthToken: localStorage write failed', e); }
+};
+export const clearAuthToken = (): void => {
+    try { localStorage.removeItem(TOKEN_KEY); }
+    catch { /* private mode: nothing to clear */ }
+};
 
 /** Merge Authorization: Bearer <token> into an options object's headers,
  *  preserving anything the caller already set. */
