@@ -43,9 +43,9 @@ export const showPersTab = (tab: string) => {
 
 const deleteCategory = (id: string) => {
     showConfirmModal({
-        title: "Delete Category?",
-        message: "This will not affect existing expenses, but you won't be able to select this category again.",
-        confirmText: "Delete",
+        title: t('settings.categoryDeleteConfirmTitle'),
+        message: t('settings.categoryDeleteConfirmMessage'),
+        confirmText: t('settings.categoryDeleteConfirmBtn'),
         onConfirm: () => {
             STATE.categories = STATE.categories.filter(c => c.id !== id);
             emit('state:changed');
@@ -100,7 +100,7 @@ export function renderSettings() {
                  each mapping is a self-contained card. -->
             <div class="format-list" style="margin-bottom: var(--space-6);">
                 ${(STATE.customFormat || []).length === 0 ? `
-                    <div class="format-list__empty">No mappings yet — pick a variable + column below.</div>
+                    <div class="format-list__empty">${t('settings.formatEmpty')}</div>
                 ` : (STATE.customFormat || []).map(m => {
                     const isMandatory = MANDATORY.includes(m.variable);
                     return `
@@ -111,7 +111,7 @@ export function renderSettings() {
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
                             </span>
                             <span class="format-row__col">${esc(m.column)}</span>
-                            <button class="format-row__remove remove-mapping-btn" data-variable="${esc(m.variable)}" title="Remove mapping" aria-label="Remove mapping">
+                            <button class="format-row__remove remove-mapping-btn" data-variable="${esc(m.variable)}" title="${t('settings.formatRemoveTooltip')}" aria-label="${t('settings.formatRemoveAriaLabel')}">
                                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                             </button>
                         </div>
@@ -121,24 +121,24 @@ export function renderSettings() {
 
             <div style="display:flex; gap:var(--space-4); align-items:flex-end; flex-wrap:wrap; margin-bottom:var(--space-8);">
                 <div style="flex:1; min-width:150px;">
-                    <label class="compact-form-label" style="font-size:var(--font-xs); font-weight:800; color:var(--text-secondary);">VARIABLE</label>
+                    <label class="compact-form-label" style="font-size:var(--font-xs); font-weight:800; color:var(--text-secondary);">${t('settings.formatVariableLabel')}</label>
                     <select id="mapVarSelect" class="glass-input" style="width:100%;">
-                        <option value="">Select...</option>
+                        <option value="">${t('settings.formatVariablePlaceholder')}</option>
                         ${MANDATORY.concat(OPTIONAL).filter(v => !used.has(v)).map(v => `<option value="${v}">${MANDATORY.includes(v) ? '★ ' : ''}${v}</option>`).join('')}
                     </select>
                 </div>
                 <div style="flex:1; min-width:120px;">
-                    <label class="compact-form-label" style="font-size:var(--font-xs); font-weight:800; color:var(--text-secondary);">COLUMN</label>
+                    <label class="compact-form-label" style="font-size:var(--font-xs); font-weight:800; color:var(--text-secondary);">${t('settings.formatColumnLabel')}</label>
                     <select id="mapColSelect" class="glass-input" style="width:100%;">
-                        <option value="">Col...</option>
+                        <option value="">${t('settings.formatColumnPlaceholder')}</option>
                         ${'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map(c => `<option value="${c}">${c}</option>`).join('')}
                     </select>
                 </div>
-                <button class="btn btn-liquid-glass" id="addFormatMappingBtn" style="padding: var(--space-3) var(--space-6);">Map Field</button>
+                <button class="btn btn-liquid-glass" id="addFormatMappingBtn" style="padding: var(--space-3) var(--space-6);">${t('settings.formatMapBtn')}</button>
             </div>
 
             <div style="border-top: 1px solid var(--glass-border); padding-top: var(--space-8);">
-                <h3 style="margin-top:0;">Saved Formats (${sf.length}/5)</h3>
+                <h3 style="margin-top:0;">${t('settings.formatSavedHeading', { count: sf.length })}</h3>
                 <div style="display:grid; gap:var(--space-3);">
                     ${sf.map(f => `
                         <div class="saved-format-card">
@@ -149,19 +149,19 @@ export function renderSettings() {
                             <div class="saved-format-card__actions">
                                 <button class="saved-format-card__btn saved-format-card__btn--edit edit-saved-format-btn" data-format-id="${esc(f.id)}">
                                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
-                                    Edit
+                                    ${t('settings.formatSavedEditBtn')}
                                 </button>
                                 <button class="saved-format-card__btn saved-format-card__btn--delete delete-saved-format-btn" data-format-id="${esc(f.id)}">
                                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"></path></svg>
-                                    Delete
+                                    ${t('settings.formatSavedDeleteBtn')}
                                 </button>
                             </div>
                         </div>
                     `).join('')}
                     ${sf.length < 5 ? `
                         <div style="display:flex; gap:var(--space-3); margin-top:var(--space-3);">
-                            <input type="text" id="formatNameInput" class="glass-input" placeholder="Name this format..." style="flex:1;">
-                            <button class="btn-primary" id="saveCustomFormatBtn">Save Format</button>
+                            <input type="text" id="formatNameInput" class="glass-input" placeholder="${t('settings.formatSavedNamePlaceholder')}" style="flex:1;">
+                            <button class="btn-primary" id="saveCustomFormatBtn">${t('settings.formatSavedSaveBtn')}</button>
                         </div>
                     ` : ''}
                 </div>
@@ -177,33 +177,33 @@ export function renderSettings() {
 
         return `
             <div class="ai-page-header">
-                <h1 class="gradient-text" style="--g-from: #1a6b3c; --g-to: #34c759;">System Control</h1>
-                <p>Manage your travel data, custom formats, and core preferences.</p>
+                <h1 class="gradient-text" style="--g-from: #1a6b3c; --g-to: #34c759;">${t('settings.systemControlTitle')}</h1>
+                <p>${t('settings.systemControlSubtitle')}</p>
             </div>
 
             ${isMenu ? `
                 <div class="settings-grid">
                     <button type="button" class="card-button-reset card glass management-card settings-tab-card" data-tab="general">
-                        <h2 class="card-title" style="color: #005bb8; margin: 0;">General Settings</h2>
-                        <p style="color: var(--text-secondary); margin: 8px 0 0;">Customise per-pill filters for the home map (minimum rating, etc.).</p>
-                        <div style="margin-top: 20px; color: #005bb8; font-weight: 700; font-size: 0.85rem;">Configure &rarr;</div>
+                        <h2 class="card-title" style="color: #005bb8; margin: 0;">${t('settings.cardGeneralTitle')}</h2>
+                        <p style="color: var(--text-secondary); margin: 8px 0 0;">${t('settings.cardGeneralBody')}</p>
+                        <div style="margin-top: 20px; color: #005bb8; font-weight: 700; font-size: 0.85rem;">${t('settings.cardConfigureCta')}</div>
                     </button>
 
                     <button type="button" class="card-button-reset card glass management-card settings-tab-card" data-tab="format">
-                        <h2 class="card-title" style="color: #a85d00; margin: 0;">Format Options</h2>
-                        <p style="color: var(--text-secondary); margin: 8px 0 0;">Configure Excel import mappings and global data formats.</p>
-                        <div style="margin-top: 20px; color: #a85d00; font-weight: 700; font-size: 0.85rem;">Configure &rarr;</div>
+                        <h2 class="card-title" style="color: #a85d00; margin: 0;">${t('settings.cardFormatTitle')}</h2>
+                        <p style="color: var(--text-secondary); margin: 8px 0 0;">${t('settings.cardFormatBody')}</p>
+                        <div style="margin-top: 20px; color: #a85d00; font-weight: 700; font-size: 0.85rem;">${t('settings.cardConfigureCta')}</div>
                     </button>
 
                     <button type="button" class="card-button-reset card glass management-card danger-card settings-tab-card" data-tab="reset">
                         <div class="danger-glow pulse-red"></div>
-                        <h2 class="card-title" style="color: #ff3b30; margin: 0;">Data Management</h2>
-                        <p style="color: var(--text-secondary); margin: 8px 0 0;">Wipe specific data categories or perform a factory reset.</p>
-                        <div style="margin-top: 20px; color: #ff3b30; font-weight: 700; font-size: 0.85rem;">Manage Data &rarr;</div>
+                        <h2 class="card-title" style="color: #ff3b30; margin: 0;">${t('settings.cardDataMgmtTitle')}</h2>
+                        <p style="color: var(--text-secondary); margin: 8px 0 0;">${t('settings.cardDataMgmtBody')}</p>
+                        <div style="margin-top: 20px; color: #ff3b30; font-weight: 700; font-size: 0.85rem;">${t('settings.cardDataMgmtCta')}</div>
                     </button>
                 </div>
             ` : `
-                <button class="btn btn-small btn-liquid-glass settings-tab-card" data-tab="menu" style="margin-bottom: 24px; padding: 10px 20px; border-radius: 14px;">&larr; Back to Control Center</button>
+                <button class="btn btn-small btn-liquid-glass settings-tab-card" data-tab="menu" style="margin-bottom: 24px; padding: 10px 20px; border-radius: 14px;">${t('settings.backToControlCenter')}</button>
 
                 ${isGeneral ? (() => {
                     const generalSubTab = activeTab === 'general' ? (window.__ggGeneralSubTab || 'pills') : 'pills';
@@ -216,7 +216,7 @@ export function renderSettings() {
                         <div class="general-subtabs" role="tablist" aria-label="General settings sections">
                             <button type="button" class="general-subtab${tab('pills')}" data-general-sub="pills" role="tab" aria-selected="${generalSubTab === 'pills' ? 'true' : 'false'}">
                                 <span class="general-subtab__icon">🗺️</span>
-                                <span class="general-subtab__label">Map pills</span>
+                                <span class="general-subtab__label">${t('settings.subtabPills')}</span>
                             </button>
                             <button type="button" class="general-subtab${tab('appearance')}" data-general-sub="appearance" role="tab" aria-selected="${generalSubTab === 'appearance' ? 'true' : 'false'}">
                                 <span class="general-subtab__icon">🎨</span>
@@ -249,11 +249,11 @@ export function renderSettings() {
                             ${subTabnav}
                             <div class="card glass" style="padding: 32px; border-radius: 28px;">
                                 <h2 style="color: #5856d6; margin-top: 0;">${t('settings.appearance')}</h2>
-                                <p style="color: var(--text-secondary); margin-bottom: 24px;">Pick a theme. <strong>System</strong> follows your device's appearance setting and updates live when it changes.</p>
+                                <p style="color: var(--text-secondary); margin-bottom: 24px;">${t('settings.themePickerSubtitle')}</p>
                                 <div class="theme-options">
-                                    ${opt('light', t('settings.themeLight'), '☀️', 'Bright surfaces, dark text. Classic.')}
-                                    ${opt('dark', t('settings.themeDark'), '🌙', 'Dark surfaces, light text. Easy on the eyes after sundown.')}
-                                    ${opt('system', t('settings.themeSystem'), '🖥️', 'Follow your device. Auto-switches when your OS does.')}
+                                    ${opt('light', t('settings.themeLight'), '☀️', t('settings.themeBodyLight'))}
+                                    ${opt('dark', t('settings.themeDark'), '🌙', t('settings.themeBodyDark'))}
+                                    ${opt('system', t('settings.themeSystem'), '🖥️', t('settings.themeBodySystem'))}
                                 </div>
                             </div>
                         `;
@@ -301,7 +301,7 @@ export function renderSettings() {
                                 ? filters[c.key]!.minRating
                                 : c.defaultMinRating;
                             const ratingOpts = ratingOptions.map(v => `
-                                <option value="${v}" ${v === userMin ? 'selected' : ''}>${v === 0 ? 'Any rating' : `${v}★ +`}</option>
+                                <option value="${v}" ${v === userMin ? 'selected' : ''}>${v === 0 ? t('settings.poiAnyRating') : `${v}★ +`}</option>
                             `).join('');
                             // Anchor mode: user override (Settings) wins,
                             // else the category's useAnchorAlways default.
@@ -311,8 +311,8 @@ export function renderSettings() {
                                 : (c.useAnchorAlways ? 'anchor' : 'epicenter');
                             const defaultAnchor = c.useAnchorAlways ? 'anchor' : 'epicenter';
                             const anchorOpts = `
-                                <option value="epicenter" ${effectiveAnchor === 'epicenter' ? 'selected' : ''}>📍 Day-aware</option>
-                                <option value="anchor"   ${effectiveAnchor === 'anchor' ? 'selected' : ''}>🌐 Trip-wide</option>
+                                <option value="epicenter" ${effectiveAnchor === 'epicenter' ? 'selected' : ''}>${t('settings.poiAnchorDayAware')}</option>
+                                <option value="anchor"   ${effectiveAnchor === 'anchor' ? 'selected' : ''}>${t('settings.poiAnchorTripWide')}</option>
                             `;
                             const isVisible = visibility[c.key] !== false; // default true
                             const isRatingCustom = userMin !== c.defaultMinRating;
@@ -327,16 +327,16 @@ export function renderSettings() {
                                         <div class="poi-filter-row__label">${esc(c.label)}</div>
                                         <div class="poi-filter-row__hint">${esc(c.tooltip)}</div>
                                     </div>
-                                    <select class="poi-anchor-mode" data-poi="${c.key}" aria-label="Search anchor for ${esc(c.label)}" title="Day-aware = uses the day you've picked as search center on Home (falls back to anchor). Trip-wide = always anchored on the trip's anchor pin.">
+                                    <select class="poi-anchor-mode" data-poi="${c.key}" aria-label="${t('settings.poiAnchorAriaLabel', { label: esc(c.label) })}" title="${t('settings.poiAnchorTooltip')}">
                                         ${anchorOpts}
                                     </select>
-                                    <select class="poi-filter-rating" data-poi="${c.key}" aria-label="Minimum rating for ${esc(c.label)}">
+                                    <select class="poi-filter-rating" data-poi="${c.key}" aria-label="${t('settings.poiRatingAriaLabel', { label: esc(c.label) })}">
                                         ${ratingOpts}
                                     </select>
-                                    <span class="poi-filter-row__default" title="Defaults: ${c.defaultMinRating === 0 ? 'Any rating' : c.defaultMinRating + '★+'} / ${defaultAnchor === 'anchor' ? 'Trip-wide' : 'Day-aware'} / shown">
-                                        ${isCustom ? '<button type="button" class="poi-filter-reset" data-poi="' + c.key + '" title="Reset rating, anchor, and visibility to default">Reset</button>' : '<span class="muted">Default</span>'}
+                                    <span class="poi-filter-row__default" title="Defaults: ${c.defaultMinRating === 0 ? t('settings.poiAnyRating') : c.defaultMinRating + '★+'} / ${defaultAnchor === 'anchor' ? t('settings.poiAnchorTripWide') : t('settings.poiAnchorDayAware')} / shown">
+                                        ${isCustom ? '<button type="button" class="poi-filter-reset" data-poi="' + c.key + '" title="' + t('settings.poiResetTooltip') + '">' + t('settings.poiResetBtn') + '</button>' : '<span class="muted">' + t('settings.poiDefaultLabel') + '</span>'}
                                     </span>
-                                    <label class="switch poi-visibility-switch" title="${isVisible ? 'Visible on the home pill row — switch off to hide.' : 'Hidden from the home pill row — switch on to show.'}">
+                                    <label class="switch poi-visibility-switch" title="${isVisible ? t('settings.poiVisibilitySwitchTitleVisible') : t('settings.poiVisibilitySwitchTitleHidden')}">
                                         <input type="checkbox" class="poi-visibility-toggle" data-poi="${c.key}" ${isVisible ? 'checked' : ''}>
                                         <span class="slider"></span>
                                     </label>
@@ -346,14 +346,14 @@ export function renderSettings() {
                     return `
                         ${subTabnav}
                         <div class="card glass" style="padding: 32px; border-radius: 28px;">
-                            <h2 style="color: #005bb8; margin-top: 0;">Map pill filters</h2>
-                            <p style="color: var(--text-secondary); margin-bottom: 16px;"><strong>Show on Home</strong> (the right-side switch) toggles whether each pill appears in the home map's pill row. Useful for hiding categories you never use so the row stays compact.</p>
-                            <p style="color: var(--text-secondary); margin-bottom: 16px;"><strong>Minimum rating</strong> hides results below the chosen ★. Restaurants and Hotels default to 4★+ (rating is a meaningful quality signal there); the rest default to "Any rating".</p>
-                            <p style="color: var(--text-secondary); margin-bottom: 24px;"><strong>Search anchor</strong> picks where each pill searches from. <em>Day-aware</em> uses the day you've set as search center on the Home page (falls back to the trip's anchor pin). <em>Trip-wide</em> always anchors on the anchor pin so the 50 km wide search covers the whole trip — better for sparse "where are these across my whole trip" categories like Medical, Sports, Govt, Schools, Public transit.</p>
+                            <h2 style="color: #005bb8; margin-top: 0;">${t('settings.poiTitle')}</h2>
+                            <p style="color: var(--text-secondary); margin-bottom: 16px;">${t('settings.poiIntroVisibility')}</p>
+                            <p style="color: var(--text-secondary); margin-bottom: 16px;">${t('settings.poiIntroRating')}</p>
+                            <p style="color: var(--text-secondary); margin-bottom: 24px;">${t('settings.poiIntroAnchor')}</p>
                             <div class="poi-filter-list">
                                 ${rows}
                             </div>
-                            <p style="color: var(--text-secondary); margin: 24px 0 0; font-size: 0.85rem;">Visibility changes take effect on next Home navigation. Filter / anchor changes apply on the next pill toggle. Reset returns rating, anchor, AND visibility to the pill's defaults.</p>
+                            <p style="color: var(--text-secondary); margin: 24px 0 0; font-size: 0.85rem;">${t('settings.poiOutroNote')}</p>
                         </div>
                     `;
                 })() : ''}
@@ -361,27 +361,27 @@ export function renderSettings() {
                 ${isReset ? `
                     <div class="settings-grid">
                         <div class="card glass" style="padding: var(--space-6);">
-                            <h3 style="color: #a85d00; margin-top: 0;">Trips & Days</h3>
-                            <p class="muted-meta">Remove all trips, itineraries, and daily logs.</p>
-                            <button class="themed-block-btn confirm-reset-btn" data-reset-type="trips" style="--accent: 255,149,0;">Delete All Trips</button>
+                            <h3 style="color: #a85d00; margin-top: 0;">${t('settings.resetTripsTitle')}</h3>
+                            <p class="muted-meta">${t('settings.resetTripsBody')}</p>
+                            <button class="themed-block-btn confirm-reset-btn" data-reset-type="trips" style="--accent: 255,149,0;">${t('settings.resetTripsBtn')}</button>
                         </div>
                         <div class="card glass" style="padding: var(--space-6);">
-                            <h3 style="color: #5856d6; margin-top: 0;">Categories</h3>
-                            <p class="muted-meta">Reset custom expense categories to defaults.</p>
-                            <button class="themed-block-btn confirm-reset-btn" data-reset-type="categories" style="--accent: 88,86,214;">Restore Defaults</button>
+                            <h3 style="color: #5856d6; margin-top: 0;">${t('settings.resetCategoriesTitle')}</h3>
+                            <p class="muted-meta">${t('settings.resetCategoriesBody')}</p>
+                            <button class="themed-block-btn confirm-reset-btn" data-reset-type="categories" style="--accent: 88,86,214;">${t('settings.resetCategoriesBtn')}</button>
                         </div>
                         <div class="card glass danger-card" style="padding: var(--space-6); border-color: rgba(255, 59, 48, 0.3);">
-                            <h3 style="color: #ff3b30; margin-top: 0;">Factory Reset</h3>
-                            <p class="muted-meta">Permanently wipe every trace of data from the app.</p>
-                            <button class="btn-confirm-danger confirm-reset-btn" data-reset-type="app" style="font-size: var(--font-sm); padding: var(--space-3);">Erase Everything</button>
+                            <h3 style="color: #ff3b30; margin-top: 0;">${t('settings.resetFactoryTitle')}</h3>
+                            <p class="muted-meta">${t('settings.resetFactoryBody')}</p>
+                            <button class="btn-confirm-danger confirm-reset-btn" data-reset-type="app" style="font-size: var(--font-sm); padding: var(--space-3);">${t('settings.resetFactoryBtn')}</button>
                         </div>
                     </div>
                 ` : ''}
 
                 ${isFormat ? `
                     <div class="card glass" style="padding: 32px; border-radius: 28px;">
-                        <h2 style="color: #a85d00; margin-top: 0;">Custom Excel Mapping</h2>
-                        <p style="color: var(--text-secondary); margin-bottom: 24px;">Define how internal app fields map to Excel columns for seamless imports.</p>
+                        <h2 style="color: #a85d00; margin-top: 0;">${t('settings.formatTitle')}</h2>
+                        <p style="color: var(--text-secondary); margin-bottom: 24px;">${t('settings.formatSubtitle')}</p>
 
                         <div id="mappingTableContainer">
                             ${renderMappingContent()}
@@ -400,9 +400,9 @@ export function renderSettings() {
     const confirmReset = (type: 'trips' | 'categories' | 'app') => {
         const configs = {
             trips: {
-                title: "Wipe All Trips?",
-                message: "This permanently deletes every trip, day log, and itinerary.",
-                confirmText: "Delete Trips",
+                title: t('settings.resetTripsConfirmTitle'),
+                message: t('settings.resetTripsConfirmMessage'),
+                confirmText: t('settings.resetTripsConfirmBtn'),
                 onConfirm: async () => {
                     STATE.trips = []; STATE.archivedTrips = []; STATE.tripDays = []; STATE.expenses = []; STATE.budgets = []; STATE.activeTripId = null;
                     emit('state:changed');
@@ -420,9 +420,9 @@ export function renderSettings() {
                 }
             },
             categories: {
-                title: "Reset Categories?",
-                message: "Reverts all expense categories to the system defaults.",
-                confirmText: "Restore Defaults",
+                title: t('settings.resetCategoriesConfirmTitle'),
+                message: t('settings.resetCategoriesConfirmMessage'),
+                confirmText: t('settings.resetCategoriesConfirmBtn'),
                 onConfirm: () => {
                     STATE.categories = [
                         { id: 'c1', name: 'Food', icon: '🍔', color: '#ff3b30' },
@@ -435,9 +435,9 @@ export function renderSettings() {
                 }
             },
             app: {
-                title: "Factory Reset",
-                message: "Absolute destruction. This wipes EVERY bit of data from the application.",
-                confirmText: "ERASE EVERYTHING",
+                title: t('settings.resetFactoryConfirmTitle'),
+                message: t('settings.resetFactoryConfirmMessage'),
+                confirmText: t('settings.resetFactoryConfirmBtn'),
                 onConfirm: async () => {
                     // Wipe server data first if logged in
                     if (STATE.user) {
@@ -498,9 +498,9 @@ export function renderSettings() {
 
     const deleteSavedFormat = (id: string) => {
         showConfirmModal({
-            title: "Delete Format?",
-            message: "This mapping will no longer be available for imports.",
-            confirmText: "Delete",
+            title: t('settings.formatDeleteConfirmTitle'),
+            message: t('settings.formatDeleteConfirmMessage'),
+            confirmText: t('settings.formatDeleteConfirmBtn'),
             onConfirm: () => {
                 STATE.savedFormats = (STATE.savedFormats || []).filter(f => f.id !== id);
                 emit('state:changed');
@@ -726,7 +726,7 @@ function openEditCategoryModal(categoryId: string) {
                     <input type="color" id="editCatColor" class="glass-input" value="${esc(cat.color)}" style="width: 50px; padding: 2px;">
                 </div>
                 <div style="display: flex; gap: var(--space-3); margin-top: var(--space-2);">
-                    <button type="submit" class="btn-primary" style="flex: 2;">Save Changes</button>
+                    <button type="submit" class="btn-primary" style="flex: 2;">${t('settings.editCategorySaveBtn')}</button>
                     <button type="button" id="cancelEditCatBtn" class="btn-neutral" style="flex: 1; border-radius: var(--radius-lg);">Cancel</button>
                 </div>
             </form>
@@ -767,13 +767,13 @@ export function renderPersonalization() {
             <span class="cat-row__name">${esc(c.name)}</span>
             <span class="cat-row__swatch" style="background:${esc(c.color)};" aria-label="Color ${esc(c.color)}"></span>
             <div class="cat-row__actions">
-                <button class="cat-row__btn cat-row__btn--edit edit-category-btn" data-category-id="${esc(c.id)}" title="Edit category" aria-label="Edit category">
+                <button class="cat-row__btn cat-row__btn--edit edit-category-btn" data-category-id="${esc(c.id)}" title="${t('settings.categoryEditTooltip')}" aria-label="${t('settings.categoryEditAriaLabel')}">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                         <path d="M12 20h9"></path>
                         <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
                     </svg>
                 </button>
-                <button class="cat-row__btn cat-row__btn--delete delete-category-btn" data-category-id="${esc(c.id)}" title="Delete category" aria-label="Delete category">
+                <button class="cat-row__btn cat-row__btn--delete delete-category-btn" data-category-id="${esc(c.id)}" title="${t('settings.categoryDeleteTooltip')}" aria-label="${t('settings.categoryDeleteAriaLabel')}">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                         <line x1="18" y1="6" x2="6" y2="18"></line>
                         <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -785,32 +785,32 @@ export function renderPersonalization() {
 
     div.innerHTML = `
         <div class="ai-page-header">
-            <h1 class="gradient-text" style="--g-from: #1a6b3c; --g-to: #34c759;">Personalization</h1>
-            <p>Customize your experience and categories. Manage friends in the Friends tab; add companions per-trip from the Home page.</p>
+            <h1 class="gradient-text" style="--g-from: #1a6b3c; --g-to: #34c759;">${t('settings.personalizationTitle')}</h1>
+            <p>${t('settings.personalizationSubtitle')}</p>
         </div>
 
         <div id="persMenu" class="grid-2">
             <button type="button" class="card-button-reset card glass card-glow-blue pers-tab-card" data-tab="categories">
-                <h2 class="card-title" style="color: #005bb8;">Manage Categories</h2>
-                <p class="text-muted">Customize expense categories, icons, and colors.</p>
+                <h2 class="card-title" style="color: #005bb8;">${t('settings.manageCategoriesTitle')}</h2>
+                <p class="text-muted">${t('settings.manageCategoriesBody')}</p>
             </button>
         </div>
 
         <div id="persContent" style="display: none;">
-            <button class="btn btn-small btn-liquid-glass pers-tab-card" data-tab="menu" style="margin-bottom: 20px;">&larr; Back to Personalization</button>
+            <button class="btn btn-small btn-liquid-glass pers-tab-card" data-tab="menu" style="margin-bottom: 20px;">${t('settings.backToPersonalization')}</button>
 
             <div id="persCategories" style="display: none;">
                 <div class="card glass card-glow-blue">
                     <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom: var(--space-4); flex-wrap:wrap;">
-                        <h2 class="card-title" style="color: #005bb8; margin: 0;">Categories</h2>
+                        <h2 class="card-title" style="color: #005bb8; margin: 0;">${t('settings.categoriesTitle')}</h2>
                         <span class="cat-count-chip">${STATE.categories.length}</span>
                     </div>
                     <div class="cat-list" style="margin-bottom: var(--space-5);">
-                        ${catsHtml || '<div class="cat-list__empty">No categories yet — add one below.</div>'}
+                        ${catsHtml || '<div class="cat-list__empty">' + t('settings.categoriesEmpty') + '</div>'}
                     </div>
 
                     <div class="section-divider">
-                        <h3 style="margin-bottom: var(--space-3); font-size: var(--font-lg);">Add New Category</h3>
+                        <h3 style="margin-bottom: var(--space-3); font-size: var(--font-lg);">${t('settings.categoryAddNewHeading')}</h3>
                         <div style="display:flex; gap: var(--space-3); flex-wrap: wrap;">
                             <select id="catIcon" class="glass-input" style="width: 80px;">
                                 <option value="🍷">🍷</option><option value="🏨">🏨</option><option value="✈️">✈️</option><option value="🚕">🚕</option><option value="🍕">🍕</option>
@@ -818,9 +818,9 @@ export function renderPersonalization() {
                                 <option value="🏖️">🏖️</option><option value="🎢">🎢</option><option value="🚠">🚠</option><option value="🚌">🚌</option><option value="🚆">🚆</option>
                                 <option value="🌍">🌍</option><option value="🗺️">🗺️</option><option value="🎒">🎒</option><option value="📸">📸</option><option value="☕">☕</option>
                             </select>
-                            <input type="text" id="catName" class="glass-input" placeholder="Category Name" style="flex:1; min-width: 150px;">
+                            <input type="text" id="catName" class="glass-input" placeholder="${t('settings.categoryNamePlaceholder')}" style="flex:1; min-width: 150px;">
                             <input type="color" id="catColor" class="glass-input" value="#ff3b30" style="width: 50px; padding: 2px;">
-                            <button id="addCatBtn" class="btn-primary" style="padding: var(--space-3) var(--space-5);">Add</button>
+                            <button id="addCatBtn" class="btn-primary" style="padding: var(--space-3) var(--space-5);">${t('settings.categoryAddBtn')}</button>
                         </div>
                     </div>
                 </div>

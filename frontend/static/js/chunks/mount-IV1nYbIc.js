@@ -61,21 +61,21 @@ import{r as e,t}from"./vendor-react-CYVQMBjw.js";import{H as n,J as r,K as i,Q a
                 `:``}
                 ${u&&u.net>.01?`
                     <div style="text-align:center; min-width:120px;">
-                        <div style="font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.12em; color:#34c759;">+ Most owed</div>
+                        <div style="font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.12em; color:#34c759;">${h(`settlement.topOwed`)}</div>
                         <div style="font-size:1.1rem; font-weight:800; color:#002d5b; margin-top:4px;">${o(u.name)}</div>
                         <div style="font-size:0.78rem; font-weight:700; color:#1a6b3c;">+${i(u.net,`EUR`)}</div>
                     </div>
                 `:``}
                 ${l&&l.net<-.01?`
                     <div style="text-align:center; min-width:120px;">
-                        <div style="font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.12em; color:#ff3b30;">– Owes the most</div>
+                        <div style="font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.12em; color:#ff3b30;">${h(`settlement.topOwes`)}</div>
                         <div style="font-size:1.1rem; font-weight:800; color:#002d5b; margin-top:4px;">${o(l.name)}</div>
                         <div style="font-size:0.78rem; font-weight:700; color:#a30000;">${i(l.net,`EUR`)}</div>
                     </div>
                 `:``}
             </div>
         </div>
-    `:``,f=Object.entries(n).map(([e,t])=>{let n=t>.01,r=t<-.01;return`
+    `:``,p=Object.entries(n).map(([e,t])=>{let n=t>.01,r=t<-.01;return`
             <div style="display:flex; align-items:center; gap:14px; padding:12px 14px; background:white; border:1px solid rgba(0,0,0,0.06); border-radius:14px;">
                 <div style="width:34px; height:34px; border-radius:50%; background: ${n?`rgba(52,199,89,0.12)`:r?`rgba(255,59,48,0.1)`:`rgba(0,0,0,0.04)`}; color: ${n?`#1a6b3c`:r?`#a30000`:`rgba(0,0,0,0.5)`}; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:0.95rem; flex-shrink:0;">
                     ${o(e.charAt(0).toUpperCase())}
@@ -85,7 +85,7 @@ import{r as e,t}from"./vendor-react-CYVQMBjw.js";import{H as n,J as r,K as i,Q a
                     ${n?`+`:``}${i(t,`EUR`)}
                 </div>
             </div>
-        `}).join(``)||`<p class="text-muted" style="padding: 20px; text-align:center;">No companions on this trip yet.</p>`,p=r.length===0?`<div style="text-align:center; padding: 40px 20px;"><div style="font-size:2.2rem; margin-bottom:8px;">🥂</div><p style="margin:0; font-weight:800; color:#1a6b3c;">All settled for this trip!</p><p style="margin:6px 0 0; color:var(--text-secondary); font-size:0.85rem;">Every balance is square.</p></div>`:r.map(n=>`
+        `}).join(``)||`<p class="text-muted" style="padding: 20px; text-align:center;">${h(`settlement.emptyNoCompanions`)}</p>`,m=r.length===0?`<div style="text-align:center; padding: 40px 20px;"><div style="font-size:2.2rem; margin-bottom:8px;">🥂</div><p style="margin:0; font-weight:800; color:#1a6b3c;">${h(`settlement.allSettledTitle`)}</p><p style="margin:6px 0 0; color:var(--text-secondary); font-size:0.85rem;">${h(`settlement.allSettledBody`)}</p></div>`:r.map(n=>`
             <div style="display:flex; align-items:center; gap:14px; padding:14px 16px; background:white; border:1px solid rgba(0,0,0,0.06); border-radius:16px;">
                 <div style="flex:1; min-width:0;">
                     <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
@@ -97,7 +97,7 @@ import{r as e,t}from"./vendor-react-CYVQMBjw.js";import{H as n,J as r,K as i,Q a
                 </div>
                 ${t?`
                     <button class="btn-primary settle-debt-btn" data-trip-id="${o(e.id)}" data-from="${o(n.from)}" data-to="${o(n.to)}" data-amount="${n.amount}"
-                        style="padding: 8px 18px; font-size:0.85rem; border-radius: 999px; flex-shrink:0;">Settle</button>
+                        style="padding: 8px 18px; font-size:0.85rem; border-radius: 999px; flex-shrink:0;">${h(`settlement.settleBtn`)}</button>
                 `:``}
             </div>
         `).join(``);return`
@@ -105,23 +105,23 @@ import{r as e,t}from"./vendor-react-CYVQMBjw.js";import{H as n,J as r,K as i,Q a
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:18px; margin-bottom:24px;">
             <div class="card glass" style="padding: 22px 24px; border-radius: 28px;">
                 <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
-                    <h3 style="margin:0; font-size:1.05rem; color:#002d5b; font-weight:800; letter-spacing:-0.02em;">Trip balances</h3>
-                    <span style="font-size:0.7rem; font-weight:800; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.1em;">${Object.keys(n).length} ${Object.keys(n).length===1?`person`:`people`}</span>
+                    <h3 style="margin:0; font-size:1.05rem; color:#002d5b; font-weight:800; letter-spacing:-0.02em;">${h(`settlement.tripBalancesTitle`)}</h3>
+                    <span style="font-size:0.7rem; font-weight:800; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.1em;">${f(`settlement.peopleCount`,Object.keys(n).length)}</span>
                 </div>
                 <div style="display:flex; flex-direction:column; gap:8px;">
-                    ${f}
+                    ${p}
                 </div>
             </div>
             <div class="card glass" style="padding: 22px 24px; border-radius: 28px;">
                 <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:14px;">
                     <div style="min-width:0;">
-                        <h3 style="margin:0; font-size:1.05rem; color:#002d5b; font-weight:800; letter-spacing:-0.02em;">Suggested payments</h3>
-                        <div style="font-size:0.7rem; font-weight:700; color:var(--text-secondary); margin-top:3px;">For this trip only — see Cross-trip for everyone-everywhere.</div>
+                        <h3 style="margin:0; font-size:1.05rem; color:#002d5b; font-weight:800; letter-spacing:-0.02em;">${h(`settlement.suggestedPaymentsTitle`)}</h3>
+                        <div style="font-size:0.7rem; font-weight:700; color:var(--text-secondary); margin-top:3px;">${h(`settlement.suggestedPaymentsSubtitle`)}</div>
                     </div>
-                    <span style="font-size:0.7rem; font-weight:800; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.1em; flex-shrink:0;">${r.length} ${r.length===1?`payment`:`payments`}</span>
+                    <span style="font-size:0.7rem; font-weight:800; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.1em; flex-shrink:0;">${f(`settlement.paymentsCount`,r.length)}</span>
                 </div>
                 <div style="display:flex; flex-direction:column; gap:10px;">
-                    ${p}
+                    ${m}
                 </div>
             </div>
         </div>
@@ -129,7 +129,7 @@ import{r as e,t}from"./vendor-react-CYVQMBjw.js";import{H as n,J as r,K as i,Q a
             <div style="text-align:center; margin-bottom: 24px;">
                 <button class="btn-ghost open-manual-settle-btn" data-trip-id="${o(e.id)}" type="button"
                     style="background: white; border:1px solid rgba(0,0,0,0.08); color:#002d5b; padding: 10px 24px; border-radius: 999px; font-weight:800; font-size:0.85rem; cursor:pointer; box-shadow: 0 4px 12px rgba(0,45,91,0.05);">
-                    + Manual settlement
+                    ${h(`settlement.manualSettleOpenBtn`)}
                 </button>
             </div>
         `:``}
@@ -272,4 +272,4 @@ import{r as e,t}from"./vendor-react-CYVQMBjw.js";import{H as n,J as r,K as i,Q a
                 </div>
             </form>
         `});c(v,`#cancelEditSettleBtn`).onclick=()=>y(),c(v,`#editSettlementForm`).onsubmit=e=>{e.preventDefault();let r=c(v,`#editSettleFrom`).value,i=c(v,`#editSettleTo`).value,a=parseFloat(c(v,`#editSettleAmount`).value),o=c(v,`#editSettleDate`).value;if(r===i){l(h(`settlement.toastSenderEqualsReceiver`));return}t.who=r,t.splits={[i]:100},t.value=a,t.currency=_,t.euroValue=n(a,_,`EUR`),t.date=o,t.label=`Settlement: ${r} → ${i}`,g(u.STATE_CHANGED),y()}}var F=t();function I(){let e=y(e=>e.trips),t=y(e=>e.activeTripId);y(e=>e.expenses);let[n,r]=(0,b.useState)(`trip`),[i,a]=(0,b.useState)(()=>t||(e.length>0?e[0].id:null));(0,b.useEffect)(()=>{i&&!e.find(e=>e.id===i)&&a(t||(e.length>0?e[0].id:null))},[e,i,t]);let o=e.find(e=>e.id===i)||null,s=v(o),c=(0,b.useMemo)(()=>T(o,s,n,i),[o,s,n,i,y.length]),l=(0,b.useRef)(null);return(0,F.jsx)(`div`,{ref:l,onClick:e=>{let t=e.target;if(!t)return;let n=t.closest(`.settlement-trip-pill`);if(n?.dataset.tripId){a(n.dataset.tripId);return}let i=t.closest(`.settle-tab`);if(i?.dataset.tab){r(i.dataset.tab);return}let o=t.closest(`.settle-debt-btn`);if(o?.dataset.tripId&&o.dataset.from&&o.dataset.to&&o.dataset.amount&&!o.disabled){o.disabled=!0,o.textContent=h(`settlement.recordingBtn`),j(o.dataset.tripId,o.dataset.from,o.dataset.to,parseFloat(o.dataset.amount),`EUR`);return}let s=t.closest(`.open-manual-settle-btn`);if(s?.dataset.tripId){N(s.dataset.tripId);return}let c=t.closest(`.edit-settlement-btn`);if(c?.dataset.settlementId){P(c.dataset.settlementId);return}let l=t.closest(`.unsettle-settlement-btn`);if(l?.dataset.settlementId){M(l.dataset.settlementId);return}},onChange:e=>{let t=e.target;if(t&&t.id===`settlementTripSelect`){let e=t;e.value&&a(e.value)}},dangerouslySetInnerHTML:{__html:c}})}function L(e){_(e,(0,b.createElement)(I))}export{L as mountSettlement};
-//# sourceMappingURL=mount-BSyHzFwB.js.map
+//# sourceMappingURL=mount-IV1nYbIc.js.map

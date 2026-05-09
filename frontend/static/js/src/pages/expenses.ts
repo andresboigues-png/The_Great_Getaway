@@ -63,9 +63,9 @@ export function renderExpenses() {
     div.innerHTML = `
         <h1 style="display: inline-block; background: var(--gradient-title); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin-bottom: 12px;">${t('expenses.title')}</h1>
         <nav class="expenses-tabnav" role="tablist">
-            <button class="expenses-tabnav__tab" data-tab="manual" role="tab">Manual Upload</button>
-            <button class="expenses-tabnav__tab" data-tab="batch" role="tab">Batch Upload</button>
-            <button class="expenses-tabnav__tab" data-tab="history" role="tab">History</button>
+            <button class="expenses-tabnav__tab" data-tab="manual" role="tab">${t('expenses.tabManual')}</button>
+            <button class="expenses-tabnav__tab" data-tab="batch" role="tab">${t('expenses.tabBatch')}</button>
+            <button class="expenses-tabnav__tab" data-tab="history" role="tab">${t('expenses.tabHistory')}</button>
         </nav>
         <div id="expensesTabContent"></div>
     `;
@@ -83,9 +83,9 @@ export function renderExpenses() {
         const isReadOnly = !canEditExpenses(activeTrip);
 
         if (activeExpensesTab === 'manual') {
-            content.appendChild(isReadOnly ? renderReadOnlyNotice('Manual Upload', 'log new expenses') : renderManualTab());
+            content.appendChild(isReadOnly ? renderReadOnlyNotice(t('expenses.tabManual'), t('expenses.readOnlyVerbManual')) : renderManualTab());
         } else if (activeExpensesTab === 'batch') {
-            content.appendChild(isReadOnly ? renderReadOnlyNotice('Batch Upload', 'import expenses') : renderUpload());
+            content.appendChild(isReadOnly ? renderReadOnlyNotice(t('expenses.tabBatch'), t('expenses.readOnlyVerbBatch')) : renderUpload());
         } else {
             content.appendChild(renderHistoryTab());
         }
@@ -94,15 +94,19 @@ export function renderExpenses() {
     /** Friendly "you're a Relaxer here" panel — used in the Manual + Batch
      *  tabs when the current user can't edit the active trip. Keeps the
      *  tab structure visible so there's no confusing "tab disappeared" UX,
-     *  but blocks the form / file picker behind a clear explanation. */
+     *  but blocks the form / file picker behind a clear explanation.
+     *  i18n session 5: title + body localized via t() with {verb}+{tab}
+     *  interpolation; the body keeps inline <strong> markup which renders
+     *  via innerHTML (source string is from our own translation tables —
+     *  no user input — so injection-safe). */
     function renderReadOnlyNotice(tabLabel: string, verb: string) {
         const w = document.createElement('div');
         w.innerHTML = `
             <div class="card glass" style="max-width: 520px; margin: 32px auto; padding: 36px; border-radius: 28px; text-align: center; background: rgba(255,255,255,0.6);">
                 <div style="font-size: 2.4rem; margin-bottom: 12px;">👁</div>
-                <h2 style="margin: 0 0 12px; font-size: 1.4rem; font-weight: 800; color: #002d5b; letter-spacing: -0.02em;">Read-only — Relaxer view</h2>
+                <h2 style="margin: 0 0 12px; font-size: 1.4rem; font-weight: 800; color: #002d5b; letter-spacing: -0.02em;">${t('expenses.readOnlyTitle')}</h2>
                 <p style="margin: 0; color: rgba(0,0,0,0.55); line-height: 1.5;">
-                    You're a <strong>Relaxer</strong> on this trip, so you can't ${verb} from the <strong>${tabLabel}</strong> tab. Switch to the <strong>History</strong> tab to see what's been added — and ask the trip's planner to promote you if you want to contribute.
+                    ${t('expenses.readOnlyBody', { verb, tab: tabLabel })}
                 </p>
             </div>
         `;
@@ -143,7 +147,7 @@ function renderManualTab() {
     // Build People Options
     let peopleOptions = tripCompanionNames.map(p => `<option value="${p}">${p}</option>`).join('');
     if (!peopleOptions) {
-        peopleOptions = `<option value="">No companions on this trip — add some from Home</option>`;
+        peopleOptions = `<option value="">${t('expenses.noCompanionsAddFromHome')}</option>`;
     }
 
     // Build Category Options
@@ -151,11 +155,11 @@ function renderManualTab() {
 
     wrapper.innerHTML = `
         <div class="card glass" style="max-width: 600px; margin: 0 auto; width: 100%; border-radius: 44px; border: 1px solid rgba(255,255,255,0.4); background: rgba(255,255,255,0.15); backdrop-filter: blur(25px); padding: 48px; box-shadow: 0 40px 100px rgba(0,0,0,0.25);">
-            <h2 class="card-title" style="font-size: 2.2rem; margin-bottom: 32px; color: #000000; letter-spacing: -0.06em; font-weight: 800; text-align: center;">Add Expense</h2>
+            <h2 class="card-title" style="font-size: 2.2rem; margin-bottom: 32px; color: #000000; letter-spacing: -0.06em; font-weight: 800; text-align: center;">${t('expenses.addExpenseTitle')}</h2>
             <form id="expenseForm" style="display: flex; flex-direction: column; align-items: center; width: 100%;">
 
                 <div class="form-row">
-                    <label class="form-label-light" for="expWho">Who Paid</label>
+                    <label class="form-label-light" for="expWho">${t('expenses.whoPaid')}</label>
                     <select id="expWho" class="glass-input-light" required>
                         ${peopleOptions}
                     </select>

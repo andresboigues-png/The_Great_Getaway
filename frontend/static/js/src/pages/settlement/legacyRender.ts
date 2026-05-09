@@ -175,7 +175,7 @@ function renderTripTab(trip: any, tripIsEditable: boolean): string {
                     topOwed && topOwed.net > 0.01
                         ? `
                     <div style="text-align:center; min-width:120px;">
-                        <div style="font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.12em; color:#34c759;">+ Most owed</div>
+                        <div style="font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.12em; color:#34c759;">${t('settlement.topOwed')}</div>
                         <div style="font-size:1.1rem; font-weight:800; color:#002d5b; margin-top:4px;">${esc(topOwed.name)}</div>
                         <div style="font-size:0.78rem; font-weight:700; color:#1a6b3c;">+${formatHome(topOwed.net, 'EUR')}</div>
                     </div>
@@ -186,7 +186,7 @@ function renderTripTab(trip: any, tripIsEditable: boolean): string {
                     topOwes && topOwes.net < -0.01
                         ? `
                     <div style="text-align:center; min-width:120px;">
-                        <div style="font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.12em; color:#ff3b30;">– Owes the most</div>
+                        <div style="font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.12em; color:#ff3b30;">${t('settlement.topOwes')}</div>
                         <div style="font-size:1.1rem; font-weight:800; color:#002d5b; margin-top:4px;">${esc(topOwes.name)}</div>
                         <div style="font-size:0.78rem; font-weight:700; color:#a30000;">${formatHome(topOwes.net, 'EUR')}</div>
                     </div>
@@ -216,11 +216,11 @@ function renderTripTab(trip: any, tripIsEditable: boolean): string {
         `;
             })
             .join('') ||
-        `<p class="text-muted" style="padding: 20px; text-align:center;">No companions on this trip yet.</p>`;
+        `<p class="text-muted" style="padding: 20px; text-align:center;">${t('settlement.emptyNoCompanions')}</p>`;
 
     const debtsHtml =
         debts.length === 0
-            ? `<div style="text-align:center; padding: 40px 20px;"><div style="font-size:2.2rem; margin-bottom:8px;">🥂</div><p style="margin:0; font-weight:800; color:#1a6b3c;">All settled for this trip!</p><p style="margin:6px 0 0; color:var(--text-secondary); font-size:0.85rem;">Every balance is square.</p></div>`
+            ? `<div style="text-align:center; padding: 40px 20px;"><div style="font-size:2.2rem; margin-bottom:8px;">🥂</div><p style="margin:0; font-weight:800; color:#1a6b3c;">${t('settlement.allSettledTitle')}</p><p style="margin:6px 0 0; color:var(--text-secondary); font-size:0.85rem;">${t('settlement.allSettledBody')}</p></div>`
             : debts
                   .map(
                       (d) => `
@@ -237,7 +237,7 @@ function renderTripTab(trip: any, tripIsEditable: boolean): string {
                     tripIsEditable
                         ? `
                     <button class="btn-primary settle-debt-btn" data-trip-id="${esc(trip.id)}" data-from="${esc(d.from)}" data-to="${esc(d.to)}" data-amount="${d.amount}"
-                        style="padding: 8px 18px; font-size:0.85rem; border-radius: 999px; flex-shrink:0;">Settle</button>
+                        style="padding: 8px 18px; font-size:0.85rem; border-radius: 999px; flex-shrink:0;">${t('settlement.settleBtn')}</button>
                 `
                         : ''
                 }
@@ -251,8 +251,8 @@ function renderTripTab(trip: any, tripIsEditable: boolean): string {
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:18px; margin-bottom:24px;">
             <div class="card glass" style="padding: 22px 24px; border-radius: 28px;">
                 <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
-                    <h3 style="margin:0; font-size:1.05rem; color:#002d5b; font-weight:800; letter-spacing:-0.02em;">Trip balances</h3>
-                    <span style="font-size:0.7rem; font-weight:800; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.1em;">${Object.keys(balances).length} ${Object.keys(balances).length === 1 ? 'person' : 'people'}</span>
+                    <h3 style="margin:0; font-size:1.05rem; color:#002d5b; font-weight:800; letter-spacing:-0.02em;">${t('settlement.tripBalancesTitle')}</h3>
+                    <span style="font-size:0.7rem; font-weight:800; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.1em;">${tn('settlement.peopleCount', Object.keys(balances).length)}</span>
                 </div>
                 <div style="display:flex; flex-direction:column; gap:8px;">
                     ${personRows}
@@ -261,10 +261,10 @@ function renderTripTab(trip: any, tripIsEditable: boolean): string {
             <div class="card glass" style="padding: 22px 24px; border-radius: 28px;">
                 <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:14px;">
                     <div style="min-width:0;">
-                        <h3 style="margin:0; font-size:1.05rem; color:#002d5b; font-weight:800; letter-spacing:-0.02em;">Suggested payments</h3>
-                        <div style="font-size:0.7rem; font-weight:700; color:var(--text-secondary); margin-top:3px;">For this trip only — see Cross-trip for everyone-everywhere.</div>
+                        <h3 style="margin:0; font-size:1.05rem; color:#002d5b; font-weight:800; letter-spacing:-0.02em;">${t('settlement.suggestedPaymentsTitle')}</h3>
+                        <div style="font-size:0.7rem; font-weight:700; color:var(--text-secondary); margin-top:3px;">${t('settlement.suggestedPaymentsSubtitle')}</div>
                     </div>
-                    <span style="font-size:0.7rem; font-weight:800; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.1em; flex-shrink:0;">${debts.length} ${debts.length === 1 ? 'payment' : 'payments'}</span>
+                    <span style="font-size:0.7rem; font-weight:800; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.1em; flex-shrink:0;">${tn('settlement.paymentsCount', debts.length)}</span>
                 </div>
                 <div style="display:flex; flex-direction:column; gap:10px;">
                     ${debtsHtml}
@@ -277,7 +277,7 @@ function renderTripTab(trip: any, tripIsEditable: boolean): string {
             <div style="text-align:center; margin-bottom: 24px;">
                 <button class="btn-ghost open-manual-settle-btn" data-trip-id="${esc(trip.id)}" type="button"
                     style="background: white; border:1px solid rgba(0,0,0,0.08); color:#002d5b; padding: 10px 24px; border-radius: 999px; font-weight:800; font-size:0.85rem; cursor:pointer; box-shadow: 0 4px 12px rgba(0,45,91,0.05);">
-                    + Manual settlement
+                    ${t('settlement.manualSettleOpenBtn')}
                 </button>
             </div>
         `

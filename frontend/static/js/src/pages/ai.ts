@@ -11,7 +11,7 @@ import { showModal } from '../components/Modal.js';
 import { applyMapTheme } from '../theme.js';
 import { navigate } from '../router.js';
 import { renderSlotBody, flattenSlotForTextarea } from './ai/slots.js';
-import { t } from '../i18n.js';
+import { t, tn } from '../i18n.js';
 
 let googleMap: any = null;
 let mapMarkers: any[] = [];
@@ -131,15 +131,15 @@ export function renderAI() {
                     <div class="card glass" style="padding:18px;border-color:rgba(155,89,182,0.3);flex:0 0 auto;">
                         <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
                             <h2 class="card-title" style="font-size:0.85rem;text-transform:uppercase;letter-spacing:0.07em;color:#7c3a9e;margin:0;">${t('ai.sectionAiEngine')}</h2>
-                            <button id="aiKeyHelpBtn" type="button" title="How to get a Gemini API key" aria-label="How to get a Gemini API key"
+                            <button id="aiKeyHelpBtn" type="button" title="${t('ai.keyHelpBtnTitle')}" aria-label="${t('ai.keyHelpBtnTitle')}"
                                 style="background:rgba(155,89,182,0.12); border:1px solid rgba(155,89,182,0.35); color:#7c3a9e; width:24px; height:24px; border-radius:50%; cursor:pointer; font-weight:800; font-size:0.78rem; line-height:1; display:inline-flex; align-items:center; justify-content:center; font-family: Georgia, serif; font-style: italic;">i</button>
                         </div>
-                        <p style="color:var(--text-secondary);font-size:0.78rem;margin:0 0 10px;">Bring your own free Gemini API key. Stored on this device only.</p>
+                        <p style="color:var(--text-secondary);font-size:0.78rem;margin:0 0 10px;">${t('ai.keyCardSubtitle')}</p>
                         <div style="position:relative;">
-                            <input id="aiKeyInput" type="password" placeholder="Paste your Gemini API key…" autocomplete="off" spellcheck="false"
+                            <input id="aiKeyInput" type="password" placeholder="${t('ai.keyInputPlaceholder')}" autocomplete="off" spellcheck="false"
                                 value="${esc(STATE.geminiApiKey || '')}"
                                 style="width:100%; box-sizing:border-box; padding:10px 42px 10px 12px; border:1px solid rgba(0,0,0,0.12); border-radius:10px; font-size:0.85rem; font-family: 'SF Mono', monospace; background:white; color:#002d5b;">
-                            <button id="aiKeyToggleBtn" type="button" title="Show / hide key" aria-label="Toggle visibility"
+                            <button id="aiKeyToggleBtn" type="button" title="${t('ai.keyToggleTitle')}" aria-label="${t('ai.keyToggleAriaLabel')}"
                                 style="position:absolute; right:6px; top:50%; transform:translateY(-50%); background:transparent; border:0; cursor:pointer; padding:4px 8px; color:rgba(0,0,0,0.5); font-size:0.95rem; line-height:1;">👁</button>
                         </div>
                         <div id="aiKeyStatus" style="margin-top:6px; font-size:0.7rem; font-weight:700; min-height:1em;"></div>
@@ -149,14 +149,14 @@ export function renderAI() {
                         <h2 class="card-title" style="font-size:0.85rem;text-transform:uppercase;letter-spacing:0.07em;color:#005bb8;margin-bottom:14px;">${t('ai.sectionTravelDates')}</h2>
                         <div style="display:flex; flex-direction:column; gap:12px;">
                             <div>
-                                <label for="aiDateFrom" style="display:block;font-size:0.75rem;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:5px;">From</label>
+                                <label for="aiDateFrom" style="display:block;font-size:0.75rem;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:5px;">${t('ai.dateFromLabel')}</label>
                                 <input id="aiDateFrom" type="date" class="glass-input" value="${minDate}" style="width:100%; box-sizing: border-box;">
                             </div>
                             <div>
-                                <label for="aiDateTo" style="display:block;font-size:0.75rem;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:5px;">To</label>
+                                <label for="aiDateTo" style="display:block;font-size:0.75rem;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:5px;">${t('ai.dateToLabel')}</label>
                                 <input id="aiDateTo" type="date" class="glass-input" value="${maxDate}" style="width:100%; box-sizing: border-box;" min="${minDate}">
                             </div>
-                            <p id="aiDateHint" style="margin:0; font-size:0.74rem; color:var(--text-secondary); line-height:1.45;">Pick the start and end of your trip — Gemini will plan one day per date.</p>
+                            <p id="aiDateHint" style="margin:0; font-size:0.74rem; color:var(--text-secondary); line-height:1.45;">${t('ai.dateHint')}</p>
                         </div>
                     </div>
 
@@ -175,14 +175,14 @@ export function renderAI() {
                             // so Budgeteers don't get told they're
                             // a Relaxer.
                             const role = getMyRole(activeTrip);
-                            const roleLabel = role === ROLE_BUDGETEER ? 'Budgeteer'
-                                : role === ROLE_RELAXER ? 'Relaxer'
-                                : 'observer';
+                            const roleLabel = role === ROLE_BUDGETEER ? t('ai.roleBudgeteer')
+                                : role === ROLE_RELAXER ? t('ai.roleRelaxer')
+                                : t('ai.roleObserver');
                             const note = role === ROLE_BUDGETEER
-                                ? "you handle the trip's expenses but the itinerary is up to the Planners."
-                                : "generating a new plan is up to the Planners.";
+                                ? t('ai.roleNoteBudgeteer')
+                                : t('ai.roleNoteOther');
                             return `<div class="card glass" style="padding:16px; border-radius: var(--radius-lg); text-align:center; color: var(--text-secondary); font-size: 0.85rem; flex:0 0 auto;">
-                                👁 You're a ${roleLabel} on this trip — ${note}
+                                ${t('ai.roleNotice', { role: roleLabel, note })}
                             </div>`;
                         })()}
                 </div>
@@ -571,10 +571,10 @@ export function renderAI() {
                     <div class="card glass" style="padding: 20px; border-radius: 18px; border: 1.5px dashed rgba(155, 89, 182, 0.35); background: rgba(155, 89, 182, 0.04);">
                         <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
                             <span style="font-size: 1.2rem;">📋</span>
-                            <h3 style="margin:0; color:#7c3a9e; font-weight:800; letter-spacing:-0.01em;">No to-do items yet</h3>
+                            <h3 style="margin:0; color:#7c3a9e; font-weight:800; letter-spacing:-0.01em;">${t('ai.todoPanelEmptyTitle')}</h3>
                         </div>
-                        <p style="margin:0 0 12px; color: var(--text-secondary); font-size: 0.9rem;">Build a to-do list of places you want the AI to consider — it gets a richer prompt and you get more relevant suggestions.</p>
-                        <button id="aiGoToTodoBtn" class="btn-primary" style="padding: 10px 18px; border-radius: 999px; font-size:0.85rem;">Open To do list 📋</button>
+                        <p style="margin:0 0 12px; color: var(--text-secondary); font-size: 0.9rem;">${t('ai.todoPanelEmptyBody')}</p>
+                        <button id="aiGoToTodoBtn" class="btn-primary" style="padding: 10px 18px; border-radius: 999px; font-size:0.85rem;">${t('ai.todoPanelEmptyCta')}</button>
                     </div>
                 `;
                 (panel.querySelector('#aiGoToTodoBtn') as HTMLButtonElement | null)?.addEventListener('click', () => navigate('todo'));
@@ -590,10 +590,10 @@ export function renderAI() {
                     <div class="card glass" style="padding: 20px; border-radius: 18px; border: 1.5px dashed rgba(155, 89, 182, 0.35); background: rgba(155, 89, 182, 0.04);">
                         <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
                             <span style="font-size: 1.2rem;">📋</span>
-                            <h3 style="margin:0; color:#7c3a9e; font-weight:800; letter-spacing:-0.01em;">${allTodo.length} item${allTodo.length === 1 ? '' : 's'} on your to-do list</h3>
+                            <h3 style="margin:0; color:#7c3a9e; font-weight:800; letter-spacing:-0.01em;">${tn('ai.todoPanelNoneTickedTitle', allTodo.length)}</h3>
                         </div>
-                        <p style="margin:0 0 12px; color: var(--text-secondary); font-size: 0.9rem;">None ticked for AI consideration yet — head to the <strong>To do list</strong> page to pick which ones you want the AI to plan around.</p>
-                        <button id="aiGoToTodoBtn" class="btn-primary" style="padding: 10px 18px; border-radius: 999px; font-size:0.85rem;">Tick items in To do list 📋</button>
+                        <p style="margin:0 0 12px; color: var(--text-secondary); font-size: 0.9rem;">${t('ai.todoPanelNoneTickedBody')}</p>
+                        <button id="aiGoToTodoBtn" class="btn-primary" style="padding: 10px 18px; border-radius: 999px; font-size:0.85rem;">${t('ai.todoPanelNoneTickedCta')}</button>
                     </div>
                 `;
                 (panel.querySelector('#aiGoToTodoBtn') as HTMLButtonElement | null)?.addEventListener('click', () => navigate('todo'));
@@ -609,18 +609,18 @@ export function renderAI() {
                 .filter(d => d.tripId === activeTrip.id && d.dayNumber > 0)
                 .sort((a, b) => a.dayNumber - b.dayNumber);
             const dayOpts = (selectedId: string | null | undefined) => `
-                <option value="" ${!selectedId ? 'selected' : ''}>Any day</option>
+                <option value="" ${!selectedId ? 'selected' : ''}>${t('ai.dayOptionAny')}</option>
                 ${tripDays.map(d => `
                     <option value="${esc(d.id)}" ${d.id === selectedId ? 'selected' : ''}>
-                        Day ${d.dayNumber}${d.date ? ` — ${formatDayDate(d.date) || d.date}` : ''}
+                        ${t('ai.dayOptionDay', { num: d.dayNumber })}${d.date ? ` — ${formatDayDate(d.date) || d.date}` : ''}
                     </option>
                 `).join('')}
             `;
             const timeOpts = (selectedTime: string | null | undefined) => `
-                <option value="" ${!selectedTime ? 'selected' : ''}>Any time</option>
-                <option value="morning"   ${selectedTime === 'morning'   ? 'selected' : ''}>🌅 Morning</option>
-                <option value="afternoon" ${selectedTime === 'afternoon' ? 'selected' : ''}>☀️ Afternoon</option>
-                <option value="evening"   ${selectedTime === 'evening'   ? 'selected' : ''}>🌙 Evening</option>
+                <option value="" ${!selectedTime ? 'selected' : ''}>${t('ai.timeOptionAny')}</option>
+                <option value="morning"   ${selectedTime === 'morning'   ? 'selected' : ''}>${t('ai.timeOptionMorning')}</option>
+                <option value="afternoon" ${selectedTime === 'afternoon' ? 'selected' : ''}>${t('ai.timeOptionAfternoon')}</option>
+                <option value="evening"   ${selectedTime === 'evening'   ? 'selected' : ''}>${t('ai.timeOptionEvening')}</option>
             `;
 
             const cardsHtml = tickedItems.map(p => `
@@ -642,7 +642,7 @@ export function renderAI() {
                             </select>
                         </div>
                     ` : `
-                        <div style="font-size:0.75rem; color:var(--text-secondary); font-style:italic;">Set Travel Dates above to assign this to a specific day / time of day.</div>
+                        <div style="font-size:0.75rem; color:var(--text-secondary); font-style:italic;">${t('ai.todoPanelCardNoDates')}</div>
                     `}
                 </div>
             `).join('');
@@ -651,10 +651,10 @@ export function renderAI() {
                 <div class="card glass" style="padding:20px; border-radius:18px; border: 1.5px solid rgba(155, 89, 182, 0.25);">
                     <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px; flex-wrap:wrap;">
                         <span style="font-size: 1.2rem;">📋</span>
-                        <h3 style="margin:0; color:#7c3a9e; font-weight:800; letter-spacing:-0.01em;">Ticked for this generation <span style="background:rgba(155,89,182,0.12); color:#7c3a9e; font-size:0.7rem; padding:2px 8px; border-radius:999px; margin-left:6px;">${tickedItems.length} item${tickedItems.length === 1 ? '' : 's'}</span></h3>
-                        <button id="aiManageTodoBtn" type="button" style="margin-left:auto; background:transparent; border:0; color:#005bb8; font-weight:700; font-size:0.82rem; cursor:pointer; padding:0;">Manage in To do list →</button>
+                        <h3 style="margin:0; color:#7c3a9e; font-weight:800; letter-spacing:-0.01em;">${t('ai.todoPanelTickedTitle')} <span style="background:rgba(155,89,182,0.12); color:#7c3a9e; font-size:0.7rem; padding:2px 8px; border-radius:999px; margin-left:6px;">${tn('ai.todoPanelTickedCount', tickedItems.length)}</span></h3>
+                        <button id="aiManageTodoBtn" type="button" style="margin-left:auto; background:transparent; border:0; color:#005bb8; font-weight:700; font-size:0.82rem; cursor:pointer; padding:0;">${t('ai.todoPanelManageBtn')}</button>
                     </div>
-                    <p style="font-size:0.82rem; color:var(--text-secondary); margin:0 0 12px; line-height:1.5;">${datesSet ? 'Pick a day and time of day for each — the AI will respect explicit slots when generating the itinerary.' : 'Set the Travel Dates above to assign these to specific days and times of day.'}</p>
+                    <p style="font-size:0.82rem; color:var(--text-secondary); margin:0 0 12px; line-height:1.5;">${datesSet ? t('ai.todoPanelHintWithDates') : t('ai.todoPanelHintNoDates')}</p>
                     <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap:12px;">
                         ${cardsHtml}
                     </div>
@@ -709,7 +709,7 @@ export function renderAI() {
             if (!keyStatusEl) return;
             const v = (STATE.geminiApiKey || '').trim();
             if (!v) {
-                keyStatusEl.textContent = 'No key saved — paste one above to enable AI generation.';
+                keyStatusEl.textContent = t('ai.keyStatusEmpty');
                 keyStatusEl.style.color = '#a85d00';
                 return;
             }
@@ -734,7 +734,7 @@ export function renderAI() {
                 const showing = keyInput.type === 'text';
                 keyInput.type = showing ? 'password' : 'text';
                 keyToggleBtn.textContent = showing ? '👁' : '🙈';
-                keyToggleBtn.title = showing ? 'Show key' : 'Hide key';
+                keyToggleBtn.title = showing ? t('ai.keyToggleShow') : t('ai.keyToggleHide');
             });
         }
         if (keyHelpBtn) {
@@ -744,26 +744,22 @@ export function renderAI() {
                     cardStyle: 'width: 520px; max-width: calc(100vw - 32px); max-height: 90vh; overflow-y: auto; padding: 28px 32px; border-radius: 28px; background: white;',
                     innerHTML: `
                         <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 12px;">
-                            <h2 style="margin:0; font-size: 1.6rem; color:#7c3a9e; font-weight: 800; letter-spacing:-0.02em;">✦ Get a Gemini API key</h2>
-                            <button id="aiKeyHelpClose" class="close-x-btn" aria-label="Close">✕</button>
+                            <h2 style="margin:0; font-size: 1.6rem; color:#7c3a9e; font-weight: 800; letter-spacing:-0.02em;">${t('ai.keyHelpModalTitle')}</h2>
+                            <button id="aiKeyHelpClose" class="close-x-btn" aria-label="${t('common.close')}">✕</button>
                         </div>
                         <p style="margin:0 0 14px; color: var(--text-secondary); font-size: 0.92rem; line-height: 1.5;">
-                            Free for personal use, takes about a minute. The key lives only on your device — pasting it
-                            here saves it in this browser, and we send it on each AI generation request alongside the
-                            prompt. We don't store it on our servers.
+                            ${t('ai.keyHelpModalIntro')}
                         </p>
                         <ol style="margin: 0 0 16px 0; padding-left: 22px; color: #002d5b; font-size: 0.92rem; line-height: 1.7;">
-                            <li>Open <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" style="color: #005bb8; font-weight: 700;">aistudio.google.com/app/apikey</a> in a new tab.</li>
-                            <li>Sign in with a regular Google account if prompted.</li>
-                            <li>Click <strong>Create API key</strong>.</li>
-                            <li>Pick <em>"Create API key in new project"</em> if you don't already have a Google Cloud project — fastest path.</li>
-                            <li>Copy the long string that appears (it starts with <code style="background:rgba(0,0,0,0.05); padding:1px 5px; border-radius:4px; font-size:0.85em;">AIza…</code>).</li>
-                            <li>Paste it into the <strong>AI Engine — Gemini</strong> box on this page.</li>
+                            <li>${t('ai.keyHelpStepOpenLink')}</li>
+                            <li>${t('ai.keyHelpStepSignIn')}</li>
+                            <li>${t('ai.keyHelpStepCreate')}</li>
+                            <li>${t('ai.keyHelpStepProject')}</li>
+                            <li>${t('ai.keyHelpStepCopy')}</li>
+                            <li>${t('ai.keyHelpStepPaste')}</li>
                         </ol>
                         <div style="background: rgba(155,89,182,0.06); border:1px solid rgba(155,89,182,0.18); border-radius: 14px; padding: 12px 14px; font-size: 0.82rem; color: #002d5b; line-height: 1.55;">
-                            <strong>What's it for?</strong> Each itinerary you generate makes one Gemini API call. The
-                            free tier comfortably covers casual personal use; paid tier kicks in only if you go
-                            heavy. Your key is yours — clear it any time by emptying the input.
+                            <strong>${t('ai.keyHelpWhatForTitle')}</strong> ${t('ai.keyHelpWhatForBody')}
                         </div>
                         <!-- Free-tier limits. Google no longer publishes
                              fixed numbers on the docs page — they're
@@ -772,26 +768,25 @@ export function renderAI() {
                              of the limits and link out to the live
                              dashboard rather than make up specifics. -->
                         <div style="margin-top: 12px; background: rgba(52,199,89,0.06); border:1px solid rgba(52,199,89,0.22); border-radius: 14px; padding: 12px 14px; font-size: 0.82rem; color: #002d5b; line-height: 1.55;">
-                            <strong style="color:#1a6b3c;">How many itineraries can I generate?</strong>
+                            <strong style="color:#1a6b3c;">${t('ai.keyHelpHowManyTitle')}</strong>
                             <p style="margin:6px 0 0;">
-                                Each generated itinerary is one API call. Google doesn't publish one fixed number for the free tier any more — limits depend on your account / region / how recently you signed up, and they rotate. In practice the free tier comfortably covers everyday personal planning; you'd have to be hammering Generate to feel a ceiling.
+                                ${t('ai.keyHelpHowManyBody')}
                             </p>
-                            <div style="margin-top:8px;"><strong style="color:#1a6b3c;">There are two buckets that can stop you:</strong>
+                            <div style="margin-top:8px;"><strong style="color:#1a6b3c;">${t('ai.keyHelpBucketsTitle')}</strong>
                                 <ul style="margin: 4px 0 0; padding-left: 18px;">
-                                    <li><strong>Per-minute</strong> (rolling) — refills automatically every minute. Hit when spam-clicking the button.</li>
-                                    <li><strong>Per-day</strong> — resets on a 24-hour window. Hit only with sustained heavy use.</li>
+                                    <li>${t('ai.keyHelpBucketMinute')}</li>
+                                    <li>${t('ai.keyHelpBucketDay')}</li>
                                 </ul>
                             </div>
                             <div style="margin-top:8px;">
-                                If a request fails with a "rate limit" / 429-style error, wait a minute and try again; if it persists the daily cap is full — try again tomorrow.
+                                ${t('ai.keyHelpRateLimitTip')}
                             </div>
                             <div style="margin-top:8px; font-size: 0.78rem;">
-                                See your <strong>actual</strong> numbers (and how much you've used) on Google's
-                                <a href="https://aistudio.google.com/rate-limit?timeRange=last-28-days" target="_blank" rel="noreferrer" style="color: #005bb8; font-weight: 700;">rate-limit dashboard</a>.
+                                ${t('ai.keyHelpDashboardLink')}
                             </div>
                         </div>
                         <div style="display:flex; justify-content:flex-end; margin-top:18px;">
-                            <button id="aiKeyHelpDone" class="btn-primary" style="padding: 10px 22px; border-radius: 999px;">Got it</button>
+                            <button id="aiKeyHelpDone" class="btn-primary" style="padding: 10px 22px; border-radius: 999px;">${t('ai.keyHelpDoneBtn')}</button>
                         </div>
                     `,
                 });
