@@ -14,6 +14,7 @@ import { useStore } from '../../react/store.js';
 import { useNavigate } from '../../react/useNavigate.js';
 import { apiFetch } from '../../api.js';
 import { showLiquidAlert, showConfirmModal } from '../../utils.js';
+import { EmptyState } from '../../react/components/EmptyState.js';
 
 interface FriendRow {
     id: string;
@@ -763,30 +764,15 @@ export function Friends() {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     {friends.length === 0 ? (
-                        <div
-                            style={{
-                                textAlign: 'center',
-                                padding: '36px 20px',
-                                color: 'var(--text-secondary)',
-                                border: '1.5px dashed rgba(0,113,227,0.18)',
-                                borderRadius: '16px',
-                                background: 'rgba(0,113,227,0.03)',
-                            }}
-                        >
-                            <div style={{ fontSize: '2rem', marginBottom: '8px' }}>🤝</div>
-                            <div
-                                style={{
-                                    fontWeight: 800,
-                                    color: '#002d5b',
-                                    marginBottom: '4px',
-                                }}
-                            >
-                                No friends yet
-                            </div>
-                            <div style={{ fontSize: '0.85rem' }}>
-                                Search above by email to send your first friend request.
-                            </div>
-                        </div>
+                        // Round 3 audit fix: was an inline ad-hoc empty
+                        // card; now uses the shared EmptyState so it
+                        // matches Todo / Budgets / Insights styling.
+                        <EmptyState
+                            accent="blue"
+                            emoji="🤝"
+                            title="No friends yet"
+                            body="Search above by email to send your first friend request — once they accept, you'll see each other's trips here."
+                        />
                     ) : (
                         friends.map((f) => (
                             <UserCard

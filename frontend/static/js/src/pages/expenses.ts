@@ -8,7 +8,7 @@
 
 import { STATE, emit } from '../state.js';
 import { COUNTRIES, CONVERSION_RATES, COUNTRY_TO_CURRENCY } from '../constants.js';
-import { generateId, showConfirmModal, showLiquidAlert, q, formatHome, getHomeCurrency, esc } from '../utils.js';
+import { generateId, showConfirmModal, showLiquidAlert, q, formatHome, getHomeCurrency, esc, buildEmptyCardHtml } from '../utils.js';
 import { upsertExpense, deleteExpenseOnServer, uploadMedia } from '../api.js';
 import { navigate } from '../router.js';
 // `showPersTab` import removed — companions live per-trip now, so the
@@ -924,12 +924,17 @@ export function renderTripExpenses(container: HTMLElement, filters: ExpensesFilt
     }
 
     if (tripExpenses.length === 0) {
-        container.innerHTML = `
-            <div class="card glass expense-row__empty">
-                <div style="font-size: 2.5rem; margin-bottom: 15px; opacity: 0.5;">💸</div>
-                <p style="color: rgba(255,255,255,0.5); font-weight: 500; font-size: var(--font-lg);">No expenses found for this trip.</p>
-            </div>
-        `;
+        // Round 3 audit fix: was a custom dark-glass card with white-
+        // on-white-translucent text (legible only in dark mode); now
+        // uses the shared empty-card so it matches Todo / Friends /
+        // Insights / Search / Feed in both themes. Orange accent
+        // matches the Expenses page's brand colour.
+        container.innerHTML = buildEmptyCardHtml({
+            accent: 'orange',
+            emoji: '💸',
+            title: 'No expenses for this trip yet',
+            body: 'Add your first expense above — split with companions, attach a receipt, and the totals will roll up here.',
+        });
         return;
     }
 

@@ -20,6 +20,8 @@ import { useStore } from '../../react/store.js';
 import { useNavigate } from '../../react/useNavigate.js';
 import { STATE, emit } from '../../state.js';
 import { EVENTS } from '../../constants.js';
+import { setSelectedDay } from '../home/pathSelection.js';
+import { EmptyState } from '../../react/components/EmptyState.js';
 import type { Trip, TripDay, Expense } from '../../types';
 
 // ── Tunables ────────────────────────────────────────────────────────
@@ -248,12 +250,27 @@ export function Search() {
         }
     };
 
-    const goToDay = (trip: Trip, archived: boolean) => {
-        // Day-detail modal opening from search would require routing
-        // wiring we don't have yet. v1: navigate to the parent trip's
-        // home (or collections detail for archived) — the user can
-        // tap the day chip to open the modal there. Good 80/20.
-        goToTrip(trip, archived);
+    const goToDay = (day: TripDay, trip: Trip, archived: boolean) => {
+        // Bug fix per user feedback: previously this delegated to
+        // goToTrip and lost the day reference, so a "Day 3 — Shibuya"
+        // search hit just dropped the user at the trip home with no
+        // day selected. Now:
+        //   - Active trips → set activeTripId + pre-select the day
+        //     on the path-tab wheel via setSelectedDay (writes to
+        //     localStorage which the wheel reads on first paint),
+        //     navigate home. The user lands with the right day
+        //     visible on the wheel + the day card showing.
+        //   - Archived trips → still goes to Collections detail
+        //     (the archived view doesn't have a per-day deep-link
+        //     route yet — users scroll to find their day).
+        if (archived) {
+            goToTrip(trip, archived);
+            return;
+        }
+        STATE.activeTripId = trip.id;
+        setSelectedDay(trip.id, day.id);
+        emit(EVENTS.STATE_CHANGED);
+        navigate('home');
     };
 
     const goToExpense = (trip: Trip | null, archived: boolean) => {
@@ -316,23 +333,21 @@ export function Search() {
                 </div>
             )}
 
-            {/* No results — query non-empty but everything filtered out. */}
+            {/* No results — query non-empty but everything filtered
+                out. Round 3 audit fix: was an inline ad-hoc card; now
+                uses the shared EmptyState so the visual lands in the
+                same family as Todo / Budgets / Insights / Friends. The
+                test selector `data-search-empty` lives on a wrapping
+                div that EmptyState renders inside (the e2e suite reads
+                this attribute by `[data-testid="search-empty"]`). */}
             {hasQuery && totalHits === 0 && (
-                <div
-                    style={{
-                        textAlign: 'center',
-                        padding: '60px 20px',
-                        color: 'var(--text-secondary)',
-                    }}
-                    data-testid="search-empty"
-                >
-                    <div style={{ fontSize: '2.4rem', marginBottom: '12px' }}>🤷</div>
-                    <p style={{ margin: 0, fontWeight: 600, fontSize: '1rem' }}>
-                        No matches for &ldquo;{query}&rdquo;.
-                    </p>
-                    <p style={{ margin: '8px 0 0', fontSize: '0.82rem', opacity: 0.7 }}>
-                        Try a shorter term, a country name, or part of a day&rsquo;s plan.
-                    </p>
+                <div data-testid="search-empty">
+                    <EmptyState
+                        accent="blue"
+                        emoji="🤷"
+                        title={`No matches for "${query}"`}
+                        body="Try a shorter term, a country name, or part of a day's plan."
+                    />
                 </div>
             )}
 
@@ -397,7 +412,7 @@ export function Search() {
                                             hit.day.date ? ` · ${hit.day.date}` : ''
                                         }`}
                                         archived={hit.archived}
-                                        onClick={() => goToDay(hit.trip, hit.archived)}
+                                        onClick={() => goToDay(hit.day, hit.trip, hit.archived)}
                                     />
                                 ))}
                         </ResultGroupSection>

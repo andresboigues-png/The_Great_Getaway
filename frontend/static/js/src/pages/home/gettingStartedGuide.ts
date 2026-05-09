@@ -122,12 +122,24 @@ export function appendGettingStartedGuide(opts: GettingStartedGuideOptions): voi
         emit('state:changed');
     }
 
-    // Toggle state for Quick Access — hidden by default. Anyone
-    // who explicitly opens it (which sets STATE.hideQuickAccess
-    // = false) keeps seeing it until they hit Hide; everyone
-    // else (undefined or true) sees only the small "Show Quick
-    // Access" button.
-    const isHidden = STATE.hideQuickAccess !== false;
+    // Round 3 audit fix — first-run UX improvement: previously the
+    // guide was hidden by default for ALL users (only showed the tiny
+    // "🧭 Show Quick Access" button), which meant new users never saw
+    // the 10-step onboarding hint. Now: brand-new users (no completed
+    // steps yet AND no explicit Hide click) see the guide expanded
+    // by default. Once they complete at least one step OR explicitly
+    // hide it, the existing collapsed-by-default behaviour resumes.
+    //
+    //   - STATE.hideQuickAccess === false → user explicitly opened
+    //     it (or never closed it) → expanded.
+    //   - STATE.hideQuickAccess === true  → user explicitly hid it
+    //     → collapsed (the small Show button).
+    //   - undefined → first-run-ish; expand if they've completed
+    //     ZERO steps so far (true onboarding moment), otherwise
+    //     collapse (returning user who never explicitly opened).
+    const completedSteps = steps.filter(s => s.done).length;
+    const isHidden = STATE.hideQuickAccess === true
+        || (STATE.hideQuickAccess === undefined && completedSteps > 0);
 
     if (isHidden) {
         const showBtnContainer = document.createElement('div');

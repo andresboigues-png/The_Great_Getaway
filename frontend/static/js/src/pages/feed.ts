@@ -21,7 +21,7 @@ import { STATE } from '../state.js';
 import { apiFetch, toggleFeedLike, toggleFeedBookmark, repostFeedPost,
          fetchFeedComments, postFeedComment, deleteFeedComment,
          unshareFeedPost } from '../api.js';
-import { esc, q, showLiquidAlert, showConfirmModal } from '../utils.js';
+import { esc, q, showLiquidAlert, showConfirmModal, buildEmptyCardHtml } from '../utils.js';
 import { navigate } from '../router.js';
 import { viewArchivedDetails } from './collections.js';
 import {
@@ -229,14 +229,20 @@ export function renderFeed() {
                 ctaLabel = 'Go to Your network';
                 ctaAction = () => navigate('friends');
             }
-            listEl.innerHTML = `
-                <div class="card glass" style="padding: 32px; border-radius: 24px; border: 1.5px dashed rgba(155, 89, 182, 0.35); background: rgba(155, 89, 182, 0.04); text-align:center;">
-                    <div style="font-size:2.4rem; margin-bottom:10px;">${bookmarkedOnly ? '🔖' : '🌱'}</div>
-                    <h3 style="margin:0 0 8px; color:#7c3a9e; font-weight:800; font-size: 1.1rem;">${esc(title)}</h3>
-                    <p style="margin:0; color:var(--text-secondary); font-size:0.9rem; line-height:1.5;">${body}</p>
-                    <button id="feedEmptyCtaBtn" class="btn-primary" style="margin-top: 16px; padding: 10px 22px; border-radius: 999px;">${esc(ctaLabel)}</button>
-                </div>
-            `;
+            // Round 3 audit fix: was inline ad-hoc empty card; now uses
+            // the shared buildEmptyCardHtml helper so the visual lands
+            // in the same family as Todo / Friends / Insights / Search.
+            // The body strings include `<strong>` markup so we keep
+            // them as raw HTML — safe because the messages are
+            // hardcoded English (no user-controlled input).
+            listEl.innerHTML = buildEmptyCardHtml({
+                accent: 'purple',
+                emoji: bookmarkedOnly ? '🔖' : '🌱',
+                title,
+                body,
+                ctaLabel,
+                ctaId: 'feedEmptyCtaBtn',
+            });
             const btn = listEl.querySelector('#feedEmptyCtaBtn');
             if (btn) (btn as HTMLButtonElement).onclick = ctaAction;
             return;
