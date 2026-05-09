@@ -5191,6 +5191,81 @@ body.is-signed-out .trip-controls-popover {
     padding: 10px 8px;
     gap: 7px;
 }
+
+/* Phase G v3 — Feed tabs row. Desktop: tabs centered with the
+   bookmarked toggle absolute-positioned on the right. Mobile: the
+   toggle drops to its own row below the tabs so it can't overlap
+   the Actions tab on a narrow viewport. */
+.feed-tabs-row {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+}
+.feed-tabs-row__bookmark {
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+}
+@media (max-width: 720px) {
+    /* Stack the bookmark toggle below the tabs nav. flex-wrap on the
+       parent already lets a wide toggle fall to a new line, but the
+       absolute positioning keeps it in the original row. Switching
+       to relative makes it flow naturally — the parent's flex-wrap
+       does the rest. */
+    .feed-tabs-row__bookmark {
+        position: static;
+        transform: none;
+        /* Center the toggle's own contents horizontally so it doesn't
+           hug the left edge once it drops to its own row. */
+        margin: 4px auto 0;
+    }
+
+    /* Collections row card — desktop is a single horizontal row with
+       cover thumb / name / Public toggle / Restore + Delete buttons
+       all side-by-side. On mobile that overflows the viewport (the
+       Restore button gets cut off, see user screenshot). Stack the
+       main info above the actions and let the actions wrap onto
+       multiple lines if they need to. */
+    .collections-row {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 14px !important;
+    }
+    .collections-row__main {
+        /* Already flex:1 on desktop; stretch lets it eat the full
+           column width on mobile. */
+        width: 100%;
+    }
+    .collections-row__actions {
+        /* Wrap so Restore + Delete fall under the public toggle
+           if there isn't enough horizontal room. justify-content
+           keeps them aligned with the visual centre of the card
+           row above. */
+        gap: 12px !important;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        /* Stretch the actions block so the public toggle expands
+           to balance the right-side button cluster. */
+        width: 100%;
+    }
+    .collections-row__divider {
+        /* Vertical divider doesn't make sense on the wrapped row —
+           hide it on mobile. */
+        display: none !important;
+    }
+    .collections-row__public-toggle {
+        /* The public toggle's 85px-wide label leaves the row tight;
+           let it shrink + take the remaining row width before the
+           Restore + Delete buttons. */
+        flex: 1;
+        min-width: 0;
+    }
+}
 /* Count chip — empty when the slot has zero lines (rule below
    collapses it so the tab doesn't carry an empty pill). */
 .day-plan-tab__count {

@@ -73,7 +73,10 @@ export function Settlement() {
         const target = e.target as HTMLElement | null;
         if (!target) return;
 
-        // Trip card (top strip) — switch the active trip.
+        // Legacy: trip-pill click. Phase G v3 replaced the pill strip
+        // with a `<select>` (handleChange below), but kept this branch
+        // as a fallback in case any future surface re-introduces a
+        // pill-based trip switcher (visual-regression demos, etc.).
         const tripCard = target.closest('.settlement-trip-pill') as HTMLElement | null;
         if (tripCard?.dataset.tripId) {
             setCurrentTripId(tripCard.dataset.tripId);
@@ -131,10 +134,25 @@ export function Settlement() {
         }
     };
 
+    // Phase G v3 — `<select>` change handler for the new trip
+    // dropdown. React's onChange on a div proxies the native change
+    // events that select elements bubble, so this fires for the
+    // imperative-DOM <select id="settlementTripSelect"> rendered by
+    // legacyRender.ts.
+    const handleChange = (e: React.ChangeEvent<HTMLDivElement>) => {
+        const target = e.target as HTMLElement | null;
+        if (!target) return;
+        if (target.id === 'settlementTripSelect') {
+            const sel = target as unknown as HTMLSelectElement;
+            if (sel.value) setCurrentTripId(sel.value);
+        }
+    };
+
     return (
         <div
             ref={wrapperRef}
             onClick={handleClick}
+            onChange={handleChange}
             dangerouslySetInnerHTML={{ __html: html }}
         />
     );

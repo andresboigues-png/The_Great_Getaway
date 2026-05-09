@@ -17,18 +17,22 @@ import{r as e,t}from"./vendor-react-CYVQMBjw.js";import{$ as n,B as r,G as i,H a
                 <h2 style="margin:0 0 6px;">No trips yet</h2>
                 <p class="text-muted">Create a trip and add expenses to see settlement calculations.</p>
             </div>
-        `}function w(e){return f.trips.length===0?``:`
-        <div style="margin-top: 22px; margin-bottom: 12px;">
-            <div style="display:flex; gap:12px; overflow-x:auto; padding: 6px 2px 28px; scroll-behavior:smooth; -webkit-overflow-scrolling:touch;">
-                ${f.trips.map(t=>{let n=(f.expenses||[]).filter(e=>e.tripId===t.id&&e.isSettlement).reduce((e,t)=>e+(t.euroValue||0),0),i=t.id===e;return`
-                            <button type="button" class="settlement-trip-pill${i?` is-active`:``}" data-trip-id="${r(t.id)}"
-                                style="flex-shrink:0; min-width: 200px; text-align:left; background: ${i?`linear-gradient(135deg, rgba(255,214,10,0.16), rgba(255,159,10,0.08))`:`white`}; border: 1.5px solid ${i?`rgba(255,159,10,0.55)`:`rgba(0,0,0,0.06)`}; border-radius: 18px; padding: 14px 16px; cursor:pointer; box-shadow: ${i?`0 8px 24px rgba(255,159,10,0.22)`:`0 4px 12px rgba(0,45,91,0.06)`}; display:flex; flex-direction:column; gap:6px; font: inherit; color: inherit; outline: 0; margin: 0; transition: transform 0.25s cubic-bezier(0.16,1,0.3,1), box-shadow 0.25s cubic-bezier(0.16,1,0.3,1);">
-                                <span style="font-size:0.66rem; font-weight:800; text-transform:uppercase; letter-spacing:0.1em; color:${i?`#a35200`:`var(--text-secondary)`};">Trip</span>
-                                <span style="font-size:1rem; font-weight:800; color:#002d5b; letter-spacing:-0.02em; line-height:1.15;">${r(t.name)}</span>
-                                <span style="font-size:0.78rem; font-weight:700; color: #005bb8;">${a(n,`EUR`)} settled</span>
-                            </button>
-                        `}).join(``)}
-            </div>
+        `}function w(e){if(f.trips.length===0)return``;let t=f.trips.find(t=>t.id===e),n=t?(f.expenses||[]).filter(e=>e.tripId===t.id&&e.isSettlement).reduce((e,t)=>e+(t.euroValue||0),0):0;return`
+        <div class="settlement-trip-picker" style="margin-top: 18px; margin-bottom: 16px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+            <label for="settlementTripSelect" style="display:inline-flex; align-items:center; gap:8px; font-size:0.74rem; font-weight:800; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-secondary); flex-shrink:0;">
+                <span style="font-size:0.95rem;">⚖️</span>
+                Trip
+            </label>
+            <select id="settlementTripSelect" class="settlement-trip-select"
+                aria-label="Settlement trip"
+                style="flex:1; min-width:200px; max-width:380px; padding:10px 14px; border-radius:12px; border:1.5px solid rgba(255,159,10,0.4); background:linear-gradient(135deg, rgba(255,214,10,0.08), rgba(255,159,10,0.04)); font-size:0.92rem; font-weight:700; color:#002d5b; cursor:pointer; outline:none; font-family:inherit; transition: border-color 0.18s ease, box-shadow 0.18s ease;">
+                ${f.trips.map(t=>{let n=(f.expenses||[]).filter(e=>e.tripId===t.id&&e.isSettlement).reduce((e,t)=>e+(t.euroValue||0),0),i=n>0?` — ${a(n,`EUR`)} settled`:``;return`<option value="${r(t.id)}"${t.id===e?` selected`:``}>${r(t.name)}${i}</option>`}).join(``)}
+            </select>
+            ${t&&n>0?`
+                <span style="display:inline-flex; align-items:center; padding:6px 12px; border-radius:999px; background:rgba(0,113,227,0.08); color:#005bb8; font-size:0.78rem; font-weight:800; flex-shrink:0;">
+                    ${a(n,`EUR`)} settled
+                </span>
+            `:``}
         </div>
     `}function T(e,t){let n=(f.expenses||[]).filter(t=>t.tripId===e.id&&t.isSettlement).length,r=(e,n,r)=>`
         <button class="settle-tab${t===e?` is-active`:``}" data-tab="${e}" type="button"
@@ -267,5 +271,5 @@ import{r as e,t}from"./vendor-react-CYVQMBjw.js";import{$ as n,B as r,G as i,H a
                     <button type="submit" class="btn-primary" style="flex:2; border-radius: var(--radius-lg);">Update</button>
                 </div>
             </form>
-        `});i(_,`#cancelEditSettleBtn`).onclick=()=>v(),i(_,`#editSettlementForm`).onsubmit=e=>{e.preventDefault();let n=i(_,`#editSettleFrom`).value,r=i(_,`#editSettleTo`).value,a=parseFloat(i(_,`#editSettleAmount`).value),o=i(_,`#editSettleDate`).value;if(n===r){m(`Sender and receiver must be different.`);return}t.who=n,t.splits={[r]:100},t.value=a,t.currency=g,t.euroValue=l(a,g,`EUR`),t.date=o,t.label=`Settlement: ${n} → ${r}`,p(h.STATE_CHANGED),v()}}var N=t();function P(){let e=_(e=>e.trips),t=_(e=>e.activeTripId);_(e=>e.expenses);let[n,r]=(0,v.useState)(`trip`),[i,a]=(0,v.useState)(()=>t||(e.length>0?e[0].id:null));(0,v.useEffect)(()=>{i&&!e.find(e=>e.id===i)&&a(t||(e.length>0?e[0].id:null))},[e,i,t]);let s=e.find(e=>e.id===i)||null,c=o(s),l=(0,v.useMemo)(()=>C(s,c,n,i),[s,c,n,i,_.length]),u=(0,v.useRef)(null);return(0,N.jsx)(`div`,{ref:u,onClick:e=>{let t=e.target;if(!t)return;let n=t.closest(`.settlement-trip-pill`);if(n?.dataset.tripId){a(n.dataset.tripId);return}let i=t.closest(`.settle-tab`);if(i?.dataset.tab){r(i.dataset.tab);return}let o=t.closest(`.settle-debt-btn`);if(o?.dataset.tripId&&o.dataset.from&&o.dataset.to&&o.dataset.amount&&!o.disabled){o.disabled=!0,o.textContent=`Recording…`,k(o.dataset.tripId,o.dataset.from,o.dataset.to,parseFloat(o.dataset.amount),`EUR`);return}let s=t.closest(`.open-manual-settle-btn`);if(s?.dataset.tripId){j(s.dataset.tripId);return}let c=t.closest(`.edit-settlement-btn`);if(c?.dataset.settlementId){M(c.dataset.settlementId);return}let l=t.closest(`.unsettle-settlement-btn`);if(l?.dataset.settlementId){A(l.dataset.settlementId);return}},dangerouslySetInnerHTML:{__html:l}})}function F(e){g(e,(0,v.createElement)(P))}export{F as mountSettlement};
-//# sourceMappingURL=mount-B-fWqAQu.js.map
+        `});i(_,`#cancelEditSettleBtn`).onclick=()=>v(),i(_,`#editSettlementForm`).onsubmit=e=>{e.preventDefault();let n=i(_,`#editSettleFrom`).value,r=i(_,`#editSettleTo`).value,a=parseFloat(i(_,`#editSettleAmount`).value),o=i(_,`#editSettleDate`).value;if(n===r){m(`Sender and receiver must be different.`);return}t.who=n,t.splits={[r]:100},t.value=a,t.currency=g,t.euroValue=l(a,g,`EUR`),t.date=o,t.label=`Settlement: ${n} → ${r}`,p(h.STATE_CHANGED),v()}}var N=t();function P(){let e=_(e=>e.trips),t=_(e=>e.activeTripId);_(e=>e.expenses);let[n,r]=(0,v.useState)(`trip`),[i,a]=(0,v.useState)(()=>t||(e.length>0?e[0].id:null));(0,v.useEffect)(()=>{i&&!e.find(e=>e.id===i)&&a(t||(e.length>0?e[0].id:null))},[e,i,t]);let s=e.find(e=>e.id===i)||null,c=o(s),l=(0,v.useMemo)(()=>C(s,c,n,i),[s,c,n,i,_.length]),u=(0,v.useRef)(null);return(0,N.jsx)(`div`,{ref:u,onClick:e=>{let t=e.target;if(!t)return;let n=t.closest(`.settlement-trip-pill`);if(n?.dataset.tripId){a(n.dataset.tripId);return}let i=t.closest(`.settle-tab`);if(i?.dataset.tab){r(i.dataset.tab);return}let o=t.closest(`.settle-debt-btn`);if(o?.dataset.tripId&&o.dataset.from&&o.dataset.to&&o.dataset.amount&&!o.disabled){o.disabled=!0,o.textContent=`Recording…`,k(o.dataset.tripId,o.dataset.from,o.dataset.to,parseFloat(o.dataset.amount),`EUR`);return}let s=t.closest(`.open-manual-settle-btn`);if(s?.dataset.tripId){j(s.dataset.tripId);return}let c=t.closest(`.edit-settlement-btn`);if(c?.dataset.settlementId){M(c.dataset.settlementId);return}let l=t.closest(`.unsettle-settlement-btn`);if(l?.dataset.settlementId){A(l.dataset.settlementId);return}},onChange:e=>{let t=e.target;if(t&&t.id===`settlementTripSelect`){let e=t;e.value&&a(e.value)}},dangerouslySetInnerHTML:{__html:l}})}function F(e){g(e,(0,v.createElement)(P))}export{F as mountSettlement};
+//# sourceMappingURL=mount-_QH1GqLZ.js.map

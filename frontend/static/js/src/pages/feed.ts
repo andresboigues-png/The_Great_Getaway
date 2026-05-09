@@ -131,7 +131,12 @@ export function renderFeed() {
                 <p style="margin:0;color:var(--text-secondary);font-size:1rem;">What your friends are up to lately</p>
             </div>
 
-            <div id="feedTabsRow" style="position:relative; display:flex; align-items:center; justify-content:center; gap:12px; margin-bottom: 16px; flex-wrap: wrap;">
+            <!-- Phase G v3 — class-based layout (was a position:absolute
+                 toggle that overlapped the Actions tab on narrow
+                 viewports). Desktop keeps the centered tabs + right-
+                 anchored toggle; mobile media query in index.css drops
+                 the toggle below the tabs row so nothing overlaps. -->
+            <div id="feedTabsRow" class="feed-tabs-row">
                 <!-- Posts tab gets the share/repost purple (matches the
                      event accent for shares); Actions tab gets orange,
                      borrowed from the friend-joined-trip event accent.
@@ -143,7 +148,7 @@ export function renderFeed() {
                     <button class="home-tabnav__tab${activeFeedTab === 'posts' ? ' is-active' : ''}" data-feed-tab="posts" role="tab" type="button" style="--accent: 88, 86, 214;">Posts</button>
                     <button class="home-tabnav__tab${activeFeedTab === 'actions' ? ' is-active' : ''}" data-feed-tab="actions" role="tab" type="button" style="--accent: 255, 149, 0;">Actions</button>
                 </nav>
-                <label class="apple-toggle" id="feedBookmarkToggle" title="Filter to bookmarked items only" style="position:absolute; right:0; top:50%; transform:translateY(-50%);">
+                <label class="apple-toggle feed-tabs-row__bookmark" id="feedBookmarkToggle" title="Filter to bookmarked items only">
                     <input type="checkbox" class="apple-toggle__input" ${bookmarkedOnly ? 'checked' : ''}>
                     <span class="apple-toggle__track"><span class="apple-toggle__thumb"></span></span>
                     <span class="apple-toggle__label">🔖 Bookmarked</span>

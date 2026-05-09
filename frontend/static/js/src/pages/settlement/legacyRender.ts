@@ -73,26 +73,44 @@ export function buildPageHtml(
 
 function renderTripsStrip(currentTripId: string | null): string {
     if (STATE.trips.length === 0) return '';
+    // Phase G v3 — was a horizontal-scrolling strip of trip "pills"
+    // (one fat button per trip). Per-user feedback a `<select>` makes
+    // more sense: it's the same pattern used elsewhere (the navbar's
+    // #tripSelector + the Plan-with-AI trip picker), takes far less
+    // vertical room, and on a 20-trip account it doesn't push the
+    // settlement view halfway down the page. Settlements-total chip
+    // for the picked trip moves to a small pill beside the select.
+    const activeTrip = STATE.trips.find((t) => t.id === currentTripId);
+    const settledTotal = activeTrip
+        ? (STATE.expenses || [])
+            .filter((e) => e.tripId === activeTrip.id && e.isSettlement)
+            .reduce((sum, e) => sum + (e.euroValue || 0), 0)
+        : 0;
+    const optionsHtml = STATE.trips
+        .map((t) => {
+            const total = (STATE.expenses || [])
+                .filter((e) => e.tripId === t.id && e.isSettlement)
+                .reduce((sum, e) => sum + (e.euroValue || 0), 0);
+            const totalLabel = total > 0 ? ` — ${formatHome(total, 'EUR')} settled` : '';
+            return `<option value="${esc(t.id)}"${t.id === currentTripId ? ' selected' : ''}>${esc(t.name)}${totalLabel}</option>`;
+        })
+        .join('');
     return `
-        <div style="margin-top: 22px; margin-bottom: 12px;">
-            <div style="display:flex; gap:12px; overflow-x:auto; padding: 6px 2px 28px; scroll-behavior:smooth; -webkit-overflow-scrolling:touch;">
-                ${STATE.trips
-                    .map((t) => {
-                        const settlementsTotal = (STATE.expenses || [])
-                            .filter((e) => e.tripId === t.id && e.isSettlement)
-                            .reduce((sum, e) => sum + (e.euroValue || 0), 0);
-                        const isActive = t.id === currentTripId;
-                        return `
-                            <button type="button" class="settlement-trip-pill${isActive ? ' is-active' : ''}" data-trip-id="${esc(t.id)}"
-                                style="flex-shrink:0; min-width: 200px; text-align:left; background: ${isActive ? 'linear-gradient(135deg, rgba(255,214,10,0.16), rgba(255,159,10,0.08))' : 'white'}; border: 1.5px solid ${isActive ? 'rgba(255,159,10,0.55)' : 'rgba(0,0,0,0.06)'}; border-radius: 18px; padding: 14px 16px; cursor:pointer; box-shadow: ${isActive ? '0 8px 24px rgba(255,159,10,0.22)' : '0 4px 12px rgba(0,45,91,0.06)'}; display:flex; flex-direction:column; gap:6px; font: inherit; color: inherit; outline: 0; margin: 0; transition: transform 0.25s cubic-bezier(0.16,1,0.3,1), box-shadow 0.25s cubic-bezier(0.16,1,0.3,1);">
-                                <span style="font-size:0.66rem; font-weight:800; text-transform:uppercase; letter-spacing:0.1em; color:${isActive ? '#a35200' : 'var(--text-secondary)'};">Trip</span>
-                                <span style="font-size:1rem; font-weight:800; color:#002d5b; letter-spacing:-0.02em; line-height:1.15;">${esc(t.name)}</span>
-                                <span style="font-size:0.78rem; font-weight:700; color: #005bb8;">${formatHome(settlementsTotal, 'EUR')} settled</span>
-                            </button>
-                        `;
-                    })
-                    .join('')}
-            </div>
+        <div class="settlement-trip-picker" style="margin-top: 18px; margin-bottom: 16px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+            <label for="settlementTripSelect" style="display:inline-flex; align-items:center; gap:8px; font-size:0.74rem; font-weight:800; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-secondary); flex-shrink:0;">
+                <span style="font-size:0.95rem;">⚖️</span>
+                Trip
+            </label>
+            <select id="settlementTripSelect" class="settlement-trip-select"
+                aria-label="Settlement trip"
+                style="flex:1; min-width:200px; max-width:380px; padding:10px 14px; border-radius:12px; border:1.5px solid rgba(255,159,10,0.4); background:linear-gradient(135deg, rgba(255,214,10,0.08), rgba(255,159,10,0.04)); font-size:0.92rem; font-weight:700; color:#002d5b; cursor:pointer; outline:none; font-family:inherit; transition: border-color 0.18s ease, box-shadow 0.18s ease;">
+                ${optionsHtml}
+            </select>
+            ${activeTrip && settledTotal > 0 ? `
+                <span style="display:inline-flex; align-items:center; padding:6px 12px; border-radius:999px; background:rgba(0,113,227,0.08); color:#005bb8; font-size:0.78rem; font-weight:800; flex-shrink:0;">
+                    ${formatHome(settledTotal, 'EUR')} settled
+                </span>
+            ` : ''}
         </div>
     `;
 }

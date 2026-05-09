@@ -240,8 +240,8 @@ export function renderCollections() {
                         ? `<img src="${esc(t.coverUrl)}" alt="" data-cover-thumb class="archived-card-cover" style="width: 60px; height: 60px; border-radius: 12px; object-fit: cover; flex-shrink: 0; box-shadow: 0 4px 12px rgba(0,0,0,0.08); border: 1px solid rgba(0,0,0,0.06);">`
                         : '';
                     return `
-                    <div class="card glass card-glow-blue" style="display: flex; flex-direction: row; align-items: center; justify-content: space-between; padding: 20px; gap: 16px;">
-                        <div class="archived-trip-card" data-trip-id="${t.id}" role="button" tabindex="0" aria-label="Open ${esc(t.name)} details" style="cursor: pointer; flex: 1; min-width:0; display: flex; align-items: center; gap: 16px;">
+                    <div class="card glass card-glow-blue collections-row" style="display: flex; flex-direction: row; align-items: center; justify-content: space-between; padding: 20px; gap: 16px;">
+                        <div class="archived-trip-card collections-row__main" data-trip-id="${t.id}" role="button" tabindex="0" aria-label="Open ${esc(t.name)} details" style="cursor: pointer; flex: 1; min-width:0; display: flex; align-items: center; gap: 16px;">
                             ${coverThumb}
                             <div style="flex: 1; min-width: 0;">
                             <div style="display: flex; align-items: center; gap: 10px; flex-wrap:wrap;">
@@ -256,15 +256,15 @@ export function renderCollections() {
                             <p style="color: #005bb8; margin: 8px 0 0 0; font-size: 0.95rem; font-weight: 800;">${formatHome(tripTotalSpent(t), 'EUR')}<span style="color: var(--text-secondary); font-weight: 600; font-size: 0.78rem; margin-left:6px;">total</span></p>
                             </div>
                         </div>
-                        <div style="display: flex; align-items: center; gap: 20px;">
-                            <div style="display: flex; align-items: center; gap: 12px; background: rgba(0,0,0,0.03); padding: 8px 18px; border-radius: 980px; border: 1px solid rgba(0,0,0,0.08); box-shadow: inset 0 1px 2px rgba(0,0,0,0.02), 0 4px 12px rgba(0,0,0,0.03);">
+                        <div class="collections-row__actions" style="display: flex; align-items: center; gap: 20px;">
+                            <div class="collections-row__public-toggle" style="display: flex; align-items: center; gap: 12px; background: rgba(0,0,0,0.03); padding: 8px 18px; border-radius: 980px; border: 1px solid rgba(0,0,0,0.08); box-shadow: inset 0 1px 2px rgba(0,0,0,0.02), 0 4px 12px rgba(0,0,0,0.03);">
                                 <span id="publicLabel-${esc(t.id)}" style="width: 85px; display: inline-block; text-align: right; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); color: ${t.isPublic ? '#34c759' : 'rgba(0,0,0,0.3)'}; text-shadow: ${t.isPublic ? '0 0 12px rgba(52, 199, 89, 0.6)' : 'none'};">${t.isPublic ? 'Public' : 'Not public'}</span>
                                 <label class="switch" style="transform: scale(0.75);">
                                     <input type="checkbox" class="trip-privacy-toggle" data-trip-id="${esc(t.id)}" ${t.isPublic ? 'checked' : ''}>
                                     <span class="slider"></span>
                                 </label>
                             </div>
-                            <div style="width: 1px; height: 30px; background: var(--glass-border);"></div>
+                            <div class="collections-row__divider" style="width: 1px; height: 30px; background: var(--glass-border);"></div>
                             <div style="display: flex; gap: var(--space-2);">
                                 <button class="btn-primary restore-trip-btn" data-trip-id="${esc(t.id)}" style="padding: var(--space-2) var(--space-4); font-size: var(--font-sm);">Restore</button>
                                 <button class="icon-action-btn delete-archived-btn" data-trip-id="${esc(t.id)}" style="--accent: 255,59,48;" title="Delete Permanently">
