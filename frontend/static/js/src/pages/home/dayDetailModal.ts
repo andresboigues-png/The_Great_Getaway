@@ -86,23 +86,42 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
     // lives.
     const allShortlist = (trip?.markedPlaces || []).filter((p: any) => p.forManual);
 
-    const shortlistRowHtml = (p: any) => `
-        <div class="day-shortlist-row" data-place-id="${esc(p.placeId)}" style="display:flex; align-items:center; gap:10px; padding:10px 12px; background:white; border:1px solid ${p.color}40; border-left:3px solid ${p.color}; border-radius:10px;">
-            <span style="font-size:1.2rem; line-height:1; flex-shrink:0;">${p.icon}</span>
-            <div style="flex:1; min-width:0;">
-                <div style="font-weight:700; color:#002d5b; font-size:0.9rem; line-height:1.2; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(p.name)}</div>
-                ${p.address ? `<div style="font-size:0.72rem; color:var(--text-secondary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(p.address)}</div>` : ''}
+    const shortlistRowHtml = (p: any) => {
+        // Round 1 audit fix: place name is now a Maps link (per-user
+        // request — to-do places should be clickable to Google Maps
+        // from anywhere they appear). Falls back to a place_id deep
+        // link when the AI verifier didn't supply mapsUrl. The AM/PM/
+        // Eve buttons stay as separate click targets (e.stopPropagation
+        // not needed here because the name is wrapped in <a> and the
+        // buttons sit outside it).
+        const mapsUrl = p.mapsUrl
+            || (p.placeId ? `https://www.google.com/maps/place/?q=place_id:${encodeURIComponent(p.placeId)}` : null);
+        const nameHtml = mapsUrl
+            ? `<a href="${esc(mapsUrl)}" target="_blank" rel="noopener noreferrer"
+                title="Open ${esc(p.name)} on Google Maps"
+                style="font-weight:700; color:#002d5b; font-size:0.9rem; line-height:1.2; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-decoration:none; display:inline-flex; align-items:center; gap:4px; max-width:100%;">
+                <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(p.name)}</span>
+                <span aria-hidden="true" style="font-size:0.7rem; color:var(--accent-blue); opacity:0.7; flex-shrink:0;">↗</span>
+            </a>`
+            : `<div style="font-weight:700; color:#002d5b; font-size:0.9rem; line-height:1.2; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(p.name)}</div>`;
+        return `
+            <div class="day-shortlist-row" data-place-id="${esc(p.placeId)}" style="display:flex; align-items:center; gap:10px; padding:10px 12px; background:white; border:1px solid ${p.color}40; border-left:3px solid ${p.color}; border-radius:10px;">
+                <span style="font-size:1.2rem; line-height:1; flex-shrink:0;">${p.icon}</span>
+                <div style="flex:1; min-width:0;">
+                    ${nameHtml}
+                    ${p.address ? `<div style="font-size:0.72rem; color:var(--text-secondary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(p.address)}</div>` : ''}
+                </div>
+                <div style="display:flex; gap:4px; flex-shrink:0;">
+                    <button type="button" class="day-shortlist-add-btn" data-place-id="${esc(p.placeId)}" data-time="morning" title="Add to Morning"
+                        style="background:rgba(0,113,227,0.08); border:1px solid rgba(0,113,227,0.2); color:var(--accent-blue); padding:5px 10px; border-radius:6px; font-size:0.7rem; font-weight:700; cursor:pointer;">☀️ AM</button>
+                    <button type="button" class="day-shortlist-add-btn" data-place-id="${esc(p.placeId)}" data-time="afternoon" title="Add to Afternoon"
+                        style="background:rgba(255,149,0,0.08); border:1px solid rgba(255,149,0,0.25); color:#ff9500; padding:5px 10px; border-radius:6px; font-size:0.7rem; font-weight:700; cursor:pointer;">🌅 PM</button>
+                    <button type="button" class="day-shortlist-add-btn" data-place-id="${esc(p.placeId)}" data-time="evening" title="Add to Evening"
+                        style="background:rgba(88,86,214,0.08); border:1px solid rgba(88,86,214,0.25); color:#5856d6; padding:5px 10px; border-radius:6px; font-size:0.7rem; font-weight:700; cursor:pointer;">🌙 Eve</button>
+                </div>
             </div>
-            <div style="display:flex; gap:4px; flex-shrink:0;">
-                <button type="button" class="day-shortlist-add-btn" data-place-id="${esc(p.placeId)}" data-time="morning" title="Add to Morning"
-                    style="background:rgba(0,113,227,0.08); border:1px solid rgba(0,113,227,0.2); color:var(--accent-blue); padding:5px 10px; border-radius:6px; font-size:0.7rem; font-weight:700; cursor:pointer;">🌅 AM</button>
-                <button type="button" class="day-shortlist-add-btn" data-place-id="${esc(p.placeId)}" data-time="afternoon" title="Add to Afternoon"
-                    style="background:rgba(255,149,0,0.08); border:1px solid rgba(255,149,0,0.25); color:#ff9500; padding:5px 10px; border-radius:6px; font-size:0.7rem; font-weight:700; cursor:pointer;">☀️ PM</button>
-                <button type="button" class="day-shortlist-add-btn" data-place-id="${esc(p.placeId)}" data-time="evening" title="Add to Evening"
-                    style="background:rgba(88,86,214,0.08); border:1px solid rgba(88,86,214,0.25); color:#5856d6; padding:5px 10px; border-radius:6px; font-size:0.7rem; font-weight:700; cursor:pointer;">🌙 Eve</button>
-            </div>
-        </div>
-    `;
+        `;
+    };
 
     // Section that surfaces all shortlisted places so the user
     // can drop them into AM/PM/Eve. Used to render as a single

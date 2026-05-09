@@ -498,18 +498,48 @@ export function deleteDayOnServer(dayId: string) {
     return _delete(`/api/days/${dayId}`, {});
 }
 
-/** POST a file to /api/upload. Returns the parsed JSON response, or null on failure.
- *  Auth is JWT-gated server-side; apiFetch attaches the bearer header. */
-export async function uploadMedia(file: File | Blob) {
-    if (!STATE.user) return null;
+/** POST a file to /api/upload. Returns the parsed JSON response, or
+ *  an `{error: string}` shape on failure. Round 1 audit fix: previous
+ *  versions returned `null` on failure which made it impossible for
+ *  callers (cover-photo upload, expense receipt, etc.) to surface a
+ *  WHY message — the user just saw a generic "upload failed". Now
+ *  the function returns the server's error body when available
+ *  ("file too large", "MIME not allowed") so callers can show
+ *  actionable feedback.
+ *
+ *  Auth is JWT-gated server-side; apiFetch attaches the bearer
+ *  header. */
+export async function uploadMedia(file: File | Blob): Promise<{ url?: string; name?: string; error?: string }> {
+    if (!STATE.user) return { error: 'Not signed in' };
+    // Client-side size guard. Server enforces 10MB via MAX_CONTENT_LENGTH
+    // but Flask returns a generic 413 with no helpful body — easier to
+    // catch the obvious case here and skip the round trip.
+    const MAX_BYTES = 10 * 1024 * 1024;
+    if ((file as File).size && (file as File).size > MAX_BYTES) {
+        const mb = ((file as File).size / (1024 * 1024)).toFixed(1);
+        return { error: `File is ${mb} MB — max is 10 MB. Try compressing it.` };
+    }
     const formData = new FormData();
     formData.append('file', file);
     try {
         const res = await apiFetch('/api/upload', { method: 'POST', body: formData });
+        if (!res.ok) {
+            // Server explicitly rejected — try to read its error body.
+            try {
+                const body = await res.json();
+                if (body?.error) return { error: String(body.error) };
+            } catch (_) { /* not JSON */ }
+            // Fallbacks by status code so the user sees SOMETHING useful.
+            if (res.status === 413) return { error: 'File is too large (max 10 MB).' };
+            if (res.status === 415) return { error: 'That file type isn\'t supported.' };
+            if (res.status === 401) return { error: 'Sign in expired — refresh the page.' };
+            return { error: `Upload failed (HTTP ${res.status}).` };
+        }
         return await res.json();
     } catch (e) {
-        console.error("Upload failed", e);
-        return null;
+        // Network error / timeout / DNS — the request never completed.
+        console.error('Upload failed', e);
+        return { error: 'Network error — check your connection and try again.' };
     }
 }
 // ── END DELTA SYNC HELPERS ────────────────────────────────────────────────────

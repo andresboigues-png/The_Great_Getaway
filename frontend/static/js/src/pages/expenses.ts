@@ -8,7 +8,7 @@
 
 import { STATE, emit } from '../state.js';
 import { COUNTRIES, CONVERSION_RATES, COUNTRY_TO_CURRENCY } from '../constants.js';
-import { generateId, showConfirmModal, q, formatHome, getHomeCurrency, esc } from '../utils.js';
+import { generateId, showConfirmModal, showLiquidAlert, q, formatHome, getHomeCurrency, esc } from '../utils.js';
 import { upsertExpense, deleteExpenseOnServer, uploadMedia } from '../api.js';
 import { navigate } from '../router.js';
 // `showPersTab` import removed — companions live per-trip now, so the
@@ -374,11 +374,18 @@ function renderManualTab() {
                     refreshReceiptUI();
                     emit('state:changed');
                 } else {
-                    receiptStatus.textContent = 'Upload failed — try again';
+                    // Round 1 audit fix: surface the structured error
+                    // message from uploadMedia (file too big, MIME wrong,
+                    // network down) instead of a generic "Upload failed".
+                    const msg = result?.error || 'Upload failed — try again.';
+                    receiptStatus.textContent = msg;
+                    showLiquidAlert(msg);
                 }
             } catch (e) {
                 console.warn('receipt upload failed', e);
-                receiptStatus.textContent = 'Upload failed — try again';
+                const msg = 'Upload failed — try again.';
+                receiptStatus.textContent = msg;
+                showLiquidAlert(msg);
             } finally {
                 receiptPickBtn.disabled = false;
                 // Reset so re-picking the same file still fires `change`.

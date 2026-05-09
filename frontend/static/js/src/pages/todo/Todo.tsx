@@ -57,6 +57,9 @@ interface TodoMarkedPlace {
     fact?: string;
     /** Phase G — Maps photo URL when the place was Maps-grounded. */
     photoUrl?: string;
+    /** Phase G — canonical short Google Maps URL when Maps-grounded.
+     *  When absent, the renderer falls back to a place_id deep link. */
+    mapsUrl?: string;
     /** Phase G v3 — provenance. AI-sourced items get a small chip so
      *  the user knows which entries came from the planner vs. their
      *  own home-map adds. */
@@ -117,6 +120,15 @@ interface TodoRowProps {
 function TodoRow({ place: p, isTicked, tripIsEditable, onTickToggle, onRemove }: TodoRowProps) {
     const [expanded, setExpanded] = useState(false);
     const hasDetails = !!(p.address || p.why || p.fact);
+    /** Build a Maps URL for this place. Prefers the canonical short
+     *  URL (mapsUrl) when the AI verifier supplied it; falls back to
+     *  a place_id deep link. Returns null when there's neither — those
+     *  are pre-Phase-G items added without Maps grounding, no Maps
+     *  link possible without a separate lookup. */
+    const mapsUrl = (p as { mapsUrl?: string; placeId?: string }).mapsUrl
+        || (p.placeId
+            ? `https://www.google.com/maps/place/?q=place_id:${encodeURIComponent(p.placeId)}`
+            : null);
 
     return (
         <div
@@ -163,45 +175,69 @@ function TodoRow({ place: p, isTicked, tripIsEditable, onTickToggle, onRemove }:
                     </label>
                 )}
                 {/* Photo (when Maps-grounded) or icon fallback. Compact
-                    36px so the row stays one-line on a phone. */}
-                {p.photoUrl ? (
-                    <img
-                        src={p.photoUrl}
-                        alt=""
-                        referrerPolicy="no-referrer"
-                        loading="lazy"
-                        style={{
-                            width: '36px',
-                            height: '36px',
-                            borderRadius: '8px',
-                            objectFit: 'cover',
-                            flexShrink: 0,
-                            background: 'rgba(0, 0, 0, 0.05)',
-                        }}
-                    />
-                ) : (
-                    <span
-                        style={{
-                            fontSize: '1.3rem',
-                            lineHeight: 1,
-                            width: '36px',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            flexShrink: 0,
-                        }}
-                    >
-                        {p.icon || '📍'}
-                    </span>
-                )}
-                {/* Name + chips. Truncates with ellipsis on long names
-                    so the row stays one line; expand reveals the full
-                    name + the why/fact context. */}
-                <div
-                    style={{ flex: 1, minWidth: 0, cursor: hasDetails ? 'pointer' : 'default' }}
-                    onClick={hasDetails ? () => setExpanded((v) => !v) : undefined}
-                    title={hasDetails ? (expanded ? 'Hide details' : 'Show details') : undefined}
-                >
+                    36px so the row stays one-line on a phone. Wrapped
+                    in a Maps link when one's available so a tap on the
+                    photo opens the place on Google Maps in a new tab. */}
+                {(() => {
+                    const photoEl = p.photoUrl ? (
+                        <img
+                            src={p.photoUrl}
+                            alt=""
+                            referrerPolicy="no-referrer"
+                            loading="lazy"
+                            style={{
+                                width: '36px',
+                                height: '36px',
+                                borderRadius: '8px',
+                                objectFit: 'cover',
+                                flexShrink: 0,
+                                background: 'rgba(0, 0, 0, 0.05)',
+                                display: 'block',
+                            }}
+                        />
+                    ) : (
+                        <span
+                            style={{
+                                fontSize: '1.3rem',
+                                lineHeight: 1,
+                                width: '36px',
+                                height: '36px',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0,
+                            }}
+                        >
+                            {p.icon || '📍'}
+                        </span>
+                    );
+                    if (mapsUrl) {
+                        return (
+                            <a
+                                href={mapsUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title={`Open ${p.name} on Google Maps`}
+                                aria-label={`Open ${p.name} on Google Maps`}
+                                onClick={(e) => e.stopPropagation()}
+                                style={{
+                                    flexShrink: 0,
+                                    display: 'inline-flex',
+                                    borderRadius: '8px',
+                                }}
+                            >
+                                {photoEl}
+                            </a>
+                        );
+                    }
+                    return photoEl;
+                })()}
+                {/* Name + chips. The name itself is a Maps link when one's
+                    available (so a tap on the place name opens Google Maps
+                    — per-user request). Tapping outside the name (the chip
+                    or the empty area to the right) still toggles the
+                    expand-details panel below. */}
+                <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
                     <div
                         style={{
                             display: 'flex',
@@ -210,20 +246,56 @@ function TodoRow({ place: p, isTicked, tripIsEditable, onTickToggle, onRemove }:
                             flexWrap: 'wrap',
                         }}
                     >
-                        <span
-                            style={{
-                                fontWeight: 700,
-                                color: '#002d5b',
-                                fontSize: '0.92rem',
-                                lineHeight: 1.25,
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap',
-                                maxWidth: '100%',
-                            }}
-                        >
-                            {p.name}
-                        </span>
+                        {mapsUrl ? (
+                            <a
+                                href={mapsUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title={`Open ${p.name} on Google Maps`}
+                                onClick={(e) => e.stopPropagation()}
+                                style={{
+                                    fontWeight: 700,
+                                    color: '#002d5b',
+                                    fontSize: '0.92rem',
+                                    lineHeight: 1.25,
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap',
+                                    maxWidth: '100%',
+                                    textDecoration: 'none',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                }}
+                            >
+                                {p.name}
+                                <span
+                                    aria-hidden="true"
+                                    style={{
+                                        fontSize: '0.7rem',
+                                        color: 'var(--accent-blue)',
+                                        opacity: 0.7,
+                                    }}
+                                >
+                                    ↗
+                                </span>
+                            </a>
+                        ) : (
+                            <span
+                                style={{
+                                    fontWeight: 700,
+                                    color: '#002d5b',
+                                    fontSize: '0.92rem',
+                                    lineHeight: 1.25,
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap',
+                                    maxWidth: '100%',
+                                }}
+                            >
+                                {p.name}
+                            </span>
+                        )}
                         {p.source === 'ai' && (
                             <span
                                 title="Added by the AI planner"
@@ -307,9 +379,12 @@ function TodoRow({ place: p, isTicked, tripIsEditable, onTickToggle, onRemove }:
                     </button>
                 )}
             </div>
-            {/* Expanded details — address + why + fact. Only mounted
-                when expanded so the row stays compact when collapsed. */}
-            {expanded && hasDetails && (
+            {/* Expanded details — address + why + fact + Maps link.
+                Only mounted when expanded so the row stays compact
+                when collapsed. The "View on Google Maps" pill at the
+                bottom is an explicit affordance for users who didn't
+                spot the in-row name link with the ↗ glyph. */}
+            {expanded && (hasDetails || mapsUrl) && (
                 <div style={{ marginTop: '10px', paddingLeft: '46px' }}>
                     {p.address && (
                         <div
@@ -347,6 +422,31 @@ function TodoRow({ place: p, isTicked, tripIsEditable, onTickToggle, onRemove }:
                         >
                             ✨ {p.fact}
                         </div>
+                    )}
+                    {mapsUrl && (
+                        <a
+                            href={mapsUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                marginTop: '10px',
+                                padding: '6px 12px',
+                                borderRadius: '999px',
+                                background:
+                                    'linear-gradient(135deg, #9b59b6 0%, #5856d6 100%)',
+                                color: 'white',
+                                textDecoration: 'none',
+                                fontSize: '0.74rem',
+                                fontWeight: 700,
+                                boxShadow: '0 3px 10px rgba(155, 89, 182, 0.22)',
+                            }}
+                        >
+                            View on Google Maps →
+                        </a>
                     )}
                 </div>
             )}

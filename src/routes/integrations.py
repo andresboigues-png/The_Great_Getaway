@@ -182,10 +182,21 @@ def _enrich_itinerary(itinerary: list, destination: str) -> list:
 
 @bp.route("/api/config", methods=["GET"])
 def get_config():
-    """Expose AI API keys and Google Client ID from environment."""
+    """Expose ONLY non-sensitive client config — currently the public
+    Google OAuth client id used by the GIS sign-in button.
+
+    Security note: this endpoint used to also return `gemini_key` /
+    `openai_key` from server env so the AI page could "auto-fill" the
+    user's key field. That meant the host's LLM key was shipped to
+    every page load — anyone viewing /api/config (or just View Source
+    after the fetch) could lift it. Removed in favour of strict BYO:
+    the AI page reads the user's saved key from localStorage (the
+    `geminiApiKey` field of STATE), and the user pastes their own
+    Gemini key in Settings to enable AI generation. The host's
+    GEMINI_API_KEY env var is still honoured server-side as a fallback
+    in /api/generate_itinerary (see route below) for self-hosted
+    setups where the operator IS the user."""
     return jsonify({
-        "openai_key": os.getenv("OPENAI_API_KEY", ""),
-        "gemini_key": os.getenv("GEMINI_API_KEY", ""),
         "google_client_id": os.getenv("CLIENT_ID_GOOGLE_AUTH", ""),
     })
 

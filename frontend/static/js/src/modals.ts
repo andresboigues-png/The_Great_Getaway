@@ -466,16 +466,26 @@ export const openEditTripModal = (trip: any) => {
         coverStatus.textContent = 'Uploading…';
         coverPickBtn.disabled = true;
         try {
+            // Round 1 audit fix: uploadMedia now returns a structured
+            // `{url}` on success or `{error: string}` on failure, so we
+            // can surface the actual reason (file too big, MIME wrong,
+            // network down) instead of a generic "Upload failed". Both
+            // paths get a liquid-alert toast for high-visibility feedback
+            // since the inline coverStatus text is small + easy to miss.
             const result = await uploadMedia(file);
             if (result?.url) {
                 coverUrl = result.url;
                 refreshCoverUI();
             } else {
-                coverStatus.textContent = 'Upload failed — try again';
+                const msg = result?.error || 'Upload failed — try again.';
+                coverStatus.textContent = msg;
+                showLiquidAlert(msg);
             }
         } catch (e) {
             console.warn('cover upload failed', e);
-            coverStatus.textContent = 'Upload failed — try again';
+            const msg = 'Upload failed — try again.';
+            coverStatus.textContent = msg;
+            showLiquidAlert(msg);
         } finally {
             coverPickBtn.disabled = false;
             // Reset the input so re-picking the same file still fires

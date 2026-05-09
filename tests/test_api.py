@@ -1556,31 +1556,41 @@ def test_notifications_trip_public_creates_notification(
 # loaded from env). /api/generate_itinerary calls Gemini — tests
 # mock requests.post to avoid real network traffic + paid quota.
 
-def test_config_returns_keys_from_env(client, monkeypatch):
-    """Pin the env-var → response-key mapping. Frontend's /api/config
-    consumer reads these into window.googleClientId etc. on boot."""
-    monkeypatch.setenv("OPENAI_API_KEY", "openai-test-key")
-    monkeypatch.setenv("GEMINI_API_KEY", "gemini-test-key")
+def test_config_returns_only_public_google_client_id(client, monkeypatch):
+    """Pin the no-secrets-leak contract for /api/config. The endpoint
+    used to also return `gemini_key` / `openai_key` from server env,
+    which meant the host's paid LLM key was shipped to every page
+    load. Round 1 audit fix: only the public Google OAuth client id
+    is exposed (it's already public — embedded in the GIS button's
+    HTML attribute). LLM keys stay server-side; users BYO via
+    Settings → AI Engine."""
+    monkeypatch.setenv("OPENAI_API_KEY", "openai-test-key-must-not-leak")
+    monkeypatch.setenv("GEMINI_API_KEY", "gemini-test-key-must-not-leak")
     monkeypatch.setenv("CLIENT_ID_GOOGLE_AUTH", "google-test-id")
     res = client.get("/api/config")
     assert res.status_code == 200
     body = res.get_json()
-    assert body["openai_key"] == "openai-test-key"
-    assert body["gemini_key"] == "gemini-test-key"
+    # Public id is exposed.
     assert body["google_client_id"] == "google-test-id"
+    # LLM keys MUST NOT appear in any form.
+    assert "gemini_key" not in body
+    assert "openai_key" not in body
+    # Defence-in-depth — even the values shouldn't leak via any field.
+    assert "gemini-test-key-must-not-leak" not in str(body)
+    assert "openai-test-key-must-not-leak" not in str(body)
 
 
-def test_config_returns_empty_strings_when_env_unset(client, monkeypatch):
-    """Missing env vars resolve to empty string (not undefined). The
-    frontend keys off `if (key)` so this is the "not configured"
-    signal."""
+def test_config_returns_empty_client_id_when_env_unset(client, monkeypatch):
+    """Missing CLIENT_ID_GOOGLE_AUTH resolves to empty string (not
+    undefined). The frontend's GIS button keys off truthiness so empty
+    is the "not configured" signal."""
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     monkeypatch.delenv("CLIENT_ID_GOOGLE_AUTH", raising=False)
     res = client.get("/api/config")
     assert res.status_code == 200
     body = res.get_json()
-    assert body == {"openai_key": "", "gemini_key": "", "google_client_id": ""}
+    assert body == {"google_client_id": ""}
 
 
 def test_generate_itinerary_rejects_missing_key(client, seed_user, auth_headers, monkeypatch):
