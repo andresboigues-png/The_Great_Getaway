@@ -1,6 +1,16 @@
 """External integrations — currently just the Gemini AI itinerary
 generator. /api/config exposes the public Google client id used by
 the frontend's GIS button.
+
+Phase G slice 1 — Maps verification: after Gemini returns the freeform
+itinerary, each suggested item is run through Google Places Text Search
+to resolve a real placeId. Verified items get enriched with
+photoUrl / rating / address / mapsUrl so the frontend can render them
+as rich tappable cards. Items the lookup can't resolve get flagged as
+`verified: false` — the explicit hallucination signal the ROADMAP
+done-check calls for. Gracefully no-ops when GOOGLE_MAPS_API_KEY
+isn't set (items stay as strings, frontend renders the legacy
+text-bullet form).
 """
 
 import json
@@ -15,6 +25,125 @@ from auth import require_auth
 
 logger = logging.getLogger(__name__)
 bp = Blueprint("integrations", __name__)
+
+
+def _verify_place(query: str, destination: str, api_key: str) -> dict | None:
+    """Resolve `<query> in <destination>` to a real Google Maps place via
+    Places API NEW (`places.googleapis.com/v1/places:searchText`).
+    Returns enriched fields on a hit, None on miss / error / missing key.
+    Network errors are logged + swallowed: a verification miss is a soft
+    failure (the item just renders unverified), never a 500.
+
+    The FieldMask is the cost-control lever — Places API NEW bills per
+    requested field group, so we ask for ONLY what the AI card uses.
+    Adding a field here = paying for it on every itinerary generation.
+    """
+    if not api_key or not query:
+        return None
+    text_query = f"{query} in {destination}".strip() if destination else query
+    try:
+        url = "https://places.googleapis.com/v1/places:searchText"
+        headers = {
+            "Content-Type": "application/json",
+            "X-Goog-Api-Key": api_key,
+            "X-Goog-FieldMask": (
+                "places.id,places.displayName,places.formattedAddress,"
+                "places.rating,places.userRatingCount,"
+                "places.googleMapsUri,places.photos.name"
+            ),
+        }
+        payload = {"textQuery": text_query, "maxResultCount": 1}
+        resp = requests.post(url, headers=headers, json=payload, timeout=8)
+        if not resp.ok:
+            logger.info(f"Places verification miss ({resp.status_code}) for: {text_query}")
+            return None
+        data = resp.json()
+        places = data.get("places", [])
+        if not places:
+            return None
+        p = places[0]
+        # Photo URL — Places API NEW serves photos via the place name +
+        # photo name path; the frontend hot-links this URL. Photo serving
+        # itself isn't billed (the billable hit is the searchText
+        # request above; the photo URL is a static-image redirect).
+        photo_url = None
+        photos = p.get("photos") or []
+        if photos:
+            photo_name = photos[0].get("name")
+            if photo_name:
+                photo_url = (
+                    f"https://places.googleapis.com/v1/{photo_name}/media"
+                    f"?key={api_key}&maxWidthPx=480&maxHeightPx=320"
+                )
+        return {
+            "placeId": p.get("id"),
+            "verifiedName": (p.get("displayName") or {}).get("text"),
+            "address": p.get("formattedAddress"),
+            "rating": p.get("rating"),
+            "userRatingsTotal": p.get("userRatingCount"),
+            "mapsUrl": p.get("googleMapsUri"),
+            "photoUrl": photo_url,
+        }
+    except Exception as e:
+        logger.warning(f"Places verification error for '{text_query}': {e}")
+        return None
+
+
+def _enrich_itinerary(itinerary: list, destination: str) -> list:
+    """For every item in every slot of every day, resolve via Places API
+    Text Search and rewrite the item from a string to an object:
+        { text, verified, placeId?, photoUrl?, rating?, address?, ... }
+
+    Items the lookup can't resolve become `{ text, verified: false }` —
+    the frontend renders those with an "unverified" chip so the user
+    knows the LLM made it up vs. cited a real place. A per-itinerary
+    cache de-dupes lookups (the LLM often mentions the same landmark
+    in multiple slots — we pay the API once).
+
+    No-op when GOOGLE_MAPS_API_KEY is unset — items stay as strings,
+    frontend's renderSlotBody falls through to the legacy text-bullet
+    rendering. Lets dev / self-hosted setups skip the Maps integration
+    without breaking anything; verification is value-add, not structural.
+    """
+    api_key = os.getenv("GOOGLE_MAPS_API_KEY") or ""
+    if not api_key:
+        return itinerary
+
+    cache: dict[str, dict | None] = {}
+
+    def resolve(item_text: str) -> dict | None:
+        if item_text in cache:
+            return cache[item_text]
+        meta = _verify_place(item_text, destination, api_key)
+        cache[item_text] = meta
+        return meta
+
+    for day in itinerary or []:
+        if not isinstance(day, dict):
+            continue
+        for slot_name in ("morning", "afternoon", "evening"):
+            slot = day.get(slot_name)
+            if not isinstance(slot, dict):
+                continue
+            items = slot.get("items")
+            if not isinstance(items, list):
+                continue
+            new_items = []
+            for raw in items:
+                # Defensive: Gemini sometimes returns nested objects
+                # when prompt drift produces structured items. Coerce
+                # anything non-string to its string form.
+                text = raw if isinstance(raw, str) else str(raw or "")
+                text = text.strip()
+                if not text:
+                    continue
+                meta = resolve(text)
+                if meta and meta.get("placeId"):
+                    new_items.append({"text": text, "verified": True, **meta})
+                else:
+                    new_items.append({"text": text, "verified": False})
+            slot["items"] = new_items
+    return itinerary
 
 
 @bp.route("/api/config", methods=["GET"])
@@ -124,6 +253,12 @@ def generate_itinerary():
 
     try:
         itinerary = json.loads(raw_text.strip())
+        # Phase G slice 1 — Maps verification + enrichment. Items go
+        # from strings to objects with placeId / photoUrl / rating /
+        # address / mapsUrl when the lookup hits, or `verified: false`
+        # when the LLM made it up. No-op when GOOGLE_MAPS_API_KEY
+        # isn't set — items stay as strings.
+        itinerary = _enrich_itinerary(itinerary, destination)
         return jsonify({"status": "success", "itinerary": itinerary})
     except Exception as e:
         logger.error(f"Gemini API Error: {e}")

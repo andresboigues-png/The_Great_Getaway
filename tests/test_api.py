@@ -1617,7 +1617,15 @@ def test_generate_itinerary_happy_path(client, seed_user, auth_headers, monkeypa
     """Mock a successful Gemini response → handler unwraps the
     candidates[].content.parts[].text shape and returns the parsed
     itinerary array. Pin the wire shape because a Gemini API change
-    that drops or renames any of those fields would silently break."""
+    that drops or renames any of those fields would silently break.
+
+    Phase G slice 1: explicitly delenv GOOGLE_MAPS_API_KEY so the
+    Places verification path short-circuits — this test pins the Gemini
+    pass-through, the verification path has its own dedicated tests
+    below. Without the delenv, a developer's local env that has the
+    Maps key set would flip items from strings to objects and break
+    the assertion below."""
+    monkeypatch.delenv("GOOGLE_MAPS_API_KEY", raising=False)
     fake_itinerary = [
         {
             "day": 1, "date": "2026-04-15", "title": "Arrival",
@@ -1655,6 +1663,7 @@ def test_generate_itinerary_strips_markdown_fences(
     responseMimeType:application/json — the handler strips those
     fences before parsing. Pin the strip so a Gemini behaviour change
     that re-introduces them doesn't crash json.loads."""
+    monkeypatch.delenv("GOOGLE_MAPS_API_KEY", raising=False)
     fake_itinerary = [{"day": 1, "title": "Arrival"}]
     wrapped_text = f"```json\n{json.dumps(fake_itinerary)}\n```"
     fake_resp_body = {
@@ -1708,6 +1717,128 @@ def test_generate_itinerary_502_when_both_models_fail(
     assert len(call_log) == 2
     assert "gemini-flash-latest" in call_log[0]
     assert "gemini-2.5-flash" in call_log[1]
+
+
+def test_generate_itinerary_places_verification_enriches_items(
+    client, seed_user, auth_headers, monkeypatch,
+):
+    """Phase G slice 1: with GOOGLE_MAPS_API_KEY set, every itinerary
+    item gets resolved via Places API Text Search and rewritten from
+    a string to an enriched object with placeId / photoUrl / rating /
+    address / mapsUrl on a hit, or `verified: false` on a miss.
+
+    This pin protects three guarantees the frontend renderer relies on:
+      1. Verified items carry a placeId (the unique-identity hook)
+      2. Photo URL points at the Places API NEW media endpoint
+      3. Items the LLM hallucinated (Places returns no result) come
+         back as `verified: false` so the UI can flag them"""
+    monkeypatch.setenv("GOOGLE_MAPS_API_KEY", "fake-maps-key")
+
+    fake_itinerary = [{
+        "day": 1, "date": "2026-04-15", "title": "Arrival",
+        "morning": {"activity": "Coffee", "items": ["Sagrada Familia", "Made-up Place That Doesn't Exist 9999"]},
+        "afternoon": {"activity": "Walk", "items": ["Park Güell"]},
+        "evening": {"activity": "Dinner", "items": []},
+    }]
+    # Precompute the Gemini response body BEFORE defining fake_post —
+    # inside the function `json` is the request-body parameter (because
+    # requests.post is called with `json=...`), which shadows the json
+    # module. Building the body here lets us reference json.dumps
+    # without aliasing the module.
+    gemini_response_body = {
+        "candidates": [{"content": {"parts": [{"text": json.dumps(fake_itinerary)}]}}],
+    }
+
+    def fake_post(url, headers=None, json=None, timeout=None):
+        # Distinguish Gemini calls from Places calls by URL.
+        if "generativelanguage.googleapis.com" in url:
+            return _FakeGeminiResponse(200, json_body=gemini_response_body)
+        if "places.googleapis.com" in url:
+            # Read the textQuery to decide hit-vs-miss. The handler
+            # builds it as `<item> in <destination>`. Real-place names
+            # get a hit; the obviously-fake item gets a miss (empty
+            # places array, the Places API contract for "no match").
+            text_query = (json or {}).get("textQuery", "")
+            if "Made-up Place" in text_query:
+                return _FakeGeminiResponse(200, json_body={"places": []})
+            return _FakeGeminiResponse(200, json_body={
+                "places": [{
+                    "id": f"ChIJ-{abs(hash(text_query)) % 100000}",
+                    "displayName": {"text": text_query.split(" in ")[0]},
+                    "formattedAddress": "Some real address, Barcelona, Spain",
+                    "rating": 4.7,
+                    "userRatingCount": 12345,
+                    "googleMapsUri": "https://maps.app.goo.gl/fakeshort",
+                    "photos": [{"name": "places/fakeplace/photos/fakephoto"}],
+                }],
+            })
+        return _FakeGeminiResponse(404)
+
+    import routes.integrations
+    monkeypatch.setattr(routes.integrations.requests, "post", fake_post)
+
+    res = client.post("/api/generate_itinerary", headers=auth_headers, json={
+        "destination": "Barcelona", "numDays": 1, "gemini_key": "byo-key",
+    })
+    assert res.status_code == 200
+    body = res.get_json()
+    morning_items = body["itinerary"][0]["morning"]["items"]
+    afternoon_items = body["itinerary"][0]["afternoon"]["items"]
+    # Sagrada Familia hit — verified, enriched.
+    assert morning_items[0]["text"] == "Sagrada Familia"
+    assert morning_items[0]["verified"] is True
+    assert morning_items[0]["placeId"].startswith("ChIJ-")
+    assert morning_items[0]["rating"] == 4.7
+    assert morning_items[0]["address"] == "Some real address, Barcelona, Spain"
+    assert morning_items[0]["photoUrl"].startswith("https://places.googleapis.com/v1/")
+    assert "fake-maps-key" in morning_items[0]["photoUrl"]
+    # Hallucination — unverified, no enrichment fields.
+    assert morning_items[1]["text"].startswith("Made-up Place")
+    assert morning_items[1]["verified"] is False
+    assert "placeId" not in morning_items[1]
+    # Afternoon item is also verified via the cache (same fake-post path).
+    assert afternoon_items[0]["verified"] is True
+
+
+def test_generate_itinerary_places_verification_skipped_without_key(
+    client, seed_user, auth_headers, monkeypatch,
+):
+    """Phase G slice 1: GOOGLE_MAPS_API_KEY missing → verification path
+    short-circuits, items pass through as strings unchanged. Critical
+    for dev / self-hosted deploys that don't have a Maps API key — we
+    don't want a 500 or a behavior change just because the key isn't
+    there. Pin the no-op so a regression that hard-requires the key
+    fails CI before it lands."""
+    monkeypatch.delenv("GOOGLE_MAPS_API_KEY", raising=False)
+    fake_itinerary = [{
+        "day": 1, "title": "Arrival",
+        "morning": {"activity": "Coffee", "items": ["Some Cafe", "Another Place"]},
+        "afternoon": {"activity": "Walk", "items": []},
+        "evening": {"activity": "Dinner", "items": []},
+    }]
+    # Precompute outside fake_post — `json` is shadowed by the request-
+    # body parameter inside the function.
+    fake_resp_body = {
+        "candidates": [{"content": {"parts": [{"text": json.dumps(fake_itinerary)}]}}],
+    }
+    places_calls = []
+
+    def fake_post(url, headers=None, json=None, timeout=None):
+        if "places.googleapis.com" in url:
+            places_calls.append(url)
+        return _FakeGeminiResponse(200, json_body=fake_resp_body)
+
+    import routes.integrations
+    monkeypatch.setattr(routes.integrations.requests, "post", fake_post)
+
+    res = client.post("/api/generate_itinerary", headers=auth_headers, json={
+        "destination": "Tokyo", "numDays": 1, "gemini_key": "byo-key",
+    })
+    assert res.status_code == 200
+    # Items stay as plain strings — wire-shape unchanged from pre-G.
+    assert res.get_json()["itinerary"][0]["morning"]["items"] == ["Some Cafe", "Another Place"]
+    # And we did NOT call Places API (no quota burned without a key).
+    assert len(places_calls) == 0
 
 
 def test_generate_itinerary_500_on_invalid_json_in_response(

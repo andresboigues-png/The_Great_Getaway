@@ -5,24 +5,48 @@
 // file stays under the 800-line bound. Each function takes a slot
 // object and returns a string — no side effects.
 //
-// The slot shape supports both the canonical `items: string[]` (new
-// AI prompt) and a legacy `description: string` fallback, since some
-// trips have plans saved before the bullet schema landed.
+// Three slot-item shapes supported:
+//   1. Phase G NEW — `items: { text, verified, placeId?, photoUrl?,
+//      rating?, address?, mapsUrl? }[]`. Verified items render as
+//      tappable cards with a photo / rating / address that link to
+//      the real Google Maps place page. Unverified items render
+//      with an "unverified" chip — explicit hallucination signal so
+//      the user knows to double-check before adding to their plan.
+//   2. Pre-G `items: string[]` — bullet list. Still rendered for
+//      back-compat with itineraries saved before the verification
+//      pass landed (or generated when GOOGLE_MAPS_API_KEY is unset
+//      on the server, which is the graceful no-op path).
+//   3. Legacy `description: string` — paragraph form, pre-bullet
+//      schema. Some very old saved plans use this.
 
 import { esc } from '../../utils.js';
 
-/** Render a single time-slot body. Two shapes are supported:
- *   1. New `items: string[]` — bullet list (the canonical shape
- *      returned by the updated AI prompt).
- *   2. Legacy `description: string` — pre-bullet plans saved before
- *      the schema change. Renders as a paragraph so old saved plans
- *      still display correctly.
- *   Falls back to empty when neither exists. */
+/** Phase G item shape after server-side Places verification. The
+ *  legacy strings still flow through `renderSlotItem` below — they
+ *  get the bullet rendering. */
+interface VerifiedSlotItem {
+    text: string;
+    verified: boolean;
+    placeId?: string;
+    photoUrl?: string;
+    rating?: number;
+    userRatingsTotal?: number;
+    address?: string;
+    mapsUrl?: string;
+    verifiedName?: string;
+}
+
+/** Render a single time-slot body. Three shapes are supported (see
+ *  module header). Falls back to empty when none exist. */
 export function renderSlotBody(slot: any): string {
     if (!slot) return '';
     const items = Array.isArray(slot.items) ? slot.items.filter(Boolean) : [];
     if (items.length > 0) {
-        return `<ul class="ai-plan-block__list">${items.map((i: any) => `<li>${esc(String(i))}</li>`).join('')}</ul>`;
+        // Mixed list: verified items render as rich cards, unverified
+        // and legacy strings render as plain bullets. The single <ul>
+        // wrapper keeps the layout consistent — list-style is removed
+        // in CSS so the cards don't show bullet markers next to them.
+        return `<ul class="ai-plan-block__list">${items.map((i: any) => renderSlotItem(i)).join('')}</ul>`;
     }
     if (slot.description) {
         // Defensive: if a legacy description happens to use newlines
@@ -40,6 +64,83 @@ export function renderSlotBody(slot: any): string {
     return '';
 }
 
+/** Render one item — verified card / unverified chip / legacy bullet.
+ *  Defensive against any shape Gemini → enrichment can produce. */
+function renderSlotItem(item: any): string {
+    // Legacy: items shipped as plain strings (pre-Phase-G itineraries
+    // OR new generations when GOOGLE_MAPS_API_KEY is unset on the
+    // server). Render as a vanilla bullet so old plans don't break.
+    if (typeof item === 'string') return `<li class="ai-plan-block__item">${esc(item)}</li>`;
+    if (!item || typeof item !== 'object') return '';
+    const v = item as VerifiedSlotItem;
+    const text = String(v.text || '');
+    if (!text) return '';
+
+    if (v.verified && v.placeId) {
+        // Verified — rich card. Photo on left, name + rating + address
+        // on right, the whole thing wrapping in an <a> so a tap opens
+        // the canonical Google Maps place page in a new tab. The
+        // `target="_blank" + rel="noopener noreferrer"` combo is the
+        // standard "open external link without leaking referrer".
+        const photoHtml = v.photoUrl
+            ? `<img class="ai-place-card__photo" src="${esc(v.photoUrl)}" alt="" referrerpolicy="no-referrer" loading="lazy">`
+            : '<div class="ai-place-card__photo ai-place-card__photo--empty" aria-hidden="true">📍</div>';
+        const ratingHtml = (typeof v.rating === 'number')
+            ? `<span class="ai-place-card__rating">★ ${v.rating.toFixed(1)}${v.userRatingsTotal ? ` <span class="ai-place-card__rating-count">(${formatRatingCount(v.userRatingsTotal)})</span>` : ''}</span>`
+            : '';
+        const addressHtml = v.address
+            ? `<span class="ai-place-card__address">${esc(v.address)}</span>`
+            : '';
+        // Use mapsUrl from the server when present (the canonical short
+        // URL); fall back to the search-by-place-id deep link, which
+        // works even when mapsUrl is missing.
+        const href = v.mapsUrl || `https://www.google.com/maps/place/?q=place_id:${encodeURIComponent(v.placeId)}`;
+        const displayName = v.verifiedName || text;
+        return `
+            <li class="ai-plan-block__item ai-plan-block__item--card">
+                <a class="ai-place-card" href="${esc(href)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${esc(displayName)} on Google Maps">
+                    ${photoHtml}
+                    <div class="ai-place-card__body">
+                        <span class="ai-place-card__name">${esc(displayName)}</span>
+                        ${ratingHtml}
+                        ${addressHtml}
+                    </div>
+                </a>
+            </li>`;
+    }
+
+    // Unverified — Places lookup couldn't resolve this. Render the LLM
+    // text as a regular bullet but stamp it with an "unverified" chip
+    // so the user knows to fact-check. Title attribute spells out the
+    // meaning for keyboard / screen-reader users.
+    return `
+        <li class="ai-plan-block__item ai-plan-block__item--unverified">
+            <span class="ai-plan-block__item-text">${esc(text)}</span>
+            <span class="ai-plan-block__unverified-chip" title="The Places lookup couldn't resolve this. Worth double-checking before adding to your plan.">unverified</span>
+        </li>`;
+}
+
+/** Format a ratings count compactly: 12345 → "12k", 1500000 → "1.5M".
+ *  Keeps the chip narrow so it doesn't push the address to a third
+ *  line in the verified card. */
+function formatRatingCount(n: number): string {
+    if (!Number.isFinite(n) || n < 0) return '';
+    if (n < 1000) return String(n);
+    if (n < 1_000_000) return `${(Math.round(n / 100) / 10).toFixed(1).replace(/\.0$/, '')}k`;
+    return `${(Math.round(n / 100_000) / 10).toFixed(1).replace(/\.0$/, '')}M`;
+}
+
+/** Coerce any item shape (Phase G object | legacy string) to its text
+ *  form for the textarea flow. The Accept Plan flow flattens slots
+ *  into a textarea string per day; with verified items now being
+ *  objects, we need the `text` field instead of the whole struct's
+ *  `[object Object]` string coercion. */
+function itemToText(item: any): string {
+    if (typeof item === 'string') return item;
+    if (item && typeof item === 'object' && typeof item.text === 'string') return item.text;
+    return String(item ?? '');
+}
+
 /** Flatten a slot for the day-plan textarea (Accept Plan flow).
  *  Preserves the activity headline + bullet items so the user sees
  *  the same structure on the home day card. */
@@ -48,7 +149,7 @@ export function flattenSlotForTextarea(slot: any): string {
     const items = Array.isArray(slot.items) ? slot.items.filter(Boolean) : [];
     if (items.length > 0) {
         const head = slot.activity ? `${slot.activity}:` : '';
-        return [head, ...items.map((i: any) => `- ${i}`)].filter(Boolean).join('\n');
+        return [head, ...items.map((i: any) => `- ${itemToText(i)}`)].filter(Boolean).join('\n');
     }
     // Legacy fallback — same shape the old code wrote.
     if (slot.activity && slot.description) return `${slot.activity}: ${slot.description}`;
