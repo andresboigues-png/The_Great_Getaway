@@ -285,6 +285,13 @@ body {
 .nav-links {
     display: flex;
     gap: 24px;
+    /* `align-items: center` so the text page-links visually centre
+       with the bell + feed icons (which are taller — 38px buttons vs
+       ~14px text). Without this, default `stretch` plus the natural
+       baseline of the short text put the words at the top of the row
+       while the icons sit in the middle, so the row reads visually
+       misaligned. */
+    align-items: center;
 }
 
 .nav-item {
