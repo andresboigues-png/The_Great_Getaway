@@ -126,6 +126,45 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
     // empty-state body now includes a quick "how to add" hint
     // pointing at the home map's POI pins → "📋 Add to to-do
     // list" flow.
+    // Phase G v3 — category filter pills mirror the /todo page.
+    // Build the per-icon catalogue (icons + counts) from the
+    // shortlist, render one pill per category + an "All" pill that
+    // clears the filter. Only render the row when there are 2+
+    // categories — a single-category list doesn't benefit from
+    // filtering. ICON_TO_LABEL is duplicated here from Todo.tsx
+    // for the imperative-DOM render path; both lists evolve from
+    // the same POI_CATEGORIES emoji set so drift is unlikely (but
+    // a future consolidation could pull this into a shared module).
+    const ICON_TO_LABEL: Record<string, string> = {
+        '🍽️': 'Restaurants', '🛒': 'Supermarkets', '🛏️': 'Hotels',
+        '🏖️': 'Sights', '🌳': 'Parks', '⛪': 'Worship',
+        '🏥': 'Medical', '💊': 'Pharmacies', '🩺': 'Doctors', '🦷': 'Dentists',
+        '🐾': 'Pets', '🐶': 'Pet stores', '🎓': 'Schools', '🏟️': 'Sports',
+        '🚉': 'Transit', '🛣️': 'Roads & traffic',
+        '📋': 'AI suggestions', '📍': 'Other places',
+    };
+    const _shortlistIconCounts = new Map<string, number>();
+    for (const p of allShortlist) {
+        const k = (p.icon as string) || '📍';
+        _shortlistIconCounts.set(k, (_shortlistIconCounts.get(k) || 0) + 1);
+    }
+    const _shortlistIcons = [..._shortlistIconCounts.keys()];
+    const _renderShortlistFilterPill = (icon: string, label: string, count: number, isAllPill: boolean): string => `
+        <button type="button" class="day-shortlist-filter-pill${isAllPill ? ' is-active' : ''}"
+            data-shortlist-filter-icon="${esc(isAllPill ? '' : icon)}" aria-pressed="${isAllPill}"
+            style="display:inline-flex; align-items:center; gap:6px; padding:5px 11px; border-radius:999px; border:1.5px solid rgba(0,45,91,0.12); background:white; color:#002d5b; font-size:0.74rem; font-weight:700; cursor:pointer; white-space:nowrap; flex-shrink:0;">
+            <span style="font-size:0.95rem; line-height:1;">${esc(icon)}</span>
+            <span>${esc(label)}</span>
+            <span style="font-size:0.62rem; font-weight:800; padding:1px 6px; border-radius:999px; background:rgba(0,45,91,0.06); color:var(--text-secondary); min-width:14px; text-align:center;">${count}</span>
+        </button>
+    `;
+    const filterPillsHtml = _shortlistIcons.length > 1 ? `
+        <div id="dayShortlistFilterPills" class="day-shortlist-filter-pills"
+            style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px; align-items:center;">
+            ${_renderShortlistFilterPill('✨', 'All', allShortlist.length, true)}
+            ${_shortlistIcons.map(i => _renderShortlistFilterPill(i, ICON_TO_LABEL[i] || 'Other', _shortlistIconCounts.get(i) || 0, false)).join('')}
+        </div>
+    ` : '';
     const shortlistSectionHtml = `
         <div class="day-shortlist-section" style="margin-top: var(--space-10); padding: var(--space-6); background: rgba(155, 89, 182, 0.04); border: 1px solid rgba(155, 89, 182, 0.2); border-radius: 24px;">
             <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px; flex-wrap:wrap;">
@@ -137,6 +176,7 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
                         style="margin-left:auto; max-width: 200px; padding:6px 12px; border:1px solid rgba(155,89,182,0.25); background:white; border-radius:999px; font-size:0.78rem; color:#002d5b; outline:none; font-family: inherit;">
                 ` : ''}
             </div>
+            ${filterPillsHtml}
             ${allShortlist.length > 0 ? `
                 <p style="margin:0 0 12px; font-size:0.74rem; color:var(--text-secondary); line-height:1.4;">Tap AM / PM / Eve to drop into the matching textarea — tap again to remove it. ✓ shows where it currently lives.</p>
                 <div id="dayShortlistRows" class="day-shortlist-rows"
@@ -227,7 +267,13 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
     // unchanged. The colour accent on the active tab matches
     // each slot's existing identity (blue / orange / purple).
     const _countLines = (s: string | null | undefined) => (s || '').split('\n').filter(l => l.trim().length > 0).length;
-    const _slotIcon: Record<string, string> = { morning: '🌅', afternoon: '☀️', evening: '🌙' };
+    // Phase G v3 — per-user request the morning + afternoon glyphs
+    // got swapped (sun for morning, sunset for afternoon) and the
+    // text labels dropped from the tab UI entirely (the words were
+    // being truncated on narrow viewports). The label still rides
+    // along on `aria-label` so the tab is announced clearly to
+    // screen-readers — it's just no longer painted on the button.
+    const _slotIcon: Record<string, string> = { morning: '☀️', afternoon: '🌅', evening: '🌙' };
     const _slotLabel: Record<string, string> = { morning: 'Morning', afternoon: 'Afternoon', evening: 'Evening' };
     const _slotAccent: Record<string, string> = { morning: '0,113,227', afternoon: '255,149,0', evening: '88,86,214' };
     const _slotPlaceholder: Record<string, string> = { morning: 'Morning plans…', afternoon: 'Afternoon plans…', evening: 'Evening plans…' };
@@ -237,11 +283,12 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
         const count = _countLines((day.plan as Record<string, string> | undefined)?.[slot]);
         const isActive = slot === _initialSlot;
         return `
-            <button type="button" class="day-plan-tab${isActive ? ' is-active' : ''}" data-plan-tab="${slot}"
+            <button type="button" class="day-plan-tab day-plan-tab--icon-only${isActive ? ' is-active' : ''}" data-plan-tab="${slot}"
                 style="--accent: ${_slotAccent[slot]};"
-                role="tab" aria-selected="${isActive ? 'true' : 'false'}">
+                role="tab" aria-selected="${isActive ? 'true' : 'false'}"
+                aria-label="${_slotLabel[slot]}${count > 0 ? ` (${count})` : ''}"
+                title="${_slotLabel[slot]}">
                 <span class="day-plan-tab__icon">${_slotIcon[slot]}</span>
-                <span class="day-plan-tab__label">${_slotLabel[slot]}</span>
                 <span class="day-plan-tab__count" data-plan-tab-count="${slot}">${count > 0 ? count : ''}</span>
             </button>
         `;
@@ -789,28 +836,80 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
     // name + address. Hides non-matching rows with display:none
     // (cheaper than re-rendering) and toggles an "No matches."
     // placeholder when nothing's left.
+    //
+    // Phase G v3 — the search filter now combines with the
+    // category filter pills below (`activeCategoryFilters`). Both
+    // must pass for a row to stay visible. State is shared via
+    // closure so each input drives the same applyFilters() pass.
     const filterInput = (root.querySelector('#dayShortlistFilter') as HTMLInputElement | null);
-    if (filterInput) {
-        const rowsContainer = (root.querySelector('#dayShortlistRows') as HTMLElement | null);
-        const emptyEl = (root.querySelector('#dayShortlistEmpty') as HTMLElement | null);
-        filterInput.addEventListener('input', () => {
-            const query = filterInput.value.trim().toLowerCase();
-            let visible = 0;
-            root.querySelectorAll('.day-shortlist-row').forEach(rowEl => {
-                const row = (rowEl as HTMLElement);
-                const pid = row.dataset.placeId;
-                const place = allShortlist.find((p: any) => p.placeId === pid);
-                if (!place) return;
-                const matches = !query
-                    || (place.name || '').toLowerCase().includes(query)
-                    || (place.address || '').toLowerCase().includes(query);
-                row.style.display = matches ? '' : 'none';
-                if (matches) visible++;
-            });
-            if (emptyEl) emptyEl.style.display = visible === 0 ? 'block' : 'none';
-            if (rowsContainer) rowsContainer.style.display = visible === 0 ? 'none' : 'grid';
+    const rowsContainer = (root.querySelector('#dayShortlistRows') as HTMLElement | null);
+    const emptyEl = (root.querySelector('#dayShortlistEmpty') as HTMLElement | null);
+    const activeCategoryFilters = new Set<string>(); // empty = "All"
+    const applyShortlistFilters = () => {
+        const query = (filterInput?.value || '').trim().toLowerCase();
+        let visible = 0;
+        root.querySelectorAll('.day-shortlist-row').forEach(rowEl => {
+            const row = (rowEl as HTMLElement);
+            const pid = row.dataset.placeId;
+            const place = allShortlist.find((p: any) => p.placeId === pid);
+            if (!place) return;
+            const queryMatches = !query
+                || (place.name || '').toLowerCase().includes(query)
+                || (place.address || '').toLowerCase().includes(query);
+            const categoryMatches = activeCategoryFilters.size === 0
+                || activeCategoryFilters.has((place.icon as string) || '📍');
+            const matches = queryMatches && categoryMatches;
+            row.style.display = matches ? '' : 'none';
+            if (matches) visible++;
         });
+        if (emptyEl) emptyEl.style.display = visible === 0 ? 'block' : 'none';
+        if (rowsContainer) rowsContainer.style.display = visible === 0 ? 'none' : 'grid';
+    };
+    if (filterInput) {
+        filterInput.addEventListener('input', applyShortlistFilters);
     }
+    // Wire the filter pills. The "All" pill (no data-shortlist-filter-
+    // icon, or empty value) clears the set; others toggle their icon
+    // in/out. Active state is class-based (`.is-active`) for visual
+    // feedback. We re-paint the pill row's active flags on every
+    // toggle so the user can see the current selection.
+    const filterPillButtons = root.querySelectorAll('.day-shortlist-filter-pill') as NodeListOf<HTMLButtonElement>;
+    const repaintPillStates = () => {
+        filterPillButtons.forEach((btn) => {
+            const icon = btn.dataset.shortlistFilterIcon || '';
+            const isAllPill = !icon;
+            const isActive = isAllPill
+                ? activeCategoryFilters.size === 0
+                : activeCategoryFilters.has(icon);
+            btn.classList.toggle('is-active', isActive);
+            btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+            // Inline style swap to match the pill aesthetic — same
+            // colours as Todo.tsx's FilterPill component.
+            btn.style.background = isActive ? 'var(--accent-blue)' : 'white';
+            btn.style.borderColor = isActive ? 'var(--accent-blue)' : 'rgba(0,45,91,0.12)';
+            btn.style.color = isActive ? 'white' : '#002d5b';
+            const countEl = btn.querySelector('span:last-child') as HTMLElement | null;
+            if (countEl) {
+                countEl.style.background = isActive ? 'rgba(255,255,255,0.22)' : 'rgba(0,45,91,0.06)';
+                countEl.style.color = isActive ? 'white' : 'var(--text-secondary)';
+            }
+        });
+    };
+    filterPillButtons.forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const icon = btn.dataset.shortlistFilterIcon || '';
+            if (!icon) {
+                // "All" pill clears the filter set.
+                activeCategoryFilters.clear();
+            } else if (activeCategoryFilters.has(icon)) {
+                activeCategoryFilters.delete(icon);
+            } else {
+                activeCategoryFilters.add(icon);
+            }
+            repaintPillStates();
+            applyShortlistFilters();
+        });
+    });
 
     (q(root, '#closeDetailBtn') as HTMLButtonElement).onclick = async () => {
         // Flush any pending debounce so closing-while-typing

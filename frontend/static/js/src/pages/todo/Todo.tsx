@@ -354,11 +354,70 @@ function TodoRow({ place: p, isTicked, tripIsEditable, onTickToggle, onRemove }:
     );
 }
 
+/** Filter pill — one row at the top of /todo + the day-detail to-do
+ *  table. Active state mirrors the wheel-chip aesthetic (filled
+ *  blue, white text) so clicks visually register at-a-glance. */
+interface FilterPillProps {
+    icon: string;
+    label: string;
+    count: number;
+    active: boolean;
+    onClick: () => void;
+}
+function FilterPill({ icon, label, count, active, onClick }: FilterPillProps) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            aria-pressed={active}
+            style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 12px',
+                borderRadius: '999px',
+                border: `1.5px solid ${active ? 'var(--accent-blue)' : 'rgba(0, 45, 91, 0.12)'}`,
+                background: active ? 'var(--accent-blue)' : 'white',
+                color: active ? 'white' : '#002d5b',
+                fontSize: '0.78rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                transition: 'background 0.15s ease, border-color 0.15s ease, color 0.15s ease',
+                flexShrink: 0,
+            }}
+        >
+            <span style={{ fontSize: '0.95rem', lineHeight: 1 }}>{icon}</span>
+            <span>{label}</span>
+            <span
+                style={{
+                    fontSize: '0.66rem',
+                    fontWeight: 800,
+                    padding: '1px 6px',
+                    borderRadius: '999px',
+                    background: active ? 'rgba(255, 255, 255, 0.22)' : 'rgba(0, 45, 91, 0.06)',
+                    color: active ? 'white' : 'var(--text-secondary)',
+                    minWidth: '14px',
+                    textAlign: 'center',
+                }}
+            >
+                {count}
+            </span>
+        </button>
+    );
+}
+
 export function Todo() {
     const navigate = useNavigate();
     const trips = useStore((s) => s.trips);
     const activeTripId = useStore((s) => s.activeTripId);
     const activeTrip = trips.find((t: Trip) => t.id === activeTripId);
+    /** Per-icon filter set. Empty = "All" (no filter); non-empty
+     *  shows ONLY items whose icon is in the set. Multi-select so
+     *  the user can mix categories ("show restaurants AND hotels").
+     *  Set kept inside React state so it survives a re-render
+     *  triggered by membership changes (tick / remove). */
+    const [filterIcons, setFilterIcons] = useState<Set<string>>(new Set());
 
     // ── EMPTY STATE: no active trip ─────────────────────────────────
     if (!activeTrip) {
@@ -451,16 +510,41 @@ export function Todo() {
         );
     }
 
-    // Group by icon. Map preserves insertion order so groups don't
-    // re-shuffle between renders (the latest-added type would
-    // otherwise jump to the bottom). Section labels resolved via
-    // ICON_TO_LABEL with a sensible fallback for unknown icons.
-    const groups = new Map<string, TodoMarkedPlace[]>();
+    // Per-icon counts BEFORE the filter applies — pill counts always
+    // reflect the full list so the user can see "Hotels: 1, Sights: 3"
+    // even when Hotels is currently filtered out. (Tally-ho UX:
+    // counts are the catalogue, not the filtered view.)
+    const iconCounts = new Map<string, number>();
     for (const p of todoItems) {
+        const key = p.icon || '📍';
+        iconCounts.set(key, (iconCounts.get(key) || 0) + 1);
+    }
+    const allIcons = [...iconCounts.keys()];
+
+    // Apply the filter. Empty set = no filter (show all).
+    const filteredItems = filterIcons.size === 0
+        ? todoItems
+        : todoItems.filter((p) => filterIcons.has(p.icon || '📍'));
+
+    // Group filtered items by icon. Map preserves insertion order so
+    // groups don't re-shuffle between renders (the latest-added type
+    // would otherwise jump to the bottom). Section labels resolved
+    // via ICON_TO_LABEL with a sensible fallback for unknown icons.
+    const groups = new Map<string, TodoMarkedPlace[]>();
+    for (const p of filteredItems) {
         const key = p.icon || '📍';
         if (!groups.has(key)) groups.set(key, []);
         groups.get(key)!.push(p);
     }
+
+    /** Toggle one icon in/out of the filter set. Empty set after a
+     *  toggle = back to "All". */
+    const toggleFilterIcon = (icon: string) => {
+        const next = new Set(filterIcons);
+        if (next.has(icon)) next.delete(icon);
+        else next.add(icon);
+        setFilterIcons(next);
+    };
 
     // ── LIST STATE ──────────────────────────────────────────────────
     return (
@@ -568,6 +652,75 @@ export function Todo() {
                 <strong>Plan with AI ✦</strong> page where you'll pick the day and time of day for
                 each.
             </div>
+
+            {/* Phase G v3 — category filter pills. Multi-select; empty
+                set = show all. Only renders when there's MORE THAN one
+                category in the to-do list (otherwise filtering is
+                meaningless). The "All" pill clears the filter set. */}
+            {allIcons.length > 1 && (
+                <div
+                    style={{
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        gap: '8px',
+                        marginBottom: '18px',
+                        alignItems: 'center',
+                    }}
+                >
+                    <FilterPill
+                        icon="✨"
+                        label="All"
+                        count={todoItems.length}
+                        active={filterIcons.size === 0}
+                        onClick={() => setFilterIcons(new Set())}
+                    />
+                    {allIcons.map((icon) => (
+                        <FilterPill
+                            key={icon}
+                            icon={icon}
+                            label={ICON_TO_LABEL[icon] || 'Other'}
+                            count={iconCounts.get(icon) || 0}
+                            active={filterIcons.has(icon)}
+                            onClick={() => toggleFilterIcon(icon)}
+                        />
+                    ))}
+                </div>
+            )}
+
+            {/* If the filter wiped every group (hopefully rare, but
+                possible if the user picks an icon then removes its
+                last item), show a small reset hint. Can't happen with
+                empty filterIcons since groups won't be empty in that
+                case. */}
+            {groups.size === 0 && filterIcons.size > 0 && (
+                <div
+                    style={{
+                        padding: '24px 16px',
+                        textAlign: 'center',
+                        color: 'var(--text-secondary)',
+                        fontSize: '0.86rem',
+                        background: 'rgba(0, 45, 91, 0.03)',
+                        borderRadius: '12px',
+                        border: '1.5px dashed rgba(0, 45, 91, 0.12)',
+                    }}
+                >
+                    No items match this filter.{' '}
+                    <button
+                        type="button"
+                        onClick={() => setFilterIcons(new Set())}
+                        style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: 'var(--accent-blue)',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            padding: 0,
+                        }}
+                    >
+                        Show all
+                    </button>
+                </div>
+            )}
 
             {[...groups.entries()].map(([icon, items]) => (
                 <div key={icon} style={{ marginBottom: '22px' }}>

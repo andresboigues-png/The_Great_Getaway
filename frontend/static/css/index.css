@@ -3393,11 +3393,27 @@ body.is-signed-out .trip-controls-popover {
     border-radius: 18px !important;
     box-shadow: 0 12px 36px rgba(0, 45, 91, 0.22) !important;
     background: white !important;
+    /* Phase G v3 — overflow now lets the inner `.gm-style-iw-d`
+       scroll, but the OUTER container still clips the rounded
+       corners. */
     overflow: hidden;
+    /* Cap the InfoWindow at 70vh so a long content (photo + why +
+       fact + CTA on a small phone viewport) scrolls inside the
+       window instead of overflowing past the bottom edge of the
+       map. Google ships its own max-height rules but they're
+       sometimes too aggressive (cutting off the CTA button). */
+    max-height: 70vh !important;
 }
 .gm-style .gm-style-iw-d {
-    overflow: hidden !important;
+    /* Was `overflow: hidden !important` which clipped tall content
+       (e.g. the to-do InfoWindow's photo + why + fact + CTA). Per-
+       user feedback the CTA was getting cut off — switching to
+       `auto` lets the content scroll inside the InfoWindow when it
+       exceeds the available height, without losing the rounded-corner
+       clip on the outer container. */
+    overflow: auto !important;
     padding: 0 !important;
+    max-height: calc(70vh - 8px) !important;
 }
 .gm-style .gm-style-iw-tc::after {
     background: white !important;
@@ -5160,6 +5176,20 @@ body.is-signed-out .trip-controls-popover {
     /* The label can shrink (and ellipsis-truncate) when the row is
        cramped — keeps the icon + count chip visible on every tab. */
     min-width: 0;
+}
+
+/* Phase G v3 — icon-only tab variant. Used by the day-detail modal's
+   morning / afternoon / evening tabs after the user reported the
+   labels were being truncated on narrow viewports. The aria-label +
+   title attributes still announce the slot name to screen-readers
+   and on hover, so the affordance loss is visual only. The icon
+   gets a touch larger to compensate for the dropped label. */
+.day-plan-tab--icon-only .day-plan-tab__icon {
+    font-size: 1.15rem;
+}
+.day-plan-tab--icon-only {
+    padding: 10px 8px;
+    gap: 7px;
 }
 /* Count chip — empty when the slot has zero lines (rule below
    collapses it so the tab doesn't carry an empty pill). */

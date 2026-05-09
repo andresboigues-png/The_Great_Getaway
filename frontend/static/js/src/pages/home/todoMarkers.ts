@@ -108,9 +108,14 @@ export function paintTodoMarkers(ctx: TodoMarkersContext): Record<string, google
     const openTodoInfoWindow = (marker: google.maps.Marker, place: any) => {
         const iw = getIw();
         const displayName = place.verifiedName || place.name || 'Place';
+        // Phase G v3 — photo height tightened (120 → 96) so the
+        // whole InfoWindow (chip row + title + photo + address +
+        // rating + optional why/fact + CTA) fits inside the IW's
+        // 70vh cap without scrolling on most viewports. Aspect of
+        // the photo stays cover-cropped so the image still reads.
         const photoHtml = place.photoUrl
             ? `<img src="${esc(place.photoUrl)}" alt="" referrerpolicy="no-referrer" loading="lazy"
-                style="display:block; width:100%; height:120px; object-fit:cover; border-radius:10px; margin-top:8px; background:rgba(0,0,0,0.05);">`
+                style="display:block; width:100%; height:96px; object-fit:cover; border-radius:10px; margin-top:8px; background:rgba(0,0,0,0.05);">`
             : '';
         const ratingHtml = (typeof place.rating === 'number')
             ? `<span style="font-size:0.78rem; color:#444; font-weight:600;"><span style="color:#a85d00;">★</span> ${place.rating.toFixed(1)}${typeof place.userRatingsTotal === 'number' ? ` <span style="color:#888; font-weight:500;">(${place.userRatingsTotal.toLocaleString()})</span>` : ''}</span>`
