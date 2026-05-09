@@ -1,5 +1,5 @@
 import { STATE, emit } from '../state.js';
-import { syncWithServer, apiUrl, apiFetch, clearAuthToken } from '../api.js';
+import { syncWithServer, apiUrl, apiFetch, clearAuthToken, uploadMedia } from '../api.js';
 import { showLiquidAlert, getHomeCurrency, esc } from '../utils.js';
 import { CONVERSION_RATES, CURRENCY_SYMBOLS } from '../constants.js';
 import { navigate } from '../router.js';
@@ -35,7 +35,6 @@ export const logout = async () => {
         STATE.photos = [];
         STATE.notifications = [];
         STATE.savedFormats = [];
-        STATE.profilePhoto = null;
         STATE.draftExpense = {
             who: '', categoryId: '', label: '', date: '',
             country: '', value: '', currency: 'EUR', euroValue: ''
@@ -230,10 +229,22 @@ export function renderProfile(targetUserId: string | null | undefined = null) {
                             </div>
                         </div>
                         ${isOwnProfile ? `
-                        <div style="position: absolute; inset: 4px; border-radius: 50%; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.2s;" id="profilePicOverlay">
+                        <!-- Full-coverage hover scrim — desktop affordance.
+                             Hidden on touch (no hover) — the small badge
+                             below is the persistent affordance there. -->
+                        <div style="position: absolute; inset: 4px; border-radius: 50%; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.2s; pointer-events: none;" id="profilePicOverlay">
                             <div style="background: rgba(0,0,0,0.6); border-radius: 50%; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;">
                                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
                             </div>
+                        </div>
+                        <!-- Round 5 audit fix — small persistent camera
+                             badge so mobile users (no hover capability) can
+                             still see the avatar is tappable. Sits in the
+                             bottom-right; pointer-events:none so the wrapper
+                             keeps receiving the click and firing the file
+                             input. -->
+                        <div id="profilePicBadge" aria-hidden="true" style="position: absolute; right: 2px; bottom: 2px; width: 36px; height: 36px; border-radius: 50%; background: var(--accent-blue, #007aff); border: 3px solid var(--bg-color, #fff); display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.18); pointer-events: none;">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
                         </div>
                         <input type="file" id="profilePhotoInput" accept="image/*" style="display:none;">
                         ` : ''}
@@ -455,16 +466,76 @@ export function renderProfile(targetUserId: string | null | undefined = null) {
                 // Hover-reveal of #profilePicOverlay is pure CSS now —
                 // the JS attachment was the same opacity toggle.
                 if (wrapper) wrapper.onclick = () => input && input.click();
-                if (input) input.onchange = (e) => {
-                    const file = (e.target as HTMLInputElement).files?.[0]; if (!file) return;
+                if (input) input.onchange = async (e) => {
+                    const file = (e.target as HTMLInputElement).files?.[0];
+                    if (!file || !STATE.user) return;
+                    // Round 5 audit fix — REAL upload + persistence.
+                    // Previously the file was read as a base64 dataURL
+                    // and stored in STATE.profilePhoto (purely local,
+                    // never synced). New flow:
+                    //   1. Optimistic preview — show the file's dataURL
+                    //      immediately so the user gets instant feedback
+                    //      (the upload + server-write happen in parallel).
+                    //   2. uploadMedia(file) → returns the /uploads/...
+                    //      URL the file got stored at.
+                    //   3. POST /api/profile/update with { picture: url }
+                    //      so the user's row in the DB picks it up.
+                    //   4. Update STATE.user.picture (the source of truth
+                    //      every other render site reads — display chip
+                    //      in nav, feed avatars, companion picker, etc.).
+                    //   5. Toast on success / failure so the user knows
+                    //      whether the change persisted.
+                    const display = div.querySelector('#profilePicDisplay') as HTMLImageElement | null;
+                    // Optimistic preview while the upload runs.
                     const reader = new FileReader();
                     reader.onload = (ev) => {
                         const result = typeof ev.target?.result === 'string' ? ev.target.result : null;
-                        STATE.profilePhoto = result; emit('state:changed');
-                        const display = (div.querySelector('#profilePicDisplay') as HTMLImageElement | null);
                         if (display && result) display.src = result;
                     };
                     reader.readAsDataURL(file);
+                    // Real upload.
+                    const uploaded = await uploadMedia(file);
+                    if (!uploaded?.url) {
+                        const msg = uploaded?.error || "Couldn't upload your photo — try again.";
+                        showLiquidAlert(msg);
+                        // Revert preview to the previous server-side photo.
+                        if (display) display.src = STATE.user.picture || '';
+                        // Reset input so re-picking the same file fires change.
+                        input.value = '';
+                        return;
+                    }
+                    // Persist the URL on the user's row.
+                    try {
+                        const res = await apiFetch('/api/profile/update', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ picture: uploaded.url }),
+                        });
+                        if (!res.ok) {
+                            const body = await res.json().catch(() => ({}));
+                            const msg = body?.error
+                                || (res.status === 401
+                                    ? 'Sign in expired — refresh the page.'
+                                    : `Couldn't save your photo (HTTP ${res.status}).`);
+                            showLiquidAlert(msg);
+                            if (display) display.src = STATE.user.picture || '';
+                            input.value = '';
+                            return;
+                        }
+                        // Success: update STATE.user so every render site
+                        // (nav avatar, feed cards, companion chips) picks
+                        // up the new URL on the next state-change emit.
+                        STATE.user.picture = uploaded.url;
+                        emit('state:changed');
+                        showLiquidAlert('Profile photo updated.');
+                    } catch (err) {
+                        console.error('profile/update picture failed:', err);
+                        showLiquidAlert("Network error — couldn't save your photo.");
+                        if (display) display.src = STATE.user.picture || '';
+                    } finally {
+                        // Reset so re-picking the same file fires change.
+                        input.value = '';
+                    }
                 };
             }
 

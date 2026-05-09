@@ -576,6 +576,62 @@ def test_update_profile_empty_is_noop(client, seed_user, auth_headers):
     assert res.get_json() == {"status": "noop"}
 
 
+def test_update_profile_picture_local_upload_url(client, seed_user, auth_headers):
+    """Round 5 audit fix: profile picture is now writable. The frontend
+    uploads to /api/upload first, then POSTs the returned URL here.
+    URLs from our own upload folder pass validation."""
+    res = client.post("/api/profile/update", headers=auth_headers, json={
+        "picture": "/static/uploads/abc123.jpg",
+    })
+    assert res.status_code == 200
+    assert res.get_json() == {"status": "updated"}
+
+
+def test_update_profile_picture_google_oauth_url(client, seed_user, auth_headers):
+    """Google's OAuth profile-picture URLs (lh3.googleusercontent.com)
+    also pass validation — that's what we get from the GIS sign-in
+    flow on first login."""
+    res = client.post("/api/profile/update", headers=auth_headers, json={
+        "picture": "https://lh3.googleusercontent.com/a/ACg8ocIabcdef=s96-c",
+    })
+    assert res.status_code == 200
+    assert res.get_json() == {"status": "updated"}
+
+
+def test_update_profile_picture_empty_clears(client, seed_user, auth_headers):
+    """Empty string is the explicit "clear my photo" signal — passes
+    validation."""
+    res = client.post("/api/profile/update", headers=auth_headers, json={
+        "picture": "",
+    })
+    assert res.status_code == 200
+    assert res.get_json() == {"status": "updated"}
+
+
+def test_update_profile_picture_rejects_arbitrary_url(client, seed_user, auth_headers):
+    """Defence-in-depth: an attacker-supplied arbitrary URL (e.g. an
+    SSRF probe, a remote tracking pixel) gets rejected. The users table
+    must only ever hold our-uploads URLs or Google OAuth URLs — anything
+    else and other clients hot-linking the picture would request the
+    attacker's domain on every page load."""
+    res = client.post("/api/profile/update", headers=auth_headers, json={
+        "picture": "https://attacker.example.com/probe.gif",
+    })
+    assert res.status_code == 400
+    assert "picture URL" in res.get_json()["error"]
+
+
+def test_update_profile_picture_rejects_non_string(client, seed_user, auth_headers):
+    """Non-string picture (number, object, null literal as JSON) is
+    a 400 — the SQL UPDATE would otherwise silently store odd
+    representations."""
+    res = client.post("/api/profile/update", headers=auth_headers, json={
+        "picture": {"url": "https://example.com/x.jpg"},
+    })
+    assert res.status_code == 400
+    assert res.get_json()["error"] == "picture must be a string"
+
+
 # ── /api/friends ─────────────────────────────────────────────────────────────
 
 def test_friend_add_happy_path(client, seed_user, seed_other_user, auth_headers):

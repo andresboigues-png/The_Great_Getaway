@@ -44,15 +44,47 @@ def sync_categories():
 @bp.route("/api/profile/update", methods=["POST"])
 @require_auth
 def update_profile():
-    """Update user bio, status, and/or home currency. Any field omitted
-    in the payload is left unchanged so callers can patch a single
-    field."""
+    """Update user bio, status, home currency, and/or profile picture.
+    Any field omitted in the payload is left unchanged so callers can
+    patch a single field.
+
+    Round 5 audit fix — `picture` is now a writable field. Previously
+    the column was populated from Google OAuth on sign-in and never
+    touched again, which meant the frontend's "Change profile photo"
+    picker silently no-op'd on the server (the local DOM updated but
+    the photo never persisted). The frontend now uploads the file
+    to /api/upload first, then POSTs the returned URL here so the
+    photo lands on every device + every other user's view.
+
+    Picture validation: must be a string URL pointing at our /api/upload
+    output (uploads/* path) OR a Google profile-pic URL (lh3.googleusercontent
+    .com — the OAuth fallback) OR empty string (clear). Any other value
+    is rejected to prevent storing arbitrary attacker-supplied URLs in
+    the users table that other clients would then hot-link from."""
     payload = request.json or {}
     user_id = current_user_id()
 
+    # Validate the picture value before letting it touch the DB.
+    if "picture" in payload:
+        pic = payload.get("picture") or ""
+        if not isinstance(pic, str):
+            return jsonify({"error": "picture must be a string"}), 400
+        is_local = pic.startswith("/static/uploads/") or pic.startswith("/uploads/")
+        is_google = pic.startswith("https://lh3.googleusercontent.com/")
+        is_empty = pic == ""
+        if not (is_local or is_google or is_empty):
+            return jsonify({
+                "error": "picture URL must be from /api/upload or empty",
+            }), 400
+
     fields = []
     values = []
-    for key, column in (("bio", "bio"), ("status", "status"), ("homeCurrency", "home_currency")):
+    for key, column in (
+        ("bio", "bio"),
+        ("status", "status"),
+        ("homeCurrency", "home_currency"),
+        ("picture", "picture"),
+    ):
         if key in payload:
             fields.append(f"{column} = ?")
             values.append(payload[key])
