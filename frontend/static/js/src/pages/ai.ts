@@ -1,5 +1,5 @@
 import { STATE, emit } from '../state.js';
-import { q, esc, formatDayDate } from '../utils.js';
+import { q, esc, formatDayDate, showLiquidAlert } from '../utils.js';
 import { openNewTripModal } from '../modals.js';
 import { apiFetch, upsertDay, deleteDayOnServer, upsertTrip } from '../api.js';
 import { canEdit, getMyRole, ROLE_BUDGETEER, ROLE_RELAXER } from '../permissions.js';
@@ -773,13 +773,18 @@ export function renderAI() {
             if (el) el.addEventListener('change', () => renderTodoListPanel());
         });
 
-        div.querySelector('#generateBtn')?.addEventListener('click', async () => {
+        const generateBtn = div.querySelector('#generateBtn') as HTMLButtonElement | null;
+        // Round 2 audit fix: extract the run-generation logic so the
+        // failure-card "Try again" button can re-trigger it without
+        // duplicating the body. The button-disable + spinner +
+        // error-toast wiring is identical to the initial click.
+        const runGenerate = async () => {
             const outputEl = q(div, '#itineraryOutput');
             const dateFrom = (q(div, '#aiDateFrom') as HTMLInputElement).value;
             const dateTo = (q(div, '#aiDateTo') as HTMLInputElement).value;
             const ctxInput = (document.getElementById('aiExtraContext') as HTMLTextAreaElement | null);
             const userContext = ctxInput?.value ?? '';
-            if (!dateFrom || !dateTo) { alert('Please select your travel dates.'); return; }
+            if (!dateFrom || !dateTo) { showLiquidAlert('Pick your travel dates first.'); return; }
             const from = new Date(dateFrom), to = new Date(dateTo);
             const numDays = Math.max(1, Math.round((to.getTime() - from.getTime()) / 86400000) + 1);
 
@@ -809,8 +814,18 @@ export function renderAI() {
             }
             const context = userContext + markedSuffix;
             activeTrip.aiContext = userContext; activeTrip.aiNumDays = numDays; emit('state:changed');
-            outputEl.innerHTML = `<div style="text-align:center;padding:60px;"><div class="spinner-ring" style="width:40px;height:40px;border:3px solid rgba(0,113,227,0.15);border-top-color:#005bb8;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 20px;"></div><div style="color:var(--text-primary);font-weight:600;">Consulting Gemini AI...</div></div>`;
+            outputEl.innerHTML = `<div style="text-align:center;padding:60px;"><div class="spinner-ring" style="width:40px;height:40px;border:3px solid rgba(0,113,227,0.15);border-top-color:#005bb8;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 20px;"></div><div style="color:var(--text-primary);font-weight:600;">Consulting Gemini AI…</div><div style="color:var(--text-secondary);font-size:0.82rem;margin-top:6px;">This usually takes 5-15 seconds. Maps lookups for each place add a few more.</div></div>`;
             outputEl.scrollIntoView({ behavior: 'smooth' });
+            // Round 2 audit fix: disable the Generate button + flip its
+            // label so a second click during the in-flight request
+            // doesn't fire a duplicate generation (Gemini quota burn).
+            // Re-enabled in the finally block below regardless of
+            // success / failure.
+            const _origLabel = generateBtn?.innerHTML || '';
+            if (generateBtn) {
+                generateBtn.disabled = true;
+                generateBtn.innerHTML = '⌛ Generating…';
+            }
             try {
                 const r = await apiFetch('/api/generate_itinerary', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -834,9 +849,52 @@ export function renderAI() {
                 renderItineraryOutput(generatedItinerary, numDays, tripCountry);
                 outputEl.scrollIntoView({ behavior: 'smooth' });
             } catch (e) {
-                outputEl.innerHTML = `<div class="card glass" style="text-align:center;padding:40px;"><h2 style="color:#ff3b30;">Generation Failed</h2><p>${(e as Error).message}</p></div>`;
+                // Round 2 audit fix: better failure UX. Was just a
+                // static red card; user with a flaky network had no
+                // recovery path other than refreshing the page.
+                // Now: friendlier message + explicit "Try again" button
+                // wired back to runGenerate, AND a high-visibility
+                // toast (the card is below the fold if the user
+                // scrolled down to see the form).
+                const rawMsg = (e as Error).message || '';
+                // Common Gemini failure modes get human-readable hints.
+                let friendlyMsg = 'Something went wrong while generating your plan.';
+                let hint = '';
+                if (/UNAVAILABLE|503|overloaded/i.test(rawMsg)) {
+                    friendlyMsg = 'Gemini is overloaded right now.';
+                    hint = 'This usually clears in 30-60 seconds.';
+                } else if (/quota|limit|RESOURCE_EXHAUSTED|429/i.test(rawMsg)) {
+                    friendlyMsg = 'Daily AI quota reached for this key.';
+                    hint = 'Try again tomorrow, or use a different Gemini key in Settings → AI Engine.';
+                } else if (/key|api[_ ]?key|UNAUTHENTICATED|401|403/i.test(rawMsg)) {
+                    friendlyMsg = 'AI key isn\'t accepted by Gemini.';
+                    hint = 'Open Settings → AI Engine and check the key, or generate a new one.';
+                } else if (/network|fetch|timed?[\- ]?out|ECONN/i.test(rawMsg)) {
+                    friendlyMsg = 'Network hiccup talking to the AI.';
+                    hint = 'Check your connection and retry.';
+                }
+                outputEl.innerHTML = `
+                    <div class="card glass" style="text-align:center;padding:32px 28px;">
+                        <div style="font-size:2.4rem;margin-bottom:8px;">😬</div>
+                        <h2 style="color:#a82424;margin:0 0 6px;font-size:1.2rem;">${esc(friendlyMsg)}</h2>
+                        ${hint ? `<p style="margin:0 0 18px;color:var(--text-secondary);font-size:0.9rem;line-height:1.5;">${esc(hint)}</p>` : ''}
+                        <details style="margin:0 0 18px;text-align:left;background:rgba(255,59,48,0.04);border:1px solid rgba(255,59,48,0.16);border-radius:10px;padding:8px 12px;">
+                            <summary style="cursor:pointer;font-size:0.78rem;font-weight:700;color:#7c3a9e;">Technical details</summary>
+                            <pre style="margin:8px 0 0;font-size:0.72rem;color:#666;font-family:monospace;white-space:pre-wrap;word-break:break-word;">${esc(rawMsg || 'Unknown error')}</pre>
+                        </details>
+                        <button id="aiRetryBtn" type="button" style="padding:10px 22px;border-radius:999px;border:0;background:var(--accent-blue);color:white;font-size:0.92rem;font-weight:700;cursor:pointer;box-shadow:0 4px 12px rgba(0,113,227,0.28);">Try again</button>
+                    </div>
+                `;
+                showLiquidAlert(friendlyMsg);
+                outputEl.querySelector('#aiRetryBtn')?.addEventListener('click', () => runGenerate());
+            } finally {
+                if (generateBtn) {
+                    generateBtn.disabled = false;
+                    generateBtn.innerHTML = _origLabel;
+                }
             }
-        });
+        };
+        generateBtn?.addEventListener('click', runGenerate);
     }, 0);
 
     return div;

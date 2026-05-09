@@ -425,8 +425,28 @@ export function renderProfile(targetUserId: string | null | undefined = null) {
                                 STATE.user.homeCurrency = newHomeCurrency;
                                 emit('state:changed'); saveBtn.style.opacity = '0'; saveBtn.style.pointerEvents = 'none';
                                 showLiquidAlert("Profile updated!");
+                            } else {
+                                // Round 2 audit fix: was a silent
+                                // failure — user clicked Save, nothing
+                                // happened (no toast, no inline error),
+                                // saw the button stay enabled with no
+                                // explanation. Now we surface the
+                                // server's status code as a useful
+                                // toast so they know to retry.
+                                showLiquidAlert(
+                                    res.status === 401
+                                        ? 'Sign in expired — refresh the page.'
+                                        : `Couldn't save your profile (HTTP ${res.status}). Try again.`,
+                                );
                             }
-                        } catch(e) {}
+                        } catch(e) {
+                            // Round 2 audit fix: catch was empty,
+                            // swallowing network errors. Surface as
+                            // a toast so the user knows their save
+                            // didn't land + they should retry.
+                            console.error('Profile update failed:', e);
+                            showLiquidAlert("Network error — couldn't save your profile.");
+                        }
                     };
                 }
 

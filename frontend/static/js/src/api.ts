@@ -5,6 +5,7 @@ import { navigate } from './router.js';
 import { API_BASE_URL, EVENTS, PAGES, type PageName } from './constants.js';
 import { validateServerData } from './schemas.js';
 import { normalizeTripCompanions } from './companions.js';
+import { showLiquidAlert } from './utils.js';
 
 // All fetch URLs are built via apiUrl() so the API_BASE_URL constant is the
 // single point that needs to change when the backend isn't co-located with
@@ -55,10 +56,21 @@ export async function apiFetch(path: string, options: RequestInit = {}): Promise
     return res;
 }
 
+/** Round 2 audit fix: track consecutive /api/sync failures so we can
+ *  surface a one-time "couldn't save — we'll retry" toast without
+ *  spamming the user on every transient blip. Threshold-2 means a
+ *  single isolated failure (e.g. a 5xx during a deploy) doesn't
+ *  alarm anyone, but a sustained outage does. Reset on the next
+ *  successful sync, with a "back online" follow-up toast if the
+ *  user had previously been warned. Module-level so the counter
+ *  spans every syncWithServer() call. */
+let _syncConsecutiveFailures = 0;
+let _syncOfflineToastShown = false;
+
 export async function syncWithServer() {
     if (!STATE.user) return;
     try {
-        await apiFetch('/api/sync', {
+        const res = await apiFetch('/api/sync', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -74,8 +86,28 @@ export async function syncWithServer() {
                 budgets: STATE.budgets || []
             })
         });
+        if (!res.ok) throw new Error(`sync HTTP ${res.status}`);
+        // Success path — if we'd previously warned the user about an
+        // outage, let them know we're back.
+        if (_syncOfflineToastShown) {
+            showLiquidAlert('Back online — your changes are saved.');
+        }
+        _syncConsecutiveFailures = 0;
+        _syncOfflineToastShown = false;
     } catch (e) {
-        console.error("Sync failed:", e);
+        console.error('Sync failed:', e);
+        _syncConsecutiveFailures++;
+        // After 2 consecutive failures, warn the user once. We don't
+        // re-toast on every subsequent failure — the first message is
+        // sticky enough; spamming would be worse than the bug.
+        if (_syncConsecutiveFailures >= 2 && !_syncOfflineToastShown) {
+            _syncOfflineToastShown = true;
+            showLiquidAlert(
+                navigator.onLine === false
+                    ? "You're offline — changes will sync when you're back."
+                    : "Can't reach the server — we'll keep retrying.",
+            );
+        }
     }
 }
 

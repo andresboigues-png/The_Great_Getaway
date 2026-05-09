@@ -159,6 +159,15 @@ export function renderFeed() {
         </div>
     `;
 
+    /** Round 2 audit fix: track whether the first /api/feed request has
+     *  completed (success OR fail). The cache may be empty either
+     *  because the user genuinely has no events OR because we haven't
+     *  heard back from the server yet — paintList needs to distinguish
+     *  the two so a slow network shows a loader instead of "No posts
+     *  yet" (which then flickers into the real list once the fetch
+     *  lands, looking like a bug). */
+    let _initialFetchDone = false;
+
     /** Paint #feedList from `cachedEvents`, filtered by the active tab
      *  and the bookmarked-only toggle. Pure DOM swap; no fetch.
      *  Empty-state copy varies by combo — "no posts yet" reads very
@@ -166,6 +175,19 @@ export function renderFeed() {
     const paintList = () => {
         const listEl = q(div, '#feedList');
         if (!listEl) return;
+        // Initial-load loader — only shows BEFORE the first /api/feed
+        // response has landed. After the fetch resolves (success or
+        // fail), `_initialFetchDone` flips and we fall through to the
+        // empty-state / list paths below.
+        if (!_initialFetchDone && cachedEvents.length === 0) {
+            listEl.innerHTML = `
+                <div class="card glass" style="padding: 32px; border-radius: 24px; text-align:center;">
+                    <div class="spinner-ring" style="width:32px; height:32px; border:3px solid rgba(155,89,182,0.18); border-top-color:#7c3a9e; border-radius:50%; animation:spin 1s linear infinite; margin: 0 auto 14px;"></div>
+                    <div style="color: var(--text-secondary); font-size: 0.88rem; font-weight: 600;">Loading the feed…</div>
+                </div>
+            `;
+            return;
+        }
 
         const inActiveTab = (ev: any) => activeFeedTab === 'posts'
             ? POSTS_EVENT_TYPES.has(ev.type)
@@ -334,19 +356,29 @@ export function renderFeed() {
 
     /** Background refresh from the server. Errors are swallowed quietly
      *  — leaving the cached list intact is friendlier than an alarming
-     *  banner for a feature that's "nice to know" rather than critical. */
+     *  banner for a feature that's "nice to know" rather than critical.
+     *  Round 2 audit fix: regardless of success / failure / empty
+     *  response, flip `_initialFetchDone` so the loader gives way to
+     *  the real empty-state / list. The finally block guarantees this
+     *  fires even on uncaught exceptions. */
     const refresh = async () => {
-        if (!STATE.user) return;
+        if (!STATE.user) {
+            _initialFetchDone = true;
+            paintList();
+            return;
+        }
         try {
             const res = await apiFetch('/api/feed');
             if (!res.ok) return;
             const data = await res.json();
             if (Array.isArray(data)) {
                 cachedEvents = data;
-                paintList();
             }
         } catch (e) {
             console.error('Feed refresh failed:', e);
+        } finally {
+            _initialFetchDone = true;
+            paintList();
         }
     };
 
