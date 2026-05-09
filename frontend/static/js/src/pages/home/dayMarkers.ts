@@ -39,6 +39,13 @@ export interface DayMarkersContext {
     /** Day id currently in pin-edit mode (or null). Drives the
      *  draggable + red-fill marker variant. */
     editingDayId: string | null;
+    /** Optional: a shared InfoWindow factory the caller owns. Passing
+     *  one in unifies all map-marker InfoWindows behind a single IW —
+     *  click-outside / map-click closes everything in one shot, and
+     *  the user can never accidentally have two InfoWindows open at
+     *  once. Falls back to a private IW when omitted, so existing
+     *  callers + tests stay unchanged. */
+    getInfoWindow?: () => google.maps.InfoWindow;
 }
 
 /** The Anchor day's icon: a gold-plated circle with a white anchor
@@ -65,15 +72,19 @@ export function paintDayMarkers(ctx: DayMarkersContext): Record<string, google.m
     const { map, activeTrip, days, editingDayId } = ctx;
     const markers: Record<string, google.maps.Marker> = {};
 
-    // Single shared InfoWindow for day pins on this render — opens
-    // with a Street View Static thumbnail of the pinned spot + the
-    // day's number / name. The thumbnail URL is built lazily (no
-    // network round trip until the InfoWindow opens), and Google
-    // serves a "no imagery available" placeholder when there's no
-    // street-view coverage so we don't need to pre-probe.
+    // Shared InfoWindow — when the caller hands one in (home.ts does),
+    // every marker type uses the same IW. This means: clicking a POI
+    // marker after a day-pin click moves the IW to the new marker;
+    // clicking the empty map (with home.ts's map-click listener) closes
+    // it once for everyone. Without the shared IW we had three
+    // independent IWs that could all be open simultaneously and only
+    // close when their own marker was clicked again.
     let dayPinInfoWindow: google.maps.InfoWindow | null = null;
     const openDayPinInfoWindow = (marker: google.maps.Marker, day: any) => {
-        if (!dayPinInfoWindow) dayPinInfoWindow = new google.maps.InfoWindow();
+        const iw = ctx.getInfoWindow ? ctx.getInfoWindow() : (() => {
+            if (!dayPinInfoWindow) dayPinInfoWindow = new google.maps.InfoWindow();
+            return dayPinInfoWindow;
+        })();
         const lat = day.lat;
         const lng = day.lng || day.lon;
         const url = streetViewUrl({ lat, lng }, { width: 280, height: 160, fov: 90 });
@@ -100,8 +111,8 @@ export function paintDayMarkers(ctx: DayMarkersContext): Record<string, google.m
                 ${dateHtml}
             </div>
         `;
-        dayPinInfoWindow.setContent(html);
-        dayPinInfoWindow.open({ map, anchor: marker });
+        iw.setContent(html);
+        iw.open({ map, anchor: marker });
     };
 
     days.forEach(day => {

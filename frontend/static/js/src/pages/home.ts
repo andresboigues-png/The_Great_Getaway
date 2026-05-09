@@ -708,15 +708,19 @@ export function renderHome() {
                     return { center: null, anchorId: '' };
                 };
 
-                /** Per-pill anchor mode: user override (Settings →
-                 *  General) wins, else the category's useAnchorAlways
-                 *  default. Returns true if this pill should always
-                 *  search from anchor (ignoring the day epicenter). */
+                /** Per-pill anchor mode. Per-user request the default is
+                 *  now "follow the wheel-selected day" for EVERY pill —
+                 *  the previous `useAnchorAlways` defaults on medical /
+                 *  pets / schools / sports / transit / traffic were
+                 *  removed because users expected those to track the
+                 *  day they're looking at. The per-category override
+                 *  setting (Settings → General → poiAnchoring) still
+                 *  works for users who specifically want a category
+                 *  pinned to Anchor — they just have to opt in
+                 *  explicitly now instead of inheriting the default. */
                 const shouldForceAnchor = (cat: any) => {
                     const userPref = STATE.preferences?.poiAnchoring?.[cat.key];
-                    if (userPref === 'anchor') return true;
-                    if (userPref === 'epicenter') return false;
-                    return !!cat.useAnchorAlways;
+                    return userPref === 'anchor';
                 };
 
                 const fetchPlacesForTrip = (cat: any): Promise<any[]> => {
@@ -1099,7 +1103,7 @@ export function renderHome() {
                 // activeMarkers cache was Leaflet-era), so we discard
                 // it — pin-save re-renders the home page anyway.
                 const currentTripDays = activeTrip ? (STATE.tripDays || []).filter(d => d.tripId === activeTrip.id) : [];
-                paintDayMarkers({ map, activeTrip, days: currentTripDays, editingDayId });
+                paintDayMarkers({ map, activeTrip, days: currentTripDays, editingDayId, getInfoWindow });
 
                 // Phase G slice 2 — to-do markers. Render every marked
                 // place that has lat/lng + forManual === true, filtered
@@ -1120,9 +1124,23 @@ export function renderHome() {
                         activeTrip,
                         days: currentTripDays,
                         selectedDayId: activeTrip ? (getSelectedDayId(activeTrip.id) || null) : null,
+                        getInfoWindow,
                     });
                 };
                 repaintTodoMarkers();
+
+                // Click-on-empty-map closes the shared InfoWindow.
+                // Per-user feedback: an InfoWindow opened on a place
+                // would otherwise stay visible until the user clicked
+                // another marker — clicking the empty map (the
+                // intuitive "I'm done with this") was a no-op. Now any
+                // map click outside a marker closes the IW. The
+                // pin-edit map.click listener attached further down
+                // is independent (it's only registered while
+                // editingDayId is set + drives the pin drag).
+                map.addListener('click', () => {
+                    try { getInfoWindow().close(); } catch (_) { /* IW may not be initialised yet */ }
+                });
 
                 // Day-to-day route line — connects consecutive
                 // numbered day pins (Day 1 → Day 2 → … → Day N) so

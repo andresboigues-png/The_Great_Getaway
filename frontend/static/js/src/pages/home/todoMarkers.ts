@@ -42,6 +42,12 @@ export interface TodoMarkersContext {
      *  this set so there's no double-pin at the same coordinates.
      *  Optional — empty Set is the safe default. */
     skipPlaceIds?: Set<string>;
+    /** Shared InfoWindow factory — when provided, the to-do marker
+     *  click reuses the caller's single IW so a click on a POI / day
+     *  / search marker right after closes this one cleanly (and
+     *  vice-versa). See DayMarkersContext.getInfoWindow for the same
+     *  pattern. Omitting falls back to a per-paint private IW. */
+    getInfoWindow?: () => google.maps.InfoWindow;
 }
 
 /** The to-do marker icon: 32px purple rounded-square with a white
@@ -73,47 +79,77 @@ export function paintTodoMarkers(ctx: TodoMarkersContext): Record<string, google
     const selectedDay = days.find(d => d.id === selectedDayId);
     const selectedIsAnchor = !selectedDay || selectedDay.dayNumber === 0;
 
-    // Single shared InfoWindow per render. Lazy-built on first
-    // marker click so renders that never get clicked don't allocate.
+    // Shared InfoWindow path (preferred): the caller hands in
+    // getInfoWindow so this marker type uses the same IW as POI /
+    // day-pin / search markers. Click-on-empty-map closes everything
+    // at once. Fallback to a per-paint private IW for callers / tests
+    // that don't provide one.
     let todoInfoWindow: google.maps.InfoWindow | null = null;
-    const openTodoInfoWindow = (marker: google.maps.Marker, place: any) => {
+    const getIw = () => {
+        if (ctx.getInfoWindow) return ctx.getInfoWindow();
         if (!todoInfoWindow) todoInfoWindow = new google.maps.InfoWindow();
+        return todoInfoWindow;
+    };
+
+    /** GG-aesthetic InfoWindow content for a to-do marker. The first
+     *  pass packed everything inline-styled and felt cramped; this
+     *  build uses the existing `.gg-iw-*` classes (defined in
+     *  index.css alongside the POI InfoWindow chrome) so the layout
+     *  matches the rest of the app — gradient header strip, rounded
+     *  photo block, pill-shape "View on Maps" button, generous
+     *  padding. The structure mirrors the AI page's verified place
+     *  card so users see one consistent pattern across surfaces. */
+    const openTodoInfoWindow = (marker: google.maps.Marker, place: any) => {
+        const iw = getIw();
+        const displayName = place.verifiedName || place.name || 'Place';
         const photoHtml = place.photoUrl
-            ? `<img src="${esc(place.photoUrl)}" alt="" referrerpolicy="no-referrer"
-                style="display:block; width:100%; height:140px; object-fit:cover; border-radius:10px; margin-bottom:10px; background:rgba(0,0,0,0.05);">`
+            ? `<div class="gg-iw__photo"><img src="${esc(place.photoUrl)}" alt="" referrerpolicy="no-referrer" loading="lazy"></div>`
             : '';
         const ratingHtml = (typeof place.rating === 'number')
-            ? `<div style="font-size:0.78rem; font-weight:700; color:#c47c00; margin-top:4px;">★ ${place.rating.toFixed(1)}${typeof place.userRatingsTotal === 'number' ? ` <span style="color:#666; font-weight:600;">(${place.userRatingsTotal.toLocaleString()})</span>` : ''}</div>`
+            ? `<span class="gg-iw__rating">★ ${place.rating.toFixed(1)}${typeof place.userRatingsTotal === 'number' ? ` <span class="gg-iw__rating-count">(${place.userRatingsTotal.toLocaleString()})</span>` : ''}</span>`
             : '';
         const addressHtml = place.address
-            ? `<div style="font-size:0.74rem; color:#5a5a5e; margin-top:2px; line-height:1.35;">${esc(place.address)}</div>`
+            ? `<div class="gg-iw__address">${esc(place.address)}</div>`
             : '';
-        // "On Day 3" footer chip when the place is day-pinned and
-        // the user is on Anchor (so they can see the assignment at
-        // a glance). Hidden on a per-day view because the user
-        // already knows which day they're on.
+        const whyHtml = place.why
+            ? `<div class="gg-iw__why">${esc(place.why)}</div>`
+            : '';
+        const factHtml = place.fact
+            ? `<div class="gg-iw__fact">✨ ${esc(place.fact)}</div>`
+            : '';
+        // "On Day N" footer chip — only when the place is day-pinned
+        // AND the user is on Anchor view (so they can see the
+        // assignment without already knowing). Hidden on a per-day
+        // view since they already know which day they're on.
         const assignedDay = place.dayId ? days.find(d => d.id === place.dayId) : null;
         const dayChipHtml = (assignedDay && selectedIsAnchor && assignedDay.dayNumber > 0)
-            ? `<span style="display:inline-flex; align-items:center; padding:2px 8px; border-radius:999px; background:rgba(0,113,227,0.12); color:#005bb8; font-size:0.68rem; font-weight:800; letter-spacing:0.04em; text-transform:uppercase; margin-top:6px;">Day ${assignedDay.dayNumber}</span>`
+            ? `<span class="gg-iw__day-chip">Day ${assignedDay.dayNumber}${assignedDay.name ? ` · ${esc(assignedDay.name)}` : ''}</span>`
             : '';
         const href = place.mapsUrl
             || (place.placeId ? `https://www.google.com/maps/place/?q=place_id:${encodeURIComponent(place.placeId)}` : '');
         const linkHtml = href
-            ? `<a href="${esc(href)}" target="_blank" rel="noopener noreferrer"
-                style="display:inline-flex; align-items:center; gap:4px; margin-top:10px; padding:6px 12px; background:#9b59b6; color:white; text-decoration:none; font-size:0.78rem; font-weight:700; border-radius:8px;">View on Google Maps →</a>`
+            ? `<a class="gg-iw__cta" href="${esc(href)}" target="_blank" rel="noopener noreferrer">View on Google Maps →</a>`
             : '';
         const html = `
-            <div style="font-family:-apple-system,BlinkMacSystemFont,sans-serif; min-width:240px; max-width:300px; padding:4px 4px 6px;">
-                ${photoHtml}
-                <div style="font-weight:800; color:#002d5b; font-size:0.95rem; line-height:1.25;">${esc(place.verifiedName || place.name || 'Place')}</div>
-                ${ratingHtml}
-                ${addressHtml}
-                ${dayChipHtml}
-                <div>${linkHtml}</div>
+            <div class="gg-iw gg-iw--todo">
+                <div class="gg-iw__header">
+                    <span class="gg-iw__header-icon">📋</span>
+                    <span class="gg-iw__header-text">On your to-do list</span>
+                </div>
+                <div class="gg-iw__body">
+                    ${photoHtml}
+                    <div class="gg-iw__name">${esc(displayName)}</div>
+                    ${ratingHtml}
+                    ${addressHtml}
+                    ${whyHtml}
+                    ${factHtml}
+                    ${dayChipHtml}
+                    ${linkHtml}
+                </div>
             </div>
         `;
-        todoInfoWindow.setContent(html);
-        todoInfoWindow.open({ map, anchor: marker });
+        iw.setContent(html);
+        iw.open({ map, anchor: marker });
     };
 
     for (const place of activeTrip.markedPlaces) {
