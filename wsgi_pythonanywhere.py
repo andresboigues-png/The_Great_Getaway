@@ -35,7 +35,12 @@ if _SRC not in sys.path:
 # os.getenv() calls. Idempotent — main.py's later load_dotenv() call
 # is a no-op once the values are already in os.environ.
 from dotenv import load_dotenv  # noqa: E402
-load_dotenv(os.path.join(_HERE, ".env"))
+# override=True so values in .env beat any pre-existing empty entries
+# in os.environ (PythonAnywhere's WSGI worker can be started with
+# certain vars pre-defined as empty strings, and load_dotenv's default
+# override=False would NOT overwrite an empty string — leaving the
+# request handlers reading "" from os.getenv).
+load_dotenv(os.path.join(_HERE, ".env"), override=True)
 
 from main import app  # noqa: E402 — sys.path + dotenv must precede this
 
