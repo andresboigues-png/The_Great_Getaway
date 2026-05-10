@@ -40,7 +40,16 @@ app = Flask(__name__,
             template_folder="../frontend/templates",
             static_folder="../frontend/static")
 
-UPLOAD_FOLDER = os.path.join(app.static_folder, 'uploads')
+# Upload destination — defaults to frontend/static/uploads (under the
+# app's static_folder, so Flask serves them directly in dev). Production
+# deploys override via GG_UPLOAD_ROOT to point at a path OUTSIDE the
+# cloned repo, so user-uploaded photos survive code redeploys
+# (git pull / wipe-and-reclone). On PythonAnywhere we set
+# GG_UPLOAD_ROOT=/home/USERNAME/gg_uploads and add a static-files
+# mapping in the Web tab so the URL `/static/uploads/<file>` continues
+# to resolve to that directory. Same naming convention as GG_DB_PATH
+# (database.py) and GG_ALLOW_TEST_LOGIN (auth flow).
+UPLOAD_FOLDER = os.getenv("GG_UPLOAD_ROOT") or os.path.join(app.static_folder, 'uploads')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
