@@ -6735,10 +6735,27 @@ body.is-signed-out .mobile-bottom-nav {
        At 0.85rem bold, "The Great Getaway" is ~115px wide — leaves
        just enough room for the 164px right cluster on iPhone SE
        (375px viewport). `white-space: nowrap` is non-negotiable;
-       a 2-line wrap would push the navbar height past 60px. */
+       a 2-line wrap would push the navbar height past 60px.
+
+       Round-3 polish: the brand carries the same blue→orange→green
+       gradient it had on `.sidebar-brand-mobile` (the now-removed
+       drawer copy) so the brand identity travels with the text from
+       drawer to navbar. `-webkit-background-clip: text` masks the
+       gradient to the glyph shapes; `-webkit-text-fill-color:
+       transparent` lets the masked background show through. The
+       weight bumps to 800 because gradient-filled text reads thin
+       at 600 — the heavier glyphs give the colour mix room to land.
+       Desktop brand stays solid (white via the .glass token) so the
+       desktop look is unchanged. */
     .nav-brand {
         font-size: 0.85rem;
+        font-weight: 800;
+        letter-spacing: -0.02em;
         white-space: nowrap;
+        background: linear-gradient(135deg, #0071e3 0%, #ff9500 50%, #34c759 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
     }
 
     /* Show + position the bottom-tab nav. iOS-style fixed strip
