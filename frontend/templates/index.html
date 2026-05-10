@@ -250,19 +250,19 @@
     <nav class="navbar glass">
         <!-- LEFT cluster (grid column 1).
              Desktop: hamburger + brand text.
-             Mobile: hamburger + notifications bell + compass.
-             Per-user reorg the brand moved into the burger drawer on
-             mobile; the navbar's prime real estate now hosts action
-             icons in social-network order (notifications first, like
-             FB / IG / X). -->
+             Mobile: hamburger + notifications bell + feed.
+             Per-user reorg (round 2): the social-feed pair sits on the
+             left (notifications immediately followed by feed — same
+             cluster), and the trip-controls compass moved to the
+             centre as the navbar's "what trip am I on?" anchor. -->
         <div class="navbar-cluster navbar-cluster--left">
             <button id="hamburgerBtn" class="hamburger-btn" aria-label="Open menu">
                 <span></span><span></span><span></span>
             </button>
             <div class="nav-brand">The Great Getaway</div>
-            <!-- Notifications bell — mobile only. Now sits as the
-                 leftmost action icon (after hamburger) per user request,
-                 matching the convention major social apps use. -->
+            <!-- Notifications bell — mobile only. Leftmost action icon
+                 (after the hamburger), matching the convention used by
+                 major social apps. -->
             <div class="notif-feed--mobile-only" style="position: relative;">
                 <button id="notificationBellBtn" aria-label="Notifications" style="background: transparent; border: none; cursor: pointer; position: relative; padding: 11px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: background 0.2s; -webkit-tap-highlight-color: transparent;">
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -286,36 +286,13 @@
                     </div>
                 </div>
             </div>
-            <!-- Mobile compass — opens a popover hosting the trip
-                 controls (+New Trip, trip selector, complete + delete).
-                 Per-user reorg now sits immediately right of the
-                 notifications bell (was on the rightmost edge before).
-                 Popover lives below this nav, fixed-positioned. -->
-            <button type="button" id="tripControlsBtn" class="navbar-icon-mobile-only" aria-label="Trip controls"
-                aria-haspopup="menu" aria-expanded="false" aria-controls="tripControlsPopover" title="Trip controls"
-                style="background: transparent; border: none; cursor: pointer; padding: 11px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: background 0.2s; color: inherit; -webkit-tap-highlight-color: transparent;">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <circle cx="12" cy="12" r="10"></circle>
-                    <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon>
-                </svg>
-            </button>
-        </div>
-
-        <!-- CENTER cluster (grid column 2, mobile only).
-             Holds Search + Feed — both navigate via the generic
-             [data-page] click delegation in main.ts. On desktop these
-             icons live inside .nav-links (sidebar Search) and the
-             rightmost slot of .nav-links (Feed); the duplicates here
-             are mobile-only. -->
-        <div class="navbar-cluster navbar-cluster--center navbar-icon-mobile-only">
-            <a href="#" data-page="search" id="navSearchBtn" aria-label="Search" title="Search across trips, days, and expenses"
-                style="background: transparent; border: none; cursor: pointer; padding: 11px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: background 0.2s; text-decoration: none; color: inherit; -webkit-tap-highlight-color: transparent;">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="11" cy="11" r="7"></circle>
-                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                </svg>
-            </a>
-            <a href="#" data-page="feed" id="navFeedBtn" aria-label="Feed" title="Feed — what your friends are up to"
+            <!-- Feed icon — mobile only. Sits next to notifications so
+                 the two "social-incoming" surfaces (someone sent you a
+                 friend request / someone shared a trip) are grouped
+                 together at the navbar's left. On desktop the feed
+                 icon lives inside .nav-links to the right of Insights;
+                 the duplicate here is mobile-only. -->
+            <a href="#" data-page="feed" id="navFeedBtn" class="notif-feed--mobile-only" aria-label="Feed" title="Feed — what your friends are up to"
                 style="background: transparent; border: none; cursor: pointer; padding: 11px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: background 0.2s; text-decoration: none; color: inherit; -webkit-tap-highlight-color: transparent;">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M4 11a9 9 0 0 1 9 9"></path>
@@ -325,13 +302,40 @@
             </a>
         </div>
 
+        <!-- CENTER cluster (grid column 2, mobile only).
+             Now hosts the trip-controls compass — the "what trip am I
+             on, switch / new / complete it" anchor. Centring this
+             button matches the iOS "current section" pattern (think
+             the central button in many travel / fitness apps).
+             Tapping opens the #tripControlsPopover (defined below
+             this nav, fixed-positioned). -->
+        <div class="navbar-cluster navbar-cluster--center navbar-icon-mobile-only">
+            <button type="button" id="tripControlsBtn" aria-label="Trip controls"
+                aria-haspopup="menu" aria-expanded="false" aria-controls="tripControlsPopover" title="Trip controls"
+                style="background: transparent; border: none; cursor: pointer; padding: 11px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: background 0.2s; color: inherit; -webkit-tap-highlight-color: transparent;">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon>
+                </svg>
+            </button>
+        </div>
+
         <!-- RIGHT cluster (grid column 3, mobile only).
-             To-do list moved up here from the bottom-tab nav (it was
-             a primary daily action, sat better as a navbar icon).
-             Same checkmark-in-square glyph as the bottom-nav copy
-             so users mid-migration recognize it. The bottom nav's
-             leftmost slot is now Home (replaced To-do). -->
+             Search + To-do — both "find / triage / get to a list of
+             things" surfaces, paired together at the right per user
+             reorg request. Search moved over from the centre cluster
+             (which now holds the trip-controls compass).
+             To-do is the bottom-nav refugee: a primary daily action
+             that reads better as a navbar icon than a bottom-tab
+             entry, and the bottom nav's leftmost slot is now Home. -->
         <div class="navbar-cluster navbar-cluster--right navbar-icon-mobile-only">
+            <a href="#" data-page="search" id="navSearchBtn" aria-label="Search" title="Search across trips, days, and expenses"
+                style="background: transparent; border: none; cursor: pointer; padding: 11px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: background 0.2s; text-decoration: none; color: inherit; -webkit-tap-highlight-color: transparent;">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="7"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+            </a>
             <a href="#" data-page="todo" id="navTodoBtn" aria-label="To do list" title="To do list"
                 style="background: transparent; border: none; cursor: pointer; padding: 11px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: background 0.2s; text-decoration: none; color: inherit; -webkit-tap-highlight-color: transparent;">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
