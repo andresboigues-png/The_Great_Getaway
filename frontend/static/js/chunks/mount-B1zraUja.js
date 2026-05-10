@@ -150,12 +150,12 @@ import{r as e,t}from"./vendor-react-CYVQMBjw.js";import{$ as n,A as r,B as i,D a
                 </div>
                 <div id="itineraryDays" style="display:flex;flex-direction:column;gap:16px;"></div>
                 ${I?`<div style="display:flex;gap:12px;margin-top:24px;"><button id="acceptPlanBtn" class="btn" style="flex:2;background:var(--accent-blue);color:white;padding:16px;font-size:1.1rem;border-radius:16px;font-weight:700;box-shadow:0 10px 20px rgba(0,122,255,0.2);cursor:pointer;">${S(`ai.acceptPlanBtn`)}</button></div>`:``}`;let s=p(o,`#itineraryDays`),c=[];if(n.forEach((e,t)=>{let n=document.createElement(`div`);n.className=`card glass`,n.style.cssText=`border-radius:18px;overflow:hidden;transition:box-shadow 0.3s,border-color 0.3s;${L}`,n.innerHTML=`
-                    <div style="display:flex;align-items:stretch;">
+                    <div class="ai-day-row" style="display:flex;align-items:stretch;">
                         <div class="ai-day-chip">
                             <span style="color:rgba(255,255,255,0.7);font-size:0.65rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;">Day</span>
                             <span style="color:white;font-size:2rem;font-weight:800;line-height:1;">${e.day}</span>
                         </div>
-                        <div style="flex:1;padding:var(--space-6) 28px;">
+                        <div class="ai-day-body" style="flex:1;padding:var(--space-6) 28px;">
                             <div style="margin-bottom:var(--space-5);">
                                 <!-- Phase G UX: was color:white which is invisible against
                                      the .card.glass white surface this row sits in. Switching
@@ -165,7 +165,7 @@ import{r as e,t}from"./vendor-react-CYVQMBjw.js";import{$ as n,A as r,B as i,D a
                                 <h3 style="margin:0 0 var(--space-1);font-size:1.2rem;font-weight:700;letter-spacing:-0.02em;color:var(--text-primary);">${e.title||`Day `+e.day}</h3>
                                 <span style="font-size:var(--font-base);color:var(--text-secondary);">${e.date||``}</span>
                             </div>
-                            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--space-4);">
+                            <div class="ai-day-slots" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--space-4);">
                                 <div class="ai-plan-block" style="--accent: 0,113,227;">
                                     <div class="ai-plan-block__tag">🌅 Morning</div>
                                     <div class="ai-plan-block__title">${f(e.morning?.activity||``)}</div>
@@ -310,4 +310,4 @@ import{r as e,t}from"./vendor-react-CYVQMBjw.js";import{$ as n,A as r,B as i,D a
                         <button id="aiRetryBtn" type="button" style="padding:10px 22px;border-radius:999px;border:0;background:var(--accent-blue);color:white;font-size:0.92rem;font-weight:700;cursor:pointer;box-shadow:0 4px 12px rgba(0,113,227,0.28);">${S(`ai.errorRetryBtn`)}</button>
                     </div>
                 `,m(r),n.querySelector(`#aiRetryBtn`)?.addEventListener(`click`,()=>W())}finally{U&&(U.disabled=!1,U.innerHTML=g)}};U?.addEventListener(`click`,W)},0),e}var P=t();function F(){let e=(0,T.useRef)(null);return(0,T.useEffect)(()=>{let t=e.current;t&&(t.innerHTML=``,t.appendChild(N()))},[]),(0,P.jsx)(`div`,{ref:e})}function I(e){w(e,(0,T.createElement)(F))}export{I as mountAI};
-//# sourceMappingURL=mount-YV5T4Siq.js.map
+//# sourceMappingURL=mount-B1zraUja.js.map

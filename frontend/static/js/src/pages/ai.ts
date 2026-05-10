@@ -359,12 +359,12 @@ export function renderAI() {
                 dayDiv.className = 'card glass';
                 dayDiv.style.cssText = `border-radius:18px;overflow:hidden;transition:box-shadow 0.3s,border-color 0.3s;${sf}`;
                 dayDiv.innerHTML = `
-                    <div style="display:flex;align-items:stretch;">
+                    <div class="ai-day-row" style="display:flex;align-items:stretch;">
                         <div class="ai-day-chip">
                             <span style="color:rgba(255,255,255,0.7);font-size:0.65rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;">Day</span>
                             <span style="color:white;font-size:2rem;font-weight:800;line-height:1;">${day.day}</span>
                         </div>
-                        <div style="flex:1;padding:var(--space-6) 28px;">
+                        <div class="ai-day-body" style="flex:1;padding:var(--space-6) 28px;">
                             <div style="margin-bottom:var(--space-5);">
                                 <!-- Phase G UX: was color:white which is invisible against
                                      the .card.glass white surface this row sits in. Switching
@@ -374,7 +374,7 @@ export function renderAI() {
                                 <h3 style="margin:0 0 var(--space-1);font-size:1.2rem;font-weight:700;letter-spacing:-0.02em;color:var(--text-primary);">${day.title || 'Day ' + day.day}</h3>
                                 <span style="font-size:var(--font-base);color:var(--text-secondary);">${day.date || ''}</span>
                             </div>
-                            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--space-4);">
+                            <div class="ai-day-slots" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--space-4);">
                                 <div class="ai-plan-block" style="--accent: 0,113,227;">
                                     <div class="ai-plan-block__tag">🌅 Morning</div>
                                     <div class="ai-plan-block__title">${esc(day.morning?.activity || '')}</div>

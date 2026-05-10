@@ -6978,6 +6978,57 @@ body.is-signed-out .mobile-bottom-nav {
         box-sizing: border-box;
     }
 
+    /* ── AI itinerary day card: stack on mobile ─────────────────
+       The desktop layout puts the day-chip ("Day N" gradient strip)
+       on the LEFT and the body (title + 3-column Morning/Afternoon/
+       Evening grid) on the RIGHT. At 375px viewport the right body
+       compresses to ~280px and the 3-column slot grid squeezes each
+       slot into ~85px — too narrow for the activity title and any
+       restaurant/time/place metadata to read.
+
+       Fix: stack everything vertically on mobile.
+       1. .ai-day-row goes from horizontal flex to a column, so the
+          chip becomes a banner at the top of the card.
+       2. .ai-day-chip flips its inner orientation from column → row
+          (the "Day" label and the number sit side by side instead
+          of stacked) and spans the full card width as a header
+          strip — height shrinks since we no longer need a tall
+          left rail to balance the body height.
+       3. .ai-day-body padding tightens to reclaim sidebar pixels.
+       4. .ai-day-slots collapses to single-column so each slot
+          gets the full card width (Morning over Afternoon over
+          Evening, in reading order).
+       The `!important` flags defeat the inline styles set by ai.ts
+       (which writes the desktop grid template on the day-card
+       template literal). */
+    .ai-day-row {
+        flex-direction: column !important;
+    }
+    .ai-day-row > .ai-day-chip {
+        flex-direction: row !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        padding: 12px 20px !important;
+        gap: 10px !important;
+        justify-content: flex-start;
+        align-items: baseline;
+    }
+    /* When the chip is a horizontal banner, the "2rem" Day-number
+       glyph above the "Day" label looks unbalanced — sized down
+       to 1.5rem so it sits neatly on the same baseline as the
+       label without dominating the strip. Targets the second
+       <span> inside .ai-day-chip (the number, set inline in
+       ai.ts as `font-size:2rem`). */
+    .ai-day-row > .ai-day-chip > span:nth-of-type(2) {
+        font-size: 1.5rem !important;
+    }
+    .ai-day-body {
+        padding: 18px !important;
+    }
+    .ai-day-slots {
+        grid-template-columns: 1fr !important;
+    }
+
     /* ── User profile: shrink wide chrome to fit mobile ─────────
        The footprint map (#legaciesMap) is 450px tall on desktop;
        on a phone that's nearly half the viewport. Trim to 280px
@@ -7021,6 +7072,18 @@ body.is-signed-out .mobile-bottom-nav {
         width: 100% !important;
         max-width: 100% !important;
         margin: 0 !important;
+
+        /* min-height bumps the sheet to a substantial portion of
+           the viewport so a short-content form (e.g. "New Trip"
+           with just name + dates) doesn't render as a stubby strip
+           hugging the bottom edge. 60dvh ≈ 60% of the visible
+           viewport — gives the form room to breathe + makes the
+           sheet feel like a deliberate panel, not an afterthought.
+           The `vh` fallback covers older browsers that ignore dvh
+           (effective viewport differs only when iOS Safari's URL
+           bar is collapsing — close enough for a min-height). */
+        min-height: 60vh;
+        min-height: 60dvh;
 
         /* Internal scroll for tall forms (Edit Trip with cover
            picker + dates can run past the viewport). dvh handles
