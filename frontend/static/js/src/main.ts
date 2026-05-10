@@ -19,6 +19,7 @@ function resolvePage(raw: string): PageName {
 }
 import { updateUserUI, logout } from './pages/profile.js';
 import { openNewTripModal, openTripInviteResponseModal } from './modals.js';
+import { initMobileSwipe } from './mobileSwipe.js';
 
 // Global Google Client ID is now provided via index.html template from environment variables
 
@@ -514,6 +515,14 @@ async function init() {
     document.getElementById('hamburgerBtn')?.addEventListener('click', toggleSidebar);
     document.getElementById('sidebarOverlay')?.addEventListener('click', toggleSidebar);
     document.getElementById('sidebarClose')?.addEventListener('click', toggleSidebar);
+
+    // Mobile swipe-between-tabs (round 3 reorg). Idempotent — wires
+    // touchstart/touchend on document. The function itself bails on
+    // desktop viewports (> 720px), so it's safe to call unconditionally
+    // on every boot regardless of form factor. See mobileSwipe.ts for
+    // the full detection rules (distance threshold, horizontal-ratio,
+    // opt-out selectors, Home → drawer / Insights → no-op boundaries).
+    initMobileSwipe();
 
     const brand = document.querySelector('.nav-brand') as HTMLElement | null;
     if (brand) {
