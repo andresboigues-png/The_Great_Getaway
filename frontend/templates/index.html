@@ -121,6 +121,16 @@
              sections evenly. -->
         <div class="sidebar-middle">
 
+        <!-- Mobile-only TGG brand at the top of the burger drawer.
+             Per-user request — moved here from the mobile top navbar
+             (where it cost real horizontal real estate) so the brand
+             surfaces when the user opens the menu, and the navbar
+             reclaims the space for action icons (Notifications,
+             compass, Search, Feed, To-do). On desktop the brand stays
+             in the top navbar (.nav-brand) and this block is hidden
+             via .sidebar-item--mobile-only. -->
+        <div class="sidebar-brand-mobile sidebar-item--mobile-only">The Great Getaway</div>
+
         <!-- Search — desktop sidebar entry. The top-banner search
              icon is hidden on desktop (per-user request) so the
              sidebar takes over as the search entry point. On mobile
@@ -238,19 +248,22 @@
 
     <!-- Top Navigation Bar -->
     <nav class="navbar glass">
-        <div style="display: flex; align-items: center; gap: 16px;">
+        <!-- LEFT cluster (grid column 1).
+             Desktop: hamburger + brand text.
+             Mobile: hamburger + notifications bell + compass.
+             Per-user reorg the brand moved into the burger drawer on
+             mobile; the navbar's prime real estate now hosts action
+             icons in social-network order (notifications first, like
+             FB / IG / X). -->
+        <div class="navbar-cluster navbar-cluster--left">
             <button id="hamburgerBtn" class="hamburger-btn" aria-label="Open menu">
                 <span></span><span></span><span></span>
             </button>
             <div class="nav-brand">The Great Getaway</div>
-            <!-- Notification Bell — mobile only. Per-user request, on
-                 desktop the bell moved INTO `.nav-links` (sits just left
-                 of "Home"); the duplicate lives below inside that block.
-                 On mobile, `.nav-links` is `display:none` so this top-
-                 banner copy is the user-facing one. The CSS
-                 `.notif-feed--mobile-only` modifier hides this copy at
-                 ≥721px so the two bells never both render. -->
-            <div class="notif-feed--mobile-only" style="position: relative; margin-left: 8px;">
+            <!-- Notifications bell — mobile only. Now sits as the
+                 leftmost action icon (after hamburger) per user request,
+                 matching the convention major social apps use. -->
+            <div class="notif-feed--mobile-only" style="position: relative;">
                 <button id="notificationBellBtn" aria-label="Notifications" style="background: transparent; border: none; cursor: pointer; position: relative; padding: 11px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: background 0.2s; -webkit-tap-highlight-color: transparent;">
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
@@ -273,46 +286,59 @@
                     </div>
                 </div>
             </div>
-            <!-- Search — mobile-only top-banner icon. On desktop the
-                 search entry point lives in the sidebar (cleaner top bar
-                 with more room for the trip controls). -->
-            <a href="#" data-page="search" id="navSearchBtn" class="navbar-icon-mobile-only" aria-label="Search" title="Search across trips, days, and expenses"
-                style="background: transparent; border: none; cursor: pointer; padding: 11px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: background 0.2s; margin-left: 8px; text-decoration: none; color: inherit; -webkit-tap-highlight-color: transparent;">
+            <!-- Mobile compass — opens a popover hosting the trip
+                 controls (+New Trip, trip selector, complete + delete).
+                 Per-user reorg now sits immediately right of the
+                 notifications bell (was on the rightmost edge before).
+                 Popover lives below this nav, fixed-positioned. -->
+            <button type="button" id="tripControlsBtn" class="navbar-icon-mobile-only" aria-label="Trip controls"
+                aria-haspopup="menu" aria-expanded="false" aria-controls="tripControlsPopover" title="Trip controls"
+                style="background: transparent; border: none; cursor: pointer; padding: 11px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: background 0.2s; color: inherit; -webkit-tap-highlight-color: transparent;">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon>
+                </svg>
+            </button>
+        </div>
+
+        <!-- CENTER cluster (grid column 2, mobile only).
+             Holds Search + Feed — both navigate via the generic
+             [data-page] click delegation in main.ts. On desktop these
+             icons live inside .nav-links (sidebar Search) and the
+             rightmost slot of .nav-links (Feed); the duplicates here
+             are mobile-only. -->
+        <div class="navbar-cluster navbar-cluster--center navbar-icon-mobile-only">
+            <a href="#" data-page="search" id="navSearchBtn" aria-label="Search" title="Search across trips, days, and expenses"
+                style="background: transparent; border: none; cursor: pointer; padding: 11px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: background 0.2s; text-decoration: none; color: inherit; -webkit-tap-highlight-color: transparent;">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <circle cx="11" cy="11" r="7"></circle>
                     <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                 </svg>
             </a>
-            <!-- Feed icon — mobile only (matches the bell rule
-                 above). On desktop the duplicate sits to the right of
-                 "Insights" inside `.nav-links`. Click delegation in
-                 main.ts is `[data-page]`-based, so the duplicate
-                 picks up navigation without explicit wiring. -->
-            <a href="#" data-page="feed" id="navFeedBtn" class="notif-feed--mobile-only" aria-label="Feed" title="Feed — what your friends are up to"
-                style="background: transparent; border: none; cursor: pointer; padding: 11px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: background 0.2s; margin-left: 8px; text-decoration: none; color: inherit; -webkit-tap-highlight-color: transparent;">
+            <a href="#" data-page="feed" id="navFeedBtn" aria-label="Feed" title="Feed — what your friends are up to"
+                style="background: transparent; border: none; cursor: pointer; padding: 11px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: background 0.2s; text-decoration: none; color: inherit; -webkit-tap-highlight-color: transparent;">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M4 11a9 9 0 0 1 9 9"></path>
                     <path d="M4 4a16 16 0 0 1 16 16"></path>
                     <circle cx="5" cy="19" r="1"></circle>
                 </svg>
             </a>
-            <!-- Mobile compass — opens a popover hosting the trip
-                 controls (+New Trip, trip selector, complete + delete).
-                 Per-user request these moved out of the burger drawer
-                 so they sit one tap away from the navbar instead of
-                 two (drawer-open → controls). Visible only at ≤720px;
-                 desktop already shows the controls inline in the
-                 navbar (.nav-trips--desktop-only). The popover lives
-                 below this nav, fixed-positioned so it floats over
-                 page content. -->
-            <button type="button" id="tripControlsBtn" class="navbar-icon-mobile-only" aria-label="Trip controls"
-                aria-haspopup="menu" aria-expanded="false" aria-controls="tripControlsPopover" title="Trip controls"
-                style="background: transparent; border: none; cursor: pointer; padding: 11px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: background 0.2s; margin-left: 8px; color: inherit; -webkit-tap-highlight-color: transparent;">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <circle cx="12" cy="12" r="10"></circle>
-                    <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon>
+        </div>
+
+        <!-- RIGHT cluster (grid column 3, mobile only).
+             To-do list moved up here from the bottom-tab nav (it was
+             a primary daily action, sat better as a navbar icon).
+             Same checkmark-in-square glyph as the bottom-nav copy
+             so users mid-migration recognize it. The bottom nav's
+             leftmost slot is now Home (replaced To-do). -->
+        <div class="navbar-cluster navbar-cluster--right navbar-icon-mobile-only">
+            <a href="#" data-page="todo" id="navTodoBtn" aria-label="To do list" title="To do list"
+                style="background: transparent; border: none; cursor: pointer; padding: 11px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: background 0.2s; text-decoration: none; color: inherit; -webkit-tap-highlight-color: transparent;">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="9 11 12 14 22 4"></polyline>
+                    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
                 </svg>
-            </button>
+            </a>
         </div>
         <!-- D6 (i18n): each nav link declares a translation key via
              data-i18n-key="...". main.ts hydrates the text content
@@ -491,13 +517,17 @@
 
     <!-- Mobile bottom-tab nav. Visible only on max-width:720px,
          hidden on desktop. Houses the four most-used "task" pages
-         (Todo, Plan with AI, Expenses, Insights) — the ones a
-         traveler hits day-to-day during a trip. Home / Feed /
-         Collections / Profile remain reachable via the burger
-         drawer.
+         (Home, Plan with AI, Expenses, Insights) — the ones a
+         traveler hits day-to-day during a trip. Feed / Collections
+         / Profile remain reachable via the burger drawer.
+
+         Per-user reorg: To-do list moved UP to the top navbar's
+         rightmost slot (#navTodoBtn). Home took its slot here — the
+         primary "back to my trip overview" anchor lives at the
+         bottom-nav's leftmost spot, matching iOS/Android norms.
 
          Icons:
-         - Todo: checkmark-in-square
+         - Home: house outline
          - Plan with AI: 4-point sparkle (the canonical "AI" icon
            — distinct from the 5-point star used elsewhere)
          - Expenses: credit card (distinct from the dollar-sign
@@ -505,12 +535,11 @@
            don't read as the same thing)
          - Insights: bar chart -->
     <nav class="mobile-bottom-nav" aria-label="Primary navigation (mobile)">
-        <a href="#" class="nav-item mobile-bottom-nav__item" data-page="todo" aria-label="To do list">
+        <a href="#" class="nav-item mobile-bottom-nav__item" data-page="home" aria-label="Home">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <polyline points="9 11 12 14 22 4"></polyline>
-                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2h-5v-7h-4v7H5a2 2 0 0 1-2-2z"></path>
             </svg>
-            <span>To do</span>
+            <span>Home</span>
         </a>
         <a href="#" class="nav-item mobile-bottom-nav__item" data-page="ai" aria-label="Plan with AI">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
