@@ -25,7 +25,19 @@ _SRC = os.path.join(_HERE, "src")
 if _SRC not in sys.path:
     sys.path.insert(0, _SRC)
 
-from main import app  # noqa: E402 — sys.path manipulation must precede this
+# Load .env from the repo root with an explicit absolute path. This is
+# CRITICAL on PA: src/main.py also calls load_dotenv() but with no args,
+# which resolves relative to the WSGI worker's cwd — and PA's WSGI cwd
+# is NOT the "Working directory" set in the Web tab. (That setting
+# governs Bash-console-style invocations, not the WSGI worker.)
+# Loading here, before main is imported, guarantees os.environ is
+# populated by the time main.py and its routes evaluate their
+# os.getenv() calls. Idempotent — main.py's later load_dotenv() call
+# is a no-op once the values are already in os.environ.
+from dotenv import load_dotenv  # noqa: E402
+load_dotenv(os.path.join(_HERE, ".env"))
+
+from main import app  # noqa: E402 — sys.path + dotenv must precede this
 
 # WSGI conventional name. PA + gunicorn + uwsgi all look for `application`.
 application = app
