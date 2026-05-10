@@ -1,6 +1,5 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import { visualizer } from 'rollup-plugin-visualizer';
 import path from 'path';
 
 // Phase C1 wires up @vitejs/plugin-react so the bundle can consume
@@ -16,8 +15,38 @@ import path from 'path';
 // eating the bundle (treemap by gzip + brotli size). The default build
 // path is unchanged so CI doesn't pay the extra emit cost; only manual
 // performance audits opt in.
+//
+// 2026-05-10: switched from a static `import { visualizer } from
+// 'rollup-plugin-visualizer'` to a lazy dynamic import inside the
+// ANALYZE-only branch. The static form crashed every build on
+// machines that didn't have the analyzer dev-dep installed, even
+// when ANALYZE was unset. Now the dep is truly optional — install
+// only when you actually run an audit.
 
 const ANALYZE = process.env.ANALYZE === '1';
+
+// Resolve the visualizer plugin only when needed. Top-level await is
+// supported in ESM (Vite loads this config as ESM), so no defineConfig
+// async form needed.
+let visualizerPlugin = null;
+if (ANALYZE) {
+    try {
+        const { visualizer } = await import('rollup-plugin-visualizer');
+        visualizerPlugin = visualizer({
+            filename: path.resolve(__dirname, 'bundle-stats.html'),
+            template: 'treemap',
+            gzipSize: true,
+            brotliSize: true,
+            open: false,
+        });
+    } catch {
+        console.warn(
+            '[vite.config] ANALYZE=1 but rollup-plugin-visualizer is not installed. ' +
+                'Run `npm install --save-dev rollup-plugin-visualizer` to enable bundle audits. ' +
+                'Continuing build without it.'
+        );
+    }
+}
 
 export default defineConfig({
     plugins: [
@@ -27,14 +56,7 @@ export default defineConfig({
             // expectation + tsconfig "jsx": "react-jsx".
             jsxRuntime: 'automatic',
         }),
-        ANALYZE &&
-            visualizer({
-                filename: path.resolve(__dirname, 'bundle-stats.html'),
-                template: 'treemap',
-                gzipSize: true,
-                brotliSize: true,
-                open: false,
-            }),
+        visualizerPlugin,
     ].filter(Boolean),
     // D5 (perf): code-split chunks live at /static/js/chunks/...
     // The bundle's `import("chunks/mount-X.js")` calls resolve
