@@ -563,14 +563,15 @@ Ordered by leverage on the VISION's three killer features (social, expenses, pla
 
 **Why:** today expense calc stops at "Sara owes Andrés €45." Closing the loop keeps users in TGG instead of bouncing to Splitwise.
 
-### 4.6 Trip cloning
+### 4.6 Trip cloning — ✅ Shipped 2026-05-13
 
 **S** · `src/routes/trips.py`
 
-- [ ] `POST /api/trips/clone/<source_id>` — deep-copies trip + days + companion seeds (empty) + markedPlaces into a new draft.
-- [ ] Available on archived-trip detail (own) AND public-trip detail (anyone's).
-- [ ] No expenses copied.
-- [ ] "I want this trip" CTA on shared/public artifacts.
+- [x] `POST /api/trips/clone/<source_id>` — deep-copies trip + days + markedPlaces into a new draft owned by the caller. Companions explicitly NOT seeded (those are the original owner's friends, not yours). Plus `POST /api/share/<token>/clone` for the share-link recipient path.
+- [x] Available on archived-trip detail (own) AND via share-link (anyone's). The "Clone" button sits next to the Share/Restore buttons in the Collections archived-trip hero; the "✨ I want this trip" CTA appears at the bottom of every `/share/<token>` public page.
+- [x] No expenses copied — clone is a fresh template, not an accounting record.
+- [x] "I want this trip" CTA on the public share artifact. The link routes to `/?cloneFromShare=<token>`; SPA captures the intent into sessionStorage, fires the clone post-login (or immediately if already authed), then navigates to home with the new draft active.
+- [x] Pytest coverage: 7 new tests — happy path, expenses+share-state dropped, private-trip stranger gets 404 (no enumeration leak), public-trip stranger succeeds + becomes owner, clone-via-share-token works without membership, unknown-token 404, anonymous 401.
 
 **Why:** closes the VISION loop — "every shared trip is fuel for someone else's planning."
 

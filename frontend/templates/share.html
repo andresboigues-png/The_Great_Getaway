@@ -216,6 +216,31 @@
       color: #5a5a5e;
       font-size: 0.85rem;
     }
+    .share-cta__primary {
+      display: inline-block;
+      margin-top: 12px;
+      padding: 12px 24px;
+      background: linear-gradient(135deg, #0071e3, #ff9500 60%, #34c759);
+      color: #fff;
+      border-radius: 999px;
+      text-decoration: none;
+      font-weight: 800;
+      font-size: 0.95rem;
+      box-shadow: 0 8px 20px rgba(0, 113, 227, 0.28);
+    }
+    .share-cta__primary:hover { transform: translateY(-1px); }
+    .share-cta__secondary {
+      display: inline-block;
+      margin-top: 10px;
+      margin-left: 8px;
+      padding: 10px 18px;
+      background: rgba(0, 113, 227, 0.10);
+      color: #0071e3;
+      border-radius: 999px;
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 0.85rem;
+    }
     .share-cta__btn {
       display: inline-block;
       margin-top: 10px;
@@ -344,8 +369,19 @@
     {% endif %}
 
     <div class="share-cta">
-      <div>Like this trip? Plan your own on The Great Getaway.</div>
-      <a class="share-cta__btn" href="/">Open the app</a>
+      {# §4.6 — "I want this trip" CTA. Routes to the SPA root with
+         `?cloneFromShare=<token>` in the query string. The SPA's
+         boot code (see frontend/static/js/src/main.ts) reads that
+         param post-login and fires the clone — so a recipient who
+         doesn't have an account yet still completes the flow after
+         signing up, no extra clicks. The trip param is read from
+         the canonical_url's last segment server-side so the link
+         continues to work even if the user clears their localStorage
+         or comes back days later. #}
+      <div>Like this trip?</div>
+      {% set _share_token_for_clone = canonical_url.rstrip('/').rsplit('/', 1)[-1] %}
+      <a class="share-cta__primary" href="/?cloneFromShare={{ _share_token_for_clone }}">✨ I want this trip</a>
+      <a class="share-cta__secondary" href="/">Open the app</a>
     </div>
   </main>
 </body>

@@ -14,10 +14,10 @@
 // in ./handlers.ts so renderCollections() and this renderer share one
 // implementation without a circular dependency.
 
-import { STATE } from '../../state.js';
+import { STATE, emit } from '../../state.js';
 import { formatHome, esc, showLiquidAlert, showConfirmModal } from '../../utils.js';
 import { navigate } from '../../router.js';
-import { shareTripToFeed, fetchShareStatus, unshareFeedPost } from '../../api.js';
+import { shareTripToFeed, fetchShareStatus, unshareFeedPost, cloneTrip, pullFromServer } from '../../api.js';
 import { openDayView, openPdfPreview, looksLikePdfUrl, openShareToFeedModal, updateShareBtnVisualState } from '../home.js';
 import { openShareChooserModal } from '../../modals.js';
 import { restoreTrip, toggleTripPrivacy } from './handlers.js';
@@ -139,6 +139,20 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
                         <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
                     </svg>
                     Share
+                </button>
+                <!-- §4.6 — Clone button. Available on every
+                     archived trip detail (own AND fetched-via-public
+                     trips). Drops a fresh draft into the user's
+                     active trips with the same Path + ideas; their
+                     expenses / photos / companions are NOT carried
+                     over (clone is a template, not a copy). -->
+                <button id="cloneTripBtn" type="button" data-trip-id="${esc(trip.id)}" title="Start a new trip based on this one" aria-label="Clone this trip"
+                    style="background:rgba(255,255,255,0.16); border:1px solid rgba(255,255,255,0.3); color:#ffffff; padding:10px 18px; border-radius:999px; font-weight:800; font-size:0.85rem; cursor:pointer; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); display:inline-flex; align-items:center; gap:6px;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                    Clone
                 </button>
                 <button class="restore-trip-btn" data-trip-id="${esc(trip.id)}" type="button" style="background:#ffffff; color:#002d5b; padding:10px 18px; border-radius:999px; font-weight:800; font-size:0.85rem; cursor:pointer; box-shadow:0 4px 14px rgba(0,0,0,0.18); border: 0;">↺ Restore Trip</button>
             </div>
@@ -374,10 +388,46 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
         });
     }
 
-    div.addEventListener('click', (e) => {
+    div.addEventListener('click', async (e) => {
         const target = (e.target as HTMLElement | null);
         const restoreBtn = (target?.closest('.restore-trip-btn') as HTMLElement | null);
         if (restoreBtn?.dataset.tripId) { restoreTrip(restoreBtn.dataset.tripId); return; }
+
+        // §4.6 — Clone button. Drops a fresh draft trip into the
+        // user's active list with the same Path + ideas but no
+        // expenses / photos / companions. After a successful clone:
+        // pull canonical state, switch active trip to the new one,
+        // navigate home so the user lands on their copy ready to
+        // edit. On failure, toast + stay put.
+        const cloneBtn = (target?.closest('#cloneTripBtn') as HTMLElement | null);
+        if (cloneBtn?.dataset.tripId) {
+            cloneBtn.setAttribute('disabled', 'true');
+            const originalText = cloneBtn.innerHTML;
+            cloneBtn.innerHTML = 'Cloning…';
+            try {
+                const res = await cloneTrip(cloneBtn.dataset.tripId);
+                if (!res?.ok || !res.body?.tripId) {
+                    showLiquidAlert("Couldn't clone — try again in a moment.");
+                    cloneBtn.removeAttribute('disabled');
+                    cloneBtn.innerHTML = originalText;
+                    return;
+                }
+                // Pull state so the new trip lands in STATE.trips with
+                // its days + myRole + member chips populated. Then
+                // switch active and navigate home.
+                await pullFromServer();
+                STATE.activeTripId = res.body.tripId;
+                emit('state:changed');
+                showLiquidAlert('Trip cloned! Edit your draft on Home.');
+                navigate('home');
+            } catch (err) {
+                console.error('Clone failed:', err);
+                showLiquidAlert("Couldn't clone — try again in a moment.");
+                cloneBtn.removeAttribute('disabled');
+                cloneBtn.innerHTML = originalText;
+            }
+            return;
+        }
 
         // Share button — opens the Share Chooser (in-app post vs.
         // public link). On archived trips, "Share to feed" routes

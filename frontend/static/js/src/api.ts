@@ -369,6 +369,25 @@ export function unarchiveTripOnServer(tripId: string) {
     return _post(`/api/trips/${tripId}/unarchive`, {});
 }
 
+/** Deep-copy a trip the caller can see (their own archived trip OR a
+ *  trip they're a member of OR a public trip) into a fresh draft
+ *  owned by them. Server returns `{ tripId }` for the new clone.
+ *  See §4.6 in src/routes/trips.py for the privacy contract on
+ *  what's copied vs. dropped. */
+export function cloneTrip(sourceTripId: string) {
+    if (!STATE.user) return Promise.resolve({ ok: false, status: 0, body: null });
+    return _postJson(`/api/trips/clone/${encodeURIComponent(sourceTripId)}`, {});
+}
+
+/** Same as cloneTrip but resolves the source via a share-link token.
+ *  Used by the "I want this trip" CTA on /share/<token> — the
+ *  recipient may not be a member of the source trip; possession of
+ *  the token IS the proof of intent to share. */
+export function cloneTripFromShareToken(token: string) {
+    if (!STATE.user) return Promise.resolve({ ok: false, status: 0, body: null });
+    return _postJson(`/api/share/${encodeURIComponent(token)}/clone`, {});
+}
+
 // ── Feed (social / sharing) ────────────────────────────────────────
 // All four return `{ ok, status, body }` so the calling UI can branch
 // on success, surface errors, and roll back optimistic state when the

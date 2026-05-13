@@ -1,7 +1,7 @@
 import { STATE, loadState, emit, subscribe } from './state.js';
 import { initThemeManager } from './theme.js';
 import { t, type TranslationKey, loadLocale, getLocale } from './i18n.js';
-import { syncWithServer, pullFromServer, fetchNotifications, markNotificationsRead, deleteTrip, archiveTripOnServer, apiUrl, apiFetch, setAuthToken, clearAuthToken } from './api.js';
+import { syncWithServer, pullFromServer, fetchNotifications, markNotificationsRead, deleteTrip, archiveTripOnServer, apiUrl, apiFetch, setAuthToken, clearAuthToken, cloneTripFromShareToken } from './api.js';
 import { showConfirmModal, esc, showLiquidAlert } from './utils.js';
 import { navigate } from './router.js';
 import { PAGES, EVENTS, type PageName } from './constants.js';
@@ -364,6 +364,14 @@ async function handleGoogleLogin(response: { credential?: string; [key: string]:
         }
         emit('state:changed');               // saveState via subscriber
         updateUserUI();
+        // §4.6 — if the user landed via /?cloneFromShare=<token>,
+        // fire the clone now that we have a JWT. The helper
+        // navigates to home on success, so we short-circuit the
+        // normal post-login routing below.
+        if (sessionStorage.getItem(CLONE_INTENT_KEY)) {
+            await _attemptPendingClone();
+            return;
+        }
         // Prefer the route the user originally tried to reach. Logged-out
         // users land on the login wall with `window.location.hash` set
         // to that route; preserving it post-login keeps deep links honest.
@@ -438,8 +446,65 @@ function paintI18nBindings(): void {
 
 // ── INITIALIZATION ──
 
+// §4.6 — "Clone from share" intent storage.
+//
+// The /share/<token> public page's "I want this trip" CTA links to
+// `/?cloneFromShare=<token>`. That lands the visitor on the SPA. We
+// stash the token in sessionStorage so:
+//   - If they're already logged in → init() reads it and fires the
+//     clone immediately.
+//   - If not → the value persists across the login wall, and
+//     handleGoogleLogin reads it after the JWT lands.
+// We use sessionStorage (not localStorage) because the intent is
+// per-tab — opening a different share link in another tab shouldn't
+// clobber this one.
+const CLONE_INTENT_KEY = 'gg_clone_from_share';
+
+function _captureCloneIntent(): void {
+    try {
+        const params = new URLSearchParams(window.location.search);
+        const token = params.get('cloneFromShare');
+        if (!token) return;
+        sessionStorage.setItem(CLONE_INTENT_KEY, token);
+        // Strip the query param from the URL so a refresh doesn't
+        // re-fire (the sessionStorage value is consumed on success).
+        const cleanUrl = window.location.pathname + window.location.hash;
+        window.history.replaceState(null, '', cleanUrl);
+    } catch (e) {
+        console.warn('Failed to capture clone intent:', e);
+    }
+}
+
+async function _attemptPendingClone(): Promise<void> {
+    let token: string | null = null;
+    try { token = sessionStorage.getItem(CLONE_INTENT_KEY); }
+    catch { return; }
+    if (!token || !STATE.user) return;
+    try {
+        const res = await cloneTripFromShareToken(token);
+        try { sessionStorage.removeItem(CLONE_INTENT_KEY); } catch { /* ignored */ }
+        if (!res?.ok || !res.body?.tripId) {
+            showLiquidAlert("Couldn't clone that trip. Try again from Collections.");
+            return;
+        }
+        await pullFromServer();
+        STATE.activeTripId = res.body.tripId;
+        emit(EVENTS.STATE_CHANGED);
+        showLiquidAlert('Trip cloned! Edit your draft on Home.');
+        navigate(PAGES.HOME);
+    } catch (e) {
+        console.error('Pending clone failed:', e);
+        showLiquidAlert("Couldn't clone that trip. Try again from Collections.");
+        try { sessionStorage.removeItem(CLONE_INTENT_KEY); } catch { /* ignored */ }
+    }
+}
+
 async function init() {
     loadState();
+    // §4.6 — capture ?cloneFromShare=<token> BEFORE any other
+    // routing happens so the intent survives even if the user
+    // hits the login wall.
+    _captureCloneIntent();
 
     // Phase D2 — apply theme BEFORE any render so there's no flash-
     // of-light-content when the user has dark or system-dark active.
@@ -488,6 +553,12 @@ async function init() {
             await syncWithServer();
             await pullFromServer();
             fetchNotifications();
+            // §4.6 — if the user is already logged in AND arrived
+            // via /?cloneFromShare=<token>, fire the clone now. The
+            // helper navigates to home on success.
+            if (sessionStorage.getItem(CLONE_INTENT_KEY)) {
+                await _attemptPendingClone();
+            }
         } else {
             // No valid token — make sure we don't show stale STATE.user
             // (cached in localStorage from a previous session whose JWT

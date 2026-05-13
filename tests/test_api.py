@@ -2829,6 +2829,155 @@ def test_share_revoke_resets_plans_toggle(client, seed_user, auth_headers):
     assert after["showPlans"] is False
 
 
+# ── Trip cloning (FIXING_ROADMAP §4.6) ────────────────────────────────
+
+def test_clone_trip_deep_copies_days_and_metadata(
+    client, seed_user, auth_headers,
+):
+    """Clone returns a new trip_id; the source's metadata + days are
+    copied into a fresh draft owned by the caller, with `(copy)`
+    suffix on the name."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-source", name="My Trip")
+    client.post("/api/days", headers=auth_headers, json={
+        "day": {
+            "id": "d-src-1", "tripId": trip_id, "dayNumber": 1,
+            "date": "2026-06-01", "name": "Lisbon",
+            "plan": {"morning": "Cafe", "afternoon": "Castle", "evening": ""},
+            "tip": "Bring sunscreen", "lat": 38.7, "lng": -9.1,
+        },
+    })
+
+    res = client.post(f"/api/trips/clone/{trip_id}", headers=auth_headers)
+    assert res.status_code == 200
+    new_trip_id = res.get_json()["tripId"]
+    assert new_trip_id and new_trip_id != trip_id
+
+    # Pull canonical state and confirm the new trip is in the active
+    # list with copied content.
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    cloned = next((t for t in data["trips"] if t["id"] == new_trip_id), None)
+    assert cloned is not None
+    assert cloned["name"] == "My Trip (copy)"
+    assert cloned["isArchived"] is False
+    assert cloned["isPublic"] is False
+
+    cloned_days = [d for d in data["tripDays"] if d["tripId"] == new_trip_id]
+    assert len(cloned_days) == 1
+    assert cloned_days[0]["name"] == "Lisbon"
+    assert cloned_days[0]["plan"]["morning"] == "Cafe"
+    assert cloned_days[0]["plan"]["afternoon"] == "Castle"
+    # Day id MUST be different from the source's day.
+    assert cloned_days[0]["id"] != "d-src-1"
+
+
+def test_clone_trip_drops_expenses_and_share_state(
+    client, seed_user, auth_headers,
+):
+    """The clone is a fresh DRAFT — the source's expenses + share
+    state stay with the original, not the copy."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-with-expenses")
+    client.post("/api/expenses", headers=auth_headers, json={
+        "expense": {
+            "id": "exp-source", "tripId": trip_id, "who": "Me",
+            "value": 99, "currency": "EUR", "euroValue": 99,
+            "label": "Original spend", "date": "2026-06-01",
+        },
+    })
+    # Set up the source as shared with the cost toggle on.
+    client.post(
+        f"/api/trips/{trip_id}/share", headers=auth_headers,
+        json={"showCost": True, "showPlans": True},
+    )
+
+    new_trip_id = client.post(
+        f"/api/trips/clone/{trip_id}", headers=auth_headers,
+    ).get_json()["tripId"]
+
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    # The clone has NO expenses.
+    cloned_expenses = [e for e in data["expenses"] if e.get("tripId") == new_trip_id]
+    assert cloned_expenses == []
+    # The clone is NOT shared (fresh draft, share state reset).
+    cloned = next((t for t in data["trips"] if t["id"] == new_trip_id), None)
+    assert cloned["shareToken"] is None
+    assert cloned["shareViews"] == 0
+    assert cloned["shareShowCost"] is False
+    assert cloned["shareShowPlans"] is False
+
+
+def test_clone_trip_private_to_stranger_returns_404(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """A non-public trip owned by user A returns 404 (not 403) for
+    user B's clone attempt — same anti-enumeration posture as the
+    rest of /api/public-trip etc."""
+    trip_id = _create_trip(
+        client, auth_headers, trip_id="trip-private-source", name="Private",
+    )
+    # Stranger tries to clone — should be 404.
+    res = client.post(f"/api/trips/clone/{trip_id}", headers=other_auth_headers)
+    assert res.status_code == 404
+
+
+def test_clone_trip_public_to_stranger_succeeds(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """A public trip can be cloned by any authenticated user. The
+    clone is owned by the cloner, not the original owner."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-public-source")
+    # Mark the trip public via the existing public-toggle flow.
+    client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": trip_id, "name": "Public Trip", "isPublic": True},
+    })
+
+    new_trip_id = client.post(
+        f"/api/trips/clone/{trip_id}", headers=other_auth_headers,
+    ).get_json()["tripId"]
+
+    # other_user's /api/data now includes the cloned trip as their own.
+    data = client.get("/api/data", headers=other_auth_headers).get_json()
+    cloned = next((t for t in data["trips"] if t["id"] == new_trip_id), None)
+    assert cloned is not None
+    assert cloned["ownerId"] == seed_other_user
+
+
+def test_clone_via_share_token_works_without_membership(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """Anyone with a share token can clone — possession of the token
+    IS the proof of intent to share. Membership in the source trip
+    isn't required."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-shared-via-link")
+    token = client.post(
+        f"/api/trips/{trip_id}/share", headers=auth_headers, json={},
+    ).get_json()["token"]
+
+    # other_user is not a member of trip_id, but they have the token.
+    res = client.post(f"/api/share/{token}/clone", headers=other_auth_headers)
+    assert res.status_code == 200
+    new_trip_id = res.get_json()["tripId"]
+    assert new_trip_id
+
+    # other_user's data contains the clone, owned by them.
+    data = client.get("/api/data", headers=other_auth_headers).get_json()
+    cloned = next((t for t in data["trips"] if t["id"] == new_trip_id), None)
+    assert cloned["ownerId"] == seed_other_user
+
+
+def test_clone_via_unknown_share_token_returns_404(client, seed_user, auth_headers):
+    """Unknown / expired tokens get 404."""
+    res = client.post("/api/share/fake-token-doesnt-exist/clone", headers=auth_headers)
+    assert res.status_code == 404
+
+
+def test_clone_trip_requires_auth(client, seed_user, auth_headers):
+    """Both clone endpoints are auth-gated — anonymous traffic 401s.
+    The clone needs an owner, so anonymous calls have no destination."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-needs-auth")
+    res = client.post(f"/api/trips/clone/{trip_id}")
+    assert res.status_code == 401
+
+
 def test_share_view_count_increments_and_dedupes_in_24h(
     client, seed_user, auth_headers,
 ):

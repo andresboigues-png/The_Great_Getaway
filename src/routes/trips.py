@@ -437,3 +437,213 @@ def revoke_share_link(trip_id):
         )
         conn.commit()
     return jsonify({"status": "revoked"})
+
+
+# ── Trip cloning (FIXING_ROADMAP §4.6) ───────────────────────────────
+# Closes the share-link viral loop: someone visits a shared trip,
+# wants the SAME trip as their own draft, clicks "I want this trip,"
+# the server deep-copies the source into a fresh trip owned by them.
+# Pairs with §4.1's share-link feature — without cloning, sharing is
+# a one-way broadcast; with cloning, every shared trip becomes a
+# template for the recipient.
+#
+# What's copied vs. dropped (the heart of the privacy contract here):
+#   COPIED — the IDEAS:
+#     * trip metadata (name, country, lat/lng, viewport, etc.)
+#     * day-by-day Path (name, date, plan text, tip, pin)
+#     * marked places (the user's "want to visit" list)
+#     * cover photo (the visual hook of the trip)
+#   DROPPED — the ORIGINAL OWNER'S personal data:
+#     * expenses (they paid for THEIR trip; the copy is a draft)
+#     * photos / documents (their personal files)
+#     * companions (their friends, not yours)
+#     * is_archived / is_public / share_token (fresh draft, not
+#       shared, not completed)
+#     * actions_hidden (default visible — caller's choice)
+#
+# Naming: cloned trip's name gets a " (copy)" suffix so the user can
+# tell their two trips apart in Collections without renaming.
+
+
+def _generate_trip_id() -> str:
+    """Match the 9-char lowercase-alphanumeric shape the frontend's
+    generateId() produces (now crypto.randomUUID-backed). Server-side
+    we use secrets.token_hex(5)[:9] which is 9 hex chars = a-z subset
+    of the alphanumeric space and ≈ 36 bits of entropy. Partial UNIQUE
+    index on the trips PK catches the astronomically-rare collision."""
+    import secrets
+    return secrets.token_hex(5)[:9]
+
+
+def _clone_trip_record(cursor, source_trip_id, new_owner_id):
+    """Deep-copy a single trip + its trip_days + markedPlaces into a
+    new trip owned by `new_owner_id`. The caller is responsible for
+    visibility (must verify source_trip_id is readable to the user
+    BEFORE calling this — clones bypass the per-trip permission gate
+    on the source by design, because the WHOLE POINT is to give the
+    user their own copy).
+
+    Returns the new trip_id on success, or None if source not found.
+    """
+    cursor.execute(
+        "SELECT id, name, country, country_code, place_id, lat, lng, "
+        "       viewport_json, place_types, "
+        "       marked_places_json, cover_url "
+        "FROM trips WHERE id = ?",
+        (source_trip_id,),
+    )
+    src = cursor.fetchone()
+    if not src:
+        return None
+
+    # New IDs everywhere. We never re-use the source's trip_id or
+    # day ids; doing so would risk collisions with the source's
+    # owner's existing records.
+    new_trip_id = _generate_trip_id()
+    new_name = f"{src['name'] or 'Trip'} (copy)"
+
+    cursor.execute('''
+        INSERT INTO trips (
+            id, user_id, name, country, country_code,
+            is_archived, is_public,
+            place_id, lat, lng, viewport_json, place_types,
+            companions_json, marked_places_json,
+            documents_json, photos_json, checklist_json,
+            actions_hidden, cover_url
+        ) VALUES (?, ?, ?, ?, ?, 0, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
+    ''', (
+        new_trip_id,
+        new_owner_id,
+        new_name,
+        src['country'],
+        src['country_code'],
+        src['place_id'],
+        src['lat'],
+        src['lng'],
+        src['viewport_json'],
+        src['place_types'],
+        # Companions — explicitly NOT copied. Always start clean.
+        None,
+        # markedPlaces — copied verbatim (the user's wishlist of
+        # places is half the value of cloning).
+        src['marked_places_json'],
+        # documents / photos / checklist — NEVER copied (personal
+        # files / per-trip tasks belong to the original owner).
+        None,
+        None,
+        None,
+        src['cover_url'],
+    ))
+
+    # Owner membership row so the clone shows up in /api/data's
+    # member-list UNION on next pull.
+    ensure_owner_member_row(cursor, new_trip_id, new_owner_id)
+
+    # Days. Each day gets a fresh id (generated server-side via the
+    # same _generate_trip_id helper, since day ids share the
+    # 9-char shape). Plan text + tip + pin are copied as-is —
+    # they're the "what to do" content.
+    cursor.execute(
+        "SELECT day_number, date, name, morning, afternoon, evening, "
+        "       tip, lat, lng "
+        "FROM trip_days WHERE trip_id = ?",
+        (source_trip_id,),
+    )
+    for d in cursor.fetchall():
+        new_day_id = _generate_trip_id()
+        cursor.execute('''
+            INSERT INTO trip_days (
+                id, trip_id, day_number, date, name,
+                morning, afternoon, evening, tip,
+                lat, lng
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            new_day_id,
+            new_trip_id,
+            d['day_number'],
+            d['date'],
+            d['name'],
+            d['morning'],
+            d['afternoon'],
+            d['evening'],
+            d['tip'],
+            d['lat'],
+            d['lng'],
+        ))
+
+    return new_trip_id
+
+
+def _caller_can_see_trip(cursor, trip_id, user_id):
+    """True if the trip is public OR the caller is a member. Used to
+    gate /api/trips/clone/<source_id> — you can only clone a trip
+    you'd be able to view via /api/public-trip or your own
+    Collections."""
+    cursor.execute(
+        "SELECT user_id, is_public FROM trips WHERE id = ?", (trip_id,),
+    )
+    row = cursor.fetchone()
+    if not row:
+        return False
+    if row['is_public']:
+        return True
+    if row['user_id'] == user_id:
+        return True
+    cursor.execute(
+        "SELECT 1 FROM trip_members "
+        "WHERE trip_id = ? AND user_id = ? AND invitation_status = 'accepted' "
+        "LIMIT 1",
+        (trip_id, user_id),
+    )
+    return cursor.fetchone() is not None
+
+
+@bp.route("/api/trips/clone/<source_id>", methods=["POST"])
+@require_auth
+@limiter.limit("30 per hour")
+def clone_trip(source_id):
+    """Clone a trip the caller can see (public OR a trip they're a
+    member of). Returns `{ tripId }` for the new draft owned by the
+    caller. Visibility gate matches /api/public-trip — anything else
+    would let the caller exfiltrate private trips by id-guessing.
+    """
+    user_id = current_user_id()
+    with get_db() as conn:
+        cursor = conn.cursor()
+        if not _caller_can_see_trip(cursor, source_id, user_id):
+            # Mirror /api/public-trip's 404 (rather than 403) so
+            # id-existence isn't leaked via differential codes.
+            return jsonify({"error": "Not found"}), 404
+        new_trip_id = _clone_trip_record(cursor, source_id, user_id)
+        if not new_trip_id:
+            return jsonify({"error": "Not found"}), 404
+        conn.commit()
+    return jsonify({"tripId": new_trip_id})
+
+
+@bp.route("/api/share/<token>/clone", methods=["POST"])
+@require_auth
+@limiter.limit("30 per hour")
+def clone_trip_from_share_token(token):
+    """Clone via a share-link token. The recipient of a /share/<token>
+    URL clicks "I want this trip"; the SPA boots, the user logs in if
+    needed, then we hit this endpoint to do the deep-copy.
+
+    Doesn't require the caller to be a member of the source trip —
+    having the share token IS the proof of intent to share. We do
+    require auth here though (the clone needs an owner).
+    """
+    user_id = current_user_id()
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id FROM trips WHERE share_token = ?", (token,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"error": "Not found"}), 404
+        new_trip_id = _clone_trip_record(cursor, row['id'], user_id)
+        if not new_trip_id:
+            return jsonify({"error": "Not found"}), 404
+        conn.commit()
+    return jsonify({"tripId": new_trip_id})
