@@ -899,19 +899,32 @@ h1 {
     gap: 6px;
     overflow-y: auto;
 }
-/* Vertically centre the nav items as a group while keeping the
-   profile pinned to the bottom. The trick: two auto-margins on
-   opposite "tops" — one above the first child and one above the
-   profile (last child). Flexbox splits the available leftover
-   space equally between both auto-margins, putting half above
-   the first item and half above the profile. Net effect: the
-   nav-item stack floats in the vertical middle, profile still
-   hugs the bottom edge.
+/* Profile pic at the TOP of the rail — aligned with where it
+   appears in the burger drawer (right below the Menu header).
+   The profile is the first child in the DOM now (was last); the
+   ordering change alone puts it at the top of the flex column.
+   No special CSS positioning needed — it sits at top + 14px
+   padding naturally.
 
-   Pre-fix the items were top-aligned because only the profile
-   had `margin-top: auto`. */
-.sidebar-rail > :first-child {
+   Nav items below the profile remain vertically centered in the
+   leftover space between profile and rail bottom. Two competing
+   auto-margins do the centering: the first nav item (search,
+   `:nth-child(2)`) gets `margin-top: auto`, the last child gets
+   `margin-bottom: auto`. Flexbox splits the free space equally
+   between both. Net layout:
+
+      [padding-top: 14px]
+      [profile]
+      [free space / 2]
+      [nav items + dots]
+      [free space / 2]
+      [padding-bottom: 18px]
+*/
+.sidebar-rail > :nth-child(2) {
     margin-top: auto;
+}
+.sidebar-rail > :last-child {
+    margin-bottom: auto;
 }
 .sidebar-rail__item {
     flex-shrink: 0;
@@ -960,9 +973,13 @@ h1 {
     margin: 6px auto;
     box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.6);
 }
-/* Profile avatar pinned to the bottom of the rail. */
+/* Profile avatar at the top of the rail — aligned with the
+   drawer's profile-top block. Pre-fix this rule carried a
+   `margin-top: auto` to push the avatar to the bottom; with the
+   DOM reorder (profile is now the first child of the rail) that
+   margin would push it back to the bottom edge again, so it's
+   gone. */
 .sidebar-rail__profile {
-    margin-top: auto;
     padding: 0;
     overflow: hidden;
     /* The image sits flush inside the rounded button — drop the
