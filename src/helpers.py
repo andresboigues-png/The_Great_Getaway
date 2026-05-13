@@ -95,3 +95,78 @@ def unwrap_legacy_plan_text(s):
         except Exception:
             pass
     return s
+
+
+# ── Row serialisers — FIXING_ROADMAP §3.5 ────────────────────────────
+#
+# Single source of truth for shaping `trips` / `expenses` rows into
+# the camelCase JSON the frontend expects. Pre-extraction, the same
+# field-renaming logic lived inline in BOTH routes/data.py and
+# routes/public.py, and the two had already drifted (data.py picked
+# up the new share-* fields and actions_hidden after §4.1; public.py
+# hadn't been updated to skip them, which was its own privacy bug).
+#
+# Helper philosophy: serialize the COMMON shape only. Caller-specific
+# fields — myRole / myArchived / members (from request context),
+# actionsHidden / shareToken / shareViews / shareShow* (owner-only,
+# never exposed on the public read path) — are added by the caller
+# AFTER the helper returns, based on what the surface should expose.
+#
+# This is the "extract the overlap, keep the divergence explicit"
+# refactor pattern: each call site stays readable because the
+# surface-specific extras are still visible there.
+
+
+def serialize_trip_row(row):
+    """Shape a `trips` row into the camelCase JSON the frontend reads.
+    Returns a `dict` (caller is free to mutate further).
+
+    Common fields handled here (both /api/data and /api/public-trip
+    need them): id, name, country, ownerId, isPublic, placeId,
+    lat, lng, viewport, placeTypes, countryCode, companions,
+    markedPlaces, documents, photos, checklist, coverUrl, created_at.
+
+    NOT handled here (caller adds based on context):
+    - myRole / myArchived / isArchived / members (request-scoped)
+    - actionsHidden (owner-only field)
+    - shareToken / shareViews / shareShowCost / shareShowPlans
+      (owner-only, never exposed to public viewers)
+
+    The caller is responsible for popping `user_id` from the result
+    if they don't want it leaked — we set `ownerId` from it but keep
+    `user_id` in the dict so the caller can still compare against
+    the current viewer for role logic.
+    """
+    t = dict(row)
+    t['ownerId'] = t.get('user_id')
+    t['isPublic'] = bool(t.pop('is_public', 0))
+    t['placeId'] = t.pop('place_id', None)
+    viewport_raw = t.pop('viewport_json', None)
+    t['viewport'] = json.loads(viewport_raw) if viewport_raw else None
+    types_raw = t.pop('place_types', None)
+    t['placeTypes'] = json.loads(types_raw) if types_raw else None
+    t['countryCode'] = t.pop('country_code', None)
+    companions_raw = t.pop('companions_json', None)
+    t['companions'] = json.loads(companions_raw) if companions_raw else []
+    marked_raw = t.pop('marked_places_json', None)
+    t['markedPlaces'] = json.loads(marked_raw) if marked_raw else []
+    documents_raw = t.pop('documents_json', None)
+    t['documents'] = json.loads(documents_raw) if documents_raw else []
+    photos_raw = t.pop('photos_json', None)
+    t['photos'] = json.loads(photos_raw) if photos_raw else []
+    checklist_raw = t.pop('checklist_json', None)
+    t['checklist'] = json.loads(checklist_raw) if checklist_raw else []
+    t['coverUrl'] = t.pop('cover_url', None)
+    return t
+
+
+def serialize_expense_row(row):
+    """Shape an `expenses` row into camelCase. Same drift-prone
+    site as serialize_trip_row — extracted so /api/data and
+    /api/public-trip can both go through one canonical shaper."""
+    e = dict(row)
+    e['tripId'] = e.pop('trip_id', None)
+    e['categoryId'] = e.pop('category_id', None)
+    e['euroValue'] = e.pop('euro_value', None)
+    e['receiptUrl'] = e.pop('receipt_url', None)
+    return e

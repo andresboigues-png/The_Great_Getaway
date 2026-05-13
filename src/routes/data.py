@@ -20,6 +20,8 @@ from helpers import (
     can_edit_trip,
     ensure_owner_member_row,
     ensure_user_exists,
+    serialize_expense_row,
+    serialize_trip_row,
     unwrap_legacy_plan_text,
 )
 
@@ -357,32 +359,16 @@ def get_data():
 
         trips = []
         for r in trips_rows:
-            t = dict(r)
-            t['ownerId'] = t.get('user_id')
-            t['isPublic'] = bool(t.pop('is_public'))
-            t['placeId'] = t.pop('place_id', None)
-            viewport_raw = t.pop('viewport_json', None)
-            t['viewport'] = json.loads(viewport_raw) if viewport_raw else None
-            types_raw = t.pop('place_types', None)
-            t['placeTypes'] = json.loads(types_raw) if types_raw else None
-            t['countryCode'] = t.pop('country_code', None)
-            companions_raw = t.pop('companions_json', None)
-            t['companions'] = json.loads(companions_raw) if companions_raw else []
-            marked_raw = t.pop('marked_places_json', None)
-            t['markedPlaces'] = json.loads(marked_raw) if marked_raw else []
-            documents_raw = t.pop('documents_json', None)
-            t['documents'] = json.loads(documents_raw) if documents_raw else []
-            photos_raw = t.pop('photos_json', None)
-            t['photos'] = json.loads(photos_raw) if photos_raw else []
-            checklist_raw = t.pop('checklist_json', None)
-            t['checklist'] = json.loads(checklist_raw) if checklist_raw else []
+            # Common camelCase shaping — see helpers.py for the canonical
+            # field list. The owner-only and request-scoped extras below
+            # (actionsHidden, share*, myRole/myArchived/members) are
+            # deliberately NOT in the helper; they are appended here
+            # because /api/public-trip must NOT expose them.
+            t = serialize_trip_row(r)
             # Privacy flag — read at trip scope (one bool per trip,
-            # set by the owner).
+            # set by the owner). Owner-only field; not in the public
+            # shaper.
             t['actionsHidden'] = bool(t.pop('actions_hidden', 0))
-            # Custom cover photo URL (post-Phase-C feature). NULL for
-            # legacy rows, surfaced as `coverUrl` so frontend reads
-            # without the snake_case translation.
-            t['coverUrl'] = t.pop('cover_url', None)
             # §4.1 — share-via-link state. shareToken is NULL until the
             # owner generates a link via the Share modal; the frontend
             # reads it to decide whether to render the "Get share link"
@@ -390,6 +376,7 @@ def get_data():
             # (token present). shareViews powers the views chip on the
             # home + collections cards. shareShowCost mirrors the
             # privacy toggle so the modal can reflect the current state.
+            # ALL owner-only — must not leak through serialize_trip_row.
             t['shareToken'] = t.pop('share_token', None)
             t['shareViews'] = int(t.pop('share_views', 0) or 0)
             t['shareShowCost'] = bool(t.pop('share_show_cost', 0))
@@ -426,27 +413,16 @@ def get_data():
             ]
             trips.append(t)
 
-        # Get all expenses for these trips
+        # Get all expenses for these trips. snake_case → camelCase is
+        # handled by `serialize_expense_row` (shared with
+        # routes/public.py so both reads stay in lockstep — pre-§3.5
+        # the two had silently drifted).
         trip_ids = [t['id'] for t in trips]
         expenses = []
         if trip_ids:
             placeholders = ','.join(['?'] * len(trip_ids))
             cursor.execute(f"SELECT * FROM expenses WHERE trip_id IN ({placeholders})", trip_ids)
-            expenses = [dict(row) for row in cursor.fetchall()]
-            # Translate snake_case columns → camelCase for the
-            # frontend. Up until the post-Phase-C feature work this
-            # was missing for expenses (long-standing inconsistency —
-            # the frontend's `e.tripId` filter would silently return
-            # empty on fresh-pull because the row carried `trip_id`).
-            # Days were already translated below; matching the
-            # convention here. Receipts work today (and the
-            # archived-detail page shows expenses on cold-load) only
-            # because of this fix.
-            for e in expenses:
-                e['tripId'] = e.pop('trip_id', None)
-                e['categoryId'] = e.pop('category_id', None)
-                e['euroValue'] = e.pop('euro_value', None)
-                e['receiptUrl'] = e.pop('receipt_url', None)
+            expenses = [serialize_expense_row(row) for row in cursor.fetchall()]
 
         # Get categories
         cursor.execute("SELECT id, name, icon, color FROM categories WHERE user_id = ?", (user_id,))

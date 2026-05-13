@@ -16,7 +16,11 @@ from flask import Blueprint, jsonify
 
 from auth import current_user_id
 from database import get_db
-from helpers import unwrap_legacy_plan_text
+from helpers import (
+    serialize_expense_row,
+    serialize_trip_row,
+    unwrap_legacy_plan_text,
+)
 
 
 bp = Blueprint("public", __name__)
@@ -82,29 +86,19 @@ def get_public_trip(trip_id):
         if not is_visible:
             return jsonify({"error": "Not found"}), 404
 
-        # Frontend-shape the trip row. Same field-renaming the main
-        # /api/data path uses; kept inline rather than refactored
-        # because that path is large and tangled — extracting now
-        # would balloon this PR's surface area.
-        trip['ownerId'] = owner_id
-        trip['isPublic'] = is_public
-        trip['placeId'] = trip.pop('place_id', None)
-        viewport_raw = trip.pop('viewport_json', None)
-        trip['viewport'] = json.loads(viewport_raw) if viewport_raw else None
-        types_raw = trip.pop('place_types', None)
-        trip['placeTypes'] = json.loads(types_raw) if types_raw else None
-        trip['countryCode'] = trip.pop('country_code', None)
-        companions_raw = trip.pop('companions_json', None)
-        trip['companions'] = json.loads(companions_raw) if companions_raw else []
-        marked_raw = trip.pop('marked_places_json', None)
-        trip['markedPlaces'] = json.loads(marked_raw) if marked_raw else []
-        documents_raw = trip.pop('documents_json', None)
-        trip['documents'] = json.loads(documents_raw) if documents_raw else []
-        photos_raw = trip.pop('photos_json', None)
-        trip['photos'] = json.loads(photos_raw) if photos_raw else []
-        checklist_raw = trip.pop('checklist_json', None)
-        trip['checklist'] = json.loads(checklist_raw) if checklist_raw else []
+        # Frontend-shape the trip row. Common camelCase fields come
+        # from `serialize_trip_row` (shared with routes/data.py — §3.5).
+        # Public surface notes:
+        #   - isArchived is per-trip here (not per-user-member) because
+        #     the public viewer has no membership context.
+        #   - actions_hidden is owner-only metadata — strip it so it
+        #     never reaches a non-member viewer.
+        #   - user_id is preserved by the helper for caller-side role
+        #     logic; the public endpoint already encoded ownerId, so
+        #     drop the raw column to avoid double-exposure.
+        trip = serialize_trip_row(trip)
         trip['isArchived'] = bool(trip.pop('is_archived', False))
+        trip.pop('actions_hidden', None)
         trip.pop('user_id', None)
 
         # Owner display info (name + picture) so the read-only page can
