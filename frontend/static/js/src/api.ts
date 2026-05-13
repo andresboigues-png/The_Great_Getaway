@@ -38,6 +38,16 @@ export const setAuthToken = (token: string | null | undefined): void => {
 export const clearAuthToken = (): void => {
     try { localStorage.removeItem(TOKEN_KEY); }
     catch { /* private mode: nothing to clear */ }
+    // §4.10 — wipe the SW's per-user API cache on logout. Without this,
+    // a shared device where Alice logs out + Bob logs in would briefly
+    // serve Bob a stale /api/data with Alice's trips before the network
+    // round-trip completes. Best-effort — SW may not be installed
+    // (dev mode, opt-out), or the postMessage may race the unload.
+    try {
+        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+            navigator.serviceWorker.controller.postMessage({ type: 'CLEAR_API_CACHE' });
+        }
+    } catch { /* SW not registered yet — fine */ }
 };
 
 /** Merge Authorization: Bearer <token> into an options object's headers,
