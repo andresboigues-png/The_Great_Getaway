@@ -280,6 +280,18 @@ body {
     font-size: 1.2rem;
     font-weight: 600;
     letter-spacing: -0.01em;
+    /* Brand wordmark inherits the same blue → orange → green
+       gradient the mobile copy already uses (see the @media block
+       further down). Pre-fix the desktop copy was a solid white via
+       the .glass token — visually inconsistent with mobile, where
+       the gradient has been the brand signature since the round-3
+       reorg. Same three colour stops (#0071e3, #ff9500, #34c759)
+       so the brand identity reads the same regardless of viewport.
+       Font + font-size are unchanged. */
+    background: linear-gradient(135deg, #0071e3 0%, #ff9500 50%, #34c759 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
 }
 
 .nav-links {
@@ -886,6 +898,20 @@ h1 {
     padding: 14px 0 18px;
     gap: 6px;
     overflow-y: auto;
+}
+/* Vertically centre the nav items as a group while keeping the
+   profile pinned to the bottom. The trick: two auto-margins on
+   opposite "tops" — one above the first child and one above the
+   profile (last child). Flexbox splits the available leftover
+   space equally between both auto-margins, putting half above
+   the first item and half above the profile. Net effect: the
+   nav-item stack floats in the vertical middle, profile still
+   hugs the bottom edge.
+
+   Pre-fix the items were top-aligned because only the profile
+   had `margin-top: auto`. */
+.sidebar-rail > :first-child {
+    margin-top: auto;
 }
 .sidebar-rail__item {
     flex-shrink: 0;
