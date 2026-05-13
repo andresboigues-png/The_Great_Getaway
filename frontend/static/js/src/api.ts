@@ -206,6 +206,41 @@ export async function pullFromServer() {
         STATE.budgets = data.budgets || [];
         STATE.tripDays = data.tripDays || [];
 
+        // Self-heal duplicate Day-0 (Anchor) rows across ALL trips
+        // (active + archived). The home.ts dedup at line ~1330 only
+        // fires for the active trip — duplicates on archived trips
+        // would persist forever, rendering the archived-trip detail
+        // page with multiple "⚓ Anchor" cards because both rows have
+        // dayNumber=0. Run a global pass here so the dedup self-heals
+        // regardless of which trip is currently active.
+        const _day0sByTrip: Record<string, any[]> = {};
+        for (const d of STATE.tripDays) {
+            if (Number(d.dayNumber) !== 0) continue;
+            (_day0sByTrip[d.tripId] ||= []).push(d);
+        }
+        const _duplicateDay0Ids: string[] = [];
+        for (const tripId in _day0sByTrip) {
+            const day0s = _day0sByTrip[tripId]!;
+            if (day0s.length <= 1) continue;
+            // Keep the first (matches home.ts:1331 sliced-from-1 semantics),
+            // mark the rest for deletion both locally and on the server.
+            for (const dup of day0s.slice(1)) {
+                _duplicateDay0Ids.push(dup.id);
+            }
+        }
+        if (_duplicateDay0Ids.length > 0) {
+            STATE.tripDays = STATE.tripDays.filter(d => !_duplicateDay0Ids.includes(d.id));
+            // Fire-and-forget cleanup on the server. We deliberately
+            // don't `await` — the rest of the pull shouldn't wait on
+            // network N+1 for a self-heal that runs at most once per
+            // legacy duplicate. The server's delete_day handler is
+            // idempotent (returns {status: deleted} for unknown ids)
+            // so a second pull after we deleted locally is a no-op.
+            for (const id of _duplicateDay0Ids) {
+                deleteDayOnServer(id);
+            }
+        }
+
         // Populate per-trip snapshots on archived trips so
         // collections.js renderArchivedTripDetail (which reads
         // trip.tripDays / trip.expenses directly off the trip
