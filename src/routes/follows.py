@@ -174,16 +174,31 @@ def get_follow_status(user_id):
     the profile page on its first render. Public-profile bundles the
     same data into its own response so a friend's profile renders
     without a second round-trip; this endpoint is here for surfaces
-    that want just the social stats."""
+    that want just the social stats.
+
+    Opt-in `?include=lists` adds the three "Your network" buckets to
+    the response: `mutuals` (= friends), `followersOnly`, and
+    `followingOnly`. Each is a list of {id, name, email, picture}
+    dicts. Buckets are mutually exclusive by construction (a mutual
+    never appears in followersOnly/followingOnly). The Friends page
+    passes the flag; the profile page omits it so the response stays
+    counts-only for that surface.
+    """
+    from flask import request as _req
     caller_id = current_user_id()
+    include_lists = _req.args.get("include") == "lists"
     with get_db() as conn:
         cursor = conn.cursor()
         if not ensure_user_exists(cursor, user_id):
             return jsonify({"error": "Not found"}), 404
         counts = follower_counts(cursor, user_id)
         following = is_following(cursor, caller_id, user_id) if caller_id else False
-    return jsonify({
-        "isFollowing": following,
-        "followers": counts["followers"],
-        "following": counts["following"],
-    })
+        payload = {
+            "isFollowing": following,
+            "followers": counts["followers"],
+            "following": counts["following"],
+        }
+        if include_lists:
+            from social import network_lists
+            payload.update(network_lists(cursor, user_id))
+    return jsonify(payload)

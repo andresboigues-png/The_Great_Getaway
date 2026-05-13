@@ -4414,6 +4414,91 @@ def test_follow_requires_auth(client):
     assert client.get("/api/follows/anyone", headers=no_token).status_code == 401
 
 
+def test_follow_status_with_include_lists(
+    client, seed_user, seed_other_user, auth_headers,
+):
+    """Opt-in `?include=lists` returns the three "Your network" buckets:
+    mutuals (= friends), followersOnly, followingOnly. Mutually
+    exclusive — a mutual never appears in followersOnly/followingOnly.
+    Used by the Friends page to populate its 3 sections in one
+    round-trip."""
+    from auth import issue_token
+    from database import get_db
+
+    # Seed a third user we'll use for the one-way relationships.
+    third = "third-user"
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO users (id, email, name) VALUES (?, ?, ?)",
+            (third, "third@x.com", "Third"),
+        )
+        conn.commit()
+    third_headers = {"Authorization": f"Bearer {issue_token(third)}"}
+
+    # Build a graph:
+    #   seed_user <-> seed_other_user   (mutual)
+    #   third → seed_user               (follower-only of seed_user)
+    #   seed_user → third               (NO — keep one-way so 'third'
+    #                                    lands in followersOnly)
+    # We want third in followersOnly (third follows seed_user; seed
+    # doesn't follow third back).
+    other_auth_headers = {
+        "Authorization": f"Bearer {issue_token(seed_other_user)}",
+    }
+    client.post(f"/api/follows/{seed_other_user}", headers=auth_headers)
+    client.post(f"/api/follows/{seed_user}", headers=other_auth_headers)
+    client.post(f"/api/follows/{seed_user}", headers=third_headers)
+
+    # And another one-way: seed_user → (a new user we'll create just
+    # for the test), to test followingOnly.
+    fourth = "fourth-user"
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO users (id, email, name) VALUES (?, ?, ?)",
+            (fourth, "fourth@x.com", "Fourth"),
+        )
+        conn.commit()
+    client.post(f"/api/follows/{fourth}", headers=auth_headers)
+
+    res = client.get(
+        f"/api/follows/{seed_user}?include=lists",
+        headers=auth_headers,
+    )
+    assert res.status_code == 200
+    body = res.get_json()
+    # Counts still present.
+    assert body["followers"] == 2  # seed_other_user + third
+    assert body["following"] == 2  # seed_other_user + fourth
+
+    # Buckets:
+    mutuals_ids = {m["id"] for m in body["mutuals"]}
+    followers_only_ids = {m["id"] for m in body["followersOnly"]}
+    following_only_ids = {m["id"] for m in body["followingOnly"]}
+    assert mutuals_ids == {seed_other_user}
+    assert followers_only_ids == {third}
+    assert following_only_ids == {fourth}
+
+    # Buckets mutually exclusive — a mutual is never in the one-way lists.
+    assert mutuals_ids.isdisjoint(followers_only_ids)
+    assert mutuals_ids.isdisjoint(following_only_ids)
+
+
+def test_follow_status_without_include_lists_omits_buckets(
+    client, seed_user, seed_other_user, auth_headers,
+):
+    """Default (no `?include=lists`) response stays counts-only.
+    Profile page reads via this path; the lists would bloat the
+    response there without callers."""
+    client.post(f"/api/follows/{seed_other_user}", headers=auth_headers)
+    res = client.get(f"/api/follows/{seed_user}", headers=auth_headers)
+    body = res.get_json()
+    assert "followers" in body
+    assert "following" in body
+    assert "mutuals" not in body
+    assert "followersOnly" not in body
+    assert "followingOnly" not in body
+
+
 # ── Model B — friends-as-mutuals semantics ───────────────────────────
 # These tests pin the Model B contract: /api/friends/* is a façade
 # over `follows`, "friend" = mutual follow, and the feed surfaces

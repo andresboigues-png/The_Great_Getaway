@@ -89,24 +89,19 @@ function Avatar({ user, size = 44 }: { user: { name?: string; email?: string; pi
 
 interface UserCardProps {
     user: FriendRow;
-    variant?: 'neutral' | 'pending' | 'search';
+    /** Visual variant — `neutral` for owned-list rows, `search` for
+     *  the "found a user" cards in the search section. The legacy
+     *  `pending` variant is gone under Model B (no pending state). */
+    variant?: 'neutral' | 'search';
     onClick?: () => void;
     rightSide?: React.ReactNode;
     rowClass?: string;
 }
 function UserCard({ user, variant = 'neutral', onClick, rightSide, rowClass = '' }: UserCardProps) {
-    const bg =
-        variant === 'pending'
-            ? 'rgba(255,159,10,0.06)'
-            : variant === 'search'
-              ? 'rgba(0,113,227,0.04)'
-              : 'white';
-    const border =
-        variant === 'pending'
-            ? '1px solid rgba(255,159,10,0.22)'
-            : variant === 'search'
-              ? '1px solid rgba(0,113,227,0.16)'
-              : '1px solid rgba(0,0,0,0.06)';
+    const bg = variant === 'search' ? 'rgba(0,113,227,0.04)' : 'white';
+    const border = variant === 'search'
+        ? '1px solid rgba(0,113,227,0.16)'
+        : '1px solid rgba(0,0,0,0.06)';
     const clickable = !!onClick;
     // D3 a11y: when rightSide has its own interactive controls (e.g.
     // the "remove friend" button), making the whole row role="button"
@@ -191,33 +186,41 @@ function UserCard({ user, variant = 'neutral', onClick, rightSide, rowClass = ''
 export function Friends() {
     const navigate = useNavigate();
     const user = useStore((s) => s.user);
-    const [friends, setFriends] = useState<FriendRow[]>([]);
-    const [pending, setPending] = useState<FriendRow[]>([]);
+
+    // ── Three buckets — followers (one-way in), following (one-way
+    // out), mutuals (= friends). Source of truth is the server's
+    // /api/follows/<me>?include=lists endpoint, which pre-diffs the
+    // buckets so a mutual never appears in the one-way lists. ──
+    const [followers, setFollowers] = useState<FriendRow[]>([]);
+    const [following, setFollowing] = useState<FriendRow[]>([]);
+    const [mutuals, setMutuals] = useState<FriendRow[]>([]);
+
     const [searchQuery, setSearchQuery] = useState('');
     const [searchStatus, setSearchStatus] = useState<SearchStatus>({ kind: 'idle' });
 
-    const updateFriendsList = async () => {
+    const updateNetwork = async () => {
         if (!user) return;
         try {
-            const [resFriends, resPending] = await Promise.all([
-                apiFetch('/api/friends/list'),
-                apiFetch('/api/friends/pending'),
-            ]);
-            setFriends(await resFriends.json());
-            setPending(await resPending.json());
+            const res = await apiFetch(
+                `/api/follows/${encodeURIComponent(user.id)}?include=lists`,
+            );
+            const data = await res.json();
+            setFollowers(data.followersOnly || []);
+            setFollowing(data.followingOnly || []);
+            setMutuals(data.mutuals || []);
         } catch (e) {
-            console.error('Error loading friends:', e);
+            console.error('Error loading network:', e);
         }
     };
 
     useEffect(() => {
-        updateFriendsList();
-        // updateFriendsList captures a stable user via closure; re-fetching
+        updateNetwork();
+        // updateNetwork captures a stable user via closure; re-fetching
         // when user identity changes is the right intent.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user?.id]);
 
-    const searchForFriend = async () => {
+    const searchForUsers = async () => {
         if (!user) return;
         const query = searchQuery.trim();
         if (!query) {
@@ -229,9 +232,13 @@ export function Friends() {
             const res = await apiFetch(`/api/friends/search?q=${encodeURIComponent(query)}`);
             const allUsers = await res.json();
             const others = allUsers.filter((u: { id: string }) => u.id !== user.id);
+            // Known = already-followed (mutuals + following) — we
+            // don't filter out followers-only here because the user
+            // explicitly might want to follow them BACK from the
+            // search affordance.
             const known = new Set([
-                ...friends.map((f) => f.id),
-                ...pending.map((p) => p.id),
+                ...mutuals.map((m) => m.id),
+                ...following.map((f) => f.id),
             ]);
             const sendable = others.filter((u: { id: string }) => !known.has(u.id));
             if (others.length === 0) {
@@ -248,9 +255,12 @@ export function Friends() {
         }
     };
 
-    const sendFriendRequest = async (friendId: string) => {
-        if (!user || !friendId) return;
-        if (friendId === user.id) {
+    /** Follow a user. Works for both "follow someone from search"
+     *  AND "follow back a one-way follower" — same primitive either
+     *  way, the endpoint is idempotent. */
+    const followUser = async (targetId: string) => {
+        if (!user || !targetId) return;
+        if (targetId === user.id) {
             showLiquidAlert(t('friends.toastSelfRequest'));
             return;
         }
@@ -258,17 +268,14 @@ export function Friends() {
             const res = await apiFetch('/api/friends/add', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ friend_id: friendId }),
+                body: JSON.stringify({ friend_id: targetId }),
             });
             const data = await res.json();
             if (data.status === 'success') {
                 setSearchQuery('');
                 setSearchStatus({ kind: 'sent' });
-                updateFriendsList();
+                updateNetwork();
             } else if (data.status === 'error') {
-                // Server messages (data.message) come from the API and
-                // are passed through as-is — they're typically already
-                // user-readable. Generic fallback localized via t().
                 showLiquidAlert(data.message || t('friends.toastSendFailed'));
             }
         } catch (e) {
@@ -276,73 +283,28 @@ export function Friends() {
         }
     };
 
-    const acceptFriendRequest = async (friendId: string) => {
-        if (!user || !friendId) return;
-        try {
-            const res = await apiFetch('/api/friends/accept', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ friend_id: friendId }),
-            });
-            const data = await res.json();
-            if (data.status === 'success') {
-                showLiquidAlert(t('friends.toastAccepted'));
-                updateFriendsList();
-            } else {
-                showLiquidAlert(data.message || t('friends.toastAcceptFailed'));
-            }
-        } catch (e) {
-            console.error('Error accepting friend:', e);
-            showLiquidAlert(t('friends.toastAcceptFailedNetwork'));
-        }
-    };
-
-    const rejectFriendRequest = (friendId: string, friendName: string) => {
-        if (!user || !friendId) return;
-        showConfirmModal({
-            title: t('friends.toastRejectConfirmTitle'),
-            // i18n session 4: closed the loose end with a {name}-
-            // interpolated key. Body localizes per active locale.
-            message: t('friends.toastRejectConfirmMessage', { name: friendName }),
-            confirmText: t('friends.toastRejectConfirmBtn'),
-            onConfirm: async () => {
-                // Optimistic local removal
-                setPending((curr) => curr.filter((p) => p.id !== friendId));
-                try {
-                    const res = await apiFetch('/api/friends/reject', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ friend_id: friendId }),
-                    });
-                    const data = await res.json();
-                    if (data.status === 'success') {
-                        showLiquidAlert(t('friends.toastRejectDone'));
-                    } else {
-                        showLiquidAlert(data.message || t('friends.toastRejectFailed'));
-                    }
-                } catch (err) {
-                    showLiquidAlert(t('friends.toastRejectFailedNetwork'));
-                }
-                updateFriendsList();
-            },
-        });
-    };
-
-    const removeFriend = (friendId: string, friendName: string) => {
-        if (!user || !friendId) return;
+    /** Unfollow a user. Used by both the Following section and the
+     *  Friends (mutuals) section — same primitive. When called from
+     *  Friends, breaking my-side of the mutual demotes the pair to
+     *  "they still follow me" (i.e. the other party moves from the
+     *  Friends section into Followers). */
+    const unfollowUser = (targetId: string, displayName: string) => {
+        if (!user || !targetId) return;
         showConfirmModal({
             title: t('friends.toastRemoveConfirmTitle'),
-            // i18n session 4: closed the loose end with a {name}-
-            // interpolated key.
-            message: t('friends.toastRemoveConfirmMessage', { name: friendName }),
+            message: t('friends.toastRemoveConfirmMessage', { name: displayName }),
             confirmText: t('friends.toastRemoveConfirmBtn'),
             onConfirm: async () => {
-                setFriends((curr) => curr.filter((f) => f.id !== friendId));
+                // Optimistic: remove from both following + mutuals.
+                // The server response will reconcile via updateNetwork()
+                // below.
+                setFollowing((curr) => curr.filter((u) => u.id !== targetId));
+                setMutuals((curr) => curr.filter((u) => u.id !== targetId));
                 try {
                     const res = await apiFetch('/api/friends/remove', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ friend_id: friendId }),
+                        body: JSON.stringify({ friend_id: targetId }),
                     });
                     const data = await res.json();
                     if (data.status === 'success') {
@@ -353,7 +315,7 @@ export function Friends() {
                 } catch (err) {
                     showLiquidAlert(t('friends.toastRemoveFailedNetwork'));
                 }
-                updateFriendsList();
+                updateNetwork();
             },
         });
     };
@@ -372,7 +334,9 @@ export function Friends() {
                 </p>
             </div>
 
-            {/* Stat chips */}
+            {/* Stat chips — three buckets, all visible. Mutuals
+                (the friends label) gets the brand-blue accent; the
+                one-way buckets get neutral chip styling. */}
             <div style={{ marginTop: '16px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                 <span
                     style={{
@@ -380,9 +344,6 @@ export function Friends() {
                         alignItems: 'center',
                         gap: '8px',
                         background: 'rgba(0,113,227,0.08)',
-                        // D3 contrast: var(--accent-blue) on rgba(0,113,227,0.08)
-                        // overlay was 3.86:1 (fails WCAG AA). Darker brand blue
-                        // (#005bb8) clears 5.3:1 and stays in the same family.
                         color: '#005bb8',
                         padding: '6px 14px',
                         borderRadius: '999px',
@@ -391,26 +352,40 @@ export function Friends() {
                     }}
                 >
                     <span style={{ fontSize: '0.95rem', lineHeight: 1 }}>👥</span>
-                    {friends.length} {tn('profile.friendsLabel', friends.length)}
+                    {mutuals.length} {tn('profile.friendsLabel', mutuals.length)}
                 </span>
-                {pending.length > 0 && (
-                    <span
-                        style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '8px',
-                            background: 'rgba(255,159,10,0.1)',
-                            color: '#a35200',
-                            padding: '6px 14px',
-                            borderRadius: '999px',
-                            fontSize: '0.82rem',
-                            fontWeight: 800,
-                        }}
-                    >
-                        <span style={{ fontSize: '0.95rem', lineHeight: 1 }}>⏳</span>
-                        {pending.length} {t('friends.statPending')}
-                    </span>
-                )}
+                <span
+                    style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        background: 'rgba(0,0,0,0.04)',
+                        color: '#002d5b',
+                        padding: '6px 14px',
+                        borderRadius: '999px',
+                        fontSize: '0.82rem',
+                        fontWeight: 800,
+                    }}
+                >
+                    <span style={{ fontSize: '0.95rem', lineHeight: 1 }}>👋</span>
+                    {followers.length + mutuals.length} followers
+                </span>
+                <span
+                    style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        background: 'rgba(0,0,0,0.04)',
+                        color: '#002d5b',
+                        padding: '6px 14px',
+                        borderRadius: '999px',
+                        fontSize: '0.82rem',
+                        fontWeight: 800,
+                    }}
+                >
+                    <span style={{ fontSize: '0.95rem', lineHeight: 1 }}>🧭</span>
+                    {following.length + mutuals.length} following
+                </span>
             </div>
 
             {/* Search section */}
@@ -478,7 +453,7 @@ export function Friends() {
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             onKeyUp={(e) => {
-                                if (e.key === 'Enter') searchForFriend();
+                                if (e.key === 'Enter') searchForUsers();
                             }}
                             placeholder="Email of the friend you want to add…"
                             style={{
@@ -497,7 +472,7 @@ export function Friends() {
                     </div>
                     <button
                         type="button"
-                        onClick={searchForFriend}
+                        onClick={searchForUsers}
                         style={{
                             background: 'var(--accent-blue)',
                             color: 'white',
@@ -570,7 +545,7 @@ export function Friends() {
                                 border: '1px solid rgba(52,199,89,0.22)',
                             }}
                         >
-                            ✓ Request sent!
+                            ✓ Now following.
                         </div>
                     )}
                     {searchStatus.kind === 'error' && (
@@ -595,7 +570,7 @@ export function Friends() {
                                     rightSide={
                                         <button
                                             type="button"
-                                            onClick={() => sendFriendRequest(u.id)}
+                                            onClick={() => followUser(u.id)}
                                             style={{
                                                 background: 'var(--accent-blue)',
                                                 color: 'white',
@@ -619,230 +594,229 @@ export function Friends() {
                 </div>
             </div>
 
-            {/* Pending requests — auto-hidden when empty */}
-            {pending.length > 0 && (
-                <div
-                    className="card glass"
-                    style={{
-                        marginTop: '18px',
-                        padding: '22px 24px',
-                        borderRadius: '28px',
-                        background:
-                            'linear-gradient(135deg, rgba(255,159,10,0.05), rgba(255,214,10,0.03))',
-                        border: '1px solid rgba(255,159,10,0.18)',
-                    }}
-                >
-                    <div
+            {/* Section 1 — Followers (one-way in). People who follow
+                me but I don't follow back. Each row shows a "Follow
+                back" button that promotes the relationship to mutual
+                (i.e. the person moves into the Friends section on the
+                next refresh). Clicking the row navigates to their
+                profile, same as the other sections. */}
+            <NetworkSection
+                title={t('friends.followersOnlyTitle')}
+                hint={t('friends.followersOnlyHint')}
+                rows={followers}
+                emptyTitle={t('friends.followersOnlyEmptyTitle')}
+                emptyBody={t('friends.followersOnlyEmptyBody')}
+                emoji="👋"
+                onRowClick={(u) => navigate('profile', { userId: u.id })}
+                renderRowAction={(u) => (
+                    <button
+                        type="button"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            followUser(u.id);
+                        }}
                         style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            marginBottom: '14px',
+                            background: 'var(--accent-blue)',
+                            color: 'white',
+                            border: 0,
+                            padding: '7px 14px',
+                            borderRadius: '999px',
+                            fontWeight: 800,
+                            fontSize: '0.76rem',
+                            cursor: 'pointer',
+                            flexShrink: 0,
+                            boxShadow: '0 4px 12px rgba(0,113,227,0.22)',
                         }}
                     >
-                        <h3
-                            style={{
-                                margin: 0,
-                                fontSize: '1.05rem',
-                                color: '#a35200',
-                                fontWeight: 800,
-                                letterSpacing: '-0.02em',
-                            }}
-                        >
-                            {t('friends.pendingTitle')}
-                        </h3>
-                        <span
-                            style={{
-                                fontSize: '0.7rem',
-                                fontWeight: 800,
-                                color: '#a35200',
-                                textTransform: 'uppercase',
-                                letterSpacing: '0.1em',
-                            }}
-                        >
-                            {t('friends.pendingNeedReply')}
-                        </span>
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        {pending.map((p) => (
-                            <UserCard
-                                key={p.id}
-                                user={p}
-                                variant="pending"
-                                rightSide={
-                                    <div
-                                        style={{
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '8px',
-                                            flexShrink: 0,
-                                        }}
-                                    >
-                                        <button
-                                            className="reject-friend-btn icon-btn-circle"
-                                            type="button"
-                                            onClick={() =>
-                                                rejectFriendRequest(p.id, p.name || p.email || 'this person')
-                                            }
-                                            style={{ ['--accent' as any]: '255,59,48' }}
-                                            title={t('friends.rejectRequestTooltip')}
-                                            aria-label={t('friends.rejectRequestAriaLabel')}
-                                        >
-                                            <svg
-                                                width="14"
-                                                height="14"
-                                                viewBox="0 0 24 24"
-                                                fill="none"
-                                                stroke="currentColor"
-                                                strokeWidth="3"
-                                                strokeLinecap="round"
-                                                strokeLinejoin="round"
-                                                aria-hidden="true"
-                                            >
-                                                <line x1="18" y1="6" x2="6" y2="18"></line>
-                                                <line x1="6" y1="6" x2="18" y2="18"></line>
-                                            </svg>
-                                        </button>
-                                        <button
-                                            className="accept-friend-btn icon-btn-circle icon-btn-circle--glow-success"
-                                            type="button"
-                                            onClick={() => acceptFriendRequest(p.id)}
-                                            style={{ ['--accent' as any]: '52,199,89' }}
-                                            title={t('friends.acceptRequestTooltip')}
-                                            aria-label={t('friends.acceptRequestAriaLabel')}
-                                        >
-                                            <svg
-                                                width="14"
-                                                height="14"
-                                                viewBox="0 0 24 24"
-                                                fill="none"
-                                                stroke="currentColor"
-                                                strokeWidth="3"
-                                                strokeLinecap="round"
-                                                strokeLinejoin="round"
-                                                aria-hidden="true"
-                                            >
-                                                <polyline points="20 6 9 17 4 12"></polyline>
-                                            </svg>
-                                        </button>
-                                    </div>
-                                }
-                            />
-                        ))}
-                    </div>
-                </div>
-            )}
+                        {t('friends.followBackBtn')}
+                    </button>
+                )}
+            />
 
-            {/* Your friends */}
+            {/* Section 2 — Following (one-way out). People I follow
+                who don't follow me back. Action button: Unfollow. */}
+            <NetworkSection
+                title={t('friends.followingOnlyTitle')}
+                hint={t('friends.followingOnlyHint')}
+                rows={following}
+                emptyTitle={t('friends.followingOnlyEmptyTitle')}
+                emptyBody={t('friends.followingOnlyEmptyBody')}
+                emoji="🧭"
+                onRowClick={(u) => navigate('profile', { userId: u.id })}
+                renderRowAction={(u) => (
+                    <UnfollowButton
+                        onClick={() => unfollowUser(u.id, u.name || u.email || 'this user')}
+                    />
+                )}
+            />
+
+            {/* Section 3 — Friends (mutuals). The Model B equivalent
+                of pre-fix friends — mutual-follow pairs. Unfollow
+                here demotes them to a one-way follower (they still
+                follow me, I no longer follow them). */}
+            <NetworkSection
+                title={t('friends.friendsTitle')}
+                hint={t('friends.friendsHint')}
+                rows={mutuals}
+                emptyTitle={t('friends.friendsEmptyTitle')}
+                emptyBody={t('friends.friendsEmptyBody')}
+                emoji="🤝"
+                emptyAccent="blue"
+                onRowClick={(u) => navigate('profile', { userId: u.id })}
+                renderRowAction={(u) => (
+                    <UnfollowButton
+                        onClick={() => unfollowUser(u.id, u.name || u.email || 'this friend')}
+                    />
+                )}
+            />
+        </div>
+    );
+}
+
+
+// ── Reusable section + unfollow button (kept inline because they
+//    are only used by this file and would be one-step-removed
+//    indirection in their own module). ──────────────────────────
+
+
+interface NetworkSectionProps {
+    title: string;
+    hint: string;
+    rows: FriendRow[];
+    emptyTitle: string;
+    emptyBody: string;
+    emoji: string;
+    emptyAccent?: 'blue' | 'purple' | 'orange';
+    onRowClick: (u: FriendRow) => void;
+    renderRowAction: (u: FriendRow) => React.ReactNode;
+}
+
+/** Card-wrapped section with a title row + a count chip + a list of
+ *  UserCard rows (or an EmptyState when the list is empty). Same
+ *  visual treatment as the legacy "Your friends" card so the page
+ *  reads as three peers of one shape. */
+function NetworkSection({
+    title, hint, rows, emptyTitle, emptyBody, emoji,
+    emptyAccent = 'blue', onRowClick, renderRowAction,
+}: NetworkSectionProps) {
+    return (
+        <div
+            className="card glass"
+            style={{ marginTop: '18px', padding: '22px 24px', borderRadius: '28px' }}
+        >
             <div
-                className="card glass"
-                style={{ marginTop: '18px', padding: '22px 24px', borderRadius: '28px' }}
+                style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    marginBottom: '14px',
+                    gap: '12px',
+                }}
             >
-                <div
+                <h3
                     style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        marginBottom: '14px',
+                        margin: 0,
+                        fontSize: '1.05rem',
+                        color: '#002d5b',
+                        fontWeight: 800,
+                        letterSpacing: '-0.02em',
                     }}
                 >
-                    <h3
-                        style={{
-                            margin: 0,
-                            fontSize: '1.05rem',
-                            color: '#002d5b',
-                            fontWeight: 800,
-                            letterSpacing: '-0.02em',
-                        }}
-                    >
-                        {t('friends.yourFriendsTitle')}
-                    </h3>
-                    <span
-                        style={{
-                            fontSize: '0.7rem',
-                            fontWeight: 800,
-                            color: 'var(--text-secondary)',
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.1em',
-                        }}
-                    >
-                        Click any to view profile
-                    </span>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {friends.length === 0 ? (
-                        // Round 3 audit fix: was an inline ad-hoc empty
-                        // card; now uses the shared EmptyState so it
-                        // matches Todo / Budgets / Insights styling.
-                        <EmptyState
-                            accent="blue"
-                            emoji="🤝"
-                            title={t('friends.emptyTitle')}
-                            body={t('friends.emptyBody')}
-                        />
-                    ) : (
-                        friends.map((f) => (
-                            <UserCard
-                                key={f.id}
-                                user={f}
-                                variant="neutral"
-                                rowClass="friend-row"
-                                onClick={() => navigate('profile', { userId: f.id })}
-                                rightSide={
-                                    <div
-                                        style={{
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '8px',
-                                            flexShrink: 0,
-                                        }}
+                    {title}
+                </h3>
+                <span
+                    style={{
+                        fontSize: '0.7rem',
+                        fontWeight: 800,
+                        color: 'var(--text-secondary)',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.1em',
+                        textAlign: 'right',
+                    }}
+                >
+                    {rows.length} · {hint}
+                </span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {rows.length === 0 ? (
+                    <EmptyState
+                        accent={emptyAccent}
+                        emoji={emoji}
+                        title={emptyTitle}
+                        body={emptyBody}
+                    />
+                ) : (
+                    rows.map((u) => (
+                        <UserCard
+                            key={u.id}
+                            user={u}
+                            variant="neutral"
+                            rowClass="friend-row"
+                            onClick={() => onRowClick(u)}
+                            rightSide={
+                                <div
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '8px',
+                                        flexShrink: 0,
+                                    }}
+                                >
+                                    {renderRowAction(u)}
+                                    <svg
+                                        width="18"
+                                        height="18"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="rgba(0,45,91,0.3)"
+                                        strokeWidth="2.5"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        aria-hidden="true"
                                     >
-                                        <button
-                                            className="remove-friend-btn"
-                                            type="button"
-                                            title={t('friends.removeFriendTooltip')}
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                removeFriend(f.id, f.name || f.email || 'this friend');
-                                            }}
-                                            style={{
-                                                background: 'rgba(255,59,48,0.08)',
-                                                border: '1px solid rgba(255,59,48,0.22)',
-                                                color: '#ff3b30',
-                                                width: '28px',
-                                                height: '28px',
-                                                borderRadius: '50%',
-                                                cursor: 'pointer',
-                                                fontSize: '0.78rem',
-                                                fontWeight: 800,
-                                                display: 'inline-flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                padding: 0,
-                                            }}
-                                        >
-                                            ✕
-                                        </button>
-                                        <svg
-                                            width="18"
-                                            height="18"
-                                            viewBox="0 0 24 24"
-                                            fill="none"
-                                            stroke="rgba(0,45,91,0.3)"
-                                            strokeWidth="2.5"
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            aria-hidden="true"
-                                        >
-                                            <polyline points="9 18 15 12 9 6"></polyline>
-                                        </svg>
-                                    </div>
-                                }
-                            />
-                        ))
-                    )}
-                </div>
+                                        <polyline points="9 18 15 12 9 6"></polyline>
+                                    </svg>
+                                </div>
+                            }
+                        />
+                    ))
+                )}
             </div>
         </div>
+    );
+}
+
+
+/** Small round ✕ button. Used by both Following and Friends sections
+ *  to break the caller's outbound follow. Stops click propagation so
+ *  the row's navigation doesn't fire when the button is the target. */
+function UnfollowButton({ onClick }: { onClick: () => void }) {
+    return (
+        <button
+            className="remove-friend-btn"
+            type="button"
+            title={t('friends.removeFriendTooltip')}
+            onClick={(e) => {
+                e.stopPropagation();
+                onClick();
+            }}
+            style={{
+                background: 'rgba(255,59,48,0.08)',
+                border: '1px solid rgba(255,59,48,0.22)',
+                color: '#ff3b30',
+                width: '28px',
+                height: '28px',
+                borderRadius: '50%',
+                cursor: 'pointer',
+                fontSize: '0.78rem',
+                fontWeight: 800,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 0,
+            }}
+        >
+            ✕
+        </button>
     );
 }

@@ -617,49 +617,50 @@ export const en = {
         loadFailed: "Couldn't load this trip — try again in a moment.",
     },
     friends: {
-        // Page header.
-        title: 'Friends',
-        subtitle: 'Connect with other travellers. Friends can join your trips, share itineraries, and split expenses.',
-        // Stat chips.
-        statPending: 'pending',
-        // Search section.
-        findFriendsTitle: '🔍 Find friends',
+        // Page header — Model B rebrand. "Friends" used to be a
+        // distinct social tier; under Model B "friend" = mutual
+        // follow, and the page surfaces THREE relationships
+        // (Followers / Following / Friends). The umbrella name is
+        // "Your network".
+        title: 'Your network',
+        subtitle: 'Follow other travellers to fill your feed. Mutual follows become friends — share trips, split expenses, and plan together.',
+        // Search section — rebranded to "users" because under
+        // Model B the action is "follow", not "send a friend
+        // request". The search surface is open: you find any user,
+        // then choose to follow them (one-tap).
+        findFriendsTitle: '🔍 Find users',
         searchByEmailLabel: 'Search by email',
-        sendRequestBtn: '➕ Send request',
-        // Pending requests section.
-        pendingTitle: '⏳ Pending requests',
-        pendingNeedReply: 'Need your reply',
-        rejectRequestTooltip: 'Reject request',
-        rejectRequestAriaLabel: 'Reject friend request',
-        acceptRequestTooltip: 'Accept request',
-        acceptRequestAriaLabel: 'Accept friend request',
-        // Friends list section.
-        yourFriendsTitle: '👥 Your friends',
-        removeFriendTooltip: 'Remove friend',
-        // Empty state — no friends yet.
-        emptyTitle: 'No friends yet',
-        emptyBody: "Search above by email to send your first friend request — once they accept, you'll see each other's trips here.",
+        sendRequestBtn: '➕ Follow',
+        // Section: people who follow the user but the user isn't
+        // following back.
+        followersOnlyTitle: '👋 Followers',
+        followersOnlyHint: "People following you. Tap a row to view their profile or follow back.",
+        followersOnlyEmptyTitle: 'No followers yet',
+        followersOnlyEmptyBody: 'Share your trips publicly so other travellers can discover and follow you.',
+        followBackBtn: 'Follow back',
+        // Section: people the user follows who don't follow back.
+        followingOnlyTitle: '🧭 Following',
+        followingOnlyHint: "People you follow. Their public activity shows in your feed.",
+        followingOnlyEmptyTitle: 'Not following anyone yet',
+        followingOnlyEmptyBody: 'Search above to find someone, or browse the Explore tab on your feed for trip ideas.',
+        // Section: mutuals — the Model B equivalent of "friends".
+        friendsTitle: '👥 Friends',
+        friendsHint: 'Mutual follows. Tap any to view their profile.',
+        friendsEmptyTitle: 'No friends yet',
+        friendsEmptyBody: "When someone you follow follows you back, you'll appear together as friends here.",
+        removeFriendTooltip: 'Unfollow',
+        // Toasts.
+        toastSelfRequest: "You can't follow yourself.",
+        toastSendFailed: 'Failed to follow user.',
+        toastSendFailedNetwork: 'Failed to follow — try again.',
         // Card fallback when name is missing.
-        cardFallbackName: 'Friend',
-        // Toasts — request flows.
-        toastSelfRequest: "You can't send a friend request to yourself!",
-        toastSendFailed: 'Failed to send request.',
-        toastSendFailedNetwork: 'Failed to send request — try again.',
-        toastAccepted: 'Friend request accepted!',
-        toastAcceptFailed: 'Failed to accept request.',
-        toastAcceptFailedNetwork: 'Failed to accept request — try again.',
-        toastRejectConfirmTitle: 'Reject this request?',
-        toastRejectConfirmMessage: 'Decline the friend request from {name}? You can still accept later if they re-send.',
-        toastRejectConfirmBtn: 'Reject',
-        toastRejectDone: 'Request declined.',
-        toastRejectFailed: 'Could not decline.',
-        toastRejectFailedNetwork: 'Could not decline — try again.',
-        toastRemoveConfirmTitle: 'Remove this friend?',
-        toastRemoveConfirmMessage: "{name} will be removed from your friends list. They won't be notified, and you can always send a new request later.",
-        toastRemoveConfirmBtn: 'Remove',
-        toastRemoveDone: 'Friend removed.',
-        toastRemoveFailed: 'Could not remove.',
-        toastRemoveFailedNetwork: 'Could not remove — try again.',
+        cardFallbackName: 'Traveller',
+        toastRemoveConfirmTitle: 'Unfollow this user?',
+        toastRemoveConfirmMessage: "You'll stop seeing {name}'s public activity in your feed. They won't be notified, and you can follow again any time.",
+        toastRemoveConfirmBtn: 'Unfollow',
+        toastRemoveDone: 'Unfollowed.',
+        toastRemoveFailed: 'Could not unfollow.',
+        toastRemoveFailedNetwork: 'Could not unfollow — try again.',
     },
     expenses: {
         // Page header.

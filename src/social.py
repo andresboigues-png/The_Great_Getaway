@@ -117,6 +117,80 @@ def followers_of(cursor, user_id: str) -> Set[str]:
     return {r["follower_id"] for r in cursor.fetchall()}
 
 
+def network_lists(cursor, user_id: str) -> dict:
+    """Resolve the user's three "Your network" sections as a single
+    payload — mutuals (= friends), followers-only (people who follow
+    the user but aren't followed back), following-only (people the
+    user follows who don't follow back).
+
+    Lists are mutually exclusive by construction: every entry lands
+    in exactly one bucket. Each entry is shaped {id, name, email,
+    picture} so the Friends page renders without further server
+    round-trips.
+
+    Single-query implementation per direction; the diff happens in
+    Python because computing it in SQL needs a three-way union with
+    NOT EXISTS clauses that are harder to read than the equivalent
+    set difference. The row counts are bounded by the user's
+    follower/following count — small for any realistic graph.
+    """
+    if not user_id:
+        return {"mutuals": [], "followersOnly": [], "followingOnly": []}
+
+    # Followers (with display fields).
+    cursor.execute(
+        """
+        SELECT u.id, u.name, u.email, u.picture
+        FROM follows f
+        JOIN users u ON u.id = f.follower_id
+        WHERE f.followee_id = ?
+        ORDER BY u.name
+        """,
+        (user_id,),
+    )
+    followers = [dict(r) for r in cursor.fetchall()]
+    followers_by_id = {r["id"]: r for r in followers}
+
+    # Following (with display fields).
+    cursor.execute(
+        """
+        SELECT u.id, u.name, u.email, u.picture
+        FROM follows f
+        JOIN users u ON u.id = f.followee_id
+        WHERE f.follower_id = ?
+        ORDER BY u.name
+        """,
+        (user_id,),
+    )
+    following = [dict(r) for r in cursor.fetchall()]
+    following_by_id = {r["id"]: r for r in following}
+
+    follower_ids = set(followers_by_id.keys())
+    following_ids = set(following_by_id.keys())
+    mutual_ids = follower_ids & following_ids
+
+    # Mutuals — prefer the row from `following` since the names match
+    # either source identically (both are joins on `users`), but pick
+    # one deterministically. Sort alphabetically.
+    mutuals = sorted(
+        (following_by_id[i] for i in mutual_ids),
+        key=lambda r: (r.get("name") or "").lower(),
+    )
+    followers_only = sorted(
+        (r for r in followers if r["id"] not in mutual_ids),
+        key=lambda r: (r.get("name") or "").lower(),
+    )
+    following_only = sorted(
+        (r for r in following if r["id"] not in mutual_ids),
+        key=lambda r: (r.get("name") or "").lower(),
+    )
+    return {
+        "mutuals": mutuals,
+        "followersOnly": followers_only,
+        "followingOnly": following_only,
+    }
+
+
 def migrate_friends_to_follows(cursor) -> int:
     """One-shot, idempotent: convert every accepted `friends` row into
     two `follows` rows (bidirectional). Convert pending requests into
