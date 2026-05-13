@@ -6,6 +6,7 @@ import { navigate } from '../router.js';
 import { viewArchivedDetails } from './collections.js';
 import { showModal } from '../components/Modal.js';
 import { applyMapTheme } from '../theme.js';
+import { mobileSafeGestureHandling } from '../googleMapsServices.js';
 import { t, tn } from '../i18n.js';
 
 export const logout = async () => {
@@ -575,6 +576,9 @@ export function renderProfile(targetUserId: string | null | undefined = null) {
                     ];
                     const map = new google.maps.Map(mapContainer, {
                         center: { lat: 20, lng: 0 }, zoom: 2, minZoom: 2, mapTypeId: 'roadmap', disableDefaultUI: true,
+                        // Mobile: cooperative — 1-finger scrolls the profile
+                        // page, 2-finger pans the country-color map.
+                        gestureHandling: mobileSafeGestureHandling(),
                         restriction: { latLngBounds: { north: 85, south: -85, west: -180, east: 180 }, strictBounds: true },
                         styles: profileMapStyles,
                     });

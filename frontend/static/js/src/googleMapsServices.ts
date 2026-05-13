@@ -13,6 +13,34 @@
 
 const _apiKey = () => /** @type {any} */ (window).googleMapsApiKey || '';
 
+// ── Map gesture handling helper ──────────────────────────────────────
+// `cooperative` is Google Maps' "respect the surrounding scrollable
+// page" mode: on touch devices, ONE finger scrolls the page and TWO
+// fingers pan/zoom the map. On desktop, single-mouse-drag still pans
+// but scroll-wheel scrolls the page (Ctrl+scroll zooms the map) and
+// Google overlays a hint when the user tries the wrong gesture.
+//
+// `greedy` (the previous default on the home map) lets a single-finger
+// swipe pan the map even when the user is trying to scroll the page —
+// which is exactly the conflict reported on mobile (the page can't
+// scroll past a tall map because every swipe pans the map underneath).
+//
+// We default to cooperative on mobile (≤720px — the same breakpoint
+// used by mobileSwipe.ts and the bottom-tab nav) and KEEP greedy on
+// desktop so mouse users don't lose single-drag panning + lose the
+// hover-to-zoom flow they're used to. We read window.innerWidth at
+// map-init time; Google Maps doesn't support live-changing this
+// option, so a viewport that crosses the breakpoint mid-session keeps
+// whatever mode it booted with — acceptable trade-off (rare flow, the
+// user can always reload).
+
+/** Gesture mode that respects the page's scrollability on touch
+ *  devices. Use at every `new google.maps.Map(...)` site so the
+ *  behaviour is consistent across home / AI / profile / empty maps. */
+export function mobileSafeGestureHandling(): 'cooperative' | 'greedy' {
+    return window.innerWidth <= 720 ? 'cooperative' : 'greedy';
+}
+
 /** Round to 4 decimals — small enough to share a cache entry for
  *  the same point on the map, big enough to break for genuinely
  *  different places. */

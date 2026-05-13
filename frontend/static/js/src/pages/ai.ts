@@ -9,6 +9,7 @@ import { canEdit, getMyRole, ROLE_BUDGETEER, ROLE_RELAXER } from '../permissions
 import { getMarkedPlaces, setMarkedPlaceAssignment, addOrUpdatePlaceFromVerified, dropAITaggedPlaces } from '../markedPlaces.js';
 import { showModal } from '../components/Modal.js';
 import { applyMapTheme } from '../theme.js';
+import { mobileSafeGestureHandling } from '../googleMapsServices.js';
 import { navigate } from '../router.js';
 import { renderSlotBody, flattenSlotForTextarea } from './ai/slots.js';
 import { t, tn } from '../i18n.js';
@@ -45,6 +46,9 @@ export function renderAI() {
                     center: { lat: 20, lng: 0 },
                     zoom: 2,
                     minZoom: 2,
+                    // Mobile: cooperative — 1-finger scrolls the AI empty
+                    // state page, 2-finger pans the map. Desktop: greedy.
+                    gestureHandling: mobileSafeGestureHandling(),
                     restriction: {
                         latLngBounds: { north: 85, south: -85, west: -180, east: 180 },
                         strictBounds: true,
@@ -296,6 +300,9 @@ export function renderAI() {
                     minZoom: 2,
                     mapTypeId: 'roadmap',
                     disableDefaultUI: true,
+                    // Mobile: cooperative — 1-finger scrolls page, 2-finger
+                    // pans the AI planner map. Desktop: greedy.
+                    gestureHandling: mobileSafeGestureHandling(),
                     restriction: {
                         latLngBounds: { north: 85, south: -85, west: -180, east: 180 },
                         strictBounds: true,

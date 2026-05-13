@@ -16,7 +16,7 @@ import { showLiquidAlert, showConfirmModal, generateId, esc } from '../utils.js'
 // + locally so the trip's create/archive/join events stop bleeding
 // into friends' Actions feeds.
 import { upsertDay, deleteDayOnServer, upsertTrip, setTripActionsHidden } from '../api.js';
-import { fetchTimeZone, formatLocalTime } from '../googleMapsServices.js';
+import { fetchTimeZone, formatLocalTime, mobileSafeGestureHandling } from '../googleMapsServices.js';
 import { paintWeatherChips, loadAndPaintWeather, type WeatherForecast } from './home/weather.js';
 import { renderDayRoutePolyline } from './home/routePolyline.js';
 import { POI_CATEGORIES, pickPlaceIcon, isPrimaryMatch } from './home/poiCategories.js';
@@ -932,7 +932,10 @@ export function renderHome() {
                     mapTypeId: 'hybrid',
                     disableDefaultUI: true,
                     keyboardShortcuts: false,
-                    gestureHandling: 'greedy',
+                    // Mobile: cooperative (1-finger scrolls page, 2-finger
+                    // pans map) so the home page can scroll past the map.
+                    // Desktop: greedy (single-mouse-drag still pans).
+                    gestureHandling: mobileSafeGestureHandling(),
                     backgroundColor: '#ffffff',
                     styles: buildPoiStyles(enabledPois),
                     restriction: {
