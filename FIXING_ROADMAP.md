@@ -130,7 +130,8 @@ Things an attacker could exploit against the live site today.
 
 **Fix:**
 
-- [x] In `get_db()`, immediately after connect: `PRAGMA journal_mode=WAL` + `PRAGMA busy_timeout=5000`. (Shipped 2026-05-13)
+- [x] In `get_db()`, immediately after connect: `PRAGMA busy_timeout=5000`. (Shipped 2026-05-13.)
+- [ ] ~~`PRAGMA journal_mode=WAL`~~ — **rolled back 2026-05-13** after a "database disk image is malformed" incident on PythonAnywhere. PA's free-tier home directory is a networked filesystem, and [SQLite documents](https://www.sqlite.org/wal.html) that WAL is unsafe on networked filesystems. Recovery: `PRAGMA wal_checkpoint(TRUNCATE)` + `PRAGMA journal_mode=DELETE`. Reconsider once we move off PA's networked storage.
 - [ ] `PRAGMA foreign_keys=ON` deferred — flipping it on a live DB without an orphan-row audit risks errors on any update touching pre-existing orphan rows. Pair with the `scripts/fk_audit.py` task below.
 - [ ] Run a one-off `scripts/fk_audit.py` to find existing orphan rows before flipping `foreign_keys=ON`.
 

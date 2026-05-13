@@ -11,26 +11,35 @@ def get_db():
     conn.row_factory = sqlite3.Row
     # FIXING_ROADMAP §1.4: SQLite hardening.
     #
-    # - `journal_mode=WAL` lets readers run alongside a writer instead
-    #   of blocking on the database-wide write lock. Without this the
-    #   feed-render path (multi-table read) and a concurrent /api/sync
-    #   write will serialize, and either side can raise
-    #   `database is locked` with the default 0ms wait. WAL is a
-    #   one-time pragma per database file — it's persisted to the
-    #   journal file once and stays across connections — but it's
-    #   cheap to re-issue per connect, and idempotent.
-    # - `busy_timeout=5000` gives any contended op 5 seconds of
-    #   exponential-backoff retry before returning the lock error.
-    #   With WAL on, contention is already rare (writers serialize
-    #   with each other but never with readers); the timeout is the
-    #   belt-and-braces.
+    # `busy_timeout=5000` gives any contended op 5 seconds of
+    # exponential-backoff retry before returning the lock error.
+    # Without this, the default 0ms wait raises `database is locked`
+    # the moment two writers meet — common under our 15s polling
+    # interval where sync + notification-fetch can fire while a user
+    # action is also writing.
     #
-    # NOT enabled here: `foreign_keys=ON`. Flipping FK enforcement on
-    # a live database that may already contain orphan rows (expenses
-    # pointing at deleted trips, etc.) would cause any update touching
-    # such rows to throw. Tracked as a follow-up in the roadmap —
-    # needs an orphan-row audit + cleanup migration first.
-    conn.execute("PRAGMA journal_mode=WAL")
+    # NOT enabled here:
+    #
+    # - `journal_mode=WAL` — was originally part of this fix, but
+    #   removed 2026-05-13 after a "database disk image is malformed"
+    #   incident on PythonAnywhere. PA's free-tier user storage is on
+    #   a NETWORKED FILESYSTEM, and SQLite explicitly documents that
+    #   WAL mode is unsafe on networked filesystems
+    #   (https://www.sqlite.org/wal.html — "WAL does not work over a
+    #   network filesystem"). The symptom was a WAL file that grew
+    #   far larger than the main DB (~770KB vs ~135KB) and didn't
+    #   auto-checkpoint, then individual reads from Flask workers
+    #   started failing with the malformed-image error mid-query
+    #   while the sqlite3 CLI could still parse the same file.
+    #   Default rollback journal mode is safer on PA at the cost of
+    #   readers waiting on writers — busy_timeout above is what
+    #   keeps that wait bounded.
+    #
+    # - `foreign_keys=ON` — flipping FK enforcement on a live
+    #   database that may already contain orphan rows (expenses
+    #   pointing at deleted trips, etc.) would cause any update
+    #   touching such rows to throw. Tracked as a follow-up in the
+    #   roadmap — needs an orphan-row audit + cleanup migration first.
     conn.execute("PRAGMA busy_timeout=5000")
     return conn
 
