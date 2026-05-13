@@ -26,7 +26,7 @@
 //    items I want the AI to slot."
 
 import { useState } from 'react';
-import { useStore } from '../../react/store.js';
+import { useActiveTrip } from '../../react/TripContext.js';
 import { useNavigate } from '../../react/useNavigate.js';
 import { emit } from '../../state.js';
 import { EVENTS } from '../../constants.js';
@@ -41,7 +41,6 @@ import {
 import { openNewTripModal } from '../../modals.js';
 import { showConfirmModal, showLiquidAlert } from '../../utils.js';
 import { EmptyState } from '../../react/components/EmptyState.js';
-import type { Trip } from '../../types';
 import { t, tn } from '../../i18n.js';
 
 interface TodoMarkedPlace {
@@ -510,9 +509,10 @@ function FilterPill({ icon, label, count, active, onClick }: FilterPillProps) {
 
 export function Todo() {
     const navigate = useNavigate();
-    const trips = useStore((s) => s.trips);
-    const activeTripId = useStore((s) => s.activeTripId);
-    const activeTrip = trips.find((t: Trip) => t.id === activeTripId);
+    // §3.4 — single hook resolves "active trip + derived fields" in one
+    // call. Pre-fix this was the find-by-id-against-the-trips-array
+    // recipe copy-pasted across ~12 components.
+    const { trip: activeTrip } = useActiveTrip();
     /** Per-icon filter set. Empty = "All" (no filter); non-empty
      *  shows ONLY items whose icon is in the set. Multi-select so
      *  the user can mix categories ("show restaurants AND hotels").
