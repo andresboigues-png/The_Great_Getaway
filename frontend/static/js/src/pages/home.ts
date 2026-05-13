@@ -1065,6 +1065,36 @@ export function renderHome() {
                 // Visibility persists in localStorage so the user's
                 // preference (hidden by default — pills are off until
                 // they ask) sticks across reloads.
+                // Share button — sits in the same row as the POI toggle
+                // (homeMapActionsRow), outside the daysContainer that
+                // catches the trip-header buttons. Wire it here so the
+                // click fires the chooser modal. Owner-only would be
+                // ideal but the chooser handles non-owner cases
+                // gracefully (share-to-feed needs ownership, share-link
+                // POST 403s for non-owners with a toast).
+                const shareTripBtn = document.getElementById('homeShareTripBtn');
+                if (shareTripBtn && activeTrip) {
+                    shareTripBtn.addEventListener('click', () => {
+                        openShareChooserModal({
+                            trip: activeTrip,
+                            onShareToFeed: () => {
+                                openShareToFeedModal(activeTrip, async (caption: string) => {
+                                    const result = await shareTripToFeed(activeTrip.id, caption);
+                                    if (result?.ok) {
+                                        showLiquidAlert('Shared to feed!');
+                                    } else {
+                                        showLiquidAlert(
+                                            result?.status === 409
+                                                ? "Already shared — head to Collections to unshare or repost."
+                                                : "Couldn't share to feed. Try again."
+                                        );
+                                    }
+                                });
+                            },
+                        });
+                    });
+                }
+
                 const poiToggleBar = (document.getElementById('homePoiToggleBtn') as HTMLButtonElement | null);
                 const poiOverlay = (document.getElementById('homeMapPoiToggles') as HTMLElement | null);
                 if (poiToggleBar && poiOverlay) {
@@ -1953,32 +1983,12 @@ export function renderHome() {
             // Edit-trip pencil — owner-only, hidden when !manageable.
             if (target.closest('#editTripBtn')) { openEditTripModal(activeTrip); return; }
 
-            // Share button — opens the chooser modal (in-app post vs.
-            // public link). The chooser dispatches to either the
-            // existing share-to-feed flow (for friends) or the new
-            // share-via-link flow (§4.1). Visible on every active
-            // trip; non-owners get the public-link path since they
-            // can't manage the feed-share state.
-            if (target.closest('#homeShareTripBtn') && activeTrip) {
-                openShareChooserModal({
-                    trip: activeTrip,
-                    onShareToFeed: () => {
-                        openShareToFeedModal(activeTrip, async (caption: string) => {
-                            const result = await shareTripToFeed(activeTrip.id, caption);
-                            if (result?.ok) {
-                                showLiquidAlert('Shared to feed!');
-                            } else {
-                                showLiquidAlert(
-                                    result?.status === 409
-                                        ? "Already shared — head to Collections to unshare or repost."
-                                        : "Couldn't share to feed. Try again."
-                                );
-                            }
-                        });
-                    },
-                });
-                return;
-            }
+            // Share button (#homeShareTripBtn) lives outside
+            // daysContainer — its click handler is bound directly in
+            // the setTimeout block further up where the POI toggle is
+            // wired. Keeping it there because the share button sits
+            // in homeMapActionsRow (above the cover-card / map), not
+            // in the trip-header inside daysContainer.
 
             // Silence-trip toggle — owner-only privacy control. Flips
             // trip.actionsHidden on the server + locally and patches
