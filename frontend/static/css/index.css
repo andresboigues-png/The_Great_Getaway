@@ -810,16 +810,25 @@ h1 {
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.35);
-    backdrop-filter: blur(4px);
+    backdrop-filter: blur(0);
+    -webkit-backdrop-filter: blur(0);
     z-index: 1998;
     opacity: 0;
     pointer-events: none;
-    transition: opacity 0.3s ease;
+    /* Match the panel's easing/timing so the two surfaces move together
+       on open. Backdrop-filter is transitioned so the blur ramps from
+       sharp → 4px alongside the dim, which reads as the page "stepping
+       back" instead of an instant frosting. */
+    transition: opacity 0.34s cubic-bezier(0.22, 0.61, 0.36, 1),
+                backdrop-filter 0.34s cubic-bezier(0.22, 0.61, 0.36, 1),
+                -webkit-backdrop-filter 0.34s cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
 .sidebar-overlay.open {
     opacity: 1;
     pointer-events: all;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
 }
 
 /* ================================================
@@ -833,7 +842,12 @@ h1 {
     height: 100vh;
     z-index: 1999;
     transform: translateX(-100%);
-    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    /* Spring-flavoured easing (easeOutExpo-ish): fast off the line and
+       a slow, calm landing — feels more "drawer is decisively sliding
+       into place" than the previous Material-standard curve. The 0.38s
+       gives the staggered content fade-in below room to land before the
+       panel itself fully settles. */
+    transition: transform 0.38s cubic-bezier(0.22, 1, 0.36, 1);
     padding: 24px 20px;
     box-sizing: border-box;
     display: flex;
@@ -1050,6 +1064,39 @@ body.is-signed-out .trip-controls-popover {
 .sidebar.open {
     transform: translateX(0);
 }
+
+/* ── Staggered drawer content entry ──────────────────────────────────
+   When the drawer slides in, its child blocks (profile-top, the three
+   middle nav sections, the footer) fade up in sequence so the interior
+   feels like it's *settling into view* instead of arriving as a slab.
+   The animation only attaches under `.sidebar.open` so:
+     - On open: the rule starts matching → the keyframe replays from
+       frame 0 every time the drawer opens (CSS restarts the animation
+       when the selector begins matching, which is what we want).
+     - On close: the rule stops matching → children snap back to their
+       natural state and follow the panel's translateX out, which reads
+       as the drawer leaving as a single object. We deliberately do NOT
+       animate the children on close — running a reverse stagger would
+       drag the close out to ~0.6s and lag behind the user's tap on the
+       overlay.
+   `both` retains the start frame (opacity: 0, translate-left) before
+   the delay so a section with a later delay doesn't pop in at full
+   opacity before its own timeline begins.
+   Reduced-motion users get a near-instant animation per the
+   `prefers-reduced-motion` reset already at the bottom of this file. */
+@keyframes ggSidebarChildEnter {
+    from { opacity: 0; transform: translateX(-14px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+.sidebar.open .sidebar-profile-top,
+.sidebar.open .sidebar-middle .sidebar-section {
+    animation: ggSidebarChildEnter 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.sidebar.open .sidebar-profile-top { animation-delay: 0.06s; }
+.sidebar.open .sidebar-middle .sidebar-section:nth-child(1) { animation-delay: 0.12s; }
+.sidebar.open .sidebar-middle .sidebar-section:nth-child(2) { animation-delay: 0.18s; }
+.sidebar.open .sidebar-middle .sidebar-section:nth-child(3) { animation-delay: 0.24s; }
+.sidebar.open .sidebar-middle .sidebar-section:nth-child(4) { animation-delay: 0.30s; }
 
 .sidebar-header {
     display: flex;
@@ -6654,6 +6701,7 @@ body.is-signed-out #sidebarOverlay {
 }
 
 .mobile-bottom-nav__item {
+    position: relative;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -6661,6 +6709,8 @@ body.is-signed-out #sidebarOverlay {
     gap: 2px;
     flex: 1;
     padding: 8px 4px;
+    margin: 0 4px;
+    border-radius: 14px;
     /* D3 contrast: var(--accent-blue) (#0071e3) at 0.55 opacity gave
        an effective ~#72b0ef on the white bottom-nav background — only
        2.27:1, fails AA hard. Use the darker brand-text colour at full
@@ -6672,7 +6722,8 @@ body.is-signed-out #sidebarOverlay {
     font-weight: 700;
     letter-spacing: 0.02em;
     opacity: 1;
-    transition: opacity 0.15s ease, transform 0.05s ease;
+    background: transparent;
+    transition: background 0.22s ease, color 0.18s ease, transform 0.05s ease;
     /* Tap target ≥ 44×44px. Padding pushes the row past 44 even
        at the 0.65rem font size + 22px icon. */
     min-height: 56px;
@@ -6684,8 +6735,30 @@ body.is-signed-out #sidebarOverlay {
     font-size: 0.65rem;
     font-weight: 700;
 }
+/* Active tab: soft glassy pill behind icon+label + a slim brand-gradient
+   bar pinned to the TOP edge of the item (sits flush with the bottom-nav's
+   inner border-top). The user explicitly asked for shading so the currently
+   selected section is unambiguous — the pill carries the bulk of the
+   recognition signal and the bar reinforces it iOS-style. The colour
+   shift to var(--accent-blue) plus the weight bump distinguishes from
+   the resting #005bb8 without compromising the 4.5:1 contrast floor. */
 .mobile-bottom-nav__item.active {
-    opacity: 1;
+    background: rgba(0, 113, 227, 0.14);
+    color: var(--accent-blue);
+}
+.mobile-bottom-nav__item.active span {
+    font-weight: 800;
+}
+.mobile-bottom-nav__item.active::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 28%;
+    right: 28%;
+    height: 3px;
+    border-radius: 0 0 3px 3px;
+    background: linear-gradient(90deg, var(--accent-blue), #34c759);
+    pointer-events: none;
 }
 .mobile-bottom-nav__item:active {
     transform: scale(0.95);
@@ -6695,6 +6768,45 @@ body.is-signed-out #sidebarOverlay {
    screen and we don't want a stray nav anchored to the bottom. */
 body.is-signed-out .mobile-bottom-nav {
     display: none !important;
+}
+
+/* ── Swipe-driven page slide-in ──────────────────────────────────────
+   The mobile swipe handler (mobileSwipe.ts) cycles through the bottom-
+   tab pages. Before the polish below the new page just materialised in
+   place, which felt jarring against the gesture — the finger had clearly
+   committed to a direction, but the screen didn't reciprocate. The router
+   now applies one of these classes to #app-container right after the new
+   chunk mounts; the keyframe runs once and the animationend handler
+   strips the class. `forward` is a left-swipe (advance) → page enters
+   from the right edge; `backward` is a right-swipe (retreat) → enters
+   from the left. translate3d keeps the animation on the compositor
+   (no layout/paint per frame). The 28px offset + 0.28s duration are
+   tuned to feel snappy but visible — anything tighter reads as a flash,
+   anything longer fights the user's next tap.
+
+   Note: these rules live OUTSIDE the @media (max-width: 720px) block
+   because router.ts only requests the animation from swipe nav, which
+   itself is mobile-only — gating in CSS too would be redundant and risk
+   silent breakage if a future caller ever opts in on a tablet form. */
+@keyframes ggNavSlideFromRight {
+    from { transform: translate3d(28px, 0, 0); opacity: 0; }
+    to { transform: translate3d(0, 0, 0); opacity: 1; }
+}
+@keyframes ggNavSlideFromLeft {
+    from { transform: translate3d(-28px, 0, 0); opacity: 0; }
+    to { transform: translate3d(0, 0, 0); opacity: 1; }
+}
+main#app-container.nav-anim-forward {
+    animation: ggNavSlideFromRight 0.28s cubic-bezier(0.22, 0.61, 0.36, 1);
+    /* Belt-and-braces: hide horizontal overflow during the slide so
+       the 28px translate-from doesn't briefly expose the page-gutter
+       background as a scrolling sliver. The native body horizontal
+       scroll is already capped elsewhere; this is just animation-scope. */
+    overflow-x: hidden;
+}
+main#app-container.nav-anim-backward {
+    animation: ggNavSlideFromLeft 0.28s cubic-bezier(0.22, 0.61, 0.36, 1);
+    overflow-x: hidden;
 }
 
 @media (max-width: 720px) {

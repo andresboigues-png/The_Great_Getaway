@@ -220,18 +220,23 @@ export function initMobileSwipe(): void {
 
             if (dx < 0) {
                 // Swipe LEFT → next tab. No-op at the right boundary
-                // (Insights) per user spec.
+                // (Insights) per user spec. 'forward' tells the router
+                // to slide the new page in from the right edge — the
+                // direction the finger came from — so the animation
+                // matches the gesture instead of materialising in place.
                 const next = SWIPE_ORDER[idx + 1];
-                if (next) navigate(next);
+                if (next) navigate(next, null, false, 'forward');
             } else {
                 // Swipe RIGHT → previous tab. At the LEFT boundary
                 // (Home) we open the burger drawer instead — the
                 // "what's left of Home" surface, per user spec.
+                // 'backward' slides the new page in from the left edge,
+                // matching the right-swipe gesture.
                 if (idx === 0) {
                     openSidebar();
                 } else {
                     const prev = SWIPE_ORDER[idx - 1];
-                    if (prev) navigate(prev);
+                    if (prev) navigate(prev, null, false, 'backward');
                 }
             }
         },

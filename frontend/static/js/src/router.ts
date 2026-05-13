@@ -47,6 +47,51 @@ export interface NavigateParams {
     userId?: string;
 }
 
+/** Direction hint for the post-mount slide-in animation on the
+ *  content container. Used by the mobile swipe handler so a left-swipe
+ *  (advance to next tab) slides the new page in from the right edge,
+ *  and a right-swipe (back to previous tab) slides it in from the left.
+ *  Desktop navs (sidebar clicks, top-bar links) leave this undefined,
+ *  which suppresses the animation — the slide is specifically a
+ *  swipe-feedback affordance, not a generic transition. */
+export type NavAnimDir = 'forward' | 'backward';
+
+/** Tracks the most recent animationend handler so a rapid second swipe
+ *  before the first animation completes can detach the stale listener
+ *  before binding a new one. Without this, every swipe would leak a
+ *  listener that fires once and never re-detaches (its target-equality
+ *  guard makes it inert, but the leak is ugly). */
+let _navAnimCleanup: ((e: AnimationEvent) => void) | null = null;
+
+/** Apply a slide-in animation to the content container. Uses a class
+ *  (not an inline `animation` property) so the keyframes + easing live
+ *  in CSS where they're tuned alongside the rest of the mobile chrome.
+ *  The class is removed on `animationend` so subsequent navigations
+ *  can re-trigger the keyframe cleanly. */
+function applyNavAnimation(container: HTMLElement, dir: NavAnimDir): void {
+    if (_navAnimCleanup) {
+        container.removeEventListener('animationend', _navAnimCleanup);
+        _navAnimCleanup = null;
+    }
+    container.classList.remove('nav-anim-forward', 'nav-anim-backward');
+    // Force a reflow so the upcoming class addition restarts the
+    // animation from frame 0 instead of being collapsed into the
+    // previous frame's pending style change.
+    void container.offsetWidth;
+    container.classList.add(dir === 'forward' ? 'nav-anim-forward' : 'nav-anim-backward');
+    const cleanup = (e: AnimationEvent) => {
+        // animationend bubbles — a child element's own animation will
+        // dispatch this listener with target=child. Skip those; only
+        // strip the class once the container's own animation ends.
+        if (e.target !== container) return;
+        container.classList.remove('nav-anim-forward', 'nav-anim-backward');
+        container.removeEventListener('animationend', cleanup);
+        _navAnimCleanup = null;
+    };
+    _navAnimCleanup = cleanup;
+    container.addEventListener('animationend', cleanup);
+}
+
 /** Map a page name to its dynamic-import factory. Each factory
  *  returns the module's mount function (or, for profile, a wrapper
  *  that passes the userId through). The router awaits the factory,
@@ -93,6 +138,7 @@ export function navigate(
     page: PageName,
     params: NavigateParams | null = null,
     preserveScroll = false,
+    animDir?: NavAnimDir,
 ): void {
     const content = document.getElementById('app-container');
     if (!content) return;
@@ -148,6 +194,11 @@ export function navigate(
         clearReactMount();
         content.innerHTML = '';
         mount(content, params ?? undefined);
+        // Slide-in animation hook for swipe-driven nav. Caller (the
+        // mobile swipe handler) passes a direction so the new page
+        // enters from the side the swipe came from, matching the
+        // user's gesture instead of materialising in place.
+        if (animDir) applyNavAnimation(content, animDir);
     }).catch((err) => {
         console.error(`[router] failed to load chunk for "${page}":`, err);
         // Last-ditch fallback: load home instead of leaving the user
