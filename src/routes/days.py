@@ -51,7 +51,9 @@ def upsert_day():
               d.get('evening', d.get('plan', {}).get('evening', '')) or '',
               d.get('tip', d.get('notes', '')),
               d.get('lat'),
-              d.get('lng') or d.get('lon')))
+              # §2.4 — `or` drops lng=0 (prime meridian). Explicit
+              # is-not-None instead.
+              d['lng'] if d.get('lng') is not None else d.get('lon')))
         conn.commit()
     return jsonify({"status": "ok"})
 

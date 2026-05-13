@@ -239,27 +239,28 @@ Things an attacker could exploit against the live site today.
 
 ## Phase 2 — Medium fixes (this quarter)
 
-### 2.1 Missing indexes on hot tables
+### 2.1 Missing indexes on hot tables — ✅ Shipped 2026-05-13
 
 🟡 **S** · `src/database.py:347+`
 
 Add `CREATE INDEX IF NOT EXISTS` on:
 
-- [ ] `feed_likes(event_id)` — feed count query
-- [ ] `feed_bookmarks(event_id)` — bookmark lookups
-- [ ] `feed_posts(user_id)`, `feed_posts(trip_id)`
-- [ ] `friends(user_id, status)` — friend list rendering
-- [ ] `notifications(user_id, created_at)` — bell dropdown
-- [ ] `trip_members(trip_id, user_id)` — visibility checks
+- [x] `feed_likes(event_id)` — feed count query
+- [x] `feed_bookmarks(event_id)` — bookmark lookups
+- [x] `feed_posts(user_id)`, `feed_posts(trip_id)`
+- [x] `friends(user_id, status)` — friend list rendering
+- [x] `notifications(user_id, created_at)` — bell dropdown
+- [x] `trip_members(trip_id, user_id)` — visibility checks
+- [x] Bonus: `expenses(trip_id)`, `trip_days(trip_id)` — same N+1 surface as §1.7's caller path
 
-### 2.2 Cleanup thread Werkzeug gate is backwards
+### 2.2 Cleanup thread Werkzeug gate is backwards — ✅ Shipped 2026-05-13
 
 🟡 **S** · `src/main.py:152`
 
 The check `if os.getenv("WERKZEUG_RUN_MAIN") == "false": return` doesn't match Werkzeug's actual contract (parent unsets, child sets to "true"). Under gunicorn the var is unset → thread DOES start. Today that's accidentally correct, but the comment is wrong and any environment change can flip it.
 
-- [ ] Rewrite as: `if os.getenv("WERKZEUG_RUN_MAIN") not in (None, "true"): return`.
-- [ ] Better: move cleanup into a cron job / Alembic-managed scheduled task.
+- [x] Rewrite as: `if os.getenv("WERKZEUG_RUN_MAIN") not in (None, "true"): return`.
+- [ ] Better: move cleanup into a cron job / Alembic-managed scheduled task. (Deferred — gate fix is enough for now.)
 
 ### 2.3 Defensive `request.json` handling
 
@@ -267,7 +268,7 @@ The check `if os.getenv("WERKZEUG_RUN_MAIN") == "false": return` doesn't match W
 
 `request.json.get(...)` crashes on missing/non-JSON body.
 
-- [ ] Codemod: replace `request.json.get(` → `(request.json or {}).get(` across `src/routes/*.py`.
+- [x] Codemod: replace `request.json.get(` → `(request.json or {}).get(` across `src/routes/*.py`. (Shipped 2026-05-13 — auth.py was the last remaining offender.)
 
 ### 2.4 `d.get('lng') or d.get('lon')` drops lng=0.0
 
@@ -275,7 +276,7 @@ The check `if os.getenv("WERKZEUG_RUN_MAIN") == "false": return` doesn't match W
 
 The equator/prime meridian (lng/lat = 0.0) is falsy.
 
-- [ ] Replace with explicit `d['lng'] if 'lng' in d else d.get('lon')`.
+- [x] Replace with explicit `d['lng'] if d.get('lng') is not None else d.get('lon')`. (Shipped 2026-05-13 in both data.py and days.py.)
 
 ### 2.5 `accept_friend` crashes on missing acceptor row
 
@@ -283,7 +284,7 @@ The equator/prime meridian (lng/lat = 0.0) is falsy.
 
 `cursor.fetchone()["name"]` → `TypeError` if user row deleted between request start and friend-accept.
 
-- [ ] `(row or {}).get("name", "Someone")`.
+- [x] `(row or {}).get("name", "Someone")` — applied to both `accept_friend` AND `add_friend` (same fetchone-without-null-check pattern). (Shipped 2026-05-13)
 
 ### 2.6 `is_archived` flip race in /api/sync
 
@@ -299,8 +300,8 @@ The active-trips loop and archived-trips loop both upsert the same row depending
 
 Validator accepts any `/uploads/...` path — user can set someone else's photo URL as their profile pic.
 
-- [ ] Track upload ownership (extend `media.py` to log uploader user_id).
-- [ ] Verify on profile update.
+- [x] Track upload ownership — uploads now land in a per-user subdirectory `/static/uploads/<user_id>/...` so ownership is encoded in the path (no DB row needed). (Shipped 2026-05-13)
+- [x] Verify on profile update — validator rejects URLs whose subdir doesn't match the caller. Legacy flat-path URLs still accepted for backwards compat. (Shipped 2026-05-13)
 
 ### 2.8 a11y: aria-expanded missing on bells + hamburger
 
@@ -308,7 +309,7 @@ Validator accepts any `/uploads/...` path — user can set someone else's photo 
 
 Toggles a dropdown/drawer but exposes no ARIA state.
 
-- [ ] Add `aria-expanded` + `aria-controls` to: `#notificationBtn`, `#notificationBtnDesktop`, `#hamburgerBtn`.
+- [x] Add `aria-expanded` + `aria-controls` + `aria-haspopup` to: `#notificationBellBtn`, `#notificationBellBtnDesktop`, `#hamburgerBtn`. State toggles update on every click. (Shipped 2026-05-13)
 
 ### 2.9 a11y: `showLiquidAlert` has no live region
 
@@ -316,8 +317,8 @@ Toggles a dropdown/drawer but exposes no ARIA state.
 
 Screen readers don't announce errors.
 
-- [ ] Add `role="status"` + `aria-live="polite"` (error variant → `aria-live="assertive"`).
-- [ ] Dedupe rapid identical messages.
+- [x] Add `role="status"` + `aria-live="polite"` + `aria-atomic="true"`. (Shipped 2026-05-13)
+- [x] Dedupe rapid identical messages — Set-based gate; repeats within the 3s lifetime are silent no-ops. (Shipped 2026-05-13)
 
 ### 2.10 a11y: Modals lack `role="dialog"` / `aria-modal`
 
@@ -325,8 +326,8 @@ Screen readers don't announce errors.
 
 Focus trap exists but no ARIA. Tab can fall through when no focusables present.
 
-- [ ] Add `role="dialog"`, `aria-modal="true"`, `aria-labelledby="<id-of-modal-heading>"`.
-- [ ] Always ensure the close button is focusable.
+- [x] Add `role="dialog"`, `aria-modal="true"`, `aria-labelledby="<id-of-modal-heading>"` — generic, auto-derived from the card's first heading so every existing modal site picks it up without per-site changes. (Shipped 2026-05-13)
+- [ ] Always ensure the close button is focusable. (Deferred — focus-trap already exists; explicit "always focusable close" needs a per-modal audit.)
 
 ### 2.11 Modal focus restoration ignores detached elements
 
@@ -334,7 +335,7 @@ Focus trap exists but no ARIA. Tab can fall through when no focusables present.
 
 If the originating page is unmounted while modal is open, refocus on close lands on body.
 
-- [ ] Check `document.contains(previouslyFocused)` before refocusing; fall back to the page heading.
+- [x] Check `document.contains(previouslyFocused)` before refocusing; silently skip if the originating element was unmounted (no crash, no surprise body-focus). (Shipped 2026-05-13)
 
 ### 2.12 `generateId` uses `Math.random()` 9-char base36
 
@@ -342,7 +343,7 @@ If the originating page is unmounted while modal is open, refocus on close lands
 
 Collisions are rare but real, and `substr` is deprecated.
 
-- [ ] Replace with `crypto.randomUUID()` (or a short-id wrapper around it).
+- [x] Replace with `crypto.randomUUID()` — return a 9-char prefix so existing ID-width assumptions hold; underlying entropy is cryptographic-grade. (Shipped 2026-05-13)
 
 ### 2.13 Notification dropdown indexed by array position
 
@@ -350,7 +351,7 @@ Collisions are rare but real, and `substr` is deprecated.
 
 `data-notification-index="${i}"` becomes stale if a poll reorders/shrinks the array between render and click.
 
-- [ ] Key on `notification.id`; look up by id at click time.
+- [x] Key on `notification.id`; look up by id at click time — no more "click row 3 → opens row 5's target" after a polling reorder. (Shipped 2026-05-13)
 
 ### 2.14 `localStorage.setItem(JSON.stringify(STATE))` on every state change
 
@@ -358,14 +359,14 @@ Collisions are rare but real, and `substr` is deprecated.
 
 1MB+ writes block the main thread on every emit (every 15s polling tick).
 
-- [ ] Debounce 250ms.
-- [ ] Move photos/markedPlaces (>100KB fields) to IndexedDB; keep localStorage for control state.
+- [x] Debounce 250ms — coalesces burst saves into one write; pagehide flushes pending. (Shipped 2026-05-13)
+- [ ] Move photos/markedPlaces (>100KB fields) to IndexedDB; keep localStorage for control state. (Deferred — bigger architectural change; debounce covers most of the perf hit.)
 
 ### 2.15 Bare `except Exception` swallows real errors
 
 🟡 **S** · `src/routes/integrations.py:103`, `src/routes/data.py:419`, `:423`, `src/routes/public.py:119`, `:123`, `src/main.py:140`
 
-- [ ] Narrow to specific exception types (`json.JSONDecodeError`, `requests.RequestException`).
+- [x] Narrow to specific exception types — JSON sites use `(json.JSONDecodeError, TypeError, KeyError)`; the cleanup-thread top-level catch narrowed to `sqlite3.DatabaseError`. (Shipped 2026-05-13)
 
 ### 2.16 `/api/generate_itinerary` has no rate limit + prompt-injection vector
 
@@ -373,9 +374,9 @@ Collisions are rare but real, and `substr` is deprecated.
 
 User-supplied `destination` is interpolated into the Gemini prompt. No limiter.
 
-- [ ] `@limiter.limit("10 per hour")` per user.
-- [ ] Cap `destination` length, strip newlines.
-- [ ] Log abuse signals (response length, repeated identical destinations).
+- [x] `@limiter.limit("10 per hour")` per user. (Shipped 2026-05-13)
+- [x] Cap `destination` length (120 chars), strip control chars + newlines from all user fields. numDays clamped 1–30. (Shipped 2026-05-13)
+- [ ] Log abuse signals (response length, repeated identical destinations). (Deferred — would need a logging/metrics layer.)
 
 ### 2.17 After login, user lands on profile instead of original hash
 
@@ -383,7 +384,7 @@ User-supplied `destination` is interpolated into the Gemini prompt. No limiter.
 
 Logged-out user lands on `#expenses`, signs in, gets dumped on `#profile`.
 
-- [ ] Read `window.location.hash` before navigate, prefer it over `profile`.
+- [x] Read `window.location.hash` before navigate, prefer it over `profile`. (Shipped in §1.9 — same change, covered both items.)
 
 ### 2.18 `SELECT *` on `trips` couples response to schema
 
@@ -391,15 +392,15 @@ Logged-out user lands on `#expenses`, signs in, gets dumped on `#profile`.
 
 Adding an internal column ships it to the client unintentionally.
 
-- [ ] Enumerate columns explicitly in SELECT.
+- [x] Enumerate columns explicitly in SELECT — done for public.py's `/api/public-trip`. data.py's `/api/data` still uses `SELECT t.*` because it's authenticated + transforms via a camelCase loop; risk lower, deferred. (Shipped 2026-05-13)
 
 ### 2.19 Frankfurter rate fetch has no abort, no error UI, unbounded cache
 
 🟢 **S** · `frontend/static/js/src/api.ts:619-647`
 
-- [ ] Wrap in `apiFetch`-style helper with abort.
-- [ ] Show toast on rate-fetch failure (fall back to last-known rate).
-- [ ] Bound `rateCache` size.
+- [x] Thread `currentNavSignal()` so an outdated rate fetch from a previous page gets aborted. (Shipped 2026-05-13)
+- [ ] Show toast on rate-fetch failure. (Deferred — chose silent fallback to last-known rate; a toast for every transient Frankfurter blip would be noisy.)
+- [x] Bound `rateCache` size at 5000 entries (~1 trip-year of dated currencies). (Shipped 2026-05-13)
 
 ### 2.20 Service worker registered with root scope, no caching strategy
 
@@ -415,7 +416,7 @@ No offline benefit, but adds an attack surface.
 
 Three rapid swipes can race the cleanup listener; no leak today but ordering depends on chunk-load timing.
 
-- [ ] Use a per-call generation token; only strip class if generation matches latest.
+- [x] Use a per-call generation token (`_navAnimGen`); only strip class if generation matches latest. Stale animationend fires now no-op gracefully. (Shipped 2026-05-13)
 
 ---
 

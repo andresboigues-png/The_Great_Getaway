@@ -42,7 +42,21 @@ def get_public_trip(trip_id):
     caller_id = current_user_id()  # may be None if not authed
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM trips WHERE id = ?", (trip_id,))
+        # FIXING_ROADMAP §2.18 — enumerate columns explicitly. The
+        # previous `SELECT *` shipped every trip column to the public
+        # endpoint, including future-added columns that might not be
+        # public-safe (e.g. share_token after §4.1 lands). Listing
+        # makes new private columns opt-in rather than opt-out.
+        cursor.execute(
+            "SELECT id, user_id, name, country, country_code, "
+            "       is_archived, is_public, place_id, lat, lng, "
+            "       viewport_json, place_types, "
+            "       companions_json, marked_places_json, "
+            "       documents_json, photos_json, checklist_json, "
+            "       cover_url, actions_hidden "
+            "FROM trips WHERE id = ?",
+            (trip_id,),
+        )
         row = cursor.fetchone()
         if not row:
             return jsonify({"error": "Not found"}), 404
@@ -114,13 +128,17 @@ def get_public_trip(trip_id):
                 'afternoon': unwrap_legacy_plan_text(day.pop('afternoon', '')),
                 'evening': unwrap_legacy_plan_text(day.pop('evening', '')),
             }
+            # §2.15: narrow to JSONDecodeError + TypeError (the only
+            # things json.loads raises on malformed input). A bare
+            # `except` here swallowed unrelated bugs in the rest of
+            # the loop.
             try:
                 day['photos'] = json.loads(day.get('photos') or '[]')
-            except Exception:
+            except (json.JSONDecodeError, TypeError):
                 day['photos'] = []
             try:
                 day['documents'] = json.loads(day.get('documents') or '[]')
-            except Exception:
+            except (json.JSONDecodeError, TypeError):
                 day['documents'] = []
             trip_days.append(day)
 

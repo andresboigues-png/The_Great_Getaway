@@ -666,11 +666,16 @@ def test_update_profile_picture_rejects_arbitrary_url(client, seed_user, auth_he
     SSRF probe, a remote tracking pixel) gets rejected. The users table
     must only ever hold our-uploads URLs or Google OAuth URLs — anything
     else and other clients hot-linking the picture would request the
-    attacker's domain on every page load."""
+    attacker's domain on every page load.
+
+    Post §2.7 the error code changed from 400 → 403 because the
+    rejection is "you can't reference that URL," not "the input
+    was malformed."
+    """
     res = client.post("/api/profile/update", headers=auth_headers, json={
         "picture": "https://attacker.example.com/probe.gif",
     })
-    assert res.status_code == 400
+    assert res.status_code == 403
     assert "picture URL" in res.get_json()["error"]
 
 

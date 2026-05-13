@@ -303,9 +303,30 @@ export function getMediaForTrip(
     };
 }
 
+/** Module-level dedupe — if the same message fires multiple times
+ *  in quick succession (a 401 cascade, a button double-click), we
+ *  don't want a stack of identical toasts. The Set holds the
+ *  currently-on-screen messages; entries are added when an alert
+ *  shows and removed when it dismisses. A repeat call within the
+ *  3s lifetime is a silent no-op.
+ *  §2.9 deferred-followup. */
+const _activeAlerts = new Set<string>();
+
 export function showLiquidAlert(msg: string): void {
+    // Dedupe — if this exact message is already on screen, skip.
+    if (_activeAlerts.has(msg)) return;
+    _activeAlerts.add(msg);
+
     const alert = document.createElement('div');
     alert.className = 'liquid-alert';
+    // §2.9: a11y — wrap in role="status" + aria-live="polite" so
+    // screen readers announce toast messages. polite (not assertive)
+    // because the messages are informational, not critical
+    // interruption-worthy. atomic="true" so the whole message is
+    // read together rather than character-by-character on append.
+    alert.setAttribute('role', 'status');
+    alert.setAttribute('aria-live', 'polite');
+    alert.setAttribute('aria-atomic', 'true');
     alert.innerHTML = `<span>⚠️ ${msg}</span>`;
     document.body.appendChild(alert);
 
@@ -317,7 +338,10 @@ export function showLiquidAlert(msg: string): void {
     setTimeout(() => {
         alert.classList.remove('show');
         alert.classList.add('dismiss');
-        setTimeout(() => alert.remove(), 500);
+        setTimeout(() => {
+            alert.remove();
+            _activeAlerts.delete(msg);
+        }, 500);
     }, 3000);
 }
 
@@ -393,8 +417,20 @@ export function showConfirmModal(options: ConfirmModalOptions = {}) {
     cancelBtn.onclick = () => close();
 }
 
-export function generateId() {
-    return Math.random().toString(36).substr(2, 9);
+export function generateId(): string {
+    // §2.12: was `Math.random().toString(36).substr(2, 9)` — only
+    // ~36⁹ bits of entropy (≈ 1 collision per ~30k IDs by birthday
+    // paradox), and `substr` is deprecated. crypto.randomUUID() is
+    // available in every supported browser (Safari 15.4+, Chrome 92+,
+    // Firefox 95+). We return a 9-char prefix of the UUID so existing
+    // 9-char-ID assumptions (display widths, log greps) still hold,
+    // and the underlying entropy is cryptographic-grade.
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+        return crypto.randomUUID().replace(/-/g, '').slice(0, 9);
+    }
+    // Fallback for the impossible-but-still-cheap case where crypto
+    // isn't available — older browsers, server-side renders, etc.
+    return Math.random().toString(36).slice(2, 11);
 }
 
 // Typed querySelector for elements the caller knows it just inserted.

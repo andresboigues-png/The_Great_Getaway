@@ -696,22 +696,48 @@ export async function fetchHistoricalRates(dates: string[]) {
 
     if (!start || !end) return;
 
+    // §2.19: thread the nav signal so an outdated rate fetch from
+    // a previous page doesn't keep running after the user navigated.
+    // Also bound the cache size — without this, a user editing many
+    // trips spanning years could push localStorage past Safari's
+    // 5MB quota with rate entries alone. Cap at 5000 dated entries
+    // (≈ 13 currencies × 365 days = one trip-year's worth).
+    const CACHE_MAX = 5000;
     try {
-        // We fetch conversion from EUR to others for the range
-        // Frankfurter range limit is 1 year, we'll just fetch for the trip range
         const url = `https://api.frankfurter.app/${start}..${end}`;
-        const resp = await fetch(url);
-        if (resp.ok) {
-            const data: { rates: Record<string, Record<string, number>> } = await resp.json();
-            // data.rates is { "YYYY-MM-DD": { "USD": 1.1, ... } }
-            Object.entries(data.rates).forEach(([date, rates]) => {
-                Object.entries(rates).forEach(([curr, rate]) => {
-                    STATE.rateCache[`${date}_${curr}_EUR`] = 1 / rate; // Store as curr -> EUR
-                });
-            });
-            emit(EVENTS.STATE_CHANGED);
+        const sig = currentNavSignal();
+        const resp = await fetch(url, sig ? { signal: sig } : {});
+        if (!resp.ok) {
+            console.warn('Frankfurter rate fetch returned', resp.status);
+            // Don't toast — the expense form falls back to a
+            // last-known rate or 1.0, and we don't want a banner
+            // for every transient currency-API hiccup. If the user
+            // is mid-flow and the rate is critical, they'll see
+            // the formatted value still works because of the
+            // last-known fallback.
+            return;
         }
-    } catch (e) {
+        const data: { rates: Record<string, Record<string, number>> } = await resp.json();
+        // data.rates is { "YYYY-MM-DD": { "USD": 1.1, ... } }
+        Object.entries(data.rates).forEach(([date, rates]) => {
+            Object.entries(rates).forEach(([curr, rate]) => {
+                STATE.rateCache[`${date}_${curr}_EUR`] = 1 / rate;
+            });
+        });
+        // Trim the cache if it grew past the cap. Pure-string keys
+        // sort lexicographically by date prefix so the oldest entries
+        // drop first.
+        const keys = Object.keys(STATE.rateCache);
+        if (keys.length > CACHE_MAX) {
+            keys.sort();
+            for (const k of keys.slice(0, keys.length - CACHE_MAX)) {
+                delete STATE.rateCache[k];
+            }
+        }
+        emit(EVENTS.STATE_CHANGED);
+    } catch (e: any) {
+        // AbortError = user navigated away mid-fetch; not a failure.
+        if (e?.name === 'AbortError') return;
         console.error("Failed to fetch historical rates:", e);
     }
 }

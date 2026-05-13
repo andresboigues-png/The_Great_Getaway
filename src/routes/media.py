@@ -95,10 +95,14 @@ def _looks_like_upload(head: bytes) -> bool:
 @limiter.limit("30 per minute")
 @require_auth
 def upload_file():
-    # current_user_id is read for its side-effect of requiring auth;
-    # the upload itself doesn't write user_id into the saved row
-    # (uploads are flat files in static/uploads, not DB rows).
-    current_user_id()
+    # FIXING_ROADMAP §2.7 — uploads now land in a per-user
+    # subdirectory so ownership is encoded in the path. The profile-
+    # update validator in routes/settings.py rejects picture URLs
+    # whose subdir doesn't match the caller's user_id, blocking the
+    # "use another user's upload as my profile pic" abuse vector.
+    user_id = current_user_id()
+    if not user_id:
+        return jsonify({"error": "Unauthorized"}), 401
 
     if 'file' not in request.files:
         return jsonify({"error": "No file part"}), 400
@@ -123,9 +127,15 @@ def upload_file():
     filename = secure_filename(file.filename)
     # Add timestamp to avoid collisions
     filename = f"{int(time.time())}_{filename}"
-    file.save(os.path.join(current_app.config['UPLOAD_FOLDER'], filename))
+    # Per-user subdir — also run user_id through secure_filename so
+    # a malicious token claim can't smuggle path separators (it's
+    # JWT-signed, so practically can't, but defense in depth).
+    safe_user_dir = secure_filename(user_id) or "anon"
+    user_folder = os.path.join(current_app.config['UPLOAD_FOLDER'], safe_user_dir)
+    os.makedirs(user_folder, exist_ok=True)
+    file.save(os.path.join(user_folder, filename))
 
     return jsonify({
-        "url": f"/static/uploads/{filename}",
+        "url": f"/static/uploads/{safe_user_dir}/{filename}",
         "name": file.filename,
     })

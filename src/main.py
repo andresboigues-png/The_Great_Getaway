@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+import sqlite3
 import requests
 from flask import Flask, render_template, request, jsonify, send_from_directory, url_for
 from werkzeug.utils import secure_filename
@@ -245,7 +246,12 @@ def _cleanup_feed_orphans():
             )
             deleted_comments = cursor.rowcount or 0
             conn.commit()
-    except Exception as e:
+    except sqlite3.DatabaseError as e:
+        # §2.15: narrow to DB errors so the daemon thread doesn't
+        # silently swallow programming bugs (NameError, ImportError,
+        # etc.) — those should crash the thread loudly. DatabaseError
+        # is the right catch-all for "DB had a hiccup" (locked, disk
+        # full, file moved) and recoverable on the next iteration.
         print(f"[cleanup] feed orphans sweep failed: {e}")
     if deleted_likes or deleted_comments:
         print(f"[cleanup] removed {deleted_likes} feed_likes + {deleted_comments} feed_comments older than 90 days")
@@ -255,9 +261,23 @@ def _cleanup_feed_orphans():
 def _start_cleanup_thread():
     """Spin up a daemon thread that runs the cleanup once on boot, then
     sleeps 24h and repeats. Daemon=True so it doesn't keep the process
-    alive on shutdown. Skipped under WERKZEUG_RUN_MAIN's reloader-parent
-    process so dev mode doesn't double-run."""
-    if os.getenv("WERKZEUG_RUN_MAIN") == "false":
+    alive on shutdown.
+
+    FIXING_ROADMAP §2.2: the previous gate was
+    `if WERKZEUG_RUN_MAIN == "false": return` — backwards. Werkzeug's
+    dev reloader sets the var to "true" in the WORKER and leaves it
+    UNSET in the PARENT, so the old check skipped on... neither
+    process. Under gunicorn on PA the var is also unset, so the
+    thread always ran (correct by accident) but with `flask run
+    --reload` it ran in BOTH the parent and the child, double-firing
+    the cleanup. The correct gate: only run when we're definitely
+    not the Werkzeug reloader parent — i.e., the var is `"true"`
+    (child worker) OR unset (production WSGI worker). Skip when the
+    var is literally any other value (today only `"false"` is used
+    by Werkzeug for the parent, but conservatively narrow the
+    pass-through condition rather than the skip condition)."""
+    werkzeug_run_main = os.getenv("WERKZEUG_RUN_MAIN")
+    if werkzeug_run_main is not None and werkzeug_run_main != "true":
         return
     import threading
     import time

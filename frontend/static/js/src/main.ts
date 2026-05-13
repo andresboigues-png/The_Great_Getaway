@@ -109,8 +109,15 @@ function renderNotificationDropdown() {
     // Escape title + message — both are server-composed but include
     // user-controlled strings (trip names, user.name from OAuth, companion
     // names) that could carry markup if a malicious user supplied them.
-    const html = notes.map((n, i) => `
-        <div class="notification-item ${n.is_read ? '' : 'unread'}" data-notification-index="${i}" role="button" tabindex="0">
+    //
+    // §2.13: was `data-notification-index="${i}"` keyed on array
+    // position. A poll landing between render and click could
+    // reorder/shrink STATE.notifications and the click would resolve
+    // to the WRONG row (or undefined). Switching to the row's stable
+    // `id` removes that race entirely; the click handler looks up by
+    // id instead of `STATE.notifications[idx]`.
+    const html = notes.map(n => `
+        <div class="notification-item ${n.is_read ? '' : 'unread'}" data-notification-id="${esc(String(n.id))}" role="button" tabindex="0">
             <div class="notification-item__title" style="--accent: ${notificationAccent(n.type)};">
                 <span class="notification-item__dot"></span>
                 ${esc(n.title || notificationDefaultTitle(n.type))}
@@ -524,9 +531,29 @@ async function init() {
     initGoogleLogin();
 
     // Event Listeners for static elements
+    // §2.8: a11y — same aria-expanded story as the notification bells.
+    // The hamburger button toggles the side-drawer; screen readers
+    // need to know its expanded state. aria-controls points at the
+    // sidebar element so AT can announce "Menu, expanded" instead of
+    // a bare "button."
+    const hamburgerBtn = document.getElementById('hamburgerBtn');
+    const sidebarEl = document.getElementById('sidebar');
+    if (hamburgerBtn && sidebarEl) {
+        hamburgerBtn.setAttribute('aria-haspopup', 'true');
+        hamburgerBtn.setAttribute('aria-expanded', 'false');
+        hamburgerBtn.setAttribute('aria-controls', 'sidebar');
+    }
     const toggleSidebar = () => {
-        document.getElementById('sidebar')?.classList.toggle('open');
-        document.getElementById('sidebarOverlay')?.classList.toggle('open');
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebarOverlay');
+        sidebar?.classList.toggle('open');
+        overlay?.classList.toggle('open');
+        if (hamburgerBtn && sidebar) {
+            hamburgerBtn.setAttribute(
+                'aria-expanded',
+                sidebar.classList.contains('open') ? 'true' : 'false',
+            );
+        }
     };
 
     document.getElementById('hamburgerBtn')?.addEventListener('click', toggleSidebar);
@@ -575,12 +602,23 @@ async function init() {
     };
 
     for (const { btn, dropdown } of bellPairs) {
+        // §2.8: a11y — bells toggle a dropdown but didn't expose the
+        // open/closed state to screen readers. aria-expanded on the
+        // button + aria-controls pointing at the dropdown lets the
+        // screen reader announce "Notifications, collapsed" /
+        // "Notifications, expanded" the way native <details>/<summary>
+        // does. Initial state is closed (display:none on the dropdown
+        // by default in the template).
+        btn.setAttribute('aria-haspopup', 'true');
+        btn.setAttribute('aria-expanded', 'false');
+        btn.setAttribute('aria-controls', dropdown.id);
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
             const isHidden = dropdown.style.display === 'none' || !dropdown.style.display;
             // Always close the OTHER dropdown when toggling one.
             closeOtherDropdowns(isHidden ? dropdown : null);
             dropdown.style.display = isHidden ? 'flex' : 'none';
+            btn.setAttribute('aria-expanded', isHidden ? 'true' : 'false');
             if (isHidden) {
                 renderNotificationDropdown();
                 markNotificationsRead(); // Mark all as read when opening the list
@@ -641,10 +679,15 @@ async function init() {
         // Notification item clicked — route to the page that lets the user
         // act on it. Checked before the outside-click close, since the click
         // is inside the dropdown and we want to dismiss it ourselves.
-        const notifItem = target?.closest('[data-notification-index]') as HTMLElement | null;
+        // §2.13: look up by stable id, not array index — protects
+        // against a polling race that could reorder the list between
+        // render and click.
+        const notifItem = target?.closest('[data-notification-id]') as HTMLElement | null;
         if (notifItem) {
-            const idx = parseInt(notifItem.getAttribute('data-notification-index') ?? '', 10);
-            const notif = (STATE.notifications || [])[idx];
+            const id = notifItem.getAttribute('data-notification-id') ?? '';
+            const notif = (STATE.notifications || []).find(
+                n => String(n.id) === id,
+            );
             if (notif) handleNotificationClick(notif);
             return;
         }

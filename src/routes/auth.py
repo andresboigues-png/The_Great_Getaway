@@ -67,7 +67,11 @@ def user_status():
 def google_auth():
     """Verify Google ID Token and manage user session."""
     # Support both 'token' and 'credential' keys
-    token = request.json.get("token") or request.json.get("credential")
+    # §2.3 — guard against a non-JSON body (curl with no
+    # Content-Type, malformed POST). request.json returns None in
+    # that case and `.get(...)` would AttributeError.
+    body = request.json or {}
+    token = body.get("token") or body.get("credential")
     client_id = os.getenv("CLIENT_ID_GOOGLE_AUTH")
 
     # ── Test-mode bypass ──────────────────────────────────────────────
@@ -86,7 +90,7 @@ def google_auth():
     ):
         user_id = token[len("test:"):] or "test-user-1"
         email = f"{user_id}@test.local"
-        name = request.json.get("name") or "Test User"
+        name = body.get("name") or "Test User"
         picture = ""
         with get_db() as conn:
             cursor = conn.cursor()

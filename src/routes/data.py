@@ -260,7 +260,10 @@ def sync_data():
                   # longitude (legacy naming); the lat column was previously
                   # being filled with `lon` as a fallback when `lat` was
                   # missing, which silently corrupted the latitude value.
-                  d.get('lng') or d.get('lon')))
+                  # FIXING_ROADMAP §2.4: the `or` operator drops legitimate
+                  # values of 0 — the prime meridian (lng=0) and equator
+                  # (lat=0). Explicit `is not None` instead.
+                  d['lng'] if d.get('lng') is not None else d.get('lon')))
 
         conn.commit()
 
@@ -477,13 +480,16 @@ def get_data():
                 'evening': unwrap_legacy_plan_text(day.pop('evening', '')),
             }
 
+            # §2.15: narrow exception types so unrelated bugs (e.g. a
+            # missing key on a future-shaped row) aren't silently
+            # swallowed.
             try:
                 day['photos'] = json.loads(day['photos'])
-            except Exception:
+            except (json.JSONDecodeError, TypeError, KeyError):
                 day['photos'] = []
             try:
                 day['documents'] = json.loads(day['documents'])
-            except Exception:
+            except (json.JSONDecodeError, TypeError, KeyError):
                 day['documents'] = []
 
             trip_days.append(day)

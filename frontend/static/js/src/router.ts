@@ -87,10 +87,19 @@ export type NavAnimDir = 'forward' | 'backward';
 
 /** Tracks the most recent animationend handler so a rapid second swipe
  *  before the first animation completes can detach the stale listener
- *  before binding a new one. Without this, every swipe would leak a
- *  listener that fires once and never re-detaches (its target-equality
- *  guard makes it inert, but the leak is ugly). */
+ *  before binding a new one. */
 let _navAnimCleanup: ((e: AnimationEvent) => void) | null = null;
+
+/** §2.21: per-call generation token. When three swipes fire faster
+ *  than the 0.28s slide animation can complete, the chunk-load
+ *  microtasks resolve in arbitrary order — by the time the second
+ *  loader().then() runs applyNavAnimation, a third loader().then()
+ *  may have already finished and applied its own animation. Each
+ *  call captures `_navAnimGen` at entry; the cleanup handler only
+ *  strips the class if the generation it was bound under is still
+ *  the latest. Otherwise a stale "animationend" fires AFTER the
+ *  newer animation started, and would strip its class mid-slide. */
+let _navAnimGen = 0;
 
 /** Apply a slide-in animation to the content container. Uses a class
  *  (not an inline `animation` property) so the keyframes + easing live
@@ -102,6 +111,7 @@ function applyNavAnimation(container: HTMLElement, dir: NavAnimDir): void {
         container.removeEventListener('animationend', _navAnimCleanup);
         _navAnimCleanup = null;
     }
+    const myGen = ++_navAnimGen;
     container.classList.remove('nav-anim-forward', 'nav-anim-backward');
     // Force a reflow so the upcoming class addition restarts the
     // animation from frame 0 instead of being collapsed into the
@@ -113,6 +123,14 @@ function applyNavAnimation(container: HTMLElement, dir: NavAnimDir): void {
         // dispatch this listener with target=child. Skip those; only
         // strip the class once the container's own animation ends.
         if (e.target !== container) return;
+        // §2.21: only act if this is still the latest animation. A
+        // stale fire (rapid re-swipe before this one finished) is
+        // a no-op — the newer animation's own cleanup will handle
+        // its own class strip.
+        if (myGen !== _navAnimGen) {
+            container.removeEventListener('animationend', cleanup);
+            return;
+        }
         container.classList.remove('nav-anim-forward', 'nav-anim-backward');
         container.removeEventListener('animationend', cleanup);
         _navAnimCleanup = null;

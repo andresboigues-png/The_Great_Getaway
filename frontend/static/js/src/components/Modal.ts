@@ -66,7 +66,32 @@ export function showModal(opts: {
     overlay.className = 'modal-overlay';
     overlay.style.display = 'flex';
     overlay.style.backdropFilter = 'blur(25px)';
-    overlay.innerHTML = `<div class="${cardClass}"${cardStyle ? ` style="${cardStyle}"` : ''}>${innerHTML}</div>`;
+    // §2.10: a11y — every modal renders with role="dialog" and
+    // aria-modal="true" so screen readers treat it as a modal dialog
+    // and trap their virtual cursor inside it (matching our visual
+    // focus trap). The card itself gets the role; the overlay is
+    // just visual chrome. aria-labelledby is set below if the card's
+    // first heading has one — auto-derived so each modal site
+    // doesn't have to remember to wire it.
+    const card = document.createElement('div');
+    card.className = cardClass;
+    card.setAttribute('role', 'dialog');
+    card.setAttribute('aria-modal', 'true');
+    if (cardStyle) card.setAttribute('style', cardStyle);
+    card.innerHTML = innerHTML;
+    overlay.appendChild(card);
+    // If the card's first heading has an id, point aria-labelledby
+    // at it so the dialog's accessible name is announced on open.
+    // Otherwise auto-generate an id on the first heading we find
+    // and use that — keeps existing modal sites working without
+    // requiring them to pre-bake an id.
+    const firstHeading = card.querySelector('h1, h2, h3') as HTMLElement | null;
+    if (firstHeading) {
+        if (!firstHeading.id) {
+            firstHeading.id = `modal-title-${Math.random().toString(36).slice(2, 10)}`;
+        }
+        card.setAttribute('aria-labelledby', firstHeading.id);
+    }
 
     let closed = false;
     const close = () => {
@@ -74,7 +99,17 @@ export function showModal(opts: {
         closed = true;
         document.removeEventListener('keydown', onKeyDown, true);
         overlay.remove();
-        if (previouslyFocused && typeof previouslyFocused.focus === 'function') {
+        // §2.11: focus restoration — only refocus the previously-
+        // active element if it's STILL in the DOM. If the user
+        // navigated away mid-modal, the original element is gone
+        // and refocusing it would either silently focus body OR
+        // throw on some implementations. Fall back to the document
+        // body so keyboard users land somewhere sensible.
+        if (
+            previouslyFocused
+            && typeof previouslyFocused.focus === 'function'
+            && document.contains(previouslyFocused)
+        ) {
             previouslyFocused.focus();
         }
         onClose?.();

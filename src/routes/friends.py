@@ -89,8 +89,13 @@ def add_friend():
         # event would silently skip the row.
         cursor.execute("INSERT INTO friends (user_id, friend_id, status, created_at) VALUES (?, ?, 'pending', CURRENT_TIMESTAMP)", (user_id, friend_id))
 
+        # §2.5: tolerate the (very rare) race where the user row was
+        # deleted between auth + here. Fetchone returns None, the
+        # subscript would TypeError. Default to a generic "Someone"
+        # so the notification still lands.
         cursor.execute("SELECT name FROM users WHERE id = ?", (user_id,))
-        sender_name = cursor.fetchone()["name"]
+        sender_row = cursor.fetchone()
+        sender_name = (sender_row["name"] if sender_row else None) or "Someone"
 
         msg = f"{sender_name} sent you a friend request."
         cursor.execute("INSERT INTO notifications (user_id, type, title, related_id, message, is_read) VALUES (?, 'friend_request', 'Friend Request', ?, ?, 0)",
@@ -130,8 +135,10 @@ def accept_friend():
         # created_at on the back-row.
         cursor.execute("INSERT OR IGNORE INTO friends (user_id, friend_id, status, created_at) VALUES (?, ?, 'accepted', CURRENT_TIMESTAMP)", (user_id, friend_id))
 
+        # §2.5: defensive — same rationale as the /add path above.
         cursor.execute("SELECT name FROM users WHERE id = ?", (user_id,))
-        acceptor_name = cursor.fetchone()["name"]
+        acceptor_row = cursor.fetchone()
+        acceptor_name = (acceptor_row["name"] if acceptor_row else None) or "Someone"
 
         msg = f"{acceptor_name} accepted your friend request."
         cursor.execute("INSERT INTO notifications (user_id, type, title, related_id, message, is_read) VALUES (?, 'accepted_request', 'Request Accepted', ?, ?, 0)",

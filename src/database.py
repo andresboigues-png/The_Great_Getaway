@@ -477,7 +477,33 @@ def init_db():
                 FOREIGN KEY(trip_id) REFERENCES trips(id)
             )
         ''')
-        
+
+        # FIXING_ROADMAP §2.1 — indexes on hot tables. Must come AFTER
+        # all CREATE TABLE statements above (the table needs to exist
+        # before the index can reference it). The caller-can-see-event
+        # check in feed.py runs against feed_likes / feed_bookmarks on
+        # every like/bookmark toggle — without these indexes those
+        # become full-table scans once the tables grow past a few
+        # thousand rows. trip_members has the same hot path on
+        # /api/data (§1.7 batched the per-trip lookup but still pays
+        # for index lookup if the table grows). notifications +
+        # friends are read on every page load. Index naming
+        # convention: idx_<table>_<col(s)>.
+        for ddl in (
+            "CREATE INDEX IF NOT EXISTS idx_feed_likes_event ON feed_likes(event_id)",
+            "CREATE INDEX IF NOT EXISTS idx_feed_bookmarks_event ON feed_bookmarks(event_id)",
+            "CREATE INDEX IF NOT EXISTS idx_feed_posts_user ON feed_posts(user_id)",
+            "CREATE INDEX IF NOT EXISTS idx_feed_posts_trip ON feed_posts(trip_id)",
+            "CREATE INDEX IF NOT EXISTS idx_friends_user_status ON friends(user_id, status)",
+            "CREATE INDEX IF NOT EXISTS idx_notifications_user_created "
+            "ON notifications(user_id, created_at)",
+            "CREATE INDEX IF NOT EXISTS idx_trip_members_trip_user "
+            "ON trip_members(trip_id, user_id)",
+            "CREATE INDEX IF NOT EXISTS idx_expenses_trip ON expenses(trip_id)",
+            "CREATE INDEX IF NOT EXISTS idx_trip_days_trip ON trip_days(trip_id)",
+        ):
+            _safe_alter(cursor, ddl)
+
         conn.commit()
 
 if __name__ == "__main__":

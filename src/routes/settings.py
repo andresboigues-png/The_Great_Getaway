@@ -114,13 +114,31 @@ def update_profile():
         pic = payload.get("picture") or ""
         if not isinstance(pic, str):
             return jsonify({"error": "picture must be a string"}), 400
-        is_local = pic.startswith("/static/uploads/") or pic.startswith("/uploads/")
         is_google = pic.startswith("https://lh3.googleusercontent.com/")
         is_empty = pic == ""
-        if not (is_local or is_google or is_empty):
+        # FIXING_ROADMAP §2.7 — local uploads are now stored in a
+        # per-user subdirectory (`/static/uploads/<user_id>/...`).
+        # The validator accepts a URL only if its subdir matches the
+        # caller. Legacy flat paths (`/static/uploads/<filename>` with
+        # no subdir) are still accepted for backwards compatibility —
+        # they were the only shape pre-§2.7, so existing profile pics
+        # don't break. New abuse vectors are blocked because any NEW
+        # upload lands in the caller's own subdir.
+        from werkzeug.utils import secure_filename
+        safe_user_dir = secure_filename(user_id) or "anon"
+        owned_prefix = f"/static/uploads/{safe_user_dir}/"
+        legacy_prefix = "/static/uploads/"
+        is_owned_local = pic.startswith(owned_prefix)
+        is_legacy_local = (
+            pic.startswith(legacy_prefix)
+            # No further subdir = legacy flat layout. If there's a
+            # subdir component, require it to match the caller (above).
+            and "/" not in pic[len(legacy_prefix):]
+        )
+        if not (is_owned_local or is_legacy_local or is_google or is_empty):
             return jsonify({
-                "error": "picture URL must be from /api/upload or empty",
-            }), 400
+                "error": "picture URL must be your own upload (or empty)",
+            }), 403
 
     # i18n session 3 — language follows the user across devices.
     # Allowlist matches the Locale union in i18n.ts; anything else

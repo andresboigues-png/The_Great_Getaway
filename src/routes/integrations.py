@@ -21,6 +21,7 @@ import requests
 from flask import Blueprint, jsonify, request
 
 from auth import require_auth
+from extensions import limiter
 
 
 logger = logging.getLogger(__name__)
@@ -202,17 +203,46 @@ def get_config():
 
 
 @bp.route("/api/generate_itinerary", methods=["POST"])
+@limiter.limit("10 per hour")
 @require_auth
 def generate_itinerary():
     """Call Gemini API to generate a structured JSON itinerary.
     Auth gate (and the JWT origin requirement) prevents anonymous
-    traffic from burning paid LLM quota."""
+    traffic from burning paid LLM quota.
+
+    FIXING_ROADMAP §2.16:
+    - Added a 10/hour rate limit. The endpoint hits a paid external
+      API (Gemini), and a logged-in attacker could otherwise script
+      it to burn the host's quota OR (with their own gemini_key)
+      script it as a free LLM proxy. 10/hour is generous for real
+      planning sessions but kills automation.
+    - destination / context are interpolated into the prompt — they
+      need to be length-capped and stripped of control chars to
+      blunt prompt-injection attacks. We can't fully prevent prompt
+      injection without RLHF in the model, but cutting 50KB exploit
+      strings down to short bounded text + dropping newlines makes
+      the obvious "Ignore previous instructions" tricks much harder.
+    """
     data = request.json or {}
-    destination = data.get("destination", "Unknown")
-    num_days = data.get("numDays", 3)
-    date_from = data.get("dateFrom", "")
-    date_to = data.get("dateTo", "")
-    context = data.get("context", "")
+    destination = str(data.get("destination", "Unknown"))[:120]
+    num_days_raw = data.get("numDays", 3)
+    try:
+        num_days = max(1, min(30, int(num_days_raw)))
+    except (TypeError, ValueError):
+        num_days = 3
+    date_from = str(data.get("dateFrom", ""))[:32]
+    date_to = str(data.get("dateTo", ""))[:32]
+    context = str(data.get("context", ""))[:500]
+    # Strip control chars (incl. newlines) from destination + dates +
+    # context so a prompt injection can't smuggle in an instruction
+    # break via "\n\nIgnore the previous instructions". The model
+    # sees a single-line, bounded string for each user field.
+    def _scrub(s: str) -> str:
+        return "".join(c for c in s if ord(c) >= 0x20 and c not in "\r\n\t")
+    destination = _scrub(destination).strip()
+    date_from = _scrub(date_from).strip()
+    date_to = _scrub(date_to).strip()
+    context = _scrub(context).strip()
 
     # BYO key path: client sends its own Gemini key in the request body
     # so we don't burn the host's quota on friends/family rollouts. We

@@ -260,8 +260,22 @@ export function loadState() {
     }
 }
 
-export function saveState() {
-    // Ensure all days have tickets array
+// §2.14 — debounce localStorage writes.
+//
+// Pre-fix saveState() ran on EVERY state:changed emit, and emit
+// fires on every mutation + every 15s polling tick + every nested
+// state update. For a power user with 1MB+ STATE (photos +
+// markedPlaces), that meant JSON.stringify + localStorage.setItem
+// 4–10 times a second, both of which BLOCK the main thread. Visible
+// symptom was the UI stuttering during heavy editing sessions.
+//
+// The fix coalesces successive saveState() calls into a single
+// write 250ms after the last call. localStorage is a durability
+// floor — the server-side sync is the source of truth, so a 250ms
+// delay can't lose data that the user expected to be persisted.
+let _saveTimer: ReturnType<typeof setTimeout> | null = null;
+
+function _doSave() {
     if (STATE.tripDays) {
         STATE.tripDays.forEach(d => { if (!d.tickets) d.tickets = []; });
     }
@@ -275,8 +289,35 @@ export function saveState() {
     } catch (e) {
         console.warn('saveState: localStorage write failed (quota or private mode)', e);
     }
-    // Pure persistence — UI updates and server deltas are handled by separate
-    // subscribers (see main.js) and explicit call sites.
+}
+
+export function saveState() {
+    // Pure persistence — UI updates and server deltas are handled by
+    // separate subscribers (see main.js) and explicit call sites.
+    //
+    // Defer the actual JSON.stringify + setItem by 250ms so a burst
+    // of state:changed events collapses into one write. Also flush
+    // on `pagehide` (handler below) so a tab-close doesn't lose the
+    // last unflushed batch.
+    if (_saveTimer !== null) clearTimeout(_saveTimer);
+    _saveTimer = setTimeout(() => {
+        _saveTimer = null;
+        _doSave();
+    }, 250);
+}
+
+// Force an immediate flush of any pending save. Wired to `pagehide`
+// (more reliable than `beforeunload` on mobile) so a tab-close
+// doesn't drop a debounced save. Falls back to a no-op if window
+// isn't available (test envs, server-side renders).
+if (typeof window !== 'undefined') {
+    window.addEventListener('pagehide', () => {
+        if (_saveTimer !== null) {
+            clearTimeout(_saveTimer);
+            _saveTimer = null;
+            _doSave();
+        }
+    });
 }
 
 // ── Tiny event bus ─────────────────────────────────────────────────────────────
