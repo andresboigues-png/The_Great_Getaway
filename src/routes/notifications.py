@@ -106,20 +106,23 @@ def notify_trip_public():
         if cursor.fetchone():
             return jsonify({"status": "ok", "deduped": True})
 
-        cursor.execute(
-            "SELECT friend_id FROM friends WHERE user_id = ? AND status = 'accepted'",
-            (user_id,),
-        )
-        friends = cursor.fetchall()
-
-        for friend in friends:
-            friend_id = friend["friend_id"]
+        # Model B — broadcast to FOLLOWERS, not friends. Followers
+        # opted into your activity by following; mutuals are a subset
+        # so they get the notification too. Pre-Model-B this read
+        # `friends WHERE status = 'accepted'` (mutual by construction),
+        # so the practical reach is similar — but the new query
+        # respects the asymmetric audience model where someone who
+        # follows you without expecting follow-back still gets the
+        # ping.
+        from social import followers_of
+        recipients = followers_of(cursor, user_id)
+        for recipient_id in recipients:
             msg = f"{user_name} completed their trip to {trip_name} and made it public!"
             cursor.execute(
                 "INSERT INTO notifications "
                 "(user_id, type, title, related_id, message, is_read) "
                 "VALUES (?, 'trip_public', 'Trip Completed!', ?, ?, 0)",
-                (friend_id, user_id, msg),
+                (recipient_id, user_id, msg),
             )
 
         conn.commit()

@@ -788,16 +788,33 @@ def test_friend_add_rejects_unknown_friend(client, seed_user, auth_headers):
     assert res.status_code == 404
 
 
-def test_friend_accept_rejects_fabricated_invite(
+def test_friend_accept_is_follow_back_under_model_b(
     client, seed_user, seed_other_user, auth_headers,
 ):
-    """Auditor added a 'pending request must exist' check. Without it,
-    any caller could fabricate a friendship by POSTing accept with two
-    arbitrary user_ids."""
+    """Model B: /api/friends/accept is now a façade for "follow them
+    back" rather than the second half of a pending-request dance. The
+    fabrication check from the original audit is gone — under Model B
+    "accept" without a pending is just "I want to follow them", which
+    is a legitimate first action (Twitter/Instagram model). 404 is no
+    longer the right response; success is.
+
+    Pre-Model-B this test was test_friend_accept_rejects_fabricated_invite
+    and asserted 404. Updated here to reflect the new semantics: a
+    follow row gets inserted, and a subsequent /api/friends/list call
+    returns seed_other_user as a follow (not yet a mutual)."""
     res = client.post("/api/friends/accept", headers=auth_headers, json={
         "friend_id": seed_other_user,
     })
-    assert res.status_code == 404
+    assert res.status_code == 200
+    # And the follow edge actually landed in the follows table.
+    from database import get_db
+    with get_db() as conn:
+        c = conn.cursor()
+        c.execute(
+            "SELECT 1 FROM follows WHERE follower_id = ? AND followee_id = ?",
+            (seed_user, seed_other_user),
+        )
+        assert c.fetchone() is not None
 
 
 # ── /api/upload ──────────────────────────────────────────────────────────────
@@ -1549,9 +1566,13 @@ def test_trip_silence_rejects_non_owner(
 # ── /api/trips/invite | respond | members/remove ─────────────────────────────
 
 def _befriend(client, headers_a, headers_b, user_a, user_b):
-    """Helper: establish a mutually-accepted friendship between user_a
-    and user_b. The trip-invite endpoints gate on accepted friendships,
-    so most invite tests need this scaffolding."""
+    """Helper: establish a mutual-follow between user_a and user_b.
+
+    Pre-Model-B this called /api/friends/add then /api/friends/accept
+    to land both halves of the legacy friend-request dance. Post-
+    Model-B the same calls still work (they're façades over follows
+    now — see routes/friends.py) so the test surface didn't have to
+    change. Two POSTs = two follow edges = one mutual."""
     client.post("/api/friends/add", headers=headers_a, json={"friend_id": user_b})
     client.post("/api/friends/accept", headers=headers_b, json={"friend_id": user_a})
 
@@ -1572,18 +1593,22 @@ def test_trip_invite_creates_pending(
     assert res.status_code == 200
 
 
-def test_trip_invite_rejects_non_friend(
+def test_trip_invite_works_for_non_friend_under_model_b(
     client, seed_user, seed_other_user, auth_headers,
 ):
-    """Audit gate: target must already be an accepted friend.
-    Without this, trip invitations would be a way to spam any user_id."""
+    """Model B: the trip-invite friend-gate is dropped. Trip invites
+    are an explicit access grant decoupled from the social graph;
+    anyone can be invited (with the existing 30/min rate-limit as
+    spam defense + the trip-planner-only gate for who's allowed to
+    invite). Pre-Model-B this asserted 403 (must-be-friend); now it
+    asserts the invite goes through to a stranger."""
     trip_id = _create_trip(client, auth_headers, trip_id="trip-invite-stranger")
     res = client.post("/api/trips/invite", headers=auth_headers, json={
         "trip_id": trip_id,
         "target_user_id": seed_other_user,
         "role": "relaxer",
     })
-    assert res.status_code == 403
+    assert res.status_code == 200
 
 
 def test_trip_invite_respond_accept(
@@ -3305,22 +3330,22 @@ def test_main_cleanup_feed_orphans_logs_when_rows_deleted(client, caplog):
 # bookmark, then asserts /api/feed returns the right shape.
 
 def _make_friends(user_a, user_b):
-    """Insert a bidirectional accepted-friendship row pair so /api/feed's
-    friends query returns both as visible to each other. Stamps created_at
-    explicitly — the feed's new_friendship query filters on
-    `created_at >= datetime('now', '-30 days')`, so the default
-    CURRENT_TIMESTAMP is fresh enough for the feed window."""
+    """Establish a mutual-follow between user_a and user_b at the DB
+    level (bypassing the friend-add → follow-back façade for speed).
+    Under Model B, "friend" = mutual follow, so we just insert both
+    follow edges. CURRENT_TIMESTAMP keeps the rows fresh enough for
+    the feed's 30-day window."""
     from database import get_db
     with get_db() as conn:
         c = conn.cursor()
         c.execute(
-            "INSERT INTO friends (user_id, friend_id, status, created_at) "
-            "VALUES (?, ?, 'accepted', CURRENT_TIMESTAMP)",
+            "INSERT OR IGNORE INTO follows (follower_id, followee_id, created_at) "
+            "VALUES (?, ?, CURRENT_TIMESTAMP)",
             (user_a, user_b),
         )
         c.execute(
-            "INSERT INTO friends (user_id, friend_id, status, created_at) "
-            "VALUES (?, ?, 'accepted', CURRENT_TIMESTAMP)",
+            "INSERT OR IGNORE INTO follows (follower_id, followee_id, created_at) "
+            "VALUES (?, ?, CURRENT_TIMESTAMP)",
             (user_b, user_a),
         )
         conn.commit()
@@ -3876,8 +3901,13 @@ def test_achievements_repeat_country(client, seed_user, auth_headers):
 
 
 def test_achievements_social_butterfly(client, seed_user, auth_headers):
-    """3+ accepted friends → social_butterfly. Test seeds the friend
-    rows directly since the friend-add flow is its own endpoint."""
+    """3+ mutual-follow relationships → social_butterfly. Model B:
+    "friend" count = mutuals (people who follow you back). Test seeds
+    both directions of each follow so each candidate counts.
+
+    Pre-Model-B this seeded `friends` rows with status='accepted';
+    rewired to insert two `follows` rows per pair since `mutuals_of`
+    is the new authority for the count."""
     from database import get_db
     with get_db() as conn:
         c = conn.cursor()
@@ -3887,6 +3917,21 @@ def test_achievements_social_butterfly(client, seed_user, auth_headers):
                 "INSERT INTO users (id, email, name) VALUES (?, ?, ?)",
                 (other_id, f"sb{i}@example.com", f"Friend {i}"),
             )
+            # Mutual = both directions of follow.
+            c.execute(
+                "INSERT INTO follows (follower_id, followee_id, created_at) "
+                "VALUES (?, ?, CURRENT_TIMESTAMP)",
+                (seed_user, other_id),
+            )
+            c.execute(
+                "INSERT INTO follows (follower_id, followee_id, created_at) "
+                "VALUES (?, ?, CURRENT_TIMESTAMP)",
+                (other_id, seed_user),
+            )
+            # Keep the legacy friends-table insert as a no-op marker for
+            # ease of grep when someone audits this file later — the
+            # _do-nothing INSERT keeps the column count consistent with
+            # any future legacy reads but doesn't influence the gate.
             c.execute(
                 "INSERT INTO friends (user_id, friend_id, status, created_at) "
                 "VALUES (?, ?, 'accepted', CURRENT_TIMESTAMP)",
@@ -4367,3 +4412,181 @@ def test_follow_requires_auth(client):
     assert client.post("/api/follows/anyone", headers=no_token).status_code == 401
     assert client.delete("/api/follows/anyone", headers=no_token).status_code == 401
     assert client.get("/api/follows/anyone", headers=no_token).status_code == 401
+
+
+# ── Model B — friends-as-mutuals semantics ───────────────────────────
+# These tests pin the Model B contract: /api/friends/* is a façade
+# over `follows`, "friend" = mutual follow, and the feed surfaces
+# people you follow (asymmetric) rather than the legacy friends
+# table.
+
+
+def test_model_b_friends_list_returns_mutuals_only(
+    client, seed_user, seed_other_user, auth_headers,
+):
+    """/api/friends/list returns the user's MUTUAL follows. A one-way
+    follow (only one side) does NOT show up. Two-way (mutual) does."""
+    # One-way: caller follows seed_other_user.
+    client.post(f"/api/follows/{seed_other_user}", headers=auth_headers)
+    res = client.get("/api/friends/list", headers=auth_headers)
+    assert res.status_code == 200
+    assert res.get_json() == []  # not mutual yet
+
+    # Now seed the back-edge directly (skip the second user's API
+    # call — we just need the row to exist).
+    from database import get_db
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO follows (follower_id, followee_id) VALUES (?, ?)",
+            (seed_other_user, seed_user),
+        )
+        conn.commit()
+
+    res2 = client.get("/api/friends/list", headers=auth_headers)
+    body = res2.get_json()
+    assert len(body) == 1
+    assert body[0]["id"] == seed_other_user
+
+
+def test_model_b_friends_add_creates_follow_immediately(
+    client, seed_user, seed_other_user, auth_headers,
+):
+    """Model B: /api/friends/add is a façade for "follow this user".
+    No pending state — the follow row lands immediately. /api/friends/
+    pending always returns [] post-Model-B."""
+    res = client.post("/api/friends/add", headers=auth_headers, json={
+        "friend_id": seed_other_user,
+    })
+    assert res.status_code == 200
+
+    # Follow row exists.
+    from database import get_db
+    with get_db() as conn:
+        c = conn.cursor()
+        c.execute(
+            "SELECT 1 FROM follows WHERE follower_id = ? AND followee_id = ?",
+            (seed_user, seed_other_user),
+        )
+        assert c.fetchone() is not None
+
+    # Pending list is always empty.
+    pending = client.get("/api/friends/pending", headers=auth_headers).get_json()
+    assert pending == []
+
+
+def test_model_b_friends_remove_only_unfollows_my_side(
+    client, seed_user, seed_other_user, auth_headers,
+):
+    """Model B unfriend = unfollow MY side. The other party's follow
+    of me stays in place — they may continue to follow me (Twitter /
+    Instagram unfriend semantic). The mutual breaks naturally if both
+    sides unfollow."""
+    _make_friends(seed_user, seed_other_user)  # establishes mutual
+
+    res = client.post("/api/friends/remove", headers=auth_headers, json={
+        "friend_id": seed_other_user,
+    })
+    assert res.status_code == 200
+
+    from database import get_db
+    with get_db() as conn:
+        c = conn.cursor()
+        # My side gone.
+        c.execute(
+            "SELECT 1 FROM follows WHERE follower_id = ? AND followee_id = ?",
+            (seed_user, seed_other_user),
+        )
+        assert c.fetchone() is None
+        # Their side still there.
+        c.execute(
+            "SELECT 1 FROM follows WHERE follower_id = ? AND followee_id = ?",
+            (seed_other_user, seed_user),
+        )
+        assert c.fetchone() is not None
+
+
+def test_model_b_feed_pool_is_following_not_friends(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """Model B: feed surfaces "what people I FOLLOW do" — asymmetric.
+    If A follows B but B doesn't follow A back, A still sees B's
+    activity. (Mutuals naturally inherit this because they're in the
+    followed set too.)"""
+    # A follows B only (one-way).
+    client.post(f"/api/follows/{seed_other_user}", headers=auth_headers)
+    # B creates a trip (action_hidden=0 by default).
+    _create_trip(client, other_auth_headers, trip_id="trip-mb-feed", name="Bali")
+
+    # A's feed should now include B's friend_created_trip event.
+    events = client.get("/api/feed", headers=auth_headers).get_json()
+    actor_ids = {e.get("actor", {}).get("id") for e in events}
+    assert seed_other_user in actor_ids
+
+
+def test_model_b_migrate_friends_to_follows(client, temp_db):
+    """One-shot migration: accepted `friends` rows → two follow rows.
+    Pending requests → one-way follow from the requester. Idempotent
+    on re-runs (INSERT OR IGNORE)."""
+    from database import get_db
+    from social import migrate_friends_to_follows
+    # Seed users + legacy friends rows.
+    with get_db() as conn:
+        c = conn.cursor()
+        for uid in ("mig-a", "mig-b", "mig-c"):
+            c.execute(
+                "INSERT INTO users (id, email, name) VALUES (?, ?, ?)",
+                (uid, f"{uid}@x.com", uid.upper()),
+            )
+        # Accepted pair.
+        c.execute(
+            "INSERT INTO friends (user_id, friend_id, status, created_at) "
+            "VALUES ('mig-a', 'mig-b', 'accepted', CURRENT_TIMESTAMP)",
+        )
+        c.execute(
+            "INSERT INTO friends (user_id, friend_id, status, created_at) "
+            "VALUES ('mig-b', 'mig-a', 'accepted', CURRENT_TIMESTAMP)",
+        )
+        # Pending: mig-a requested mig-c.
+        c.execute(
+            "INSERT INTO friends (user_id, friend_id, status, created_at) "
+            "VALUES ('mig-a', 'mig-c', 'pending', CURRENT_TIMESTAMP)",
+        )
+        # Clear any follows from init_db's own migration so we test
+        # this call in isolation.
+        c.execute("DELETE FROM follows")
+        conn.commit()
+
+    with get_db() as conn:
+        c = conn.cursor()
+        inserted = migrate_friends_to_follows(c)
+        conn.commit()
+
+    assert inserted == 3  # 2 for the accepted pair + 1 for pending
+
+    # Verify the shape.
+    with get_db() as conn:
+        c = conn.cursor()
+        c.execute("SELECT follower_id, followee_id FROM follows ORDER BY follower_id, followee_id")
+        edges = [(r["follower_id"], r["followee_id"]) for r in c.fetchall()]
+    assert ("mig-a", "mig-b") in edges
+    assert ("mig-b", "mig-a") in edges
+    assert ("mig-a", "mig-c") in edges
+    # Pending was one-way only — no reciprocal.
+    assert ("mig-c", "mig-a") not in edges
+
+    # Idempotent: re-run should insert zero new rows.
+    with get_db() as conn:
+        c = conn.cursor()
+        again = migrate_friends_to_follows(c)
+        conn.commit()
+    assert again == 0
+
+
+def test_model_b_friends_reject_is_noop(client, seed_user, auth_headers):
+    """No pending state under Model B → reject is a benign no-op
+    that returns success. Keeps old clients clicking the legacy
+    Reject button from seeing errors."""
+    res = client.post("/api/friends/reject", headers=auth_headers, json={
+        "friend_id": "anyone",
+    })
+    assert res.status_code == 200

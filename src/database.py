@@ -630,6 +630,23 @@ def init_db():
         ):
             _safe_alter(cursor, ddl)
 
+        # FIXING_ROADMAP Model B — one-shot friends→follows migration.
+        # Idempotent (uses INSERT OR IGNORE against the UNIQUE
+        # constraint on follows). Runs on every init_db but the second
+        # run is a no-op once the rows are in place. Lazy import to
+        # avoid a circular: src/social.py imports observability, which
+        # is loaded before database.py at boot.
+        try:
+            from social import migrate_friends_to_follows
+            migrate_friends_to_follows(cursor)
+        except Exception as e:
+            # Logged + swallowed — a botched migration shouldn't block
+            # the rest of init_db. The mutuals helpers tolerate an
+            # empty follows table (return empty sets), so worst case
+            # the social graph reads come back empty until the
+            # underlying bug is fixed; nothing else breaks.
+            print(f"[init_db] friends→follows migration failed: {e}")
+
         conn.commit()
 
 if __name__ == "__main__":

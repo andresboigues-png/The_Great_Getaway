@@ -47,6 +47,11 @@ function notificationAccent(type: string) {
         case 'share_liked': return '255,59,48';
         case 'share_commented': return '0,113,227';
         case 'share_reposted': return '88,86,214';
+        // Model B — `followed_you` replaces the legacy friend_request /
+        // accepted_request pair on the produce side. The two legacy
+        // types are kept here in the switch so historical rows still
+        // render with the correct accent until they age out.
+        case 'followed_you':
         case 'friend_request':
         case 'accepted_request':
         default: return '0,113,227';
@@ -56,8 +61,12 @@ function notificationAccent(type: string) {
 /** Human-readable title fallback when the row didn't ship one. */
 function notificationDefaultTitle(type: string) {
     switch (type) {
-        case 'friend_request': return 'Friend Request';
-        case 'accepted_request': return 'Request Accepted';
+        // Model B — `followed_you` is the live type; the legacy
+        // friend_request / accepted_request titles stay for
+        // backward-compatible rendering of historical rows.
+        case 'followed_you': return 'New follower';
+        case 'friend_request': return 'New follower';
+        case 'accepted_request': return 'New follower';
         case 'trip_public': return 'Trip Completed';
         case 'trip_invite': return 'Trip invitation';
         case 'trip_invite_accepted': return 'Trip invite update';
@@ -132,9 +141,14 @@ export function handleNotificationClick(notification: { type?: string; related_i
     const relatedUserId = notification.related_id ? String(notification.related_id) : null;
 
     switch (notification.type) {
+        // Model B — all three types are "X started following you".
+        // Route to the follower's profile so the user can see who they
+        // are and optionally follow back. Pre-Model-B, friend_request
+        // routed to the Friends page where the user could Accept;
+        // there's no Accept dance now, so the profile page (where the
+        // Follow-back button lives) is the right destination.
+        case 'followed_you':
         case 'friend_request':
-            navigate(PAGES.FRIENDS);
-            break;
         case 'accepted_request':
         case 'trip_public':
             if (relatedUserId) {

@@ -58,7 +58,11 @@ _EVENT_ID_PATTERNS = (
     ("trip_created",   re.compile(rf"^trip_created_({_ID_RE})$")),
     ("trip_archived",  re.compile(rf"^trip_archived_({_ID_RE})$")),
     ("trip_joined",    re.compile(rf"^trip_joined_({_ID_RE})_({_ID_RE})$")),
-    ("friendship",     re.compile(rf"^friendship_({_ID_RE})_(\d{{1,32}})$")),
+    # Model B: the second component is now the OTHER party's user_id
+    # rather than a rowid into the legacy friends table (the row no
+    # longer exists in the authoritative source). Both components
+    # are user_ids and follow the same id-shape regex.
+    ("friendship",     re.compile(rf"^friendship_({_ID_RE})_({_ID_RE})$")),
     ("share",          re.compile(r"^share_(\d{1,32})$")),
     ("repost",         re.compile(r"^repost_(\d{1,32})$")),
     # §4.5: settled_up — engagement (like/comment) is intentionally NOT
@@ -86,18 +90,18 @@ def _parse_event_id(event_id):
 
 
 def _is_friend_of(cursor, viewer_id, actor_id):
-    """True iff the viewer + actor have an accepted friendship row in
-    either direction. Single indexed lookup against the `friends`
-    table — the same table /api/feed reads to build the friend list."""
+    """True iff the viewer can see actor's friend-gated activity.
+
+    Model B: "friend" = mutual follow. The legacy `friends` table is
+    no longer authoritative — every social-graph read goes through
+    `social.is_mutual` against the `follows` table.
+
+    Self always counts (you can see your own activity).
+    """
     if viewer_id == actor_id:
         return True
-    cursor.execute(
-        "SELECT 1 FROM friends "
-        "WHERE status = 'accepted' "
-        "AND ((user_id = ? AND friend_id = ?) OR (user_id = ? AND friend_id = ?))",
-        (viewer_id, actor_id, actor_id, viewer_id),
-    )
-    return cursor.fetchone() is not None
+    from social import is_mutual
+    return is_mutual(cursor, viewer_id, actor_id)
 
 
 def _is_trip_member(cursor, trip_id, user_id):
@@ -153,22 +157,17 @@ def _caller_can_see_event(cursor, event_id, user_id):
         return _is_friend_of(cursor, user_id, owner_id)
 
     if event_type == "friendship":
-        # event_id is `friendship_<viewer_user_id>_<friend_row_id>`.
-        # The viewer_id component IS who saw the row originally —
-        # but anyone friends with either party may engage with it.
-        viewer_user_id, friend_row_id = components
-        # Resolve the friendship row to its two endpoints.
-        cursor.execute(
-            "SELECT user_id, friend_id FROM friends WHERE rowid = ?",
-            (friend_row_id,),
-        )
-        row = cursor.fetchone()
-        if not row:
-            return False
+        # event_id is `friendship_<viewer_user_id>_<other_user_id>`.
+        # Pre-Model-B the second component was a friends.rowid; the
+        # builder now puts the other party's user_id directly, so
+        # there's no lookup needed. Anyone in a mutual-follow with
+        # either party may engage with the event.
+        viewer_user_id, other_user_id = components
+        if user_id in (viewer_user_id, other_user_id):
+            return True
         return (
-            user_id in (row["user_id"], row["friend_id"])
-            or _is_friend_of(cursor, user_id, row["user_id"])
-            or _is_friend_of(cursor, user_id, row["friend_id"])
+            _is_friend_of(cursor, user_id, viewer_user_id)
+            or _is_friend_of(cursor, user_id, other_user_id)
         )
 
     if event_type in ("share", "repost"):
@@ -300,24 +299,32 @@ _FeedEventBuilder = Callable[..., list]
 
 
 def _build_feed_context(cursor, user_id: str) -> _FeedContext:
-    """Resolve the caller's accepted-friendship list + the actor lookup
-    that every builder needs. Friends-only by design; the feed surfaces
-    "what your friends + you have done lately", not strangers."""
+    """Resolve the caller's "actor pool" — every user whose activity
+    should be eligible for surfacing in this feed call.
+
+    Model B: the pool is "people I FOLLOW + me". Asymmetric by design
+    (Twitter-style): I see what people I follow do, regardless of
+    whether they follow me back. Pre-Model-B this was sourced from
+    the legacy `friends` table; the new follows-driven pool naturally
+    includes mutuals (they're in the followed set) but also one-way
+    follows, so a creator's audience sees their public activity even
+    without a reciprocal social signal.
+    """
     cursor.execute('''
         SELECT u.id, u.name, u.picture
         FROM users u
-        JOIN friends f ON u.id = f.friend_id
-        WHERE f.user_id = ? AND f.status = 'accepted'
+        JOIN follows f ON u.id = f.followee_id
+        WHERE f.follower_id = ?
     ''', (user_id,))
-    friend_rows = [dict(r) for r in cursor.fetchall()]
-    friend_ids = [f["id"] for f in friend_rows]
-    friend_lookup = {f["id"]: f for f in friend_rows}
+    followed_rows = [dict(r) for r in cursor.fetchall()]
+    followed_ids = [f["id"] for f in followed_rows]
+    followed_lookup = {f["id"]: f for f in followed_rows}
 
     cursor.execute("SELECT id, name, picture FROM users WHERE id = ?", (user_id,))
     me_row = cursor.fetchone()
     me_lookup = dict(me_row) if me_row else {"id": user_id, "name": "You", "picture": None}
-    actor_lookup = {**friend_lookup, user_id: me_lookup}
-    actor_ids = list(set(friend_ids + [user_id]))
+    actor_lookup = {**followed_lookup, user_id: me_lookup}
+    actor_ids = list(set(followed_ids + [user_id]))
     return _FeedContext(user_id=user_id, actor_ids=actor_ids, actor_lookup=actor_lookup)
 
 
@@ -406,19 +413,30 @@ def _build_friend_joined_trip(cursor, ctx: _FeedContext) -> list:
 
 
 def _build_new_friendship(cursor, ctx: _FeedContext) -> list:
-    """Caller-scoped (not friend-of-friend): only friendships where the
-    caller is on one end. The viewer_id in the event_id is the caller —
-    `_caller_can_see_event` resolves the row id back to its two endpoints
-    so engagement checks still work across the friendship's two sides."""
+    """Caller-scoped: new mutual-follow relationships where the caller
+    is on one end. Model B replaces "friendship" with "mutual follow"
+    — a row in this stream represents the moment the second-direction
+    `follows` row was inserted (the later of the two), so the event
+    timestamp is naturally the most-recent of the pair.
+
+    Event id stays `friendship_<caller>_<other>` for back-compat with
+    the existing `_caller_can_see_event` resolver — the components are
+    now the two user_ids directly, not a rowid lookup. (Pre-Model-B
+    the second component was a friends.rowid; post-Model-B it's the
+    other party's user_id, which `_caller_can_see_event` handles via
+    its `friendship` branch — see that function.)
+    """
     cursor.execute('''
-        SELECT u.id, u.name, u.picture, f.created_at
-        FROM friends f
-        JOIN users u ON u.id = f.friend_id
-        WHERE f.user_id = ?
-          AND f.status = 'accepted'
-          AND f.created_at IS NOT NULL
-          AND f.created_at >= datetime('now', '-30 days')
-        ORDER BY f.created_at DESC
+        SELECT u.id, u.name, u.picture,
+               MAX(f1.created_at, f2.created_at) AS mutual_at
+        FROM follows f1
+        JOIN follows f2
+          ON f2.follower_id = f1.followee_id
+         AND f2.followee_id = f1.follower_id
+        JOIN users u ON u.id = f1.followee_id
+        WHERE f1.follower_id = ?
+          AND MAX(f1.created_at, f2.created_at) >= datetime('now', '-30 days')
+        ORDER BY mutual_at DESC
     ''', (ctx.user_id,))
     events = []
     for row in cursor.fetchall():
@@ -426,7 +444,7 @@ def _build_new_friendship(cursor, ctx: _FeedContext) -> list:
             "id": f"friendship_{ctx.user_id}_{row['id']}",
             "type": "new_friendship",
             "actor": {"id": row["id"], "name": row["name"], "picture": row["picture"]},
-            "when": row["created_at"],
+            "when": row["mutual_at"],
         })
     return events
 

@@ -127,14 +127,13 @@ def _check_repeat_country(cursor, user_id):
 
 
 def _check_social_butterfly(cursor, user_id):
-    """3+ accepted friends — small social proof threshold."""
-    cursor.execute(
-        "SELECT COUNT(*) AS c FROM friends "
-        "WHERE user_id = ? AND status = 'accepted'",
-        (user_id,),
-    )
-    row = cursor.fetchone()
-    return {"friendCount": row["c"]} if (row and row["c"] >= 3) else None
+    """3+ mutual-follow relationships — the Model B equivalent of the
+    pre-fix "3+ accepted friends" threshold. Pre-Model-B this read
+    the legacy `friends` table; now it counts mutuals (the natural
+    "friend"-equivalent under the follows-only graph)."""
+    from social import mutuals_of
+    count = len(mutuals_of(cursor, user_id))
+    return {"friendCount": count} if count >= 3 else None
 
 
 def _check_first_share(cursor, user_id):

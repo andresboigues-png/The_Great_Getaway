@@ -225,13 +225,14 @@ def invite_trip_member():
         if not can_edit_trip(cursor, trip_id, inviter):
             return jsonify({"error": "Forbidden"}), 403
 
-        cursor.execute(
-            "SELECT 1 FROM friends WHERE user_id = ? AND friend_id = ? AND status = 'accepted'",
-            (inviter, target),
-        )
-        if not cursor.fetchone():
-            return jsonify({"error": "Target must be an accepted friend"}), 403
-
+        # Model B: trip invites are an explicit access grant, decoupled
+        # from the social graph. Anyone can be invited — the rate
+        # limiter at the route level + the per-trip "must be planner"
+        # gate above handle spam defense. Friend / mutual-follow checks
+        # got dropped here because the old friend-gate didn't actually
+        # protect the invitee (they still received a notification
+        # either way) and it blocked the legitimate "invite my cousin
+        # who just signed up" path.
         cursor.execute(
             "INSERT INTO trip_members (trip_id, user_id, role, is_archived, invitation_status, invited_by) "
             "VALUES (?, ?, ?, 0, 'pending', ?) "
