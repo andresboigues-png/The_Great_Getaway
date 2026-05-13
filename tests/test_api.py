@@ -3174,11 +3174,15 @@ def test_main_cleanup_feed_orphans_runs_without_crashing(client):
     assert result == {"likes": 0, "comments": 0}
 
 
-def test_main_cleanup_feed_orphans_logs_when_rows_deleted(client, capsys):
-    """When the cleanup actually removes rows it prints a summary line.
+def test_main_cleanup_feed_orphans_logs_when_rows_deleted(client, caplog):
+    """When the cleanup actually removes rows it emits a summary log line.
     Pin so a regression that swallows the output silently doesn't slip
-    through — the only signal that the daemon is doing its job is the
-    log line in stdout."""
+    through — the only signal that the daemon is doing its job is this log.
+
+    §3.8: was `capsys.readouterr().out` against a `print(...)` line; now
+    we read through `caplog` because cleanup goes through `logger.info`
+    via the structured-logging module."""
+    import logging as _logging
     import main as main_module
     from database import get_db
 
@@ -3196,11 +3200,11 @@ def test_main_cleanup_feed_orphans_logs_when_rows_deleted(client, capsys):
         )
         conn.commit()
 
-    result = main_module._cleanup_feed_orphans()
+    with caplog.at_level(_logging.INFO, logger="main"):
+        result = main_module._cleanup_feed_orphans()
     assert result["likes"] >= 1
     assert result["comments"] >= 1
-    out = capsys.readouterr().out
-    assert "removed" in out
+    assert any("removed" in rec.getMessage() for rec in caplog.records)
 
 
 # ── /api/feed — events-with-data paths ───────────────────────────────────────

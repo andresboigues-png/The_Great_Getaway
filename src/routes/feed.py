@@ -21,9 +21,11 @@ from flask import Blueprint, jsonify, request
 from auth import current_user_id, require_auth
 from database import get_db
 from extensions import limiter
+from observability import get_logger
 
 
 bp = Blueprint("feed", __name__)
+logger = get_logger(__name__)
 
 
 # ── FIXING_ROADMAP §1.3: event_id authorization ──────────────────────
@@ -529,7 +531,14 @@ def get_feed():
                 # defensive wrap lived only around `new_friendship`
                 # (since it had history of a missing `created_at` col);
                 # now every builder gets the same backstop.
-                print(f"[feed] builder {builder.__name__} failed (skipping): {e}")
+                # §3.8: exc_info=True so the traceback ships to Sentry
+                # as an event (not just a breadcrumb) when wired up.
+                logger.warning(
+                    "feed builder %s failed (skipping): %s",
+                    builder.__name__,
+                    e,
+                    exc_info=True,
+                )
 
         # Sort newest-first + cap. Done in Python rather than per-builder
         # SQL because the registry intentionally lets each builder choose

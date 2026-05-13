@@ -5,3 +5,9 @@ requests
 Flask-Limiter
 alembic
 pyjwt
+
+# Observability (§3.8) — optional. Sentry only activates when
+# SENTRY_DSN is set in env. The application runs logging-only without
+# this installed; install with `pip install sentry-sdk[flask]` once
+# you have a DSN ready.
+sentry-sdk[flask]

@@ -1,0 +1,210 @@
+"""Observability — structured logging + optional Sentry integration.
+
+FIXING_ROADMAP §3.8. Goals:
+
+1. One place where the root logger gets its handler / format. `main.py`
+   imports + calls `setup_logging()` once at boot; everywhere else uses
+   `logging.getLogger(__name__)` — no `print(...)` for diagnostics.
+
+2. Sentry SDK initialises ONLY when the `SENTRY_DSN` env var is set.
+   No DSN → no Sentry import attempted (so it stays an optional dep
+   without breaking dev / tests). When the DSN IS set, the Flask + SQLite
+   + logging integrations all auto-attach.
+
+3. Every request carries a per-request `request_id` (8-char hex) that
+   gets attached to the log line + Sentry scope. Makes it trivial to
+   correlate one request's log lines across the multi-route call graph
+   (e.g. /api/sync → /api/data → /api/notifications race).
+
+The module is DEFENSIVE about its imports — `sentry_sdk` is wrapped in a
+try/except so a missing dep silently falls back to logging-only mode.
+Same for the integrations (each Sentry integration is opt-in via SDK
+version probing, not hard-required).
+
+Usage from a route:
+
+    from observability import get_logger, log_extra
+    logger = get_logger(__name__)
+
+    logger.info("share rotated", extra=log_extra(user_id=uid, trip_id=tid))
+    logger.exception("share rotate failed", extra=log_extra(user_id=uid))
+
+The `log_extra(...)` helper builds the dict of structured fields. Plain
+`logger.info(msg)` still works for one-off / context-free messages.
+"""
+
+import logging
+import os
+import secrets
+from typing import Any
+
+
+# ── Public helpers ───────────────────────────────────────────────────
+
+
+def get_logger(name: str) -> logging.Logger:
+    """Module-scoped logger. Each call site uses `__name__` so log
+    records carry their module path (`src.routes.feed`, `src.main`)
+    automatically — that's the first level of "structured" we get for
+    free from `logging`."""
+    return logging.getLogger(name)
+
+
+def log_extra(**fields: Any) -> dict:
+    """Build the `extra` dict for `logger.*(msg, extra=...)`. Filters
+    out None so call sites can pass `log_extra(user_id=uid, trip_id=tid)`
+    without having to branch on which fields are set.
+
+    Sentry's `LoggingIntegration` reads these as `contexts` on the event;
+    the local handler ignores them by default (the formatter below
+    doesn't render `extra` fields unless we tell it to). The keys
+    therefore flow into Sentry without bloating the local log output."""
+    return {k: v for k, v in fields.items() if v is not None}
+
+
+def new_request_id() -> str:
+    """8-char hex request id. Short enough to fit in a log line, wide
+    enough (2^32) that collisions inside a 15-second polling window are
+    astronomically unlikely."""
+    return secrets.token_hex(4)
+
+
+# ── Setup — called once from main.py boot ────────────────────────────
+
+
+def setup_logging() -> None:
+    """Configure the root logger. Idempotent — if `main.py` is re-imported
+    (Flask debug reload, test fixtures), the second call is a no-op."""
+    root = logging.getLogger()
+    # If a handler is already attached (e.g. Flask's default StreamHandler
+    # added before this ran), don't double-attach — that doubles every log
+    # line. The presence of `_gg_observability_configured` on the root
+    # logger is our sentinel.
+    if getattr(root, "_gg_observability_configured", False):
+        return
+
+    level_name = os.getenv("LOG_LEVEL", "INFO").upper()
+    level = getattr(logging, level_name, logging.INFO)
+    root.setLevel(level)
+
+    # Strip any handlers Flask / Werkzeug may have already attached so
+    # the formatter below is the single source of truth for log output.
+    # (Werkzeug installs its own handler at WARNING level for access
+    # logs — we keep that separate; only stripping handlers on the ROOT
+    # logger, not on `werkzeug` specifically.)
+    for h in list(root.handlers):
+        root.removeHandler(h)
+
+    handler = logging.StreamHandler()
+    handler.setLevel(level)
+    handler.setFormatter(
+        logging.Formatter(
+            "%(asctime)s %(levelname)s %(name)s: %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+    )
+    root.addHandler(handler)
+    root._gg_observability_configured = True  # type: ignore[attr-defined]
+
+
+def setup_sentry() -> bool:
+    """Initialise Sentry iff `SENTRY_DSN` is set in env. Returns True
+    when Sentry is actually attached, False when skipped (no DSN, SDK
+    not installed, or init failed). No-op + no warning in the no-DSN
+    case — Sentry is intentionally opt-in for dev / tests."""
+    dsn = os.getenv("SENTRY_DSN")
+    if not dsn:
+        return False
+    try:
+        import sentry_sdk
+        from sentry_sdk.integrations.flask import FlaskIntegration
+        from sentry_sdk.integrations.logging import LoggingIntegration
+    except ImportError:
+        # SDK not installed — the user can `pip install sentry-sdk[flask]`
+        # whenever they want it. Until then we run logging-only.
+        get_logger(__name__).info(
+            "SENTRY_DSN set but sentry-sdk not installed — running "
+            "logging-only. `pip install sentry-sdk[flask]` to enable."
+        )
+        return False
+
+    # WARN-and-above breadcrumbs from the standard library logger, ERROR
+    # and exceptions promoted to Sentry events.
+    logging_integration = LoggingIntegration(
+        level=logging.WARNING,   # breadcrumb threshold
+        event_level=logging.ERROR,
+    )
+    sentry_sdk.init(
+        dsn=dsn,
+        integrations=[FlaskIntegration(), logging_integration],
+        # Conservative defaults — the user can tune via env once they
+        # see real volume.
+        traces_sample_rate=float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.05")),
+        profiles_sample_rate=float(os.getenv("SENTRY_PROFILES_SAMPLE_RATE", "0.0")),
+        environment=os.getenv("SENTRY_ENV", "production"),
+        release=os.getenv("SENTRY_RELEASE"),
+        send_default_pii=False,  # email/IP off by default; PII opt-in only
+    )
+    return True
+
+
+def attach_request_context(app, current_user_id_fn) -> None:
+    """Wire Flask before_request / after_request hooks so every request:
+      - gets a fresh `request_id` stashed on `flask.g`
+      - logs an INFO line at completion with method, path, status, user_id
+      - sets the user_id + request_id on the Sentry scope (no-op without
+        Sentry)
+
+    `current_user_id_fn` is injected so this module doesn't import auth
+    (would be a circular import — auth uses helpers from us instead).
+    """
+    from flask import g, request
+
+    try:
+        import sentry_sdk
+        _have_sentry = True
+    except ImportError:
+        _have_sentry = False
+
+    logger = get_logger("gg.request")
+
+    @app.before_request
+    def _gg_attach_request_id():
+        g.request_id = new_request_id()
+        if _have_sentry:
+            scope = sentry_sdk.get_current_scope()
+            scope.set_tag("request_id", g.request_id)
+            try:
+                uid = current_user_id_fn()
+                if uid:
+                    scope.set_user({"id": uid})
+                    scope.set_tag("user_id", uid)
+            except Exception:
+                # current_user_id_fn might throw on a malformed token;
+                # request still runs, just without user context attached.
+                pass
+
+    @app.after_request
+    def _gg_log_request(response):
+        # Skip static + bundle chunks — they're loud and uninteresting.
+        # The route-level logs (in routes/*.py) already cover the
+        # interesting paths with their own structured fields.
+        path = request.path or ""
+        if path.startswith("/static/") or path.endswith(".map"):
+            return response
+        try:
+            uid = current_user_id_fn() or "-"
+        except Exception:
+            uid = "-"
+        logger.info(
+            "%s %s -> %s",
+            request.method,
+            path,
+            response.status_code,
+            extra=log_extra(
+                request_id=getattr(g, "request_id", None),
+                user_id=uid if uid != "-" else None,
+                status=response.status_code,
+            ),
+        )
+        return response

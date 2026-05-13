@@ -1,6 +1,5 @@
 import os
 import json
-import logging
 import sqlite3
 import requests
 from flask import Flask, render_template, request, jsonify, send_from_directory, url_for
@@ -12,6 +11,13 @@ from flask_limiter.util import get_remote_address
 from database import get_db, init_db
 from auth import issue_token, current_user_id, require_auth
 from extensions import limiter
+from observability import (
+    attach_request_context,
+    get_logger,
+    log_extra,
+    setup_logging,
+    setup_sentry,
+)
 from routes.auth import bp as auth_bp
 from routes.budgets import bp as budgets_bp
 from routes.data import bp as data_bp
@@ -29,12 +35,14 @@ from routes.trips import bp as trips_bp
 # Load environment variables
 load_dotenv()
 
-# Configure basic logging
-logging.basicConfig(
-    level=os.getenv("LOG_LEVEL", "INFO"),
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
+# Observability — structured logging + (optional) Sentry. See
+# src/observability.py for the full setup contract. Order matters:
+# setup_logging() configures the root logger BEFORE setup_sentry()
+# attaches its LoggingIntegration, so Sentry's breadcrumb capture
+# sees the same handler chain everyone else does.
+setup_logging()
+setup_sentry()  # No-op unless SENTRY_DSN is set in env.
+logger = get_logger(__name__)
 
 # Initialize Flask App
 app = Flask(__name__, 
@@ -101,6 +109,13 @@ app.register_blueprint(trips_bp)
 
 # Ensure DB is initialized
 init_db()
+
+# §3.8 — wire per-request id + user context. Every request gets a
+# fresh `g.request_id` and (when Sentry is attached) sets the user
+# id on the active Sentry scope. The after_request hook logs a single
+# structured INFO line per non-static request so prod logs let us
+# correlate "user X did Y" without grepping multiple sources.
+attach_request_context(app, current_user_id)
 
 
 # ── Security headers (FIXING_ROADMAP §0.4) ───────────────────────────
@@ -252,9 +267,16 @@ def _cleanup_feed_orphans():
         # etc.) — those should crash the thread loudly. DatabaseError
         # is the right catch-all for "DB had a hiccup" (locked, disk
         # full, file moved) and recoverable on the next iteration.
-        print(f"[cleanup] feed orphans sweep failed: {e}")
+        # §3.8: structured logging — flows into Sentry as a breadcrumb
+        # (and as an event at ERROR level).
+        logger.warning("feed orphans sweep failed: %s", e, exc_info=True)
     if deleted_likes or deleted_comments:
-        print(f"[cleanup] removed {deleted_likes} feed_likes + {deleted_comments} feed_comments older than 90 days")
+        logger.info(
+            "feed cleanup removed %d likes + %d comments older than 90d",
+            deleted_likes,
+            deleted_comments,
+            extra=log_extra(deleted_likes=deleted_likes, deleted_comments=deleted_comments),
+        )
     return {"likes": deleted_likes, "comments": deleted_comments}
 
 
