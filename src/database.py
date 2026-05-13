@@ -155,6 +155,17 @@ def init_db():
             # tied to a specific day; when null/absent, it's
             # trip-wide. See the Documents tab on Home.
             ("documents_json", "ALTER TABLE trips ADD COLUMN documents_json TEXT"),
+            # FIXING_ROADMAP §4.1 — public share-via-link. share_token
+            # is NULL until the owner clicks Share; set to a random
+            # hex string the visitor uses in /share/<token>. Unique
+            # index further below stops two trips from colliding on
+            # the same URL. share_views counts unique visitors in a
+            # 24h window. share_show_cost is the privacy toggle — off
+            # by default so a casual Share doesn't accidentally expose
+            # spending; the owner opts in via the share modal.
+            ("share_token", "ALTER TABLE trips ADD COLUMN share_token TEXT"),
+            ("share_views", "ALTER TABLE trips ADD COLUMN share_views INTEGER DEFAULT 0"),
+            ("share_show_cost", "ALTER TABLE trips ADD COLUMN share_show_cost INTEGER DEFAULT 0"),
             # JSON-encoded list of trip-level photos. Each entry:
             # { id, src, dayId?, addedAt? }. Same shape rules as
             # documents — dayId optional. See the Photos tab on Home.
@@ -189,6 +200,17 @@ def init_db():
             ("cover_url", "ALTER TABLE trips ADD COLUMN cover_url TEXT"),
         ]:
             _safe_alter(cursor, ddl)
+
+        # FIXING_ROADMAP §4.1 — partial UNIQUE index on share_token so
+        # two trips can't collide on the same public URL. NULL values
+        # are not deduplicated (SQLite's UNIQUE-without-WHERE would
+        # block the first row; the partial index lets unshared trips
+        # all sit at NULL).
+        _safe_alter(
+            cursor,
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_trips_share_token "
+            "ON trips(share_token) WHERE share_token IS NOT NULL",
+        )
 
         # Expenses Table (Linked to a trip)
         cursor.execute('''

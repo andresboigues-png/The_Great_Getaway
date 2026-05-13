@@ -252,6 +252,7 @@ export function renderCollections() {
                                 ${startStr ? `<span>🗓️ ${esc(startStr)}${(trip.tripDays?.length || 0) > 1 ? ` · ${tn('collections.dayCount', trip.tripDays.length)}` : ''}</span>` : `<span>${tn('collections.dayCount', (trip.tripDays?.length || 0))}</span>`}
                                 <span>📒 ${tn('collections.expenseCount', expenseCount)}</span>
                                 ${archivedAt ? `<span title="${t('collections.cardMarkedCompleteOn', { date: esc(archivedAt) })}">✓ ${esc(archivedAt)}</span>` : ''}
+                                ${(trip.shareToken && (trip.shareViews ?? 0) > 0) ? `<span title="Public-link views" style="color: #0071e3; font-weight: 700;">👁 ${trip.shareViews} ${trip.shareViews === 1 ? 'view' : 'views'}</span>` : ''}
                             </div>
                             <p style="color: #005bb8; margin: 8px 0 0 0; font-size: 0.95rem; font-weight: 800;">${formatHome(tripTotalSpent(trip), 'EUR')}<span style="color: var(--text-secondary); font-weight: 600; font-size: 0.78rem; margin-left:6px;">${t('collections.cardTotal')}</span></p>
                             </div>

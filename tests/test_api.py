@@ -2600,6 +2600,205 @@ def test_legacy_trips_share_route_is_gone(client, seed_user, auth_headers):
     assert res.status_code in (404, 405)
 
 
+# ── Share-via-link (FIXING_ROADMAP §4.1) ────────────────────────────────────
+
+def test_share_create_returns_token_and_url(client, seed_user, auth_headers):
+    """Owner generates a share token; route returns the token + the
+    public URL the frontend pastes into clipboard."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-share-1")
+    res = client.post(
+        f"/api/trips/{trip_id}/share", headers=auth_headers, json={"showCost": False},
+    )
+    assert res.status_code == 200
+    body = res.get_json()
+    assert body.get("token") and len(body["token"]) >= 16
+    assert body.get("url") == f"/share/{body['token']}"
+    assert body.get("showCost") is False
+
+
+def test_share_create_owner_only(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """Non-owner can't generate a share link — only the trip's creator
+    decides if it goes public."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-share-owner")
+    res = client.post(
+        f"/api/trips/{trip_id}/share", headers=other_auth_headers, json={},
+    )
+    assert res.status_code == 403
+
+
+def test_share_revoke_clears_token(client, seed_user, auth_headers):
+    """DELETE clears the share token. A subsequent GET on the public
+    endpoint with the old token returns 404 — the link stops working
+    immediately."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-share-revoke")
+    create = client.post(
+        f"/api/trips/{trip_id}/share", headers=auth_headers, json={},
+    ).get_json()
+    token = create["token"]
+    # Public GET works before revoke.
+    pre = client.get(f"/api/share/{token}")
+    assert pre.status_code == 200
+
+    rev = client.delete(f"/api/trips/{trip_id}/share", headers=auth_headers)
+    assert rev.status_code == 200
+
+    # Public GET 404s after revoke.
+    post = client.get(f"/api/share/{token}")
+    assert post.status_code == 404
+
+
+def test_share_create_rotates_token(client, seed_user, auth_headers):
+    """Generating a share link on a trip that already has one rotates
+    the token — the old URL stops working, the new one starts. Lets
+    the owner kill a leaked link without an unshare/reshare dance."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-share-rotate")
+    first = client.post(
+        f"/api/trips/{trip_id}/share", headers=auth_headers, json={},
+    ).get_json()
+    second = client.post(
+        f"/api/trips/{trip_id}/share", headers=auth_headers, json={},
+    ).get_json()
+    assert first["token"] != second["token"]
+
+    # Old token is now dead.
+    assert client.get(f"/api/share/{first['token']}").status_code == 404
+    assert client.get(f"/api/share/{second['token']}").status_code == 200
+
+
+def test_share_public_get_is_unauthenticated(client, seed_user, auth_headers):
+    """The public read endpoint must work WITHOUT an Authorization
+    header — that's the whole point of a share link."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-share-anon")
+    create = client.post(
+        f"/api/trips/{trip_id}/share", headers=auth_headers, json={},
+    ).get_json()
+    # No auth_headers passed — anonymous request.
+    res = client.get(f"/api/share/{create['token']}")
+    assert res.status_code == 200
+    body = res.get_json()
+    assert body["trip"]["name"]
+
+
+def test_share_public_payload_excludes_expenses_by_default(
+    client, seed_user, auth_headers,
+):
+    """Privacy posture: a share with showCost=False (default) MUST NOT
+    return any expense data — not totals, not line items. Cost is null."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-share-noexp")
+    client.post("/api/expenses", headers=auth_headers, json={
+        "expense": {
+            "id": "exp-private", "tripId": trip_id, "who": "Me",
+            "value": 99, "currency": "EUR", "euroValue": 99,
+            "label": "Secret hotel", "date": "2026-05-10",
+        },
+    })
+    create = client.post(
+        f"/api/trips/{trip_id}/share", headers=auth_headers,
+        json={"showCost": False},
+    ).get_json()
+    res = client.get(f"/api/share/{create['token']}")
+    body = res.get_json()
+    assert body.get("cost") is None
+    assert "expenses" not in body
+    # And the line-item label must not leak into the JSON anywhere.
+    assert "Secret hotel" not in res.get_data(as_text=True)
+
+
+def test_share_public_payload_includes_aggregate_cost_when_opted_in(
+    client, seed_user, auth_headers,
+):
+    """Opt-in: showCost=True surfaces total + per-country aggregate but
+    NEVER individual labels. The killer move from VISION.md (cost-as-
+    content) ships with a privacy floor."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-share-cost")
+    for ex in [
+        {"id": "e1", "tripId": trip_id, "who": "Me", "value": 50,
+         "currency": "EUR", "euroValue": 50, "label": "Lunch in Lisbon",
+         "country": "Portugal", "date": "2026-05-10"},
+        {"id": "e2", "tripId": trip_id, "who": "Me", "value": 30,
+         "currency": "EUR", "euroValue": 30, "label": "Coffee",
+         "country": "Spain", "date": "2026-05-11"},
+    ]:
+        client.post("/api/expenses", headers=auth_headers, json={"expense": ex})
+    create = client.post(
+        f"/api/trips/{trip_id}/share", headers=auth_headers,
+        json={"showCost": True},
+    ).get_json()
+    res = client.get(f"/api/share/{create['token']}")
+    body = res.get_json()
+    assert body["cost"]["total"] == 80.0
+    countries = {c["country"]: c["total"] for c in body["cost"]["perCountry"]}
+    assert countries["Portugal"] == 50.0
+    assert countries["Spain"] == 30.0
+    # Labels still NEVER leak.
+    assert "Lunch in Lisbon" not in res.get_data(as_text=True)
+    assert "Coffee" not in res.get_data(as_text=True)
+
+
+def test_share_view_count_increments_and_dedupes_in_24h(
+    client, seed_user, auth_headers,
+):
+    """First hit to /share/<token> increments the view counter; same
+    browser within 24h doesn't. A different browser (no cookie) does."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-share-views")
+    token = client.post(
+        f"/api/trips/{trip_id}/share", headers=auth_headers, json={},
+    ).get_json()["token"]
+
+    # First visitor.
+    r1 = client.get(f"/share/{token}")
+    assert r1.status_code == 200
+    # Cookie is set; second hit from the SAME test client carries it,
+    # so the counter shouldn't bump.
+    r2 = client.get(f"/share/{token}")
+    assert r2.status_code == 200
+
+    # Confirm view count is 1 (not 2). The API exposes views via the
+    # public JSON endpoint.
+    payload = client.get(f"/api/share/{token}").get_json()
+    assert payload["trip"]["views"] == 1
+
+    # A fresh client (no cookies) counts as a new visitor.
+    fresh = client.application.test_client()
+    fresh.get(f"/share/{token}")
+    payload2 = client.get(f"/api/share/{token}").get_json()
+    assert payload2["trip"]["views"] == 2
+
+
+def test_share_html_page_renders_og_meta(client, seed_user, auth_headers):
+    """The /share/<token> HTML page must include OG meta tags in the
+    initial response so WhatsApp / iMessage / LinkedIn previews
+    render with the cover photo + headline."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-og")
+    token = client.post(
+        f"/api/trips/{trip_id}/share", headers=auth_headers, json={},
+    ).get_json()["token"]
+    res = client.get(f"/share/{token}")
+    assert res.status_code == 200
+    html = res.get_data(as_text=True)
+    assert 'property="og:title"' in html
+    assert 'property="og:description"' in html
+    assert 'property="og:image"' in html
+    assert 'name="twitter:card"' in html
+
+
+def test_share_html_page_unknown_token_returns_404_friendly(client):
+    """An expired or wrong token still renders an HTML page (not a JSON
+    error) so a chat preview unfurler doesn't crash, and the user gets
+    a friendly "this isn't available" message. We DELIBERATELY don't
+    differentiate "never existed" from "revoked" — both 404 with the
+    same body so a probing client can't enumerate which tokens are
+    legitimate."""
+    res = client.get("/share/totally-fake-token-1234")
+    assert res.status_code == 404
+    html = res.get_data(as_text=True)
+    # Jinja autoescapes the apostrophe to &#39; — compare against the
+    # encoded form so this stays robust to template engine choices.
+    assert ("isn&#39;t available" in html) or ("isn't available" in html)
+
+
 # ── helpers.py — direct unit tests for shared route helpers ──────────────────
 #
 # These functions are pure (no Flask, no app), so unit tests are cheap and

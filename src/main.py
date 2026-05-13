@@ -2,7 +2,7 @@ import os
 import json
 import logging
 import requests
-from flask import Flask, render_template, request, jsonify, send_from_directory
+from flask import Flask, render_template, request, jsonify, send_from_directory, url_for
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 from google.oauth2 import id_token
@@ -21,7 +21,7 @@ from routes.friends import bp as friends_bp
 from routes.integrations import bp as integrations_bp
 from routes.media import bp as media_bp
 from routes.notifications import bp as notifications_bp
-from routes.public import bp as public_bp
+from routes.public import bp as public_bp, fetch_share_payload
 from routes.settings import bp as settings_bp
 from routes.trips import bp as trips_bp
 
@@ -299,6 +299,103 @@ def home():
                            dev_mode=dev_mode,
                            bundle_version=_asset_version("js/app.bundle.js"),
                            css_version=_asset_version("css/index.css"))
+
+
+# ── FIXING_ROADMAP §4.1 — public share page ──────────────────────────
+# The URL the owner pastes into WhatsApp / iMessage / LinkedIn. Renders
+# a standalone HTML page (NOT the SPA shell) so link-preview crawlers
+# get OG meta tags in the first response, and so a fresh visitor on
+# a slow connection sees the trip without downloading the React bundle.
+#
+# View counter: each visit increments share_views, deduped by an
+# anonymous 24h cookie keyed on the token. Refreshing the page or
+# coming back the same day doesn't double-count; a new visitor (or
+# the same person tomorrow) does.
+@app.route("/share/<token>")
+def share_page(token):
+    payload = fetch_share_payload(token)
+    if not payload:
+        # Wrong / revoked token. Render a friendly empty page instead
+        # of leaking "this trip used to exist" vs "this trip never
+        # existed" via differential 404s.
+        return render_template(
+            "share.html",
+            trip={"name": "This trip isn't available", "country": "",
+                  "coverUrl": None, "views": 0},
+            days=[],
+            owner=None,
+            cost=None,
+            og_description="This trip's share link has expired or been revoked.",
+            og_image_url=url_for("static", filename="favicon.svg", _external=True),
+            canonical_url=request.url,
+        ), 404
+
+    # Dedup by anonymous cookie. The cookie value is just "1" — we
+    # don't need to identify the visitor, just whether THIS browser
+    # has seen THIS token in the last 24h. The cookie is httponly so
+    # JS can't tamper with it; samesite=lax so it follows link clicks
+    # from chat apps.
+    cookie_name = f"gg_viewed_{token[:16]}"
+    has_seen = request.cookies.get(cookie_name) is not None
+    if not has_seen:
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE trips SET share_views = COALESCE(share_views, 0) + 1 "
+                "WHERE share_token = ?",
+                (token,),
+            )
+            conn.commit()
+        payload["trip"]["views"] = payload["trip"].get("views", 0) + 1
+
+    # Build the OG description from what's in the payload — keep it
+    # short (LinkedIn caps around 200 chars) and lead with the most
+    # interesting datum we have. Cost banner wins if enabled, then
+    # country, then a generic phrase.
+    cost = payload.get("cost")
+    if cost and cost.get("total"):
+        og_description = (
+            f"€{int(cost['total']):,} across {cost.get('dayCount', 0)} days "
+            f"in {payload['trip']['country'] or 'the world'}."
+        )
+    elif payload["trip"].get("country"):
+        og_description = (
+            f"A trip to {payload['trip']['country']} on The Great Getaway."
+        )
+    else:
+        og_description = "A trip shared on The Great Getaway."
+
+    # OG image — prefer the trip's cover photo (absolute URL needed for
+    # crawlers). Cover URLs in the DB are stored relative (e.g.
+    # /static/uploads/abc.jpg); convert to absolute against the
+    # current request host. Fall back to the favicon SVG which most
+    # crawlers can render at preview size.
+    cover_rel = payload["trip"].get("coverUrl")
+    if cover_rel:
+        if cover_rel.startswith("http://") or cover_rel.startswith("https://"):
+            og_image_url = cover_rel
+        else:
+            og_image_url = request.url_root.rstrip("/") + cover_rel
+    else:
+        og_image_url = url_for("static", filename="favicon.svg", _external=True)
+
+    response = app.make_response(render_template(
+        "share.html",
+        trip=payload["trip"],
+        days=payload["days"],
+        owner=payload["owner"],
+        cost=payload["cost"],
+        og_description=og_description,
+        og_image_url=og_image_url,
+        canonical_url=request.url,
+    ))
+    if not has_seen:
+        response.set_cookie(
+            cookie_name, "1",
+            max_age=24 * 60 * 60,
+            httponly=True, samesite="Lax",
+        )
+    return response
 
 
 @app.route("/components")

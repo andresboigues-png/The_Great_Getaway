@@ -207,3 +207,126 @@ def get_public_profile(user_id):
             "user": dict(user_row),
             "trips": trips,
         })
+
+
+# ── Share-via-link public read (FIXING_ROADMAP §4.1) ─────────────────
+
+
+def fetch_share_payload(token):
+    """Look up the trip by share_token and shape the public payload.
+    Shared with the /share/<token> HTML route in main.py (no point in
+    duplicating the SELECT + currency aggregation across two callers).
+    Returns `None` for unknown tokens — the caller decides whether to
+    404, render an empty state, etc.
+
+    Payload is INTENTIONALLY STRIPPED:
+      - trip: id, name, country, cover_url, dates derived from days
+      - days: dayNumber, date, name, lat, lng (NO plan / notes / photos)
+      - owner: first name + picture only (no email, no full name)
+      - views: share_views count for the chip on the page
+      - cost: included only when share_show_cost = 1; shape is an
+        aggregate (total + per-country) — never line items.
+    """
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, user_id, name, country, country_code, cover_url, "
+            "lat, lng, viewport_json, share_views, share_show_cost "
+            "FROM trips WHERE share_token = ?",
+            (token,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return None
+        trip = {
+            "id": row["id"],
+            "name": row["name"] or "Untitled trip",
+            "country": row["country"] or "",
+            "countryCode": row["country_code"] or "",
+            "coverUrl": row["cover_url"],
+            "lat": row["lat"],
+            "lng": row["lng"],
+            "viewport": (
+                json.loads(row["viewport_json"]) if row["viewport_json"] else None
+            ),
+            "views": int(row["share_views"] or 0),
+        }
+        show_cost = bool(row["share_show_cost"])
+
+        cursor.execute(
+            "SELECT day_number, date, name, lat, lng "
+            "FROM trip_days WHERE trip_id = ? "
+            "ORDER BY COALESCE(day_number, 0), date",
+            (row["id"],),
+        )
+        days = []
+        for d in cursor.fetchall():
+            days.append({
+                "dayNumber": d["day_number"],
+                "date": d["date"],
+                "name": d["name"] or "",
+                "lat": d["lat"],
+                "lng": d["lng"],
+            })
+
+        # Owner display — first name only. Sharing exposes WHO shared
+        # the trip but not their email or full identity.
+        cursor.execute(
+            "SELECT name, picture FROM users WHERE id = ?",
+            (row["user_id"],),
+        )
+        u = cursor.fetchone()
+        owner = None
+        if u:
+            full_name = u["name"] or "Someone"
+            owner = {
+                "firstName": full_name.split(" ")[0],
+                "picture": u["picture"],
+            }
+
+        cost_summary = None
+        if show_cost:
+            # Aggregate-only, never line items. Per-country breakdown
+            # mirrors the Insights page's grouping. Returns euro_value
+            # so the front-page can render in the viewer's currency
+            # later if we add a "convert to my currency" toggle.
+            cursor.execute(
+                "SELECT COALESCE(country, '?') AS country, "
+                "       SUM(COALESCE(euro_value, 0)) AS total "
+                "FROM expenses WHERE trip_id = ? GROUP BY country",
+                (row["id"],),
+            )
+            per_country = [
+                {"country": r["country"], "total": float(r["total"] or 0)}
+                for r in cursor.fetchall()
+            ]
+            total = sum(c["total"] for c in per_country)
+            cost_summary = {
+                "total": round(total, 2),
+                "perCountry": per_country,
+                "dayCount": len(days),
+            }
+
+        return {
+            "trip": trip,
+            "days": days,
+            "owner": owner,
+            "cost": cost_summary,
+        }
+
+
+@bp.route("/api/share/<token>", methods=["GET"])
+def get_shared_trip(token):
+    """Public read endpoint — anyone with the share token can fetch
+    the stripped trip payload. Bypasses @require_auth deliberately;
+    the route is the "no account required" surface.
+
+    Token format isn't validated server-side beyond "matches the
+    stored value" — `secrets.token_urlsafe(16)` produces only
+    URL-safe chars and 22-char length so there's no real attack via
+    weird input.
+    """
+    payload = fetch_share_payload(token)
+    if not payload:
+        return jsonify({"error": "Not found"}), 404
+    return jsonify(payload)

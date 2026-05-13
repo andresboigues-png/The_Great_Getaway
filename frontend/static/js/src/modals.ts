@@ -11,6 +11,7 @@ import {
     respondTripInvite,
     pullFromServer,
     uploadMedia,
+    apiFetch,
 } from './api.js';
 import { navigate } from './router.js';
 import { ROLE_PLANNER } from './permissions.js';
@@ -442,6 +443,23 @@ export const openEditTripModal = (trip: any) => {
                     </div>
                 </div>
 
+                <!-- FIXING_ROADMAP §4.1 — Share button. Visually
+                     subordinate to the primary Save action; opens its
+                     own modal so the share flow doesn't fight with the
+                     trip-edit form's validation state. Only renders
+                     when the caller owns the trip; non-owners can't
+                     generate share links. -->
+                <button type="button" id="editTripShareBtn" class="btn-ghost" style="width: 100%; margin-top: var(--space-3); padding: 12px; font-weight: 700; font-size: 0.9rem; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <circle cx="18" cy="5" r="3"></circle>
+                        <circle cx="6" cy="12" r="3"></circle>
+                        <circle cx="18" cy="19" r="3"></circle>
+                        <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+                        <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+                    </svg>
+                    <span id="editTripShareBtnLabel">Get share link</span>
+                </button>
+
                 <div style="display: flex; gap: var(--space-3); width: 100%; margin-top: var(--space-4);">
                     <button type="submit" id="editTripSubmitBtn" class="btn-primary" style="flex: 2;">Save Changes</button>
                     <button type="button" id="cancelEditTripBtn" class="btn-ghost" style="flex: 1;">Cancel</button>
@@ -449,6 +467,32 @@ export const openEditTripModal = (trip: any) => {
             </form>
         `,
     });
+
+    // Share button — owner-only. Hidden for non-owners since the
+    // server gates the endpoint and a non-owner click would just 403.
+    // Label flips between "Get share link" / "Manage share link"
+    // based on whether the trip already has a token, so the user
+    // knows what they're clicking into.
+    const shareBtn = q(root, '#editTripShareBtn') as HTMLButtonElement | null;
+    const shareBtnLabel = q(root, '#editTripShareBtnLabel') as HTMLElement | null;
+    const isOwner = STATE.user?.id && trip.ownerId === STATE.user.id;
+    if (shareBtn) {
+        if (!isOwner) {
+            shareBtn.style.display = 'none';
+        } else {
+            if (shareBtnLabel) {
+                shareBtnLabel.textContent = trip.shareToken
+                    ? 'Manage share link'
+                    : 'Get share link';
+            }
+            shareBtn.onclick = () => {
+                // Don't close the Edit Trip modal — let the user keep
+                // editing after they close the share modal. The Share
+                // modal stacks on top via the modal-stack pattern.
+                openShareTripModal(trip);
+            };
+        }
+    }
 
     const nameInput = (q(root, '#editTripName') as HTMLInputElement);
     nameInput.value = trip.name || '';
@@ -809,5 +853,223 @@ export const openTripInviteResponseModal = (notification: { related_id?: string 
         }
         close();
     };
+};
+
+
+// ── Share-Trip modal (FIXING_ROADMAP §4.1) ───────────────────────────
+// Owner-only. Generates / shows / rotates / revokes the public share
+// link for a trip. The link points at `/share/<token>` which Flask
+// renders as a standalone HTML page (no SPA shell, no auth) so anyone
+// with the URL can view a stripped-down trip artifact.
+//
+// Privacy posture by default: cover photo + day-by-day path only.
+// Cost summary is opt-in via the toggle below — the privacy gate
+// recommends keeping it off unless the user explicitly wants to share
+// the financial story of the trip (which IS the killer move for
+// cost-as-content, but should never be the default).
+
+export const openShareTripModal = (trip: any) => {
+    if (!trip) return;
+    // Resolve the local trip object so we have the most recent
+    // shareToken / shareShowCost state — caller may have passed a
+    // stale copy.
+    const current = STATE.trips.find(t => t.id === trip.id)
+        || STATE.archivedTrips.find(t => t.id === trip.id)
+        || trip;
+
+    const initialToken: string | null = current.shareToken || null;
+    const initialShowCost: boolean = !!current.shareShowCost;
+
+    const { root, close } = showModal({
+        variant: 'glass',
+        cardStyle: 'width: 460px;',
+        innerHTML: `
+            <h2 class="card-title" style="font-size: var(--font-2xl); margin-bottom: var(--space-2); color: #ffffff; letter-spacing: -0.04em; font-weight: 800; text-align: center;">Share this trip</h2>
+            <p style="text-align: center; color: rgba(255,255,255,0.78); font-size: 0.85rem; margin-bottom: var(--space-5);">
+                Anyone with the link can view your trip. No account needed.
+            </p>
+
+            <!-- Cost toggle — the privacy-sensitive switch. Default off
+                 unless the trip already had it on from a previous share.
+                 When on, the public artifact shows total + per-country
+                 breakdown but never line items. -->
+            <label id="shareCostToggleRow" style="display: flex; align-items: center; gap: var(--space-3); width: 100%; padding: var(--space-3) var(--space-4); background: rgba(255,255,255,0.08); border-radius: 14px; margin-bottom: var(--space-4); cursor: pointer;">
+                <input type="checkbox" id="shareCostToggle" ${initialShowCost ? 'checked' : ''} style="width: 18px; height: 18px; accent-color: #34c759;">
+                <div style="flex: 1; min-width: 0;">
+                    <div style="font-weight: 700; font-size: 0.92rem; color: #ffffff;">Show total cost on the page</div>
+                    <div style="font-size: 0.78rem; color: rgba(255,255,255,0.7); margin-top: 2px;">Aggregate only — no individual expenses.</div>
+                </div>
+            </label>
+
+            <!-- Status / URL block — swapped based on whether a token
+                 already exists. -->
+            <div id="shareStateBlock" style="margin-bottom: var(--space-4);"></div>
+
+            <!-- Primary CTA: generate (when no token), copy (when token).
+                 The secondary button is Unshare (token only) or Close. -->
+            <div style="display: flex; gap: var(--space-3); width: 100%;">
+                <button type="button" id="shareGenerateBtn" class="btn-primary" style="flex: 2;"></button>
+                <button type="button" id="shareSecondaryBtn" class="btn-ghost" style="flex: 1;"></button>
+            </div>
+        `,
+    });
+
+    const stateBlock = q(root, '#shareStateBlock') as HTMLElement;
+    const generateBtn = q(root, '#shareGenerateBtn') as HTMLButtonElement;
+    const secondaryBtn = q(root, '#shareSecondaryBtn') as HTMLButtonElement;
+    const costToggle = q(root, '#shareCostToggle') as HTMLInputElement;
+
+    let currentToken: string | null = initialToken;
+
+    const buildShareUrl = (token: string): string =>
+        `${window.location.origin}/share/${token}`;
+
+    const renderState = (): void => {
+        if (currentToken) {
+            const url = buildShareUrl(currentToken);
+            const views = current.shareViews || 0;
+            stateBlock.innerHTML = `
+                <div style="background: rgba(255,255,255,0.96); color: #1d1d1f; padding: var(--space-3) var(--space-4); border-radius: 12px; word-break: break-all; font-family: ui-monospace, monospace; font-size: 0.82rem; font-weight: 600;">${esc(url)}</div>
+                <div style="display: flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 0.78rem; color: rgba(255,255,255,0.7); font-weight: 600;">
+                    👁 ${views} view${views === 1 ? '' : 's'}
+                </div>
+            `;
+            generateBtn.textContent = '📋 Copy link';
+            secondaryBtn.textContent = 'Unshare';
+            secondaryBtn.style.display = '';
+        } else {
+            stateBlock.innerHTML = `
+                <div style="padding: var(--space-3) var(--space-4); border-radius: 12px; background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.78); font-size: 0.85rem; text-align: center;">
+                    This trip isn't shared yet. Generate a link to send to anyone.
+                </div>
+            `;
+            generateBtn.textContent = 'Generate share link';
+            secondaryBtn.textContent = 'Close';
+        }
+    };
+
+    renderState();
+
+    const generateOrCopy = async (): Promise<void> => {
+        if (currentToken) {
+            // Already have a token — copy + close-ish UX.
+            const url = buildShareUrl(currentToken);
+            try {
+                await navigator.clipboard.writeText(url);
+                showLiquidAlert('Link copied to clipboard');
+            } catch {
+                // Older browsers / non-secure contexts: fall back to the
+                // legacy execCommand path.
+                const ta = document.createElement('textarea');
+                ta.value = url;
+                document.body.appendChild(ta);
+                ta.select();
+                try { document.execCommand('copy'); } catch { /* ignored */ }
+                document.body.removeChild(ta);
+                showLiquidAlert('Link copied');
+            }
+            return;
+        }
+        // No token yet — generate. POST creates a token AND records
+        // the showCost preference in one round-trip.
+        generateBtn.disabled = true;
+        generateBtn.textContent = 'Generating…';
+        try {
+            const res = await apiFetch(`/api/trips/${encodeURIComponent(trip.id)}/share`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ showCost: costToggle.checked }),
+            });
+            if (!res.ok) throw new Error(`share HTTP ${res.status}`);
+            const data = await res.json();
+            currentToken = data.token;
+            // Optimistically write to the local STATE so the card-level
+            // views chip + the next open of this modal reflect the new
+            // share state without waiting on the next pullFromServer.
+            const localTrip = STATE.trips.find(t => t.id === trip.id)
+                || STATE.archivedTrips.find(t => t.id === trip.id);
+            if (localTrip) {
+                localTrip.shareToken = currentToken;
+                localTrip.shareShowCost = !!data.showCost;
+                if (typeof localTrip.shareViews !== 'number') localTrip.shareViews = 0;
+            }
+            emit('state:changed');
+            renderState();
+            // Auto-copy on generate so the user can paste straight away.
+            try { await navigator.clipboard.writeText(buildShareUrl(currentToken!)); } catch { /* ignored */ }
+            showLiquidAlert('Share link ready');
+        } catch (e) {
+            console.error('Generate share link failed:', e);
+            showLiquidAlert("Couldn't create the share link. Try again.");
+            generateBtn.disabled = false;
+            renderState();
+        }
+    };
+
+    const revokeOrClose = async (): Promise<void> => {
+        if (!currentToken) {
+            close();
+            return;
+        }
+        secondaryBtn.disabled = true;
+        secondaryBtn.textContent = 'Unsharing…';
+        try {
+            const res = await apiFetch(`/api/trips/${encodeURIComponent(trip.id)}/share`, {
+                method: 'DELETE',
+            });
+            if (!res.ok) throw new Error(`unshare HTTP ${res.status}`);
+            currentToken = null;
+            const localTrip = STATE.trips.find(t => t.id === trip.id)
+                || STATE.archivedTrips.find(t => t.id === trip.id);
+            if (localTrip) {
+                localTrip.shareToken = null;
+                localTrip.shareShowCost = false;
+            }
+            emit('state:changed');
+            renderState();
+            showLiquidAlert('Link revoked');
+        } catch (e) {
+            console.error('Unshare failed:', e);
+            showLiquidAlert("Couldn't revoke the link. Try again.");
+        } finally {
+            secondaryBtn.disabled = false;
+        }
+    };
+
+    // Toggling the cost switch on an already-shared trip should write
+    // through to the server so the public page updates immediately —
+    // otherwise the user thinks the toggle works locally and then is
+    // surprised when the public page still shows / hides cost the old
+    // way. For an UNshared trip the toggle is just a preference — the
+    // value gets persisted when Generate is clicked.
+    costToggle.addEventListener('change', async () => {
+        if (!currentToken) return;
+        try {
+            const res = await apiFetch(`/api/trips/${encodeURIComponent(trip.id)}/share`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ showCost: costToggle.checked }),
+            });
+            if (!res.ok) throw new Error(`update HTTP ${res.status}`);
+            const data = await res.json();
+            currentToken = data.token;
+            const localTrip = STATE.trips.find(t => t.id === trip.id)
+                || STATE.archivedTrips.find(t => t.id === trip.id);
+            if (localTrip) {
+                localTrip.shareToken = currentToken;
+                localTrip.shareShowCost = !!data.showCost;
+            }
+            emit('state:changed');
+            // Token rotated server-side — re-render the URL row.
+            renderState();
+        } catch (e) {
+            console.error('Toggle cost failed:', e);
+            costToggle.checked = !costToggle.checked;
+            showLiquidAlert("Couldn't update the cost setting.");
+        }
+    });
+
+    generateBtn.onclick = generateOrCopy;
+    secondaryBtn.onclick = revokeOrClose;
 };
 

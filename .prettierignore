@@ -14,3 +14,7 @@ playwright-report
 # the design system. Ignoring for now to keep CI clean.
 frontend/static/css/index.css
 frontend/templates/index.html
+# Jinja templating syntax breaks Prettier's HTML parser — the {# #}
+# block comments and {% %} control statements are non-standard.
+# Server-rendered share page; doesn't ship to the client bundle.
+frontend/templates/share.html

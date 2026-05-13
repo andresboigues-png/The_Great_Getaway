@@ -11,6 +11,7 @@ sweep.
 """
 
 import json
+import secrets
 
 from flask import Blueprint, jsonify, request
 
@@ -357,3 +358,73 @@ def remove_trip_member():
         )
         conn.commit()
     return jsonify({"status": "ok"})
+
+
+# ── Share-via-link (FIXING_ROADMAP §4.1) ─────────────────────────────
+# The two owner-only halves of the share flow. The unauthenticated
+# read side (and the HTML page itself) live in routes/public.py +
+# the /share/<token> route in main.py respectively.
+
+
+@bp.route("/api/trips/<trip_id>/share", methods=["POST"])
+@require_auth
+@limiter.limit("30 per hour")
+def create_share_link(trip_id):
+    """Owner-only: generate or replace the share token for a trip.
+
+    Returns `{ token, url, showCost }` so the frontend can drop the
+    URL straight into clipboard / Web Share API. The same endpoint
+    handles "rotate the link" — if a token already exists, it's
+    overwritten so the previous URL stops working immediately. The
+    `showCost` flag is plumbed in via request body so the owner can
+    toggle "show cost summary on the public page" at share time
+    without a second round-trip.
+
+    Privacy default: showCost is OFF unless explicitly requested.
+    Visitors only ever see the trip's name, cover, day-by-day path,
+    and (if showCost is on) an aggregate cost banner — never line
+    items, photos, journals, or member identities.
+    """
+    user_id = current_user_id()
+    payload = request.json or {}
+    show_cost = bool(payload.get("showCost", False))
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        if not is_trip_owner(cursor, trip_id, user_id):
+            return jsonify({"error": "Forbidden"}), 403
+        # 22 URL-safe chars ≈ 132 bits of entropy — collision-free
+        # well past any realistic share volume; partial UNIQUE index
+        # on share_token catches the lottery-ticket case anyway.
+        token = secrets.token_urlsafe(16)
+        cursor.execute(
+            "UPDATE trips SET share_token = ?, share_show_cost = ? WHERE id = ?",
+            (token, 1 if show_cost else 0, trip_id),
+        )
+        conn.commit()
+    return jsonify({
+        "token": token,
+        "url": f"/share/{token}",
+        "showCost": show_cost,
+    })
+
+
+@bp.route("/api/trips/<trip_id>/share", methods=["DELETE"])
+@require_auth
+@limiter.limit("30 per hour")
+def revoke_share_link(trip_id):
+    """Owner-only: clear the share token so the public URL stops
+    working. View count is preserved — re-sharing later starts a new
+    token but keeps the historical visitor count visible to the owner.
+    """
+    user_id = current_user_id()
+    with get_db() as conn:
+        cursor = conn.cursor()
+        if not is_trip_owner(cursor, trip_id, user_id):
+            return jsonify({"error": "Forbidden"}), 403
+        cursor.execute(
+            "UPDATE trips SET share_token = NULL, share_show_cost = 0 WHERE id = ?",
+            (trip_id,),
+        )
+        conn.commit()
+    return jsonify({"status": "revoked"})

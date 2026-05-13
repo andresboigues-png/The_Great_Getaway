@@ -380,6 +380,16 @@ def get_data():
             # legacy rows, surfaced as `coverUrl` so frontend reads
             # without the snake_case translation.
             t['coverUrl'] = t.pop('cover_url', None)
+            # §4.1 — share-via-link state. shareToken is NULL until the
+            # owner generates a link via the Share modal; the frontend
+            # reads it to decide whether to render the "Get share link"
+            # button (no token yet) vs the "Copy / Unshare" controls
+            # (token present). shareViews powers the views chip on the
+            # home + collections cards. shareShowCost mirrors the
+            # privacy toggle so the modal can reflect the current state.
+            t['shareToken'] = t.pop('share_token', None)
+            t['shareViews'] = int(t.pop('share_views', 0) or 0)
+            t['shareShowCost'] = bool(t.pop('share_show_cost', 0))
 
             # Per-user archive + role from the pre-fetched lookup table.
             # Owners may not have a row yet on legacy data — fall back

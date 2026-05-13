@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  {# FIXING_ROADMAP §4.1 — public share page.
+
+     This is INTENTIONALLY NOT the SPA shell. It's a thin Flask-rendered
+     HTML page so:
+       1. OG meta tags below are present at first paint (link previews
+          on WhatsApp / iMessage / LinkedIn need them in the initial HTML).
+       2. No JWT, no STATE — the page can't accidentally expose anything
+          the caller wouldn't see on a totally fresh browser.
+       3. No JS bundle download to view — landing on a share link from
+          a 3G connection still renders text + cover instantly.
+
+     The values below are server-supplied — see /share/<token> in main.py. #}
+
+  <title>{{ trip.name }} · The Great Getaway</title>
+  <meta name="description" content="{{ og_description }}" />
+
+  {# Open Graph + Twitter Card — what makes the link preview pretty
+     when pasted into a chat app. og:image MUST be an absolute URL
+     (Flask's url_for(_external=True) + cover path, or fall back to the
+     favicon). #}
+  <meta property="og:type" content="article" />
+  <meta property="og:title" content="{{ trip.name }} · The Great Getaway" />
+  <meta property="og:description" content="{{ og_description }}" />
+  <meta property="og:image" content="{{ og_image_url }}" />
+  <meta property="og:url" content="{{ canonical_url }}" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="{{ trip.name }} · The Great Getaway" />
+  <meta name="twitter:description" content="{{ og_description }}" />
+  <meta name="twitter:image" content="{{ og_image_url }}" />
+
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}" />
+
+  <style>
+    /* Self-contained styles — the SPA's index.css is intentionally
+       NOT linked here so this page renders fast even on a fresh
+       cold load. Mirrors the brand palette + glass aesthetic. */
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      color: #1d1d1f;
+      background: linear-gradient(180deg, #f7f9fc 0%, #eef3f9 100%);
+      min-height: 100vh;
+    }
+    .share-page { max-width: 720px; margin: 0 auto; padding: 24px 20px 80px; }
+    .share-hero {
+      position: relative;
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: 0 20px 50px rgba(0, 45, 91, 0.18);
+      margin-bottom: 24px;
+      background: #0071e3;
+      aspect-ratio: 16 / 9;
+    }
+    .share-hero img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .share-hero__overlay {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(0,0,0,0) 50%, rgba(0,0,0,0.65) 100%);
+      display: flex;
+      align-items: flex-end;
+      padding: 24px;
+    }
+    .share-hero__title {
+      color: #fff;
+      font-size: 1.8rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.4);
+      margin: 0;
+    }
+    .share-hero__sub {
+      color: rgba(255,255,255,0.92);
+      font-size: 0.95rem;
+      font-weight: 500;
+      margin-top: 4px;
+    }
+    .share-views {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      background: rgba(255,255,255,0.92);
+      backdrop-filter: blur(10px);
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #0071e3;
+    }
+    .cost-banner {
+      background: linear-gradient(135deg, #0071e3, #ff9500 55%, #34c759);
+      color: #fff;
+      padding: 22px 24px;
+      border-radius: 18px;
+      margin-bottom: 24px;
+      box-shadow: 0 10px 28px rgba(0, 45, 91, 0.18);
+    }
+    .cost-banner__total {
+      font-size: 2rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+    .cost-banner__sub {
+      opacity: 0.92;
+      font-size: 0.9rem;
+      font-weight: 600;
+      margin-top: 4px;
+    }
+    .cost-banner__per-country {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 14px;
+    }
+    .cost-chip {
+      background: rgba(255,255,255,0.2);
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 700;
+    }
+    .day-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .day-row {
+      display: flex;
+      gap: 14px;
+      padding: 14px 16px;
+      background: #fff;
+      border-radius: 14px;
+      margin-bottom: 10px;
+      box-shadow: 0 4px 14px rgba(0, 45, 91, 0.06);
+      align-items: center;
+    }
+    .day-num {
+      flex-shrink: 0;
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      background: rgba(0, 113, 227, 0.1);
+      color: #0071e3;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 0.9rem;
+    }
+    .day-body { flex: 1; min-width: 0; }
+    .day-name { font-weight: 700; font-size: 0.95rem; }
+    .day-meta { font-size: 0.78rem; color: #8e8e93; margin-top: 2px; }
+    .share-cta {
+      text-align: center;
+      padding: 28px 20px 0;
+      color: #5a5a5e;
+      font-size: 0.85rem;
+    }
+    .share-cta__btn {
+      display: inline-block;
+      margin-top: 10px;
+      padding: 10px 22px;
+      background: #0071e3;
+      color: #fff;
+      border-radius: 999px;
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 0.9rem;
+    }
+    .share-cta__btn:hover { background: #0077ed; }
+    .owner-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(0, 113, 227, 0.08);
+      padding: 6px 12px 6px 6px;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+    .owner-chip img {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+    .section-label {
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      font-size: 0.7rem;
+      font-weight: 800;
+      color: #0071e3;
+      margin: 8px 4px 12px;
+    }
+  </style>
+</head>
+<body>
+  <main class="share-page">
+    {% if owner %}
+    <div class="owner-chip">
+      {% if owner.picture %}<img src="{{ owner.picture }}" alt="" />{% endif %}
+      Shared by {{ owner.firstName }}
+    </div>
+    {% endif %}
+
+    <div class="share-hero">
+      {% if trip.coverUrl %}
+      <img src="{{ trip.coverUrl }}" alt="{{ trip.name }} cover photo" />
+      {% else %}
+      {# No cover uploaded — use the gradient backdrop as the hero. #}
+      <div style="width:100%;height:100%;background:linear-gradient(135deg,#0071e3,#ff9500 55%,#34c759);"></div>
+      {% endif %}
+      <div class="share-hero__overlay">
+        <div>
+          <h1 class="share-hero__title">{{ trip.name }}</h1>
+          {% if trip.country %}<div class="share-hero__sub">{{ trip.country }}</div>{% endif %}
+        </div>
+      </div>
+      {# Views chip — only show when there's at least one view. The
+         owner can see this on their own copy via the home/collections
+         card; we render it on the public page too as a soft social
+         proof signal ("12 people have seen this trip"). #}
+      {% if trip.views > 0 %}
+      <div class="share-views">{{ trip.views }} view{% if trip.views != 1 %}s{% endif %}</div>
+      {% endif %}
+    </div>
+
+    {% if cost %}
+    <div class="cost-banner">
+      <div class="cost-banner__total">€{{ '{:,.0f}'.format(cost.total) }}</div>
+      <div class="cost-banner__sub">
+        {% if cost.dayCount %}€{{ '{:,.0f}'.format(cost.total / cost.dayCount) }}/day · {% endif %}
+        {{ cost.dayCount }} day{% if cost.dayCount != 1 %}s{% endif %}
+      </div>
+      {% if cost.perCountry and cost.perCountry|length > 1 %}
+      <div class="cost-banner__per-country">
+        {% for c in cost.perCountry %}
+        <span class="cost-chip">{{ c.country or '?' }} · €{{ '{:,.0f}'.format(c.total) }}</span>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {% if days %}
+    <div class="section-label">The path</div>
+    <ol class="day-list">
+      {% for d in days %}
+      <li class="day-row">
+        <div class="day-num">{{ d.dayNumber or loop.index }}</div>
+        <div class="day-body">
+          <div class="day-name">{{ d.name or 'Day ' ~ (d.dayNumber or loop.index) }}</div>
+          <div class="day-meta">{{ d.date or '' }}</div>
+        </div>
+      </li>
+      {% endfor %}
+    </ol>
+    {% endif %}
+
+    <div class="share-cta">
+      <div>Like this trip? Plan your own on The Great Getaway.</div>
+      <a class="share-cta__btn" href="/">Open the app</a>
+    </div>
+  </main>
+</body>
+</html>

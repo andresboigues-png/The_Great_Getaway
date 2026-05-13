@@ -497,14 +497,22 @@ Ordered by leverage on the VISION's three killer features (social, expenses, pla
 
 **M** · 4-6h spec already in `FUTURE_FEATURES.md`
 
-- [ ] Alembic migration: `share_token TEXT UNIQUE NULL`, `share_views INTEGER DEFAULT 0` on `trips`.
-- [ ] New unauthenticated route `GET /share/<token>` in `routes/public.py`.
-- [ ] New React leaf `pages/share/Share.tsx` (no auth shell — fresh PA-tier acquisition surface).
-- [ ] Edit Trip modal: "Get share link" button + "Show total cost on artifact" toggle.
-- [ ] Public artifact renders: cover photo + day-by-day Path + headline "€1,827 · €130/day · 🇵🇹 €1,400 · 🇪🇸 €427".
-- [ ] **Server-side render the OG meta tags** so WhatsApp/iMessage/LinkedIn show the cover photo + headline preview — this is what turns a share into a signup.
-- [ ] Views counter (deduped 24h by anonymous cookie).
-- [ ] E2E test for the no-auth path.
+- [x] Alembic migration: `share_token TEXT UNIQUE NULL`, `share_views INTEGER DEFAULT 0`, `share_show_cost INTEGER DEFAULT 0` on `trips`. Plus partial UNIQUE index on `share_token`. (Shipped 2026-05-13)
+- [x] New unauthenticated route `GET /share/<token>` in `main.py` (HTML render) + `GET /api/share/<token>` in `routes/public.py` (JSON). (Shipped 2026-05-13)
+- [x] New owner-only routes `POST` / `DELETE /api/trips/<id>/share` in `routes/trips.py`. (Shipped 2026-05-13)
+- [x] Public page lives as a Flask-rendered `frontend/templates/share.html` (NOT a React leaf — see deviation note below).
+- [x] Edit Trip modal: "Get share link" / "Manage share link" button → opens `openShareTripModal()` with "Show total cost on the page" toggle. (Shipped 2026-05-13)
+- [x] Public artifact renders: owner chip + cover photo + day-by-day Path + (opt-in) cost banner with total + per-country breakdown. (Shipped 2026-05-13)
+- [x] **Server-side rendered OG meta tags** (`og:title`, `og:description`, `og:image`, Twitter Card) so chat-app link previews show the cover photo + headline. (Shipped 2026-05-13)
+- [x] Views counter deduped by anonymous 24h httponly cookie. Chip shows on the public page itself + on the owner's Collections card. (Shipped 2026-05-13)
+- [x] Pytest coverage for 10 share-flow paths (token rotation, owner-only gate, anonymous read, privacy posture, view-count dedupe, OG meta, 404 friendliness). (Shipped 2026-05-13)
+- [ ] E2E test for the no-auth path. (Deferred — Playwright pass queued for the next E2E sweep.)
+
+**Deviation from the original spec:** the public page is a Flask-rendered `share.html` template, NOT a React leaf under `pages/share/`. Reasons:
+
+1. OG meta crawlers (WhatsApp, LinkedIn, iMessage) need the tags in the initial HTML response — a React SPA shell that hydrates them later would render previews with empty meta. A Flask template ships the tags at first byte.
+2. The shared artifact is read-only and has no STATE / login / navigation — there's no React benefit. A 60-line standalone HTML page is the right shape.
+3. Visitors on slow connections see the trip without downloading the 460KB JS bundle.
 
 **Why this ships first:** delivers all three killer features in one launch (shareable artifact + cost-as-content + viral surface). Every later feature is more useful once this exists.
 

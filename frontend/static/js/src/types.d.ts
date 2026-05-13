@@ -149,6 +149,19 @@ export interface Trip {
      *  detail hero is `trip.coverUrl > first-day-photo > default
      *  gradient`. NULL for legacy trips; the user has to opt in. */
     coverUrl?: string | null;
+    /** FIXING_ROADMAP §4.1 — public share-via-link state.
+     *  - `shareToken` is the URL-safe slug at the end of /share/<token>.
+     *    NULL means the trip isn't currently shared. Set by the owner
+     *    via the Share modal; rotated on every new share so a previous
+     *    URL stops working when re-shared.
+     *  - `shareViews` counts unique visitors over the lifetime of the
+     *    trip's share history (preserved across revoke + re-share so
+     *    the owner doesn't reset to zero when rotating a link).
+     *  - `shareShowCost` is the owner-controlled "show aggregate cost
+     *    summary on the public page" toggle. Privacy-default off. */
+    shareToken?: string | null;
+    shareViews?: number;
+    shareShowCost?: boolean;
 }
 
 /** Single row in `Trip.checklist`. `id` is a stable client-generated
