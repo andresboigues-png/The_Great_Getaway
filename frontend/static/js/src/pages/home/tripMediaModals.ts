@@ -41,6 +41,7 @@ import { canEdit } from '../../permissions.js';
 import { showModal } from '../../components/Modal.js';
 import { esc, q, formatDayDate, showLiquidAlert } from '../../utils.js';
 import { navigate } from '../../router.js';
+import { resolveDayIdForFile } from '../../exif.js';
 import {
     getAllTripDocuments, getAllTripPhotos,
     addTripDocument, addTripPhoto,
@@ -406,12 +407,23 @@ export const openTripPhotosModal = (trip: any): void => {
                 .find(d => d.tripId === trip.id && Number(d.dayNumber) === 0);
             const defaultDayId = anchorDay ? anchorDay.id : null;
             let added = 0;
+            let autoTagged = 0;
             for (const file of files) {
                 try {
+                    // §4.9 — read the photo's EXIF capture date BEFORE
+                    // uploading; match it to a trip day. If we find one,
+                    // the photo lands on that day; otherwise we fall
+                    // back to the anchor bucket like the legacy
+                    // behaviour. Reading EXIF off the original File is
+                    // free (no extra round-trip) and the parse is
+                    // ~1-2ms per image even on mobile.
+                    const exifDayId = await resolveDayIdForFile(file, trip);
+                    const dayId = exifDayId ?? defaultDayId;
                     const res = await uploadMedia(file);
                     if (res?.url) {
-                        addTripPhoto(trip, { src: res.url, dayId: defaultDayId });
+                        addTripPhoto(trip, { src: res.url, dayId });
                         added++;
+                        if (exifDayId) autoTagged++;
                     }
                 } catch (e) {
                     console.error('Photo upload failed:', e);
@@ -421,7 +433,19 @@ export const openTripPhotosModal = (trip: any): void => {
             if (added > 0) {
                 emit('state:changed');
                 await upsertTrip(trip);
-                showLiquidAlert(`${added} photo${added === 1 ? '' : 's'} added.`);
+                // §4.9 — surface the auto-tag count in the success
+                // toast so the user knows the EXIF magic happened. Bare
+                // "N photos added" stays the message when nothing got
+                // auto-tagged (the common case for trips with no day
+                // dates set yet — anchor bucket is still correct).
+                if (autoTagged > 0) {
+                    showLiquidAlert(
+                        `${added} photo${added === 1 ? '' : 's'} added — `
+                            + `${autoTagged} auto-sorted by date.`,
+                    );
+                } else {
+                    showLiquidAlert(`${added} photo${added === 1 ? '' : 's'} added.`);
+                }
                 repaint();
             } else {
                 showLiquidAlert('Upload failed — please try again.');
