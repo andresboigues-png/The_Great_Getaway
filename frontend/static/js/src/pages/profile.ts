@@ -208,6 +208,73 @@ export function renderProfile(targetUserId: string | null | undefined = null) {
         isFollowing: boolean;
     }
     const renderData = (user: any, trips: any[], achievements: ProfileAchievement[] = [], followSnap: FollowSnapshot = { followers: 0, following: 0, isFollowing: false }) => {
+        // §4.4 — inject the achievement-tooltip stylesheet once per
+        // page lifetime. Inline styles already cover the pill itself;
+        // a stylesheet is needed for the :hover + :focus-visible
+        // pseudo-class state because inline styles can't express those.
+        // The id-guarded append matches the install-prompt pattern in
+        // bootstrap/install-prompt.ts.
+        if (!document.getElementById('ggAchievementsStyles')) {
+            const style = document.createElement('style');
+            style.id = 'ggAchievementsStyles';
+            style.textContent = `
+                .achievement-tooltip {
+                    position: absolute;
+                    bottom: calc(100% + 10px);
+                    left: 50%;
+                    transform: translateX(-50%);
+                    background: #002d5b;
+                    color: white;
+                    padding: 10px 14px;
+                    border-radius: 12px;
+                    font-size: 0.78rem;
+                    line-height: 1.4;
+                    text-align: left;
+                    font-weight: 500;
+                    letter-spacing: 0;
+                    text-transform: none;
+                    white-space: normal;
+                    word-wrap: break-word;
+                    width: max-content;
+                    max-width: min(260px, calc(100vw - 32px));
+                    box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+                    opacity: 0;
+                    visibility: hidden;
+                    pointer-events: none;
+                    transition: opacity 120ms ease, visibility 120ms ease;
+                    z-index: 50;
+                }
+                .achievement-tooltip strong {
+                    color: white;
+                    font-weight: 800;
+                    font-size: 0.85rem;
+                }
+                /* Tail/arrow pointing down at the pill */
+                .achievement-tooltip::after {
+                    content: '';
+                    position: absolute;
+                    top: 100%;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    width: 0;
+                    height: 0;
+                    border: 6px solid transparent;
+                    border-top-color: #002d5b;
+                }
+                /* Three triggers: desktop hover, keyboard focus
+                   (focus-visible only — clicking the button on touch
+                   shouldn't sticky-open via :focus, the .is-open
+                   class handles that path), and the JS-toggled
+                   .is-open class for tap. */
+                .achievement-pill:hover .achievement-tooltip,
+                .achievement-pill:focus-visible .achievement-tooltip,
+                .achievement-pill.is-open .achievement-tooltip {
+                    opacity: 1;
+                    visibility: visible;
+                }
+            `;
+            document.head.appendChild(style);
+        }
         const allTrips = trips || [];
         const uniqueCountries: string[] = [...new Set(allTrips.map(t => t.country).filter(Boolean))];
         const profilePicSrc = user.picture;
@@ -435,16 +502,48 @@ export function renderProfile(targetUserId: string | null | undefined = null) {
                                 Earn your first badge by creating a trip, completing one, or settling up with a friend.
                             </p>
                         ` : `
-                            <div style="display: flex; flex-wrap: wrap; gap: 10px;">
-                                ${achievements.map(a => `
-                                    <div
-                                        title="${esc(a.description || '')}"
-                                        style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; background: white; border: 1px solid rgba(0,113,227,0.18); font-size: 0.85rem; font-weight: 600; color: var(--text-primary); box-shadow: 0 1px 2px rgba(0,0,0,0.04);"
+                            <!-- §4.4 — each badge is a <button> rather
+                                 than a div so it's keyboard-focusable
+                                 (Tab → Enter / Space to toggle the
+                                 tooltip) AND so the touch-tap target
+                                 has explicit semantics for VoiceOver /
+                                 TalkBack. Hover/focus + tap both reveal
+                                 the .achievement-tooltip child via CSS
+                                 below; click-outside dismisses any
+                                 open tooltip via the delegated handler
+                                 wired further down in this file. -->
+                            <div class="achievements-strip" style="display: flex; flex-wrap: wrap; gap: 10px;">
+                                ${achievements.map(a => {
+                                    const earnedLabel = a.earnedAt
+                                        ? (() => {
+                                            try {
+                                                const d = new Date(a.earnedAt!);
+                                                return isNaN(d.getTime())
+                                                    ? ''
+                                                    : d.toLocaleDateString(undefined, {
+                                                        month: 'short', day: 'numeric', year: 'numeric',
+                                                    });
+                                            } catch { return ''; }
+                                        })()
+                                        : '';
+                                    return `
+                                    <button
+                                        type="button"
+                                        class="achievement-pill"
+                                        data-badge-id="${esc(a.badgeId)}"
+                                        aria-label="${esc(a.label || a.badgeId)}${a.description ? ' — ' + esc(a.description) : ''}"
+                                        style="position: relative; display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; background: white; border: 1px solid rgba(0,113,227,0.18); font-size: 0.85rem; font-weight: 600; color: var(--text-primary); box-shadow: 0 1px 2px rgba(0,0,0,0.04); cursor: pointer; font-family: inherit;"
                                     >
                                         <span style="font-size: 1.1rem; line-height: 1;">${esc(a.emoji || '🏅')}</span>
                                         <span>${esc(a.label || a.badgeId)}</span>
-                                    </div>
-                                `).join('')}
+                                        <span class="achievement-tooltip" role="tooltip">
+                                            <strong style="display:block; margin-bottom:4px;">${esc(a.label || a.badgeId)}</strong>
+                                            ${a.description ? esc(a.description) : ''}
+                                            ${earnedLabel ? `<span style="display:block; margin-top:6px; opacity:0.7; font-size:0.72rem; font-weight:500;">Earned ${esc(earnedLabel)}</span>` : ''}
+                                        </span>
+                                    </button>
+                                `;
+                                }).join('')}
                             </div>
                         `}
                     </div>
@@ -871,6 +970,29 @@ export function renderProfile(targetUserId: string | null | undefined = null) {
             })
             .catch(() => { div.innerHTML = `<p style="text-align:center; padding:50px;">Error loading profile.</p>`; });
     }
+
+    // §4.4 — achievement-pill tap toggle. CSS handles desktop hover +
+    // keyboard focus; this handler covers TAP on mobile (no hover
+    // capability) and also serves as a click-to-pin-tooltip on
+    // desktop so users can read longer descriptions without juggling
+    // the mouse. Tapping a pill closes other open ones (one open at
+    // a time); tapping outside any pill closes all of them.
+    div.addEventListener('click', (e) => {
+        const target = e.target as HTMLElement | null;
+        const pill = target?.closest('.achievement-pill') as HTMLElement | null;
+        if (pill) {
+            const wasOpen = pill.classList.contains('is-open');
+            // Close any other open pills first.
+            div.querySelectorAll('.achievement-pill.is-open')
+                .forEach((p) => p.classList.remove('is-open'));
+            if (!wasOpen) pill.classList.add('is-open');
+            return;
+        }
+        // Outside-click → dismiss any open tooltip. We don't gate on
+        // "was anything open" — close-all is idempotent + cheap.
+        div.querySelectorAll('.achievement-pill.is-open')
+            .forEach((p) => p.classList.remove('is-open'));
+    });
 
     // §4.7 — Follow button click handler (other-user only; the button
     // only renders on that branch). Optimistic UI: flip the visual
