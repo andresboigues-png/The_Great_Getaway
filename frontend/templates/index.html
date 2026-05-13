@@ -551,11 +551,16 @@
             <span>Home</span>
         </a>
         <a href="#" class="nav-item mobile-bottom-nav__item" data-page="feed" aria-label="Feed">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <!-- Wi-fi / broadcast arc — the canonical "feed" glyph
                      used by the desktop Feed icon in .nav-links. Two
                      concentric arcs + dot read as "stream of incoming
-                     activity" — matches the social-feed semantics. -->
+                     activity" — matches the social-feed semantics.
+                     Stroke-width 2.4 (was 2) to match the perceived
+                     visual weight of the denser icons next to it
+                     (Home/Expenses/Insights have filled-shape paths
+                     while Feed is just 2 arcs + a dot — would read
+                     lighter at the same stroke width). */ -->
                 <path d="M4 11a9 9 0 0 1 9 9"></path>
                 <path d="M4 4a16 16 0 0 1 16 16"></path>
                 <circle cx="5" cy="19" r="1"></circle>
@@ -563,10 +568,14 @@
             <span>Feed</span>
         </a>
         <a href="#" class="nav-item mobile-bottom-nav__item" data-page="ai" aria-label="Plan with AI">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <!-- 4-point sparkle (the canonical AI icon — same
                      glyph used by every "AI" surface in modern UIs
-                     including Apple Intelligence, Gemini badges, etc.). -->
+                     including Apple Intelligence, Gemini badges, etc.).
+                     Stroke-width 2.4 (was 1.8) to match the rest of
+                     the bottom-nav. The 1.8 was an aesthetic carry-
+                     over from a denser sparkle render at 32px and
+                     read distinctly thinner at the 22px nav size. -->
                 <path d="M12 2 L13.5 9 L20.5 10.5 L13.5 12 L12 19 L10.5 12 L3.5 10.5 L10.5 9 Z"></path>
             </svg>
             <span>Plan AI</span>

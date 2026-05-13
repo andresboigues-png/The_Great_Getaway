@@ -895,7 +895,15 @@ h1 {
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 14px 0 18px;
+    /* Padding-top sized so the profile avatar (first child) lands
+       at the SAME viewport-Y as the burger drawer's profile-top
+       block. Math: drawer profile starts at y=100 (sidebar 24px
+       padding + 28px header content + 16px header padding-bottom +
+       32px header margin-bottom). Rail top is at y=56 (below the
+       navbar), so padding-top = 100 - 56 = 44 puts the rail's first
+       child at y=100. Pre-fix this was 14px and the rail profile
+       sat ~30px ABOVE the drawer profile — visibly misaligned. */
+    padding: 44px 0 18px;
     gap: 6px;
     overflow-y: auto;
 }
