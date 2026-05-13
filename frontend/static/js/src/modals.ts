@@ -443,22 +443,11 @@ export const openEditTripModal = (trip: any) => {
                     </div>
                 </div>
 
-                <!-- FIXING_ROADMAP §4.1 — Share button. Visually
-                     subordinate to the primary Save action; opens its
-                     own modal so the share flow doesn't fight with the
-                     trip-edit form's validation state. Only renders
-                     when the caller owns the trip; non-owners can't
-                     generate share links. -->
-                <button type="button" id="editTripShareBtn" class="btn-ghost" style="width: 100%; margin-top: var(--space-3); padding: 12px; font-weight: 700; font-size: 0.9rem; display: flex; align-items: center; justify-content: center; gap: 8px;">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <circle cx="18" cy="5" r="3"></circle>
-                        <circle cx="6" cy="12" r="3"></circle>
-                        <circle cx="18" cy="19" r="3"></circle>
-                        <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
-                        <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
-                    </svg>
-                    <span id="editTripShareBtnLabel">Get share link</span>
-                </button>
+                <!-- Share controls moved out of Edit Trip into a
+                     first-class Share button on the trip header
+                     (openShareChooserModal). The Edit Trip modal
+                     is now purely about renaming / re-pinning /
+                     cover photo — share is its own surface. -->
 
                 <div style="display: flex; gap: var(--space-3); width: 100%; margin-top: var(--space-4);">
                     <button type="submit" id="editTripSubmitBtn" class="btn-primary" style="flex: 2;">Save Changes</button>
@@ -467,32 +456,6 @@ export const openEditTripModal = (trip: any) => {
             </form>
         `,
     });
-
-    // Share button — owner-only. Hidden for non-owners since the
-    // server gates the endpoint and a non-owner click would just 403.
-    // Label flips between "Get share link" / "Manage share link"
-    // based on whether the trip already has a token, so the user
-    // knows what they're clicking into.
-    const shareBtn = q(root, '#editTripShareBtn') as HTMLButtonElement | null;
-    const shareBtnLabel = q(root, '#editTripShareBtnLabel') as HTMLElement | null;
-    const isOwner = STATE.user?.id && trip.ownerId === STATE.user.id;
-    if (shareBtn) {
-        if (!isOwner) {
-            shareBtn.style.display = 'none';
-        } else {
-            if (shareBtnLabel) {
-                shareBtnLabel.textContent = trip.shareToken
-                    ? 'Manage share link'
-                    : 'Get share link';
-            }
-            shareBtn.onclick = () => {
-                // Don't close the Edit Trip modal — let the user keep
-                // editing after they close the share modal. The Share
-                // modal stacks on top via the modal-stack pattern.
-                openShareTripModal(trip);
-            };
-        }
-    }
 
     const nameInput = (q(root, '#editTripName') as HTMLInputElement);
     nameInput.value = trip.name || '';
@@ -1072,4 +1035,93 @@ export const openShareTripModal = (trip: any) => {
     generateBtn.onclick = generateOrCopy;
     secondaryBtn.onclick = revokeOrClose;
 };
+
+
+// ── Share Chooser modal ──────────────────────────────────────────────
+// Lifts the Share entry point out of the Edit Trip drawer (where it
+// was a hidden surface) into a first-class action on both active and
+// archived trips. Two big options:
+//
+//   📢 Share to feed   — broadcast as an in-app post to the user's
+//                        accepted friends. Requires the trip be
+//                        public (the share-to-feed flow has that
+//                        precondition for older privacy reasons).
+//
+//   🔗 Get share link  — generate a public URL anyone with the link
+//                        can open. No friend graph, no account
+//                        needed. The recipient lands on /share/<token>.
+//
+// The chooser is intentionally a simple 2-button modal — no nested
+// state, no preview. Picking an option dispatches to the existing
+// dedicated modal (openShareToFeedModal in pages/home/shareModal.ts
+// or openShareTripModal above).
+
+interface ShareChooserOpts {
+    /** The trip to share. Must carry id, name, isPublic, ownerId,
+     *  shareToken (if any). */
+    trip: any;
+    /** Callback the "Share to feed" option fires the share-to-feed
+     *  flow through. The caller owns the actual share-to-feed plumbing
+     *  (shareTripToFeed POST, optimistic update, etc.) because that
+     *  flow already exists in home.ts / collections.ts and the modal
+     *  shouldn't re-implement it. The callback receives no args —
+     *  the chooser closes itself before invoking. */
+    onShareToFeed: () => void;
+    /** Whether to show the share-to-feed option at all. Some surfaces
+     *  (e.g. very early trip with no days) might want to suppress it.
+     *  Default: true. */
+    showFeedOption?: boolean;
+}
+
+export function openShareChooserModal(opts: ShareChooserOpts) {
+    const { trip, onShareToFeed, showFeedOption = true } = opts;
+    if (!trip) return;
+
+    const { root, close } = showModal({
+        variant: 'glass',
+        cardStyle: 'width: 420px;',
+        innerHTML: `
+            <h2 class="card-title" style="font-size: var(--font-2xl); margin-bottom: var(--space-2); color: #ffffff; letter-spacing: -0.04em; font-weight: 800; text-align: center;">Share "${esc(trip.name || 'this trip')}"</h2>
+            <p style="text-align: center; color: rgba(255,255,255,0.78); font-size: 0.85rem; margin-bottom: var(--space-5);">
+                Choose how you want to share.
+            </p>
+
+            ${showFeedOption ? `
+                <button type="button" id="shareChooserFeedBtn" style="display:flex; align-items:center; gap:14px; width:100%; padding:16px 18px; margin-bottom:12px; background:rgba(255,255,255,0.10); border:1px solid rgba(255,255,255,0.22); border-radius:14px; color:#ffffff; cursor:pointer; text-align:left;">
+                    <span style="font-size:1.6rem; line-height:1;">📢</span>
+                    <span style="flex:1; min-width:0;">
+                        <span style="display:block; font-weight:800; font-size:1rem;">Share to feed</span>
+                        <span style="display:block; font-size:0.78rem; color:rgba(255,255,255,0.72); margin-top:2px;">Post to your friends in The Great Getaway.</span>
+                    </span>
+                </button>
+            ` : ''}
+
+            <button type="button" id="shareChooserLinkBtn" style="display:flex; align-items:center; gap:14px; width:100%; padding:16px 18px; background:rgba(255,255,255,0.10); border:1px solid rgba(255,255,255,0.22); border-radius:14px; color:#ffffff; cursor:pointer; text-align:left;">
+                <span style="font-size:1.6rem; line-height:1;">🔗</span>
+                <span style="flex:1; min-width:0;">
+                    <span style="display:block; font-weight:800; font-size:1rem;">Get share link</span>
+                    <span style="display:block; font-size:0.78rem; color:rgba(255,255,255,0.72); margin-top:2px;">Send a link anyone can open — no account needed.</span>
+                </span>
+            </button>
+
+            <button type="button" id="shareChooserCancelBtn" class="btn-ghost" style="width:100%; margin-top:18px;">Cancel</button>
+        `,
+    });
+
+    const feedBtn = q(root, '#shareChooserFeedBtn') as HTMLButtonElement | null;
+    const linkBtn = q(root, '#shareChooserLinkBtn') as HTMLButtonElement;
+    const cancelBtn = q(root, '#shareChooserCancelBtn') as HTMLButtonElement;
+
+    if (feedBtn) {
+        feedBtn.onclick = () => {
+            close();
+            onShareToFeed();
+        };
+    }
+    linkBtn.onclick = () => {
+        close();
+        openShareTripModal(trip);
+    };
+    cancelBtn.onclick = () => close();
+}
 

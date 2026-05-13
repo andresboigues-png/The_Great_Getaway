@@ -15,7 +15,7 @@ import { showLiquidAlert, showConfirmModal, generateId, esc } from '../utils.js'
 // the user's privacy ask — flips trip.actionsHidden server-side
 // + locally so the trip's create/archive/join events stop bleeding
 // into friends' Actions feeds.
-import { upsertDay, deleteDayOnServer, upsertTrip, setTripActionsHidden } from '../api.js';
+import { upsertDay, deleteDayOnServer, upsertTrip, setTripActionsHidden, shareTripToFeed } from '../api.js';
 import { fetchTimeZone, formatLocalTime, mobileSafeGestureHandling } from '../googleMapsServices.js';
 import { paintWeatherChips, loadAndPaintWeather, type WeatherForecast } from './home/weather.js';
 import { renderDayRoutePolyline } from './home/routePolyline.js';
@@ -68,7 +68,7 @@ export { openDayView };
 import { navigate } from '../router.js';
 // showPersTab moved with the Getting Started Guide extraction —
 // only the guide's "Set your own categories" step calls it.
-import { openNewTripModal, openAddDayModal, openEditTripModal, openCompanionPickerModal, openTripMembersModal } from '../modals.js';
+import { openNewTripModal, openAddDayModal, openEditTripModal, openCompanionPickerModal, openTripMembersModal, openShareChooserModal } from '../modals.js';
 import { canEdit, canManageRoster, ROLE_PLANNER, ROLE_BUDGETEER } from '../permissions.js';
 import { findTripCompanionByLinkedUser } from '../companions.js';
 // showModal moved out with the modal extractions in Phase B1.
@@ -271,14 +271,26 @@ export function renderHome() {
                 ${activeTrip ? `<p>You have <strong>${tripExpenses.length}</strong> expenses recorded for ${activeTrip.name}.</p>` : `<p>Welcome! Start by creating your first trip.</p>`}
             </div>
             
-            <!-- "Discover places nearby" toggle — compact pill that
-                 sits ABOVE the search bar (used to live below the map
-                 next to a heavy "Discover…" bar). Clicking it
-                 reveals the POI category pills as a FLOATING overlay
-                 panel on top of the map (see #homeMapPoiToggles
-                 inside .cover-card below). Compass icon swap from the
-                 old magnifying glass — discovery, not search. -->
-            <div style="display:flex; justify-content:center; margin: 12px auto 8px; max-width: 720px;">
+            <!-- "Discover places nearby" toggle + companion buttons.
+                 The toggle is the same compact pill it always was;
+                 to its right sit two same-height icon buttons:
+
+                 - Maps button: opens the trip's location in Google
+                   Maps in a new tab. Used to live in the trip-header
+                   icon row (icon-btn-square); moved here so the
+                   "I want to see this place on a real map" action
+                   sits next to "I want to find places near it".
+
+                 - Share button: opens the Share Chooser modal
+                   (in-app post vs. public link). Previously hidden
+                   inside Edit Trip; now a first-class action so
+                   sharing a trip is one tap, not three.
+
+                 Both flank the toggle in a flex row so they remain
+                 visually grouped as "things you do AT the map." The
+                 toggle stays centred via flex:0 1 auto + the buttons
+                 keep a fixed footprint. -->
+            <div id="homeMapActionsRow" style="display:flex; justify-content:center; align-items:center; gap:10px; margin: 12px auto 8px; max-width: 720px; flex-wrap:wrap;">
                 <button type="button" id="homePoiToggleBtn" class="map-poi-toggle-bar" aria-expanded="false" aria-controls="homeMapPoiToggles">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                         <circle cx="12" cy="12" r="9"></circle>
@@ -289,6 +301,55 @@ export function renderHome() {
                         <polyline points="6 9 12 15 18 9"></polyline>
                     </svg>
                 </button>
+                ${activeTrip ? `${(() => {
+                    // Maps link — exact same href-resolution logic
+                    // the trip-header version used (place_id → lat/lng
+                    // → country name fallback). Centred icon, label
+                    // appears as a tooltip + aria-label so the button
+                    // stays compact next to the toggle pill.
+                    let href = '';
+                    if (activeTrip.placeId) {
+                        href = `https://www.google.com/maps/place/?q=place_id:${encodeURIComponent(activeTrip.placeId)}`;
+                    } else if (typeof activeTrip.lat === 'number' && typeof activeTrip.lng === 'number') {
+                        href = `https://www.google.com/maps/search/?api=1&query=${activeTrip.lat},${activeTrip.lng}`;
+                    } else if (activeTrip.country) {
+                        href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(activeTrip.country)}`;
+                    }
+                    if (!href) return '';
+                    // Render the actual Google Maps colour glyph (the
+                    // red-and-blue pin + roads) so the button reads
+                    // unambiguously as "Google Maps." A grayscale
+                    // generic external-link icon (what we had before)
+                    // read as "open something" — fine in a cluster of
+                    // other icons, ambiguous on its own. The mark
+                    // here is the public Google Maps logo SVG paths
+                    // (simplified from Google's brand assets — same
+                    // shape, same colours). Stays an <a> so right-
+                    // click → open in new tab still works.
+                    return `
+                        <a href="${href}" target="_blank" rel="noopener" id="homeOpenMapsBtn" title="Open this trip's location in Google Maps" aria-label="Open in Google Maps"
+                            style="display:inline-flex; align-items:center; gap:8px; padding:8px 14px; border-radius:999px; background:#ffffff; border:1px solid rgba(0,45,91,0.12); box-shadow:0 4px 12px rgba(0,45,91,0.10); text-decoration:none; color:#202124; font-weight:700; font-size:0.85rem; line-height:1;">
+                            <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M12 2C7.58 2 4 5.58 4 10c0 5.5 8 12 8 12s8-6.5 8-12c0-4.42-3.58-8-8-8z" fill="#ea4335"/>
+                                <circle cx="12" cy="10" r="3" fill="#ffffff"/>
+                            </svg>
+                            <span>Maps</span>
+                        </a>
+                    `;
+                })()}` : ''}
+                ${activeTrip ? `
+                    <button type="button" id="homeShareTripBtn" title="Share this trip" aria-label="Share this trip"
+                        style="display:inline-flex; align-items:center; gap:8px; padding:8px 14px; border-radius:999px; background:#0071e3; border:0; color:#ffffff; cursor:pointer; font-weight:700; font-size:0.85rem; line-height:1; box-shadow:0 4px 12px rgba(0,113,227,0.30);">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <circle cx="18" cy="5" r="3"></circle>
+                            <circle cx="6" cy="12" r="3"></circle>
+                            <circle cx="18" cy="19" r="3"></circle>
+                            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+                            <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+                        </svg>
+                        <span>Share</span>
+                    </button>
+                ` : ''}
             </div>
 
             <!-- Map search banner. Sits ABOVE the map (in normal flow,
@@ -1496,34 +1557,14 @@ export function renderHome() {
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
                         </button>
                     ` : ''}
-                    ${(() => {
-                        // "Open in Google Maps" — visible to everyone
-                        // (relaxers included; opening a link is read-only).
-                        // Prefer place_id when we have one — it lands on
-                        // the canonical Place page in Google Maps with
-                        // photos, hours, reviews, directions all queued
-                        // up. Falls back to lat/lng search, then to a
-                        // text search of the trip's country/city, so
-                        // there's always a working URL.
-                        let href = '';
-                        if (activeTrip.placeId) {
-                            href = `https://www.google.com/maps/place/?q=place_id:${encodeURIComponent(activeTrip.placeId)}`;
-                        } else if (typeof activeTrip.lat === 'number' && typeof activeTrip.lng === 'number') {
-                            href = `https://www.google.com/maps/search/?api=1&query=${activeTrip.lat},${activeTrip.lng}`;
-                        } else if (activeTrip.country) {
-                            href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(activeTrip.country)}`;
-                        }
-                        if (!href) return '';
-                        return `
-                            <a href="${href}" target="_blank" rel="noopener" class="icon-btn-square" title="Open this trip's location in Google Maps" aria-label="Open in Google Maps">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                                    <polyline points="15 3 21 3 21 9"></polyline>
-                                    <line x1="10" y1="14" x2="21" y2="3"></line>
-                                </svg>
-                            </a>
-                        `;
-                    })()}
+                    <!-- "Open in Google Maps" used to render here as a
+                         small icon-btn-square next to the Edit/Silence
+                         buttons. Relocated to the #homeMapActionsRow
+                         (next to "Discover places nearby") so the trip-
+                         header icon cluster stays focused on trip-edit/
+                         silence affordances, and the map-related action
+                         sits next to the map itself with its own
+                         labelled pill. See homeMapActionsRow above. -->
                     <!-- Share-to-feed used to live here; moved to the
                          public-trip detail page (collections / profile)
                          so only Public-flagged trips are shareable.
@@ -1912,9 +1953,32 @@ export function renderHome() {
             // Edit-trip pencil — owner-only, hidden when !manageable.
             if (target.closest('#editTripBtn')) { openEditTripModal(activeTrip); return; }
 
-            // (Share-to-feed click handler moved to collections.js —
-            // the button only renders on public-trip detail pages
-            // now, see renderArchivedTripDetail.)
+            // Share button — opens the chooser modal (in-app post vs.
+            // public link). The chooser dispatches to either the
+            // existing share-to-feed flow (for friends) or the new
+            // share-via-link flow (§4.1). Visible on every active
+            // trip; non-owners get the public-link path since they
+            // can't manage the feed-share state.
+            if (target.closest('#homeShareTripBtn') && activeTrip) {
+                openShareChooserModal({
+                    trip: activeTrip,
+                    onShareToFeed: () => {
+                        openShareToFeedModal(activeTrip, async (caption: string) => {
+                            const result = await shareTripToFeed(activeTrip.id, caption);
+                            if (result?.ok) {
+                                showLiquidAlert('Shared to feed!');
+                            } else {
+                                showLiquidAlert(
+                                    result?.status === 409
+                                        ? "Already shared — head to Collections to unshare or repost."
+                                        : "Couldn't share to feed. Try again."
+                                );
+                            }
+                        });
+                    },
+                });
+                return;
+            }
 
             // Silence-trip toggle — owner-only privacy control. Flips
             // trip.actionsHidden on the server + locally and patches

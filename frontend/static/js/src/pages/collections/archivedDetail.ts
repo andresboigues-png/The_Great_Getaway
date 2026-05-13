@@ -19,6 +19,7 @@ import { formatHome, esc, showLiquidAlert, showConfirmModal } from '../../utils.
 import { navigate } from '../../router.js';
 import { shareTripToFeed, fetchShareStatus, unshareFeedPost } from '../../api.js';
 import { openDayView, openPdfPreview, looksLikePdfUrl, openShareToFeedModal, updateShareBtnVisualState } from '../home.js';
+import { openShareChooserModal } from '../../modals.js';
 import { restoreTrip, toggleTripPrivacy } from './handlers.js';
 
 /**
@@ -119,16 +120,26 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
                  .btn-primary-pill family already used by Restore. -->
             <div style="position:absolute; top:24px; right:24px; display:flex; gap:8px; z-index:2;">
                 <button id="backToCollectionsBtn" type="button" style="background:rgba(255,255,255,0.16); border:1px solid rgba(255,255,255,0.3); color:#ffffff; padding:10px 18px; border-radius:999px; font-weight:800; font-size:0.85rem; cursor:pointer; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);">← Back</button>
-                ${trip.isPublic ? `
-                    <button id="shareToFeedBtn" type="button" data-trip-id="${esc(trip.id)}" title="Share this trip to your friends' feeds" aria-label="Share to feed"
-                        style="background:rgba(255,255,255,0.16); border:1px solid rgba(255,255,255,0.3); color:#ffffff; padding:10px 18px; border-radius:999px; font-weight:800; font-size:0.85rem; cursor:pointer; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); display:inline-flex; align-items:center; gap:6px;">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                            <line x1="22" y1="2" x2="11" y2="13"></line>
-                            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-                        </svg>
-                        Share
-                    </button>
-                ` : ''}
+                <!-- Share button — now ALWAYS visible (no isPublic
+                     gate). Opens the Share Chooser which lets the
+                     user pick between "Share to feed" (in-app post,
+                     still requires the trip be public) and "Get
+                     share link" (public URL, no precondition). The
+                     button's existence at minimum advertises that
+                     completed trips ARE shareable, even if the
+                     feed-share path needs the public toggle flipped
+                     first. -->
+                <button id="shareTripBtn" type="button" data-trip-id="${esc(trip.id)}" title="Share this trip" aria-label="Share this trip"
+                    style="background:rgba(255,255,255,0.16); border:1px solid rgba(255,255,255,0.3); color:#ffffff; padding:10px 18px; border-radius:999px; font-weight:800; font-size:0.85rem; cursor:pointer; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); display:inline-flex; align-items:center; gap:6px;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <circle cx="18" cy="5" r="3"></circle>
+                        <circle cx="6" cy="12" r="3"></circle>
+                        <circle cx="18" cy="19" r="3"></circle>
+                        <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+                        <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+                    </svg>
+                    Share
+                </button>
                 <button class="restore-trip-btn" data-trip-id="${esc(trip.id)}" type="button" style="background:#ffffff; color:#002d5b; padding:10px 18px; border-radius:999px; font-weight:800; font-size:0.85rem; cursor:pointer; box-shadow:0 4px 14px rgba(0,0,0,0.18); border: 0;">↺ Restore Trip</button>
             </div>
 
@@ -347,9 +358,13 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
     // its visual state from /api/feed/share/status (so a re-render shows
     // "already shared" without flicker), then listens for clicks: first
     // click opens the caption modal; clicks on an already-shared button
-    // open the unshare confirm. Same flow that lived on the home page,
-    // moved here so it's gated on the public flag.
-    const shareBtnEl = (div.querySelector('#shareToFeedBtn') as HTMLElement | null);
+    // Pre-fetch share-to-feed status so the chooser modal can render
+    // "Already on feed — manage" instead of "Share to feed" when the
+    // user has already posted this trip. We stamp the data attrs on
+    // the Share button so the click handler reads them synchronously
+    // without re-fetching. Same `fetchShareStatus` used by the old
+    // toggle; no new server endpoint needed.
+    const shareBtnEl = (div.querySelector('#shareTripBtn') as HTMLElement | null);
     if (shareBtnEl) {
         fetchShareStatus(trip.id).then(status => {
             if (!status?.shared) return;
@@ -364,48 +379,59 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
         const restoreBtn = (target?.closest('.restore-trip-btn') as HTMLElement | null);
         if (restoreBtn?.dataset.tripId) { restoreTrip(restoreBtn.dataset.tripId); return; }
 
-        // Share-to-feed click handler (mirrors the old home.js flow).
-        const shareBtn = (target?.closest('#shareToFeedBtn') as HTMLElement | null);
+        // Share button — opens the Share Chooser (in-app post vs.
+        // public link). On archived trips, "Share to feed" routes
+        // through the existing share / unshare flow (toggle based on
+        // current share state); "Get share link" opens the link
+        // modal regardless. The same chooser is rendered for active
+        // trips (home.ts wires its own click handler to the same
+        // function).
+        const shareBtn = (target?.closest('#shareTripBtn') as HTMLElement | null);
         if (shareBtn) {
-            const alreadyShared = shareBtn.dataset.shared === '1';
-            if (alreadyShared) {
-                const postId = Number(shareBtn.dataset.postId || 0);
-                if (!postId) return;
-                showConfirmModal({
-                    title: "Unshare this trip?",
-                    message: "It'll disappear from your friends' feeds. Any reposts of it will be removed too.",
-                    confirmText: "Unshare",
-                    onConfirm: async () => {
-                        const result = await unshareFeedPost(postId);
+            openShareChooserModal({
+                trip,
+                onShareToFeed: () => {
+                    const alreadyShared = shareBtn.dataset.shared === '1';
+                    if (alreadyShared) {
+                        const postId = Number(shareBtn.dataset.postId || 0);
+                        if (!postId) return;
+                        showConfirmModal({
+                            title: "Unshare this trip?",
+                            message: "It'll disappear from your friends' feeds. Any reposts of it will be removed too.",
+                            confirmText: "Unshare",
+                            onConfirm: async () => {
+                                const result = await unshareFeedPost(postId);
+                                if (!result || !result.ok) {
+                                    showLiquidAlert("Couldn't unshare — try again in a moment.");
+                                    return;
+                                }
+                                shareBtn.dataset.shared = '0';
+                                shareBtn.dataset.postId = '';
+                                updateShareBtnVisualState(shareBtn, false);
+                                showLiquidAlert("Removed from your feed.");
+                            },
+                        });
+                        return;
+                    }
+                    openShareToFeedModal(trip, async (caption) => {
+                        const result = await shareTripToFeed(trip.id, caption);
                         if (!result || !result.ok) {
-                            showLiquidAlert("Couldn't unshare — try again in a moment.");
+                            showLiquidAlert("Couldn't share — try again in a moment.");
                             return;
                         }
-                        shareBtn.dataset.shared = '0';
-                        shareBtn.dataset.postId = '';
-                        updateShareBtnVisualState(shareBtn, false);
-                        showLiquidAlert("Removed from your feed.");
-                    },
-                });
-                return;
-            }
-            openShareToFeedModal(trip, async (caption) => {
-                const result = await shareTripToFeed(trip.id, caption);
-                if (!result || !result.ok) {
-                    showLiquidAlert("Couldn't share — try again in a moment.");
-                    return;
-                }
-                const postId = Number(result.body?.post_id) || 0;
-                if (postId) {
-                    shareBtn.dataset.shared = '1';
-                    shareBtn.dataset.postId = String(postId);
-                    updateShareBtnVisualState(shareBtn, true);
-                }
-                if (result.body?.status === 'already_shared') {
-                    showLiquidAlert(caption ? "Updated your share." : "Already shared to your feed.");
-                } else {
-                    showLiquidAlert("Shared to your feed.");
-                }
+                        const postId = Number(result.body?.post_id) || 0;
+                        if (postId) {
+                            shareBtn.dataset.shared = '1';
+                            shareBtn.dataset.postId = String(postId);
+                            updateShareBtnVisualState(shareBtn, true);
+                        }
+                        if (result.body?.status === 'already_shared') {
+                            showLiquidAlert(caption ? "Updated your share." : "Already shared to your feed.");
+                        } else {
+                            showLiquidAlert("Shared to your feed.");
+                        }
+                    });
+                },
             });
             return;
         }
