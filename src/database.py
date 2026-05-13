@@ -478,6 +478,45 @@ def init_db():
             )
         ''')
 
+        # Settlements Table (FIXING_ROADMAP §4.5).
+        # Records "X paid Y €N for trip T" rows so the balance page can
+        # subtract them from the raw expense-derived debts.
+        #
+        # Currency model mirrors `expenses`: store the user-typed amount
+        # in `amount` + `currency`, plus a derived `euro_value` for
+        # cross-currency balance math. The pivot through EUR keeps the
+        # balance-simplification logic single-currency without losing
+        # the original receipt-currency information.
+        #
+        # `method` is a free-form short label ('cash' / 'revolut' /
+        # 'bank_transfer' / 'custom') — small enough that we don't bother
+        # with an enum table, large enough that "Custom" lets users type
+        # whatever they actually used.
+        #
+        # No DELETE-cascade FK to users: a user account deletion goes
+        # through /api/user-data which scopes its DELETEs by user_id +
+        # owned trip_id (see data.py:delete_user_data). We rely on that
+        # path rather than ON DELETE CASCADE because SQLite's FK
+        # cascades require PRAGMA foreign_keys = ON which isn't
+        # universally on across our environments yet.
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS settlements (
+                id TEXT PRIMARY KEY,
+                trip_id TEXT NOT NULL,
+                from_user_id TEXT NOT NULL,
+                to_user_id TEXT NOT NULL,
+                amount REAL NOT NULL,
+                currency TEXT NOT NULL,
+                euro_value REAL,
+                method TEXT,
+                note TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(trip_id) REFERENCES trips(id),
+                FOREIGN KEY(from_user_id) REFERENCES users(id),
+                FOREIGN KEY(to_user_id) REFERENCES users(id)
+            )
+        ''')
+
         # FIXING_ROADMAP §2.1 — indexes on hot tables. Must come AFTER
         # all CREATE TABLE statements above (the table needs to exist
         # before the index can reference it). The caller-can-see-event
@@ -501,6 +540,11 @@ def init_db():
             "ON trip_members(trip_id, user_id)",
             "CREATE INDEX IF NOT EXISTS idx_expenses_trip ON expenses(trip_id)",
             "CREATE INDEX IF NOT EXISTS idx_trip_days_trip ON trip_days(trip_id)",
+            # §4.5: settlements read path is per-trip (balance page +
+            # /api/data fan-out). One index keyed on trip_id covers
+            # both, and the from/to user joins use the small per-trip
+            # row set without a separate index.
+            "CREATE INDEX IF NOT EXISTS idx_settlements_trip ON settlements(trip_id)",
         ):
             _safe_alter(cursor, ddl)
 

@@ -424,6 +424,22 @@ def get_data():
             cursor.execute(f"SELECT * FROM expenses WHERE trip_id IN ({placeholders})", trip_ids)
             expenses = [serialize_expense_row(row) for row in cursor.fetchall()]
 
+        # §4.5 — settlements ride alongside expenses on the same /api/data
+        # poll so the settlement page can subtract them from the raw
+        # debt without a second round-trip. Shape comes from
+        # routes/settlements.py's serialize_settlement_row to keep the
+        # two paths in lockstep.
+        settlements = []
+        if trip_ids:
+            placeholders = ','.join(['?'] * len(trip_ids))
+            cursor.execute(
+                f"SELECT * FROM settlements WHERE trip_id IN ({placeholders}) "
+                f"ORDER BY created_at DESC",
+                trip_ids,
+            )
+            from routes.settlements import serialize_settlement_row
+            settlements = [serialize_settlement_row(row) for row in cursor.fetchall()]
+
         # Get categories
         cursor.execute("SELECT id, name, icon, color FROM categories WHERE user_id = ?", (user_id,))
         categories = [dict(row) for row in cursor.fetchall()]
@@ -473,6 +489,7 @@ def get_data():
         return jsonify({
             "trips": trips,
             "expenses": expenses,
+            "settlements": settlements,
             "categories": categories,
             "budgets": budgets,
             "tripDays": trip_days,
@@ -505,6 +522,9 @@ def delete_user_data():
             cursor.execute(f"DELETE FROM trip_days WHERE trip_id IN ({placeholders})", owned_trip_ids)
             cursor.execute(f"DELETE FROM trip_members WHERE trip_id IN ({placeholders})", owned_trip_ids)
             cursor.execute(f"DELETE FROM trip_collaborators WHERE trip_id IN ({placeholders})", owned_trip_ids)
+            # §4.5: settlements scoped to the owned trip — cleaned alongside
+            # expenses + days so a factory-reset is genuinely complete.
+            cursor.execute(f"DELETE FROM settlements WHERE trip_id IN ({placeholders})", owned_trip_ids)
 
         # Tables scoped directly by user_id.
         cursor.execute("DELETE FROM trips WHERE user_id = ?", (user_id,))

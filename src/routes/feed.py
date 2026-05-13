@@ -61,6 +61,10 @@ _EVENT_ID_PATTERNS = (
     ("friendship",     re.compile(rf"^friendship_({_ID_RE})_(\d{{1,32}})$")),
     ("share",          re.compile(r"^share_(\d{1,32})$")),
     ("repost",         re.compile(r"^repost_(\d{1,32})$")),
+    # §4.5: settled_up — engagement (like/comment) is intentionally NOT
+    # surfaced for this type since the event is only visible to the two
+    # parties anyway (see _build_settled_up + _caller_can_see_event).
+    ("settled_up",     re.compile(rf"^settled_up_({_ID_RE})$")),
 )
 
 
@@ -170,6 +174,23 @@ def _caller_can_see_event(cursor, event_id, user_id):
         if not row:
             return False
         return _is_friend_of(cursor, user_id, row["user_id"])
+
+    if event_type == "settled_up":
+        # §4.5: financial event — visibility limited to the two parties
+        # (payer + recipient) regardless of friend-of relationships.
+        # Like/comment via /api/feed/like won't reach this branch in
+        # practice (the feed builder doesn't render engagement controls
+        # for settled_up cards) but we gate at the auth layer too so a
+        # crafted POST can't smuggle through.
+        settlement_id = components[0]
+        cursor.execute(
+            "SELECT from_user_id, to_user_id FROM settlements WHERE id = ?",
+            (settlement_id,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return False
+        return user_id in (row["from_user_id"], row["to_user_id"])
 
     return False
 
@@ -457,6 +478,63 @@ def _build_friend_reposted_trip(cursor, ctx: _FeedContext) -> list:
     return events
 
 
+def _build_settled_up(cursor, ctx: _FeedContext) -> list:
+    """§4.5 — show "X settled €N with Y" rows where the caller is one
+    of the two parties. Deliberately NOT friend-of-friend: settlement
+    amounts are private to the payer + recipient (and the trip owner
+    via the delete-undo path), not their broader social graph.
+
+    Why the type still lives on the feed at all: it gives both parties
+    a single chronological place to see "paid Sara €45 — Lisbon trip"
+    alongside the rest of their trip activity, instead of a separate
+    settlements-only screen they'd have to remember to check."""
+    cursor.execute(
+        "SELECT s.id, s.trip_id, s.from_user_id, s.to_user_id, "
+        "       s.amount, s.currency, s.note, s.created_at, "
+        "       fu.name AS from_name, fu.picture AS from_picture, "
+        "       tu.name AS to_name, tu.picture AS to_picture, "
+        "       t.name AS trip_name, t.country AS trip_country "
+        "FROM settlements s "
+        "LEFT JOIN users fu ON fu.id = s.from_user_id "
+        "LEFT JOIN users tu ON tu.id = s.to_user_id "
+        "LEFT JOIN trips t ON t.id = s.trip_id "
+        "WHERE (s.from_user_id = ? OR s.to_user_id = ?) "
+        "  AND s.created_at >= datetime('now', '-30 days') "
+        "ORDER BY s.created_at DESC",
+        (ctx.user_id, ctx.user_id),
+    )
+    events = []
+    for row in cursor.fetchall():
+        # Actor = payer (the one who acted). Recipient is captured as
+        # a secondary block so the renderer can do "Andre paid Sara".
+        actor = {
+            "id": row["from_user_id"],
+            "name": row["from_name"],
+            "picture": row["from_picture"],
+        }
+        recipient = {
+            "id": row["to_user_id"],
+            "name": row["to_name"],
+            "picture": row["to_picture"],
+        }
+        events.append({
+            "id": f"settled_up_{row['id']}",
+            "type": "settled_up",
+            "actor": actor,
+            "recipient": recipient,
+            "trip": {
+                "id": row["trip_id"],
+                "name": row["trip_name"],
+                "country": row["trip_country"],
+            },
+            "amount": row["amount"],
+            "currency": row["currency"],
+            "note": row["note"],
+            "when": row["created_at"],
+        })
+    return events
+
+
 # Order doesn't matter — the orchestrator sorts by `when` descending
 # after concatenation. Listed roughly by source table for readability.
 FEED_EVENT_BUILDERS: list[_FeedEventBuilder] = [
@@ -466,6 +544,7 @@ FEED_EVENT_BUILDERS: list[_FeedEventBuilder] = [
     _build_new_friendship,
     _build_friend_shared_trip,
     _build_friend_reposted_trip,
+    _build_settled_up,
 ]
 
 

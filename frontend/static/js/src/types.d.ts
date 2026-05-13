@@ -336,6 +336,40 @@ export interface Expense {
     receiptUrl?: string | null;
 }
 
+/** FIXING_ROADMAP §4.5 — a recorded payment between two trip members.
+ *  Sits alongside `Expense.isSettlement` for now: the existing balance
+ *  UI keys settlements by companion *name* and synthesises them as
+ *  expenses with `isSettlement: true`; this new shape keys by *user_id*
+ *  and lives in its own `settlements` table on the server. The two
+ *  models coexist while the UI is migrated incrementally.
+ *
+ *  Created via POST /api/settlements; surfaced on /api/data so the
+ *  settlement page can read both stores in parallel. Notifications
+ *  + the `settled_up` feed event fire only off the new path. */
+export interface Settlement {
+    id: string;
+    tripId: string;
+    /** Payer's TGG user_id (the one who acted). */
+    fromUserId: string;
+    /** Recipient's TGG user_id. */
+    toUserId: string;
+    /** Amount typed by the user, in `currency`. */
+    amount: number;
+    /** ISO 4217 code of the typed amount. */
+    currency: string;
+    /** EUR equivalent — used for cross-currency balance math. May be
+     *  null on legacy rows whose currency isn't in CONVERSION_RATES. */
+    euroValue?: number | null;
+    /** Short label — `cash` / `revolut` / `bank_transfer` / `wise` /
+     *  `paypal` / `custom`. UI quick-picks; `custom` lets free-form
+     *  text live in `note`. */
+    method?: string | null;
+    /** Optional free-form note ("Cash at the airport"). */
+    note?: string | null;
+    /** ISO timestamp the server stamped on insert. */
+    createdAt: string;
+}
+
 export interface Budget {
     id: string;
     tripId: string;
@@ -420,6 +454,11 @@ export interface AppState {
     activities: unknown[];
     photos: unknown[];
     budgets: Budget[];
+    /** §4.5 — server-side settlements (user_id keyed). Empty until
+     *  the new flow is wired up in the settlement UI. Distinct from
+     *  the legacy `Expense.isSettlement: true` rows that still live
+     *  in `expenses` and drive today's balance subtractions. */
+    settlements: Settlement[];
     savedFormats: SavedFormat[];
     tripDays: TripDay[];
     archivedTrips: Trip[];

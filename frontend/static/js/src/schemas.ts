@@ -132,6 +132,7 @@ function _checkOptionalArray(
 export interface ServerDataPayload {
     trips?: any[];
     expenses?: any[];
+    settlements?: any[];
     companions?: any[];
     categories?: any[];
     budgets?: any[];
@@ -146,8 +147,9 @@ export function validateServerData(raw: unknown): ValidationResult<ServerDataPay
         _reportSchemaFail('/api/data', issues);
         return { ok: false, error: _summarise(issues) };
     }
-    // Top-level array keys.
-    for (const key of ['trips', 'expenses', 'companions', 'categories', 'budgets', 'tripDays']) {
+    // Top-level array keys. §4.5 adds `settlements` — server returns it
+    // alongside expenses, optional for back-compat with older clients.
+    for (const key of ['trips', 'expenses', 'settlements', 'companions', 'categories', 'budgets', 'tripDays']) {
         _checkOptionalArray(raw, key, issues);
     }
     // Trip-row shallow check: id + name must be strings on each row.

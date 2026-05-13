@@ -16,6 +16,12 @@ export const STATE: AppState = {
         { id: 'c3', name: 'Accommodation', icon: '🏨', color: '#5856d6' }
     ],
     expenses: [],
+    /** §4.5 — server-side settlements (member-to-member, user_id keyed).
+     *  Hydrated from /api/data's `settlements` field on every pull.
+     *  Empty array on cold-load so consumers can always iterate without
+     *  null-guards. Coexists with the legacy `Expense.isSettlement` rows
+     *  in `expenses` until the balance UI migrates to consume both. */
+    settlements: [],
     draftExpense: {
         who: '',
         categoryId: '',

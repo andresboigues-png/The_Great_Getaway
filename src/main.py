@@ -30,6 +30,7 @@ from routes.media import bp as media_bp
 from routes.notifications import bp as notifications_bp
 from routes.public import bp as public_bp, fetch_share_payload
 from routes.settings import bp as settings_bp
+from routes.settlements import bp as settlements_bp
 from routes.trips import bp as trips_bp
 
 # Load environment variables
@@ -105,6 +106,7 @@ app.register_blueprint(media_bp)
 app.register_blueprint(notifications_bp)
 app.register_blueprint(public_bp)
 app.register_blueprint(settings_bp)
+app.register_blueprint(settlements_bp)
 app.register_blueprint(trips_bp)
 
 # Ensure DB is initialized

@@ -200,6 +200,11 @@ export async function pullFromServer() {
         }
 
         STATE.expenses = data.expenses || [];
+        // §4.5 — new member-keyed settlements ride alongside expenses.
+        // `data.settlements` is always an array (server-side default)
+        // but we guard with `|| []` so an older /api/data response
+        // (mid-deploy / cache) doesn't leave STATE.settlements undefined.
+        STATE.settlements = data.settlements || [];
         // Account-level companions (data.companions) is no longer used —
         // companions live per-trip on `trip.companions`.
         STATE.categories = data.categories || [];
@@ -630,6 +635,71 @@ export function upsertDay(day: any) {
 export function deleteDayOnServer(dayId: string) {
     if (!STATE.user) return;
     return _delete(`/api/days/${dayId}`, {});
+}
+
+// ── §4.5 Settlements ─────────────────────────────────────────────────
+// Member-keyed settle-up endpoints. The settlement row that comes back
+// is also surfaced on the next /api/data poll under `settlements`, so
+// callers don't have to splice the response into STATE themselves —
+// they CAN if they want immediate UI without waiting for the next pull.
+
+/** POST /api/settlements — record a payment between two trip members.
+ *  Returns the server-shaped Settlement (with id + createdAt) or an
+ *  `{error: string}` shape on validation / permission failure. */
+export async function createSettlement(input: {
+    tripId: string;
+    fromUserId: string;
+    toUserId: string;
+    amount: number;
+    currency: string;
+    euroValue?: number | null;
+    method?: string;
+    note?: string;
+}): Promise<{ settlement?: import('./types').Settlement; error?: string }> {
+    if (!STATE.user) return { error: 'Not signed in' };
+    try {
+        const res = await apiFetch('/api/settlements', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(input),
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) return { error: body?.error || `HTTP ${res.status}` };
+        return body;
+    } catch (e: any) {
+        return { error: e?.message || 'Network error' };
+    }
+}
+
+/** DELETE /api/settlements/<id> — undo a settlement. Server enforces
+ *  the "creator OR trip owner" rule; recipient gets 403. */
+export async function deleteSettlementOnServer(settlementId: string): Promise<{ status?: string; error?: string }> {
+    if (!STATE.user) return { error: 'Not signed in' };
+    try {
+        const res = await apiFetch(`/api/settlements/${encodeURIComponent(settlementId)}`, {
+            method: 'DELETE',
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) return { error: body?.error || `HTTP ${res.status}` };
+        return body;
+    } catch (e: any) {
+        return { error: e?.message || 'Network error' };
+    }
+}
+
+/** GET /api/settlements/<tripId> — list settlements for a trip.
+ *  Used when a caller needs the freshest server copy without waiting
+ *  for the next /api/data pull. Members only; 404 for non-members. */
+export async function fetchSettlementsForTrip(tripId: string): Promise<{ settlements?: import('./types').Settlement[]; error?: string }> {
+    if (!STATE.user) return { error: 'Not signed in' };
+    try {
+        const res = await apiFetch(`/api/settlements/${encodeURIComponent(tripId)}`);
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) return { error: body?.error || `HTTP ${res.status}` };
+        return body;
+    } catch (e: any) {
+        return { error: e?.message || 'Network error' };
+    }
 }
 
 /** POST a file to /api/upload. Returns the parsed JSON response, or
