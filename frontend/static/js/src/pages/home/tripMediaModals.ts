@@ -342,18 +342,32 @@ export const openTripPhotosModal = (trip: any): void => {
                         ? `<button type="button" class="trip-photo-remove-btn" data-photo-id="${esc(p.id)}" title="Remove" aria-label="Remove photo"
                             style="position:absolute; top:6px; right:6px; background:rgba(0,0,0,0.55); border:0; color:white; width:24px; height:24px; border-radius:50%; cursor:pointer; font-size:0.75rem; line-height:1; backdrop-filter: blur(6px); z-index:1;">✕</button>`
                         : '';
+                    // §4.9 — drag handle. Only on trip-source photos
+                    // because day-source photos live inside day.photos
+                    // arrays — reordering those would need a separate
+                    // persist path (upsertDay), out of scope for v1.
+                    // touch-action:none stops the browser's native
+                    // scroll-on-touch so the pointer events get clean
+                    // delta values instead of fighting the scroll
+                    // gesture.
+                    const dragHandle = tripIsEditable && p._source === 'trip'
+                        ? `<button type="button" class="trip-photo-drag-handle" data-photo-id="${esc(p.id)}" title="Drag to reorder" aria-label="Drag to reorder"
+                            style="position:absolute; bottom:6px; right:6px; background:rgba(0,0,0,0.55); border:0; color:white; width:26px; height:26px; border-radius:50%; cursor:grab; font-size:0.95rem; line-height:1; backdrop-filter: blur(6px); z-index:2; touch-action:none; user-select:none; display:flex; align-items:center; justify-content:center;">⠿</button>`
+                        : '';
                     if (isImage) {
                         return `
-                            <div class="trip-photo-card" data-photo-id="${esc(p.id)}" data-photo-kind="image" style="position:relative; aspect-ratio:1; border-radius:14px; overflow:hidden; background-image:url(${esc(p.src)}); background-size:cover; background-position:center; box-shadow: 0 4px 12px rgba(0,0,0,0.06); cursor:pointer; border:1px solid rgba(0,0,0,0.06);">
+                            <div class="trip-photo-card" data-photo-id="${esc(p.id)}" data-photo-kind="image" data-photo-source="${esc(p._source || '')}" style="position:relative; aspect-ratio:1; border-radius:14px; overflow:hidden; background-image:url(${esc(p.src)}); background-size:cover; background-position:center; box-shadow: 0 4px 12px rgba(0,0,0,0.06); cursor:pointer; border:1px solid rgba(0,0,0,0.06);">
                                 ${dayBadge}
                                 ${removeBtn}
+                                ${dragHandle}
                             </div>
                         `;
                     }
                     return `
-                        <div class="trip-photo-card" data-photo-id="${esc(p.id)}" data-photo-kind="link" style="position:relative; aspect-ratio:1; border-radius:14px; overflow:hidden; background: var(--gradient-day); box-shadow: 0 4px 12px rgba(0,113,227,0.18); cursor:pointer; border:1px solid rgba(0,0,0,0.06); display:flex; flex-direction:column; align-items:center; justify-content:center; padding:14px; text-align:center; color:white;">
+                        <div class="trip-photo-card" data-photo-id="${esc(p.id)}" data-photo-kind="link" data-photo-source="${esc(p._source || '')}" style="position:relative; aspect-ratio:1; border-radius:14px; overflow:hidden; background: var(--gradient-day); box-shadow: 0 4px 12px rgba(0,113,227,0.18); cursor:pointer; border:1px solid rgba(0,0,0,0.06); display:flex; flex-direction:column; align-items:center; justify-content:center; padding:14px; text-align:center; color:white;">
                             ${dayBadge}
                             ${removeBtn}
+                            ${dragHandle}
                             <div style="font-size:1.8rem; line-height:1; margin-bottom:8px;">🔗</div>
                             <div style="font-size:0.7rem; font-weight:800; opacity:0.9; word-break:break-all; overflow:hidden; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical;">${esc(p.src.replace(/^https?:\/\//, ''))}</div>
                         </div>
@@ -453,18 +467,177 @@ export const openTripPhotosModal = (trip: any): void => {
         const photoCard = (target.closest('.trip-photo-card') as HTMLElement | null);
         if (photoCard?.dataset.photoId
             && !target.closest('.trip-photo-remove-btn')
-            && !target.closest('.trip-photo-day-select')) {
-            const photo = getAllTripPhotos(trip).find(p => p.id === photoCard.dataset.photoId);
+            && !target.closest('.trip-photo-day-select')
+            && !target.closest('.trip-photo-drag-handle')) {
+            const allPhotos = getAllTripPhotos(trip);
+            const photo = allPhotos.find(p => p.id === photoCard.dataset.photoId);
             if (photo) {
                 if (photoCard.dataset.photoKind === 'link') {
                     window.open(photo.src, '_blank', 'noopener,noreferrer');
                 } else {
-                    openPhotoLightbox(photo.src);
+                    // §4.9 — pass the FULL list of image-kind photos so
+                    // the lightbox supports prev/next + swipe through
+                    // the gallery. Link-kind photos are excluded since
+                    // they open externally and aren't <img>-renderable.
+                    const imageSrcs = allPhotos
+                        .filter(p => /^data:image\//i.test(p.src || '')
+                            || /\.(jpe?g|png|gif|webp|avif|heic|heif|bmp|tiff?|svg)(\?.*)?$/i.test(p.src || ''))
+                        .map(p => p.src);
+                    const startIdx = Math.max(0, imageSrcs.indexOf(photo.src));
+                    openPhotoLightbox(imageSrcs, startIdx);
                 }
             }
             return;
         }
     });
+
+    // §4.9 — drag-to-reorder photos.
+    //
+    // Pointer events for cross-device support: pointerdown on the
+    // drag handle starts a reorder gesture, pointermove follows the
+    // pointer, pointerup commits the new order. Uses pointer capture
+    // so the gesture survives even when the pointer wanders outside
+    // the card during the drag.
+    //
+    // Why pointer events instead of HTML5 drag-and-drop: HTML5
+    // `draggable="true"` doesn't work on iOS Safari (touch is
+    // hijacked for scroll). The whole app is mobile-first, so we
+    // need a unified handler. Pointer Events are supported on every
+    // browser we target (Safari 13+, Chrome 55+, Firefox 59+).
+    //
+    // We restrict reorder to trip-source photos. Day-source ones
+    // live in day.photos arrays and would need an upsertDay path —
+    // §4.9 v2 if it's actually wanted (current UX shows day photos
+    // alongside trip ones via the union view, but reordering them
+    // mixes scopes in confusing ways).
+    const dragState: {
+        photoId: string | null;
+        pointerId: number | null;
+        startClientX: number;
+        startClientY: number;
+        rect: DOMRect | null;
+        cardEl: HTMLElement | null;
+    } = {
+        photoId: null,
+        pointerId: null,
+        startClientX: 0,
+        startClientY: 0,
+        rect: null,
+        cardEl: null,
+    };
+
+    const onPointerDown = (ev: PointerEvent) => {
+        const target = ev.target as HTMLElement | null;
+        if (!target) return;
+        const handle = target.closest('.trip-photo-drag-handle') as HTMLElement | null;
+        if (!handle?.dataset.photoId) return;
+        const cardEl = handle.closest('.trip-photo-card') as HTMLElement | null;
+        if (!cardEl) return;
+        ev.preventDefault();
+        dragState.photoId = handle.dataset.photoId;
+        dragState.pointerId = ev.pointerId;
+        dragState.startClientX = ev.clientX;
+        dragState.startClientY = ev.clientY;
+        dragState.rect = cardEl.getBoundingClientRect();
+        dragState.cardEl = cardEl;
+        // Visual: lift the card. z-index so it floats above siblings;
+        // pointer-events:none on the card body so subsequent
+        // pointermove events hit the GRID instead of the card (we
+        // need to know which sibling is under the pointer).
+        cardEl.style.transition = 'box-shadow 120ms ease';
+        cardEl.style.boxShadow = '0 14px 36px rgba(0,0,0,0.18)';
+        cardEl.style.zIndex = '5';
+        cardEl.style.pointerEvents = 'none';
+        cardEl.style.opacity = '0.85';
+        try { handle.setPointerCapture(ev.pointerId); } catch { /* ignored */ }
+    };
+
+    const onPointerMove = (ev: PointerEvent) => {
+        // Modal closed mid-drag (escape key, programmatic close) →
+        // detach listeners. Without this guard the document listeners
+        // leak forever after every photos modal session.
+        if (!document.body.contains(root)) {
+            document.removeEventListener('pointermove', onPointerMove);
+            document.removeEventListener('pointerup', onPointerUp);
+            document.removeEventListener('pointercancel', onPointerUp);
+            return;
+        }
+        if (dragState.photoId === null || ev.pointerId !== dragState.pointerId || !dragState.cardEl) return;
+        const dx = ev.clientX - dragState.startClientX;
+        const dy = ev.clientY - dragState.startClientY;
+        dragState.cardEl.style.transform = `translate(${dx}px, ${dy}px)`;
+    };
+
+    /** Compute which card the pointer is currently over (excluding
+     *  the dragged one), return its photo-id. Used at drop time to
+     *  pick the new insertion target.
+     *
+     *  Strategy: walk every trip-source card, find the one whose
+     *  bounding rect contains (clientX, clientY). If none do, fall
+     *  back to "nearest by centroid" so an edge-of-grid drop still
+     *  works. */
+    const _targetPhotoIdAtPointer = (clientX: number, clientY: number): string | null => {
+        const cards = Array.from(root.querySelectorAll<HTMLElement>('.trip-photo-card[data-photo-source="trip"]'));
+        let bestId: string | null = null;
+        let bestDist = Infinity;
+        for (const c of cards) {
+            if (c === dragState.cardEl) continue;
+            const r = c.getBoundingClientRect();
+            if (clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom) {
+                return c.dataset.photoId || null;
+            }
+            const cx = r.left + r.width / 2;
+            const cy = r.top + r.height / 2;
+            const dist = Math.hypot(cx - clientX, cy - clientY);
+            if (dist < bestDist) {
+                bestDist = dist;
+                bestId = c.dataset.photoId || null;
+            }
+        }
+        return bestId;
+    };
+
+    const onPointerUp = (ev: PointerEvent) => {
+        if (dragState.photoId === null || ev.pointerId !== dragState.pointerId) return;
+        const draggedId = dragState.photoId;
+        const cardEl = dragState.cardEl;
+        const moved = Math.hypot(ev.clientX - dragState.startClientX, ev.clientY - dragState.startClientY) > 6;
+        // Reset state regardless of outcome — pointer is up, lift is
+        // over either way. Visual reset happens before the splice so
+        // the dragged card stops floating before the repaint.
+        dragState.photoId = null;
+        dragState.pointerId = null;
+        dragState.cardEl = null;
+        dragState.rect = null;
+        if (cardEl) {
+            cardEl.style.transform = '';
+            cardEl.style.transition = '';
+            cardEl.style.boxShadow = '';
+            cardEl.style.zIndex = '';
+            cardEl.style.pointerEvents = '';
+            cardEl.style.opacity = '';
+        }
+        if (!moved) return;  // tap, not a drag
+        const targetId = _targetPhotoIdAtPointer(ev.clientX, ev.clientY);
+        if (!targetId || targetId === draggedId) return;
+        if (!Array.isArray(trip.photos)) return;
+
+        const fromIdx = trip.photos.findIndex((p: any) => p.id === draggedId);
+        const toIdx = trip.photos.findIndex((p: any) => p.id === targetId);
+        if (fromIdx < 0 || toIdx < 0 || fromIdx === toIdx) return;
+        const [moved_item] = trip.photos.splice(fromIdx, 1);
+        trip.photos.splice(toIdx, 0, moved_item);
+        emit('state:changed');
+        upsertTrip(trip);
+        repaint();
+    };
+
+    root.addEventListener('pointerdown', onPointerDown);
+    // pointermove + pointerup go on the document so the gesture
+    // survives the pointer leaving the modal card's bounds.
+    document.addEventListener('pointermove', onPointerMove);
+    document.addEventListener('pointerup', onPointerUp);
+    document.addEventListener('pointercancel', onPointerUp);
 
     root.addEventListener('change', (ev) => {
         const target = (ev.target as HTMLElement | null);
