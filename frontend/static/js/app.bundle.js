@@ -2184,7 +2184,7 @@ Fix: enable "Directions API" on the Google Cloud project tied to your Maps API k
                     <div class="profile-info" style="flex: 1; padding-top: 10px; min-width: 0;">
                         <!-- Name & Actions -->
                         <div class="profile-name-row" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; gap: 12px;">
-                            <h2 style="margin: 0; font-size: 1.6rem; font-weight: 700; color: var(--text-primary); letter-spacing: -0.02em; min-width: 0; overflow-wrap: anywhere;">${e.name}</h2>
+                            <h2 style="margin: 0; font-size: 1.6rem; font-weight: 700; color: var(--text-primary); letter-spacing: -0.02em; min-width: 0; overflow-wrap: anywhere;">${B(e.name)}</h2>
                             ${n?`
                                 <button id="profileLogoutBtn" class="btn-logout">Log Out</button>
                             `:``}
@@ -2215,7 +2215,7 @@ Fix: enable "Directions API" on the Google Cloud project tied to your Maps API k
                         
                         <!-- Bio & Status -->
                         <div class="profile-bio-block">
-                            <div class="profile-email" style="font-size: 0.95rem; font-weight: 700; color: var(--text-primary); margin-bottom: 4px; overflow-wrap: anywhere;">${e.email}</div>
+                            <div class="profile-email" style="font-size: 0.95rem; font-weight: 700; color: var(--text-primary); margin-bottom: 4px; overflow-wrap: anywhere;">${B(e.email)}</div>
                             
                             <!-- Inline Status -->
                             <div style="position: relative; display: inline-block; margin-bottom: 8px;">
@@ -2231,14 +2231,14 @@ Fix: enable "Directions API" on the Google Cloud project tied to your Maps API k
                                     <div class="brand-select-chevron" style="right: 8px;">▼</div>
                                 `:`
                                     <div style="background: rgba(0, 113, 227, 0.05); color: #005bb8; border-radius: var(--radius-md); padding: var(--space-1) var(--space-3); font-size: var(--font-base); font-weight: 700; display: inline-block;">
-                                        ${e.status||`Active Traveler`}
+                                        ${B(e.status||`Active Traveler`)}
                                     </div>
                                 `}
                             </div>
 
                             <!-- Bio -->
                             ${n?`
-                                <textarea id="profileBio" class="bio-input" placeholder="Add a bio...">${e.bio||``}</textarea>
+                                <textarea id="profileBio" class="bio-input" placeholder="Add a bio...">${B(e.bio||``)}</textarea>
 
                                 <!-- Home currency picker — the currency totals
                                      and insights will be displayed in. -->
@@ -2260,7 +2260,7 @@ Fix: enable "Directions API" on the Google Cloud project tied to your Maps API k
                                     <button id="saveProfileBtn" class="btn btn-small" style="background: var(--text-primary); color: var(--bg-color); padding: 10px 18px; min-height: var(--tap-min); border-radius: 999px; border: 0; font-weight: 700; font-size: 0.85rem; opacity: 0; transition: opacity 0.3s; pointer-events: none; cursor: pointer;">Save Profile</button>
                                 </div>
                             `:`
-                                <p style="font-size: 0.95rem; color: var(--text-primary); line-height: 1.5; margin: 4px 0;">${e.bio||`No bio yet.`}</p>
+                                <p style="font-size: 0.95rem; color: var(--text-primary); line-height: 1.5; margin: 4px 0;">${B(e.bio||`No bio yet.`)}</p>
                             `}
                         </div>
                     </div>
@@ -2281,7 +2281,7 @@ Fix: enable "Directions API" on the Google Cloud project tied to your Maps API k
                             <ellipse cx="16.3" cy="4.5" rx="1.3" ry="1.6"/>
                             <ellipse cx="18.4" cy="7.4" rx="1.3" ry="1.6"/>
                         </svg>
-                        ${n?`Your footprint`:`${e.name.split(` `)[0]}'s footprint`}
+                        ${n?`Your footprint`:`${B(e.name.split(` `)[0])}'s footprint`}
                     </div>
                 </div>
 

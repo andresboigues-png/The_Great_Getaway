@@ -9,6 +9,29 @@ def _db_path():
 def get_db():
     conn = sqlite3.connect(_db_path())
     conn.row_factory = sqlite3.Row
+    # FIXING_ROADMAP §1.4: SQLite hardening.
+    #
+    # - `journal_mode=WAL` lets readers run alongside a writer instead
+    #   of blocking on the database-wide write lock. Without this the
+    #   feed-render path (multi-table read) and a concurrent /api/sync
+    #   write will serialize, and either side can raise
+    #   `database is locked` with the default 0ms wait. WAL is a
+    #   one-time pragma per database file — it's persisted to the
+    #   journal file once and stays across connections — but it's
+    #   cheap to re-issue per connect, and idempotent.
+    # - `busy_timeout=5000` gives any contended op 5 seconds of
+    #   exponential-backoff retry before returning the lock error.
+    #   With WAL on, contention is already rare (writers serialize
+    #   with each other but never with readers); the timeout is the
+    #   belt-and-braces.
+    #
+    # NOT enabled here: `foreign_keys=ON`. Flipping FK enforcement on
+    # a live database that may already contain orphan rows (expenses
+    # pointing at deleted trips, etc.) would cause any update touching
+    # such rows to throw. Tracked as a follow-up in the roadmap —
+    # needs an orphan-row audit + cleanup migration first.
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=5000")
     return conn
 
 def init_db():

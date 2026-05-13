@@ -165,8 +165,22 @@ def sync_data():
         # Sync Expenses — gate per-row. Planners and Budgeteers may write;
         # Relaxers blocked. Without this the bulk path bypasses the
         # per-expense delta gate.
+        #
+        # FIXING_ROADMAP §0.5: For an UPDATE (id already exists), the
+        # permission check MUST be against the existing row's trip_id,
+        # not the client-claimed one. Pre-fix, an attacker with planner
+        # access to trip A could POST {id: <expense_in_trip_B>,
+        # tripId: <trip_A>} and the ON CONFLICT UPDATE would rewrite the
+        # trip-B expense (who/label/value/etc.) because the gate only
+        # checked the *claimed* trip. We now SELECT the existing trip_id
+        # first and use IT for the permission check on updates; new
+        # inserts gate on the claimed trip as before.
         for e in expenses:
-            if not can_edit_expenses(cursor, e.get('tripId'), user_id):
+            existing = cursor.execute(
+                "SELECT trip_id FROM expenses WHERE id = ?", (e['id'],),
+            ).fetchone()
+            gate_trip_id = existing['trip_id'] if existing else e.get('tripId')
+            if not can_edit_expenses(cursor, gate_trip_id, user_id):
                 continue
             cursor.execute('''
                 INSERT INTO expenses (id, trip_id, who, category_id, label, date, country, value, currency, euro_value, receipt_url)
@@ -245,21 +259,22 @@ def sync_data():
     return jsonify({"status": "synced"})
 
 
-@bp.route("/api/trips/share", methods=["POST"])
-@require_auth
-def share_trip():
-    """Legacy: share a trip with a friend via the trip_collaborators
-    table. The newer Phase-G flow goes through /api/trips/invite +
-    /api/trips/invite/respond which uses trip_members; this endpoint
-    is kept for the rare client that still calls it."""
-    trip_id = (request.json or {}).get("trip_id")
-    friend_id = (request.json or {}).get("friend_id")
-
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("INSERT OR IGNORE INTO trip_collaborators (trip_id, user_id) VALUES (?, ?)", (trip_id, friend_id))
-        conn.commit()
-    return jsonify({"status": "shared"})
+# ── REMOVED: /api/trips/share (legacy) ───────────────────────────────
+# Removed 2026-05-13 per FIXING_ROADMAP §0.2. The route had zero
+# ownership / friendship / consent checks: any authenticated user
+# could POST {trip_id, friend_id: <self>} and immediately gain
+# read access to ANY trip in the system via the trip_collaborators
+# UNION in /api/data below. The Phase-G flow at
+# /api/trips/invite + /api/trips/invite/respond is the canonical
+# replacement and enforces the right gates.
+#
+# Existing trip_collaborators rows (created when the route was
+# still functional) remain honoured by the /api/data UNION — a
+# blanket wipe would silently revoke access for users who shared
+# legitimately before this change. A follow-up audit of the
+# trip_collaborators table is tracked in the roadmap; for now,
+# the live exploit vector is closed by removing the only ingress
+# point.
 
 
 @bp.route("/api/data", methods=["GET"])

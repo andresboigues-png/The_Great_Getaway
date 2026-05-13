@@ -226,4 +226,11 @@ def manifest():
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5001, debug=True)
+    # FIXING_ROADMAP §0.6: gate debug mode behind an env var. Production
+    # serves through wsgi_pythonanywhere.py:application so this __main__
+    # block is normally dormant — but a stray `python main.py` on a
+    # server would otherwise expose Werkzeug's interactive debugger,
+    # which (post-PIN-prompt) is a remote-code-execution console. Default
+    # off; opt in with FLASK_DEBUG=1 in your local dev shell.
+    debug_mode = os.getenv("FLASK_DEBUG") == "1"
+    app.run(host="0.0.0.0", port=5001, debug=debug_mode)

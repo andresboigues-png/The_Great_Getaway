@@ -64,6 +64,51 @@ def update_profile():
     payload = request.json or {}
     user_id = current_user_id()
 
+    # Validate `bio` — server-side cap + control-char strip so an
+    # attacker can't store an unbounded HTML payload or invisible
+    # zero-width chars in the users table. The frontend escapes user
+    # content at render time (esc() in profile.ts), so this is
+    # defense-in-depth: short, sanitized strings reduce both the
+    # blast radius of any future render-side oversight AND the size
+    # of the bio column for the bulk-read /api/data path.
+    if "bio" in payload:
+        raw_bio = payload.get("bio")
+        if raw_bio is None:
+            payload["bio"] = ""
+        else:
+            if not isinstance(raw_bio, str):
+                return jsonify({"error": "bio must be a string"}), 400
+            # Strip C0 control chars (0x00-0x1F) except newline (\n=0x0A)
+            # and tab (\t=0x09). Bios are short user copy — they don't
+            # need vertical tabs or bell characters.
+            cleaned = "".join(c for c in raw_bio if c == "\n" or c == "\t" or ord(c) >= 0x20)
+            if len(cleaned) > 500:
+                return jsonify({"error": "bio must be 500 characters or less"}), 400
+            payload["bio"] = cleaned
+
+    # Validate `status` — the frontend offers a fixed dropdown
+    # (profile.ts has 5 options). Anything outside that allowlist
+    # is rejected so a crafted client can't smuggle in arbitrary
+    # status copy (which renders on other users' profiles).
+    # Empty string is allowed and acts as "clear status."
+    _ALLOWED_STATUS = {
+        "",
+        "Deliberating next trip",
+        "Preparing a trip right now",
+        "Exploring the world",
+        "Resting at home base",
+        "Hunting for flight deals",
+    }
+    if "status" in payload:
+        raw_status = payload.get("status")
+        if raw_status is None:
+            payload["status"] = ""
+        else:
+            if not isinstance(raw_status, str) or raw_status not in _ALLOWED_STATUS:
+                return jsonify({
+                    "error": "status must be one of the allowed values or empty",
+                }), 400
+
     # Validate the picture value before letting it touch the DB.
     if "picture" in payload:
         pic = payload.get("picture") or ""

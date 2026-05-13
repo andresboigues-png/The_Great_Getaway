@@ -558,14 +558,37 @@ def test_update_profile_single_field(client, seed_user, auth_headers):
 
 def test_update_profile_multiple_fields(client, seed_user, auth_headers):
     """Patching multiple fields in one call works — each field gets
-    spliced into the SET clause separately."""
+    spliced into the SET clause separately. Status must be one of the
+    server-side allowlisted values (FIXING_ROADMAP §0.1)."""
     res = client.post("/api/profile/update", headers=auth_headers, json={
         "bio": "Travelling.",
-        "status": "On the road",
+        "status": "Exploring the world",
         "homeCurrency": "GBP",
     })
     assert res.status_code == 200
     assert res.get_json() == {"status": "updated"}
+
+
+def test_update_profile_status_rejects_off_allowlist(client, seed_user, auth_headers):
+    """FIXING_ROADMAP §0.1: arbitrary status copy is rejected so a
+    crafted client can't smuggle in a status string that renders on
+    other users' profiles. The frontend dropdown only offers 5 fixed
+    values; anything else is a 400."""
+    res = client.post("/api/profile/update", headers=auth_headers, json={
+        "status": "I am evil <img onerror=alert(1)>",
+    })
+    assert res.status_code == 400
+    assert "status" in (res.get_json() or {}).get("error", "")
+
+
+def test_update_profile_bio_capped_at_500_chars(client, seed_user, auth_headers):
+    """FIXING_ROADMAP §0.1: bios over 500 chars are rejected so the
+    column can't be used as an unbounded payload store."""
+    res = client.post("/api/profile/update", headers=auth_headers, json={
+        "bio": "x" * 501,
+    })
+    assert res.status_code == 400
+    assert "bio" in (res.get_json() or {}).get("error", "")
 
 
 def test_update_profile_empty_is_noop(client, seed_user, auth_headers):
@@ -2355,9 +2378,10 @@ def test_auth_google_real_path_invalid_token_returns_401(client, monkeypatch):
 #
 # The basic happy path is covered above (test_sync_writes_trips_and_expenses).
 # These cover the lower-traffic branches: archived-trip upsert (with
-# nested expenses), the budgets replace-mode sync, the trip_days insert
-# block, and the legacy /api/trips/share route. Each pinning a specific
-# uncovered chunk in src/routes/data.py.
+# nested expenses), the budgets replace-mode sync, and the trip_days
+# insert block. Each pinning a specific uncovered chunk in
+# src/routes/data.py. (The legacy /api/trips/share route was removed
+# 2026-05-13; only a "route is gone" pin remains.)
 
 def test_sync_writes_archived_trip_with_expenses(client, seed_user, auth_headers):
     """archived_trips block — separate from the active trips block —
@@ -2514,33 +2538,20 @@ def test_sync_budgets_empty_list_clears_all(client, seed_user, auth_headers):
     assert pull.get_json()["budgets"] == []
 
 
-def test_legacy_trips_share_inserts_collaborator_row(
-    client, seed_user, seed_other_user, auth_headers,
-):
-    """`/api/trips/share` is the legacy collaborator-table path. The
-    Phase-G flow goes through /api/trips/invite + respond, but this
-    endpoint is preserved for clients that haven't migrated. Pin so
-    a tidy-up doesn't accidentally remove it (existing rows would
-    fall off the /api/data UNION)."""
-    # Owner creates a trip.
-    client.post("/api/trips", headers=auth_headers, json={
-        "trip": {"id": "trip-legacy-share", "name": "Legacy", "country": "X"},
-    })
-
+def test_legacy_trips_share_route_is_gone(client, seed_user, auth_headers):
+    """`/api/trips/share` was removed 2026-05-13 (FIXING_ROADMAP §0.2)
+    — the route had no ownership / friendship checks and let any
+    authenticated user grant themselves read access to ANY trip.
+    Pin that it's gone so a future refactor doesn't re-introduce it
+    by accident. Flask returns 405 (not 404) because the URL pattern
+    `/api/trips/share` overlaps with the DELETE `/api/trips/<trip_id>`
+    route — POSTing matches the path but the method isn't allowed,
+    which is the correct "this is not a POST endpoint" signal."""
     res = client.post("/api/trips/share", headers=auth_headers, json={
-        "trip_id": "trip-legacy-share",
-        "friend_id": seed_other_user,
+        "trip_id": "anything",
+        "friend_id": "anyone",
     })
-    assert res.status_code == 200
-    assert res.get_json().get("status") == "shared"
-
-    # Re-share with same pair — INSERT OR IGNORE means the second call
-    # is a no-op rather than a UNIQUE violation.
-    res = client.post("/api/trips/share", headers=auth_headers, json={
-        "trip_id": "trip-legacy-share",
-        "friend_id": seed_other_user,
-    })
-    assert res.status_code == 200
+    assert res.status_code in (404, 405)
 
 
 # ── helpers.py — direct unit tests for shared route helpers ──────────────────

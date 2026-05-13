@@ -25,8 +25,8 @@ Things an attacker could exploit against the live site today.
 
 **Fix:**
 
-- [ ] Wrap `user.bio`, `user.name`, `user.status` in `esc()` at every interpolation site.
-- [ ] Server-side in `routes/settings.py`: enforce `len(bio) <= 500`, strip control chars, constrain `status` to the dropdown allowlist.
+- [x] Wrap `user.bio`, `user.name`, `user.status`, `user.email` in `esc()` at every interpolation site. (Shipped 2026-05-13)
+- [x] Server-side in `routes/settings.py`: enforce `len(bio) <= 500`, strip C0 control chars, constrain `status` to the dropdown allowlist. (Shipped 2026-05-13)
 - [ ] Add a strict `Content-Security-Policy` header via `@app.after_request` in `main.py` (defense in depth — see 0.4).
 
 ### 0.2 ✓ Privilege escalation — any user can read any trip
@@ -37,7 +37,7 @@ Things an attacker could exploit against the live site today.
 
 **Fix:**
 
-- [ ] Delete the route. (If a legacy client still calls it, gate on `is_trip_owner(cursor, trip_id, current_user_id())` before INSERT.)
+- [x] Delete the route. (Shipped 2026-05-13. Existing `trip_collaborators` rows are still honoured by the `/api/data` UNION — wipe of the table is tracked as a follow-up after auditing which rows are legitimate vs exploit residue.)
 
 ### 0.3 JWT has no revocation — stolen tokens valid 30 days
 
@@ -69,7 +69,7 @@ Things an attacker could exploit against the live site today.
 
 **Fix:**
 
-- [ ] SELECT existing row first; verify `can_edit_expenses` on its **actual** `trip_id`, not the claimed one.
+- [x] SELECT existing row first; verify `can_edit_expenses` on its **actual** `trip_id`, not the claimed one. (Shipped 2026-05-13)
 
 ### 0.6 `debug=True` in `main.py` production path
 
@@ -79,7 +79,7 @@ Things an attacker could exploit against the live site today.
 
 **Fix:**
 
-- [ ] `debug=os.getenv("FLASK_DEBUG") == "1"`.
+- [x] `debug=os.getenv("FLASK_DEBUG") == "1"`. (Shipped 2026-05-13)
 
 ---
 
@@ -128,12 +128,8 @@ Things an attacker could exploit against the live site today.
 
 **Fix:**
 
-- [ ] In `get_db()`, immediately after connect:
-    ```python
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA busy_timeout=5000")
-    conn.execute("PRAGMA foreign_keys=ON")
-    ```
+- [x] In `get_db()`, immediately after connect: `PRAGMA journal_mode=WAL` + `PRAGMA busy_timeout=5000`. (Shipped 2026-05-13)
+- [ ] `PRAGMA foreign_keys=ON` deferred — flipping it on a live DB without an orphan-row audit risks errors on any update touching pre-existing orphan rows. Pair with the `scripts/fk_audit.py` task below.
 - [ ] Run a one-off `scripts/fk_audit.py` to find existing orphan rows before flipping `foreign_keys=ON`.
 
 ### 1.5 `init_db()` swallows every exception silently
