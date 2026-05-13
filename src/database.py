@@ -34,6 +34,30 @@ def get_db():
     conn.execute("PRAGMA busy_timeout=5000")
     return conn
 
+def _safe_alter(cursor, ddl):
+    """Run a schema-add ALTER, swallowing only the "this column/table
+    already exists" outcomes. Any other failure (disk full, permission
+    denied, type drift, syntax error in the DDL) re-raises so init_db
+    blows up loudly instead of silently leaving the schema in an
+    indeterminate state.
+
+    FIXING_ROADMAP §1.5: the previous `except Exception: pass` pattern
+    around every ALTER hid real problems. Narrowing to OperationalError
+    + the well-known idempotency strings is the minimum-loud fix; the
+    full §1.6 migration cleanup (Alembic-as-source-of-truth) is the
+    real fix and supersedes init_db's ALTER chain entirely."""
+    try:
+        cursor.execute(ddl)
+    except sqlite3.OperationalError as e:
+        msg = str(e).lower()
+        # SQLite returns "duplicate column name: X" for ALTER ADD;
+        # "table X already exists" for CREATE TABLE (we use IF NOT
+        # EXISTS so it shouldn't fire, but kept for completeness).
+        if "duplicate column" in msg or "already exists" in msg:
+            return
+        raise
+
+
 def init_db():
     with get_db() as conn:
         cursor = conn.cursor()
@@ -52,26 +76,26 @@ def init_db():
             )
         ''')
         # Add bio/status/home_currency if they don't exist
-        try:
-            cursor.execute("ALTER TABLE users ADD COLUMN bio TEXT")
-        except Exception: pass
-        try:
-            cursor.execute("ALTER TABLE users ADD COLUMN status TEXT")
-        except Exception: pass
+        _safe_alter(cursor, "ALTER TABLE users ADD COLUMN bio TEXT")
+        _safe_alter(cursor, "ALTER TABLE users ADD COLUMN status TEXT")
         # home_currency stays NULL for legacy users — the frontend interprets
         # NULL as "not set yet" and defaults from browser locale on first load.
-        try:
-            cursor.execute("ALTER TABLE users ADD COLUMN home_currency TEXT")
-        except Exception: pass
+        _safe_alter(cursor, "ALTER TABLE users ADD COLUMN home_currency TEXT")
         # i18n session 3 — language follows the user across devices.
         # Stored as the 2-letter Locale code ('en' | 'pt' | 'es' | 'fr')
         # or NULL for legacy users (frontend then derives from browser
         # locale via detectBrowserLocale, same convention as
         # home_currency above). Allowlist validation lives in
         # routes/settings.py to keep arbitrary strings out of the DB.
-        try:
-            cursor.execute("ALTER TABLE users ADD COLUMN language TEXT")
-        except Exception: pass
+        _safe_alter(cursor, "ALTER TABLE users ADD COLUMN language TEXT")
+        # FIXING_ROADMAP §0.3 — JWT revocation. Each user has a
+        # `token_jti` value that gets embedded in every JWT we issue
+        # them. /api/auth/logout bumps the jti, which invalidates
+        # every token issued before the bump (single-jti-per-user
+        # model). NULL means "not initialised yet" — auth.issue_token
+        # lazily fills it on first call so the rollout doesn't need
+        # a data backfill.
+        _safe_alter(cursor, "ALTER TABLE users ADD COLUMN token_jti TEXT")
         
         # Trips Table (Linked to an owner)
         cursor.execute('''
@@ -93,10 +117,7 @@ def init_db():
             )
         ''')
         # Add is_public column if it doesn't exist (for existing databases)
-        try:
-            cursor.execute("ALTER TABLE trips ADD COLUMN is_public INTEGER DEFAULT 0")
-        except Exception:
-            pass  # Column already exists
+        _safe_alter(cursor, "ALTER TABLE trips ADD COLUMN is_public INTEGER DEFAULT 0")
 
         # Google Places fields. Existing rows keep `country` populated as the
         # human-readable name; new rows additionally carry place_id + lat/lng +
@@ -167,11 +188,8 @@ def init_db():
             # back via /api/trips. See FUTURE_FEATURES.md item #2.
             ("cover_url", "ALTER TABLE trips ADD COLUMN cover_url TEXT"),
         ]:
-            try:
-                cursor.execute(ddl)
-            except Exception:
-                pass  # Column already exists
-        
+            _safe_alter(cursor, ddl)
+
         # Expenses Table (Linked to a trip)
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS expenses (
@@ -193,10 +211,7 @@ def init_db():
         # the user opts in by tapping 📎 on the expense form, which
         # uploads via /api/upload and stores the returned URL here.
         # See FUTURE_FEATURES.md item #3.
-        try:
-            cursor.execute("ALTER TABLE expenses ADD COLUMN receipt_url TEXT")
-        except Exception:
-            pass  # Column already exists
+        _safe_alter(cursor, "ALTER TABLE expenses ADD COLUMN receipt_url TEXT")
         
         # Friends Table (Many-to-Many)
         cursor.execute('''
@@ -221,11 +236,15 @@ def init_db():
         # friendships surface as "just established" in the feed window.
         # New INSERTs explicitly stamp created_at (see /api/friends/add
         # and /api/friends/accept) so they don't depend on a default.
+        # Inline narrowing (not _safe_alter) because we want to keep
+        # the UPDATE backfill if the column was missing AND let any
+        # non-duplicate-column error propagate.
         try:
             cursor.execute("ALTER TABLE friends ADD COLUMN created_at DATETIME")
             cursor.execute("UPDATE friends SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL")
-        except Exception:
-            pass
+        except sqlite3.OperationalError as e:
+            if "duplicate column" not in str(e).lower():
+                raise
         
         # Trip Sharing (Collaboration) — legacy, retained so old DBs don't
         # error on schema upgrade. Phase 3 introduced `trip_members` below
@@ -283,10 +302,7 @@ def init_db():
             ("linked_user_id", "ALTER TABLE companions ADD COLUMN linked_user_id TEXT"),
             ("link_status", "ALTER TABLE companions ADD COLUMN link_status TEXT"),
         ]:
-            try:
-                cursor.execute(ddl)
-            except Exception:
-                pass
+            _safe_alter(cursor, ddl)
 
         # Categories Table (user-scoped custom categories)
         cursor.execute('''
@@ -329,9 +345,7 @@ def init_db():
             )
         ''')
         # Add title column if it doesn't exist
-        try:
-            cursor.execute("ALTER TABLE notifications ADD COLUMN title TEXT")
-        except Exception: pass
+        _safe_alter(cursor, "ALTER TABLE notifications ADD COLUMN title TEXT")
 
         # ── Feed (social / sharing layer) ──────────────────────────────
         # feed_posts: explicit, user-initiated shares + reposts. Synthesised
@@ -357,10 +371,7 @@ def init_db():
         # so existing rows just stay caption-less; new shares pass it
         # explicitly. Standard plain ALTER (no CURRENT_TIMESTAMP-style
         # default-clause snag).
-        try:
-            cursor.execute("ALTER TABLE feed_posts ADD COLUMN caption TEXT")
-        except Exception:
-            pass
+        _safe_alter(cursor, "ALTER TABLE feed_posts ADD COLUMN caption TEXT")
         # feed_likes: social like signal per event. event_id is the
         # synthesised event ID from /api/feed (e.g. "trip_created_<trip>",
         # "share_<post>") so likes survive across event categories. Like

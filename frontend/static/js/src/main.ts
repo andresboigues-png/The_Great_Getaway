@@ -2,7 +2,7 @@ import { STATE, loadState, emit, subscribe } from './state.js';
 import { initThemeManager } from './theme.js';
 import { t, type TranslationKey, loadLocale, getLocale } from './i18n.js';
 import { syncWithServer, pullFromServer, fetchNotifications, markNotificationsRead, deleteTrip, archiveTripOnServer, apiUrl, apiFetch, setAuthToken, clearAuthToken } from './api.js';
-import { showConfirmModal, esc } from './utils.js';
+import { showConfirmModal, esc, showLiquidAlert } from './utils.js';
 import { navigate } from './router.js';
 import { PAGES, EVENTS, type PageName } from './constants.js';
 import { canDelete } from './permissions.js';
@@ -324,31 +324,48 @@ async function handleGoogleLogin(response: { credential?: string; [key: string]:
             body: JSON.stringify({ credential: response.credential })
         });
         const data = await res.json();
-        if (data.status === 'success') {
-            // Phase G: store the JWT first so subsequent fetches (sync /
-            // pull / notifications below) carry the Authorization header.
-            // Without this, those calls would 401 against require_auth and
-            // the UI would render as logged-out despite the login succeeding.
-            if (data.token) setAuthToken(data.token);
-            STATE.user = data.user;
-            STATE.hasLoggedInBefore = true;
-            // No more auto-self-companion creation — companions are per-trip
-            // and the trip owner is implicitly a member of every trip they
-            // create (via _ensure_owner_member_row on the server).
-
-            await syncWithServer();
-            await pullFromServer();
-            // Logout cleared activeTripId; server doesn't store it. Reconcile so the
-            // trip selector and the rest of the UI agree on which trip is active.
-            if (STATE.trips.length > 0 && !STATE.trips.find(t => t.id === STATE.activeTripId)) {
-                STATE.activeTripId = STATE.trips[0]!.id;
-            }
-            emit('state:changed');               // saveState via subscriber
-            updateUserUI();
-            navigate('profile');
+        // FIXING_ROADMAP §1.9: surface server-side failures. Pre-fix,
+        // the success branch was the only branch that did anything —
+        // a 4xx with {status:'error'} just left the button stuck with
+        // no toast, no console log, no clue for the user. We also no
+        // longer accept "success without a token" as success.
+        if (data.status !== 'success' || !data.token) {
+            const message = data.error
+                || data.message
+                || 'Login failed. Please try again.';
+            console.error('Google login failed:', message, data);
+            showLiquidAlert(message);
+            return;
         }
+        // Phase G: store the JWT first so subsequent fetches (sync /
+        // pull / notifications below) carry the Authorization header.
+        // Without this, those calls would 401 against require_auth and
+        // the UI would render as logged-out despite the login succeeding.
+        setAuthToken(data.token);
+        STATE.user = data.user;
+        STATE.hasLoggedInBefore = true;
+        // No more auto-self-companion creation — companions are per-trip
+        // and the trip owner is implicitly a member of every trip they
+        // create (via _ensure_owner_member_row on the server).
+
+        await syncWithServer();
+        await pullFromServer();
+        // Logout cleared activeTripId; server doesn't store it. Reconcile so the
+        // trip selector and the rest of the UI agree on which trip is active.
+        if (STATE.trips.length > 0 && !STATE.trips.find(t => t.id === STATE.activeTripId)) {
+            STATE.activeTripId = STATE.trips[0]!.id;
+        }
+        emit('state:changed');               // saveState via subscriber
+        updateUserUI();
+        // Prefer the route the user originally tried to reach. Logged-out
+        // users land on the login wall with `window.location.hash` set
+        // to that route; preserving it post-login keeps deep links honest.
+        const targetHash = window.location.hash.replace(/^#/, '');
+        const target = (targetHash && targetHash !== 'profile') ? targetHash : 'profile';
+        navigate(target as Parameters<typeof navigate>[0]);
     } catch (e) {
         console.error("Google Login Failed:", e);
+        showLiquidAlert('Login failed — please try again.');
     }
 }
 

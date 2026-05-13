@@ -34,18 +34,61 @@ ALLOWED_UPLOAD_EXTENSIONS = {
     # documents (trip tickets, bookings)
     '.pdf',
 }
-# Magic-number prefixes for the formats we accept. Spoofing the
-# extension without spoofing these bytes is much harder, so we sniff
-# the first few bytes as a second-line defense against `bomb.exe`
-# renamed `bomb.jpg`.
-ALLOWED_UPLOAD_SIGNATURES = (
+
+# HEIF/HEIC ftyp box brands we accept. The full list per ISO/IEC 23008-12
+# and ISO/IEC 14496-12. Anything else (e.g. avif via av01) is rejected
+# until we explicitly opt in — keeps the surface area small.
+_HEIF_BRANDS = (
+    b'heic', b'heix', b'hevc', b'hevx',
+    b'heim', b'heis', b'hevm', b'hevs',
+    b'mif1', b'msf1',
+)
+
+# Simple-prefix magic numbers for the formats whose first bytes are
+# uniquely diagnostic. JPEG / PNG / GIF / PDF all live here. WebP and
+# HEIC/HEIF are NOT simple prefixes — see _looks_like_upload below
+# for the structural checks they need.
+_SIMPLE_PREFIX_SIGNATURES = (
     b'\xff\xd8\xff',                 # JPEG
     b'\x89PNG\r\n\x1a\n',            # PNG
     b'GIF87a', b'GIF89a',            # GIF
-    b'RIFF',                         # WebP (RIFF...WEBP)
     b'%PDF-',                        # PDF
-    b'\x00\x00\x00',                 # HEIC/HEIF (ftyp box header — coarse but sufficient)
 )
+
+
+def _looks_like_upload(head: bytes) -> bool:
+    """FIXING_ROADMAP §1.11: tighten HEIC + WebP magic-number checks.
+
+    Pre-fix, the HEIC check was the 3-byte prefix `\\x00\\x00\\x00`,
+    which matches literally any file whose first three bytes are NUL
+    (ELF binaries, Mach-O headers, crafted polyglots). Combined with
+    same-origin static serving at `/static/uploads/<file>`, a polyglot
+    `HEIC + HTML` file could have been loaded as XSS by hitting its
+    URL directly. WebP had the same issue: the previous `RIFF` prefix
+    matches WAV and AVI containers too.
+
+    The correct shape:
+      - WebP: `RIFF` + 4-byte length + `WEBP` (at offset 8-12).
+      - HEIF/HEIC: bytes 4-8 = `ftyp`, bytes 8-12 = an allowed brand
+        (heic / heix / hevc / mif1 / etc.).
+    """
+    if any(head.startswith(sig) for sig in _SIMPLE_PREFIX_SIGNATURES):
+        return True
+    # WebP — RIFF header + WEBP marker at offset 8.
+    if (
+        len(head) >= 12
+        and head.startswith(b'RIFF')
+        and head[8:12] == b'WEBP'
+    ):
+        return True
+    # HEIF/HEIC — ftyp box at offset 4 + recognised brand at offset 8.
+    if (
+        len(head) >= 12
+        and head[4:8] == b'ftyp'
+        and head[8:12] in _HEIF_BRANDS
+    ):
+        return True
+    return False
 
 
 @bp.route("/api/upload", methods=["POST"])
@@ -70,10 +113,11 @@ def upload_file():
         return jsonify({"error": f"Unsupported file type: {ext}"}), 400
 
     # Magic-number sniff. Read the first 16 bytes, then rewind so
-    # .save() writes the full file from offset 0.
+    # .save() writes the full file from offset 0. The structural
+    # checks (HEIC ftyp brand, WebP marker) live in _looks_like_upload.
     head = file.stream.read(16)
     file.stream.seek(0)
-    if not any(head.startswith(sig) for sig in ALLOWED_UPLOAD_SIGNATURES):
+    if not _looks_like_upload(head):
         return jsonify({"error": "File contents don't match expected format"}), 400
 
     filename = secure_filename(file.filename)

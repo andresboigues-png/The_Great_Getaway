@@ -47,8 +47,8 @@ Things an attacker could exploit against the live site today.
 
 **Fix:**
 
-- [ ] Add a `token_jti` column on `users`, embed `jti` in the JWT, check on verify; `/api/auth/logout` bumps the jti.
-- [ ] Alternative: short-lived (1h) access + refresh tokens.
+- [x] Add a `token_jti` column on `users`, embed `jti` in the JWT, check on verify; `/api/auth/logout` bumps the jti. (Shipped 2026-05-13)
+- [ ] Alternative: short-lived (1h) access + refresh tokens. (Not pursued — the jti model is sufficient for current scale.)
 
 ### 0.4 No CSP, JWT in localStorage
 
@@ -58,7 +58,9 @@ Things an attacker could exploit against the live site today.
 
 **Fix:**
 
-- [ ] Add a strict CSP via `@app.after_request` in `main.py`: `default-src 'self'; script-src 'self' https://accounts.google.com https://maps.googleapis.com; img-src 'self' data: https:; connect-src 'self' https://api.frankfurter.app https://generativelanguage.googleapis.com; ...`
+- [x] Add a strict CSP via `@app.after_request` in `main.py`. (Shipped 2026-05-13 — permissive first-pass: keeps `'unsafe-inline'` for script + style because of the inline `<script>` blocks in index.html and the hundreds of `style="..."` attributes; tightening to nonces is queued.)
+- [x] Bonus: also ship `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, and `Referrer-Policy: strict-origin-when-cross-origin` in the same `@app.after_request` handler. (Shipped 2026-05-13)
+- [ ] Tighten CSP script-src to nonces (drop `'unsafe-inline'`). Requires per-render nonce in `index.html`.
 - [ ] Plan migration of JWT into an `HttpOnly; Secure; SameSite=Lax` cookie (defers to a quieter week — touches every `apiFetch` call).
 
 ### 0.5 `/api/sync` rewrites _any_ expense by guessed ID
@@ -93,9 +95,9 @@ Things an attacker could exploit against the live site today.
 
 **Fix:**
 
-- [ ] Require `LIKE 'q%'` prefix or exact match.
-- [ ] `@limiter.limit("10 per minute")`.
-- [ ] Cap `q` at min 3 chars, escape `%`/`_`.
+- [x] Require `LIKE 'q%'` prefix or exact match. (Shipped 2026-05-13)
+- [x] `@limiter.limit("10 per minute")`. (Shipped 2026-05-13)
+- [x] Cap `q` at min 3 chars, escape `%`/`_`. (Shipped 2026-05-13)
 
 ### 1.2 `/api/notifications/trip_public` is a phishing megaphone
 
@@ -105,9 +107,9 @@ Things an attacker could exploit against the live site today.
 
 **Fix:**
 
-- [ ] Look up trip name from DB by `trip_id`.
-- [ ] Gate to one fan-out per `(user, trip)` per day.
-- [ ] `@limiter.limit("5 per hour")`.
+- [x] Look up trip name from DB by `trip_id`; reject if caller doesn't own the trip. (Shipped 2026-05-13)
+- [x] Gate to one fan-out per `(user, trip)` per day (dedupe on notifications.related_id + 24h window). (Shipped 2026-05-13)
+- [x] `@limiter.limit("5 per hour")`. (Shipped 2026-05-13)
 
 ### 1.3 Feed authorization missing on comment/like by `event_id`
 
@@ -140,7 +142,7 @@ Things an attacker could exploit against the live site today.
 
 **Fix:**
 
-- [ ] Narrow to `sqlite3.OperationalError`; check message contains "duplicate column" / "already exists" before swallowing.
+- [x] Narrow to `sqlite3.OperationalError`; check message contains "duplicate column" / "already exists" before swallowing. (Shipped 2026-05-13 via new `_safe_alter()` helper in `database.py`. Every `except Exception: pass` after an ALTER replaced.)
 - [ ] Decide canonical migration source: Alembic. `init_db` becomes a sanity check, not a parallel schema mutator (see 1.6).
 
 ### 1.6 Two parallel migration paths (init_db ALTER chain + Alembic)
@@ -187,9 +189,9 @@ Things an attacker could exploit against the live site today.
 
 **Fix:**
 
-- [ ] `else` branch shows `data.error || 'Login failed'` via `showLiquidAlert`.
-- [ ] Reject without `data.token` regardless of `status` string.
-- [ ] After login, navigate back to the original hash, not hard-coded `profile`.
+- [x] `else` branch shows `data.error || 'Login failed'` via `showLiquidAlert`. (Shipped 2026-05-13)
+- [x] Reject without `data.token` regardless of `status` string. (Shipped 2026-05-13)
+- [x] After login, navigate back to the original hash, not hard-coded `profile`. (Shipped 2026-05-13)
 
 ### 1.10 `/api/sync` planner gate uses raw `user_id` equality
 
@@ -199,7 +201,7 @@ Things an attacker could exploit against the live site today.
 
 **Fix:**
 
-- [ ] Replace `existing["user_id"] != user_id: continue` with `if not can_edit_trip(cursor, t["id"], user_id): continue`.
+- [x] Replace `existing["user_id"] != user_id: continue` with `if not can_edit_trip(cursor, t["id"], user_id): continue`. (Shipped 2026-05-13. Applied to both the active-trips and archived-trips sync loops. Safe because the UPSERT's SET clause never updates user_id, so a planner sync can't transfer ownership.)
 
 ### 1.11 HEIC upload magic-number check is too loose
 
@@ -209,8 +211,8 @@ Things an attacker could exploit against the live site today.
 
 **Fix:**
 
-- [ ] Verify HEIC `ftyp` brand at bytes 4-12 (`ftyp` magic + valid brand in `heic`/`heix`/`hevc`/`mif1`).
-- [ ] Verify WebP `WEBP` marker at offset 8 (not just `RIFF`).
+- [x] Verify HEIC `ftyp` brand at bytes 4-12 (`ftyp` magic + valid brand in `heic`/`heix`/`hevc`/`mif1`). (Shipped 2026-05-13 — new `_looks_like_upload()` helper in `media.py` checks the full ftyp box.)
+- [x] Verify WebP `WEBP` marker at offset 8 (not just `RIFF`). (Shipped 2026-05-13)
 
 ### 1.12 `_secret()` per-process fallback breaks JWT across gunicorn workers
 
@@ -220,7 +222,7 @@ Things an attacker could exploit against the live site today.
 
 **Fix:**
 
-- [ ] Fail-fast if `GG_JWT_SECRET` is missing AND `FLASK_ENV != "development"`.
+- [x] Fail-fast if `GG_JWT_SECRET` is missing AND not in dev/test (`FLASK_ENV=development`, `FLASK_DEBUG=1`, `GG_ALLOW_TEST_LOGIN=1`, or `PYTEST_CURRENT_TEST` set). (Shipped 2026-05-13)
 
 ### 1.13 `/api/public-profile/<id>` returns archived (private) trips
 
@@ -230,7 +232,7 @@ Things an attacker could exploit against the live site today.
 
 **Fix:**
 
-- [ ] Drop the `OR is_archived = 1` branch.
+- [x] Drop the `OR is_archived = 1` branch. (Shipped 2026-05-13)
 
 ---
 

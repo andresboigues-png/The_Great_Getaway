@@ -102,6 +102,114 @@ app.register_blueprint(trips_bp)
 init_db()
 
 
+# ── Security headers (FIXING_ROADMAP §0.4) ───────────────────────────
+# Content-Security-Policy is the headline addition. With it in place,
+# any future XSS oversight (post §0.1's escape pass) can't ship its
+# stolen tokens to attacker-controlled domains — the browser blocks
+# the outbound fetch. It also stops an injection from loading scripts
+# from anywhere outside the explicit allowlist below, so the worst
+# case shrinks from "full account takeover" to "in-page DOM mischief
+# that can't talk to the network."
+#
+# This is a PERMISSIVE first-pass CSP: it keeps 'unsafe-inline' for
+# script and style because the codebase has ~5 inline <script> blocks
+# in index.html (Sentry init, early-theme paint, Maps key bootstrap)
+# AND hundreds of inline style="..." attributes. Tightening to nonces
+# for scripts is tracked as a follow-up — every <script> tag in
+# index.html would gain `nonce="{{ csp_nonce }}"` and the policy
+# would say `'nonce-{{ csp_nonce }}'` instead of `'unsafe-inline'`.
+# Inline-style elimination is a separate, bigger refactor that pairs
+# with the CSS-modules split in §3.1.
+#
+# Allowlist rationale, by directive:
+#   script-src + script-src-elem
+#     - accounts.google.com: Google Identity Services (gsi/client)
+#     - maps.googleapis.com:  Maps JS SDK
+#     - cdn.jsdelivr.net:     chart.js + xlsx CDN bundles
+#     - *.sentry-cdn.com:     Sentry loader script
+#   img-src
+#     - data:, blob:: SVG icons inlined as data URIs, blob URLs for
+#       camera-roll uploads before they reach the server
+#     - https:: user-uploaded photos may be hosted on any HTTPS origin
+#       (legacy Google photos, future external image host per
+#       MAKING_THE_WEBSITE_LIVE.md), so we keep this permissive — the
+#       XSS surface here is "the attacker shows a picture," which is
+#       far less serious than script execution
+#   connect-src
+#     - *.googleapis.com:    Maps, Weather, Routes, Generative
+#                            Language (Gemini), Time Zone APIs
+#     - accounts.google.com: token exchange / signing
+#     - api.frankfurter.app: currency rates
+#     - *.sentry.io / *.ingest.sentry.io: Sentry telemetry endpoint
+#     - images.unsplash.com / raw.githubusercontent.com: facts/quotes
+#       feeds (only the JSON metadata; the images themselves go
+#       through img-src above)
+#   frame-src
+#     - accounts.google.com: Google Sign-In renders a sign-in iframe
+#       on some platforms; without this it falls back to popup
+#   object-src 'none' + base-uri 'self' + form-action 'self'
+#     - Standard hardening triplet: kill <object>/<embed> (Flash-era
+#       attack surface), pin the document base URI, and prevent a
+#       crafted <form action="https://evil"> from exfiltrating data.
+#
+# Other security headers:
+#   X-Content-Type-Options: nosniff
+#       — stops a `text/plain` upload being interpreted as HTML by
+#         older IE / sniff-happy clients (still recommended by OWASP)
+#   X-Frame-Options: DENY
+#       — back-compat for browsers that don't honour `frame-ancestors`
+#         in CSP. TGG isn't meant to be iframe-embedded anywhere.
+#   Referrer-Policy: strict-origin-when-cross-origin
+#       — outbound link clicks don't leak the full URL (which may
+#         contain trip / user identifiers) to third parties
+@app.after_request
+def add_security_headers(response):
+    response.headers.setdefault(
+        "Content-Security-Policy",
+        "; ".join([
+            "default-src 'self'",
+            (
+                "script-src 'self' 'unsafe-inline' "
+                "https://accounts.google.com "
+                "https://maps.googleapis.com "
+                "https://cdn.jsdelivr.net "
+                "https://*.sentry-cdn.com"
+            ),
+            (
+                "script-src-elem 'self' 'unsafe-inline' "
+                "https://accounts.google.com "
+                "https://maps.googleapis.com "
+                "https://cdn.jsdelivr.net "
+                "https://*.sentry-cdn.com"
+            ),
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+            "img-src 'self' data: blob: https:",
+            "font-src 'self' data: https://fonts.gstatic.com",
+            (
+                "connect-src 'self' "
+                "https://accounts.google.com "
+                "https://*.googleapis.com "
+                "https://api.frankfurter.app "
+                "https://images.unsplash.com "
+                "https://raw.githubusercontent.com "
+                "https://*.sentry.io "
+                "https://*.ingest.sentry.io"
+            ),
+            "frame-src https://accounts.google.com",
+            "worker-src 'self'",
+            "object-src 'none'",
+            "base-uri 'self'",
+            "form-action 'self'",
+        ]),
+    )
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault(
+        "Referrer-Policy", "strict-origin-when-cross-origin",
+    )
+    return response
+
+
 # ── Background maintenance ───────────────────────────────────────────
 # Periodic cleanup of orphan feed_likes / feed_comments rows whose
 # underlying event has aged out of the 30-day /api/feed window. Without

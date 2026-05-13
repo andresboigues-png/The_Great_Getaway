@@ -174,15 +174,20 @@ def get_public_profile(user_id):
         if not user_row:
             return jsonify({"error": "User not found"}), 404
 
-        # Get public OR archived trips (for the footprint). Include the
-        # is_public / is_archived flags — the friends-map pin filter on the
-        # frontend keys off these, and stripping them silently hid every
-        # pin. Also include place_id/lat/lng/viewport so friends-map pins
-        # can render without a per-country geocoder round-trip.
+        # Get only public trips. FIXING_ROADMAP §1.13: pre-fix this
+        # WHERE clause was `is_public = 1 OR is_archived = 1`, which
+        # leaked every archived (private) trip's metadata — country,
+        # name, coordinates — to any unauthenticated viewer of the
+        # user's public profile. Archived means "done with this trip"
+        # not "make this trip public"; the two flags are independent
+        # and the public-profile surface must respect is_public only.
+        # is_archived is still returned in the row shape so the
+        # frontend's footprint render can render the public *trip's*
+        # archive state, but no row leaks unless is_public=1.
         cursor.execute(
             "SELECT id, name, country, is_public, is_archived, "
             "place_id, lat, lng, viewport_json, place_types, country_code "
-            "FROM trips WHERE user_id = ? AND (is_public = 1 OR is_archived = 1)",
+            "FROM trips WHERE user_id = ? AND is_public = 1",
             (user_id,),
         )
         trips = []

@@ -16,7 +16,7 @@ from flask import Blueprint, jsonify, request
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 
-from auth import current_user_id, issue_token
+from auth import bump_user_jti, current_user_id, issue_token, require_auth
 from database import get_db
 from extensions import limiter
 
@@ -170,3 +170,20 @@ def google_auth():
     except ValueError as e:
         logger.error(f"Token verification failed: {e}")
         return jsonify({"error": "Invalid token"}), 401
+
+
+@bp.route("/api/auth/logout", methods=["POST"])
+@require_auth
+def logout():
+    """Server-side logout — bumps the user's `token_jti` so every
+    JWT we've ever issued them is rejected on the next request.
+
+    FIXING_ROADMAP §0.3: before this endpoint existed, logout just
+    dropped the JWT from the client's localStorage. A stolen copy
+    of the token (XSS, lost device, leaked log) stayed valid for
+    its 30-day lifetime. Now logout actually invalidates."""
+    user_id = current_user_id()
+    if not user_id:
+        return jsonify({"error": "Unauthorized"}), 401
+    bump_user_jti(user_id)
+    return jsonify({"status": "logged_out"})

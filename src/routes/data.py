@@ -46,18 +46,25 @@ def sync_data():
         if not ensure_user_exists(cursor, user_id):
             return jsonify({"error": "Unauthorized"}), 401
 
-        # Sync Trips. Each upsert verifies the caller owns the existing
-        # row before mutating — otherwise this endpoint would let any
-        # caller take over any trip by re-syncing it under their own
-        # user_id, since the ON CONFLICT clause re-writes user_id to
-        # the parameter we pass in.
+        # Sync Trips. For existing rows we gate on the trip's editor
+        # set (owner + invited planners), not raw user_id equality —
+        # FIXING_ROADMAP §1.10. Pre-fix, a planner who wasn't the
+        # owner had their legitimate edits silently dropped on every
+        # sync (the equality check excluded them even though
+        # permissions/role/trip_members says they may edit).
+        #
+        # Safety: the UPSERT's SET clause deliberately omits user_id
+        # so a planner sync can't take ownership of the trip — only
+        # mutable fields (name, country, day-level data, etc.) flow
+        # through. New trip rows (no existing row) make the caller
+        # the owner via the INSERT path.
         for t in trips:
             cursor.execute("SELECT user_id FROM trips WHERE id = ?", (t["id"],))
             existing = cursor.fetchone()
-            if existing and existing["user_id"] != user_id:
-                # Trip exists and belongs to someone else — skip silently
+            if existing and not can_edit_trip(cursor, t['id'], user_id):
+                # Trip exists and caller isn't a planner — skip silently
                 # rather than 403 the whole batch (preserves partial sync
-                # of legitimately-owned rows).
+                # of legitimately-editable rows).
                 continue
 
             cursor.execute('''
@@ -100,12 +107,13 @@ def sync_data():
                   t.get('coverUrl')))
             ensure_owner_member_row(cursor, t['id'], user_id)
 
-        # Sync Archived Trips — same ownership gate.
+        # Sync Archived Trips — same editor-set gate as the active
+        # trips block (FIXING_ROADMAP §1.10).
         archived_trips = data.get("archived_trips", [])
         for t in archived_trips:
             cursor.execute("SELECT user_id FROM trips WHERE id = ?", (t["id"],))
             existing = cursor.fetchone()
-            if existing and existing["user_id"] != user_id:
+            if existing and not can_edit_trip(cursor, t['id'], user_id):
                 continue
 
             cursor.execute('''

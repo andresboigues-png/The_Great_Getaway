@@ -19,16 +19,38 @@ bp = Blueprint("friends", __name__)
 
 
 @bp.route("/api/friends/search", methods=["GET"])
+@limiter.limit("10 per minute")
 @require_auth
 def search_friends():
-    """Search for users by email."""
+    """Search for users by email.
+
+    FIXING_ROADMAP §1.1 — hardened against email enumeration.
+    Pre-fix: `email LIKE '%q%'` returned ANY substring match across
+    the whole users table with no rate limit; an attacker could
+    query `q=@gmail.com` and harvest five real emails per call, no
+    cap. Now:
+      - rate-limited at 10/minute (limiter decorator above);
+      - query must be at least 3 chars (a single '@' or 'a' should
+        not paginate the user table);
+      - prefix-match only (`LIKE 'q%'` not `LIKE '%q%'`), so the
+        attacker has to know the prefix — exact lookups for adding
+        a known contact still work, fishing expeditions do not;
+      - `%` and `_` in the query are escaped so a `_` wildcard
+        can't be smuggled in to widen the match."""
     query = request.args.get("q", "").strip()
-    if not query:
+    if len(query) < 3:
         return jsonify([])
+    # SQLite LIKE treats % and _ as wildcards. Escape them so a
+    # query of "_" doesn't match every single-character email.
+    safe_query = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT id, name, email, picture FROM users WHERE email LIKE ? LIMIT 5", (f"%{query}%",))
+        cursor.execute(
+            "SELECT id, name, email, picture FROM users "
+            "WHERE email LIKE ? ESCAPE '\\' LIMIT 5",
+            (f"{safe_query}%",),
+        )
         users = [dict(row) for row in cursor.fetchall()]
     return jsonify(users)
 

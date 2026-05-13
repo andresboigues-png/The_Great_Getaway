@@ -17,10 +17,15 @@ export const logout = async () => {
         try { await syncWithServer(); }
         catch (e) { console.error('Final sync before logout failed:', e); }
 
-        // The server has no /api/logout endpoint anymore — JWTs are
-        // self-contained, so dropping the local token is enough to
-        // invalidate the client side. (A real revocation list could
-        // come later; not needed for single-user usage.)
+        // FIXING_ROADMAP §0.3 — call the server-side logout to bump
+        // the user's token_jti, which invalidates EVERY JWT we've
+        // issued them (including stolen copies on other devices /
+        // in leaked logs). The 30-day stateless JWT is no longer a
+        // 30-day window of exposure after a compromise. Wrapped so
+        // a network blip doesn't leave us stuck on the logout button.
+        try { await apiFetch('/api/auth/logout', { method: 'POST' }); }
+        catch (e) { console.error('Server-side logout failed:', e); }
+
         clearAuthToken();
 
         // Clear everything tied to the logged-out user. Server still holds

@@ -128,6 +128,36 @@ def test_auth_google_rejects_missing_token(client):
     assert "Missing" in body.get("error", "")
 
 
+def test_auth_logout_invalidates_token(client, seed_user, auth_headers):
+    """FIXING_ROADMAP §0.3 — POST /api/auth/logout bumps the user's
+    `token_jti`, so every JWT we've ever issued them is rejected on
+    the next request. Pre-§0.3 logout was a client-side localStorage
+    drop; stolen copies stayed valid for 30 days. Now the token is
+    actually invalid."""
+    # Sanity: the fresh token works.
+    pre = client.get("/api/user-status", headers=auth_headers)
+    assert pre.get_json().get("logged_in") is True
+
+    res = client.post("/api/auth/logout", headers=auth_headers)
+    assert res.status_code == 200
+    assert res.get_json() == {"status": "logged_out"}
+
+    # Same token, post-logout — should 401.
+    post = client.get("/api/data", headers=auth_headers)
+    assert post.status_code == 401
+    # /api/user-status doesn't 401 (it's a probe), but it reports the
+    # session as ended.
+    probe = client.get("/api/user-status", headers=auth_headers)
+    assert probe.get_json() == {"logged_in": False}
+
+
+def test_auth_logout_requires_auth(client):
+    """`/api/auth/logout` itself is gated by @require_auth — a caller
+    with no token can't bump someone else's jti by trial."""
+    res = client.post("/api/auth/logout")
+    assert res.status_code == 401
+
+
 # ── Auth gate (decorator) ────────────────────────────────────────────────────
 
 def test_protected_endpoint_rejects_no_token(client):
@@ -926,8 +956,16 @@ def test_sync_does_not_let_caller_take_over_someone_elses_trip(
 
 def test_user_data_delete_wipes_trips_and_expenses(client, seed_user, auth_headers):
     """Settings → Reset → Wipe triggers a DELETE /api/user-data which
-    nukes every trip + expense the caller owns. Doesn't touch the
-    user row itself — that survives so the next login still works."""
+    nukes every trip + expense the caller owns AND the user row itself
+    (the route at routes/data.py:496 ends with DELETE FROM users).
+
+    Post §0.3, the JWT carries a `jti` claim that must match the user's
+    `token_jti` column — when the user row is wiped, the lookup fails
+    and any subsequent request with that token returns 401. That's the
+    correct security behaviour after a factory reset: the prior token
+    must NOT continue to work, even when the row it pointed at is gone.
+    Pre-§0.3 the token kept working against a nonexistent user_id and
+    `/api/data` returned empty arrays — a confusing state."""
     # Seed a trip + expense to wipe
     client.post("/api/trips", headers=auth_headers, json={
         "trip": {"id": "trip-doomed", "name": "Going Away"},
@@ -943,11 +981,11 @@ def test_user_data_delete_wipes_trips_and_expenses(client, seed_user, auth_heade
     res = client.delete("/api/user-data", headers=auth_headers)
     assert res.status_code == 200
 
-    # Confirm the wipe
+    # Token is now invalid (its `jti` claim references a `token_jti`
+    # that was deleted along with the user row). Any authenticated
+    # endpoint returns 401.
     pull = client.get("/api/data", headers=auth_headers)
-    body = pull.get_json()
-    assert body["trips"] == []
-    assert body["expenses"] == []
+    assert pull.status_code == 401
 
 
 # ── Rate limiting ────────────────────────────────────────────────────────────

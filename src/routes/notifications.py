@@ -10,6 +10,7 @@ from flask import Blueprint, jsonify, request
 
 from auth import current_user_id, require_auth
 from database import get_db
+from extensions import limiter
 
 
 bp = Blueprint("notifications", __name__)
@@ -45,14 +46,47 @@ def read_notifications():
 
 
 @bp.route("/api/notifications/trip_public", methods=["POST"])
+@limiter.limit("5 per hour")
 @require_auth
 def notify_trip_public():
-    """Notify friends that a user made a trip public."""
+    """Notify friends that a user made a trip public.
+
+    FIXING_ROADMAP §1.2 — hardened against the phishing-megaphone
+    pattern. Pre-fix the route accepted any caller-supplied
+    `trip_name` and fanned it out to every accepted friend
+    unconditionally — a free spam/phishing channel
+    (`trip_name="Click http://evil/ to verify"` reaches 200
+    contacts in one call). Now:
+      - the caller supplies `trip_id` (not `trip_name`);
+      - we look up the trip's authoritative name from the DB and
+        confirm the caller owns it; rejects 403 if not;
+      - rate-limited at 5/hour per caller so even a legitimate
+        flow can't be weaponised; the user makes a trip public
+        a handful of times in a session at most;
+      - one fan-out per (caller, trip) per day — dedupe row in
+        notifications keyed on type+related_id."""
     user_id = current_user_id()
-    trip_name = (request.json or {}).get("trip_name")
+    trip_id = (request.json or {}).get("trip_id")
+    if not trip_id:
+        return jsonify({"status": "error", "message": "Missing trip_id"}), 400
 
     with get_db() as conn:
         cursor = conn.cursor()
+
+        # Trip must exist AND be owned by the caller. The audit
+        # finding was that anyone could send a notification claiming
+        # to be about any trip; now the server resolves the trip
+        # name itself + verifies ownership.
+        cursor.execute(
+            "SELECT name FROM trips WHERE id = ? AND user_id = ?",
+            (trip_id, user_id),
+        )
+        trip_row = cursor.fetchone()
+        if not trip_row:
+            return jsonify({
+                "status": "error", "message": "Trip not found or not yours",
+            }), 403
+        trip_name = trip_row["name"] or "a trip"
 
         cursor.execute("SELECT name FROM users WHERE id = ?", (user_id,))
         user_row = cursor.fetchone()
@@ -60,14 +94,33 @@ def notify_trip_public():
             return jsonify({"status": "error", "message": "User not found"}), 404
         user_name = user_row["name"]
 
-        cursor.execute("SELECT friend_id FROM friends WHERE user_id = ? AND status = 'accepted'", (user_id,))
+        # Daily dedupe — one fan-out per (caller, trip) per 24h.
+        # Looks for an existing notifications row from this trip
+        # within the last day; if we find one, skip the broadcast.
+        cursor.execute(
+            "SELECT 1 FROM notifications "
+            "WHERE type = 'trip_public' AND related_id = ? "
+            "AND created_at > datetime('now', '-1 day') LIMIT 1",
+            (user_id,),
+        )
+        if cursor.fetchone():
+            return jsonify({"status": "ok", "deduped": True})
+
+        cursor.execute(
+            "SELECT friend_id FROM friends WHERE user_id = ? AND status = 'accepted'",
+            (user_id,),
+        )
         friends = cursor.fetchall()
 
         for friend in friends:
             friend_id = friend["friend_id"]
             msg = f"{user_name} completed their trip to {trip_name} and made it public!"
-            cursor.execute("INSERT INTO notifications (user_id, type, title, related_id, message, is_read) VALUES (?, 'trip_public', 'Trip Completed!', ?, ?, 0)",
-                           (friend_id, user_id, msg))
+            cursor.execute(
+                "INSERT INTO notifications "
+                "(user_id, type, title, related_id, message, is_read) "
+                "VALUES (?, 'trip_public', 'Trip Completed!', ?, ?, 0)",
+                (friend_id, user_id, msg),
+            )
 
         conn.commit()
     return jsonify({"status": "success"})
