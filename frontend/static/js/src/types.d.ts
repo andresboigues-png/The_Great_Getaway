@@ -336,6 +336,30 @@ export interface Expense {
     receiptUrl?: string | null;
 }
 
+/** FIXING_ROADMAP §4.4 — one earned badge on a user's profile. Shape
+ *  is identical for the owner's /api/data path and the public-profile
+ *  read path, so the renderer is the same regardless of whose profile
+ *  you're viewing. Badge `label`/`emoji`/`description` are denormalised
+ *  from the server's BADGES registry at read time — rename safety:
+ *  if a future deploy renames a badge id, older rows still display
+ *  with the new copy. */
+export interface Achievement {
+    badgeId: string;
+    /** Server-stamped ISO timestamp. */
+    earnedAt: string;
+    /** Per-badge metadata (e.g. `{countryCount: 5}` for globe-trotter
+     *  tiers). Always an object; empty when the badge has no extra
+     *  context. */
+    context: Record<string, unknown>;
+    /** Display label — server-derived from src/achievements.py BADGES.
+     *  Falls back to `badgeId` if the registry entry was removed. */
+    label: string;
+    /** Display emoji — server-derived; falls back to "🏅". */
+    emoji: string;
+    /** Long-form description for hover/tooltip; "" when unknown. */
+    description: string;
+}
+
 /** FIXING_ROADMAP §4.5 — a recorded payment between two trip members.
  *  Sits alongside `Expense.isSettlement` for now: the existing balance
  *  UI keys settlements by companion *name* and synthesises them as
@@ -459,6 +483,11 @@ export interface AppState {
      *  the legacy `Expense.isSettlement: true` rows that still live
      *  in `expenses` and drive today's balance subtractions. */
     settlements: Settlement[];
+    /** §4.4 — earned badges for the signed-in user. Hydrated from
+     *  /api/data on every poll; detection runs server-side as part
+     *  of the same call. Empty array on cold-load and for users who
+     *  haven't earned anything yet. */
+    achievements: Achievement[];
     savedFormats: SavedFormat[];
     tripDays: TripDay[];
     archivedTrips: Trip[];

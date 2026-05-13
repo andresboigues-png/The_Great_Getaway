@@ -478,6 +478,31 @@ def init_db():
             )
         ''')
 
+        # Achievements Table (FIXING_ROADMAP §4.4).
+        # Per-user record of which badges have been earned. Each badge
+        # is a string id from src/achievements.py's BADGES registry —
+        # we store the id (not a label) so badge copy can be retuned
+        # without touching the data. UNIQUE(user_id, badge_id) makes
+        # the detection loop trivially idempotent: re-running the rules
+        # is safe, an already-earned badge just hits the constraint.
+        #
+        # `context_json` is free-form per-badge metadata at earn time
+        # (e.g. {"tripId": "abc", "countryCode": "PT"} for the trip-
+        # related badges). The profile renderer can show "Globe Trotter
+        # — 5 countries" with the actual list of countries when present;
+        # absent context degrades gracefully to the badge's static copy.
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS user_achievements (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                badge_id TEXT NOT NULL,
+                earned_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                context_json TEXT,
+                UNIQUE(user_id, badge_id),
+                FOREIGN KEY(user_id) REFERENCES users(id)
+            )
+        ''')
+
         # Settlements Table (FIXING_ROADMAP §4.5).
         # Records "X paid Y €N for trip T" rows so the balance page can
         # subtract them from the raw expense-derived debts.
@@ -545,6 +570,10 @@ def init_db():
             # both, and the from/to user joins use the small per-trip
             # row set without a separate index.
             "CREATE INDEX IF NOT EXISTS idx_settlements_trip ON settlements(trip_id)",
+            # §4.4: achievements read path is per-user (profile +
+            # detection loop). One composite index covers both.
+            "CREATE INDEX IF NOT EXISTS idx_user_achievements_user "
+            "ON user_achievements(user_id, badge_id)",
         ):
             _safe_alter(cursor, ddl)
 

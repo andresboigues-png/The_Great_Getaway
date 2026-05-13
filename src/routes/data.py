@@ -12,6 +12,11 @@ import json
 
 from flask import Blueprint, jsonify, request
 
+from achievements import (
+    check_user_achievements,
+    list_user_achievements,
+    notify_achievements,
+)
 from auth import current_user_id, require_auth
 from database import get_db
 from extensions import limiter
@@ -486,6 +491,23 @@ def get_data():
 
             trip_days.append(day)
 
+        # §4.4 — achievement detection runs piggybacked on /api/data.
+        # The cadence is the natural moment to re-evaluate ("user just
+        # synced, did anything they did unlock a badge?"). Each rule is
+        # a single SQL count — the full sweep is well under a millisecond
+        # even with many badges. UNIQUE constraint makes it idempotent
+        # across the polling cadence (15s in main.ts).
+        #
+        # Notifications fire for genuinely-new earnings only. The
+        # achievements list returned to the client is the full earned
+        # set (including the new ones) so the profile renderer doesn't
+        # need a second round-trip.
+        newly_earned = check_user_achievements(cursor, user_id)
+        if newly_earned:
+            notify_achievements(cursor, user_id, newly_earned)
+            conn.commit()
+        achievements = list_user_achievements(cursor, user_id)
+
         return jsonify({
             "trips": trips,
             "expenses": expenses,
@@ -493,6 +515,8 @@ def get_data():
             "categories": categories,
             "budgets": budgets,
             "tripDays": trip_days,
+            "achievements": achievements,
+            "newlyEarnedAchievements": newly_earned,
         })
 
 
@@ -542,6 +566,10 @@ def delete_user_data():
             "DELETE FROM friends WHERE user_id = ? OR friend_id = ?",
             (user_id, user_id),
         )
+        # §4.4: badge earnings are user-scoped — wipe alongside the
+        # other user-only tables. The badge defs themselves live in
+        # src/achievements.py BADGES, no migration concern.
+        cursor.execute("DELETE FROM user_achievements WHERE user_id = ?", (user_id,))
         cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
         conn.commit()
     return jsonify({"status": "wiped"})

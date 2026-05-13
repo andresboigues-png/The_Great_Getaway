@@ -65,6 +65,10 @@ _EVENT_ID_PATTERNS = (
     # surfaced for this type since the event is only visible to the two
     # parties anyway (see _build_settled_up + _caller_can_see_event).
     ("settled_up",     re.compile(rf"^settled_up_({_ID_RE})$")),
+    # §4.4: achievement_unlocked — engagement IS allowed (friends can
+    # "🎉" + comment "congrats" on a badge unlock); the visibility gate
+    # is friends-of-actor like other public events.
+    ("achievement",    re.compile(r"^achievement_(\d{1,32})$")),
 )
 
 
@@ -191,6 +195,20 @@ def _caller_can_see_event(cursor, event_id, user_id):
         if not row:
             return False
         return user_id in (row["from_user_id"], row["to_user_id"])
+
+    if event_type == "achievement":
+        # §4.4: badge unlock — friends-of-actor + the actor themselves
+        # may engage (same rule as friend_created_trip etc., since
+        # achievements are deliberately a public-facing social event).
+        ach_id = int(components[0])
+        cursor.execute(
+            "SELECT user_id FROM user_achievements WHERE id = ?",
+            (ach_id,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return False
+        return _is_friend_of(cursor, user_id, row["user_id"])
 
     return False
 
@@ -535,6 +553,56 @@ def _build_settled_up(cursor, ctx: _FeedContext) -> list:
     return events
 
 
+def _build_achievement_unlocked(cursor, ctx: _FeedContext) -> list:
+    """§4.4 — badge unlocks. Shows "Sara earned 🌍 Globe Trotter" for
+    actors in the caller's friend set (plus the caller's own unlocks).
+    Lives on the feed at the same visibility tier as friend_created_trip:
+    friends-of-actor see it, strangers don't. Engagement IS allowed
+    (friends can like / comment).
+
+    The badge label/emoji/description denormalised into the event so
+    the renderer doesn't have to round-trip the BADGES registry; if a
+    badge_id is renamed in src/achievements.py, the displayed badge on
+    older cards keeps showing the original copy (correct, since the
+    user earned it under that name)."""
+    # Import lazily to avoid a top-of-file circular (achievements.py
+    # imports observability; observability imports from auth in the
+    # request hook path; no actual cycle today, but the lazy import
+    # is the cheap insurance).
+    from achievements import BADGES_BY_ID
+
+    if not ctx.actor_ids:
+        return []
+    placeholders = ",".join(["?"] * len(ctx.actor_ids))
+    cursor.execute(
+        f"SELECT ua.id, ua.user_id, ua.badge_id, ua.earned_at "
+        f"FROM user_achievements ua "
+        f"WHERE ua.user_id IN ({placeholders}) "
+        f"  AND ua.earned_at >= datetime('now', '-30 days') "
+        f"ORDER BY ua.earned_at DESC",
+        ctx.actor_ids,
+    )
+    events = []
+    for row in cursor.fetchall():
+        actor = ctx.actor_lookup.get(row["user_id"])
+        if not actor:
+            continue
+        bdef = BADGES_BY_ID.get(row["badge_id"])
+        events.append({
+            "id": f"achievement_{row['id']}",
+            "type": "achievement_unlocked",
+            "actor": actor,
+            "badge": {
+                "id": row["badge_id"],
+                "label": bdef.label if bdef else row["badge_id"],
+                "emoji": bdef.emoji if bdef else "🏅",
+                "description": bdef.description if bdef else "",
+            },
+            "when": row["earned_at"],
+        })
+    return events
+
+
 # Order doesn't matter — the orchestrator sorts by `when` descending
 # after concatenation. Listed roughly by source table for readability.
 FEED_EVENT_BUILDERS: list[_FeedEventBuilder] = [
@@ -545,6 +613,7 @@ FEED_EVENT_BUILDERS: list[_FeedEventBuilder] = [
     _build_friend_shared_trip,
     _build_friend_reposted_trip,
     _build_settled_up,
+    _build_achievement_unlocked,
 ]
 
 

@@ -22,6 +22,11 @@ export const STATE: AppState = {
      *  null-guards. Coexists with the legacy `Expense.isSettlement` rows
      *  in `expenses` until the balance UI migrates to consume both. */
     settlements: [],
+    /** §4.4 — earned badges. Server-side detection runs on every
+     *  /api/data poll; the response carries the full list (including
+     *  any new earnings from this call) plus a `newlyEarnedAchievements`
+     *  field that lets the UI fire the unlock toast for fresh ones. */
+    achievements: [],
     draftExpense: {
         who: '',
         categoryId: '',

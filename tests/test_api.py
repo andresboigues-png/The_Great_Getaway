@@ -3686,3 +3686,245 @@ def test_settle_up_requires_auth(client):
     assert client.post("/api/settlements", headers=no_token, json={}).status_code == 401
     assert client.get("/api/settlements/trip-x", headers=no_token).status_code == 401
     assert client.delete("/api/settlements/abc", headers=no_token).status_code == 401
+
+
+# ── §4.4 Achievements ────────────────────────────────────────────────
+# Each rule lives in src/achievements.py. We exercise the detection
+# loop end-to-end through /api/data + spot-check the rule semantics
+# directly via check_user_achievements() — the latter is faster for
+# rules that need a specific data shape.
+
+
+def test_achievements_first_trip(client, seed_user, auth_headers):
+    """Creating any trip unlocks the first_trip badge. Detection runs
+    piggybacked on /api/data so we just hit that endpoint after
+    creating a trip."""
+    _create_trip(client, auth_headers, trip_id="trip-ach-1")
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    ids = [a["badgeId"] for a in data["achievements"]]
+    assert "first_trip" in ids
+    # Newly earned diff is also surfaced so the UI can toast.
+    newly_ids = [a["badgeId"] for a in data["newlyEarnedAchievements"]]
+    assert "first_trip" in newly_ids
+
+
+def test_achievements_idempotent_across_polls(client, seed_user, auth_headers):
+    """Detection running on every /api/data poll must NOT re-award a
+    badge already earned. Second poll's newlyEarnedAchievements should
+    be empty (or at least not contain first_trip again) while the
+    cumulative list still shows it."""
+    _create_trip(client, auth_headers, trip_id="trip-ach-idem")
+    first = client.get("/api/data", headers=auth_headers).get_json()
+    assert any(a["badgeId"] == "first_trip" for a in first["newlyEarnedAchievements"])
+
+    second = client.get("/api/data", headers=auth_headers).get_json()
+    assert any(a["badgeId"] == "first_trip" for a in second["achievements"])
+    assert not any(a["badgeId"] == "first_trip" for a in second["newlyEarnedAchievements"])
+
+
+def test_achievements_archivist_after_archive(client, seed_user, auth_headers):
+    """Archiving a trip unlocks `archivist`. The archive flow flips
+    is_archived; the rule counts WHERE is_archived = 1."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-ach-archive")
+    # Fire-and-forget — the rule just looks at is_archived. Direct DB
+    # update keeps the test focused on the badge logic.
+    from database import get_db
+    with get_db() as conn:
+        conn.execute("UPDATE trips SET is_archived = 1 WHERE id = ?", (trip_id,))
+        conn.commit()
+
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    ids = [a["badgeId"] for a in data["achievements"]]
+    assert "archivist" in ids
+
+
+def test_achievements_globe_trotter_tiers(client, seed_user, auth_headers):
+    """Three trips in different countries → globe_trotter_3. The
+    10/25 tiers don't fire until those thresholds — confirm we get
+    exactly the right tier."""
+    from database import get_db
+    with get_db() as conn:
+        c = conn.cursor()
+        for i, (name, code) in enumerate([
+            ("Lisbon, Portugal", "PT"),
+            ("Tokyo, Japan", "JP"),
+            ("Paris, France", "FR"),
+        ]):
+            c.execute(
+                "INSERT INTO trips (id, user_id, name, country, country_code) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (f"trip-gt-{i}", seed_user, f"Trip {i}", name, code),
+            )
+        conn.commit()
+
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    ids = {a["badgeId"] for a in data["achievements"]}
+    assert "globe_trotter_3" in ids
+    assert "globe_trotter_10" not in ids
+    assert "globe_trotter_25" not in ids
+    # Context should expose the country count for the UI to render
+    # "3 countries" if it wants to.
+    gt3 = next(a for a in data["achievements"] if a["badgeId"] == "globe_trotter_3")
+    assert gt3["context"].get("countryCount") == 3
+
+
+def test_achievements_repeat_country(client, seed_user, auth_headers):
+    """Two trips in the same country (by country_code) unlocks the
+    Local Hero badge. Encourages domestic / repeat-destination travel."""
+    from database import get_db
+    with get_db() as conn:
+        c = conn.cursor()
+        for i in range(2):
+            c.execute(
+                "INSERT INTO trips (id, user_id, name, country, country_code) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (f"trip-rc-{i}", seed_user, f"Lisbon trip {i}", "Lisbon, Portugal", "PT"),
+            )
+        conn.commit()
+
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    ids = [a["badgeId"] for a in data["achievements"]]
+    assert "repeat_country" in ids
+
+
+def test_achievements_social_butterfly(client, seed_user, auth_headers):
+    """3+ accepted friends → social_butterfly. Test seeds the friend
+    rows directly since the friend-add flow is its own endpoint."""
+    from database import get_db
+    with get_db() as conn:
+        c = conn.cursor()
+        for i in range(3):
+            other_id = f"sb-friend-{i}"
+            c.execute(
+                "INSERT INTO users (id, email, name) VALUES (?, ?, ?)",
+                (other_id, f"sb{i}@example.com", f"Friend {i}"),
+            )
+            c.execute(
+                "INSERT INTO friends (user_id, friend_id, status, created_at) "
+                "VALUES (?, ?, 'accepted', CURRENT_TIMESTAMP)",
+                (seed_user, other_id),
+            )
+        conn.commit()
+
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    ids = [a["badgeId"] for a in data["achievements"]]
+    assert "social_butterfly" in ids
+
+
+def test_achievements_first_settle_up_uses_45_table(
+    client, seed_user, seed_other_user, auth_headers,
+):
+    """The first_settle_up badge reads the new §4.5 settlements table
+    — proves the §3.6 + §4.5 + §4.4 layers compose end-to-end."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-ach-settle")
+    _seed_member(trip_id, seed_other_user, role="relaxer")
+    client.post("/api/settlements", headers=auth_headers, json={
+        "tripId": trip_id,
+        "fromUserId": seed_other_user,
+        "toUserId": seed_user,
+        "amount": 10.0,
+        "currency": "EUR",
+    })
+
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    ids = [a["badgeId"] for a in data["achievements"]]
+    assert "first_settle_up" in ids
+
+
+def test_achievements_notification_on_unlock(client, seed_user, auth_headers):
+    """Each newly earned badge drops an `achievement_unlocked` notification
+    so the bell badge ticks up. Re-poll after a no-change tick must NOT
+    add another notification for the same badge."""
+    _create_trip(client, auth_headers, trip_id="trip-ach-notif")
+    client.get("/api/data", headers=auth_headers)  # detection + insert
+
+    from database import get_db
+    with get_db() as conn:
+        c = conn.cursor()
+        c.execute(
+            "SELECT type, related_id FROM notifications WHERE user_id = ?",
+            (seed_user,),
+        )
+        rows = c.fetchall()
+    badge_notifs = [r for r in rows if r["type"] == "achievement_unlocked"]
+    assert any(r["related_id"] == "first_trip" for r in badge_notifs)
+
+    # Second poll — no new unlocks, no new notifications.
+    client.get("/api/data", headers=auth_headers)
+    with get_db() as conn:
+        c = conn.cursor()
+        c.execute(
+            "SELECT COUNT(*) AS c FROM notifications "
+            "WHERE user_id = ? AND type = 'achievement_unlocked' AND related_id = 'first_trip'",
+            (seed_user,),
+        )
+        assert c.fetchone()["c"] == 1
+
+
+def test_achievements_on_public_profile(
+    client, seed_user, seed_other_user, auth_headers,
+):
+    """A viewer fetching /api/public-profile/<id> sees the user's
+    earned badges. Public surface — same shape as /api/data."""
+    _create_trip(client, auth_headers, trip_id="trip-ach-pub")
+    # Trigger detection by polling /api/data for the owner first.
+    client.get("/api/data", headers=auth_headers)
+
+    res = client.get(f"/api/public-profile/{seed_user}")
+    assert res.status_code == 200
+    payload = res.get_json()
+    assert "achievements" in payload
+    ids = [a["badgeId"] for a in payload["achievements"]]
+    assert "first_trip" in ids
+
+
+def test_achievements_feed_event_for_friends(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """When a friend earns a badge it appears in the caller's feed as
+    `achievement_unlocked`. Verifies the §3.6 registry's
+    _build_achievement_unlocked builder picks up rows where actor is
+    in the caller's friend set."""
+    _make_friends(seed_user, seed_other_user)
+    _create_trip(client, other_auth_headers, trip_id="trip-ach-feed")
+    # Make sure the other user's detection runs (it would on any
+    # subsequent /api/data they hit; we force it here so the test is
+    # deterministic regardless of polling).
+    client.get("/api/data", headers=other_auth_headers)
+
+    events = client.get("/api/feed", headers=auth_headers).get_json()
+    achievement_events = [e for e in events if e.get("type") == "achievement_unlocked"]
+    assert len(achievement_events) >= 1
+    # Actor should be seed_other_user (who earned it).
+    actor_ids = {e["actor"]["id"] for e in achievement_events}
+    assert seed_other_user in actor_ids
+
+
+def test_achievements_rule_failure_doesnt_poison_sweep(client, seed_user, auth_headers, monkeypatch):
+    """If one badge rule raises, the detection loop logs + skips it
+    and the OTHER rules still run. Without this guard a future bad
+    rule would block every user's badge earning until shipped fix."""
+    import achievements as ach
+    from achievements import BADGES, BadgeDef
+
+    def _explode(cursor, user_id):
+        raise RuntimeError("simulated bad rule")
+
+    # Splice in a broken rule at the start of the registry. monkeypatch
+    # restores the original list after the test.
+    bad_badge = BadgeDef(
+        id="explosive_test_badge",
+        emoji="💥",
+        label="Boom",
+        description="-",
+        check=_explode,
+    )
+    monkeypatch.setattr(ach, "BADGES", [bad_badge, *BADGES])
+
+    _create_trip(client, auth_headers, trip_id="trip-ach-resilient")
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    ids = [a["badgeId"] for a in data["achievements"]]
+    # The good rule (first_trip) still ran.
+    assert "first_trip" in ids
+    # The broken rule didn't earn the user a badge.
+    assert "explosive_test_badge" not in ids

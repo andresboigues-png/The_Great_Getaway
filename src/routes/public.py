@@ -16,6 +16,7 @@ from flask import Blueprint, jsonify
 
 from auth import current_user_id
 from database import get_db
+from achievements import list_user_achievements
 from helpers import (
     serialize_expense_row,
     serialize_trip_row,
@@ -215,9 +216,16 @@ def get_public_profile(user_id):
             t['countryCode'] = t.pop('country_code', None)
             trips.append(t)
 
+        # §4.4 — public profile gets the user's badges so viewers can
+        # see their travel CV. Same `list_user_achievements` shape the
+        # owner's /api/data returns, so the renderer is identical
+        # whether you're viewing yourself or a friend.
+        achievements = list_user_achievements(cursor, user_id)
+
         return jsonify({
             "user": dict(user_row),
             "trips": trips,
+            "achievements": achievements,
         })
 
 

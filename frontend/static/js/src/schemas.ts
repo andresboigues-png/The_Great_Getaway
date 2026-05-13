@@ -133,6 +133,8 @@ export interface ServerDataPayload {
     trips?: any[];
     expenses?: any[];
     settlements?: any[];
+    achievements?: any[];
+    newlyEarnedAchievements?: any[];
     companions?: any[];
     categories?: any[];
     budgets?: any[];
@@ -149,7 +151,12 @@ export function validateServerData(raw: unknown): ValidationResult<ServerDataPay
     }
     // Top-level array keys. §4.5 adds `settlements` — server returns it
     // alongside expenses, optional for back-compat with older clients.
-    for (const key of ['trips', 'expenses', 'settlements', 'companions', 'categories', 'budgets', 'tripDays']) {
+    // §4.4 adds `achievements` + `newlyEarnedAchievements`, same opt-in
+    // contract (older /api/data responses lack them; that's fine).
+    for (const key of [
+        'trips', 'expenses', 'settlements', 'achievements',
+        'newlyEarnedAchievements', 'companions', 'categories', 'budgets', 'tripDays',
+    ]) {
         _checkOptionalArray(raw, key, issues);
     }
     // Trip-row shallow check: id + name must be strings on each row.

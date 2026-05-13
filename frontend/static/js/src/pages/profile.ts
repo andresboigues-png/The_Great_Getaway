@@ -188,7 +188,17 @@ export function renderProfile(targetUserId: string | null | undefined = null) {
     }
 
     interface ProfileFriend { id: string; name: string; email: string; picture?: string }
-    const renderData = (user: any, trips: any[]) => {
+    // §4.4 — minimal Achievement shape inlined here so renderData stays
+    // self-contained. Matches the server's list_user_achievements output.
+    interface ProfileAchievement {
+        badgeId: string;
+        emoji?: string;
+        label?: string;
+        description?: string;
+        earnedAt?: string;
+        context?: Record<string, unknown>;
+    }
+    const renderData = (user: any, trips: any[], achievements: ProfileAchievement[] = []) => {
         const allTrips = trips || [];
         const uniqueCountries: string[] = [...new Set(allTrips.map(t => t.country).filter(Boolean))];
         const profilePicSrc = user.picture;
@@ -360,6 +370,42 @@ export function renderProfile(targetUserId: string | null | undefined = null) {
                         ${isOwnProfile ? 'Your footprint' : `${esc(user.name.split(' ')[0])}'s footprint`}
                     </div>
                 </div>
+
+                <!-- §4.4 — Achievements / Badges. Renders a horizontal
+                     strip of earned badges (emoji + label). Empty state
+                     keeps the section visible on the owner's profile
+                     ("Earn your first badge by creating a trip!") so
+                     the surface is discoverable; on a friend's profile
+                     it's hidden entirely if nothing is earned yet. -->
+                ${(achievements.length > 0 || isOwnProfile) ? `
+                    <div style="margin-top: 30px; padding: 20px; border-radius: 16px; background: rgba(0,113,227,0.04); border: 1px solid var(--glass-border);">
+                        <div style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 14px;">
+                            <h3 style="margin: 0; font-size: 1rem; font-weight: 800; letter-spacing: -0.02em; color: var(--text-primary);">
+                                🏅 Achievements
+                            </h3>
+                            <span style="font-size: 0.8rem; color: var(--text-secondary); font-weight: 600;">
+                                ${achievements.length} earned
+                            </span>
+                        </div>
+                        ${achievements.length === 0 ? `
+                            <p style="margin: 0; color: var(--text-secondary); font-size: 0.85rem; text-align: center; padding: 12px 0;">
+                                Earn your first badge by creating a trip, completing one, or settling up with a friend.
+                            </p>
+                        ` : `
+                            <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+                                ${achievements.map(a => `
+                                    <div
+                                        title="${esc(a.description || '')}"
+                                        style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; background: white; border: 1px solid rgba(0,113,227,0.18); font-size: 0.85rem; font-weight: 600; color: var(--text-primary); box-shadow: 0 1px 2px rgba(0,0,0,0.04);"
+                                    >
+                                        <span style="font-size: 1.1rem; line-height: 1;">${esc(a.emoji || '🏅')}</span>
+                                        <span>${esc(a.label || a.badgeId)}</span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        `}
+                    </div>
+                ` : ''}
 
                 <!-- Footprint Section -->
                 <div style="margin-top: 20px;">
@@ -739,14 +785,20 @@ export function renderProfile(targetUserId: string | null | undefined = null) {
         const allTrips = [...(STATE.trips || []), ...(STATE.archivedTrips || [])];
         const now = new Date();
         const completedTrips = allTrips.filter(t => t.isArchived || (t.dateTo && new Date(t.dateTo) < now));
-        renderData(STATE.user, completedTrips);
+        // §4.4 — own profile pulls achievements from STATE (hydrated by
+        // /api/data on every poll). Empty array fallback so cold-load
+        // and pre-detection states render the empty-strip placeholder
+        // instead of crashing on `.map`.
+        renderData(STATE.user, completedTrips, (STATE as any).achievements || []);
     } else {
         div.innerHTML = `<div style="display:flex; justify-content:center; align-items:center; height:300px;"><p style="font-weight:700; color:var(--text-secondary); animation: pulse 1.5s infinite;">Fetching profile...</p></div>`;
         fetch(apiUrl(`/api/public-profile/${targetUserId}`))
             .then(res => res.json())
             .then(data => {
                 if (data.error) div.innerHTML = `<p style="text-align:center; padding:50px;">User not found.</p>`;
-                else renderData(data.user, data.trips);
+                // §4.4 — public-profile response carries `achievements`
+                // alongside `user` + `trips` (see routes/public.py).
+                else renderData(data.user, data.trips, data.achievements || []);
             })
             .catch(() => { div.innerHTML = `<p style="text-align:center; padding:50px;">Error loading profile.</p>`; });
     }

@@ -205,6 +205,23 @@ export async function pullFromServer() {
         // but we guard with `|| []` so an older /api/data response
         // (mid-deploy / cache) doesn't leave STATE.settlements undefined.
         STATE.settlements = data.settlements || [];
+        // §4.4 — achievements arrive with the same payload. Server runs
+        // detection on every /api/data hit so newly earned badges appear
+        // here without a separate request. `newlyEarnedAchievements`
+        // is the diff for this poll — fire one toast per new unlock so
+        // the user sees the reward immediately rather than discovering
+        // it next time they visit their profile.
+        STATE.achievements = data.achievements || [];
+        const newly = (data.newlyEarnedAchievements || []) as Array<{
+            emoji?: string; label?: string;
+        }>;
+        for (const b of newly) {
+            // Best-effort toast — `showLiquidAlert` is idempotent + deduped,
+            // so back-to-back polls that somehow surface the same unlock
+            // twice (race between the insert and a parallel poll) won't
+            // spam the user.
+            showLiquidAlert(`${b.emoji || '🏅'} Unlocked: ${b.label || 'New badge'}`);
+        }
         // Account-level companions (data.companions) is no longer used —
         // companions live per-trip on `trip.companions`.
         STATE.categories = data.categories || [];
