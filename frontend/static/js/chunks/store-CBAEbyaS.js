@@ -1,0 +1,2 @@
+import{r as e}from"./vendor-react-CYVQMBjw.js";import{it as t,nt as n,st as r}from"../app.bundle.js";var i=e(),a=0;t(r.STATE_CHANGED,()=>{a++});function o(e){return t(r.STATE_CHANGED,e)}function s(){return a}function c(e){return(0,i.useSyncExternalStore)(o,s,s),e(n)}export{c as t};
+//# sourceMappingURL=store-CBAEbyaS.js.map

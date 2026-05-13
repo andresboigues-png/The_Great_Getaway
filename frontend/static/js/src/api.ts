@@ -654,6 +654,44 @@ export function deleteDayOnServer(dayId: string) {
     return _delete(`/api/days/${dayId}`, {});
 }
 
+// ── §4.2 Explore feed ────────────────────────────────────────────────
+// Ranked public-trip discovery for the cold-start case. Backend at
+// /api/feed/explore returns up to 24 cards scored on recency × country
+// relevance × engagement; see routes/feed.py for the heuristic.
+
+/** Shape of one card returned by /api/feed/explore. Matches the
+ *  backend serializer; kept inline rather than in types.d.ts because
+ *  it's a transient view-model (not part of STATE). */
+export interface ExploreFeedItem {
+    tripId: string;
+    name: string;
+    country: string;
+    countryCode: string;
+    coverUrl: string | null;
+    shareToken: string;
+    shareViews: number;
+    owner: {
+        id: string;
+        name: string;
+        firstName: string;
+        picture: string | null;
+    };
+    createdAt: string | null;
+}
+
+export async function fetchExploreFeed(): Promise<{ items?: ExploreFeedItem[]; error?: string }> {
+    if (!STATE.user) return { error: 'Not signed in' };
+    try {
+        const res = await apiFetch('/api/feed/explore');
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) return { error: body?.error || `HTTP ${res.status}` };
+        return body;
+    } catch (e: any) {
+        return { error: e?.message || 'Network error' };
+    }
+}
+
+
 // ── §4.5 Settlements ─────────────────────────────────────────────────
 // Member-keyed settle-up endpoints. The settlement row that comes back
 // is also surfaced on the next /api/data poll under `settlements`, so

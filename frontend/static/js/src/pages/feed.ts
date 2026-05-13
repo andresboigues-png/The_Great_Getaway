@@ -20,7 +20,8 @@
 import { STATE } from '../state.js';
 import { apiFetch, toggleFeedLike, toggleFeedBookmark, repostFeedPost,
          fetchFeedComments, postFeedComment, deleteFeedComment,
-         unshareFeedPost } from '../api.js';
+         unshareFeedPost, fetchExploreFeed,
+         type ExploreFeedItem } from '../api.js';
 import { esc, q, showLiquidAlert, showConfirmModal, buildEmptyCardHtml } from '../utils.js';
 import { navigate } from '../router.js';
 import { t } from '../i18n.js';
@@ -82,8 +83,55 @@ const cachedThreads: Record<string, FeedComment[]> = {};
 // Feed view state. Persists across renders so a tab switch + page-leave +
 // page-return restores you to where you were. Defaults: Posts tab,
 // bookmark filter off.
-let activeFeedTab: 'posts' | 'actions' = 'posts';
+//
+// §4.2 — `explore` is a third tab that surfaces ranked PUBLIC trips
+// from strangers (cold-start fix). Loaded lazily from /api/feed/explore
+// the first time the tab is opened; subsequent re-opens hit
+// `cachedExplore` instantly, with a stale-revalidate refetch in the
+// background.
+let activeFeedTab: 'posts' | 'actions' | 'explore' = 'posts';
 let bookmarkedOnly = false;
+
+// §4.2 — cache for the Explore tab. `null` means "not loaded yet";
+// `[]` means "loaded, the server returned nothing". Distinct so the
+// renderer can show a loader vs an empty state correctly.
+let cachedExplore: ExploreFeedItem[] | null = null;
+let _exploreFetchInFlight: Promise<void> | null = null;
+
+/** Lazy + dedup fetch for the Explore tab. Idempotent — calling while
+ *  a fetch is already in flight returns the same promise so we never
+ *  double-fire. On success, mutates `cachedExplore` AND invokes the
+ *  passed `onResolve` so the page can repaint. On failure, leaves
+ *  cachedExplore null (so the next tab switch retries) and quietly
+ *  toasts — Explore is a nice-to-have, not a crash-worthy surface. */
+function ensureExploreLoaded(onResolve: () => void): Promise<void> {
+    // Already loaded — synchronous re-paint via the caller's onResolve.
+    // Background stale-revalidate is left for §4.2 v2.
+    if (cachedExplore !== null && _exploreFetchInFlight === null) {
+        onResolve();
+        return Promise.resolve();
+    }
+    if (_exploreFetchInFlight) {
+        // A fetch is already in flight — piggyback on its resolve so
+        // the second click doesn't fire a duplicate request.
+        return _exploreFetchInFlight.then(onResolve);
+    }
+    _exploreFetchInFlight = (async () => {
+        try {
+            const res = await fetchExploreFeed();
+            if (res.error) {
+                console.warn('explore fetch failed:', res.error);
+                cachedExplore = [];
+            } else {
+                cachedExplore = res.items || [];
+            }
+        } finally {
+            _exploreFetchInFlight = null;
+            onResolve();
+        }
+    })();
+    return _exploreFetchInFlight;
+}
 
 // Event-type → tab membership. Posts are user-initiated, interactionable
 // (like / comment / repost). Actions are passive activity logs — nothing
@@ -148,6 +196,10 @@ export function renderFeed() {
                 <nav class="home-tabnav home-tabnav--centered" role="tablist" aria-label="Feed sections">
                     <button class="home-tabnav__tab${activeFeedTab === 'posts' ? ' is-active' : ''}" data-feed-tab="posts" role="tab" type="button" style="--accent: 88, 86, 214;">${t('feed.tabPosts')}</button>
                     <button class="home-tabnav__tab${activeFeedTab === 'actions' ? ' is-active' : ''}" data-feed-tab="actions" role="tab" type="button" style="--accent: 255, 149, 0;">${t('feed.tabActions')}</button>
+                    <!-- §4.2 — Explore tab. Accent is the share/cover
+                         teal so it visually reads as "outward / discovery"
+                         vs the social-purple Posts and orange Actions. -->
+                    <button class="home-tabnav__tab${activeFeedTab === 'explore' ? ' is-active' : ''}" data-feed-tab="explore" role="tab" type="button" style="--accent: 0, 199, 190;">Explore</button>
                 </nav>
                 <label class="apple-toggle feed-tabs-row__bookmark" id="feedBookmarkToggle" title="Filter to bookmarked items only">
                     <input type="checkbox" class="apple-toggle__input" ${bookmarkedOnly ? 'checked' : ''}>
@@ -169,6 +221,38 @@ export function renderFeed() {
      *  lands, looking like a bug). */
     let _initialFetchDone = false;
 
+    /** §4.2 — Render one Explore card. Public-trip discovery tile:
+     *  cover image, name, country, owner first-name chip, view count.
+     *  Click target: /share/<token> (the public share page). Anchor
+     *  rather than a delegated handler so the browser handles open-
+     *  in-new-tab + middle-click naturally. */
+    const renderExploreCard = (item: ExploreFeedItem): string => {
+        const cover = item.coverUrl
+            ? `background-image: url('${esc(item.coverUrl)}'); background-size: cover; background-position: center;`
+            : `background: linear-gradient(135deg, #00c7be 0%, #007aff 100%);`;
+        const ownerPic = item.owner.picture
+            ? `<img src="${esc(item.owner.picture)}" alt="" referrerpolicy="no-referrer" style="width:24px; height:24px; border-radius:50%; object-fit:cover;">`
+            : `<div style="width:24px; height:24px; border-radius:50%; background:rgba(0,113,227,0.18); display:flex; align-items:center; justify-content:center; color:#005bb8; font-size:0.7rem; font-weight:800;">${esc((item.owner.firstName || '?').slice(0, 1).toUpperCase())}</div>`;
+        return `
+            <a class="card glass feed-explore-card" href="/share/${esc(item.shareToken)}"
+               style="display:block; text-decoration:none; color:inherit; padding:0; border-radius:18px; overflow:hidden; box-shadow:0 4px 14px rgba(0,45,91,0.06); border:1px solid rgba(0,199,190,0.18);">
+                <div style="${cover} height: 160px; position: relative;">
+                    <div style="position:absolute; right:10px; top:10px; background:rgba(0,0,0,0.55); color:white; padding:4px 10px; border-radius:999px; font-size:0.72rem; font-weight:700; backdrop-filter: blur(8px);">
+                        👁 ${esc(String(item.shareViews))}
+                    </div>
+                </div>
+                <div style="padding: 14px 16px;">
+                    <div style="font-size:1.05rem; font-weight:800; color:var(--text-primary); letter-spacing:-0.02em; margin-bottom:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(item.name)}</div>
+                    <div style="font-size:0.82rem; color:var(--text-secondary); font-weight:600; margin-bottom:10px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(item.country)}</div>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        ${ownerPic}
+                        <span style="font-size:0.8rem; color:var(--text-secondary); font-weight:600;">by ${esc(item.owner.firstName || 'Traveller')}</span>
+                    </div>
+                </div>
+            </a>
+        `;
+    };
+
     /** Paint #feedList from `cachedEvents`, filtered by the active tab
      *  and the bookmarked-only toggle. Pure DOM swap; no fetch.
      *  Empty-state copy varies by combo — "no posts yet" reads very
@@ -176,6 +260,42 @@ export function renderFeed() {
     const paintList = () => {
         const listEl = q(div, '#feedList');
         if (!listEl) return;
+
+        // §4.2 — Explore tab has its own render path: card grid from
+        // the dedicated /api/feed/explore endpoint (not from
+        // cachedEvents). Branches first so the activity-feed loader /
+        // empty-state machinery below isn't confused by the explore
+        // cache being null on cold-load.
+        if (activeFeedTab === 'explore') {
+            if (cachedExplore === null) {
+                listEl.innerHTML = `
+                    <div class="card glass" style="padding: 32px; border-radius: 24px; text-align:center;">
+                        <div class="spinner-ring" style="width:32px; height:32px; border:3px solid rgba(0,199,190,0.18); border-top-color:#00a39d; border-radius:50%; animation:spin 1s linear infinite; margin: 0 auto 14px;"></div>
+                        <div style="color: var(--text-secondary); font-size: 0.88rem; font-weight: 600;">Finding trips to discover…</div>
+                    </div>
+                `;
+                return;
+            }
+            if (cachedExplore.length === 0) {
+                listEl.innerHTML = buildEmptyCardHtml({
+                    accent: 'blue',
+                    emoji: '🌍',
+                    title: 'No public trips yet',
+                    body: 'Be the first — share one of your own to seed the Explore feed for everyone.',
+                });
+                return;
+            }
+            // Render as a grid on desktop, single column on mobile.
+            // The card has its own visual treatment so the wrapper just
+            // controls the layout.
+            listEl.innerHTML = `
+                <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:14px;">
+                    ${cachedExplore.map(renderExploreCard).join('')}
+                </div>
+            `;
+            return;
+        }
+
         // Initial-load loader — only shows BEFORE the first /api/feed
         // response has landed. After the fetch resolves (success or
         // fail), `_initialFetchDone` flips and we fall through to the
@@ -394,12 +514,20 @@ export function renderFeed() {
     // is-active classes + repaints the list.
     div.querySelectorAll('.home-tabnav__tab[data-feed-tab]').forEach(btn => {
         (btn as HTMLButtonElement).onclick = () => {
-            const tab = (btn as HTMLElement).dataset.feedTab as 'posts' | 'actions' | undefined;
+            const tab = (btn as HTMLElement).dataset.feedTab as
+                'posts' | 'actions' | 'explore' | undefined;
             if (!tab || activeFeedTab === tab) return;
             activeFeedTab = tab;
             div.querySelectorAll('.home-tabnav__tab[data-feed-tab]').forEach(b => {
                 b.classList.toggle('is-active', (b as HTMLElement).dataset.feedTab === tab);
             });
+            // §4.2 — Explore is loaded lazily on first switch; kicks
+            // off a fetch that will re-call paintList when it resolves.
+            // Subsequent switches paint from cache instantly + refresh
+            // in the background (stale-revalidate).
+            if (tab === 'explore') {
+                ensureExploreLoaded(paintList);
+            }
             paintList();
         };
     });

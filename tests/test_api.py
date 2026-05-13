@@ -3928,3 +3928,189 @@ def test_achievements_rule_failure_doesnt_poison_sweep(client, seed_user, auth_h
     assert "first_trip" in ids
     # The broken rule didn't earn the user a badge.
     assert "explosive_test_badge" not in ids
+
+
+# ── §4.2 Explore feed ────────────────────────────────────────────────
+# Helpers seed shareable trips directly (the share-via-link flow is
+# tested elsewhere). The explore ranking is multiplicative on
+# recency × country × engagement, so the tests probe each factor
+# independently.
+
+
+def _seed_shareable_trip(
+    owner_id: str,
+    trip_id: str,
+    name: str = "Test Trip",
+    country: str = "Test, Test",
+    country_code: str = "XX",
+    share_views: int = 0,
+    created_at: str | None = None,
+):
+    """Insert a trip with a share_token so /api/feed/explore picks it up.
+    `created_at` defaults to "now" via the column default; pass an
+    explicit ISO string to test the recency_factor decay."""
+    from database import get_db
+    with get_db() as conn:
+        if created_at:
+            conn.execute(
+                "INSERT INTO trips (id, user_id, name, country, country_code, "
+                "share_token, share_views, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (trip_id, owner_id, name, country, country_code,
+                 f"tok-{trip_id}", share_views, created_at),
+            )
+        else:
+            conn.execute(
+                "INSERT INTO trips (id, user_id, name, country, country_code, "
+                "share_token, share_views) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (trip_id, owner_id, name, country, country_code,
+                 f"tok-{trip_id}", share_views),
+            )
+        conn.commit()
+
+
+def test_explore_lists_shareable_trips_from_strangers(
+    client, seed_user, seed_other_user, auth_headers,
+):
+    """Trips owned by someone else with a share_token appear in the
+    Explore feed of a stranger. The basic cold-start surface."""
+    _seed_shareable_trip(seed_other_user, "exp-1", name="Lisbon", country="Portugal", country_code="PT")
+    res = client.get("/api/feed/explore", headers=auth_headers)
+    assert res.status_code == 200
+    items = res.get_json()["items"]
+    assert any(i["tripId"] == "exp-1" for i in items)
+    item = next(i for i in items if i["tripId"] == "exp-1")
+    assert item["shareToken"] == "tok-exp-1"
+    assert item["owner"]["id"] == seed_other_user
+    assert item["owner"]["firstName"]  # Always derived from owner.name
+
+
+def test_explore_excludes_own_trips(client, seed_user, auth_headers):
+    """Trips OWNED by the viewer must not appear — they're not strangers
+    to their own data. The feed already has those via the friends path."""
+    _seed_shareable_trip(seed_user, "exp-own", name="Mine")
+    items = client.get("/api/feed/explore", headers=auth_headers).get_json()["items"]
+    assert not any(i["tripId"] == "exp-own" for i in items)
+
+
+def test_explore_excludes_trips_user_is_member_of(
+    client, seed_user, seed_other_user, auth_headers,
+):
+    """Trips the viewer is already an accepted member of don't appear.
+    They're not strangers to the trip — Explore should surface NEW
+    discoveries."""
+    _seed_shareable_trip(seed_other_user, "exp-member")
+    _seed_member("exp-member", seed_user, role="relaxer")
+    items = client.get("/api/feed/explore", headers=auth_headers).get_json()["items"]
+    assert not any(i["tripId"] == "exp-member" for i in items)
+
+
+def test_explore_excludes_trips_without_share_token(
+    client, seed_user, seed_other_user, auth_headers,
+):
+    """Trips without a share_token are NOT publicly accessible (the
+    owner hasn't opted in). Explore must respect that — only shareable
+    trips show up."""
+    from database import get_db
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO trips (id, user_id, name, country) VALUES (?, ?, ?, ?)",
+            ("exp-private", seed_other_user, "Private", "Anywhere"),
+        )
+        conn.commit()
+    items = client.get("/api/feed/explore", headers=auth_headers).get_json()["items"]
+    assert not any(i["tripId"] == "exp-private" for i in items)
+
+
+def test_explore_ranks_unvisited_countries_higher(
+    client, seed_user, seed_other_user, auth_headers,
+):
+    """Two trips with identical recency + engagement, one in a country
+    the viewer's been to, one new. The new-country trip ranks higher
+    (country_factor 1.5 vs 1.0)."""
+    # Viewer's own trip in PT — establishes "visited"
+    _create_trip(client, auth_headers, trip_id="own-pt", name="Mine PT")
+    from database import get_db
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE trips SET country_code = 'PT' WHERE id = ?",
+            ("own-pt",),
+        )
+        conn.commit()
+
+    _seed_shareable_trip(seed_other_user, "exp-visited", country="Portugal", country_code="PT")
+    _seed_shareable_trip(seed_other_user, "exp-novel", country="Japan", country_code="JP")
+
+    items = client.get("/api/feed/explore", headers=auth_headers).get_json()["items"]
+    # Both should appear, but exp-novel comes first.
+    ids = [i["tripId"] for i in items]
+    assert "exp-novel" in ids and "exp-visited" in ids
+    assert ids.index("exp-novel") < ids.index("exp-visited")
+
+
+def test_explore_ranks_higher_engagement_higher(
+    client, seed_user, seed_other_user, auth_headers,
+):
+    """All other factors equal, a trip with more share_views ranks
+    higher than one with fewer. log1p shape means the bump is sub-
+    linear — a 100× view advantage shouldn't fully dominate a country
+    mismatch, but among equal-country trips, more views wins."""
+    _seed_shareable_trip(seed_other_user, "exp-popular", country_code="JP", share_views=1000)
+    _seed_shareable_trip(seed_other_user, "exp-quiet", country_code="JP", share_views=0)
+
+    items = client.get("/api/feed/explore", headers=auth_headers).get_json()["items"]
+    ids = [i["tripId"] for i in items]
+    assert ids.index("exp-popular") < ids.index("exp-quiet")
+
+
+def test_explore_recency_decay(
+    client, seed_user, seed_other_user, auth_headers,
+):
+    """Trips past the 60-day discovery window score 0 on recency
+    factor, which (because the score is multiplicative) drops them
+    out of the result set entirely — no matter how many views.
+
+    Design choice: a hard 60-day window keeps Explore feeling fresh.
+    Older trips will get a dedicated "search by country" surface in
+    §4.2 v2. Without this, viral-but-stale trips would crowd out
+    new discoveries forever."""
+    from datetime import datetime, timedelta, timezone
+
+    # 90 days old, lots of views — should NOT appear.
+    old_stamp = (datetime.now(timezone.utc) - timedelta(days=90)).strftime("%Y-%m-%d %H:%M:%S")
+    _seed_shareable_trip(
+        seed_other_user, "exp-stale", country_code="JP",
+        share_views=10000, created_at=old_stamp,
+    )
+    # Fresh trip — should appear even with zero views.
+    _seed_shareable_trip(seed_other_user, "exp-fresh", country_code="JP", share_views=0)
+
+    items = client.get("/api/feed/explore", headers=auth_headers).get_json()["items"]
+    ids = [i["tripId"] for i in items]
+    assert "exp-fresh" in ids
+    assert "exp-stale" not in ids
+
+    # A trip JUST INSIDE the window with low engagement should still
+    # surface — confirm the cutoff is genuine and not "anything older
+    # than today is gone".
+    recent_stamp = (datetime.now(timezone.utc) - timedelta(days=30)).strftime("%Y-%m-%d %H:%M:%S")
+    _seed_shareable_trip(
+        seed_other_user, "exp-recent", country_code="JP",
+        share_views=0, created_at=recent_stamp,
+    )
+    items2 = client.get("/api/feed/explore", headers=auth_headers).get_json()["items"]
+    assert any(i["tripId"] == "exp-recent" for i in items2)
+
+
+def test_explore_caps_at_24(client, seed_user, seed_other_user, auth_headers):
+    """Result set is capped at 24 — explicit pagination is §4.2 v2."""
+    for i in range(30):
+        _seed_shareable_trip(seed_other_user, f"exp-cap-{i}")
+    items = client.get("/api/feed/explore", headers=auth_headers).get_json()["items"]
+    assert len(items) <= 24
+
+
+def test_explore_requires_auth(client):
+    """v1 is auth-only; anonymous discovery deferred. Catches a
+    refactor that strips @require_auth by accident."""
+    assert client.get("/api/feed/explore").status_code == 401

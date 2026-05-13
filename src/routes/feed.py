@@ -700,6 +700,148 @@ def get_feed():
     return jsonify(events)
 
 
+# ── §4.2 Explore — cold-start fix ────────────────────────────────────
+#
+# The activity feed (above) shows friends + own activity only. A user
+# with zero friends sees an empty feed — VISION calls this out as the
+# single biggest cold-start friction. /api/feed/explore returns ranked
+# *strangers'* public trips so a fresh signup has something to browse
+# from minute one.
+#
+# Ranking heuristic — three factors, multiplicative:
+#   recency_factor  — linear decay over 60 days from trip.created_at
+#                     so old shares fade without a hard cliff
+#   country_factor  — 1.5× when the country isn't in the viewer's
+#                     visited set (encourages discovery), 1.0× when
+#                     they've been there (demote, don't hide; a great
+#                     trip in your own country is still worth surfacing)
+#   engagement_bonus = 1 + log1p(share_views) * 0.3
+#                      → small lift per view, asymptotic so a viral
+#                      trip doesn't crowd everything else
+#
+# Pool: trips with `share_token IS NOT NULL` (publicly shareable). We
+# don't read trips.is_public alone — the share-link feature is the
+# canonical "I made this public" signal post-§4.1.
+#
+# Exclusions: trips owned by the viewer + trips the viewer is an
+# accepted member of (they're not strangers to those).
+#
+# Limit 24 — enough to fill three rows on desktop without paying for
+# pagination yet. Pagination + country chip filter are §4.2 v2.
+
+
+def _viewer_visited_countries(cursor, user_id: str) -> set[str]:
+    """Distinct country_codes the viewer's own trips touch. Used by
+    the country_factor weighting in /api/feed/explore. Falls back to
+    LOWER(country) when country_code is missing so legacy trips still
+    contribute to "already visited" demotion."""
+    cursor.execute(
+        "SELECT DISTINCT COALESCE(NULLIF(country_code, ''), LOWER(country)) AS key "
+        "FROM trips WHERE user_id = ? AND COALESCE(country, '') != ''",
+        (user_id,),
+    )
+    return {r["key"] for r in cursor.fetchall() if r["key"]}
+
+
+@bp.route("/api/feed/explore", methods=["GET"])
+@require_auth
+@limiter.limit("60/minute")
+def explore_feed():
+    """Ranked public-trip discovery for the cold-start case (§4.2).
+
+    Auth-only by design for v1 — anonymous discovery is conceptually
+    fine but introduces a fresh rate-limit / privacy surface and we
+    don't need it to fix the new-user empty-feed problem (the user
+    just signed up, they HAVE a token). Future v2 can drop the gate
+    on `/api/feed/explore?anon=1` if needed.
+    """
+    import math
+
+    user_id = current_user_id()
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        visited = _viewer_visited_countries(cursor, user_id)
+
+        # Pull every shareable trip the viewer doesn't already own or
+        # member-of. The trip_members exclusion prevents a planner
+        # who's been invited to someone else's trip from seeing it
+        # listed in their Explore feed (they're already in it).
+        cursor.execute(
+            """
+            SELECT t.id, t.user_id AS owner_id, t.name, t.country, t.country_code,
+                   t.cover_url, t.share_token, t.share_views, t.created_at,
+                   u.name AS owner_name, u.picture AS owner_picture
+            FROM trips t
+            JOIN users u ON u.id = t.user_id
+            WHERE t.share_token IS NOT NULL
+              AND t.user_id != ?
+              AND t.id NOT IN (
+                  SELECT trip_id FROM trip_members
+                  WHERE user_id = ? AND invitation_status = 'accepted'
+              )
+            """,
+            (user_id, user_id),
+        )
+        rows = cursor.fetchall()
+
+        # Score each row in Python. SQL date arithmetic on SQLite is
+        # finicky across versions; Python is clearer and the row count
+        # is small (every trip with a share token across all users —
+        # bounded by the share-feature's actual usage).
+        from datetime import datetime, timezone
+
+        now = datetime.now(timezone.utc)
+        scored = []
+        for r in rows:
+            country_key = (r["country_code"] or "") or (r["country"] or "").lower()
+            country_factor = 1.0 if country_key in visited else 1.5
+
+            views = r["share_views"] or 0
+            engagement_bonus = 1.0 + math.log1p(views) * 0.3
+
+            recency_factor = 0.0
+            try:
+                created = datetime.fromisoformat(
+                    (r["created_at"] or "").replace(" ", "T")
+                )
+                if created.tzinfo is None:
+                    created = created.replace(tzinfo=timezone.utc)
+                age_days = max(0.0, (now - created).total_seconds() / 86400.0)
+                recency_factor = max(0.0, 1.0 - age_days / 60.0)
+            except (ValueError, TypeError):
+                # Legacy / malformed timestamp — score it as borderline
+                # so it can still surface if engagement is high.
+                recency_factor = 0.1
+
+            score = recency_factor * country_factor * engagement_bonus
+            if score <= 0:
+                continue
+
+            owner_name = r["owner_name"] or "Someone"
+            scored.append((score, {
+                "tripId": r["id"],
+                "name": r["name"] or "Untitled trip",
+                "country": r["country"] or "",
+                "countryCode": r["country_code"] or "",
+                "coverUrl": r["cover_url"],
+                "shareToken": r["share_token"],
+                "shareViews": int(views),
+                "owner": {
+                    "id": r["owner_id"],
+                    "name": owner_name,
+                    "firstName": owner_name.split(" ")[0],
+                    "picture": r["owner_picture"],
+                },
+                "createdAt": r["created_at"],
+            }))
+
+        scored.sort(key=lambda x: x[0], reverse=True)
+        items = [card for _, card in scored[:24]]
+
+    return jsonify({"items": items})
+
+
 @bp.route("/api/feed/share", methods=["POST"])
 @require_auth
 @limiter.limit("30/minute")
