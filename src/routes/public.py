@@ -221,17 +221,21 @@ def fetch_share_payload(token):
 
     Payload is INTENTIONALLY STRIPPED:
       - trip: id, name, country, cover_url, dates derived from days
-      - days: dayNumber, date, name, lat, lng (NO plan / notes / photos)
+      - days: dayNumber, date, name, lat, lng
+              (plus morning/afternoon/evening/tip when share_show_plans=1)
       - owner: first name + picture only (no email, no full name)
       - views: share_views count for the chip on the page
       - cost: included only when share_show_cost = 1; shape is an
         aggregate (total + per-country) — never line items.
+
+    Photos, documents, expense line items, and member identities are
+    NEVER exposed regardless of toggle state.
     """
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute(
             "SELECT id, user_id, name, country, country_code, cover_url, "
-            "lat, lng, viewport_json, share_views, share_show_cost "
+            "lat, lng, viewport_json, share_views, share_show_cost, share_show_plans "
             "FROM trips WHERE share_token = ?",
             (token,),
         )
@@ -252,22 +256,45 @@ def fetch_share_payload(token):
             "views": int(row["share_views"] or 0),
         }
         show_cost = bool(row["share_show_cost"])
+        show_plans = bool(row["share_show_plans"])
 
-        cursor.execute(
-            "SELECT day_number, date, name, lat, lng "
-            "FROM trip_days WHERE trip_id = ? "
-            "ORDER BY COALESCE(day_number, 0), date",
-            (row["id"],),
-        )
+        # SELECT plan fields conditionally to avoid sending them over the
+        # wire (and into Jinja's context) when they aren't going to be
+        # rendered. Defense-in-depth: even if the template were patched
+        # to render them unconditionally, an unauthorized share wouldn't
+        # have the data available.
+        if show_plans:
+            cursor.execute(
+                "SELECT day_number, date, name, lat, lng, "
+                "       morning, afternoon, evening, tip "
+                "FROM trip_days WHERE trip_id = ? "
+                "ORDER BY COALESCE(day_number, 0), date",
+                (row["id"],),
+            )
+        else:
+            cursor.execute(
+                "SELECT day_number, date, name, lat, lng "
+                "FROM trip_days WHERE trip_id = ? "
+                "ORDER BY COALESCE(day_number, 0), date",
+                (row["id"],),
+            )
         days = []
         for d in cursor.fetchall():
-            days.append({
+            day = {
                 "dayNumber": d["day_number"],
                 "date": d["date"],
                 "name": d["name"] or "",
                 "lat": d["lat"],
                 "lng": d["lng"],
-            })
+            }
+            if show_plans:
+                day["plan"] = {
+                    "morning": unwrap_legacy_plan_text(d["morning"] or ""),
+                    "afternoon": unwrap_legacy_plan_text(d["afternoon"] or ""),
+                    "evening": unwrap_legacy_plan_text(d["evening"] or ""),
+                }
+                day["tip"] = d["tip"] or ""
+            days.append(day)
 
         # Owner display — first name only. Sharing exposes WHO shared
         # the trip but not their email or full identity.

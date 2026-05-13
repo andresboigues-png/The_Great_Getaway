@@ -842,6 +842,7 @@ export const openShareTripModal = (trip: any) => {
 
     const initialToken: string | null = current.shareToken || null;
     const initialShowCost: boolean = !!current.shareShowCost;
+    const initialShowPlans: boolean = !!current.shareShowPlans;
 
     const { root, close } = showModal({
         variant: 'glass',
@@ -852,15 +853,22 @@ export const openShareTripModal = (trip: any) => {
                 Anyone with the link can view your trip. No account needed.
             </p>
 
-            <!-- Cost toggle — the privacy-sensitive switch. Default off
-                 unless the trip already had it on from a previous share.
-                 When on, the public artifact shows total + per-country
-                 breakdown but never line items. -->
-            <label id="shareCostToggleRow" style="display: flex; align-items: center; gap: var(--space-3); width: 100%; padding: var(--space-3) var(--space-4); background: rgba(255,255,255,0.08); border-radius: 14px; margin-bottom: var(--space-4); cursor: pointer;">
+            <!-- Privacy toggles. Default off unless the trip already
+                 had them on from a previous share. The shared page
+                 ALWAYS shows the trip's name, cover photo, and the
+                 day-by-day Path; these toggles add layers on top. -->
+            <label id="shareCostToggleRow" style="display: flex; align-items: center; gap: var(--space-3); width: 100%; padding: var(--space-3) var(--space-4); background: rgba(255,255,255,0.08); border-radius: 14px; margin-bottom: 10px; cursor: pointer;">
                 <input type="checkbox" id="shareCostToggle" ${initialShowCost ? 'checked' : ''} style="width: 18px; height: 18px; accent-color: #34c759;">
                 <div style="flex: 1; min-width: 0;">
                     <div style="font-weight: 700; font-size: 0.92rem; color: #ffffff;">Show total cost on the page</div>
                     <div style="font-size: 0.78rem; color: rgba(255,255,255,0.7); margin-top: 2px;">Aggregate only — no individual expenses.</div>
+                </div>
+            </label>
+            <label id="sharePlansToggleRow" style="display: flex; align-items: center; gap: var(--space-3); width: 100%; padding: var(--space-3) var(--space-4); background: rgba(255,255,255,0.08); border-radius: 14px; margin-bottom: var(--space-4); cursor: pointer;">
+                <input type="checkbox" id="sharePlansToggle" ${initialShowPlans ? 'checked' : ''} style="width: 18px; height: 18px; accent-color: #34c759;">
+                <div style="flex: 1; min-width: 0;">
+                    <div style="font-weight: 700; font-size: 0.92rem; color: #ffffff;">Show day-by-day plans</div>
+                    <div style="font-size: 0.78rem; color: rgba(255,255,255,0.7); margin-top: 2px;">Morning / afternoon / evening notes per day. Photos and documents stay private.</div>
                 </div>
             </label>
 
@@ -881,6 +889,7 @@ export const openShareTripModal = (trip: any) => {
     const generateBtn = q(root, '#shareGenerateBtn') as HTMLButtonElement;
     const secondaryBtn = q(root, '#shareSecondaryBtn') as HTMLButtonElement;
     const costToggle = q(root, '#shareCostToggle') as HTMLInputElement;
+    const plansToggle = q(root, '#sharePlansToggle') as HTMLInputElement;
 
     let currentToken: string | null = initialToken;
 
@@ -934,14 +943,17 @@ export const openShareTripModal = (trip: any) => {
             return;
         }
         // No token yet — generate. POST creates a token AND records
-        // the showCost preference in one round-trip.
+        // both privacy preferences (showCost + showPlans) in one round-trip.
         generateBtn.disabled = true;
         generateBtn.textContent = 'Generating…';
         try {
             const res = await apiFetch(`/api/trips/${encodeURIComponent(trip.id)}/share`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ showCost: costToggle.checked }),
+                body: JSON.stringify({
+                    showCost: costToggle.checked,
+                    showPlans: plansToggle.checked,
+                }),
             });
             if (!res.ok) throw new Error(`share HTTP ${res.status}`);
             const data = await res.json();
@@ -954,6 +966,7 @@ export const openShareTripModal = (trip: any) => {
             if (localTrip) {
                 localTrip.shareToken = currentToken;
                 localTrip.shareShowCost = !!data.showCost;
+                localTrip.shareShowPlans = !!data.showPlans;
                 if (typeof localTrip.shareViews !== 'number') localTrip.shareViews = 0;
             }
             emit('state:changed');
@@ -987,6 +1000,7 @@ export const openShareTripModal = (trip: any) => {
             if (localTrip) {
                 localTrip.shareToken = null;
                 localTrip.shareShowCost = false;
+                localTrip.shareShowPlans = false;
             }
             emit('state:changed');
             renderState();
@@ -999,19 +1013,30 @@ export const openShareTripModal = (trip: any) => {
         }
     };
 
-    // Toggling the cost switch on an already-shared trip should write
-    // through to the server so the public page updates immediately —
-    // otherwise the user thinks the toggle works locally and then is
-    // surprised when the public page still shows / hides cost the old
-    // way. For an UNshared trip the toggle is just a preference — the
-    // value gets persisted when Generate is clicked.
-    costToggle.addEventListener('change', async () => {
+    // Toggling either privacy switch on an already-shared trip should
+    // write through to the server so the public page updates
+    // immediately — otherwise the user thinks the toggle works
+    // locally and then is surprised when the public page still
+    // shows / hides the data the old way. For an UNshared trip the
+    // toggles are just preferences — the values get persisted when
+    // Generate is clicked.
+    //
+    // We send BOTH current values on every toggle so a single POST
+    // captures the full intended state; the server's UPDATE statement
+    // rewrites both columns from the request body.
+    const persistTogglesIfShared = async (
+        changed: HTMLInputElement,
+        otherKey: 'showCost' | 'showPlans',
+    ): Promise<void> => {
         if (!currentToken) return;
         try {
             const res = await apiFetch(`/api/trips/${encodeURIComponent(trip.id)}/share`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ showCost: costToggle.checked }),
+                body: JSON.stringify({
+                    showCost: costToggle.checked,
+                    showPlans: plansToggle.checked,
+                }),
             });
             if (!res.ok) throw new Error(`update HTTP ${res.status}`);
             const data = await res.json();
@@ -1021,16 +1046,21 @@ export const openShareTripModal = (trip: any) => {
             if (localTrip) {
                 localTrip.shareToken = currentToken;
                 localTrip.shareShowCost = !!data.showCost;
+                localTrip.shareShowPlans = !!data.showPlans;
             }
             emit('state:changed');
             // Token rotated server-side — re-render the URL row.
             renderState();
         } catch (e) {
-            console.error('Toggle cost failed:', e);
-            costToggle.checked = !costToggle.checked;
-            showLiquidAlert("Couldn't update the cost setting.");
+            console.error(`Toggle ${otherKey} failed:`, e);
+            // Roll the changed toggle back so the UI matches the
+            // server's state. Leave the other toggle alone.
+            changed.checked = !changed.checked;
+            showLiquidAlert("Couldn't update the setting.");
         }
-    });
+    };
+    costToggle.addEventListener('change', () => persistTogglesIfShared(costToggle, 'showCost'));
+    plansToggle.addEventListener('change', () => persistTogglesIfShared(plansToggle, 'showPlans'));
 
     generateBtn.onclick = generateOrCopy;
     secondaryBtn.onclick = revokeOrClose;

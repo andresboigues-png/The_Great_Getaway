@@ -175,6 +175,12 @@ def init_db():
             ("share_token", "ALTER TABLE trips ADD COLUMN share_token TEXT"),
             ("share_views", "ALTER TABLE trips ADD COLUMN share_views INTEGER DEFAULT 0"),
             ("share_show_cost", "ALTER TABLE trips ADD COLUMN share_show_cost INTEGER DEFAULT 0"),
+            # Second share-page privacy toggle (companion to
+            # share_show_cost). Off by default — itinerary text can
+            # be the most private part of a trip ("apartment key
+            # under the mat" etc.); a casual share should never
+            # accidentally expose it.
+            ("share_show_plans", "ALTER TABLE trips ADD COLUMN share_show_plans INTEGER DEFAULT 0"),
             # JSON-encoded list of trip-level photos. Each entry:
             # { id, src, dayId?, addedAt? }. Same shape rules as
             # documents — dayId optional. See the Photos tab on Home.

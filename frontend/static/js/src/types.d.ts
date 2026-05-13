@@ -162,6 +162,12 @@ export interface Trip {
     shareToken?: string | null;
     shareViews?: number;
     shareShowCost?: boolean;
+    /** Second share-page privacy toggle (companion to shareShowCost).
+     *  When true, the public /share/<token> page renders the day plan
+     *  text (morning / afternoon / evening + tip) instead of just the
+     *  Path. Owner-controlled; off by default. Photos / documents are
+     *  still NEVER exposed regardless of this flag. */
+    shareShowPlans?: boolean;
 }
 
 /** Single row in `Trip.checklist`. `id` is a stable client-generated

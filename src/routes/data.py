@@ -390,6 +390,7 @@ def get_data():
             t['shareToken'] = t.pop('share_token', None)
             t['shareViews'] = int(t.pop('share_views', 0) or 0)
             t['shareShowCost'] = bool(t.pop('share_show_cost', 0))
+            t['shareShowPlans'] = bool(t.pop('share_show_plans', 0))
 
             # Per-user archive + role from the pre-fetched lookup table.
             # Owners may not have a row yet on legacy data — fall back

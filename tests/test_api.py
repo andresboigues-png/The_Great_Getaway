@@ -2737,6 +2737,93 @@ def test_share_public_payload_includes_aggregate_cost_when_opted_in(
     assert "Coffee" not in res.get_data(as_text=True)
 
 
+def test_share_public_payload_excludes_plans_by_default(
+    client, seed_user, auth_headers,
+):
+    """Privacy posture #2: a share with showPlans=False (default)
+    MUST NOT return any day plan text — morning/afternoon/evening
+    notes or tip strings. The day rows return only metadata
+    (dayNumber, date, name, lat, lng)."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-share-noplans")
+    client.post("/api/days", headers=auth_headers, json={
+        "day": {
+            "id": "d1", "tripId": trip_id, "dayNumber": 1, "date": "2026-06-01",
+            "name": "Lisbon", "plan": {
+                "morning": "Secret cafe address at Rua X",
+                "afternoon": "Castle visit",
+                "evening": "",
+            },
+            "tip": "Apartment key under the mat",
+        },
+    })
+    create = client.post(
+        f"/api/trips/{trip_id}/share", headers=auth_headers,
+        json={"showPlans": False},
+    ).get_json()
+    res = client.get(f"/api/share/{create['token']}")
+    body = res.get_json()
+    # Plan / tip keys not present in the day shape.
+    assert all("plan" not in d for d in body["days"])
+    assert all("tip" not in d for d in body["days"])
+    # The raw plan / tip text must not leak into the JSON anywhere.
+    raw = res.get_data(as_text=True)
+    assert "Secret cafe address" not in raw
+    assert "Apartment key under the mat" not in raw
+
+
+def test_share_public_payload_includes_plans_when_opted_in(
+    client, seed_user, auth_headers,
+):
+    """Opt-in: showPlans=True surfaces morning/afternoon/evening text
+    + the tip per day. Photos and documents are still NOT included
+    (separate, not-yet-implemented toggle)."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-share-plans")
+    client.post("/api/days", headers=auth_headers, json={
+        "day": {
+            "id": "d2", "tripId": trip_id, "dayNumber": 1, "date": "2026-06-02",
+            "name": "Lisbon",
+            "plan": {
+                "morning": "Pasteis de Belem queue",
+                "afternoon": "Tram 28 ride",
+                "evening": "Bairro Alto dinner",
+            },
+            "tip": "Buy a Viva Viagem card at any metro",
+        },
+    })
+    create = client.post(
+        f"/api/trips/{trip_id}/share", headers=auth_headers,
+        json={"showPlans": True},
+    ).get_json()
+    assert create["showPlans"] is True
+    res = client.get(f"/api/share/{create['token']}")
+    body = res.get_json()
+    day = next((d for d in body["days"] if d["dayNumber"] == 1), None)
+    assert day is not None
+    assert day["plan"]["morning"] == "Pasteis de Belem queue"
+    assert day["plan"]["afternoon"] == "Tram 28 ride"
+    assert day["plan"]["evening"] == "Bairro Alto dinner"
+    assert day["tip"] == "Buy a Viva Viagem card at any metro"
+
+
+def test_share_revoke_resets_plans_toggle(client, seed_user, auth_headers):
+    """DELETE share clears BOTH the token AND the toggles, so a
+    re-share starts privacy-clean. Prevents "I unshared, then someone
+    re-shared, and the cost banner I'd toggled on last time is still
+    on" surprise."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-share-reset")
+    client.post(
+        f"/api/trips/{trip_id}/share", headers=auth_headers,
+        json={"showCost": True, "showPlans": True},
+    )
+    client.delete(f"/api/trips/{trip_id}/share", headers=auth_headers)
+    # Fresh re-share — defaults should be off again.
+    after = client.post(
+        f"/api/trips/{trip_id}/share", headers=auth_headers, json={},
+    ).get_json()
+    assert after["showCost"] is False
+    assert after["showPlans"] is False
+
+
 def test_share_view_count_increments_and_dedupes_in_24h(
     client, seed_user, auth_headers,
 ):

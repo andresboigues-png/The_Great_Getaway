@@ -372,22 +372,28 @@ def remove_trip_member():
 def create_share_link(trip_id):
     """Owner-only: generate or replace the share token for a trip.
 
-    Returns `{ token, url, showCost }` so the frontend can drop the
-    URL straight into clipboard / Web Share API. The same endpoint
-    handles "rotate the link" — if a token already exists, it's
-    overwritten so the previous URL stops working immediately. The
-    `showCost` flag is plumbed in via request body so the owner can
-    toggle "show cost summary on the public page" at share time
-    without a second round-trip.
+    Returns `{ token, url, showCost, showPlans }` so the frontend can
+    drop the URL straight into clipboard / Web Share API and reflect
+    the current privacy toggle state. The same endpoint handles
+    "rotate the link" — if a token already exists, it's overwritten
+    so the previous URL stops working immediately. The `showCost` /
+    `showPlans` flags are plumbed in via request body so the owner
+    can toggle the two privacy switches at share time without a
+    second round-trip.
 
-    Privacy default: showCost is OFF unless explicitly requested.
+    Privacy default: both toggles OFF unless explicitly requested.
     Visitors only ever see the trip's name, cover, day-by-day path,
-    and (if showCost is on) an aggregate cost banner — never line
-    items, photos, journals, or member identities.
+    and:
+      - (showCost=true) an aggregate cost summary (no line items)
+      - (showPlans=true) the day plan text (morning/afternoon/evening
+        + tip)
+    Photos, documents, expense line items, and member identities
+    are never exposed regardless of toggle state.
     """
     user_id = current_user_id()
     payload = request.json or {}
     show_cost = bool(payload.get("showCost", False))
+    show_plans = bool(payload.get("showPlans", False))
 
     with get_db() as conn:
         cursor = conn.cursor()
@@ -398,14 +404,16 @@ def create_share_link(trip_id):
         # on share_token catches the lottery-ticket case anyway.
         token = secrets.token_urlsafe(16)
         cursor.execute(
-            "UPDATE trips SET share_token = ?, share_show_cost = ? WHERE id = ?",
-            (token, 1 if show_cost else 0, trip_id),
+            "UPDATE trips SET share_token = ?, share_show_cost = ?, share_show_plans = ? "
+            "WHERE id = ?",
+            (token, 1 if show_cost else 0, 1 if show_plans else 0, trip_id),
         )
         conn.commit()
     return jsonify({
         "token": token,
         "url": f"/share/{token}",
         "showCost": show_cost,
+        "showPlans": show_plans,
     })
 
 
@@ -423,7 +431,8 @@ def revoke_share_link(trip_id):
         if not is_trip_owner(cursor, trip_id, user_id):
             return jsonify({"error": "Forbidden"}), 403
         cursor.execute(
-            "UPDATE trips SET share_token = NULL, share_show_cost = 0 WHERE id = ?",
+            "UPDATE trips SET share_token = NULL, share_show_cost = 0, share_show_plans = 0 "
+            "WHERE id = ?",
             (trip_id,),
         )
         conn.commit()

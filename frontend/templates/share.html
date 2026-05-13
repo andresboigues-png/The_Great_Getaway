@@ -143,7 +143,10 @@
       border-radius: 14px;
       margin-bottom: 10px;
       box-shadow: 0 4px 14px rgba(0, 45, 91, 0.06);
-      align-items: center;
+      /* When plan blocks are present the row stretches vertically.
+         align-items: flex-start keeps the day number at the top so
+         the visual rhythm matches the icon-on-the-left convention. */
+      align-items: flex-start;
     }
     .day-num {
       flex-shrink: 0;
@@ -161,6 +164,52 @@
     .day-body { flex: 1; min-width: 0; }
     .day-name { font-weight: 700; font-size: 0.95rem; }
     .day-meta { font-size: 0.78rem; color: #8e8e93; margin-top: 2px; }
+    /* Plan block — only renders when the owner opted in via
+       share_show_plans. Each timeslot (morning/afternoon/evening) is
+       a left-bordered card with a tiny label. White-space pre-wrap
+       preserves newlines the user typed without rendering raw HTML
+       (Jinja autoescape handles the rest). */
+    .day-plan {
+      margin-top: 12px;
+      display: grid;
+      gap: 8px;
+    }
+    .plan-slot {
+      background: #f7faff;
+      border-left: 3px solid #0071e3;
+      padding: 8px 12px;
+      border-radius: 0 8px 8px 0;
+      font-size: 0.85rem;
+      line-height: 1.45;
+      color: #1d1d1f;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+    .plan-slot__label {
+      display: block;
+      font-size: 0.65rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #0071e3;
+      margin-bottom: 4px;
+    }
+    .day-tip {
+      margin-top: 10px;
+      padding: 8px 12px;
+      background: rgba(255, 149, 0, 0.10);
+      border-radius: 8px;
+      font-size: 0.82rem;
+      color: #5b3a00;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+    .day-tip__label {
+      font-weight: 800;
+      letter-spacing: 0.02em;
+      color: #ff9500;
+      margin-right: 6px;
+    }
     .share-cta {
       text-align: center;
       padding: 28px 20px 0;
@@ -263,6 +312,31 @@
         <div class="day-body">
           <div class="day-name">{{ d.name or 'Day ' ~ (d.dayNumber or loop.index) }}</div>
           <div class="day-meta">{{ d.date or '' }}</div>
+          {# Plan block — only present when the owner opted in via
+             share_show_plans. The server only attaches `d.plan` /
+             `d.tip` when the trip's share_show_plans = 1, so this
+             entire block is invisible to anyone viewing a share
+             where the toggle is off (defense-in-depth: even a
+             template tweak couldn't surface plans without the
+             data being there). Empty time-slots are skipped so a
+             trip with only a morning entry doesn't render an
+             empty Afternoon card. #}
+          {% if d.plan %}
+          <div class="day-plan">
+            {% if d.plan.morning %}
+            <div class="plan-slot"><span class="plan-slot__label">Morning</span>{{ d.plan.morning }}</div>
+            {% endif %}
+            {% if d.plan.afternoon %}
+            <div class="plan-slot"><span class="plan-slot__label">Afternoon</span>{{ d.plan.afternoon }}</div>
+            {% endif %}
+            {% if d.plan.evening %}
+            <div class="plan-slot"><span class="plan-slot__label">Evening</span>{{ d.plan.evening }}</div>
+            {% endif %}
+          </div>
+          {% endif %}
+          {% if d.tip %}
+          <div class="day-tip"><span class="day-tip__label">💡 Tip</span>{{ d.tip }}</div>
+          {% endif %}
         </div>
       </li>
       {% endfor %}
