@@ -55,7 +55,8 @@ def get_public_trip(trip_id):
         # makes new private columns opt-in rather than opt-out.
         cursor.execute(
             "SELECT id, user_id, name, country, country_code, "
-            "       is_archived, is_public, place_id, lat, lng, "
+            "       is_archived, is_public, public_show_expenses, "
+            "       place_id, lat, lng, "
             "       viewport_json, place_types, "
             "       companions_json, marked_places_json, "
             "       documents_json, photos_json, checklist_json, "
@@ -74,9 +75,11 @@ def get_public_trip(trip_id):
         # member (owner row or accepted trip_members row). We hide
         # non-visible trips behind 404 to avoid leaking trip-id existence.
         is_visible = is_public
+        is_member = False  # ← captured for the expense-gating below
         if not is_visible and caller_id:
             if owner_id == caller_id:
                 is_visible = True
+                is_member = True
             else:
                 cursor.execute(
                     "SELECT 1 FROM trip_members WHERE trip_id = ? AND user_id = ? "
@@ -85,8 +88,33 @@ def get_public_trip(trip_id):
                 )
                 if cursor.fetchone():
                     is_visible = True
+                    is_member = True
+        elif is_public and caller_id:
+            # Trip is publicly visible AND the caller is signed in —
+            # if they're also a member they get the full payload
+            # (their own private bits). Resolve membership so the
+            # expense-gating below grants access.
+            if owner_id == caller_id:
+                is_member = True
+            else:
+                cursor.execute(
+                    "SELECT 1 FROM trip_members WHERE trip_id = ? AND user_id = ? "
+                    "AND invitation_status = 'accepted' LIMIT 1",
+                    (trip_id, caller_id),
+                )
+                is_member = cursor.fetchone() is not None
         if not is_visible:
             return jsonify({"error": "Not found"}), 404
+
+        # Public-trip granularity (next-quarter ship). When a trip is
+        # public-on-profile-map, the owner can choose between:
+        #   - public_show_expenses=0: viewers see destination, dates,
+        #     days, plan text, photos. Expense rows STRIPPED.
+        #   - public_show_expenses=1: viewers see everything.
+        # Members always see expenses regardless of this flag (they're
+        # the trip's editors / participants).
+        public_show_expenses = bool(trip.get('public_show_expenses', 0))
+        viewer_sees_expenses = is_member or public_show_expenses
 
         # Frontend-shape the trip row. Common camelCase fields come
         # from `serialize_trip_row` (shared with routes/data.py — §3.5).
@@ -138,16 +166,25 @@ def get_public_trip(trip_id):
                 day['documents'] = []
             trip_days.append(day)
 
-        cursor.execute("SELECT * FROM expenses WHERE trip_id = ?", (trip_id,))
-        expenses = [dict(r) for r in cursor.fetchall()]
-        # Translate snake_case → camelCase for the public detail
-        # surface. Same shape as routes/data.py — both reads need to
-        # match because the frontend filters by `e.tripId`.
-        for e in expenses:
-            e['tripId'] = e.pop('trip_id', None)
-            e['categoryId'] = e.pop('category_id', None)
-            e['euroValue'] = e.pop('euro_value', None)
-            e['receiptUrl'] = e.pop('receipt_url', None)
+        # Expense exposure is the granularity gate. Members always
+        # see expenses (they own / edit the trip); non-member viewers
+        # see them only when `public_show_expenses=1`. Skip the SQL
+        # entirely when not exposing — saves a query AND prevents
+        # accidental leakage via a future code change that forgets
+        # the filter (defence-in-depth: the data never enters the
+        # response object at all).
+        expenses = []
+        if viewer_sees_expenses:
+            cursor.execute("SELECT * FROM expenses WHERE trip_id = ?", (trip_id,))
+            expenses = [dict(r) for r in cursor.fetchall()]
+            # Translate snake_case → camelCase for the public detail
+            # surface. Same shape as routes/data.py — both reads need to
+            # match because the frontend filters by `e.tripId`.
+            for e in expenses:
+                e['tripId'] = e.pop('trip_id', None)
+                e['categoryId'] = e.pop('category_id', None)
+                e['euroValue'] = e.pop('euro_value', None)
+                e['receiptUrl'] = e.pop('receipt_url', None)
 
         # Inline tripDays + expenses + members on the trip object. The
         # archived-trip frontend reads these from `trip.tripDays` and
@@ -156,6 +193,13 @@ def get_public_trip(trip_id):
         # renderer works for fetched trips with no extra plumbing.
         trip['tripDays'] = trip_days
         trip['expenses'] = expenses
+        # Signal to the renderer: was the expense list intentionally
+        # blank because of the granularity flag, vs blank because the
+        # trip just genuinely has no expenses? Lets the UI show a
+        # "Owner has chosen to keep expenses private" hint instead of
+        # an empty-state for the case where expenses exist server-side
+        # but aren't being shared with this viewer.
+        trip['expensesRedacted'] = (not viewer_sees_expenses)
 
         cursor.execute('''
             SELECT m.user_id, m.role, u.name AS user_name, u.picture AS user_picture

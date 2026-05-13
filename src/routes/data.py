@@ -76,15 +76,17 @@ def sync_data():
 
             cursor.execute('''
                 INSERT INTO trips (id, user_id, name, country, is_archived, is_public,
+                                   public_show_expenses,
                                    place_id, lat, lng, viewport_json, place_types, country_code,
                                    companions_json, marked_places_json,
                                    documents_json, photos_json, checklist_json, cover_url)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     name=excluded.name,
                     country=excluded.country,
                     is_archived=excluded.is_archived,
                     is_public=excluded.is_public,
+                    public_show_expenses=excluded.public_show_expenses,
                     place_id=excluded.place_id,
                     lat=excluded.lat,
                     lng=excluded.lng,
@@ -100,6 +102,7 @@ def sync_data():
             ''', (t['id'], user_id, t['name'], t['country'],
                   1 if t.get('is_archived') else 0,
                   1 if t.get('isPublic') else 0,
+                  1 if t.get('publicShowExpenses') else 0,
                   t.get('placeId'),
                   t.get('lat'),
                   t.get('lng'),
@@ -125,15 +128,17 @@ def sync_data():
 
             cursor.execute('''
                 INSERT INTO trips (id, user_id, name, country, is_archived, is_public,
+                                   public_show_expenses,
                                    place_id, lat, lng, viewport_json, place_types, country_code,
                                    companions_json, marked_places_json,
                                    documents_json, photos_json, cover_url)
-                VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     name=excluded.name,
                     country=excluded.country,
                     is_archived=1,
                     is_public=excluded.is_public,
+                    public_show_expenses=excluded.public_show_expenses,
                     place_id=excluded.place_id,
                     lat=excluded.lat,
                     lng=excluded.lng,
@@ -147,6 +152,7 @@ def sync_data():
                     cover_url=excluded.cover_url
             ''', (t['id'], user_id, t['name'], t['country'],
                   1 if t.get('isPublic') else 0,
+                  1 if t.get('publicShowExpenses') else 0,
                   t.get('placeId'),
                   t.get('lat'),
                   t.get('lng'),

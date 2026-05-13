@@ -213,6 +213,26 @@ def init_db():
             # which uploads to /api/upload and writes the returned URL
             # back via /api/trips. See FUTURE_FEATURES.md item #2.
             ("cover_url", "ALTER TABLE trips ADD COLUMN cover_url TEXT"),
+            # Public-trip granularity (next-quarter ship). The
+            # `is_public` boolean already controls "does this trip
+            # appear on the profile map / public-profile listing".
+            # Pre-fix, `is_public=1` exposed EVERYTHING via
+            # /api/public-trip — including expense line items, names,
+            # financial detail. That was an all-or-nothing switch.
+            #
+            # `public_show_expenses` is the new opt-in: ONLY when set
+            # to 1 does /api/public-trip serialize the expense rows
+            # for non-members. Default 0 so existing public trips
+            # do NOT silently expose expenses post-deploy — users
+            # who'd opted in under the old single-toggle model don't
+            # get a regression. They have to explicitly flip the new
+            # toggle in the Edit Trip modal to share expenses.
+            #
+            # Days, plan text, photos, members ARE still exposed for
+            # `is_public=1` regardless of this flag — that's the
+            # "this is what I did on my trip" payload that makes the
+            # public profile useful. Expenses are the sensitive bit.
+            ("public_show_expenses", "ALTER TABLE trips ADD COLUMN public_show_expenses INTEGER DEFAULT 0"),
         ]:
             _safe_alter(cursor, ddl)
 

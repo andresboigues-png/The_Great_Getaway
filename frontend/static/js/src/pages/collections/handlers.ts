@@ -14,30 +14,43 @@
 import { STATE, emit } from '../../state.js';
 import { showConfirmModal } from '../../utils.js';
 import { navigate } from '../../router.js';
-import { apiUrl, unarchiveTripOnServer } from '../../api.js';
+import { apiUrl, unarchiveTripOnServer, upsertTrip } from '../../api.js';
 
-export const toggleTripPrivacy = async (id: string, isPublic: boolean) => {
+/** Public-trip privacy levels (FIXING_ROADMAP — public granularity).
+ *  Encoded as a 3-value string so the UI can be one select rather
+ *  than two coupled checkboxes. Maps to the two server booleans:
+ *    private        → isPublic=false
+ *    public-plan    → isPublic=true,  publicShowExpenses=false
+ *    public-full    → isPublic=true,  publicShowExpenses=true
+ *  Members always see expenses regardless of this flag — that gate
+ *  lives in routes/public.py, not on the client. */
+export type TripPrivacyLevel = 'private' | 'public-plan' | 'public-full';
+
+export function tripPrivacyLevel(trip: { isPublic?: boolean; publicShowExpenses?: boolean } | null | undefined): TripPrivacyLevel {
+    if (!trip || !trip.isPublic) return 'private';
+    return trip.publicShowExpenses ? 'public-full' : 'public-plan';
+}
+
+export const toggleTripPrivacy = async (id: string, level: TripPrivacyLevel) => {
     const trip = STATE.archivedTrips.find((t) => t.id === id) || STATE.trips.find((t) => t.id === id);
     if (!trip) return;
-    trip.isPublic = isPublic;
+    trip.isPublic = level !== 'private';
+    trip.publicShowExpenses = level === 'public-full';
     emit('state:changed');
 
-    const label = document.getElementById(`publicLabel-${id}`);
-    if (label) {
-        label.textContent = isPublic ? 'Public' : 'Not public';
-        label.style.color = isPublic ? '#34c759' : 'rgba(0,0,0,0.3)';
-        label.style.textShadow = isPublic ? '0 0 12px rgba(52, 199, 89, 0.6)' : 'none';
-    }
-
+    // Pre-fix this handler POSTed `/api/trips/privacy` — a route that
+    // never existed (the fetch silently 404'd, server fell back to
+    // /api/sync to pick up the change on the next poll). Now we go
+    // through the canonical `upsertTrip` path so:
+    //   - the new publicShowExpenses field actually persists
+    //   - and the change reflects server-side immediately rather than
+    //     waiting for the next sync cycle.
     if (STATE.user) {
         try {
-            await fetch(apiUrl('/api/trips/privacy'), {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ user_id: STATE.user.id, trip_id: id, is_public: isPublic }),
-            });
+            await upsertTrip(trip);
         } catch (e) {
-            /* swallowed — local state already mutated, server is best-effort */
+            /* swallowed — local state already mutated, the next /api/sync
+               cycle will pick it up if this immediate write failed. */
         }
     }
 };

@@ -1331,12 +1331,21 @@ def test_public_profile_returns_user_for_known_id(client, seed_user):
 
 
 def test_public_trip_returns_full_payload_when_public(client, seed_user, auth_headers):
-    """Happy path: a public trip with days + expenses returns the
-    archived-trip-shape payload the frontend's renderArchivedTripDetail
-    consumes (trip metadata + tripDays + expenses + members + owner)."""
-    # Owner creates a trip + a day + an expense, then flags it public.
+    """Happy path: a public trip with `publicShowExpenses=True` returns
+    the full archived-trip-shape payload (trip metadata + tripDays +
+    expenses + members + owner) the frontend's renderArchivedTripDetail
+    consumes. With `publicShowExpenses=False` (the default) the expense
+    rows are stripped — see test_public_trip_redacts_expenses_by_default
+    below for that path."""
+    # Owner creates a trip + a day + an expense, flags it public AND
+    # opts into the new expense-sharing toggle.
     client.post("/api/trips", headers=auth_headers, json={
-        "trip": {"id": "trip-public", "name": "Lisbon", "isPublic": True},
+        "trip": {
+            "id": "trip-public",
+            "name": "Lisbon",
+            "isPublic": True,
+            "publicShowExpenses": True,
+        },
     })
     client.post("/api/days", headers=auth_headers, json={
         "day": {
@@ -1358,6 +1367,7 @@ def test_public_trip_returns_full_payload_when_public(client, seed_user, auth_he
     trip = body["trip"]
     assert trip["name"] == "Lisbon"
     assert trip["isPublic"] is True
+    assert trip["publicShowExpenses"] is True
     assert trip["ownerId"] == seed_user
     # tripDays + expenses are inlined on the trip object — that's what
     # the frontend's archived-trip renderer reads from.
@@ -1365,8 +1375,86 @@ def test_public_trip_returns_full_payload_when_public(client, seed_user, auth_he
     assert trip["tripDays"][0]["name"] == "Alfama"
     assert len(trip["expenses"]) == 1
     assert trip["expenses"][0]["label"] == "Pastel de nata"
+    # Granularity flag: not redacted when publicShowExpenses=True.
+    assert trip["expensesRedacted"] is False
     # Owner block is the minimum the renderer needs.
     assert body["owner"]["name"] == "Test User"
+
+
+def test_public_trip_redacts_expenses_by_default(client, seed_user, auth_headers):
+    """New default for §public-granularity: a trip marked public but
+    WITHOUT `publicShowExpenses=True` exposes everything EXCEPT
+    expense rows. Pre-fix, `isPublic=1` was an all-or-nothing switch
+    that silently leaked financial details to anyone with the trip id.
+    """
+    client.post("/api/trips", headers=auth_headers, json={
+        "trip": {
+            "id": "trip-pub-plan-only",
+            "name": "Tokyo",
+            "isPublic": True,
+            # publicShowExpenses NOT set — defaults to false.
+        },
+    })
+    client.post("/api/days", headers=auth_headers, json={
+        "day": {
+            "id": "day-tk-1", "tripId": "trip-pub-plan-only",
+            "dayNumber": 1, "name": "Shinjuku", "date": "2026-05-01",
+        },
+    })
+    client.post("/api/expenses", headers=auth_headers, json={
+        "expense": {
+            "id": "exp-tk-1", "tripId": "trip-pub-plan-only",
+            "who": "Me", "value": 80.0, "currency": "EUR",
+            "euroValue": 80.0, "label": "Sushi dinner",
+            "date": "2026-05-01",
+        },
+    })
+    res = client.get("/api/public-trip/trip-pub-plan-only")
+    assert res.status_code == 200
+    trip = res.get_json()["trip"]
+    # Plan-side data still surfaces.
+    assert trip["isPublic"] is True
+    assert trip["publicShowExpenses"] is False
+    assert len(trip["tripDays"]) == 1
+    assert trip["tripDays"][0]["name"] == "Shinjuku"
+    # Expenses are stripped — and the flag tells the renderer WHY
+    # so it can show a "owner kept expenses private" hint instead of
+    # an empty state.
+    assert trip["expenses"] == []
+    assert trip["expensesRedacted"] is True
+
+
+def test_public_trip_members_always_see_expenses(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """Trip members ALWAYS see expenses regardless of the
+    publicShowExpenses flag — they own / edit the trip. Pre-fix this
+    was implicit (the gate didn't check membership); explicit now."""
+    client.post("/api/trips", headers=auth_headers, json={
+        "trip": {
+            "id": "trip-members-see",
+            "name": "Bali",
+            "isPublic": True,
+            # publicShowExpenses NOT set → public viewers redacted.
+        },
+    })
+    # Seed `seed_other_user` as an accepted member of the trip.
+    _seed_member("trip-members-see", seed_other_user, role="relaxer")
+    client.post("/api/expenses", headers=auth_headers, json={
+        "expense": {
+            "id": "exp-bali-1", "tripId": "trip-members-see",
+            "who": "Me", "value": 20.0, "currency": "EUR",
+            "euroValue": 20.0, "label": "Spa", "date": "2026-04-01",
+        },
+    })
+    # Member-as-caller — sees the expense even though the trip is
+    # public+redacted to strangers.
+    res = client.get("/api/public-trip/trip-members-see", headers=other_auth_headers)
+    assert res.status_code == 200
+    trip = res.get_json()["trip"]
+    assert trip["expensesRedacted"] is False
+    assert len(trip["expenses"]) == 1
+    assert trip["expenses"][0]["label"] == "Spa"
 
 
 def test_public_trip_404_when_private_to_anonymous(client, seed_user, auth_headers):

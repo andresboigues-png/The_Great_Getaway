@@ -157,6 +157,12 @@ def serialize_trip_row(row):
     checklist_raw = t.pop('checklist_json', None)
     t['checklist'] = json.loads(checklist_raw) if checklist_raw else []
     t['coverUrl'] = t.pop('cover_url', None)
+    # Public-trip granularity opt-in. SAFE to include in the common
+    # shape because the value is a privacy CHOICE (off by default);
+    # non-members can read it from /api/public-trip without privacy
+    # impact — knowing "this trip is configured to NOT show expenses"
+    # is no more information than the visible-page behaviour conveys.
+    t['publicShowExpenses'] = bool(t.pop('public_show_expenses', 0))
     return t
 
 

@@ -258,12 +258,23 @@ export function renderCollections() {
                             </div>
                         </div>
                         <div class="collections-row__actions" style="display: flex; align-items: center; gap: 20px;">
-                            <div class="collections-row__public-toggle" style="display: flex; align-items: center; gap: 12px; background: rgba(0,0,0,0.03); padding: 8px 18px; border-radius: 980px; border: 1px solid rgba(0,0,0,0.08); box-shadow: inset 0 1px 2px rgba(0,0,0,0.02), 0 4px 12px rgba(0,0,0,0.03);">
-                                <span id="publicLabel-${esc(trip.id)}" style="width: 85px; display: inline-block; text-align: right; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); color: ${trip.isPublic ? '#34c759' : 'rgba(0,0,0,0.3)'}; text-shadow: ${trip.isPublic ? '0 0 12px rgba(52, 199, 89, 0.6)' : 'none'};">${trip.isPublic ? t('collections.publicLabel') : t('collections.notPublicLabel')}</span>
-                                <label class="switch" style="transform: scale(0.75);">
-                                    <input type="checkbox" class="trip-privacy-toggle" data-trip-id="${esc(trip.id)}" ${trip.isPublic ? 'checked' : ''}>
-                                    <span class="slider"></span>
-                                </label>
+                            <!-- Public-trip granularity (replaces the old
+                                 binary on/off toggle). Three states:
+                                   - private: not on profile map
+                                   - public-plan: on profile map, expenses redacted
+                                   - public-full: on profile map, everything visible
+                                 Members of the trip ALWAYS see expenses
+                                 regardless — that gate lives server-side. -->
+                            <div class="collections-row__public-toggle" style="display: flex; align-items: center; gap: 12px; background: rgba(0,0,0,0.03); padding: 6px 14px; border-radius: 980px; border: 1px solid rgba(0,0,0,0.08); box-shadow: inset 0 1px 2px rgba(0,0,0,0.02), 0 4px 12px rgba(0,0,0,0.03);">
+                                <select
+                                    class="trip-privacy-select"
+                                    data-trip-id="${esc(trip.id)}"
+                                    aria-label="Trip visibility"
+                                    style="background:transparent; border:0; font-size:0.8rem; font-weight:700; color:var(--text-primary); padding: 4px 22px 4px 8px; appearance:none; -webkit-appearance:none; cursor:pointer; outline:none; background-image: url('data:image/svg+xml;utf8,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;10&quot; height=&quot;10&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;3&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;><polyline points=&quot;6 9 12 15 18 9&quot;/></svg>'); background-repeat:no-repeat; background-position: right 7px center; background-size: 8px;">
+                                    <option value="private" ${!trip.isPublic ? 'selected' : ''}>🔒 Private</option>
+                                    <option value="public-plan" ${trip.isPublic && !trip.publicShowExpenses ? 'selected' : ''}>🌍 Public — plan only</option>
+                                    <option value="public-full" ${trip.isPublic && trip.publicShowExpenses ? 'selected' : ''}>🌍 Public — incl. expenses</option>
+                                </select>
                             </div>
                             <div class="collections-row__divider" style="width: 1px; height: 30px; background: var(--glass-border);"></div>
                             <div style="display: flex; gap: var(--space-2);">
@@ -323,9 +334,12 @@ export function renderCollections() {
     });
     div.addEventListener('change', (e) => {
         const target = (e.target as HTMLElement | null);
-        const toggle = (target?.closest('.trip-privacy-toggle') as HTMLInputElement | null);
-        if (toggle?.dataset.tripId) {
-            toggleTripPrivacy(toggle.dataset.tripId, toggle.checked);
+        // Public granularity — 3-option select replacing the legacy
+        // binary toggle. Value is the TripPrivacyLevel string union;
+        // the handler maps it back to the two server booleans.
+        const privacySel = (target?.closest('.trip-privacy-select') as HTMLSelectElement | null);
+        if (privacySel?.dataset.tripId) {
+            toggleTripPrivacy(privacySel.dataset.tripId, privacySel.value as any);
             return;
         }
         // Sort + filter dropdowns — re-render to reflect the new view.

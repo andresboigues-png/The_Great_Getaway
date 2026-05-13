@@ -63,6 +63,14 @@ export interface Trip {
     isArchived: boolean;
     /** Whether the archived trip is shared publicly (visible on the world map). */
     isPublic?: boolean;
+    /** Public-trip granularity (next-quarter ship). When the trip is
+     *  marked public (`isPublic=true`):
+     *    - false / unset (default): viewers see destination, dates,
+     *      days, plan text, photos — but NO expense rows.
+     *    - true: viewers see EVERYTHING including expenses.
+     *  Trip members always see expenses regardless of this flag.
+     *  Owner-controlled via the Edit Trip modal's privacy radio. */
+    publicShowExpenses?: boolean;
     /** Snapshot of day objects, populated when the trip is archived. */
     tripDays?: TripDay[];
     /** Snapshot of expense objects, populated when the trip is archived. */

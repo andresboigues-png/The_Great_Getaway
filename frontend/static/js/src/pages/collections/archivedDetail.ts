@@ -174,13 +174,21 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
                 ${totalDocs > 0 ? statChip('📎', 'Documents', String(totalDocs)) : ''}
                 ${expenses.length > 0 ? statChip('💰', 'Spent', formatHome(totalSpent, 'EUR')) : ''}
 
-                <!-- Public/private toggle, styled as one of the chips. -->
-                <div style="display:flex; align-items:center; gap:12px; background:${chipBg}; border:${chipBorder}; padding:8px 16px; border-radius:999px; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);">
-                    <span id="publicLabel-${esc(trip.id)}" style="font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.12em; color:${trip.isPublic ? '#a4f3b8' : 'rgba(255,255,255,0.7)'};">${trip.isPublic ? 'Public' : 'Private'}</span>
-                    <label class="switch" style="transform: scale(0.7); margin: 0;">
-                        <input type="checkbox" class="trip-privacy-toggle" data-trip-id="${esc(trip.id)}" ${trip.isPublic ? 'checked' : ''}>
-                        <span class="slider"></span>
-                    </label>
+                <!-- Public-trip granularity select, styled as a chip.
+                     Replaces the legacy binary toggle. Three states:
+                     private / public — plan only / public — incl.
+                     expenses. Members ALWAYS see expenses regardless
+                     of this flag (server-side gate). -->
+                <div style="display:flex; align-items:center; gap:6px; background:${chipBg}; border:${chipBorder}; padding:6px 14px; border-radius:999px; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);">
+                    <select
+                        class="trip-privacy-select"
+                        data-trip-id="${esc(trip.id)}"
+                        aria-label="Trip visibility"
+                        style="background:transparent; border:0; color:${heroTextColor}; font-size:0.7rem; font-weight:800; text-transform:uppercase; letter-spacing:0.08em; padding: 2px 18px 2px 4px; appearance:none; -webkit-appearance:none; cursor:pointer; outline:none; background-image: url('data:image/svg+xml;utf8,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;10&quot; height=&quot;10&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;white&quot; stroke-width=&quot;3&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;><polyline points=&quot;6 9 12 15 18 9&quot;/></svg>'); background-repeat:no-repeat; background-position: right 4px center; background-size: 8px;">
+                        <option value="private" ${!trip.isPublic ? 'selected' : ''} style="color:#002d5b;">🔒 Private</option>
+                        <option value="public-plan" ${trip.isPublic && !trip.publicShowExpenses ? 'selected' : ''} style="color:#002d5b;">🌍 Public — plan only</option>
+                        <option value="public-full" ${trip.isPublic && trip.publicShowExpenses ? 'selected' : ''} style="color:#002d5b;">🌍 Public — incl. expenses</option>
+                    </select>
                 </div>
             </div>
         </div>
@@ -514,8 +522,13 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
     });
     div.addEventListener('change', (e) => {
         const target = e.target as HTMLElement | null;
-        const toggle = target?.closest('.trip-privacy-toggle') as HTMLInputElement | null;
-        if (toggle?.dataset.tripId) toggleTripPrivacy(toggle.dataset.tripId, toggle.checked);
+        // Public granularity — 3-option select (private / public-plan /
+        // public-full) replacing the legacy binary toggle. The handler
+        // maps the string-union back to the two server booleans.
+        const privacySel = target?.closest('.trip-privacy-select') as HTMLSelectElement | null;
+        if (privacySel?.dataset.tripId) {
+            toggleTripPrivacy(privacySel.dataset.tripId, privacySel.value as any);
+        }
     });
 
     return div;
