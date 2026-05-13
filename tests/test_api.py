@@ -1059,6 +1059,11 @@ def _create_trip(client, headers, trip_id="trip-feed", name="Test Trip"):
     return trip_id
 
 
+# `_befriend` helper lives further down (line ~1465); reused here for
+# FIXING_ROADMAP §1.3 feed-engagement tests that need an accepted
+# friendship before the visibility gate lets them through.
+
+
 # ── Auth gate sweep ──────────────────────────────────────────────────────────
 # One test, every gated endpoint. Each (method, path) tuple should return 401
 # when called without an Authorization header. Catches any new endpoint that
@@ -1197,6 +1202,7 @@ def test_feed_repost_rejects_self_repost(client, seed_user, auth_headers):
 def test_feed_like_toggles(client, seed_user, seed_other_user, auth_headers, other_auth_headers):
     """Liking returns the new state + the new global count so the
     frontend can reconcile any drift from optimistic UI in one round-trip."""
+    _befriend(client, auth_headers, other_auth_headers, seed_user, seed_other_user)
     trip_id = _create_trip(client, other_auth_headers, trip_id="trip-like")
     res = client.post("/api/feed/share", headers=other_auth_headers, json={
         "trip_id": trip_id,
@@ -1221,6 +1227,7 @@ def test_feed_bookmark_is_private_per_user(
 ):
     """Bookmarks are per-user — seed_user bookmarking doesn't affect
     seed_other_user's view. No global count exposed (unlike likes)."""
+    _befriend(client, auth_headers, other_auth_headers, seed_user, seed_other_user)
     trip_id = _create_trip(client, other_auth_headers, trip_id="trip-bookmark")
     res = client.post("/api/feed/share", headers=other_auth_headers, json={
         "trip_id": trip_id,
@@ -1238,6 +1245,7 @@ def test_feed_comments_post_then_list(
 ):
     """Post a comment as one user, list as another — the list returns
     the comment in oldest-first order so the UI can append-render."""
+    _befriend(client, auth_headers, other_auth_headers, seed_user, seed_other_user)
     trip_id = _create_trip(client, other_auth_headers, trip_id="trip-comment")
     share_res = client.post("/api/feed/share", headers=other_auth_headers, json={
         "trip_id": trip_id,
@@ -2213,6 +2221,7 @@ def test_feed_bookmark_toggles_off(
     Bookmarks are private (no global count), but the toggle off path
     still needs pinning — without it a regression could leave bookmarks
     one-shot only."""
+    _befriend(client, auth_headers, other_auth_headers, seed_user, seed_other_user)
     trip_id = _create_trip(
         client, other_auth_headers, trip_id="trip-bookmark-toggle",
     )
@@ -2235,6 +2244,7 @@ def test_feed_comment_rejects_empty_body_400(
 ):
     """Whitespace-only body 400s — without this gate the comments table
     would accumulate empty rows from misclicks on the submit button."""
+    _befriend(client, auth_headers, other_auth_headers, seed_user, seed_other_user)
     trip_id = _create_trip(
         client, other_auth_headers, trip_id="trip-empty-comment",
     )
@@ -2261,22 +2271,20 @@ def test_feed_comment_delete_ok_for_unknown_id(client, seed_user, auth_headers):
     assert body.get("event_id") is None
 
 
-def test_feed_like_on_synthesised_event_id_skips_notification(
-    client, seed_user, auth_headers,
-):
-    """Liking a non-share event (e.g. trip_created_X) doesn't fire a
-    notification — _post_owner_for_event returns None for unknown
-    prefixes. Pin so a future regression doesn't spam users with
-    notifications for engagement on synthesised events."""
-    # The like itself succeeds even when the event wasn't synthesised
-    # by the feed — feed_likes is a generic key/value table.
+def test_feed_like_rejects_unknown_event_id(client, seed_user, auth_headers):
+    """FIXING_ROADMAP §1.3: pre-fix this endpoint accepted ANY string
+    as event_id (including fabricated ones referencing trips/users
+    that don't exist or that the caller can't see). Pin the rejection
+    so a regression can't silently re-open the spam vector.
+
+    Was previously `test_feed_like_on_synthesised_event_id_skips_notification`
+    — that test verified the no-notification side-effect of liking a
+    fake event, which is now moot because the like itself is rejected."""
     res = client.post(
         "/api/feed/like/trip_created_trip-fake", headers=auth_headers,
     )
-    assert res.status_code == 200
-    body = res.get_json()
-    assert body.get("liked") is True
-    assert body.get("count") == 1
+    assert res.status_code == 404
+    assert "unauthor" in (res.get_json() or {}).get("error", "").lower()
 
 
 # ── /api/auth/google — production happy path (mocked Google verify) ──────────

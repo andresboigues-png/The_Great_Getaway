@@ -695,10 +695,15 @@ async function init() {
     });
 
     setInterval(() => {
-        if (STATE.user) {
-            syncWithServer();
-            fetchNotifications();
-        }
+        // FIXING_ROADMAP §1.8 — skip the poll when the tab isn't
+        // visible. A user with the app open in a background tab was
+        // previously paying for sync + notifications fetches every
+        // 15s indefinitely. document.hidden flips back to false the
+        // moment they focus the tab, so the next tick (within 15s)
+        // resumes normal polling.
+        if (!STATE.user || document.hidden) return;
+        syncWithServer();
+        fetchNotifications();
     }, 15000);
 }
 

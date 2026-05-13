@@ -12,6 +12,8 @@ because they're feed-specific (they read feed_posts and resolve
 event_ids of the form `share_<id>` / `repost_<id>`).
 """
 
+import re
+
 from flask import Blueprint, jsonify, request
 
 from auth import current_user_id, require_auth
@@ -20,6 +22,152 @@ from extensions import limiter
 
 
 bp = Blueprint("feed", __name__)
+
+
+# ── FIXING_ROADMAP §1.3: event_id authorization ──────────────────────
+# Pre-fix, /api/feed/like and /api/feed/comment(s) accepted ANY string
+# as event_id and wrote rows / sent notifications without checking the
+# caller could see the underlying record. Attackers could spam comments
+# on private trips, inflate counts on fabricated ids, and fan
+# notifications at random post owners.
+#
+# Synthesised event IDs (built by /api/feed) take one of these shapes:
+#   trip_created_<trip_id>
+#   trip_archived_<trip_id>
+#   trip_joined_<trip_id>_<joiner_id>
+#   friendship_<viewer_user_id>_<friend_row_id>
+#   share_<feed_post_id>
+#   repost_<feed_post_id>
+#
+# `_parse_event_id` validates the format + extracts the
+# resource(s) it references. `_caller_can_see_event` then performs
+# the visibility check against the right table for the event type.
+# Both return None / False for the rejection path so callers can
+# return a single "Unknown or unauthorised event" response.
+
+# Component matching: trip_ids and user_ids are 9-128 chars of
+# alphanumeric/-/_/. (Google `sub` values are numeric; our generateId
+# uses base36; legacy test ids include hyphens). Caps the length to
+# stop a multi-MB event_id from being fed in.
+_ID_RE = r"[A-Za-z0-9._-]{1,128}"
+_EVENT_ID_PATTERNS = (
+    ("trip_created",   re.compile(rf"^trip_created_({_ID_RE})$")),
+    ("trip_archived",  re.compile(rf"^trip_archived_({_ID_RE})$")),
+    ("trip_joined",    re.compile(rf"^trip_joined_({_ID_RE})_({_ID_RE})$")),
+    ("friendship",     re.compile(rf"^friendship_({_ID_RE})_(\d{{1,32}})$")),
+    ("share",          re.compile(r"^share_(\d{1,32})$")),
+    ("repost",         re.compile(r"^repost_(\d{1,32})$")),
+)
+
+
+def _parse_event_id(event_id):
+    """Return `(event_type, *components)` if the string matches one of
+    the synthesised event_id patterns, otherwise None. Pure parser —
+    no DB access; visibility comes from `_caller_can_see_event`."""
+    if not isinstance(event_id, str) or not event_id:
+        return None
+    for event_type, pattern in _EVENT_ID_PATTERNS:
+        m = pattern.match(event_id)
+        if m:
+            return (event_type, *m.groups())
+    return None
+
+
+def _is_friend_of(cursor, viewer_id, actor_id):
+    """True iff the viewer + actor have an accepted friendship row in
+    either direction. Single indexed lookup against the `friends`
+    table — the same table /api/feed reads to build the friend list."""
+    if viewer_id == actor_id:
+        return True
+    cursor.execute(
+        "SELECT 1 FROM friends "
+        "WHERE status = 'accepted' "
+        "AND ((user_id = ? AND friend_id = ?) OR (user_id = ? AND friend_id = ?))",
+        (viewer_id, actor_id, actor_id, viewer_id),
+    )
+    return cursor.fetchone() is not None
+
+
+def _is_trip_member(cursor, trip_id, user_id):
+    """True iff the user is a member of the trip (owner or invited).
+    /api/feed surfaces trip events only to friends of the actor + the
+    member set, so /like and /comment apply the same gate."""
+    cursor.execute(
+        "SELECT 1 FROM trip_members "
+        "WHERE trip_id = ? AND user_id = ? "
+        "AND invitation_status = 'accepted'",
+        (trip_id, user_id),
+    )
+    if cursor.fetchone():
+        return True
+    # Legacy collaborators still get access (UNIONed into /api/data too).
+    cursor.execute(
+        "SELECT 1 FROM trip_collaborators WHERE trip_id = ? AND user_id = ?",
+        (trip_id, user_id),
+    )
+    return cursor.fetchone() is not None
+
+
+def _trip_owner(cursor, trip_id):
+    cursor.execute("SELECT user_id FROM trips WHERE id = ?", (trip_id,))
+    row = cursor.fetchone()
+    return row["user_id"] if row else None
+
+
+def _caller_can_see_event(cursor, event_id, user_id):
+    """Visibility check matching /api/feed's surfacing rules.
+
+    Returns True iff:
+      - trip_created / trip_archived / trip_joined: caller is a
+        member of the trip OR friends with the trip owner
+      - friendship: caller is one of the two parties or friends
+        with either
+      - share / repost: caller is friends with the post's author,
+        or the author themselves (own posts visible)
+    Returns False otherwise — including unknown event_id shapes,
+    nonexistent trips/posts, and missing FK targets."""
+    parsed = _parse_event_id(event_id)
+    if not parsed:
+        return False
+    event_type, *components = parsed
+
+    if event_type in ("trip_created", "trip_archived", "trip_joined"):
+        trip_id = components[0]
+        owner_id = _trip_owner(cursor, trip_id)
+        if not owner_id:
+            return False
+        if _is_trip_member(cursor, trip_id, user_id):
+            return True
+        return _is_friend_of(cursor, user_id, owner_id)
+
+    if event_type == "friendship":
+        # event_id is `friendship_<viewer_user_id>_<friend_row_id>`.
+        # The viewer_id component IS who saw the row originally —
+        # but anyone friends with either party may engage with it.
+        viewer_user_id, friend_row_id = components
+        # Resolve the friendship row to its two endpoints.
+        cursor.execute(
+            "SELECT user_id, friend_id FROM friends WHERE rowid = ?",
+            (friend_row_id,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return False
+        return (
+            user_id in (row["user_id"], row["friend_id"])
+            or _is_friend_of(cursor, user_id, row["user_id"])
+            or _is_friend_of(cursor, user_id, row["friend_id"])
+        )
+
+    if event_type in ("share", "repost"):
+        post_id = int(components[0])
+        cursor.execute("SELECT user_id FROM feed_posts WHERE id = ?", (post_id,))
+        row = cursor.fetchone()
+        if not row:
+            return False
+        return _is_friend_of(cursor, user_id, row["user_id"])
+
+    return False
 
 
 def _post_owner_for_event(cursor, event_id):
@@ -451,10 +599,15 @@ def repost_feed_post(post_id):
 def toggle_feed_like(event_id):
     """Toggle the caller's like on a feed event. Returns the new state
     + the new global count. Notification fires only on the +1
-    transition (no notification on unlike)."""
+    transition (no notification on unlike).
+
+    §1.3: validates event_id shape + visibility before writing — a
+    crafted id (or one for an event the caller can't see) is rejected."""
     user_id = current_user_id()
     with get_db() as conn:
         cursor = conn.cursor()
+        if not _caller_can_see_event(cursor, event_id, user_id):
+            return jsonify({"error": "Unknown or unauthorised event"}), 404
         cursor.execute(
             "SELECT 1 FROM feed_likes WHERE user_id = ? AND event_id = ?",
             (user_id, event_id),
@@ -486,10 +639,14 @@ def toggle_feed_like(event_id):
 @limiter.limit("120/minute")
 def toggle_feed_bookmark(event_id):
     """Toggle the caller's bookmark on a feed event. Personal — there's
-    no global count exposed (deliberate; bookmarks are private)."""
+    no global count exposed (deliberate; bookmarks are private).
+
+    §1.3: validates event_id shape + visibility before writing."""
     user_id = current_user_id()
     with get_db() as conn:
         cursor = conn.cursor()
+        if not _caller_can_see_event(cursor, event_id, user_id):
+            return jsonify({"error": "Unknown or unauthorised event"}), 404
         cursor.execute(
             "SELECT 1 FROM feed_bookmarks WHERE user_id = ? AND event_id = ?",
             (user_id, event_id),
@@ -513,9 +670,16 @@ def toggle_feed_bookmark(event_id):
 @require_auth
 @limiter.limit("120/minute")
 def list_feed_comments(event_id):
-    """Return all comments on a feed event, oldest-first."""
+    """Return all comments on a feed event, oldest-first.
+
+    §1.3: same visibility gate as like/comment/post — without it,
+    anyone who could guess an event_id could read comments on a
+    private trip's thread."""
+    user_id = current_user_id()
     with get_db() as conn:
         cursor = conn.cursor()
+        if not _caller_can_see_event(cursor, event_id, user_id):
+            return jsonify({"error": "Unknown or unauthorised event"}), 404
         cursor.execute('''
             SELECT c.id, c.user_id, c.body, c.created_at,
                    u.name AS user_name, u.picture AS user_picture
@@ -543,7 +707,12 @@ def add_feed_comment(event_id):
     """Append a comment to a feed event. body capped at 500 chars
     (silently truncated, not 400'd, so a copy-paste of a giant message
     still posts something). Returns the inserted row so the frontend
-    can append without an extra GET."""
+    can append without an extra GET.
+
+    §1.3: validates event_id + visibility before writing. The old
+    behaviour was the worst of the four: not only could an attacker
+    write rows on fabricated events, the INSERT also triggered a
+    notification fan-out to the post owner — a spam channel."""
     user_id = current_user_id()
     data = request.json or {}
     body = (data.get("body") or "").strip()
@@ -552,6 +721,8 @@ def add_feed_comment(event_id):
     body = body[:500]
     with get_db() as conn:
         cursor = conn.cursor()
+        if not _caller_can_see_event(cursor, event_id, user_id):
+            return jsonify({"error": "Unknown or unauthorised event"}), 404
         cursor.execute(
             "INSERT INTO feed_comments (event_id, user_id, body) VALUES (?, ?, ?)",
             (event_id, user_id, body),

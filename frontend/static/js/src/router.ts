@@ -40,6 +40,35 @@ let isInternalNav = false;
  *  the user was just interacting halfway down the list). */
 let currentPage: PageName | null = null;
 
+/** FIXING_ROADMAP §1.8 — per-navigation AbortController.
+ *
+ * Before this, an `apiFetch` started while the user was on Page A could
+ * land MILLISECONDS after they navigated to Page B, then write to STATE
+ * (or trigger another `navigate(current)` in pullFromServer) — clobbering
+ * Page B's render mid-flight. The most visible symptom was modals
+ * closing on the user mid-typing because pullFromServer ended with a
+ * navigate that re-mounted the page out from under the modal.
+ *
+ * Pattern: every navigate() creates a fresh AbortController and aborts
+ * the previous one. `apiFetch` consults `currentNavSignal()` and threads
+ * the signal into the underlying fetch by default. Anything still
+ * in-flight from the previous page raises an AbortError on read, which
+ * the call site can swallow (or rethrow for diagnostics). Polling fetches
+ * (`syncWithServer` + `fetchNotifications` on the 15s interval) inherit
+ * the same signal, so they don't keep firing against a dead page either.
+ *
+ * The signal is exported via a function (not the controller directly) so
+ * downstream code can't accidentally call `.abort()` on the wrong instance.
+ */
+let _currentNavController: AbortController | null = null;
+
+/** The AbortSignal scoped to the currently-mounted page. Returns
+ *  `undefined` before the first navigate() runs (boot time) so
+ *  early apiFetch calls aren't blocked by a missing controller. */
+export function currentNavSignal(): AbortSignal | undefined {
+    return _currentNavController?.signal;
+}
+
 /** Optional second argument to `navigate()` — currently only the
  *  profile route reads any field (`userId`), but routes are free to
  *  add their own keys here as new params land. */
@@ -142,6 +171,16 @@ export function navigate(
 ): void {
     const content = document.getElementById('app-container');
     if (!content) return;
+
+    // FIXING_ROADMAP §1.8 — abort any in-flight requests from the
+    // previous page and start a fresh controller for this nav. Anything
+    // the previous page was awaiting (chunk-load notwithstanding)
+    // raises AbortError on its `await fetch(...)` — apiFetch swallows
+    // it silently so the next page mounts cleanly.
+    if (_currentNavController) {
+        _currentNavController.abort();
+    }
+    _currentNavController = new AbortController();
 
     // Stop home's empty-state slideshow if we're leaving home (no-op if it's
     // not running). Old code had a `dashboardInterval` here that home.js

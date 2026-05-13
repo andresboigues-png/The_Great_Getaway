@@ -119,8 +119,8 @@ Things an attacker could exploit against the live site today.
 
 **Fix:**
 
-- [ ] Regex-validate prefix against the allowlist (`trip_*`, `share_*`, `friendship_*`, `repost_*`, `achievement_*`).
-- [ ] Resolve `event_id` to its underlying record; verify caller can see it (friend of actor OR member of trip).
+- [x] Regex-validate prefix against the allowlist (`trip_created_*`, `trip_archived_*`, `trip_joined_*`, `share_*`, `repost_*`, `friendship_*`). (Shipped 2026-05-13 — `_parse_event_id()` in feed.py.)
+- [x] Resolve `event_id` to its underlying record; verify caller can see it (friend of actor OR member of trip). (Shipped 2026-05-13 — `_caller_can_see_event()` gates all four endpoints: like, bookmark, comment-list, comment-post.)
 
 ### 1.4 SQLite running without WAL, FK enforcement, or busy_timeout
 
@@ -164,8 +164,8 @@ Things an attacker could exploit against the live site today.
 
 **Fix:**
 
-- [ ] Replace per-trip lookups with one `WHERE trip_id IN (?, ?, ?)` query; group in Python.
-- [ ] Materialize a `feed_events` table on write so reads become one SELECT.
+- [x] Replace per-trip lookups with one `WHERE trip_id IN (?, ?, ?)` query; group in Python. (Shipped 2026-05-13 — `/api/data` now batches the two per-trip queries into one each.)
+- [ ] Materialize a `feed_events` table on write so reads become one SELECT. (Deferred — bigger refactor, queued for when the feed actually has user load.)
 - [ ] Add the missing indexes (see 2.1).
 
 ### 1.8 No `AbortController` on any `apiFetch` → polls fight active navigation
@@ -176,10 +176,10 @@ Things an attacker could exploit against the live site today.
 
 **Fix:**
 
-- [ ] Thread `AbortController` through `apiFetch(path, options, signal?)`.
-- [ ] Router owns a per-mount controller; aborts on next navigate.
-- [ ] Pause polling when `document.hidden`.
-- [ ] `pullFromServer` diff-checks before calling `navigate(current)`; skip when a modal is open.
+- [x] Thread `AbortController` through `apiFetch(path, options, signal?)`. (Shipped 2026-05-13 — auto-inherits the router's per-nav signal; callers can override via `options.signal`.)
+- [x] Router owns a per-mount controller; aborts on next navigate. (Shipped 2026-05-13 — `currentNavSignal()` export + abort-on-navigate in `router.ts`.)
+- [x] Pause polling when `document.hidden`. (Shipped 2026-05-13 — `main.ts` polling interval skips when tab not focused.)
+- [x] `pullFromServer` skips `navigate(current)` when a modal is open OR tab is hidden. (Shipped 2026-05-13 — STATE_CHANGED still emits so React subscribers re-render in-place without unmounting modals.)
 
 ### 1.9 `handleGoogleLogin` swallows server errors silently
 

@@ -314,6 +314,44 @@ def get_data():
             WHERE c.user_id = ?
         ''', (user_id, user_id, user_id))
         trips_rows = cursor.fetchall()
+
+        # FIXING_ROADMAP §1.7: batch the per-trip lookups instead of
+        # firing them inside the trips loop. Pre-fix /api/data ran:
+        #   - one trip_members SELECT for THIS user's role/is_archived,
+        #     per trip (~1 round-trip per trip)
+        #   - one trip_members LEFT JOIN users SELECT for the member
+        #     chip list, per trip (~1 round-trip per trip)
+        # A 50-trip user thus paid ~100 sequential round-trips before
+        # the response could start streaming. With WAL on (§1.4) those
+        # are reads + don't lock writers, but they still serialize on
+        # the request thread. Now: one batched query for each, grouped
+        # in Python.
+        all_trip_ids = [r['id'] for r in trips_rows]
+        my_member_by_trip = {}
+        members_by_trip = {}
+        if all_trip_ids:
+            placeholders = ','.join(['?'] * len(all_trip_ids))
+            cursor.execute(
+                f"SELECT trip_id, role, is_archived FROM trip_members "
+                f"WHERE user_id = ? AND trip_id IN ({placeholders})",
+                [user_id, *all_trip_ids],
+            )
+            for mr in cursor.fetchall():
+                my_member_by_trip[mr['trip_id']] = mr
+
+            cursor.execute(
+                f"SELECT m.trip_id, m.user_id, m.role, m.is_archived, "
+                f"       m.invitation_status, "
+                f"       u.name AS user_name, u.picture AS user_picture "
+                f"FROM trip_members m "
+                f"LEFT JOIN users u ON u.id = m.user_id "
+                f"WHERE m.trip_id IN ({placeholders}) "
+                f"AND m.invitation_status = 'accepted'",
+                all_trip_ids,
+            )
+            for mr in cursor.fetchall():
+                members_by_trip.setdefault(mr['trip_id'], []).append(mr)
+
         trips = []
         for r in trips_rows:
             t = dict(r)
@@ -343,15 +381,11 @@ def get_data():
             # without the snake_case translation.
             t['coverUrl'] = t.pop('cover_url', None)
 
-            # Per-user archive + role come from THIS user's trip_members
-            # row. Owners may not have a row yet on legacy data — fall
-            # back to the trips-level flag and 'planner' so the UI
-            # doesn't break.
-            cursor.execute(
-                "SELECT role, is_archived FROM trip_members WHERE trip_id = ? AND user_id = ?",
-                (t['id'], user_id),
-            )
-            mrow = cursor.fetchone()
+            # Per-user archive + role from the pre-fetched lookup table.
+            # Owners may not have a row yet on legacy data — fall back
+            # to the trips-level flag and 'planner' so the UI doesn't
+            # break.
+            mrow = my_member_by_trip.get(t['id'])
             if mrow:
                 t['myRole'] = mrow['role']
                 t['myArchived'] = bool(mrow['is_archived'])
@@ -364,14 +398,8 @@ def get_data():
                 t['isArchived'] = legacy_archived
             t.pop('is_archived', None)
 
-            # Member list (accepted only) for trip-header member chips.
-            cursor.execute('''
-                SELECT m.user_id, m.role, m.is_archived, m.invitation_status,
-                       u.name AS user_name, u.picture AS user_picture
-                FROM trip_members m
-                LEFT JOIN users u ON u.id = m.user_id
-                WHERE m.trip_id = ? AND m.invitation_status = 'accepted'
-            ''', (t['id'],))
+            # Member list (accepted only) for trip-header member chips,
+            # also from the pre-fetched lookup.
             t['members'] = [
                 {
                     'userId': mr['user_id'],
@@ -380,7 +408,7 @@ def get_data():
                     'name': mr['user_name'],
                     'picture': mr['user_picture'],
                 }
-                for mr in cursor.fetchall()
+                for mr in members_by_trip.get(t['id'], [])
             ]
             trips.append(t)
 

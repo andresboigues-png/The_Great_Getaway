@@ -1,7 +1,7 @@
 // api.ts — Backend fetch helpers
 
 import { STATE, emit } from './state.js';
-import { navigate } from './router.js';
+import { navigate, currentNavSignal } from './router.js';
 import { API_BASE_URL, EVENTS, PAGES, type PageName } from './constants.js';
 import { validateServerData } from './schemas.js';
 import { normalizeTripCompanions } from './companions.js';
@@ -57,10 +57,24 @@ function _withAuth(options: RequestInit = {}): RequestInit {
  *  3. On 401 (token rejected — expired, invalid, deleted user), clears
  *     the stored token + STATE.user and triggers a re-render so the
  *     login wall comes back into view.
+ *  4. FIXING_ROADMAP §1.8 — auto-threads the current nav AbortSignal
+ *     so any request still in-flight when the user navigates away
+ *     gets aborted instead of landing on the new page's STATE. Callers
+ *     can override with their own `options.signal` if they want a
+ *     longer-lived request (e.g. a background sync that should
+ *     outlive the page).
  *  Returns the raw Response so callers can branch on .ok / .status. */
 export async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {
     const url = path.startsWith('http') ? path : apiUrl(path);
-    const res = await fetch(url, _withAuth(options));
+    // Pick the signal: caller-supplied wins; otherwise fall back to
+    // the router's per-nav signal. Build the merged init object
+    // conditionally so we don't write `signal: undefined` (TS's
+    // exactOptionalPropertyTypes flags that).
+    const inheritedSignal = options.signal ?? currentNavSignal();
+    const merged: RequestInit = inheritedSignal
+        ? { ...options, signal: inheritedSignal }
+        : { ...options };
+    const res = await fetch(url, _withAuth(merged));
     if (res.status === 401 && getAuthToken()) {
         clearAuthToken();
         STATE.user = null;
@@ -107,7 +121,11 @@ export async function syncWithServer() {
         }
         _syncConsecutiveFailures = 0;
         _syncOfflineToastShown = false;
-    } catch (e) {
+    } catch (e: any) {
+        // FIXING_ROADMAP §1.8 — a user navigating mid-sync aborts the
+        // in-flight fetch. That's expected behaviour, not a failure,
+        // so we don't count it toward the offline-toast threshold.
+        if (e?.name === 'AbortError') return;
         console.error('Sync failed:', e);
         _syncConsecutiveFailures++;
         // After 2 consecutive failures, warn the user once. We don't
@@ -208,12 +226,29 @@ export async function pullFromServer() {
 
         await fetchNotifications(); // already emits 'notifications:changed'
 
-        // Re-render current page to show new data
-        const known: readonly string[] = Object.values(PAGES);
-        const hash = window.location.hash.replace('#', '');
-        const current: PageName = (known.includes(hash) ? hash : PAGES.HOME) as PageName;
-        navigate(current);
-    } catch (e) {
+        // FIXING_ROADMAP §1.8 — re-render only when it's actually safe.
+        // Pre-fix this unconditionally fired `navigate(current)` at the
+        // end of every pull, which re-mounted the page (including any
+        // open modals — those got their inputs cleared, focus lost,
+        // sometimes closed entirely if they were anchored to the
+        // remount target). With state:changed already emitted above,
+        // most React components re-render via their store subscribers
+        // without a full re-mount. The remaining cases that genuinely
+        // need a navigate (the legacy template-literal pages that
+        // don't subscribe to STATE) are still served — we just skip
+        // when a modal is open OR when the document is hidden (the
+        // user isn't even looking at the page).
+        const modalOpen = !!document.querySelector('.modal-overlay');
+        if (!modalOpen && !document.hidden) {
+            const known: readonly string[] = Object.values(PAGES);
+            const hash = window.location.hash.replace('#', '');
+            const current: PageName = (known.includes(hash) ? hash : PAGES.HOME) as PageName;
+            navigate(current);
+        }
+    } catch (e: any) {
+        // AbortError fires when the user navigated mid-pull. Not a
+        // bug — the new page's mount handles its own data load.
+        if (e?.name === 'AbortError') return;
         console.error("Pull from server failed:", e);
     }
 }
