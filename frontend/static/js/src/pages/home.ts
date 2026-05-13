@@ -69,6 +69,7 @@ import { navigate } from '../router.js';
 // showPersTab moved with the Getting Started Guide extraction —
 // only the guide's "Set your own categories" step calls it.
 import { openNewTripModal, openAddDayModal, openEditTripModal, openCompanionPickerModal, openTripMembersModal, openShareChooserModal } from '../modals.js';
+import { t } from '../i18n.js';
 import { canEdit, canManageRoster, ROLE_PLANNER, ROLE_BUDGETEER } from '../permissions.js';
 import { findTripCompanionByLinkedUser } from '../companions.js';
 // showModal moved out with the modal extractions in Phase B1.
@@ -327,18 +328,18 @@ export function renderHome() {
                     // shape, same colours). Stays an <a> so right-
                     // click → open in new tab still works.
                     return `
-                        <a href="${href}" target="_blank" rel="noopener" id="homeOpenMapsBtn" title="Open this trip's location in Google Maps" aria-label="Open in Google Maps"
+                        <a href="${href}" target="_blank" rel="noopener" id="homeOpenMapsBtn" title="${esc(t('home.mapsBtnTitle'))}" aria-label="${esc(t('home.mapsBtnTitle'))}"
                             style="display:inline-flex; align-items:center; gap:8px; padding:8px 14px; border-radius:999px; background:#ffffff; border:1px solid rgba(0,45,91,0.12); box-shadow:0 4px 12px rgba(0,45,91,0.10); text-decoration:none; color:#202124; font-weight:700; font-size:0.85rem; line-height:1;">
                             <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
                                 <path d="M12 2C7.58 2 4 5.58 4 10c0 5.5 8 12 8 12s8-6.5 8-12c0-4.42-3.58-8-8-8z" fill="#ea4335"/>
                                 <circle cx="12" cy="10" r="3" fill="#ffffff"/>
                             </svg>
-                            <span>Maps</span>
+                            <span>${esc(t('home.mapsBtnLabel'))}</span>
                         </a>
                     `;
                 })()}` : ''}
                 ${activeTrip ? `
-                    <button type="button" id="homeShareTripBtn" title="Share this trip" aria-label="Share this trip"
+                    <button type="button" id="homeShareTripBtn" title="${esc(t('home.shareBtnTitle'))}" aria-label="${esc(t('home.shareBtnTitle'))}"
                         style="display:inline-flex; align-items:center; gap:8px; padding:8px 14px; border-radius:999px; background:#0071e3; border:0; color:#ffffff; cursor:pointer; font-weight:700; font-size:0.85rem; line-height:1; box-shadow:0 4px 12px rgba(0,113,227,0.30);">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                             <circle cx="18" cy="5" r="3"></circle>
@@ -347,7 +348,7 @@ export function renderHome() {
                             <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
                             <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
                         </svg>
-                        <span>Share</span>
+                        <span>${esc(t('home.shareBtnLabel'))}</span>
                     </button>
                 ` : ''}
             </div>
@@ -1081,12 +1082,12 @@ export function renderHome() {
                                 openShareToFeedModal(activeTrip, async (caption: string) => {
                                     const result = await shareTripToFeed(activeTrip.id, caption);
                                     if (result?.ok) {
-                                        showLiquidAlert('Shared to feed!');
+                                        showLiquidAlert(t('share.sharedToFeedSuccess'));
                                     } else {
                                         showLiquidAlert(
                                             result?.status === 409
-                                                ? "Already shared — head to Collections to unshare or repost."
-                                                : "Couldn't share to feed. Try again."
+                                                ? t('share.sharedToFeedDuplicate')
+                                                : t('share.sharedToFeedFailed')
                                         );
                                     }
                                 });

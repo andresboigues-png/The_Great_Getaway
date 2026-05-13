@@ -16,6 +16,7 @@ import {
 import { navigate } from './router.js';
 import { ROLE_PLANNER } from './permissions.js';
 import { showModal } from './components/Modal.js';
+import { t, tn } from './i18n.js';
 
 // Trip-roster modals moved to ./modals/companions.ts in the B1 split.
 // Re-exported here so existing imports (`from '../modals.js'`) keep
@@ -844,13 +845,28 @@ export const openShareTripModal = (trip: any) => {
     const initialShowCost: boolean = !!current.shareShowCost;
     const initialShowPlans: boolean = !!current.shareShowPlans;
 
+    // Top-right X close button — visible affordance separate from
+    // Esc / backdrop-click. Especially important here because the
+    // secondary button flips to "Unshare" when a token exists,
+    // leaving no other close path.
+    const closeXBtnHtml = `
+        <button type="button" id="modalCloseX" aria-label="${esc(t('share.closeAriaLabel'))}"
+            style="position:absolute; top:14px; right:14px; width:32px; height:32px; border-radius:50%; background:rgba(0,0,0,0.18); border:0; color:#ffffff; cursor:pointer; display:flex; align-items:center; justify-content:center; padding:0;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+        </button>
+    `;
+
     const { root, close } = showModal({
         variant: 'glass',
-        cardStyle: 'width: 460px;',
+        cardStyle: 'width: 460px; position: relative;',
         innerHTML: `
-            <h2 class="card-title" style="font-size: var(--font-2xl); margin-bottom: var(--space-2); color: #ffffff; letter-spacing: -0.04em; font-weight: 800; text-align: center;">Share this trip</h2>
+            ${closeXBtnHtml}
+            <h2 class="card-title" style="font-size: var(--font-2xl); margin-bottom: var(--space-2); color: #ffffff; letter-spacing: -0.04em; font-weight: 800; text-align: center; padding-left: 32px; padding-right: 32px;">${esc(t('share.linkTitle'))}</h2>
             <p style="text-align: center; color: rgba(255,255,255,0.78); font-size: 0.85rem; margin-bottom: var(--space-5);">
-                Anyone with the link can view your trip. No account needed.
+                ${esc(t('share.linkSubtitle'))}
             </p>
 
             <!-- Privacy toggles. Default off unless the trip already
@@ -860,15 +876,15 @@ export const openShareTripModal = (trip: any) => {
             <label id="shareCostToggleRow" style="display: flex; align-items: center; gap: var(--space-3); width: 100%; padding: var(--space-3) var(--space-4); background: rgba(255,255,255,0.08); border-radius: 14px; margin-bottom: 10px; cursor: pointer;">
                 <input type="checkbox" id="shareCostToggle" ${initialShowCost ? 'checked' : ''} style="width: 18px; height: 18px; accent-color: #34c759;">
                 <div style="flex: 1; min-width: 0;">
-                    <div style="font-weight: 700; font-size: 0.92rem; color: #ffffff;">Show total cost on the page</div>
-                    <div style="font-size: 0.78rem; color: rgba(255,255,255,0.7); margin-top: 2px;">Aggregate only — no individual expenses.</div>
+                    <div style="font-weight: 700; font-size: 0.92rem; color: #ffffff;">${esc(t('share.toggleCostTitle'))}</div>
+                    <div style="font-size: 0.78rem; color: rgba(255,255,255,0.7); margin-top: 2px;">${esc(t('share.toggleCostBody'))}</div>
                 </div>
             </label>
             <label id="sharePlansToggleRow" style="display: flex; align-items: center; gap: var(--space-3); width: 100%; padding: var(--space-3) var(--space-4); background: rgba(255,255,255,0.08); border-radius: 14px; margin-bottom: var(--space-4); cursor: pointer;">
                 <input type="checkbox" id="sharePlansToggle" ${initialShowPlans ? 'checked' : ''} style="width: 18px; height: 18px; accent-color: #34c759;">
                 <div style="flex: 1; min-width: 0;">
-                    <div style="font-weight: 700; font-size: 0.92rem; color: #ffffff;">Show day-by-day plans</div>
-                    <div style="font-size: 0.78rem; color: rgba(255,255,255,0.7); margin-top: 2px;">Morning / afternoon / evening notes per day. Photos and documents stay private.</div>
+                    <div style="font-weight: 700; font-size: 0.92rem; color: #ffffff;">${esc(t('share.togglePlansTitle'))}</div>
+                    <div style="font-size: 0.78rem; color: rgba(255,255,255,0.7); margin-top: 2px;">${esc(t('share.togglePlansBody'))}</div>
                 </div>
             </label>
 
@@ -884,6 +900,8 @@ export const openShareTripModal = (trip: any) => {
             </div>
         `,
     });
+
+    (q(root, '#modalCloseX') as HTMLButtonElement).onclick = () => close();
 
     const stateBlock = q(root, '#shareStateBlock') as HTMLElement;
     const generateBtn = q(root, '#shareGenerateBtn') as HTMLButtonElement;
@@ -903,20 +921,20 @@ export const openShareTripModal = (trip: any) => {
             stateBlock.innerHTML = `
                 <div style="background: rgba(255,255,255,0.96); color: #1d1d1f; padding: var(--space-3) var(--space-4); border-radius: 12px; word-break: break-all; font-family: ui-monospace, monospace; font-size: 0.82rem; font-weight: 600;">${esc(url)}</div>
                 <div style="display: flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 0.78rem; color: rgba(255,255,255,0.7); font-weight: 600;">
-                    👁 ${views} view${views === 1 ? '' : 's'}
+                    ${esc(tn('share.viewsCount', views, { count: views }))}
                 </div>
             `;
-            generateBtn.textContent = '📋 Copy link';
-            secondaryBtn.textContent = 'Unshare';
+            generateBtn.textContent = t('share.copyBtn');
+            secondaryBtn.textContent = t('share.unshareBtn');
             secondaryBtn.style.display = '';
         } else {
             stateBlock.innerHTML = `
                 <div style="padding: var(--space-3) var(--space-4); border-radius: 12px; background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.78); font-size: 0.85rem; text-align: center;">
-                    This trip isn't shared yet. Generate a link to send to anyone.
+                    ${esc(t('share.emptyState'))}
                 </div>
             `;
-            generateBtn.textContent = 'Generate share link';
-            secondaryBtn.textContent = 'Close';
+            generateBtn.textContent = t('share.generateBtn');
+            secondaryBtn.textContent = t('share.closeBtn');
         }
     };
 
@@ -928,7 +946,7 @@ export const openShareTripModal = (trip: any) => {
             const url = buildShareUrl(currentToken);
             try {
                 await navigator.clipboard.writeText(url);
-                showLiquidAlert('Link copied to clipboard');
+                showLiquidAlert(t('share.linkCopied'));
             } catch {
                 // Older browsers / non-secure contexts: fall back to the
                 // legacy execCommand path.
@@ -938,14 +956,14 @@ export const openShareTripModal = (trip: any) => {
                 ta.select();
                 try { document.execCommand('copy'); } catch { /* ignored */ }
                 document.body.removeChild(ta);
-                showLiquidAlert('Link copied');
+                showLiquidAlert(t('share.linkCopied'));
             }
             return;
         }
         // No token yet — generate. POST creates a token AND records
         // both privacy preferences (showCost + showPlans) in one round-trip.
         generateBtn.disabled = true;
-        generateBtn.textContent = 'Generating…';
+        generateBtn.textContent = t('share.generating');
         try {
             const res = await apiFetch(`/api/trips/${encodeURIComponent(trip.id)}/share`, {
                 method: 'POST',
@@ -973,10 +991,10 @@ export const openShareTripModal = (trip: any) => {
             renderState();
             // Auto-copy on generate so the user can paste straight away.
             try { await navigator.clipboard.writeText(buildShareUrl(currentToken!)); } catch { /* ignored */ }
-            showLiquidAlert('Share link ready');
+            showLiquidAlert(t('share.linkReady'));
         } catch (e) {
             console.error('Generate share link failed:', e);
-            showLiquidAlert("Couldn't create the share link. Try again.");
+            showLiquidAlert(t('share.generateFailed'));
             generateBtn.disabled = false;
             renderState();
         }
@@ -988,7 +1006,7 @@ export const openShareTripModal = (trip: any) => {
             return;
         }
         secondaryBtn.disabled = true;
-        secondaryBtn.textContent = 'Unsharing…';
+        secondaryBtn.textContent = t('share.unsharing');
         try {
             const res = await apiFetch(`/api/trips/${encodeURIComponent(trip.id)}/share`, {
                 method: 'DELETE',
@@ -1004,10 +1022,10 @@ export const openShareTripModal = (trip: any) => {
             }
             emit('state:changed');
             renderState();
-            showLiquidAlert('Link revoked');
+            showLiquidAlert(t('share.linkRevoked'));
         } catch (e) {
             console.error('Unshare failed:', e);
-            showLiquidAlert("Couldn't revoke the link. Try again.");
+            showLiquidAlert(t('share.revokeFailed'));
         } finally {
             secondaryBtn.disabled = false;
         }
@@ -1056,7 +1074,7 @@ export const openShareTripModal = (trip: any) => {
             // Roll the changed toggle back so the UI matches the
             // server's state. Leave the other toggle alone.
             changed.checked = !changed.checked;
-            showLiquidAlert("Couldn't update the setting.");
+            showLiquidAlert(t('share.toggleFailed'));
         }
     };
     costToggle.addEventListener('change', () => persistTogglesIfShared(costToggle, 'showCost'));
@@ -1107,21 +1125,36 @@ export function openShareChooserModal(opts: ShareChooserOpts) {
     const { trip, onShareToFeed, showFeedOption = true } = opts;
     if (!trip) return;
 
+    // Common style for the top-right X close button used by this modal
+    // and the share-link modal below. Absolute-positioned in the card,
+    // semi-transparent on a glass background — visible affordance for
+    // users who don't realise backdrop-click / Esc also close.
+    const closeXBtnHtml = `
+        <button type="button" id="modalCloseX" aria-label="${esc(t('share.closeAriaLabel'))}"
+            style="position:absolute; top:14px; right:14px; width:32px; height:32px; border-radius:50%; background:rgba(0,0,0,0.18); border:0; color:#ffffff; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:1.1rem; line-height:1; padding:0;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+        </button>
+    `;
+
     const { root, close } = showModal({
         variant: 'glass',
-        cardStyle: 'width: 420px;',
+        cardStyle: 'width: 420px; position: relative;',
         innerHTML: `
-            <h2 class="card-title" style="font-size: var(--font-2xl); margin-bottom: var(--space-2); color: #ffffff; letter-spacing: -0.04em; font-weight: 800; text-align: center;">Share "${esc(trip.name || 'this trip')}"</h2>
+            ${closeXBtnHtml}
+            <h2 class="card-title" style="font-size: var(--font-2xl); margin-bottom: var(--space-2); color: #ffffff; letter-spacing: -0.04em; font-weight: 800; text-align: center; padding-right: 32px; padding-left: 32px;">${esc(t('share.chooserTitle', { name: trip.name || 'this trip' }))}</h2>
             <p style="text-align: center; color: rgba(255,255,255,0.78); font-size: 0.85rem; margin-bottom: var(--space-5);">
-                Choose how you want to share.
+                ${esc(t('share.chooserSubtitle'))}
             </p>
 
             ${showFeedOption ? `
                 <button type="button" id="shareChooserFeedBtn" style="display:flex; align-items:center; gap:14px; width:100%; padding:16px 18px; margin-bottom:12px; background:rgba(255,255,255,0.10); border:1px solid rgba(255,255,255,0.22); border-radius:14px; color:#ffffff; cursor:pointer; text-align:left;">
                     <span style="font-size:1.6rem; line-height:1;">📢</span>
                     <span style="flex:1; min-width:0;">
-                        <span style="display:block; font-weight:800; font-size:1rem;">Share to feed</span>
-                        <span style="display:block; font-size:0.78rem; color:rgba(255,255,255,0.72); margin-top:2px;">Post to your friends in The Great Getaway.</span>
+                        <span style="display:block; font-weight:800; font-size:1rem;">${esc(t('share.chooserFeedTitle'))}</span>
+                        <span style="display:block; font-size:0.78rem; color:rgba(255,255,255,0.72); margin-top:2px;">${esc(t('share.chooserFeedBody'))}</span>
                     </span>
                 </button>
             ` : ''}
@@ -1129,14 +1162,16 @@ export function openShareChooserModal(opts: ShareChooserOpts) {
             <button type="button" id="shareChooserLinkBtn" style="display:flex; align-items:center; gap:14px; width:100%; padding:16px 18px; background:rgba(255,255,255,0.10); border:1px solid rgba(255,255,255,0.22); border-radius:14px; color:#ffffff; cursor:pointer; text-align:left;">
                 <span style="font-size:1.6rem; line-height:1;">🔗</span>
                 <span style="flex:1; min-width:0;">
-                    <span style="display:block; font-weight:800; font-size:1rem;">Get share link</span>
-                    <span style="display:block; font-size:0.78rem; color:rgba(255,255,255,0.72); margin-top:2px;">Send a link anyone can open — no account needed.</span>
+                    <span style="display:block; font-weight:800; font-size:1rem;">${esc(t('share.chooserLinkTitle'))}</span>
+                    <span style="display:block; font-size:0.78rem; color:rgba(255,255,255,0.72); margin-top:2px;">${esc(t('share.chooserLinkBody'))}</span>
                 </span>
             </button>
 
-            <button type="button" id="shareChooserCancelBtn" class="btn-ghost" style="width:100%; margin-top:18px;">Cancel</button>
+            <button type="button" id="shareChooserCancelBtn" class="btn-ghost" style="width:100%; margin-top:18px;">${esc(t('share.chooserCancel'))}</button>
         `,
     });
+
+    (q(root, '#modalCloseX') as HTMLButtonElement).onclick = () => close();
 
     const feedBtn = q(root, '#shareChooserFeedBtn') as HTMLButtonElement | null;
     const linkBtn = q(root, '#shareChooserLinkBtn') as HTMLButtonElement;

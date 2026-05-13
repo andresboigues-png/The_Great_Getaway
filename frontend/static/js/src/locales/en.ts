@@ -766,6 +766,51 @@ export const en = {
         greetingTripName: 'Ready for your {trip} adventure?',
         greetingCountryStart: 'Your {country} adventure starts here.',
         greetingCountryStory: 'Time to write your {country} story.',
+        // Share + Maps buttons in the homeMapActionsRow.
+        mapsBtnLabel: 'Maps',
+        mapsBtnTitle: "Open this trip's location in Google Maps",
+        shareBtnLabel: 'Share',
+        shareBtnTitle: 'Share this trip',
+    },
+    share: {
+        // Share-chooser modal — the entry point that asks "which way?"
+        chooserTitle: 'Share "{name}"',
+        chooserSubtitle: 'Choose how you want to share.',
+        chooserFeedTitle: 'Share to feed',
+        chooserFeedBody: 'Post to your friends in The Great Getaway.',
+        chooserLinkTitle: 'Get share link',
+        chooserLinkBody: 'Send a link anyone can open — no account needed.',
+        chooserCancel: 'Cancel',
+        // Share-link modal — generates / manages the public URL.
+        linkTitle: 'Share this trip',
+        linkSubtitle: 'Anyone with the link can view your trip. No account needed.',
+        toggleCostTitle: 'Show total cost on the page',
+        toggleCostBody: 'Aggregate only — no individual expenses.',
+        togglePlansTitle: 'Show day-by-day plans',
+        togglePlansBody: 'Morning / afternoon / evening notes per day. Photos and documents stay private.',
+        emptyState: "This trip isn't shared yet. Generate a link to send to anyone.",
+        generateBtn: 'Generate share link',
+        copyBtn: '📋 Copy link',
+        generating: 'Generating…',
+        unshareBtn: 'Unshare',
+        unsharing: 'Unsharing…',
+        closeBtn: 'Close',
+        closeAriaLabel: 'Close',
+        // Toasts.
+        linkReady: 'Share link ready',
+        linkCopied: 'Link copied to clipboard',
+        linkRevoked: 'Link revoked',
+        generateFailed: "Couldn't create the share link. Try again.",
+        revokeFailed: "Couldn't revoke the link. Try again.",
+        toggleFailed: "Couldn't update the setting.",
+        sharedToFeedSuccess: 'Shared to feed!',
+        sharedToFeedDuplicate: 'Already shared — head to Collections to unshare or repost.',
+        sharedToFeedFailed: "Couldn't share to feed. Try again.",
+        // Views chip (plural-aware).
+        viewsCount: {
+            one: '👁 {count} view',
+            other: '👁 {count} views',
+        },
     },
     toasts: {
         // Generic recoverable error messages used across pages.
