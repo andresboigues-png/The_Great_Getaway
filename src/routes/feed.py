@@ -13,6 +13,8 @@ event_ids of the form `share_<id>` / `repost_<id>`).
 """
 
 import re
+from dataclasses import dataclass
+from typing import Callable
 
 from flask import Blueprint, jsonify, request
 
@@ -219,228 +221,324 @@ def _fire_engagement_notification(cursor, recipient_id, actor_id, kind):
     )
 
 
+# ── Feed-event builder registry — FIXING_ROADMAP §3.6 ────────────────
+#
+# Each builder is a pure function `(cursor, ctx) → list[event_dict]`.
+# `get_feed` walks FEED_EVENT_BUILDERS, concatenates the results,
+# sorts + caps + attaches engagement counts. Adding a new event type
+# (settled_up, achievement_unlocked, trip_cloned) becomes a single
+# new builder function + one append to the registry — no surgery
+# inside `get_feed`.
+#
+# Pre-§3.6 the seven event types lived inline in `get_feed` as 7
+# copy-pasted SQL + dict blocks, ~30 lines each. Adding `settled_up`
+# for §4.5 would have been "find the right spot, copy a block, edit
+# half its lines without breaking the others". The registry split
+# fixes that — each builder is self-contained and isolated.
+#
+# A per-builder try/except wraps every call in the orchestrator so a
+# single schema-drift or query failure no longer 500s the entire feed
+# (previously only `new_friendship` had this defensive wrap).
+
+
+@dataclass
+class _FeedContext:
+    """Per-request inputs shared across every builder. Built once at
+    the top of `get_feed` so each builder doesn't re-resolve friendship +
+    actor lookups."""
+    user_id: str
+    # actor_ids = friend_ids + [user_id], deduplicated. Used by the
+    # IN (...) clause across most builders.
+    actor_ids: list
+    # actor_id → {id, name, picture}. Lets builders attach the actor
+    # block without re-hitting `users` per row.
+    actor_lookup: dict
+
+
+_FeedEventBuilder = Callable[..., list]
+
+
+def _build_feed_context(cursor, user_id: str) -> _FeedContext:
+    """Resolve the caller's accepted-friendship list + the actor lookup
+    that every builder needs. Friends-only by design; the feed surfaces
+    "what your friends + you have done lately", not strangers."""
+    cursor.execute('''
+        SELECT u.id, u.name, u.picture
+        FROM users u
+        JOIN friends f ON u.id = f.friend_id
+        WHERE f.user_id = ? AND f.status = 'accepted'
+    ''', (user_id,))
+    friend_rows = [dict(r) for r in cursor.fetchall()]
+    friend_ids = [f["id"] for f in friend_rows]
+    friend_lookup = {f["id"]: f for f in friend_rows}
+
+    cursor.execute("SELECT id, name, picture FROM users WHERE id = ?", (user_id,))
+    me_row = cursor.fetchone()
+    me_lookup = dict(me_row) if me_row else {"id": user_id, "name": "You", "picture": None}
+    actor_lookup = {**friend_lookup, user_id: me_lookup}
+    actor_ids = list(set(friend_ids + [user_id]))
+    return _FeedContext(user_id=user_id, actor_ids=actor_ids, actor_lookup=actor_lookup)
+
+
+def _build_friend_created_trip(cursor, ctx: _FeedContext) -> list:
+    """Actor is owner, last 30 days, not archived, not silenced."""
+    placeholders = ",".join(["?"] * len(ctx.actor_ids))
+    cursor.execute(f'''
+        SELECT id, user_id, name, country, created_at
+        FROM trips
+        WHERE user_id IN ({placeholders})
+          AND COALESCE(is_archived, 0) = 0
+          AND COALESCE(actions_hidden, 0) = 0
+          AND created_at >= datetime('now', '-30 days')
+        ORDER BY created_at DESC
+    ''', ctx.actor_ids)
+    events = []
+    for row in cursor.fetchall():
+        actor = ctx.actor_lookup.get(row["user_id"])
+        if not actor:
+            continue
+        events.append({
+            "id": f"trip_created_{row['id']}",
+            "type": "friend_created_trip",
+            "actor": actor,
+            "trip": {"id": row["id"], "name": row["name"], "country": row["country"]},
+            "when": row["created_at"],
+        })
+    return events
+
+
+def _build_friend_archived_trip(cursor, ctx: _FeedContext) -> list:
+    """Actor's trip got archived (= they marked it complete). Falls back to
+    created_at since we don't have an archived_at column."""
+    placeholders = ",".join(["?"] * len(ctx.actor_ids))
+    cursor.execute(f'''
+        SELECT id, user_id, name, country, created_at
+        FROM trips
+        WHERE user_id IN ({placeholders})
+          AND COALESCE(is_archived, 0) = 1
+          AND COALESCE(actions_hidden, 0) = 0
+          AND created_at >= datetime('now', '-30 days')
+        ORDER BY created_at DESC
+    ''', ctx.actor_ids)
+    events = []
+    for row in cursor.fetchall():
+        actor = ctx.actor_lookup.get(row["user_id"])
+        if not actor:
+            continue
+        events.append({
+            "id": f"trip_archived_{row['id']}",
+            "type": "friend_archived_trip",
+            "actor": actor,
+            "trip": {"id": row["id"], "name": row["name"], "country": row["country"]},
+            "when": row["created_at"],
+        })
+    return events
+
+
+def _build_friend_joined_trip(cursor, ctx: _FeedContext) -> list:
+    """Actor was added to a trip they DON'T own. `trip_members` has no
+    join timestamp; we use the trip's created_at as a best-effort proxy."""
+    placeholders = ",".join(["?"] * len(ctx.actor_ids))
+    cursor.execute(f'''
+        SELECT tm.trip_id, tm.user_id AS joiner_id, t.name, t.country, t.created_at
+        FROM trip_members tm
+        JOIN trips t ON t.id = tm.trip_id
+        WHERE tm.user_id IN ({placeholders})
+          AND tm.invitation_status = 'accepted'
+          AND tm.user_id != t.user_id
+          AND COALESCE(t.actions_hidden, 0) = 0
+          AND t.created_at >= datetime('now', '-30 days')
+    ''', ctx.actor_ids)
+    events = []
+    for row in cursor.fetchall():
+        actor = ctx.actor_lookup.get(row["joiner_id"])
+        if not actor:
+            continue
+        events.append({
+            "id": f"trip_joined_{row['trip_id']}_{row['joiner_id']}",
+            "type": "friend_joined_trip",
+            "actor": actor,
+            "trip": {"id": row["trip_id"], "name": row["name"], "country": row["country"]},
+            "when": row["created_at"],
+        })
+    return events
+
+
+def _build_new_friendship(cursor, ctx: _FeedContext) -> list:
+    """Caller-scoped (not friend-of-friend): only friendships where the
+    caller is on one end. The viewer_id in the event_id is the caller —
+    `_caller_can_see_event` resolves the row id back to its two endpoints
+    so engagement checks still work across the friendship's two sides."""
+    cursor.execute('''
+        SELECT u.id, u.name, u.picture, f.created_at
+        FROM friends f
+        JOIN users u ON u.id = f.friend_id
+        WHERE f.user_id = ?
+          AND f.status = 'accepted'
+          AND f.created_at IS NOT NULL
+          AND f.created_at >= datetime('now', '-30 days')
+        ORDER BY f.created_at DESC
+    ''', (ctx.user_id,))
+    events = []
+    for row in cursor.fetchall():
+        events.append({
+            "id": f"friendship_{ctx.user_id}_{row['id']}",
+            "type": "new_friendship",
+            "actor": {"id": row["id"], "name": row["name"], "picture": row["picture"]},
+            "when": row["created_at"],
+        })
+    return events
+
+
+def _build_friend_shared_trip(cursor, ctx: _FeedContext) -> list:
+    """Explicit shares — `feed_posts` rows where `repost_of_post_id IS NULL`."""
+    placeholders = ",".join(["?"] * len(ctx.actor_ids))
+    cursor.execute(f'''
+        SELECT fp.id, fp.user_id AS sharer_id, fp.trip_id, fp.created_at, fp.caption,
+               u.name AS sharer_name, u.picture AS sharer_picture,
+               t.name AS trip_name, t.country AS trip_country
+        FROM feed_posts fp
+        JOIN users u ON u.id = fp.user_id
+        JOIN trips t ON t.id = fp.trip_id
+        WHERE fp.user_id IN ({placeholders})
+          AND fp.repost_of_post_id IS NULL
+          AND fp.created_at >= datetime('now', '-30 days')
+        ORDER BY fp.created_at DESC
+    ''', ctx.actor_ids)
+    events = []
+    for row in cursor.fetchall():
+        events.append({
+            "id": f"share_{row['id']}",
+            "type": "friend_shared_trip",
+            "actor": {"id": row['sharer_id'], "name": row['sharer_name'], "picture": row['sharer_picture']},
+            "trip": {"id": row['trip_id'], "name": row['trip_name'], "country": row['trip_country']},
+            "post_id": row['id'],
+            "caption": row['caption'],
+            "when": row['created_at'],
+        })
+    return events
+
+
+def _build_friend_reposted_trip(cursor, ctx: _FeedContext) -> list:
+    """Reposts — `feed_posts` rows where `repost_of_post_id IS NOT NULL`.
+    Original-sharer info also pulled so the card can render
+    "Reposted X's share" with the original blurb visible."""
+    placeholders = ",".join(["?"] * len(ctx.actor_ids))
+    cursor.execute(f'''
+        SELECT fp.id, fp.user_id AS reposter_id, fp.trip_id, fp.created_at,
+               u.name AS reposter_name, u.picture AS reposter_picture,
+               t.name AS trip_name, t.country AS trip_country,
+               orig.user_id AS original_sharer_id, orig.caption AS original_caption,
+               ou.name AS original_sharer_name, ou.picture AS original_sharer_picture
+        FROM feed_posts fp
+        JOIN users u ON u.id = fp.user_id
+        JOIN trips t ON t.id = fp.trip_id
+        JOIN feed_posts orig ON orig.id = fp.repost_of_post_id
+        JOIN users ou ON ou.id = orig.user_id
+        WHERE fp.user_id IN ({placeholders})
+          AND fp.repost_of_post_id IS NOT NULL
+          AND fp.created_at >= datetime('now', '-30 days')
+        ORDER BY fp.created_at DESC
+    ''', ctx.actor_ids)
+    events = []
+    for row in cursor.fetchall():
+        events.append({
+            "id": f"repost_{row['id']}",
+            "type": "friend_reposted_trip",
+            "actor": {"id": row['reposter_id'], "name": row['reposter_name'], "picture": row['reposter_picture']},
+            "original_sharer": {"id": row['original_sharer_id'], "name": row['original_sharer_name'], "picture": row['original_sharer_picture']},
+            "trip": {"id": row['trip_id'], "name": row['trip_name'], "country": row['trip_country']},
+            "post_id": row['id'],
+            "caption": row['original_caption'],
+            "when": row['created_at'],
+        })
+    return events
+
+
+# Order doesn't matter — the orchestrator sorts by `when` descending
+# after concatenation. Listed roughly by source table for readability.
+FEED_EVENT_BUILDERS: list[_FeedEventBuilder] = [
+    _build_friend_created_trip,
+    _build_friend_archived_trip,
+    _build_friend_joined_trip,
+    _build_new_friendship,
+    _build_friend_shared_trip,
+    _build_friend_reposted_trip,
+]
+
+
+def _attach_engagement_counts(cursor, events: list, user_id: str) -> None:
+    """Mutate `events` to add like/bookmark/comment counts + viewer-
+    specific is_liked / is_bookmarked flags. Three batched queries
+    scoped to the SURFACED event_ids — engagement-state lookup never
+    pages through the global feed_likes / feed_comments tables."""
+    if not events:
+        return
+    event_ids = [e['id'] for e in events]
+    id_placeholders = ",".join(["?"] * len(event_ids))
+    cursor.execute(
+        f"SELECT event_id, COUNT(*) AS c FROM feed_likes "
+        f"WHERE event_id IN ({id_placeholders}) GROUP BY event_id",
+        event_ids,
+    )
+    likes_count = {r['event_id']: r['c'] for r in cursor.fetchall()}
+    cursor.execute(
+        f"SELECT event_id FROM feed_likes "
+        f"WHERE user_id = ? AND event_id IN ({id_placeholders})",
+        [user_id, *event_ids],
+    )
+    liked_by_me = {r['event_id'] for r in cursor.fetchall()}
+    cursor.execute(
+        f"SELECT event_id FROM feed_bookmarks "
+        f"WHERE user_id = ? AND event_id IN ({id_placeholders})",
+        [user_id, *event_ids],
+    )
+    bookmarked_by_me = {r['event_id'] for r in cursor.fetchall()}
+    cursor.execute(
+        f"SELECT event_id, COUNT(*) AS c FROM feed_comments "
+        f"WHERE event_id IN ({id_placeholders}) GROUP BY event_id",
+        event_ids,
+    )
+    comments_count = {r['event_id']: r['c'] for r in cursor.fetchall()}
+    for e in events:
+        e['like_count'] = likes_count.get(e['id'], 0)
+        e['is_liked'] = e['id'] in liked_by_me
+        e['is_bookmarked'] = e['id'] in bookmarked_by_me
+        e['comment_count'] = comments_count.get(e['id'], 0)
+
+
 @bp.route("/api/feed", methods=["GET"])
 @require_auth
 @limiter.limit("60/minute")
 def get_feed():
-    """Activity feed — friends + own. See module docstring for the full
-    event-type list and window/cap rules."""
+    """Activity feed — friends + own. Iterates the FEED_EVENT_BUILDERS
+    registry; each builder owns one event type. See module docstring
+    for the full event-type list and window/cap rules."""
     user_id = current_user_id()
-    events = []
+    events: list = []
     with get_db() as conn:
         cursor = conn.cursor()
+        ctx = _build_feed_context(cursor, user_id)
 
-        # 1) Friend list + actor lookup. Both Action and Posts queries
-        # include the caller alongside friends — the feed is "what your
-        # friends + you have done lately".
-        cursor.execute('''
-            SELECT u.id, u.name, u.picture
-            FROM users u
-            JOIN friends f ON u.id = f.friend_id
-            WHERE f.user_id = ? AND f.status = 'accepted'
-        ''', (user_id,))
-        friend_rows = [dict(r) for r in cursor.fetchall()]
-        friend_ids = [f["id"] for f in friend_rows]
-        friend_lookup = {f["id"]: f for f in friend_rows}
+        for builder in FEED_EVENT_BUILDERS:
+            try:
+                events.extend(builder(cursor, ctx))
+            except Exception as e:
+                # Schema-drift or per-builder query failure — log and
+                # skip rather than 500 the entire feed. Pre-§3.6 this
+                # defensive wrap lived only around `new_friendship`
+                # (since it had history of a missing `created_at` col);
+                # now every builder gets the same backstop.
+                print(f"[feed] builder {builder.__name__} failed (skipping): {e}")
 
-        cursor.execute("SELECT id, name, picture FROM users WHERE id = ?", (user_id,))
-        me_row = cursor.fetchone()
-        me_lookup = dict(me_row) if me_row else {"id": user_id, "name": "You", "picture": None}
-        actor_lookup = {**friend_lookup, user_id: me_lookup}
-        actor_ids = list(set(friend_ids + [user_id]))
-        placeholders = ",".join(["?"] * len(actor_ids))
-        post_actor_ids = actor_ids
-        post_placeholders = placeholders
-
-        # 2) friend_created_trip — actor is owner, last 30 days, not
-        # archived, not silenced.
-        cursor.execute(f'''
-            SELECT id, user_id, name, country, created_at
-            FROM trips
-            WHERE user_id IN ({placeholders})
-              AND COALESCE(is_archived, 0) = 0
-              AND COALESCE(actions_hidden, 0) = 0
-              AND created_at >= datetime('now', '-30 days')
-            ORDER BY created_at DESC
-        ''', actor_ids)
-        for row in cursor.fetchall():
-            actor = actor_lookup.get(row["user_id"])
-            if not actor:
-                continue
-            events.append({
-                "id": f"trip_created_{row['id']}",
-                "type": "friend_created_trip",
-                "actor": actor,
-                "trip": {"id": row["id"], "name": row["name"], "country": row["country"]},
-                "when": row["created_at"],
-            })
-
-        # 3) friend_archived_trip — actor's trip got archived (= they
-        # marked it complete). Falls back to created_at since we don't
-        # have an archived_at column.
-        cursor.execute(f'''
-            SELECT id, user_id, name, country, created_at
-            FROM trips
-            WHERE user_id IN ({placeholders})
-              AND COALESCE(is_archived, 0) = 1
-              AND COALESCE(actions_hidden, 0) = 0
-              AND created_at >= datetime('now', '-30 days')
-            ORDER BY created_at DESC
-        ''', actor_ids)
-        for row in cursor.fetchall():
-            actor = actor_lookup.get(row["user_id"])
-            if not actor:
-                continue
-            events.append({
-                "id": f"trip_archived_{row['id']}",
-                "type": "friend_archived_trip",
-                "actor": actor,
-                "trip": {"id": row["id"], "name": row["name"], "country": row["country"]},
-                "when": row["created_at"],
-            })
-
-        # 4) friend_joined_trip — actor was added to a trip they DON'T
-        # own. trip_members has no join timestamp; we use the trip's
-        # created_at as a best-effort proxy.
-        cursor.execute(f'''
-            SELECT tm.trip_id, tm.user_id AS joiner_id, t.name, t.country, t.created_at
-            FROM trip_members tm
-            JOIN trips t ON t.id = tm.trip_id
-            WHERE tm.user_id IN ({placeholders})
-              AND tm.invitation_status = 'accepted'
-              AND tm.user_id != t.user_id
-              AND COALESCE(t.actions_hidden, 0) = 0
-              AND t.created_at >= datetime('now', '-30 days')
-        ''', actor_ids)
-        for row in cursor.fetchall():
-            actor = actor_lookup.get(row["joiner_id"])
-            if not actor:
-                continue
-            events.append({
-                "id": f"trip_joined_{row['trip_id']}_{row['joiner_id']}",
-                "type": "friend_joined_trip",
-                "actor": actor,
-                "trip": {"id": row["trip_id"], "name": row["name"], "country": row["country"]},
-                "when": row["created_at"],
-            })
-
-        # 5) new_friendship. Wrapped in try/except as a backstop against
-        # schema-drift (a buggy ALTER once left created_at un-added on
-        # legacy dbs and 500'd /api/feed entirely).
-        try:
-            cursor.execute(f'''
-                SELECT u.id, u.name, u.picture, f.created_at
-                FROM friends f
-                JOIN users u ON u.id = f.friend_id
-                WHERE f.user_id = ?
-                  AND f.status = 'accepted'
-                  AND f.created_at IS NOT NULL
-                  AND f.created_at >= datetime('now', '-30 days')
-                ORDER BY f.created_at DESC
-            ''', (user_id,))
-            for row in cursor.fetchall():
-                events.append({
-                    "id": f"friendship_{user_id}_{row['id']}",
-                    "type": "new_friendship",
-                    "actor": {"id": row["id"], "name": row["name"], "picture": row["picture"]},
-                    "when": row["created_at"],
-                })
-        except Exception as e:
-            print(f"[feed] new_friendship query failed (skipping): {e}")
-
-        # 6) friend_shared_trip — explicit shares (repost_of_post_id NULL).
-        cursor.execute(f'''
-            SELECT fp.id, fp.user_id AS sharer_id, fp.trip_id, fp.created_at, fp.caption,
-                   u.name AS sharer_name, u.picture AS sharer_picture,
-                   t.name AS trip_name, t.country AS trip_country
-            FROM feed_posts fp
-            JOIN users u ON u.id = fp.user_id
-            JOIN trips t ON t.id = fp.trip_id
-            WHERE fp.user_id IN ({post_placeholders})
-              AND fp.repost_of_post_id IS NULL
-              AND fp.created_at >= datetime('now', '-30 days')
-            ORDER BY fp.created_at DESC
-        ''', post_actor_ids)
-        for row in cursor.fetchall():
-            events.append({
-                "id": f"share_{row['id']}",
-                "type": "friend_shared_trip",
-                "actor": {"id": row['sharer_id'], "name": row['sharer_name'], "picture": row['sharer_picture']},
-                "trip": {"id": row['trip_id'], "name": row['trip_name'], "country": row['trip_country']},
-                "post_id": row['id'],
-                "caption": row['caption'],
-                "when": row['created_at'],
-            })
-
-        # 7) friend_reposted_trip. Original-sharer info also pulled so
-        # the card can render "Reposted X's share" with the original
-        # blurb visible.
-        cursor.execute(f'''
-            SELECT fp.id, fp.user_id AS reposter_id, fp.trip_id, fp.created_at,
-                   u.name AS reposter_name, u.picture AS reposter_picture,
-                   t.name AS trip_name, t.country AS trip_country,
-                   orig.user_id AS original_sharer_id, orig.caption AS original_caption,
-                   ou.name AS original_sharer_name, ou.picture AS original_sharer_picture
-            FROM feed_posts fp
-            JOIN users u ON u.id = fp.user_id
-            JOIN trips t ON t.id = fp.trip_id
-            JOIN feed_posts orig ON orig.id = fp.repost_of_post_id
-            JOIN users ou ON ou.id = orig.user_id
-            WHERE fp.user_id IN ({post_placeholders})
-              AND fp.repost_of_post_id IS NOT NULL
-              AND fp.created_at >= datetime('now', '-30 days')
-            ORDER BY fp.created_at DESC
-        ''', post_actor_ids)
-        for row in cursor.fetchall():
-            events.append({
-                "id": f"repost_{row['id']}",
-                "type": "friend_reposted_trip",
-                "actor": {"id": row['reposter_id'], "name": row['reposter_name'], "picture": row['reposter_picture']},
-                "original_sharer": {"id": row['original_sharer_id'], "name": row['original_sharer_name'], "picture": row['original_sharer_picture']},
-                "trip": {"id": row['trip_id'], "name": row['trip_name'], "country": row['trip_country']},
-                "post_id": row['id'],
-                "caption": row['original_caption'],
-                "when": row['created_at'],
-            })
-
-        # Sort + cap before attaching like/bookmark/comment counts.
+        # Sort newest-first + cap. Done in Python rather than per-builder
+        # SQL because the registry intentionally lets each builder choose
+        # its own ORDER BY / window — the final ordering is the unified
+        # sort here.
         events.sort(key=lambda e: e.get("when") or "", reverse=True)
         events = events[:100]
 
-        # Like/bookmark/comment attach. Three batched queries scoped to
-        # the surfaced event_ids.
-        if events:
-            event_ids = [e['id'] for e in events]
-            id_placeholders = ",".join(["?"] * len(event_ids))
-            cursor.execute(
-                f"SELECT event_id, COUNT(*) AS c FROM feed_likes "
-                f"WHERE event_id IN ({id_placeholders}) GROUP BY event_id",
-                event_ids,
-            )
-            likes_count = {r['event_id']: r['c'] for r in cursor.fetchall()}
-            cursor.execute(
-                f"SELECT event_id FROM feed_likes "
-                f"WHERE user_id = ? AND event_id IN ({id_placeholders})",
-                [user_id, *event_ids],
-            )
-            liked_by_me = {r['event_id'] for r in cursor.fetchall()}
-            cursor.execute(
-                f"SELECT event_id FROM feed_bookmarks "
-                f"WHERE user_id = ? AND event_id IN ({id_placeholders})",
-                [user_id, *event_ids],
-            )
-            bookmarked_by_me = {r['event_id'] for r in cursor.fetchall()}
-            cursor.execute(
-                f"SELECT event_id, COUNT(*) AS c FROM feed_comments "
-                f"WHERE event_id IN ({id_placeholders}) GROUP BY event_id",
-                event_ids,
-            )
-            comments_count = {r['event_id']: r['c'] for r in cursor.fetchall()}
-            for e in events:
-                e['like_count'] = likes_count.get(e['id'], 0)
-                e['is_liked'] = e['id'] in liked_by_me
-                e['is_bookmarked'] = e['id'] in bookmarked_by_me
-                e['comment_count'] = comments_count.get(e['id'], 0)
+        _attach_engagement_counts(cursor, events, user_id)
 
     return jsonify(events)
 
