@@ -4114,3 +4114,168 @@ def test_explore_requires_auth(client):
     """v1 is auth-only; anonymous discovery deferred. Catches a
     refactor that strips @require_auth by accident."""
     assert client.get("/api/feed/explore").status_code == 401
+
+
+# ── §4.7 Followers / following ───────────────────────────────────────
+# One-way social graph, independent of `friends`. Tests cover the
+# follow op, idempotency, self-rejection, unfollow, count surfacing
+# on /api/public-profile, and the "first follow notifies, repeat
+# follows don't" rule.
+
+
+def test_follow_user_happy_path(client, seed_user, seed_other_user, auth_headers):
+    """POST /api/follows/<id> creates a follows row + returns the
+    new counts + isFollowing=true."""
+    res = client.post(f"/api/follows/{seed_other_user}", headers=auth_headers)
+    assert res.status_code == 201
+    body = res.get_json()
+    assert body["isFollowing"] is True
+    assert body["followers"] == 1
+    assert body["following"] == 0  # seed_other_user follows nobody
+
+
+def test_follow_idempotent(client, seed_user, seed_other_user, auth_headers):
+    """Re-POSTing the same follow is a no-op (200, not 201, no error,
+    no duplicate row). The UI calls this when re-rendering the profile
+    after stale state — must not double-count."""
+    first = client.post(f"/api/follows/{seed_other_user}", headers=auth_headers)
+    assert first.status_code == 201
+    second = client.post(f"/api/follows/{seed_other_user}", headers=auth_headers)
+    assert second.status_code == 200
+    body = second.get_json()
+    assert body["isFollowing"] is True
+    assert body["followers"] == 1
+
+
+def test_follow_self_rejected(client, seed_user, auth_headers):
+    """Self-follow is rejected — would just spam the user's own bell
+    and creates pointless rows."""
+    res = client.post(f"/api/follows/{seed_user}", headers=auth_headers)
+    assert res.status_code == 400
+
+
+def test_follow_unknown_user_404(client, seed_user, auth_headers):
+    """Following a non-existent user returns 404 (not 403) so probing
+    clients can't enumerate which user_ids exist."""
+    res = client.post("/api/follows/does-not-exist", headers=auth_headers)
+    assert res.status_code == 404
+
+
+def test_unfollow_happy_path(client, seed_user, seed_other_user, auth_headers):
+    """DELETE removes the row; isFollowing flips to false; counts
+    update."""
+    client.post(f"/api/follows/{seed_other_user}", headers=auth_headers)
+    res = client.delete(f"/api/follows/{seed_other_user}", headers=auth_headers)
+    assert res.status_code == 200
+    body = res.get_json()
+    assert body["isFollowing"] is False
+    assert body["followers"] == 0
+
+
+def test_unfollow_idempotent_on_missing_row(client, seed_user, seed_other_user, auth_headers):
+    """DELETE on a follow that doesn't exist returns 200 with counts
+    so the UI repaints cleanly. Pre-fix this would 500 or 404 — we
+    treat it as the desired end-state already being reached."""
+    res = client.delete(f"/api/follows/{seed_other_user}", headers=auth_headers)
+    assert res.status_code == 200
+    body = res.get_json()
+    assert body["isFollowing"] is False
+    assert body["followers"] == 0
+
+
+def test_get_follow_status(client, seed_user, seed_other_user, auth_headers, other_auth_headers):
+    """GET /api/follows/<id> returns counts + isFollowing for the
+    caller. seed_user follows seed_other_user; seed_user's GET of
+    seed_other_user shows isFollowing=true, but seed_other_user's GET
+    of seed_user shows isFollowing=false (asymmetric)."""
+    client.post(f"/api/follows/{seed_other_user}", headers=auth_headers)
+
+    a_view = client.get(f"/api/follows/{seed_other_user}", headers=auth_headers).get_json()
+    assert a_view["isFollowing"] is True
+    assert a_view["followers"] == 1
+
+    b_view = client.get(f"/api/follows/{seed_user}", headers=other_auth_headers).get_json()
+    assert b_view["isFollowing"] is False
+    assert b_view["followers"] == 0  # seed_user has no followers
+    assert b_view["following"] == 1  # seed_user follows 1 person
+
+
+def test_public_profile_includes_follow_data(
+    client, seed_user, seed_other_user, auth_headers,
+):
+    """/api/public-profile bundles followers / following / isFollowing
+    so the profile page renders without a second round-trip. The
+    isFollowing flag reflects the CALLER's relationship to the
+    profile owner."""
+    client.post(f"/api/follows/{seed_other_user}", headers=auth_headers)
+    res = client.get(f"/api/public-profile/{seed_other_user}", headers=auth_headers)
+    assert res.status_code == 200
+    body = res.get_json()
+    assert body["followers"] == 1
+    assert body["following"] == 0
+    assert body["isFollowing"] is True
+
+
+def test_public_profile_anonymous_isFollowing_false(
+    client, seed_user, seed_other_user, auth_headers,
+):
+    """An unauthenticated viewer of a public profile sees the counts
+    but isFollowing must be false (no caller = no follow relationship
+    to check). Catches a regression that would leak a stale `g._gg_user_id`
+    across requests."""
+    client.post(f"/api/follows/{seed_other_user}", headers=auth_headers)
+    # No headers → anonymous request.
+    res = client.get(f"/api/public-profile/{seed_other_user}")
+    assert res.status_code == 200
+    body = res.get_json()
+    assert body["followers"] == 1
+    assert body["isFollowing"] is False
+
+
+def test_follow_first_time_notifies(client, seed_user, seed_other_user, auth_headers):
+    """The followee's notifications get a `followed_you` row on the
+    first follow. Without this, follows are invisible to the recipient
+    until they check the count on their profile — and creators want
+    to know they have a new fan."""
+    client.post(f"/api/follows/{seed_other_user}", headers=auth_headers)
+    from database import get_db
+    with get_db() as conn:
+        c = conn.cursor()
+        c.execute(
+            "SELECT type, related_id FROM notifications WHERE user_id = ?",
+            (seed_other_user,),
+        )
+        rows = c.fetchall()
+    assert any(r["type"] == "followed_you" and r["related_id"] == seed_user for r in rows)
+
+
+def test_follow_unfollow_refollow_no_duplicate_notify(
+    client, seed_user, seed_other_user, auth_headers,
+):
+    """Repeat follow/unfollow cycles must NOT re-notify the recipient.
+    Without this guard a malicious user could spam someone's bell by
+    follow/unfollow-toggling. The first follow drops one notification;
+    every subsequent follow on the same pair is silent."""
+    client.post(f"/api/follows/{seed_other_user}", headers=auth_headers)
+    client.delete(f"/api/follows/{seed_other_user}", headers=auth_headers)
+    client.post(f"/api/follows/{seed_other_user}", headers=auth_headers)
+    client.post(f"/api/follows/{seed_other_user}", headers=auth_headers)
+
+    from database import get_db
+    with get_db() as conn:
+        c = conn.cursor()
+        c.execute(
+            "SELECT COUNT(*) AS c FROM notifications "
+            "WHERE user_id = ? AND type = 'followed_you' AND related_id = ?",
+            (seed_other_user, seed_user),
+        )
+        count = c.fetchone()["c"]
+    assert count == 1
+
+
+def test_follow_requires_auth(client):
+    """Belt-and-braces: every follows endpoint must @require_auth."""
+    no_token = {}
+    assert client.post("/api/follows/anyone", headers=no_token).status_code == 401
+    assert client.delete("/api/follows/anyone", headers=no_token).status_code == 401
+    assert client.get("/api/follows/anyone", headers=no_token).status_code == 401

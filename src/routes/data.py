@@ -570,6 +570,13 @@ def delete_user_data():
         # other user-only tables. The badge defs themselves live in
         # src/achievements.py BADGES, no migration concern.
         cursor.execute("DELETE FROM user_achievements WHERE user_id = ?", (user_id,))
+        # §4.7: follows is a two-sided relation — wipe BOTH directions
+        # so the caller's row vanishes from everyone else's follower
+        # lists (and vice versa). Symmetric clean-up mirrors `friends`.
+        cursor.execute(
+            "DELETE FROM follows WHERE follower_id = ? OR followee_id = ?",
+            (user_id, user_id),
+        )
         cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
         conn.commit()
     return jsonify({"status": "wiped"})

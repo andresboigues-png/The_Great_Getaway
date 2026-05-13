@@ -478,6 +478,31 @@ def init_db():
             )
         ''')
 
+        # Follows Table (FIXING_ROADMAP §4.7).
+        # One-way social graph that sits ALONGSIDE the symmetric
+        # `friends` table. Friends are mutual + bidirectional + can
+        # see each other's private trips. Follows are unilateral +
+        # silent + only surface public activity. The two coexist so
+        # a creator can have a large unidirectional audience without
+        # diluting "friend" semantics on the rest of the app.
+        #
+        # UNIQUE(follower_id, followee_id) makes the follow op
+        # naturally idempotent via INSERT OR IGNORE. There's no
+        # status column — follows are immediately effective on insert,
+        # immediately gone on delete. Matches Twitter/Instagram, not
+        # the friend-request dance.
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS follows (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                follower_id TEXT NOT NULL,
+                followee_id TEXT NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(follower_id, followee_id),
+                FOREIGN KEY(follower_id) REFERENCES users(id),
+                FOREIGN KEY(followee_id) REFERENCES users(id)
+            )
+        ''')
+
         # Achievements Table (FIXING_ROADMAP §4.4).
         # Per-user record of which badges have been earned. Each badge
         # is a string id from src/achievements.py's BADGES registry —
@@ -574,6 +599,14 @@ def init_db():
             # detection loop). One composite index covers both.
             "CREATE INDEX IF NOT EXISTS idx_user_achievements_user "
             "ON user_achievements(user_id, badge_id)",
+            # §4.7: follows is read both ways — "who follows X"
+            # (followers list) and "who does X follow" (following
+            # list). Two single-column indexes cover both directions
+            # without the size + maintenance cost of a composite.
+            "CREATE INDEX IF NOT EXISTS idx_follows_followee "
+            "ON follows(followee_id)",
+            "CREATE INDEX IF NOT EXISTS idx_follows_follower "
+            "ON follows(follower_id)",
         ):
             _safe_alter(cursor, ddl)
 

@@ -1,5 +1,5 @@
 import { STATE, emit } from '../state.js';
-import { syncWithServer, apiUrl, apiFetch, clearAuthToken, uploadMedia } from '../api.js';
+import { syncWithServer, apiFetch, clearAuthToken, uploadMedia, followUser, unfollowUser } from '../api.js';
 import { showLiquidAlert, getHomeCurrency, esc } from '../utils.js';
 import { CONVERSION_RATES, CURRENCY_SYMBOLS } from '../constants.js';
 import { navigate } from '../router.js';
@@ -198,7 +198,16 @@ export function renderProfile(targetUserId: string | null | undefined = null) {
         earnedAt?: string;
         context?: Record<string, unknown>;
     }
-    const renderData = (user: any, trips: any[], achievements: ProfileAchievement[] = []) => {
+    // §4.7 — follow state arriving from /api/public-profile for other-
+    // user views, fetched async for own-profile views. Inlined as a
+    // shape rather than an interface in types.d.ts because the values
+    // are transient — they live on the rendered DOM, not in STATE.
+    interface FollowSnapshot {
+        followers: number;
+        following: number;
+        isFollowing: boolean;
+    }
+    const renderData = (user: any, trips: any[], achievements: ProfileAchievement[] = [], followSnap: FollowSnapshot = { followers: 0, following: 0, isFollowing: false }) => {
         const allTrips = trips || [];
         const uniqueCountries: string[] = [...new Set(allTrips.map(t => t.country).filter(Boolean))];
         const profilePicSrc = user.picture;
@@ -273,7 +282,23 @@ export function renderProfile(targetUserId: string | null | undefined = null) {
                             <h2 style="margin: 0; font-size: 1.6rem; font-weight: 700; color: var(--text-primary); letter-spacing: -0.02em; min-width: 0; overflow-wrap: anywhere;">${esc(user.name)}</h2>
                             ${isOwnProfile ? `
                                 <button id="profileLogoutBtn" class="btn-logout">Log Out</button>
-                            ` : ''}
+                            ` : `
+                                <!-- §4.7 Follow button — other-user only.
+                                     Two visual states (Follow / Following)
+                                     swap inline on click. Optimistic UI:
+                                     button text flips immediately, the
+                                     network call reconciles in the
+                                     background (state mismatch shows up
+                                     on the next profile reopen).
+
+                                     aria-pressed mirrors the follow state
+                                     so screen readers announce the toggle. -->
+                                <button id="profileFollowBtn" type="button"
+                                    aria-pressed="${followSnap.isFollowing ? 'true' : 'false'}"
+                                    style="padding: 8px 18px; border-radius: 999px; border: 1px solid ${followSnap.isFollowing ? 'rgba(0,113,227,0.2)' : 'var(--accent-blue, #007aff)'}; background: ${followSnap.isFollowing ? 'rgba(0,113,227,0.08)' : 'var(--accent-blue, #007aff)'}; color: ${followSnap.isFollowing ? '#005bb8' : 'white'}; font-weight: 700; font-size: 0.85rem; cursor: pointer; transition: background 120ms ease, color 120ms ease;">
+                                    ${followSnap.isFollowing ? 'Following' : 'Follow'}
+                                </button>
+                            `}
                         </div>
 
                         <!-- Stats Row. The friends stat is clickable
@@ -290,6 +315,24 @@ export function renderProfile(targetUserId: string | null | undefined = null) {
                             <div style="text-align: left;">
                                 <span style="font-size: 1.15rem; font-weight: 700; color: var(--text-primary);">${uniqueCountries.length}</span>
                                 <span style="font-size: 1.1rem; color: var(--text-primary); font-weight: 400; margin-left: 4px;">${tn('profile.countriesLabel', uniqueCountries.length)}</span>
+                            </div>
+                            <!-- §4.7 — followers + following counts. On
+                                 other-user views these arrive in the
+                                 /api/public-profile response so the
+                                 first paint already has the right
+                                 numbers. On own-profile they start at
+                                 the post-render-fetched values (see
+                                 below); placeholder "—" sneaks in only
+                                 if that fetch is still in flight. The
+                                 ids let the click handler + the async
+                                 own-profile fetch update them in place. -->
+                            <div style="text-align: left;">
+                                <span id="profileFollowersCount" style="font-size: 1.15rem; font-weight: 700; color: var(--text-primary);">${followSnap.followers}</span>
+                                <span style="font-size: 1.1rem; color: var(--text-primary); font-weight: 400; margin-left: 4px;">followers</span>
+                            </div>
+                            <div style="text-align: left;">
+                                <span id="profileFollowingCount" style="font-size: 1.15rem; font-weight: 700; color: var(--text-primary);">${followSnap.following}</span>
+                                <span style="font-size: 1.1rem; color: var(--text-primary); font-weight: 400; margin-left: 4px;">following</span>
                             </div>
                             ${isOwnProfile ? `
                                 <button id="profileFriendsStat" type="button" style="background:none; border:0; padding:0; cursor:pointer; text-align:left; display:inline-flex; align-items:baseline; gap:4px; font-family: inherit;">
@@ -790,18 +833,86 @@ export function renderProfile(targetUserId: string | null | undefined = null) {
         // and pre-detection states render the empty-strip placeholder
         // instead of crashing on `.map`.
         renderData(STATE.user, completedTrips, (STATE as any).achievements || []);
+
+        // §4.7 — fill in own-profile follower counts post-render via
+        // /api/follows/<my_id>. Async + best-effort: a network failure
+        // just leaves the counts at 0, which is the safe fallback.
+        // Authenticated request (uses apiFetch's bearer token).
+        if (STATE.user?.id) {
+            apiFetch(`/api/follows/${encodeURIComponent(STATE.user.id)}`)
+                .then(r => r.ok ? r.json() : null)
+                .then(data => {
+                    if (!data) return;
+                    const followersEl = div.querySelector('#profileFollowersCount');
+                    const followingEl = div.querySelector('#profileFollowingCount');
+                    if (followersEl) followersEl.textContent = String(data.followers ?? 0);
+                    if (followingEl) followingEl.textContent = String(data.following ?? 0);
+                })
+                .catch(() => { /* keep the rendered defaults */ });
+        }
     } else {
         div.innerHTML = `<div style="display:flex; justify-content:center; align-items:center; height:300px;"><p style="font-weight:700; color:var(--text-secondary); animation: pulse 1.5s infinite;">Fetching profile...</p></div>`;
-        fetch(apiUrl(`/api/public-profile/${targetUserId}`))
+        // §4.7 — use apiFetch (not raw fetch) so the bearer token rides
+        // along; the server uses the authed caller to derive the
+        // `isFollowing` flag. Pre-fix the raw fetch returned
+        // isFollowing=false even when the caller had a relationship.
+        apiFetch(`/api/public-profile/${targetUserId}`)
             .then(res => res.json())
             .then(data => {
                 if (data.error) div.innerHTML = `<p style="text-align:center; padding:50px;">User not found.</p>`;
                 // §4.4 — public-profile response carries `achievements`
                 // alongside `user` + `trips` (see routes/public.py).
-                else renderData(data.user, data.trips, data.achievements || []);
+                // §4.7 — also carries followers / following / isFollowing.
+                else renderData(data.user, data.trips, data.achievements || [], {
+                    followers: Number(data.followers || 0),
+                    following: Number(data.following || 0),
+                    isFollowing: Boolean(data.isFollowing),
+                });
             })
             .catch(() => { div.innerHTML = `<p style="text-align:center; padding:50px;">Error loading profile.</p>`; });
     }
+
+    // §4.7 — Follow button click handler (other-user only; the button
+    // only renders on that branch). Optimistic UI: flip the visual
+    // state immediately, then reconcile with the server response.
+    // Delegated handler so it picks up the button regardless of
+    // re-renders.
+    div.addEventListener('click', async (e) => {
+        const btn = (e.target as HTMLElement)?.closest('#profileFollowBtn') as HTMLButtonElement | null;
+        if (!btn || !targetUserId) return;
+        const wasFollowing = btn.getAttribute('aria-pressed') === 'true';
+        // Optimistic flip — instant feedback. Server response will
+        // confirm + update counts (or revert label if the call fails).
+        btn.disabled = true;
+        btn.textContent = wasFollowing ? 'Follow' : 'Following';
+        btn.setAttribute('aria-pressed', wasFollowing ? 'false' : 'true');
+        const apiResult = wasFollowing
+            ? await unfollowUser(targetUserId)
+            : await followUser(targetUserId);
+        btn.disabled = false;
+        if (apiResult.error || !apiResult.state) {
+            // Server rejected — revert visual state + toast the user.
+            btn.textContent = wasFollowing ? 'Following' : 'Follow';
+            btn.setAttribute('aria-pressed', wasFollowing ? 'true' : 'false');
+            showLiquidAlert(apiResult.error || 'Could not update follow state');
+            return;
+        }
+        // Refresh follower count in the stats row from the server's
+        // authoritative response.
+        const followersEl = div.querySelector('#profileFollowersCount');
+        if (followersEl) followersEl.textContent = String(apiResult.state.followers);
+        // Visual state colours — needed because the button uses inline
+        // styles keyed off the initial isFollowing value.
+        if (apiResult.state.isFollowing) {
+            btn.style.background = 'rgba(0,113,227,0.08)';
+            btn.style.color = '#005bb8';
+            btn.style.borderColor = 'rgba(0,113,227,0.2)';
+        } else {
+            btn.style.background = 'var(--accent-blue, #007aff)';
+            btn.style.color = 'white';
+            btn.style.borderColor = 'var(--accent-blue, #007aff)';
+        }
+    });
 
     return div;
 }

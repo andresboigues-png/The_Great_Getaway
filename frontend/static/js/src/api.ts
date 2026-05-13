@@ -664,6 +664,41 @@ export function deleteDayOnServer(dayId: string) {
     return _delete(`/api/days/${dayId}`, {});
 }
 
+// ── §4.7 Follows ─────────────────────────────────────────────────────
+// One-way social graph. Symmetric `friends` still exists for private
+// trip sharing; follows is the public/audience layer on top.
+
+export interface FollowState {
+    isFollowing: boolean;
+    followers: number;
+    following: number;
+}
+
+export async function followUser(userId: string): Promise<{ state?: FollowState; error?: string }> {
+    if (!STATE.user) return { error: 'Not signed in' };
+    try {
+        const res = await apiFetch(`/api/follows/${encodeURIComponent(userId)}`, { method: 'POST' });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) return { error: body?.error || `HTTP ${res.status}` };
+        return { state: body as FollowState };
+    } catch (e: any) {
+        return { error: e?.message || 'Network error' };
+    }
+}
+
+export async function unfollowUser(userId: string): Promise<{ state?: FollowState; error?: string }> {
+    if (!STATE.user) return { error: 'Not signed in' };
+    try {
+        const res = await apiFetch(`/api/follows/${encodeURIComponent(userId)}`, { method: 'DELETE' });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) return { error: body?.error || `HTTP ${res.status}` };
+        return { state: body as FollowState };
+    } catch (e: any) {
+        return { error: e?.message || 'Network error' };
+    }
+}
+
+
 // ── §4.2 Explore feed ────────────────────────────────────────────────
 // Ranked public-trip discovery for the cold-start case. Backend at
 // /api/feed/explore returns up to 24 cards scored on recency × country

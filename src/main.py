@@ -24,6 +24,7 @@ from routes.data import bp as data_bp
 from routes.days import bp as days_bp
 from routes.expenses import bp as expenses_bp
 from routes.feed import bp as feed_bp
+from routes.follows import bp as follows_bp
 from routes.friends import bp as friends_bp
 from routes.integrations import bp as integrations_bp
 from routes.media import bp as media_bp
@@ -100,6 +101,7 @@ app.register_blueprint(data_bp)
 app.register_blueprint(days_bp)
 app.register_blueprint(expenses_bp)
 app.register_blueprint(feed_bp)
+app.register_blueprint(follows_bp)
 app.register_blueprint(friends_bp)
 app.register_blueprint(integrations_bp)
 app.register_blueprint(media_bp)

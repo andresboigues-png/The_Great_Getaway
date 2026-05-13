@@ -22,6 +22,7 @@ from helpers import (
     serialize_trip_row,
     unwrap_legacy_plan_text,
 )
+from routes.follows import follower_counts, is_following
 
 
 bp = Blueprint("public", __name__)
@@ -222,10 +223,22 @@ def get_public_profile(user_id):
         # whether you're viewing yourself or a friend.
         achievements = list_user_achievements(cursor, user_id)
 
+        # §4.7 — follower / following counts + the caller's
+        # `isFollowing` flag (false when anonymous / self / not signed
+        # in). Bundling these into the profile read so the profile
+        # page renders in one round-trip rather than fanning out to
+        # /api/follows/<user_id> after the first paint.
+        counts = follower_counts(cursor, user_id)
+        caller_id = current_user_id()
+        isFollowing = is_following(cursor, caller_id, user_id) if caller_id else False
+
         return jsonify({
             "user": dict(user_row),
             "trips": trips,
             "achievements": achievements,
+            "followers": counts["followers"],
+            "following": counts["following"],
+            "isFollowing": isFollowing,
         })
 
 
