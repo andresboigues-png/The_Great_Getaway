@@ -28,6 +28,7 @@ import { paintI18nBindings } from './bootstrap/i18n-bindings.js';
 import { initGoogleLogin, restoreSession } from './bootstrap/auth.js';
 import { captureCloneIntent, attemptPendingClone, hasPendingCloneIntent } from './bootstrap/clone-intent.js';
 import { wireNavChrome, resolvePage } from './bootstrap/nav-chrome.js';
+import { setupInstallPrompt } from './bootstrap/install-prompt.js';
 
 // ── UI subscribers ──
 // Kept here (not in state.js) so the data layer doesn't reach into the UI.
@@ -134,6 +135,13 @@ async function init() {
     // delegated navigation clicks, outside-click handlers) lives in one
     // place now — see bootstrap/nav-chrome.ts.
     wireNavChrome();
+
+    // §4.10 v2 — PWA install banner. Internally gated on second visit
+    // + not-yet-dismissed + not-yet-installed, so first-time visitors
+    // see nothing. Calling is safe to do on every boot — the gate
+    // logic short-circuits when appropriate. No-op cleanup; listeners
+    // live for the document lifetime.
+    setupInstallPrompt();
 
     setInterval(() => {
         // FIXING_ROADMAP §1.8 — skip the poll when the tab isn't
