@@ -144,6 +144,11 @@ def admin_stats():
     # logout but its value isn't a timestamp, so we can't derive
     # last-seen from it. Future: add a `last_seen_at` column +
     # touch it on every successful require_auth lookup.
+    # Note: the expenses table keys off trip_id (not user_id); the
+    # user is implicit through the parent trip. JOIN through trips
+    # so we count expenses belonging to trips owned by each user.
+    # Same pattern would apply if we ever want a per-user settlement
+    # count later.
     cursor.execute(
         """
         SELECT
@@ -153,7 +158,10 @@ def admin_stats():
             u.picture,
             u.created_at,
             (SELECT COUNT(*) FROM trips t WHERE t.user_id = u.id) AS trip_count,
-            (SELECT COUNT(*) FROM expenses e WHERE e.user_id = u.id) AS expense_count
+            (SELECT COUNT(*)
+                FROM expenses e
+                JOIN trips t ON e.trip_id = t.id
+                WHERE t.user_id = u.id) AS expense_count
         FROM users u
         ORDER BY u.created_at DESC
         """
