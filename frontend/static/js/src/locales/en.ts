@@ -418,9 +418,14 @@ export const en = {
     },
     todo: {
         // Page header.
-        title: 'To do list 📋',
+        title: 'Your to-do list 📋',
         subtitleNoTrip: 'Places to fit in somewhere on your trip',
         subtitleWithTrip: 'Places to fit in somewhere on <strong>{trip}</strong>',
+        // One-line explainer shown above the list — tells the user
+        // exactly what checking a box does. <strong> highlights the
+        // action verb + the destination tab name so a quick scan
+        // catches the meaning.
+        explainer: '<strong>Check ✓</strong> the places you want the AI to consider when planning, then head to the <strong>Plan with AI ✦</strong> tab to generate your itinerary.',
         // Empty states.
         emptyNoTripTitle: 'No trip selected',
         emptyNoTripBody: 'The to-do list is per-trip. Create a trip first, then add places from the home-map by clicking any pin.',
@@ -438,7 +443,24 @@ export const en = {
             one: '{count} item',
             other: '{count} items',
         },
-        tickedSummary: '{ticked}/{total} ticked for AI consideration',
+        tickedSummary: '{ticked} of {total} marked for AI',
+        // Filter pills — AI tick status. "All" clears the filter.
+        filterStatusLabel: 'Show',
+        filterStatusAll: 'All',
+        filterStatusTicked: '✓ For AI',
+        filterStatusUnticked: 'Not for AI',
+        categoryFilterLabel: 'Category',
+        categoryAll: 'All',
+        // Sort dropdown.
+        sortLabel: 'Sort',
+        sortCategory: 'By category',
+        sortNameAsc: 'Name A→Z',
+        sortNameDesc: 'Name Z→A',
+        sortRecent: 'Recently added',
+        sortAiFirst: 'For AI first',
+        // Empty filtered result.
+        noFilterMatch: 'No items match this filter.',
+        noFilterMatchReset: 'Show all',
         // Tooltips.
         tickedAriaTrue: 'Ticked — AI will consider this place',
         tickedAriaFalse: 'Tick to have the AI consider this place',

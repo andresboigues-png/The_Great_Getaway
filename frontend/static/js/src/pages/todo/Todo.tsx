@@ -165,8 +165,8 @@ function TodoRow({ place: p, isTicked, tripIsEditable, onTickToggle, onRemove }:
                             checked={isTicked}
                             onChange={() => onTickToggle(p.placeId)}
                             style={{
-                                width: '18px',
-                                height: '18px',
+                                width: '20px',
+                                height: '20px',
                                 accentColor: '#9b59b6',
                                 cursor: 'pointer',
                                 margin: 0,
@@ -507,6 +507,18 @@ function FilterPill({ icon, label, count, active, onClick }: FilterPillProps) {
     );
 }
 
+/** Display modes for the to-do list. `category` (the default) keeps
+ *  the existing grouped-by-icon view; the other four flatten the list
+ *  and let the user resort independent of category. Module-level
+ *  literal-union type so the dropdown is type-safe. */
+type SortMode = 'category' | 'name-asc' | 'name-desc' | 'recent' | 'ai-first';
+
+/** AI-tick filter. `all` clears the filter; `ticked` shows only items
+ *  the user has marked for AI consideration; `unticked` is the
+ *  complement — useful for spotting places the user added but hasn't
+ *  decided about yet. */
+type StatusFilter = 'all' | 'ticked' | 'unticked';
+
 export function Todo() {
     const navigate = useNavigate();
     // §3.4 — single hook resolves "active trip + derived fields" in one
@@ -519,6 +531,14 @@ export function Todo() {
      *  Set kept inside React state so it survives a re-render
      *  triggered by membership changes (tick / remove). */
     const [filterIcons, setFilterIcons] = useState<Set<string>>(new Set());
+    /** AI-tick filter — independent of the category filter so the
+     *  user can ask "show unticked Restaurants" by combining the two. */
+    const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+    /** Sort mode. `category` matches the legacy grouped view; the
+     *  others flatten the list. State lives here (not in STATE) on
+     *  purpose: it's a view-only choice, no need to sync across
+     *  devices or persist. */
+    const [sortMode, setSortMode] = useState<SortMode>('category');
 
     // ── EMPTY STATE: no active trip ─────────────────────────────────
     if (!activeTrip) {
@@ -631,20 +651,64 @@ export function Todo() {
     }
     const allIcons = [...iconCounts.keys()];
 
-    // Apply the filter. Empty set = no filter (show all).
-    const filteredItems = filterIcons.size === 0
-        ? todoItems
-        : todoItems.filter((p) => filterIcons.has(p.icon || '📍'));
+    // Apply the AI-status filter, then the category filter. Both
+    // independent; combining them gives "unticked Restaurants" etc.
+    let filteredItems = todoItems;
+    if (statusFilter === 'ticked') {
+        filteredItems = filteredItems.filter((p) => !!p.forAI);
+    } else if (statusFilter === 'unticked') {
+        filteredItems = filteredItems.filter((p) => !p.forAI);
+    }
+    if (filterIcons.size > 0) {
+        filteredItems = filteredItems.filter((p) =>
+            filterIcons.has(p.icon || '📍'),
+        );
+    }
 
-    // Group filtered items by icon. Map preserves insertion order so
-    // groups don't re-shuffle between renders (the latest-added type
-    // would otherwise jump to the bottom). Section labels resolved
-    // via ICON_TO_LABEL with a sensible fallback for unknown icons.
+    // Apply sort. For `category` we keep insertion order INSIDE each
+    // group (no per-item sort needed — the grouping below handles
+    // visual organisation). For the other modes we materialise a new
+    // sorted array; the existing `filteredItems` source array stays
+    // untouched (mutating STATE.trips through a slice would be a
+    // very confusing bug).
+    if (sortMode === 'name-asc') {
+        filteredItems = filteredItems
+            .slice()
+            .sort((a, b) => a.name.localeCompare(b.name));
+    } else if (sortMode === 'name-desc') {
+        filteredItems = filteredItems
+            .slice()
+            .sort((a, b) => b.name.localeCompare(a.name));
+    } else if (sortMode === 'recent') {
+        // markedPlaces is append-order (push() at the end), so the
+        // most recently added items are at the tail. A simple reverse
+        // gives "newest first" without needing an addedAt timestamp.
+        filteredItems = filteredItems.slice().reverse();
+    } else if (sortMode === 'ai-first') {
+        // Ticked items rise to the top, names alphabetical within
+        // each ticked-state group so the user can scan quickly.
+        filteredItems = filteredItems.slice().sort((a, b) => {
+            const aTicked = a.forAI ? 0 : 1;
+            const bTicked = b.forAI ? 0 : 1;
+            if (aTicked !== bTicked) return aTicked - bTicked;
+            return a.name.localeCompare(b.name);
+        });
+    }
+
+    // Group filtered items by icon — only when sort=category. The
+    // other sort modes flatten the list into a single rendering
+    // group (key '*' chosen so it can't collide with a real emoji).
+    // Map preserves insertion order, so groups stay stable across
+    // re-renders.
     const groups = new Map<string, TodoMarkedPlace[]>();
-    for (const p of filteredItems) {
-        const key = p.icon || '📍';
-        if (!groups.has(key)) groups.set(key, []);
-        groups.get(key)!.push(p);
+    if (sortMode === 'category') {
+        for (const p of filteredItems) {
+            const key = p.icon || '📍';
+            if (!groups.has(key)) groups.set(key, []);
+            groups.get(key)!.push(p);
+        }
+    } else if (filteredItems.length > 0) {
+        groups.set('*', filteredItems);
     }
 
     /** Toggle one icon in/out of the filter set. Empty set after a
@@ -753,17 +817,116 @@ export function Todo() {
                 </div>
             </div>
 
+            {/* Explainer block — tells the user, at a glance, what
+                checking a row's box does. Soft-purple background +
+                stronger text on the verb + destination tab so a
+                quick scan catches the workflow without reading the
+                whole sentence. */}
             <div
                 style={{
-                    fontSize: '0.82rem',
-                    color: 'var(--text-secondary)',
-                    marginBottom: '14px',
+                    background: 'rgba(155, 89, 182, 0.07)',
+                    border: '1px solid rgba(155, 89, 182, 0.18)',
+                    borderRadius: '12px',
+                    padding: '10px 14px',
+                    fontSize: '0.84rem',
+                    color: '#3d2a5c',
                     lineHeight: 1.5,
+                    marginBottom: '16px',
+                }}
+                dangerouslySetInnerHTML={{ __html: t('todo.explainer') }}
+            />
+
+            {/* Filter + sort toolbar. AI-status pills on the left so
+                the most common filter ("just the ones I've marked")
+                is one tap. Sort dropdown on the right — collapsed UI
+                rather than a row of pills so this row stays compact
+                on mobile. The category pills sit on their own row
+                below so they can multi-select without crowding. */}
+            <div
+                style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '10px',
+                    alignItems: 'center',
+                    marginBottom: '12px',
                 }}
             >
-                Tick the items you want the AI to plan around. Ticked items appear on the{' '}
-                <strong>Plan with AI ✦</strong> page where you'll pick the day and time of day for
-                each.
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <span
+                        style={{
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            color: 'var(--text-secondary)',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.05em',
+                            marginRight: '2px',
+                        }}
+                    >
+                        {t('todo.filterStatusLabel')}
+                    </span>
+                    <FilterPill
+                        icon="✨"
+                        label={t('todo.filterStatusAll')}
+                        count={todoItems.length}
+                        active={statusFilter === 'all'}
+                        onClick={() => setStatusFilter('all')}
+                    />
+                    <FilterPill
+                        icon="✓"
+                        label={t('todo.filterStatusTicked')}
+                        count={tickedCount}
+                        active={statusFilter === 'ticked'}
+                        onClick={() => setStatusFilter('ticked')}
+                    />
+                    <FilterPill
+                        icon="○"
+                        label={t('todo.filterStatusUnticked')}
+                        count={todoItems.length - tickedCount}
+                        active={statusFilter === 'unticked'}
+                        onClick={() => setStatusFilter('unticked')}
+                    />
+                </div>
+                <label
+                    style={{
+                        marginLeft: 'auto',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        fontSize: '0.78rem',
+                        color: 'var(--text-secondary)',
+                    }}
+                >
+                    <span
+                        style={{
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.05em',
+                        }}
+                    >
+                        {t('todo.sortLabel')}
+                    </span>
+                    <select
+                        value={sortMode}
+                        onChange={(e) => setSortMode(e.target.value as SortMode)}
+                        style={{
+                            padding: '6px 10px',
+                            borderRadius: '999px',
+                            border: '1.5px solid rgba(0, 45, 91, 0.12)',
+                            background: 'white',
+                            color: '#002d5b',
+                            fontSize: '0.8rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                        }}
+                    >
+                        <option value="category">{t('todo.sortCategory')}</option>
+                        <option value="ai-first">{t('todo.sortAiFirst')}</option>
+                        <option value="name-asc">{t('todo.sortNameAsc')}</option>
+                        <option value="name-desc">{t('todo.sortNameDesc')}</option>
+                        <option value="recent">{t('todo.sortRecent')}</option>
+                    </select>
+                </label>
             </div>
 
             {/* Phase G v3 — category filter pills. Multi-select; empty
@@ -780,9 +943,21 @@ export function Todo() {
                         alignItems: 'center',
                     }}
                 >
+                    <span
+                        style={{
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            color: 'var(--text-secondary)',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.05em',
+                            marginRight: '2px',
+                        }}
+                    >
+                        {t('todo.categoryFilterLabel')}
+                    </span>
                     <FilterPill
                         icon="✨"
-                        label="All"
+                        label={t('todo.categoryAll')}
                         count={todoItems.length}
                         active={filterIcons.size === 0}
                         onClick={() => setFilterIcons(new Set())}
@@ -800,12 +975,12 @@ export function Todo() {
                 </div>
             )}
 
-            {/* If the filter wiped every group (hopefully rare, but
-                possible if the user picks an icon then removes its
-                last item), show a small reset hint. Can't happen with
-                empty filterIcons since groups won't be empty in that
-                case. */}
-            {groups.size === 0 && filterIcons.size > 0 && (
+            {/* Empty-filter hint — fires whenever any active filter
+                (category, AI status, or both) wipes the list down to
+                zero. The reset button clears EVERY filter so a single
+                tap brings the whole list back regardless of how the
+                user got stuck. */}
+            {groups.size === 0 && (filterIcons.size > 0 || statusFilter !== 'all') && (
                 <div
                     style={{
                         padding: '24px 16px',
@@ -817,10 +992,13 @@ export function Todo() {
                         border: '1.5px dashed rgba(0, 45, 91, 0.12)',
                     }}
                 >
-                    No items match this filter.{' '}
+                    {t('todo.noFilterMatch')}{' '}
                     <button
                         type="button"
-                        onClick={() => setFilterIcons(new Set())}
+                        onClick={() => {
+                            setFilterIcons(new Set());
+                            setStatusFilter('all');
+                        }}
                         style={{
                             background: 'transparent',
                             border: 'none',
@@ -830,48 +1008,54 @@ export function Todo() {
                             padding: 0,
                         }}
                     >
-                        Show all
+                        {t('todo.noFilterMatchReset')}
                     </button>
                 </div>
             )}
 
             {[...groups.entries()].map(([icon, items]) => (
                 <div key={icon} style={{ marginBottom: '22px' }}>
-                    <div
-                        style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '10px',
-                            padding: '0 4px 8px',
-                            borderBottom: '1px solid rgba(0, 45, 91, 0.08)',
-                            marginBottom: '10px',
-                        }}
-                    >
-                        <span style={{ fontSize: '1.3rem', lineHeight: 1 }}>{icon}</span>
-                        <span
+                    {/* Section header only renders for the category-
+                        grouped view. Flat sort modes ('*' key) skip
+                        the header so the rows themselves are the
+                        focus. */}
+                    {icon !== '*' && (
+                        <div
                             style={{
-                                fontWeight: 800,
-                                color: '#002d5b',
-                                fontSize: '0.82rem',
-                                letterSpacing: '0.04em',
-                                textTransform: 'uppercase',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '10px',
+                                padding: '0 4px 8px',
+                                borderBottom: '1px solid rgba(0, 45, 91, 0.08)',
+                                marginBottom: '10px',
                             }}
                         >
-                            {ICON_TO_LABEL[icon] || 'Other places'}
-                        </span>
-                        <span
-                            style={{
-                                fontSize: '0.7rem',
-                                fontWeight: 700,
-                                color: 'var(--text-secondary)',
-                                background: 'rgba(0, 45, 91, 0.06)',
-                                padding: '2px 8px',
-                                borderRadius: '999px',
-                            }}
-                        >
-                            {items.length}
-                        </span>
-                    </div>
+                            <span style={{ fontSize: '1.3rem', lineHeight: 1 }}>{icon}</span>
+                            <span
+                                style={{
+                                    fontWeight: 800,
+                                    color: '#002d5b',
+                                    fontSize: '0.82rem',
+                                    letterSpacing: '0.04em',
+                                    textTransform: 'uppercase',
+                                }}
+                            >
+                                {ICON_TO_LABEL[icon] || 'Other places'}
+                            </span>
+                            <span
+                                style={{
+                                    fontSize: '0.7rem',
+                                    fontWeight: 700,
+                                    color: 'var(--text-secondary)',
+                                    background: 'rgba(0, 45, 91, 0.06)',
+                                    padding: '2px 8px',
+                                    borderRadius: '999px',
+                                }}
+                            >
+                                {items.length}
+                            </span>
+                        </div>
+                    )}
                     <div
                         style={{
                             display: 'flex',
