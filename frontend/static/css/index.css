@@ -235,8 +235,12 @@
        jarring here. A single property fixes all of them at once. */
     color-scheme: dark;
 
-    /* Surfaces */
-    --bg-color: #000000;
+    /* Surfaces — page is a soft near-black rather than pure #000 so
+       there's a visible step up to --card-bg (#1c1c1e). Pure black
+       on dark mode is fine for OLED contrast but makes translucent
+       overlays vanish; this slight lift gives every card a legible
+       outline against the background. */
+    --bg-color: #0a0a0a;
     --card-bg: #1c1c1e;
     /* Slightly lifted surface for nested elements that need to
        distinguish themselves from the page (e.g. dropdown / input
@@ -7562,4 +7566,85 @@ main#app-container.nav-anim-backward {
         transition-delay: 0s !important;
         scroll-behavior: auto !important;
     }
+}
+
+/* ── Dark-mode card surface overrides ──────────────────────────────
+   The CSS classes that hard-code `background: white` (path-card,
+   day-block, premium-glass-card, etc.) need explicit dark variants
+   because the literal value can't reference a token. Without these
+   overrides, the cards rendered as bright white squares on the dark
+   page bg in light mode and as invisible black-on-black in dark
+   mode. The fix: flip the white literal to the dark card token
+   under the data-theme="dark" scope so the same DOM works on both
+   themes without needing to touch the underlying components.
+   Borders, gradients, and shadows are tuned per-card to keep
+   visual hierarchy on the darker canvas. */
+:root[data-theme="dark"] .path-card {
+    background: var(--card-bg);
+    border-color: rgba(255, 255, 255, 0.08);
+}
+:root[data-theme="dark"] .path-card--anchor {
+    /* Gold-tinted top edge fading into the dark card surface — same
+       visual idea as the light-mode gradient, swapped to a darker
+       base. */
+    background: linear-gradient(180deg, rgba(212, 160, 23, 0.15), var(--card-bg));
+    border-color: rgba(212, 160, 23, 0.42);
+}
+:root[data-theme="dark"] .path-card--anchor.is-selected {
+    border-color: #e8b923;
+    box-shadow: 0 8px 22px rgba(212, 160, 23, 0.32);
+}
+:root[data-theme="dark"] .path-card--selected {
+    background: linear-gradient(180deg, rgba(10, 132, 255, 0.12), var(--card-bg));
+    border-color: rgba(10, 132, 255, 0.42);
+    box-shadow: 0 8px 22px rgba(10, 132, 255, 0.18);
+}
+
+:root[data-theme="dark"] .day-block {
+    background: var(--card-bg);
+    border-color: var(--accent-blue);
+}
+:root[data-theme="dark"] .day-block:hover,
+:root[data-theme="dark"] .day-block:active,
+:root[data-theme="dark"] .day-block:focus-visible {
+    background: var(--card-bg-elevated);
+    box-shadow: 0 40px 80px rgba(0, 0, 0, 0.6);
+}
+
+/* premium-glass-card is used by the AI empty-trip overlay + the
+   home-page glass surfaces. Inline style sets background to
+   rgba(255,255,255,0.6); override here for dark theme. The
+   class selector beats the inline style ONLY when we use
+   !important — necessary because inline wins specificity-wise. */
+:root[data-theme="dark"] .premium-glass-card {
+    background: rgba(28, 28, 30, 0.78) !important;
+    border-color: rgba(255, 255, 255, 0.12) !important;
+    color: var(--text-primary) !important;
+}
+
+/* Select-style filter rows that hard-code `background: white;`
+   in the per-pill rating row + anchor-mode dropdown. */
+:root[data-theme="dark"] .poi-anchor-mode,
+:root[data-theme="dark"] .poi-filter-rating {
+    background: var(--card-bg-elevated);
+    color: var(--text-primary);
+    border-color: var(--border-subtle);
+}
+
+/* Generic .card.glass and .card-style elements that still look
+   too bright in dark mode (the --glass-bg token already swaps
+   to a dark base, but a few inline-padded variants override).
+   Catch those via a low-specificity bump on the glass utility. */
+:root[data-theme="dark"] .card.glass {
+    color: var(--text-primary);
+}
+
+/* Native option lists in <select> elements need the option items
+   themselves coloured for dark mode — the browser typically uses
+   the system colour scheme for the list, but some browsers fall
+   back to white. color-scheme: dark on :root usually fixes this,
+   but this is a belt-and-braces fallback. */
+:root[data-theme="dark"] select option {
+    background: var(--card-bg);
+    color: var(--text-primary);
 }
