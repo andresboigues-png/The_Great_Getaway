@@ -929,11 +929,14 @@ export function Todo() {
                 </label>
             </div>
 
-            {/* Phase G v3 — category filter pills. Multi-select; empty
-                set = show all. Only renders when there's MORE THAN one
-                category in the to-do list (otherwise filtering is
-                meaningless). The "All" pill clears the filter set. */}
-            {allIcons.length > 1 && (
+            {/* Type filter pills. Multi-select; empty set = show all
+                types. The row always renders when there's at least
+                one place — so even a single-type list shows an
+                "All types" + "🍽 Restaurants" pair, which makes the
+                affordance discoverable even before the user adds a
+                second type. The "All types" pill clears the filter
+                set. */}
+            {allIcons.length >= 1 && (
                 <div
                     style={{
                         display: 'flex',

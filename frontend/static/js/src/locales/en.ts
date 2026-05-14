@@ -449,8 +449,8 @@ export const en = {
         filterStatusAll: 'All',
         filterStatusTicked: '✓ For AI',
         filterStatusUnticked: 'Not for AI',
-        categoryFilterLabel: 'Category',
-        categoryAll: 'All',
+        categoryFilterLabel: 'Type',
+        categoryAll: 'All types',
         // Sort dropdown.
         sortLabel: 'Sort',
         sortCategory: 'By category',
