@@ -1,19 +1,958 @@
-// pages/settings/Settings.tsx — Phase C3 wave 5 leaf migration.
+// pages/settings/Settings.tsx — §3.3 React migration.
 //
-// Settings has many sub-tabs (general / appearance / data / about /
-// personalization) with substantial inline event wiring.
-// Thin-wrapper migration; legacy renderSettings runs once.
+// Was a thin wrapper that mounted the legacy renderSettings() into
+// a React tree. This commit replaces the wrapper with a full JSX
+// implementation — the legacy 641-line imperative renderer in
+// pages/settings.ts is now retired.
+//
+// Architectural notes:
+//   - Tab + general-sub-tab state is externalised in ./tabState.ts
+//     so external callers (upload.ts → after CSV import) can switch
+//     to the format tab via setSettingsTab('format') and the live
+//     React component re-renders. useState alone wouldn't suffice
+//     because the external call happens AFTER mount. Same pub-sub
+//     pattern useStore uses for STATE.
+//   - useStore subscribes to STATE.customFormat / .savedFormats /
+//     .preferences — mutations (state:changed emits) re-paint the
+//     mapped-rows list, saved-formats list, theme picker, POI rows,
+//     language picker without manual switchSettingsTab() calls.
+//   - Reset, format-delete, and format-edit confirmations stay as
+//     showConfirmModal / showLiquidAlert flows because those are
+//     transient overlays driven by the imperative Modal helper.
+//   - The Format-mapping name input is a CONTROLLED React state
+//     so that "Edit saved format" can pre-fill the name in one
+//     atomic state update. Legacy code did this via getElementById
+//     + .value = ... wrapped in setTimeout(50).
+//
+// External coupling preserved:
+//   - showSettingsTab (settings.ts) — now thin wrapper around
+//     setSettingsTab; upload.ts keeps working.
+//   - showPersTab, deleteCategory, openEditCategoryModal — left
+//     in settings.ts untouched (the personalization page uses
+//     them).
 
-import { useEffect, useRef } from 'react';
-import { renderSettings } from '../settings.js';
+import { useState, useSyncExternalStore } from 'react';
+import { useStore } from '../../react/store.js';
+import { STATE, emit } from '../../state.js';
+import { generateId, showConfirmModal, showLiquidAlert } from '../../utils.js';
+import { syncCategories, apiFetch } from '../../api.js';
+import { POI_CATEGORIES } from '../home.js';
+import { setTheme } from '../../theme.js';
+import { t, getLocale, setLocale, type Locale } from '../../i18n.js';
+import {
+    getSettingsTabState,
+    setSettingsTab,
+    setGeneralSubTab,
+    subscribeSettingsTab,
+    getSettingsTabVersion,
+    type GeneralSubTab,
+} from './tabState.js';
 
+
+// MANDATORY column variables — without 'category' every imported
+// expense lands in the default; the upload reader does find-or-create
+// on the cell value so users can either reuse an existing category or
+// auto-create one. 'splits' takes free-text like "Alice:50,Bob:50";
+// 'isSettlement' takes Y/N to flag a row as a transfer rather than an
+// expense (the receiver is read from the splits cell when Y).
+const MANDATORY_VARS = ['label', 'date', 'value', 'who', 'category'];
+const OPTIONAL_VARS = ['country', 'currency', 'splits', 'isSettlement'];
+const RATING_OPTIONS = [0, 3, 3.5, 4, 4.5];
+
+
+// ── tab-state hook ──────────────────────────────────────────────────
+// useSyncExternalStore is the React-recommended way to bridge a
+// module-level store into the component tree. We pass the same
+// getSnapshot as both getSnapshot and getServerSnapshot so the
+// hook works fine even though we don't SSR.
+function useSettingsTabSnapshot() {
+    useSyncExternalStore(
+        subscribeSettingsTab,
+        getSettingsTabVersion,
+        getSettingsTabVersion,
+    );
+    return getSettingsTabState();
+}
+
+
+// ── defensive POI-prefs backfill ────────────────────────────────────
+// loadState already runs validateLoadedState which seeds these — this
+// is the same belt-and-braces fallback the legacy code had against a
+// hand-edited localStorage that bypasses validation.
+function ensurePoiPrefs(): void {
+    if (!STATE.preferences) {
+        STATE.preferences = {
+            mapDefaultPois: ['sights', 'parks', 'transit'],
+            poiFilters: {},
+            pillEpicenters: {},
+            poiAnchoring: {},
+            poiVisible: {},
+            enabledPois: {},
+        };
+    }
+    if (!STATE.preferences.poiFilters || typeof STATE.preferences.poiFilters !== 'object') {
+        STATE.preferences.poiFilters = {};
+    }
+    if (!STATE.preferences.poiAnchoring || typeof STATE.preferences.poiAnchoring !== 'object') {
+        STATE.preferences.poiAnchoring = {};
+    }
+    if (!STATE.preferences.poiVisible || typeof STATE.preferences.poiVisible !== 'object') {
+        STATE.preferences.poiVisible = {};
+    }
+}
+
+
+// ── reset confirms ──────────────────────────────────────────────────
+// Three reset flavours, each wrapped in showConfirmModal. The bodies
+// mutate STATE, emit state:changed, and (for trips/app) also wipe
+// the server-side data via apiFetch. The component re-renders
+// automatically via the useStore subscription.
+function confirmResetTrips(): void {
+    showConfirmModal({
+        title: t('settings.resetTripsConfirmTitle'),
+        message: t('settings.resetTripsConfirmMessage'),
+        confirmText: t('settings.resetTripsConfirmBtn'),
+        onConfirm: async () => {
+            STATE.trips = [];
+            STATE.archivedTrips = [];
+            STATE.tripDays = [];
+            STATE.expenses = [];
+            STATE.budgets = [];
+            STATE.activeTripId = null;
+            emit('state:changed');
+            if (STATE.user) {
+                try {
+                    await apiFetch('/api/user-data', {
+                        method: 'DELETE',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({}),
+                    });
+                } catch (e) {
+                    console.error('Server wipe failed', e);
+                }
+            }
+        },
+    });
+}
+
+function confirmResetCategories(): void {
+    showConfirmModal({
+        title: t('settings.resetCategoriesConfirmTitle'),
+        message: t('settings.resetCategoriesConfirmMessage'),
+        confirmText: t('settings.resetCategoriesConfirmBtn'),
+        onConfirm: () => {
+            STATE.categories = [
+                { id: 'c1', name: 'Food', icon: '🍔', color: '#ff3b30' },
+                { id: 'c2', name: 'Transport', icon: '✈️', color: '#007aff' },
+                { id: 'c3', name: 'Accommodation', icon: '🏨', color: '#5856d6' },
+            ];
+            emit('state:changed');
+            syncCategories();
+        },
+    });
+}
+
+function confirmResetApp(): void {
+    showConfirmModal({
+        title: t('settings.resetFactoryConfirmTitle'),
+        message: t('settings.resetFactoryConfirmMessage'),
+        confirmText: t('settings.resetFactoryConfirmBtn'),
+        onConfirm: async () => {
+            if (STATE.user) {
+                try {
+                    await apiFetch('/api/user-data', {
+                        method: 'DELETE',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({}),
+                    });
+                } catch (e) {
+                    console.error('Server wipe failed', e);
+                }
+            }
+            STATE.trips = [];
+            STATE.archivedTrips = [];
+            STATE.tripDays = [];
+            STATE.expenses = [];
+            STATE.budgets = [];
+            STATE.categories = [];
+            STATE.activeTripId = null;
+            STATE.user = null;
+            STATE.notifications = [];
+            STATE.hasLoggedInBefore = false;
+            emit('state:changed');
+            localStorage.clear();
+            location.reload();
+        },
+    });
+}
+
+
+// ────────────────────────────────────────────────────────────────────
+// Top-level component
+// ────────────────────────────────────────────────────────────────────
 export function Settings() {
-    const ref = useRef<HTMLDivElement | null>(null);
-    useEffect(() => {
-        const host = ref.current;
-        if (!host) return;
-        host.innerHTML = '';
-        host.appendChild(renderSettings());
-    }, []);
-    return <div ref={ref} />;
+    const { tab } = useSettingsTabSnapshot();
+
+    return (
+        <div>
+            <div className="ai-page-header">
+                <h1
+                    className="gradient-text"
+                    style={{
+                        ['--g-from' as any]: '#1a6b3c',
+                        ['--g-to' as any]: '#34c759',
+                    }}
+                >
+                    {t('settings.systemControlTitle')}
+                </h1>
+                <p>{t('settings.systemControlSubtitle')}</p>
+            </div>
+
+            {tab === 'menu' ? (
+                <MenuView />
+            ) : (
+                <>
+                    <button
+                        type="button"
+                        className="btn btn-small btn-liquid-glass"
+                        onClick={() => setSettingsTab('menu')}
+                        style={{ marginBottom: 24, padding: '10px 20px', borderRadius: 14 }}
+                    >
+                        {t('settings.backToControlCenter')}
+                    </button>
+                    {tab === 'general' && <GeneralView />}
+                    {tab === 'format' && <FormatView />}
+                    {tab === 'reset' && <ResetView />}
+                </>
+            )}
+        </div>
+    );
+}
+
+
+// ── Menu (3 big cards) ─────────────────────────────────────────────
+function MenuView() {
+    return (
+        <div className="settings-grid">
+            <button
+                type="button"
+                className="card-button-reset card glass management-card"
+                onClick={() => setSettingsTab('general')}
+            >
+                <h2 className="card-title" style={{ color: '#005bb8', margin: 0 }}>
+                    {t('settings.cardGeneralTitle')}
+                </h2>
+                <p style={{ color: 'var(--text-secondary)', margin: '8px 0 0' }}>
+                    {t('settings.cardGeneralBody')}
+                </p>
+                <div style={{ marginTop: 20, color: '#005bb8', fontWeight: 700, fontSize: '0.85rem' }}>
+                    {t('settings.cardConfigureCta')}
+                </div>
+            </button>
+
+            <button
+                type="button"
+                className="card-button-reset card glass management-card"
+                onClick={() => setSettingsTab('format')}
+            >
+                <h2 className="card-title" style={{ color: '#a85d00', margin: 0 }}>
+                    {t('settings.cardFormatTitle')}
+                </h2>
+                <p style={{ color: 'var(--text-secondary)', margin: '8px 0 0' }}>
+                    {t('settings.cardFormatBody')}
+                </p>
+                <div style={{ marginTop: 20, color: '#a85d00', fontWeight: 700, fontSize: '0.85rem' }}>
+                    {t('settings.cardConfigureCta')}
+                </div>
+            </button>
+
+            <button
+                type="button"
+                className="card-button-reset card glass management-card danger-card"
+                onClick={() => setSettingsTab('reset')}
+            >
+                <div className="danger-glow pulse-red"></div>
+                <h2 className="card-title" style={{ color: '#ff3b30', margin: 0 }}>
+                    {t('settings.cardDataMgmtTitle')}
+                </h2>
+                <p style={{ color: 'var(--text-secondary)', margin: '8px 0 0' }}>
+                    {t('settings.cardDataMgmtBody')}
+                </p>
+                <div style={{ marginTop: 20, color: '#ff3b30', fontWeight: 700, fontSize: '0.85rem' }}>
+                    {t('settings.cardDataMgmtCta')}
+                </div>
+            </button>
+        </div>
+    );
+}
+
+
+// ── General view (sub-tab strip + active sub-content) ──────────────
+function GeneralView() {
+    const { generalSubTab } = useSettingsTabSnapshot();
+
+    return (
+        <>
+            <SubTabStrip current={generalSubTab} />
+            {generalSubTab === 'pills' && <GeneralPillsSection />}
+            {generalSubTab === 'appearance' && <GeneralAppearanceSection />}
+            {generalSubTab === 'language' && <GeneralLanguageSection />}
+        </>
+    );
+}
+
+
+function SubTabStrip({ current }: { current: GeneralSubTab }) {
+    const tab = (key: GeneralSubTab) => (current === key ? ' is-active' : '');
+    return (
+        <div className="general-subtabs" role="tablist" aria-label="General settings sections">
+            <button
+                type="button"
+                className={`general-subtab${tab('pills')}`}
+                role="tab"
+                aria-selected={current === 'pills'}
+                onClick={() => setGeneralSubTab('pills')}
+            >
+                <span className="general-subtab__icon">🗺️</span>
+                <span className="general-subtab__label">{t('settings.subtabPills')}</span>
+            </button>
+            <button
+                type="button"
+                className={`general-subtab${tab('appearance')}`}
+                role="tab"
+                aria-selected={current === 'appearance'}
+                onClick={() => setGeneralSubTab('appearance')}
+            >
+                <span className="general-subtab__icon">🎨</span>
+                <span className="general-subtab__label">{t('settings.appearance')}</span>
+            </button>
+            <button
+                type="button"
+                className={`general-subtab${tab('language')}`}
+                role="tab"
+                aria-selected={current === 'language'}
+                onClick={() => setGeneralSubTab('language')}
+            >
+                <span className="general-subtab__icon">🌐</span>
+                <span className="general-subtab__label">{t('settings.language')}</span>
+            </button>
+        </div>
+    );
+}
+
+
+// ── General → Map pills (POI filters) ──────────────────────────────
+function GeneralPillsSection() {
+    // useStore subscription — every state:changed emit re-renders.
+    // We need this so a per-row rating/anchor/visibility change
+    // re-paints the active state on its row.
+    const prefs = useStore((s) => s.preferences);
+    const filters = prefs?.poiFilters || {};
+    const anchoring = prefs?.poiAnchoring || {};
+    const visibility = prefs?.poiVisible || {};
+
+    const onResetPoi = (key: string) => {
+        ensurePoiPrefs();
+        delete STATE.preferences.poiFilters[key];
+        delete STATE.preferences.poiAnchoring[key];
+        delete STATE.preferences.poiVisible[key];
+        emit('state:changed');
+    };
+
+    const onRatingChange = (key: string, value: number) => {
+        ensurePoiPrefs();
+        STATE.preferences.poiFilters[key] = { minRating: value };
+        emit('state:changed');
+    };
+
+    const onAnchorChange = (key: string, value: 'anchor' | 'epicenter') => {
+        ensurePoiPrefs();
+        STATE.preferences.poiAnchoring[key] = value;
+        emit('state:changed');
+    };
+
+    const onVisibilityToggle = (key: string, checked: boolean) => {
+        ensurePoiPrefs();
+        // Default is visible (true). Only persist when the user
+        // hides — checked = visible = "remove the override".
+        if (checked) delete STATE.preferences.poiVisible[key];
+        else STATE.preferences.poiVisible[key] = false;
+        emit('state:changed');
+    };
+
+    // Roads & traffic isn't a Places-API pill, no rating / anchor filter applies.
+    const rows = POI_CATEGORIES.filter((c) => c.placesType);
+
+    return (
+        <div className="card glass" style={{ padding: 32, borderRadius: 28 }}>
+            <h2 style={{ color: '#005bb8', marginTop: 0 }}>{t('settings.poiTitle')}</h2>
+            <p style={{ color: 'var(--text-secondary)', marginBottom: 16 }}>
+                {t('settings.poiIntroVisibility')}
+            </p>
+            <p style={{ color: 'var(--text-secondary)', marginBottom: 16 }}>
+                {t('settings.poiIntroRating')}
+            </p>
+            <p style={{ color: 'var(--text-secondary)', marginBottom: 24 }}>
+                {t('settings.poiIntroAnchor')}
+            </p>
+            <div className="poi-filter-list">
+                {rows.map((c) => {
+                    const userMin =
+                        typeof filters[c.key]?.minRating === 'number'
+                            ? filters[c.key]!.minRating!
+                            : c.defaultMinRating;
+                    const userAnchor = anchoring[c.key];
+                    const effectiveAnchor =
+                        userAnchor === 'anchor' || userAnchor === 'epicenter'
+                            ? userAnchor
+                            : c.useAnchorAlways
+                              ? 'anchor'
+                              : 'epicenter';
+                    const defaultAnchor: 'anchor' | 'epicenter' = c.useAnchorAlways ? 'anchor' : 'epicenter';
+                    const isVisible = visibility[c.key] !== false;
+                    const isRatingCustom = userMin !== c.defaultMinRating;
+                    const isAnchorCustom =
+                        (userAnchor === 'anchor' || userAnchor === 'epicenter') &&
+                        userAnchor !== defaultAnchor;
+                    const isVisibilityCustom = !isVisible;
+                    const isCustom = isRatingCustom || isAnchorCustom || isVisibilityCustom;
+                    return (
+                        <div
+                            key={c.key}
+                            className={`poi-filter-row${isVisible ? '' : ' poi-filter-row--hidden'}`}
+                        >
+                            <span className="poi-filter-row__icon">{c.icon}</span>
+                            <div className="poi-filter-row__body">
+                                <div className="poi-filter-row__label">{c.label}</div>
+                                <div className="poi-filter-row__hint">{c.tooltip}</div>
+                            </div>
+                            <select
+                                className="poi-anchor-mode"
+                                value={effectiveAnchor}
+                                aria-label={t('settings.poiAnchorAriaLabel', { label: c.label })}
+                                title={t('settings.poiAnchorTooltip')}
+                                onChange={(e) => {
+                                    const v = e.target.value;
+                                    if (v === 'anchor' || v === 'epicenter') onAnchorChange(c.key, v);
+                                }}
+                            >
+                                <option value="epicenter">{t('settings.poiAnchorDayAware')}</option>
+                                <option value="anchor">{t('settings.poiAnchorTripWide')}</option>
+                            </select>
+                            <select
+                                className="poi-filter-rating"
+                                value={String(userMin)}
+                                aria-label={t('settings.poiRatingAriaLabel', { label: c.label })}
+                                onChange={(e) => onRatingChange(c.key, parseFloat(e.target.value))}
+                            >
+                                {RATING_OPTIONS.map((v) => (
+                                    <option key={v} value={String(v)}>
+                                        {v === 0 ? t('settings.poiAnyRating') : `${v}★ +`}
+                                    </option>
+                                ))}
+                            </select>
+                            <span
+                                className="poi-filter-row__default"
+                                title={`Defaults: ${c.defaultMinRating === 0 ? t('settings.poiAnyRating') : c.defaultMinRating + '★+'} / ${defaultAnchor === 'anchor' ? t('settings.poiAnchorTripWide') : t('settings.poiAnchorDayAware')} / shown`}
+                            >
+                                {isCustom ? (
+                                    <button
+                                        type="button"
+                                        className="poi-filter-reset"
+                                        title={t('settings.poiResetTooltip')}
+                                        onClick={() => onResetPoi(c.key)}
+                                    >
+                                        {t('settings.poiResetBtn')}
+                                    </button>
+                                ) : (
+                                    <span className="muted">{t('settings.poiDefaultLabel')}</span>
+                                )}
+                            </span>
+                            <label
+                                className="switch poi-visibility-switch"
+                                title={
+                                    isVisible
+                                        ? t('settings.poiVisibilitySwitchTitleVisible')
+                                        : t('settings.poiVisibilitySwitchTitleHidden')
+                                }
+                            >
+                                <input
+                                    type="checkbox"
+                                    className="poi-visibility-toggle"
+                                    checked={isVisible}
+                                    onChange={(e) => onVisibilityToggle(c.key, e.target.checked)}
+                                />
+                                <span className="slider"></span>
+                            </label>
+                        </div>
+                    );
+                })}
+            </div>
+            <p style={{ color: 'var(--text-secondary)', margin: '24px 0 0', fontSize: '0.85rem' }}>
+                {t('settings.poiOutroNote')}
+            </p>
+        </div>
+    );
+}
+
+
+// ── General → Appearance (theme picker) ────────────────────────────
+function GeneralAppearanceSection() {
+    const prefs = useStore((s) => s.preferences);
+    const currentTheme = prefs?.theme || 'system';
+
+    const onPick = (value: 'light' | 'dark' | 'system') => {
+        setTheme(value);
+    };
+
+    const opt = (value: 'light' | 'dark' | 'system', label: string, icon: string, body: string) => (
+        <button
+            key={value}
+            type="button"
+            className={`theme-option-card${currentTheme === value ? ' is-active' : ''}`}
+            onClick={() => onPick(value)}
+        >
+            <span className="theme-option-card__icon" aria-hidden="true">
+                {icon}
+            </span>
+            <span className="theme-option-card__label">{label}</span>
+            <span className="theme-option-card__body">{body}</span>
+            <span className="theme-option-card__check" aria-hidden="true">
+                {currentTheme === value ? '✓' : ''}
+            </span>
+        </button>
+    );
+
+    return (
+        <div className="card glass" style={{ padding: 32, borderRadius: 28 }}>
+            <h2 style={{ color: '#5856d6', marginTop: 0 }}>{t('settings.appearance')}</h2>
+            <p style={{ color: 'var(--text-secondary)', marginBottom: 24 }}>
+                {t('settings.themePickerSubtitle')}
+            </p>
+            <div className="theme-options">
+                {opt('light', t('settings.themeLight'), '☀️', t('settings.themeBodyLight'))}
+                {opt('dark', t('settings.themeDark'), '🌙', t('settings.themeBodyDark'))}
+                {opt('system', t('settings.themeSystem'), '🖥️', t('settings.themeBodySystem'))}
+            </div>
+        </div>
+    );
+}
+
+
+// ── General → Language picker ──────────────────────────────────────
+function GeneralLanguageSection() {
+    // useStore subscription so the active highlight updates when
+    // setLocale (which writes STATE + emits) lands the new locale.
+    useStore((s) => s.preferences);
+    const currentLocale = getLocale();
+
+    const onPick = async (value: Locale) => {
+        try {
+            await setLocale(value);
+        } catch (err) {
+            console.error('setLocale failed:', err);
+            showLiquidAlert(t('toasts.loadFailed'));
+        }
+    };
+
+    const langOpt = (value: Locale, label: string, native: string) => (
+        <button
+            key={value}
+            type="button"
+            className={`theme-option-card${currentLocale === value ? ' is-active' : ''}`}
+            onClick={() => void onPick(value)}
+        >
+            <span className="theme-option-card__icon" aria-hidden="true">
+                🌐
+            </span>
+            <span className="theme-option-card__label">{label}</span>
+            <span className="theme-option-card__body">{native}</span>
+            <span className="theme-option-card__check" aria-hidden="true">
+                {currentLocale === value ? '✓' : ''}
+            </span>
+        </button>
+    );
+
+    return (
+        <div className="card glass" style={{ padding: 32, borderRadius: 28 }}>
+            <h2 style={{ color: '#5856d6', marginTop: 0 }}>{t('settings.language')}</h2>
+            <p style={{ color: 'var(--text-secondary)', marginBottom: 24 }}>
+                {t('settings.languageDesc')}
+            </p>
+            <div className="theme-options">
+                {langOpt('en', t('settings.languageEnglish'), 'English')}
+                {langOpt('pt', t('settings.languagePortuguese'), 'Português')}
+                {langOpt('es', t('settings.languageSpanish'), 'Español')}
+                {langOpt('fr', t('settings.languageFrench'), 'Français')}
+            </div>
+        </div>
+    );
+}
+
+
+// ── Reset view (3 reset cards) ─────────────────────────────────────
+function ResetView() {
+    return (
+        <div className="settings-grid">
+            <div className="card glass" style={{ padding: 'var(--space-6)' }}>
+                <h3 style={{ color: '#a85d00', marginTop: 0 }}>{t('settings.resetTripsTitle')}</h3>
+                <p className="muted-meta">{t('settings.resetTripsBody')}</p>
+                <button
+                    type="button"
+                    className="themed-block-btn"
+                    style={{ ['--accent' as any]: '255,149,0' }}
+                    onClick={confirmResetTrips}
+                >
+                    {t('settings.resetTripsBtn')}
+                </button>
+            </div>
+            <div className="card glass" style={{ padding: 'var(--space-6)' }}>
+                <h3 style={{ color: '#5856d6', marginTop: 0 }}>{t('settings.resetCategoriesTitle')}</h3>
+                <p className="muted-meta">{t('settings.resetCategoriesBody')}</p>
+                <button
+                    type="button"
+                    className="themed-block-btn"
+                    style={{ ['--accent' as any]: '88,86,214' }}
+                    onClick={confirmResetCategories}
+                >
+                    {t('settings.resetCategoriesBtn')}
+                </button>
+            </div>
+            <div
+                className="card glass danger-card"
+                style={{ padding: 'var(--space-6)', borderColor: 'rgba(255, 59, 48, 0.3)' }}
+            >
+                <h3 style={{ color: '#ff3b30', marginTop: 0 }}>{t('settings.resetFactoryTitle')}</h3>
+                <p className="muted-meta">{t('settings.resetFactoryBody')}</p>
+                <button
+                    type="button"
+                    className="btn-confirm-danger"
+                    style={{ fontSize: 'var(--font-sm)', padding: 'var(--space-3)' }}
+                    onClick={confirmResetApp}
+                >
+                    {t('settings.resetFactoryBtn')}
+                </button>
+            </div>
+        </div>
+    );
+}
+
+
+// ── Format view (mappings + saved formats + add form) ──────────────
+function FormatView() {
+    const customFormat = useStore((s) => s.customFormat) || [];
+    const savedFormats = useStore((s) => s.savedFormats) || [];
+
+    // Controlled add-mapping form. Refs would also work but useState
+    // is simpler because we reset both fields after a successful add.
+    const [mapVar, setMapVar] = useState('');
+    const [mapCol, setMapCol] = useState('');
+    // Saved-format name input is also controlled so "Edit" can
+    // pre-fill it atomically (legacy used setTimeout + .value=…).
+    const [formatName, setFormatName] = useState('');
+
+    const used = new Set(customFormat.map((m) => m.variable));
+
+    const onAddMapping = () => {
+        if (!mapVar || !mapCol) return;
+        STATE.customFormat = STATE.customFormat || [];
+        if (STATE.customFormat.some((m) => m.variable === mapVar)) return;
+        STATE.customFormat.push({ variable: mapVar, column: mapCol });
+        emit('state:changed');
+        setMapVar('');
+        setMapCol('');
+    };
+
+    const onRemoveMapping = (variable: string) => {
+        STATE.customFormat = (STATE.customFormat || []).filter((m) => m.variable !== variable);
+        emit('state:changed');
+    };
+
+    const onSaveCustomFormat = () => {
+        // 'categoryId' is accepted as a synonym for 'category' so users
+        // who saved a format before the rename don't get blocked.
+        const fmt = STATE.customFormat || [];
+        const mapped = new Set(fmt.map((m) => (m.variable === 'categoryId' ? 'category' : m.variable)));
+        const missing = MANDATORY_VARS.filter((v) => !mapped.has(v));
+        if (missing.length > 0) {
+            showLiquidAlert(t('validation.missingRequiredFields', { fields: missing.join(', ') }));
+            return;
+        }
+        const name = formatName.trim();
+        if (!name) return;
+        STATE.savedFormats = STATE.savedFormats || [];
+        STATE.savedFormats.push({ id: generateId(), name, mappings: [...fmt] });
+        STATE.customFormat = [];
+        emit('state:changed');
+        setFormatName('');
+    };
+
+    const onDeleteSavedFormat = (id: string) => {
+        showConfirmModal({
+            title: t('settings.formatDeleteConfirmTitle'),
+            message: t('settings.formatDeleteConfirmMessage'),
+            confirmText: t('settings.formatDeleteConfirmBtn'),
+            onConfirm: () => {
+                STATE.savedFormats = (STATE.savedFormats || []).filter((f) => f.id !== id);
+                emit('state:changed');
+            },
+        });
+    };
+
+    const onEditSavedFormat = (id: string) => {
+        const format = (STATE.savedFormats || []).find((f) => f.id === id);
+        if (!format) return;
+        // Load saved mappings into the active editor + remove the
+        // saved entry so the user can re-save under a (possibly new)
+        // name. Pre-fill the name input.
+        STATE.customFormat = [...format.mappings];
+        STATE.savedFormats = (STATE.savedFormats || []).filter((f) => f.id !== id);
+        emit('state:changed');
+        setFormatName(format.name);
+    };
+
+    const availableVars = MANDATORY_VARS.concat(OPTIONAL_VARS).filter((v) => !used.has(v));
+
+    return (
+        <div className="card glass" style={{ padding: 32, borderRadius: 28 }}>
+            <h2 style={{ color: '#a85d00', marginTop: 0 }}>{t('settings.formatTitle')}</h2>
+            <p style={{ color: 'var(--text-secondary)', marginBottom: 24 }}>
+                {t('settings.formatSubtitle')}
+            </p>
+
+            <div>
+                {/* Status chips — one per MANDATORY variable, showing
+                    DONE if it's already in customFormat. */}
+                <div
+                    style={{
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        gap: 'var(--space-2)',
+                        marginBottom: 'var(--space-6)',
+                    }}
+                >
+                    {MANDATORY_VARS.map((v) => {
+                        const done = used.has(v);
+                        return (
+                            <span key={v} className={`status-chip${done ? ' is-done' : ''}`}>
+                                {done ? '✓' : '★'} {v.toUpperCase()}
+                            </span>
+                        );
+                    })}
+                </div>
+
+                {/* Mapping list — was a flat compact-table; now a
+                    card list with each mapping rendered as a row
+                    showing the variable name, an arrow connecting
+                    to the Excel column letter, and a delete chip. */}
+                <div className="format-list" style={{ marginBottom: 'var(--space-6)' }}>
+                    {customFormat.length === 0 ? (
+                        <div className="format-list__empty">{t('settings.formatEmpty')}</div>
+                    ) : (
+                        customFormat.map((m) => {
+                            const isMandatory = MANDATORY_VARS.includes(m.variable);
+                            return (
+                                <div
+                                    key={m.variable}
+                                    className={`format-row${isMandatory ? ' is-mandatory' : ''}`}
+                                >
+                                    <span className="format-row__star" aria-hidden="true">
+                                        {isMandatory ? '★' : ''}
+                                    </span>
+                                    <span className="format-row__variable">{m.variable}</span>
+                                    <span className="format-row__arrow" aria-hidden="true">
+                                        <svg
+                                            width="14"
+                                            height="14"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            strokeWidth="2.4"
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                        >
+                                            <polyline points="9 18 15 12 9 6"></polyline>
+                                        </svg>
+                                    </span>
+                                    <span className="format-row__col">{m.column}</span>
+                                    <button
+                                        type="button"
+                                        className="format-row__remove"
+                                        title={t('settings.formatRemoveTooltip')}
+                                        aria-label={t('settings.formatRemoveAriaLabel')}
+                                        onClick={() => onRemoveMapping(m.variable)}
+                                    >
+                                        <svg
+                                            width="13"
+                                            height="13"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            strokeWidth="2.4"
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                        >
+                                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                                        </svg>
+                                    </button>
+                                </div>
+                            );
+                        })
+                    )}
+                </div>
+
+                {/* Add-mapping form — variable select + column select +
+                    map button. Both fields reset after a successful add. */}
+                <div
+                    style={{
+                        display: 'flex',
+                        gap: 'var(--space-4)',
+                        alignItems: 'flex-end',
+                        flexWrap: 'wrap',
+                        marginBottom: 'var(--space-8)',
+                    }}
+                >
+                    <div style={{ flex: 1, minWidth: 150 }}>
+                        <label
+                            className="compact-form-label"
+                            style={{
+                                fontSize: 'var(--font-xs)',
+                                fontWeight: 800,
+                                color: 'var(--text-secondary)',
+                            }}
+                        >
+                            {t('settings.formatVariableLabel')}
+                        </label>
+                        <select
+                            className="glass-input"
+                            style={{ width: '100%' }}
+                            value={mapVar}
+                            onChange={(e) => setMapVar(e.target.value)}
+                        >
+                            <option value="">{t('settings.formatVariablePlaceholder')}</option>
+                            {availableVars.map((v) => (
+                                <option key={v} value={v}>
+                                    {MANDATORY_VARS.includes(v) ? '★ ' : ''}
+                                    {v}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                    <div style={{ flex: 1, minWidth: 120 }}>
+                        <label
+                            className="compact-form-label"
+                            style={{
+                                fontSize: 'var(--font-xs)',
+                                fontWeight: 800,
+                                color: 'var(--text-secondary)',
+                            }}
+                        >
+                            {t('settings.formatColumnLabel')}
+                        </label>
+                        <select
+                            className="glass-input"
+                            style={{ width: '100%' }}
+                            value={mapCol}
+                            onChange={(e) => setMapCol(e.target.value)}
+                        >
+                            <option value="">{t('settings.formatColumnPlaceholder')}</option>
+                            {'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map((c) => (
+                                <option key={c} value={c}>
+                                    {c}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                    <button
+                        type="button"
+                        className="btn btn-liquid-glass"
+                        style={{ padding: 'var(--space-3) var(--space-6)' }}
+                        onClick={onAddMapping}
+                    >
+                        {t('settings.formatMapBtn')}
+                    </button>
+                </div>
+
+                {/* Saved formats list + save-name form. The save form
+                    is hidden once 5 formats are stored. */}
+                <div style={{ borderTop: '1px solid var(--glass-border)', paddingTop: 'var(--space-8)' }}>
+                    <h3 style={{ marginTop: 0 }}>
+                        {t('settings.formatSavedHeading', { count: savedFormats.length })}
+                    </h3>
+                    <div style={{ display: 'grid', gap: 'var(--space-3)' }}>
+                        {savedFormats.map((f) => (
+                            <div key={f.id} className="saved-format-card">
+                                <div className="saved-format-card__name">
+                                    <span className="saved-format-card__icon">📄</span>
+                                    <span>{f.name}</span>
+                                </div>
+                                <div className="saved-format-card__actions">
+                                    <button
+                                        type="button"
+                                        className="saved-format-card__btn saved-format-card__btn--edit"
+                                        onClick={() => onEditSavedFormat(f.id)}
+                                    >
+                                        <svg
+                                            width="13"
+                                            height="13"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            strokeWidth="2.4"
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                        >
+                                            <path d="M12 20h9"></path>
+                                            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+                                        </svg>
+                                        {t('settings.formatSavedEditBtn')}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="saved-format-card__btn saved-format-card__btn--delete"
+                                        onClick={() => onDeleteSavedFormat(f.id)}
+                                    >
+                                        <svg
+                                            width="13"
+                                            height="13"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            strokeWidth="2.4"
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                        >
+                                            <polyline points="3 6 5 6 21 6"></polyline>
+                                            <path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"></path>
+                                        </svg>
+                                        {t('settings.formatSavedDeleteBtn')}
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                        {savedFormats.length < 5 ? (
+                            <div style={{ display: 'flex', gap: 'var(--space-3)', marginTop: 'var(--space-3)' }}>
+                                <input
+                                    type="text"
+                                    className="glass-input"
+                                    placeholder={t('settings.formatSavedNamePlaceholder')}
+                                    style={{ flex: 1 }}
+                                    value={formatName}
+                                    onChange={(e) => setFormatName(e.target.value)}
+                                />
+                                <button
+                                    type="button"
+                                    className="btn-primary"
+                                    onClick={onSaveCustomFormat}
+                                >
+                                    {t('settings.formatSavedSaveBtn')}
+                                </button>
+                            </div>
+                        ) : null}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
 }

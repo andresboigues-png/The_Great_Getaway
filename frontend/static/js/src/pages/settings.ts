@@ -1,31 +1,73 @@
+// pages/settings.ts — §3.3 React migration leftover.
+//
+// The legacy renderSettings() lived here for years until the §3.3
+// React migration (see pages/settings/Settings.tsx for the new JSX
+// implementation). renderPersonalization() also lived here until
+// the previous §3.3 wave (see pages/settings/Personalization.tsx).
+//
+// What's left in this file is the cross-page surface that other
+// modules still depend on:
+//
+//   - `showSettingsTab(tab)` — used by upload.ts after a CSV import
+//     to jump the user to the Format tab. Thin wrapper around
+//     setSettingsTab from ./settings/tabState — the new React
+//     Settings component subscribes to that store and re-renders
+//     when the tab flips. Pre-§3.3 this function looked for
+//     `.settings-tab-btn` / `.settings-section` DOM nodes that no
+//     longer exist (the imperative renderer had moved on from
+//     class-toggle to innerHTML rewrite) — it was effectively a
+//     no-op. The new wiring actually works.
+//
+//   - `showPersTab(tab)` — used by home/gettingStartedGuide.ts
+//     after the "Set your own categories" guide action. Direct DOM
+//     toggle on the Personalization page's #persMenu / #persContent
+//     / #persCategories ids — the React Personalization component
+//     renders these same ids so the imperative + declarative paths
+//     coexist.
+//
+//   - `deleteCategory(id)` — used by Personalization.tsx's delete
+//     button. Confirm + STATE write + syncCategories.
+//
+//   - `openEditCategoryModal(id)` — used by Personalization.tsx's
+//     edit button. showModal-driven form, saves to STATE +
+//     syncCategories.
+
 import { STATE, emit } from '../state.js';
-import { generateId, showConfirmModal, showLiquidAlert, q, esc } from '../utils.js';
-import { syncCategories, apiFetch } from '../api.js';
+import { showConfirmModal, q, esc } from '../utils.js';
+import { syncCategories } from '../api.js';
 import { navigate } from '../router.js';
 import { showModal } from '../components/Modal.js';
-import { POI_CATEGORIES } from './home.js';
-import { setTheme } from '../theme.js';
-import { t, getLocale, setLocale, type Locale } from '../i18n.js';
+import { t } from '../i18n.js';
+import { setSettingsTab, type SettingsTab } from './settings/tabState.js';
 
-export const showSettingsTab = (tab: string) => {
-    const tabs = (document.querySelectorAll('.settings-tab-btn') as NodeListOf<HTMLElement>);
-    const sections = document.querySelectorAll('.settings-section');
 
-    tabs.forEach(t => t.classList.remove('active'));
-    sections.forEach(s => s.classList.remove('active'));
-
-    const activeTab = Array.from(tabs).find(t => t.innerText.toLowerCase().includes(tab.toLowerCase()));
-    if (activeTab) activeTab.classList.add('active');
-
-    const activeSection = document.getElementById(`settings-${tab}`);
-    if (activeSection) activeSection.classList.add('active');
+/** Imperative-API surface for jumping to a specific Settings sub-tab
+ *  from outside the page (currently: upload.ts after a successful
+ *  CSV import). The new React Settings component subscribes to
+ *  tabState via useSyncExternalStore, so a setSettingsTab() write
+ *  re-renders the live component without any DOM manipulation here.
+ *
+ *  The lenient string param matches the legacy signature; we narrow
+ *  to the SettingsTab union before dispatching so a typo silently
+ *  no-ops rather than corrupting the store. */
+export const showSettingsTab = (tab: string): void => {
+    if (tab === 'menu' || tab === 'general' || tab === 'format' || tab === 'reset') {
+        setSettingsTab(tab as SettingsTab);
+    }
 };
 
-// Exported because home.js (guide actions) and expenses.js (Add Companions
-// helper) reach in here to switch the personalization tab after navigating.
-// The Companions sub-tab was removed when companions became per-trip;
-// `tab === 'companions'` is treated as 'categories' so legacy callers
-// don't break.
+
+// Exported because home.js (Getting Started Guide → "Set your own
+// categories" action) reaches in here to switch the personalization
+// tab after navigating to the page. Direct DOM toggle on the IDs
+// rendered by Personalization.tsx — both the legacy imperative
+// renderer and the new JSX component render the same #persMenu /
+// #persContent / #persCategories ids so this helper works
+// regardless of which renderer is active.
+//
+// The Companions sub-tab was removed when companions became
+// per-trip; `tab === 'companions'` is treated as 'categories' so
+// legacy callers don't break.
 export const showPersTab = (tab: string) => {
     const menu = document.getElementById('persMenu');
     const content = document.getElementById('persContent');
@@ -41,6 +83,7 @@ export const showPersTab = (tab: string) => {
     }
 };
 
+
 // Exported so the React Personalization page can dispatch this from
 // its delete-button click handler. Confirm-modal flow + state delete
 // + server sync + re-navigate to land back on the categories sub-tab.
@@ -52,660 +95,13 @@ export const deleteCategory = (id: string) => {
         onConfirm: () => {
             STATE.categories = STATE.categories.filter(c => c.id !== id);
             emit('state:changed');
-            syncCategories(); // Delta: sync categories to server
+            syncCategories();
             navigate('personalization');
             setTimeout(() => showPersTab('categories'), 50);
         }
     });
 };
 
-// The companion-management helpers (cancelCompanionLink,
-// confirmUnlinkCompanion, deleteCompanion) used to live here when
-// companions were account-level. With the per-trip refactor they're gone
-// — managing companions happens inside the trip's companion picker now.
-
-export function renderSettings() {
-    const div = document.createElement('div');
-
-    function renderMappingContent() {
-        // 'category' is mandatory: without it every imported expense lands
-        // in the default category. The matching path in upload.js does
-        // find-or-create on the cell value, so users can either reuse an
-        // existing category or auto-create a new one just by filling the
-        // column — but the column itself has to be mapped. Old saved
-        // formats use 'categoryId' as the variable name; the upload reader
-        // accepts both for back-compat.
-        const MANDATORY = ['label', 'date', 'value', 'who', 'category'];
-        // 'splits' takes a free-text cell like "Alice:50,Bob:50" (percentages).
-        // Empty/unmapped → 100% paid by `who` (no debt). 'isSettlement' takes
-        // Y/N to flag a row as a transfer rather than a real expense — when Y,
-        // the receiver is read from the splits cell.
-        const OPTIONAL = ['country', 'currency', 'splits', 'isSettlement'];
-        const used = new Set((STATE.customFormat || []).map(m => m.variable));
-        const sf = STATE.savedFormats || [];
-
-        return `
-            <div style="display:flex; flex-wrap:wrap; gap:var(--space-2); margin-bottom:var(--space-6);">
-                ${MANDATORY.map(v => {
-            const done = used.has(v);
-            return `<span class="status-chip${done ? ' is-done' : ''}">
-                        ${done ? '✓' : '★'} ${v.toUpperCase()}
-                    </span>`;
-        }).join('')}
-            </div>
-
-            <!-- Format mapping list — was a flat compact-table; now a
-                 card list with each mapping rendered as a row showing
-                 the variable name, an arrow connecting to the Excel
-                 column letter (chip), and a delete chip. Mandatory
-                 variables (★) get a star badge and a left stripe in
-                 the accent color. Easier to scan than the table —
-                 each mapping is a self-contained card. -->
-            <div class="format-list" style="margin-bottom: var(--space-6);">
-                ${(STATE.customFormat || []).length === 0 ? `
-                    <div class="format-list__empty">${t('settings.formatEmpty')}</div>
-                ` : (STATE.customFormat || []).map(m => {
-                    const isMandatory = MANDATORY.includes(m.variable);
-                    return `
-                        <div class="format-row${isMandatory ? ' is-mandatory' : ''}">
-                            <span class="format-row__star" aria-hidden="true">${isMandatory ? '★' : ''}</span>
-                            <span class="format-row__variable">${esc(m.variable)}</span>
-                            <span class="format-row__arrow" aria-hidden="true">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
-                            </span>
-                            <span class="format-row__col">${esc(m.column)}</span>
-                            <button class="format-row__remove remove-mapping-btn" data-variable="${esc(m.variable)}" title="${t('settings.formatRemoveTooltip')}" aria-label="${t('settings.formatRemoveAriaLabel')}">
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                            </button>
-                        </div>
-                    `;
-                }).join('')}
-            </div>
-
-            <div style="display:flex; gap:var(--space-4); align-items:flex-end; flex-wrap:wrap; margin-bottom:var(--space-8);">
-                <div style="flex:1; min-width:150px;">
-                    <label class="compact-form-label" style="font-size:var(--font-xs); font-weight:800; color:var(--text-secondary);">${t('settings.formatVariableLabel')}</label>
-                    <select id="mapVarSelect" class="glass-input" style="width:100%;">
-                        <option value="">${t('settings.formatVariablePlaceholder')}</option>
-                        ${MANDATORY.concat(OPTIONAL).filter(v => !used.has(v)).map(v => `<option value="${v}">${MANDATORY.includes(v) ? '★ ' : ''}${v}</option>`).join('')}
-                    </select>
-                </div>
-                <div style="flex:1; min-width:120px;">
-                    <label class="compact-form-label" style="font-size:var(--font-xs); font-weight:800; color:var(--text-secondary);">${t('settings.formatColumnLabel')}</label>
-                    <select id="mapColSelect" class="glass-input" style="width:100%;">
-                        <option value="">${t('settings.formatColumnPlaceholder')}</option>
-                        ${'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map(c => `<option value="${c}">${c}</option>`).join('')}
-                    </select>
-                </div>
-                <button class="btn btn-liquid-glass" id="addFormatMappingBtn" style="padding: var(--space-3) var(--space-6);">${t('settings.formatMapBtn')}</button>
-            </div>
-
-            <div style="border-top: 1px solid var(--glass-border); padding-top: var(--space-8);">
-                <h3 style="margin-top:0;">${t('settings.formatSavedHeading', { count: sf.length })}</h3>
-                <div style="display:grid; gap:var(--space-3);">
-                    ${sf.map(f => `
-                        <div class="saved-format-card">
-                            <div class="saved-format-card__name">
-                                <span class="saved-format-card__icon">📄</span>
-                                <span>${esc(f.name)}</span>
-                            </div>
-                            <div class="saved-format-card__actions">
-                                <button class="saved-format-card__btn saved-format-card__btn--edit edit-saved-format-btn" data-format-id="${esc(f.id)}">
-                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
-                                    ${t('settings.formatSavedEditBtn')}
-                                </button>
-                                <button class="saved-format-card__btn saved-format-card__btn--delete delete-saved-format-btn" data-format-id="${esc(f.id)}">
-                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"></path></svg>
-                                    ${t('settings.formatSavedDeleteBtn')}
-                                </button>
-                            </div>
-                        </div>
-                    `).join('')}
-                    ${sf.length < 5 ? `
-                        <div style="display:flex; gap:var(--space-3); margin-top:var(--space-3);">
-                            <input type="text" id="formatNameInput" class="glass-input" placeholder="${t('settings.formatSavedNamePlaceholder')}" style="flex:1;">
-                            <button class="btn-primary" id="saveCustomFormatBtn">${t('settings.formatSavedSaveBtn')}</button>
-                        </div>
-                    ` : ''}
-                </div>
-            </div>
-        `;
-    }
-
-    const buildSettingsUI = (activeTab = 'menu') => {
-        const isMenu = activeTab === 'menu';
-        const isReset = activeTab === 'reset';
-        const isFormat = activeTab === 'format';
-        const isGeneral = activeTab === 'general';
-
-        return `
-            <div class="ai-page-header">
-                <h1 class="gradient-text" style="--g-from: #1a6b3c; --g-to: #34c759;">${t('settings.systemControlTitle')}</h1>
-                <p>${t('settings.systemControlSubtitle')}</p>
-            </div>
-
-            ${isMenu ? `
-                <div class="settings-grid">
-                    <button type="button" class="card-button-reset card glass management-card settings-tab-card" data-tab="general">
-                        <h2 class="card-title" style="color: #005bb8; margin: 0;">${t('settings.cardGeneralTitle')}</h2>
-                        <p style="color: var(--text-secondary); margin: 8px 0 0;">${t('settings.cardGeneralBody')}</p>
-                        <div style="margin-top: 20px; color: #005bb8; font-weight: 700; font-size: 0.85rem;">${t('settings.cardConfigureCta')}</div>
-                    </button>
-
-                    <button type="button" class="card-button-reset card glass management-card settings-tab-card" data-tab="format">
-                        <h2 class="card-title" style="color: #a85d00; margin: 0;">${t('settings.cardFormatTitle')}</h2>
-                        <p style="color: var(--text-secondary); margin: 8px 0 0;">${t('settings.cardFormatBody')}</p>
-                        <div style="margin-top: 20px; color: #a85d00; font-weight: 700; font-size: 0.85rem;">${t('settings.cardConfigureCta')}</div>
-                    </button>
-
-                    <button type="button" class="card-button-reset card glass management-card danger-card settings-tab-card" data-tab="reset">
-                        <div class="danger-glow pulse-red"></div>
-                        <h2 class="card-title" style="color: #ff3b30; margin: 0;">${t('settings.cardDataMgmtTitle')}</h2>
-                        <p style="color: var(--text-secondary); margin: 8px 0 0;">${t('settings.cardDataMgmtBody')}</p>
-                        <div style="margin-top: 20px; color: #ff3b30; font-weight: 700; font-size: 0.85rem;">${t('settings.cardDataMgmtCta')}</div>
-                    </button>
-                </div>
-            ` : `
-                <button class="btn btn-small btn-liquid-glass settings-tab-card" data-tab="menu" style="margin-bottom: 24px; padding: 10px 20px; border-radius: 14px;">${t('settings.backToControlCenter')}</button>
-
-                ${isGeneral ? (() => {
-                    const generalSubTab = activeTab === 'general' ? (window.__ggGeneralSubTab || 'pills') : 'pills';
-                    const tab = (t: string) => generalSubTab === t ? ' is-active' : '';
-                    // Three peer sub-tabs: Map pills, Appearance, Language.
-                    // Per-user request the Language picker is now its own
-                    // sub-tab next to Appearance (was nested inside it
-                    // when D6 first shipped).
-                    const subTabnav = `
-                        <div class="general-subtabs" role="tablist" aria-label="General settings sections">
-                            <button type="button" class="general-subtab${tab('pills')}" data-general-sub="pills" role="tab" aria-selected="${generalSubTab === 'pills' ? 'true' : 'false'}">
-                                <span class="general-subtab__icon">🗺️</span>
-                                <span class="general-subtab__label">${t('settings.subtabPills')}</span>
-                            </button>
-                            <button type="button" class="general-subtab${tab('appearance')}" data-general-sub="appearance" role="tab" aria-selected="${generalSubTab === 'appearance' ? 'true' : 'false'}">
-                                <span class="general-subtab__icon">🎨</span>
-                                <span class="general-subtab__label">${t('settings.appearance')}</span>
-                            </button>
-                            <button type="button" class="general-subtab${tab('language')}" data-general-sub="language" role="tab" aria-selected="${generalSubTab === 'language' ? 'true' : 'false'}">
-                                <span class="general-subtab__icon">🌐</span>
-                                <span class="general-subtab__label">${t('settings.language')}</span>
-                            </button>
-                        </div>
-                    `;
-                    if (generalSubTab === 'appearance') {
-                        // Theme picker subsection (Phase D2). Tri-state
-                        // option cards (Light / Dark / System); active
-                        // state reads from STATE.preferences.theme. The
-                        // click handler delegated below calls setTheme()
-                        // and re-renders this same sub-tab so the
-                        // selected card updates without losing the
-                        // user's place inside General.
-                        const currentTheme = STATE.preferences?.theme || 'system';
-                        const opt = (value: string, label: string, icon: string, body: string) => `
-                            <button type="button" class="theme-option-card${currentTheme === value ? ' is-active' : ''}" data-theme-value="${value}">
-                                <span class="theme-option-card__icon" aria-hidden="true">${icon}</span>
-                                <span class="theme-option-card__label">${label}</span>
-                                <span class="theme-option-card__body">${body}</span>
-                                <span class="theme-option-card__check" aria-hidden="true">${currentTheme === value ? '✓' : ''}</span>
-                            </button>
-                        `;
-                        return `
-                            ${subTabnav}
-                            <div class="card glass" style="padding: 32px; border-radius: 28px;">
-                                <h2 style="color: #5856d6; margin-top: 0;">${t('settings.appearance')}</h2>
-                                <p style="color: var(--text-secondary); margin-bottom: 24px;">${t('settings.themePickerSubtitle')}</p>
-                                <div class="theme-options">
-                                    ${opt('light', t('settings.themeLight'), '☀️', t('settings.themeBodyLight'))}
-                                    ${opt('dark', t('settings.themeDark'), '🌙', t('settings.themeBodyDark'))}
-                                    ${opt('system', t('settings.themeSystem'), '🖥️', t('settings.themeBodySystem'))}
-                                </div>
-                            </div>
-                        `;
-                    }
-                    if (generalSubTab === 'language') {
-                        // D6 (i18n) Language picker, hoisted out of
-                        // Appearance into its own peer sub-tab per user
-                        // request. Same `.theme-option-card` chrome the
-                        // theme picker uses; same delegated click flow
-                        // (setLocale + state:changed + paintI18nBindings
-                        // re-paint).
-                        const currentLocale = getLocale();
-                        const langOpt = (value: Locale, label: string, native: string) => `
-                            <button type="button" class="theme-option-card${currentLocale === value ? ' is-active' : ''}" data-locale-value="${value}">
-                                <span class="theme-option-card__icon" aria-hidden="true">🌐</span>
-                                <span class="theme-option-card__label">${label}</span>
-                                <span class="theme-option-card__body">${native}</span>
-                                <span class="theme-option-card__check" aria-hidden="true">${currentLocale === value ? '✓' : ''}</span>
-                            </button>
-                        `;
-                        return `
-                            ${subTabnav}
-                            <div class="card glass" style="padding: 32px; border-radius: 28px;">
-                                <h2 style="color: #5856d6; margin-top: 0;">${t('settings.language')}</h2>
-                                <p style="color: var(--text-secondary); margin-bottom: 24px;">${t('settings.languageDesc')}</p>
-                                <div class="theme-options">
-                                    ${langOpt('en', t('settings.languageEnglish'), 'English')}
-                                    ${langOpt('pt', t('settings.languagePortuguese'), 'Português')}
-                                    ${langOpt('es', t('settings.languageSpanish'), 'Español')}
-                                    ${langOpt('fr', t('settings.languageFrench'), 'Français')}
-                                </div>
-                            </div>
-                        `;
-                    }
-                    const filters = STATE.preferences?.poiFilters || {};
-                    const anchoring = STATE.preferences?.poiAnchoring || {};
-                    const visibility = STATE.preferences?.poiVisible || {};
-                    const ratingOptions = [0, 3, 3.5, 4, 4.5];
-                    const rows = POI_CATEGORIES
-                        // Roads & traffic isn't a Places-API pill, no
-                        // rating / anchor filter applies to it.
-                        .filter(c => c.placesType)
-                        .map(c => {
-                            const userMin = typeof filters[c.key]?.minRating === 'number'
-                                ? filters[c.key]!.minRating
-                                : c.defaultMinRating;
-                            const ratingOpts = ratingOptions.map(v => `
-                                <option value="${v}" ${v === userMin ? 'selected' : ''}>${v === 0 ? t('settings.poiAnyRating') : `${v}★ +`}</option>
-                            `).join('');
-                            // Anchor mode: user override (Settings) wins,
-                            // else the category's useAnchorAlways default.
-                            const userAnchor = anchoring[c.key];
-                            const effectiveAnchor = (userAnchor === 'anchor' || userAnchor === 'epicenter')
-                                ? userAnchor
-                                : (c.useAnchorAlways ? 'anchor' : 'epicenter');
-                            const defaultAnchor = c.useAnchorAlways ? 'anchor' : 'epicenter';
-                            const anchorOpts = `
-                                <option value="epicenter" ${effectiveAnchor === 'epicenter' ? 'selected' : ''}>${t('settings.poiAnchorDayAware')}</option>
-                                <option value="anchor"   ${effectiveAnchor === 'anchor' ? 'selected' : ''}>${t('settings.poiAnchorTripWide')}</option>
-                            `;
-                            const isVisible = visibility[c.key] !== false; // default true
-                            const isRatingCustom = userMin !== c.defaultMinRating;
-                            const isAnchorCustom = (userAnchor === 'anchor' || userAnchor === 'epicenter')
-                                && userAnchor !== defaultAnchor;
-                            const isVisibilityCustom = !isVisible; // default = visible, so hidden = customised
-                            const isCustom = isRatingCustom || isAnchorCustom || isVisibilityCustom;
-                            return `
-                                <div class="poi-filter-row${isVisible ? '' : ' poi-filter-row--hidden'}">
-                                    <span class="poi-filter-row__icon">${c.icon}</span>
-                                    <div class="poi-filter-row__body">
-                                        <div class="poi-filter-row__label">${esc(c.label)}</div>
-                                        <div class="poi-filter-row__hint">${esc(c.tooltip)}</div>
-                                    </div>
-                                    <select class="poi-anchor-mode" data-poi="${c.key}" aria-label="${t('settings.poiAnchorAriaLabel', { label: esc(c.label) })}" title="${t('settings.poiAnchorTooltip')}">
-                                        ${anchorOpts}
-                                    </select>
-                                    <select class="poi-filter-rating" data-poi="${c.key}" aria-label="${t('settings.poiRatingAriaLabel', { label: esc(c.label) })}">
-                                        ${ratingOpts}
-                                    </select>
-                                    <span class="poi-filter-row__default" title="Defaults: ${c.defaultMinRating === 0 ? t('settings.poiAnyRating') : c.defaultMinRating + '★+'} / ${defaultAnchor === 'anchor' ? t('settings.poiAnchorTripWide') : t('settings.poiAnchorDayAware')} / shown">
-                                        ${isCustom ? '<button type="button" class="poi-filter-reset" data-poi="' + c.key + '" title="' + t('settings.poiResetTooltip') + '">' + t('settings.poiResetBtn') + '</button>' : '<span class="muted">' + t('settings.poiDefaultLabel') + '</span>'}
-                                    </span>
-                                    <label class="switch poi-visibility-switch" title="${isVisible ? t('settings.poiVisibilitySwitchTitleVisible') : t('settings.poiVisibilitySwitchTitleHidden')}">
-                                        <input type="checkbox" class="poi-visibility-toggle" data-poi="${c.key}" ${isVisible ? 'checked' : ''}>
-                                        <span class="slider"></span>
-                                    </label>
-                                </div>
-                            `;
-                        }).join('');
-                    return `
-                        ${subTabnav}
-                        <div class="card glass" style="padding: 32px; border-radius: 28px;">
-                            <h2 style="color: #005bb8; margin-top: 0;">${t('settings.poiTitle')}</h2>
-                            <p style="color: var(--text-secondary); margin-bottom: 16px;">${t('settings.poiIntroVisibility')}</p>
-                            <p style="color: var(--text-secondary); margin-bottom: 16px;">${t('settings.poiIntroRating')}</p>
-                            <p style="color: var(--text-secondary); margin-bottom: 24px;">${t('settings.poiIntroAnchor')}</p>
-                            <div class="poi-filter-list">
-                                ${rows}
-                            </div>
-                            <p style="color: var(--text-secondary); margin: 24px 0 0; font-size: 0.85rem;">${t('settings.poiOutroNote')}</p>
-                        </div>
-                    `;
-                })() : ''}
-
-                ${isReset ? `
-                    <div class="settings-grid">
-                        <div class="card glass" style="padding: var(--space-6);">
-                            <h3 style="color: #a85d00; margin-top: 0;">${t('settings.resetTripsTitle')}</h3>
-                            <p class="muted-meta">${t('settings.resetTripsBody')}</p>
-                            <button class="themed-block-btn confirm-reset-btn" data-reset-type="trips" style="--accent: 255,149,0;">${t('settings.resetTripsBtn')}</button>
-                        </div>
-                        <div class="card glass" style="padding: var(--space-6);">
-                            <h3 style="color: #5856d6; margin-top: 0;">${t('settings.resetCategoriesTitle')}</h3>
-                            <p class="muted-meta">${t('settings.resetCategoriesBody')}</p>
-                            <button class="themed-block-btn confirm-reset-btn" data-reset-type="categories" style="--accent: 88,86,214;">${t('settings.resetCategoriesBtn')}</button>
-                        </div>
-                        <div class="card glass danger-card" style="padding: var(--space-6); border-color: rgba(255, 59, 48, 0.3);">
-                            <h3 style="color: #ff3b30; margin-top: 0;">${t('settings.resetFactoryTitle')}</h3>
-                            <p class="muted-meta">${t('settings.resetFactoryBody')}</p>
-                            <button class="btn-confirm-danger confirm-reset-btn" data-reset-type="app" style="font-size: var(--font-sm); padding: var(--space-3);">${t('settings.resetFactoryBtn')}</button>
-                        </div>
-                    </div>
-                ` : ''}
-
-                ${isFormat ? `
-                    <div class="card glass" style="padding: 32px; border-radius: 28px;">
-                        <h2 style="color: #a85d00; margin-top: 0;">${t('settings.formatTitle')}</h2>
-                        <p style="color: var(--text-secondary); margin-bottom: 24px;">${t('settings.formatSubtitle')}</p>
-
-                        <div id="mappingTableContainer">
-                            ${renderMappingContent()}
-                        </div>
-                    </div>
-                ` : ''}
-
-            `}
-        `;
-    };
-
-    const switchSettingsTab = (tab: string) => {
-        div.innerHTML = buildSettingsUI(tab);
-    };
-
-    const confirmReset = (type: 'trips' | 'categories' | 'app') => {
-        const configs = {
-            trips: {
-                title: t('settings.resetTripsConfirmTitle'),
-                message: t('settings.resetTripsConfirmMessage'),
-                confirmText: t('settings.resetTripsConfirmBtn'),
-                onConfirm: async () => {
-                    STATE.trips = []; STATE.archivedTrips = []; STATE.tripDays = []; STATE.expenses = []; STATE.budgets = []; STATE.activeTripId = null;
-                    emit('state:changed');
-                    // Also wipe trips from server
-                    if (STATE.user) {
-                        try {
-                            await apiFetch('/api/user-data', {
-                                method: 'DELETE',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({})
-                            });
-                        } catch(e) { console.error('Server wipe failed', e); }
-                    }
-                    switchSettingsTab('reset');
-                }
-            },
-            categories: {
-                title: t('settings.resetCategoriesConfirmTitle'),
-                message: t('settings.resetCategoriesConfirmMessage'),
-                confirmText: t('settings.resetCategoriesConfirmBtn'),
-                onConfirm: () => {
-                    STATE.categories = [
-                        { id: 'c1', name: 'Food', icon: '🍔', color: '#ff3b30' },
-                        { id: 'c2', name: 'Transport', icon: '✈️', color: '#007aff' },
-                        { id: 'c3', name: 'Accommodation', icon: '🏨', color: '#5856d6' }
-                    ];
-                    emit('state:changed');
-                    syncCategories(); // Delta: sync reset categories
-                    switchSettingsTab('reset');
-                }
-            },
-            app: {
-                title: t('settings.resetFactoryConfirmTitle'),
-                message: t('settings.resetFactoryConfirmMessage'),
-                confirmText: t('settings.resetFactoryConfirmBtn'),
-                onConfirm: async () => {
-                    // Wipe server data first if logged in
-                    if (STATE.user) {
-                        try {
-                            await apiFetch('/api/user-data', {
-                                method: 'DELETE',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({})
-                            });
-                        } catch(e) { console.error('Server wipe failed', e); }
-                    }
-                    STATE.trips = []; STATE.archivedTrips = []; STATE.tripDays = []; STATE.expenses = []; STATE.budgets = []; STATE.categories = []; STATE.activeTripId = null; STATE.user = null; STATE.notifications = []; STATE.hasLoggedInBefore = false;
-                    emit('state:changed');
-                    localStorage.clear();
-                    location.reload();
-                }
-            }
-        };
-        showConfirmModal(configs[type]);
-    };
-
-    const addFormatMapping = () => {
-        const variable = (document.getElementById('mapVarSelect') as HTMLSelectElement | null)?.value;
-        const column = (document.getElementById('mapColSelect') as HTMLSelectElement | null)?.value;
-        if (!variable || !column) return;
-        STATE.customFormat = STATE.customFormat || [];
-        if (STATE.customFormat.some(m => m.variable === variable)) return;
-        STATE.customFormat.push({ variable, column });
-        emit('state:changed');
-        switchSettingsTab('format');
-    };
-
-    const removeFormatMapping = (variable: string) => {
-        STATE.customFormat = (STATE.customFormat || []).filter(m => m.variable !== variable);
-        emit('state:changed');
-        switchSettingsTab('format');
-    };
-
-    const saveCustomFormat = () => {
-        // Keep this in sync with the MANDATORY list in renderMappingContent.
-        // We accept legacy 'categoryId' as a synonym for 'category' so users
-        // who saved a format before the rename don't get blocked from saving.
-        const MANDATORY = ['label', 'date', 'value', 'who', 'category'];
-        const fmt = STATE.customFormat || [];
-        const mapped = new Set(fmt.map(m => m.variable === 'categoryId' ? 'category' : m.variable));
-        const missing = MANDATORY.filter(v => !mapped.has(v));
-        // Round 6 audit fix — switch to showLiquidAlert toast for consistency.
-        // i18n session 1: pipe through t() with {fields} interpolation.
-        if (missing.length > 0) { showLiquidAlert(t('validation.missingRequiredFields', { fields: missing.join(', ') })); return; }
-        const name = ((document.getElementById('formatNameInput') as HTMLInputElement | null)?.value || '').trim();
-        if (!name) return;
-        STATE.savedFormats = STATE.savedFormats || [];
-        STATE.savedFormats.push({ id: generateId(), name, mappings: [...fmt] });
-        STATE.customFormat = [];
-        emit('state:changed');
-        switchSettingsTab('format');
-    };
-
-    const deleteSavedFormat = (id: string) => {
-        showConfirmModal({
-            title: t('settings.formatDeleteConfirmTitle'),
-            message: t('settings.formatDeleteConfirmMessage'),
-            confirmText: t('settings.formatDeleteConfirmBtn'),
-            onConfirm: () => {
-                STATE.savedFormats = (STATE.savedFormats || []).filter(f => f.id !== id);
-                emit('state:changed');
-                switchSettingsTab('format');
-            }
-        });
-    };
-
-    const editSavedFormat = (id: string) => {
-        const format = (STATE.savedFormats || []).find(f => f.id === id);
-        if (!format) return;
-        // Load the saved format's mappings into the active editor
-        STATE.customFormat = [...format.mappings];
-        // Remove it from saved so the user can re-save it with a new name or overwrite
-        STATE.savedFormats = (STATE.savedFormats || []).filter(f => f.id !== id);
-        emit('state:changed');
-        switchSettingsTab('format');
-        // Pre-fill the name input after tab renders
-        setTimeout(() => {
-            const nameInput = (document.getElementById('formatNameInput') as HTMLInputElement | null);
-            if (nameInput) nameInput.value = format.name;
-        }, 50);
-    };
-
-    div.innerHTML = buildSettingsUI('menu');
-
-    // Delegated handler — listener attached on div once; switchSettingsTab
-    // rewrites div.innerHTML on every tab change, so per-element listeners
-    // would die. Delegation on div survives.
-    div.addEventListener('click', (e) => {
-        const target = (e.target as HTMLElement | null);
-        if (!target) return;
-
-        const tabCard = (target.closest('.settings-tab-card') as HTMLElement | null);
-        if (tabCard?.dataset.tab) { switchSettingsTab(tabCard.dataset.tab); return; }
-
-        // General-page sub-tab strip — switches between sections
-        // inside General Settings without leaving the page.
-        // Stashes the choice on window so a re-render of the
-        // General page (e.g. after a poi-filter-reset) restores
-        // the same sub-tab. Disabled tabs are :disabled buttons
-        // that the browser ignores for clicks anyway, so the
-        // dataset check below covers active tabs only.
-        const subTabBtn = (target.closest('.general-subtab') as HTMLElement | null);
-        if (subTabBtn && !subTabBtn.hasAttribute('disabled') && subTabBtn.dataset.generalSub) {
-            (window as any).__ggGeneralSubTab = subTabBtn.dataset.generalSub;
-            switchSettingsTab('general');
-            return;
-        }
-
-        // POI default-pill checkbox is handled via the change listener
-        // below, not here — clicks bubble up but the toggle's actual
-        // state change is what we react to.
-
-        const resetBtn = (target.closest('.confirm-reset-btn') as HTMLElement | null);
-        if (resetBtn?.dataset.resetType) { confirmReset(resetBtn.dataset.resetType as 'trips' | 'categories' | 'app'); return; }
-
-        // Theme picker on the General → Appearance subsection.
-        // setTheme() handles STATE write + emit + html-attribute
-        // update; switchSettingsTab('general') re-renders the
-        // General tab, and the appearance sub-tab is preserved
-        // because the click on the .general-subtab above already
-        // stashed __ggGeneralSubTab = 'appearance' on window.
-        const themeBtn = (target.closest('.theme-option-card') as HTMLElement | null);
-        if (themeBtn?.dataset.themeValue) {
-            const value = themeBtn.dataset.themeValue;
-            if (value === 'light' || value === 'dark' || value === 'system') {
-                setTheme(value);
-                (window as any).__ggGeneralSubTab = 'appearance';
-                switchSettingsTab('general');
-            }
-            return;
-        }
-        // D6 (i18n): Language picker. Now lives in its own peer
-        // sub-tab next to Appearance (per user request). Same flow as
-        // theme — setLocale() writes STATE + emits; switchSettingsTab
-        // re-renders General; we set __ggGeneralSubTab = 'language'
-        // so the user lands back on the language card after the
-        // selection rather than getting punted to Map pills.
-        //
-        // i18n session 2: setLocale is now async (it awaits the locale
-        // chunk load before flipping the active locale, so the user
-        // never sees a flash of English while pt/es/fr loads). We
-        // await it before re-rendering so the new strings are in
-        // memory when switchSettingsTab repaints. Errors get a toast
-        // and leave the previous selection in place.
-        if (themeBtn?.dataset.localeValue) {
-            const value = themeBtn.dataset.localeValue;
-            // Keep this list in lockstep with the Locale union in i18n.ts
-            // and the langOpt() calls in renderGeneral above.
-            if (value === 'en' || value === 'pt' || value === 'es' || value === 'fr') {
-                (async () => {
-                    try {
-                        await setLocale(value);
-                        (window as any).__ggGeneralSubTab = 'language';
-                        switchSettingsTab('general');
-                    } catch (err) {
-                        console.error('setLocale failed:', err);
-                        showLiquidAlert(t('toasts.loadFailed'));
-                    }
-                })();
-            }
-            return;
-        }
-
-        const removeMappingBtn = (target.closest('.remove-mapping-btn') as HTMLElement | null);
-        if (removeMappingBtn?.dataset.variable) { removeFormatMapping(removeMappingBtn.dataset.variable); return; }
-
-        const editFormatBtn = (target.closest('.edit-saved-format-btn') as HTMLElement | null);
-        if (editFormatBtn?.dataset.formatId) { editSavedFormat(editFormatBtn.dataset.formatId); return; }
-
-        const delFormatBtn = (target.closest('.delete-saved-format-btn') as HTMLElement | null);
-        if (delFormatBtn?.dataset.formatId) { deleteSavedFormat(delFormatBtn.dataset.formatId); return; }
-
-        if (target.closest('#addFormatMappingBtn')) { addFormatMapping(); return; }
-        if (target.closest('#saveCustomFormatBtn')) { saveCustomFormat(); return; }
-
-        // POI filter: reset one category back to its defaults — clears
-        // rating, anchor, AND visibility overrides so the row shows
-        // "Default" again.
-        const resetPoiBtn = (target.closest('.poi-filter-reset') as HTMLElement | null);
-        if (resetPoiBtn?.dataset.poi) {
-            ensurePoiPrefs();
-            delete STATE.preferences.poiFilters[resetPoiBtn.dataset.poi];
-            delete STATE.preferences.poiAnchoring[resetPoiBtn.dataset.poi];
-            delete STATE.preferences.poiVisible[resetPoiBtn.dataset.poi];
-            emit('state:changed');
-            switchSettingsTab('general'); // re-render so the row reflects the reset
-            return;
-        }
-    });
-
-    // POI per-pill controls — change listener handles BOTH the rating
-    // dropdown and the anchor-mode dropdown, dispatching by class.
-    // Delegated because div.innerHTML is rewritten on tab switch, so
-    // per-element listeners would die.
-    div.addEventListener('change', (e) => {
-        const target = (e.target as HTMLElement | null);
-        if (!target) return;
-
-        const ratingSel = target.closest('.poi-filter-rating');
-        if (ratingSel) {
-            const key = (ratingSel as HTMLElement).dataset.poi;
-            if (!key) return;
-            const value = parseFloat((ratingSel as HTMLSelectElement).value);
-            ensurePoiPrefs();
-            STATE.preferences.poiFilters[key] = { minRating: value };
-            emit('state:changed');
-            switchSettingsTab('general');
-            return;
-        }
-
-        const anchorSel = target.closest('.poi-anchor-mode');
-        if (anchorSel) {
-            const key = (anchorSel as HTMLElement).dataset.poi;
-            if (!key) return;
-            const value = (anchorSel as HTMLSelectElement).value;
-            if (value !== 'anchor' && value !== 'epicenter') return;
-            ensurePoiPrefs();
-            STATE.preferences.poiAnchoring[key] = value;
-            emit('state:changed');
-            switchSettingsTab('general');
-            return;
-        }
-
-        const visibilityToggle = target.closest('.poi-visibility-toggle');
-        if (visibilityToggle) {
-            const key = (visibilityToggle as HTMLElement).dataset.poi;
-            if (!key) return;
-            const checked = (visibilityToggle as HTMLInputElement).checked;
-            ensurePoiPrefs();
-            // Default is visible (=== true). Only persist when the user
-            // hides — checked = visible = "remove the override".
-            if (checked) delete STATE.preferences.poiVisible[key];
-            else STATE.preferences.poiVisible[key] = false;
-            emit('state:changed');
-            switchSettingsTab('general');
-            return;
-        }
-    });
-
-    /** Defensive: STATE.preferences and its sub-objects should already
-     *  exist via loadState's backfill, but this protects against a
-     *  corrupt / hand-edited localStorage that bypasses
-     *  validateLoadedState. */
-    function ensurePoiPrefs() {
-        if (!STATE.preferences) {
-            STATE.preferences = { mapDefaultPois: ['sights', 'parks', 'transit'], poiFilters: {}, pillEpicenters: {}, poiAnchoring: {}, poiVisible: {}, enabledPois: {} };
-        }
-        if (!STATE.preferences.poiFilters || typeof STATE.preferences.poiFilters !== 'object') {
-            STATE.preferences.poiFilters = {};
-        }
-        if (!STATE.preferences.poiAnchoring || typeof STATE.preferences.poiAnchoring !== 'object') {
-            STATE.preferences.poiAnchoring = {};
-        }
-        if (!STATE.preferences.poiVisible || typeof STATE.preferences.poiVisible !== 'object') {
-            STATE.preferences.poiVisible = {};
-        }
-    }
-
-    return div;
-}
 
 /** Open a modal to edit an existing category's name / icon / color.
  *  Saves directly into STATE.categories, syncs to the server, and
@@ -758,15 +154,3 @@ export function openEditCategoryModal(categoryId: string) {
         setTimeout(() => showPersTab('categories'), 50);
     };
 }
-
-// renderPersonalization moved to pages/settings/Personalization.tsx
-// as part of §3.3 React migration. The old 110-line imperative
-// renderer used innerHTML templating + delegated handlers; the new
-// JSX implementation reads the same STATE.categories slice and
-// dispatches to the same exported helpers (deleteCategory,
-// openEditCategoryModal) so behaviour is identical.
-//
-// The PAGES.PERSONALIZATION route still mounts Personalization.tsx
-// via pages/settings/mount.ts → mountPersonalization — that wiring
-// is unchanged.
-
