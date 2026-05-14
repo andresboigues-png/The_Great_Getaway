@@ -1,2 +1,0 @@
-import{r as e,t}from"./vendor-react-CYVQMBjw.js";import{S as n,y as r}from"../app.bundle.js";var i=e(),a=t();function o({targetUserId:e}){let t=(0,i.useRef)(null);return(0,i.useEffect)(()=>{let n=t.current;n&&(n.innerHTML=``,n.appendChild(r(e)))},[e]),(0,a.jsx)(`div`,{ref:t})}function s(e,t){n(e,(0,i.createElement)(o,{targetUserId:t}))}export{s as mountProfile};
-//# sourceMappingURL=mount-Cwh2OmJD.js.map

@@ -1,2 +1,0 @@
-import{r as e}from"./vendor-react-CAxw18f3.js";import{it as t,lt as n,ot as r}from"../app.bundle.js";var i=e(),a=0;r(n.STATE_CHANGED,()=>{a++});function o(e){return r(n.STATE_CHANGED,e)}function s(){return a}function c(e){return(0,i.useSyncExternalStore)(o,s,s),e(t)}export{c as t};
-//# sourceMappingURL=store-BCxcHdbt.js.map

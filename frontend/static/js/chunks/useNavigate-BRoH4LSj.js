@@ -1,2 +1,0 @@
-import{r as e}from"./vendor-react-CYVQMBjw.js";import{_ as t}from"../app.bundle.js";var n=e();function r(){return(0,n.useCallback)((e,n=null,r=!1)=>t(e,n,r),[])}export{r as t};
-//# sourceMappingURL=useNavigate-BRoH4LSj.js.map

@@ -347,10 +347,10 @@ code addressable for the React migration in Phase C.
     | Map setup + polyline animation init                 |     ? |             ? | ⏳     |
     | Hash listeners + closing wiring                     |     ? |             ? | ⏳     |
 
-                Pacing is "one clean slice per session"; each commit is
-                reviewable, behaviour-preserving (full safety net green), and
-                shrinks home.ts by 200-400 lines. Goal is home.ts under 800
-                lines (the bound the rest of B1 targets).
+                  Pacing is "one clean slice per session"; each commit is
+                  reviewable, behaviour-preserving (full safety net green), and
+                  shrinks home.ts by 200-400 lines. Goal is home.ts under 800
+                  lines (the bound the rest of B1 targets).
 
 **Status**: 4 of ~8 slices landed. home.ts: 2,580 → **2,017** lines
 (−563 across the slice arc). The POI-palette block (~700 lines, deeply
@@ -476,17 +476,19 @@ reduction). Every blueprint file is well under 800 lines except
 feed.py (602) and data.py (483); both split cleanly along their own
 internal boundaries already.
 
-**Phase B done when**: every page module is <800 lines (home.ts
-deferred to Phase C — see B1), every Flask route file is one
-Blueprint ✅, design tokens cover ≥80% of inline color/gradient/
-shadow usage ✅ (29 → 12 inline gradients; the 12 remaining are
-correctly contextual one-offs), the components preview page renders
-every primitive ✅, every test still green ✅.
+**Phase B done when**: every page module is <800 lines ✅ (home.ts
+landed at 37 lines as part of the §3.3 React migration — the 2199-
+line monolith decomposed across `pages/home-mount/` instead of
+splitting in place; the outcome is the same as B1's goal), every
+Flask route file is one Blueprint ✅, design tokens cover ≥80% of
+inline color/gradient/shadow usage ✅ (29 → 12 inline gradients;
+the 12 remaining are correctly contextual one-offs), the components
+preview page renders every primitive ✅, every test still green ✅.
 
-**Current state (2026-05-08)**: B2 ✅, B3 ✅, B4 ✅, B1 ~85% (5 of 6
-files meet the 800-line bound; home.ts parked for Phase C). Phase B
-is otherwise complete — only home.ts's renderHome() restructure
-remains, and that's structurally a Phase C concern.
+**Current state (2026-05-14)**: B1 ✅ B2 ✅ B3 ✅ B4 ✅. Phase B fully
+complete after the §3.3 Home migration carried home.ts under the
+800-line bound (2199 → 37). Every page module is now React-shaped
+AND under the line budget.
 
 ---
 
@@ -582,10 +584,17 @@ Order (all complete):
    (`upload` not migrated separately — it's not a route, it's a
    sub-tab of expenses called via setExpensesTab('batch') redirect)
 8. ✅ `home` — the giant. Last because it's the biggest +
-   most-coupled. The thin-wrapper tier handled it: 2,341 lines of
-   renderHome() stays imperative inside the React tree, B1's
-   parked "home.ts <800" goal stays parked, but every page in the
-   app now ships through the React mount lifecycle.
+   most-coupled. The thin-wrapper tier carried it for two waves;
+   the §3.3 wave 6 commit (836ba5f) graduated it to full JSX:
+   2199-line renderHome() decomposed across pages/home-mount/
+   (Home + WelcomePage + HomeHeader + MapSearchBar + PoiPillsRow
+    - HeroMap + TripBody + handlers). HeroMap's useEffect still
+      carries ~520 lines of imperative Google-Maps + Places-API
+      wiring (the closure web genuinely can't decouple from
+      Google's DOM ownership of InfoWindows), but it's bounded
+      inside a single useEffect inside a React component, not
+      entangled with 14 other closures inside a 2199-line render
+      function. B1's "<800 lines" goal landed too (37).
 
 Each page migration follows the same checklist:
 
@@ -635,23 +644,34 @@ As pages migrate, extract repeated UI as reusable React components:
       still in legacy renderers (Settlement's tab cards, Friends'
       list rows). Wait for those to migrate to JSX before
       extracting.
-- [ ] `<DayChip>` / `<DayCard>` — deferred (lives in home.ts which
-      stays imperative).
-- [ ] `<MemberChip>` — deferred (legacy modals/companions).
-- [ ] `<Pill>` / `<SegmentedTabs>` — deferred (varied use across
-      legacy renderers).
-- [ ] `<WeatherChip>` / `<LocalTimeChip>` — deferred (home.ts only).
+- [ ] `<DayChip>` / `<DayCard>` — deferred. The day-wheel chip strip
+      lives in `pages/home/pathTab.ts` (buildPathTabHtml emits raw
+      HTML for the wheel + chip strip + options stack). JSX-ifying
+      that module is a separate slice — TripBody.tsx still hosts
+      its output via innerHTML.
+- [ ] `<MemberChip>` — Home/TripBody now has a JSX MemberChipsPanel
+      inline (§3.3 wave 6). Worth promoting to `react/components/`
+      next time another page needs a chip row.
+- [ ] `<Pill>` / `<SegmentedTabs>` — partially in: HeroMap/HomeHeader
+      ship POI pills + the trip-tabnav as JSX, Expenses ships its
+      own tab strip, Settings has the general sub-tabs. Trigger
+      met (4+ sites); extraction would clean these up.
+- [ ] `<WeatherChip>` / `<LocalTimeChip>` — `WeatherChip` is still
+      raw HTML inside `pages/home/weather.ts`; `LocalTimeChip` is
+      mutated imperatively by HeroMap. Promoting to JSX requires
+      lifting their state, which is a small but discrete refactor.
 - [ ] `<ConfirmModal>` — deferred (legacy showConfirmModal handles
       focus-trap + esc cleanly; React equivalent isn't a clear win
-      until 2+ pages need a more bespoke confirm).
-- [ ] `<Avatar>` — Friends has it inline; pulling to
-      `react/components/` waits until Feed migrates from thin
-      wrapper to JSX (would be the second user).
+      until a page needs a more bespoke confirm).
+- [ ] `<Avatar>` — used in Profile.tsx (own profile + foreign
+      profile + friends modal), Friends (legacy), feed cards, and
+      sidebar chrome. Trigger met; extraction would dedupe the
+      "img with referrerPolicy + initials fallback" pattern.
 
 **The C4 extraction trigger** is "2+ pages need it after their
-migration tier". Most components on the original list haven't hit
-that bar yet because the thin-wrapper pages defer their JSX
-rewrite. EmptyState was the clear early winner.
+migration tier". After §3.3 (6/8 thin wrappers graduated to full
+JSX), multiple components hit the bar. Feed and AI remain thin
+wrappers so they don't yet count toward the trigger.
 
 ### C5 — TypeScript strict pass on the migration ✅
 
@@ -688,36 +708,52 @@ insights.ts`, `todo.ts`, `budgets.ts`, `friends.ts`,
 
 **Operational goals** (all ✅):
 
-- ✅ Every page mounts via React (12/12 leaves, including the
-  home giant via thin wrapper)
-- ✅ Bundle size inventoried + understood (752K with React
-  runtime amortized; +5K per added thin-wrapper page)
-- ✅ All tests green (38 e2e, 20 visual, 157 pytest @ 95%)
+- ✅ Every page mounts via React (12/12 leaves, 6 of 8 thin
+  wrappers graduated to full JSX via §3.3; Feed + AI remain thin
+  wrappers)
+- ✅ Bundle size inventoried + understood (508 → 205 KB main
+  bundle after §3.3, -60%; per-route chunks load lazily)
+- ✅ All tests green (38 e2e, 20 visual, 255 pytest @ 95%)
 - ✅ React migration code is `any`-free (modulo Chart.js CDN
   global)
 - ✅ TypeScript at the strictest practical configuration the
   codebase will run: `strict + exactOptionalPropertyTypes +
 noUncheckedIndexedAccess`
 
+**§3.3 — full-JSX migration of imperative pages** (6/8 ✅):
+
+- ✅ Collections (436 → JSX, commit 7467d35)
+- ✅ Personalization (110 → JSX, commit 1639bea)
+- ✅ Settings (641 → JSX, commit 0ff51df)
+- ✅ Expenses (1013 → JSX, commit 8249968)
+- ✅ Profile (864 → JSX, commit 97ff063)
+- ✅ Home (2199 → JSX across 7 files in pages/home-mount/,
+  commit 836ba5f). HeroMap.tsx keeps ~520 lines of Google
+  Maps imperative wiring inside one useEffect — Google
+  InfoWindows render outside the React tree, so the wiring
+  fundamentally can't decouple from Google's DOM ownership.
+- [ ] Feed (823 lines) — thin wrapper. Optimistic-UI flips
+    - lazy comment thread fetch make this the next-most-coupled
+      page after Home; budget similarly.
+- [ ] AI (947 lines) — thin wrapper. Streaming Gemini
+      responses + day-assignment state make this discrete from
+      Feed.
+
 **Aspirational goals** (deferred to future focused sessions):
 
-- ⚠️ Convert remaining thin-wrapper pages (Feed, Profile,
-  Collections, Settings, Personalization, AI, Expenses, Home) to
-  full JSX. Currently they ship in React but the rendering is
-  imperative. Each conversion is a focused 1-2 hour session.
-- ⚠️ Extract more shared components from `react/components/` once
-  thin-wrappers migrate: `<GlassCard>`, `<DayChip>`, `<MemberChip>`,
-  `<Pill>`, `<SegmentedTabs>`, `<Avatar>`. Trigger is "2+ pages
-  need it after their migration tier" — most candidates have only
-  1 JSX user (typically Friends). EmptyState shipped (4 sites).
+- ⚠️ Graduate Feed + AI to full JSX (the remaining 2/8 thin
+  wrappers).
+- ⚠️ Extract more shared components from `react/components/`.
+  After §3.3 the trigger is met for `<Pill>`, `<SegmentedTabs>`,
+  `<MemberChip>`, `<Avatar>` (2+ JSX users each). EmptyState
+  already shipped (4 sites).
 - ⚠️ `/components` preview page showcases new shared primitives.
   Lights up automatically as components extract.
 
 **Status**: Phase C is **complete-as-defined**. Every operational
-goal is met. Aspirational goals are about progressively upgrading
-thin-wrapper pages to full JSX over future sessions — that work
-is a continuation of C3 (per-page migration), not a blocker for
-"Phase C done." The codebase is ready for Phase D (quality polish)
+goal is met. §3.3 graduated 6 of 8 thin-wrapper pages to full
+JSX; Feed and AI remain as the last two thin wrappers.
+The codebase is ready for Phase D (quality polish)
 under a fully React + strictest-practical TypeScript substrate.
 
 **Recommended next moves** (post-Phase-C, see Feature backlog
@@ -1345,8 +1381,8 @@ to land on). The single biggest accuracy improvement available.
   our verify-after approach.
 - [x] **Replace freeform string items with `placeId`-backed entries**
       — wire shape: `items: { text, verified, placeId?, photoUrl?,
-    rating?, userRatingsTotal?, address?, lat?, lng?, mapsUrl?,
-    verifiedName? }[]`. Frontend renderer handles three shapes
+  rating?, userRatingsTotal?, address?, lat?, lng?, mapsUrl?,
+  verifiedName? }[]`. Frontend renderer handles three shapes
       (verified objects → rich card, unverified objects → chip,
       legacy strings → bullet). The `MarkedPlace` interface in
       `types.d.ts` carries the same fields so an AI-verified place
@@ -1357,7 +1393,7 @@ to land on). The single biggest accuracy improvement available.
       Search (`places:searchText`), batched with a per-itinerary
       cache so duplicate names cost one API call. FieldMask requests
       `id, displayName, formattedAddress, location, rating,
-    userRatingCount, googleMapsUri, photos.name`. Pricing tier is
+  userRatingCount, googleMapsUri, photos.name`. Pricing tier is
       set by the highest field group requested (Advanced because of
       `rating`); `location` was added at zero marginal cost since
       Basic-tier fields are free at the Advanced tier.
@@ -1371,7 +1407,7 @@ to land on). The single biggest accuracy improvement available.
 - [x] **"Add to to-do list" stamps the suggestion with the same
       `placeId`** — Accept Plan flow walks every itinerary slot and
       calls `addOrUpdatePlaceFromVerified(trip, item, dayId,
-    timeOfDay)` for each verified item, which inserts a fresh
+  timeOfDay)` for each verified item, which inserts a fresh
       markedPlace stamped with the day's ID + time-of-day slot, or
       updates the day-pinning + refreshes rich fields when the
       placeId is already tracked. Idempotent (safe to re-run a
@@ -1590,19 +1626,19 @@ expenses ADD COLUMN receipt_url TEXT`, threaded through
     round-trip via `STATE.draftExpense.receiptUrl` so re-opening
     an expense pre-fills the picker.
 
-                                                        **Latent bug uncovered + fixed**: while wiring this up I
-                                                        discovered the server was writing expense fields camelCase via
-                                                        `/api/expenses` but reading them back from `/api/data` as
-                                                        snake_case (`trip_id`, `category_id`, `euro_value`,
-                                                        `receipt_url`) — frontend filters like
-                                                        `e.tripId === STATE.activeTripId` would silently return empty
-                                                        on cold-load. The History tab and Settlement page would have
-                                                        appeared empty until the user added a fresh expense locally.
-                                                        Translation now lives in both `routes/data.py` and
-                                                        `routes/public.py` so the public archived-trip detail also
-                                                        benefits. 2 pytests for the round-trip (set + clear), legacy
-                                                        compat test, and 1 e2e for the receipt clip icon. Net: 161/161
-                                                        pytests + 43/43 e2e + 20/20 visual.
+                                                            **Latent bug uncovered + fixed**: while wiring this up I
+                                                            discovered the server was writing expense fields camelCase via
+                                                            `/api/expenses` but reading them back from `/api/data` as
+                                                            snake_case (`trip_id`, `category_id`, `euro_value`,
+                                                            `receipt_url`) — frontend filters like
+                                                            `e.tripId === STATE.activeTripId` would silently return empty
+                                                            on cold-load. The History tab and Settlement page would have
+                                                            appeared empty until the user added a fresh expense locally.
+                                                            Translation now lives in both `routes/data.py` and
+                                                            `routes/public.py` so the public archived-trip detail also
+                                                            benefits. 2 pytests for the round-trip (set + clear), legacy
+                                                            compat test, and 1 e2e for the receipt clip icon. Net: 161/161
+                                                            pytests + 43/43 e2e + 20/20 visual.
 
 5.  **Trip share-via-link (read-only)** — `4-6 hours`, schema +
     public backend route + new public frontend route + Views counter.
