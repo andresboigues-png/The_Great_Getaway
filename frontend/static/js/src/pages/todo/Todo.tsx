@@ -36,6 +36,7 @@ import {
     getMarkedPlaces,
     removeMarkedPlace,
     toggleMarkedPlaceForAI,
+    setAllMarkedPlacesForAI,
     clearAllMarkedPlaces,
 } from '../../markedPlaces.js';
 import { openNewTripModal } from '../../modals.js';
@@ -602,6 +603,20 @@ export function Todo() {
      *  Confirmation modal protects against accidental wipe — the
      *  message includes the count so the user knows what they'll
      *  lose before tapping through. */
+    /** Bulk Select / Unselect all for AI consideration.
+     *
+     *  When the user has 20+ items on the to-do list, ticking each row
+     *  by hand for an AI generation is friction. This flips every
+     *  item's `forAI` flag in one operation. Mode toggles with state:
+     *  if any item is unticked → "select all" turns them on; if all
+     *  are ticked → "unselect all" turns them off. */
+    const handleToggleAllForAI = () => {
+        const allTicked = todoItems.length > 0 && tickedCount === todoItems.length;
+        setAllMarkedPlacesForAI(activeTrip, !allTicked);
+        emit(EVENTS.STATE_CHANGED);
+        upsertTrip(activeTrip);
+    };
+
     const handleClearAll = () => {
         showConfirmModal({
             title: t('todo.clearConfirmTitle'),
@@ -794,34 +809,81 @@ export function Todo() {
                         </div>
                     </div>
                 </div>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <div
+                    style={{
+                        display: 'flex',
+                        gap: '8px',
+                        alignItems: 'center',
+                        flexWrap: 'wrap',
+                    }}
+                >
                     {tripIsEditable && (
-                        <button
-                            type="button"
-                            onClick={handleClearAll}
-                            title={t('todo.clearAllTooltip')}
-                            style={{
-                                padding: '9px 14px',
-                                borderRadius: '999px',
-                                fontSize: '0.78rem',
-                                fontWeight: 700,
-                                background: 'rgba(255, 59, 48, 0.08)',
-                                color: '#c73128',
-                                border: '1px solid rgba(255, 59, 48, 0.28)',
-                                cursor: 'pointer',
-                                transition: 'background 0.18s ease, border-color 0.18s ease',
-                            }}
-                            onMouseEnter={(e) => {
-                                e.currentTarget.style.background = 'rgba(255, 59, 48, 0.14)';
-                                e.currentTarget.style.borderColor = 'rgba(255, 59, 48, 0.45)';
-                            }}
-                            onMouseLeave={(e) => {
-                                e.currentTarget.style.background = 'rgba(255, 59, 48, 0.08)';
-                                e.currentTarget.style.borderColor = 'rgba(255, 59, 48, 0.28)';
-                            }}
-                        >
-                            {t('todo.clearAllBtn')}
-                        </button>
+                        <>
+                            {/* Select/Unselect-all toggle. The label
+                                flips depending on whether every item
+                                is currently ticked — one button, two
+                                modes, no extra UI cost. Purple/accent
+                                styling so it visually echoes the AI
+                                tick column on each row. */}
+                            <button
+                                type="button"
+                                onClick={handleToggleAllForAI}
+                                title={
+                                    tickedCount === todoItems.length
+                                        ? t('todo.unselectAllForAiTooltip')
+                                        : t('todo.selectAllForAiTooltip')
+                                }
+                                style={{
+                                    padding: '9px 14px',
+                                    borderRadius: '999px',
+                                    fontSize: '0.78rem',
+                                    fontWeight: 700,
+                                    background: 'rgba(155, 89, 182, 0.10)',
+                                    color: '#6d28a0',
+                                    border: '1px solid rgba(155, 89, 182, 0.32)',
+                                    cursor: 'pointer',
+                                    transition: 'background 0.18s ease, border-color 0.18s ease',
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.background = 'rgba(155, 89, 182, 0.18)';
+                                    e.currentTarget.style.borderColor = 'rgba(155, 89, 182, 0.55)';
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.background = 'rgba(155, 89, 182, 0.10)';
+                                    e.currentTarget.style.borderColor = 'rgba(155, 89, 182, 0.32)';
+                                }}
+                            >
+                                {tickedCount === todoItems.length
+                                    ? t('todo.unselectAllForAiBtn')
+                                    : t('todo.selectAllForAiBtn')}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleClearAll}
+                                title={t('todo.clearAllTooltip')}
+                                style={{
+                                    padding: '9px 14px',
+                                    borderRadius: '999px',
+                                    fontSize: '0.78rem',
+                                    fontWeight: 700,
+                                    background: 'rgba(255, 59, 48, 0.08)',
+                                    color: '#c73128',
+                                    border: '1px solid rgba(255, 59, 48, 0.28)',
+                                    cursor: 'pointer',
+                                    transition: 'background 0.18s ease, border-color 0.18s ease',
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.background = 'rgba(255, 59, 48, 0.14)';
+                                    e.currentTarget.style.borderColor = 'rgba(255, 59, 48, 0.45)';
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.background = 'rgba(255, 59, 48, 0.08)';
+                                    e.currentTarget.style.borderColor = 'rgba(255, 59, 48, 0.28)';
+                                }}
+                            >
+                                {t('todo.clearAllBtn')}
+                            </button>
+                        </>
                     )}
                     <button
                         className="btn-primary"

@@ -1071,7 +1071,7 @@ function AIUsageCard({
                             letterSpacing: '0.02em',
                         }}
                     >
-                        {hostPoolStatus.available}/{hostPoolStatus.total} free
+                        {pct}% used
                     </span>
                 ) : null}
             </div>
@@ -1121,7 +1121,7 @@ function AIUsageCard({
                     >
                         {drained
                             ? "Today's shared AI quota is fully booked. Add your own key below to keep generating."
-                            : `Shared AI requests: ${hostPoolStatus.available} of ${hostPoolStatus.total} keys available today. Resets every 24h.`}
+                            : `Today's shared AI quota: ${pct}% used. Resets every 24h.`}
                     </p>
                 </>
             ) : (

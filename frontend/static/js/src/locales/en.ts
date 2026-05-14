@@ -468,6 +468,10 @@ export const en = {
         showDetails: 'Show details',
         hideDetails: 'Hide details',
         removeBtnTooltip: 'Remove from to-do list',
+        selectAllForAiBtn: '✓ Mark all for AI',
+        unselectAllForAiBtn: '○ Unmark all',
+        selectAllForAiTooltip: 'Tick every place for AI consideration',
+        unselectAllForAiTooltip: 'Untick every place — AI will ignore them all',
         clearAllBtn: '🗑 Clear all',
         clearAllTooltip: "Remove every place from this trip's to-do list",
         // Confirm + toast.

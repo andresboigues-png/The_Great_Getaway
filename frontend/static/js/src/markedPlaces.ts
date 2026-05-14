@@ -164,6 +164,20 @@ export function toggleMarkedPlaceForAI(trip: any, placeId: string): void {
     entry.forAI = !entry.forAI;
 }
 
+/** Set the AI tick on EVERY to-do-list entry to the given value.
+ *  Powers the "Select all / Unselect all" affordance on the /todo
+ *  page — saves the user from tapping each row individually when
+ *  they want to include or exclude the whole list from the next AI
+ *  generation. Only touches forManual items (the ones visible on
+ *  the to-do surface); legacy non-manual rows stay untouched. */
+export function setAllMarkedPlacesForAI(trip: any, value: boolean): void {
+    if (!trip || !Array.isArray(trip.markedPlaces)) return;
+    for (const p of trip.markedPlaces) {
+        if (!p.forManual) continue;
+        p.forAI = !!value;
+    }
+}
+
 /** Phase G slice 2 — verified-place item from a Gemini-enriched
  *  itinerary. The shape emitted by `_enrich_itinerary` server-side
  *  (see routes/integrations.py). */
