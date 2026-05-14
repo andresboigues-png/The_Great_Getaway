@@ -25,19 +25,19 @@ import{r as e,t}from"./vendor-react-CAxw18f3.js";import{Bt as n,Ct as r,Dt as i,
             </label>
             <select id="settlementTripSelect" class="settlement-trip-select"
                 aria-label="${h(`settlement.tripPickerAriaLabel`)}"
-                style="flex:1; min-width:200px; max-width:380px; padding:10px 14px; border-radius:12px; border:1.5px solid rgba(255,159,10,0.4); background:linear-gradient(135deg, rgba(255,214,10,0.08), rgba(255,159,10,0.04)); font-size:0.92rem; font-weight:700; color:#002d5b; cursor:pointer; outline:none; font-family:inherit; transition: border-color 0.18s ease, box-shadow 0.18s ease;">
+                style="flex:1; min-width:200px; max-width:380px; padding:10px 14px; border-radius:12px; border:1.5px solid rgba(255,159,10,0.4); background:linear-gradient(135deg, rgba(255,214,10,0.08), rgba(255,159,10,0.04)); font-size:0.92rem; font-weight:700; color: var(--text-brand-navy); cursor:pointer; outline:none; font-family:inherit; transition: border-color 0.18s ease, box-shadow 0.18s ease;">
                 ${i}
             </select>
             ${t&&n>0?`
-                <span style="display:inline-flex; align-items:center; padding:6px 12px; border-radius:999px; background:rgba(0,113,227,0.08); color:#005bb8; font-size:0.78rem; font-weight:800; flex-shrink:0;">
+                <span style="display:inline-flex; align-items:center; padding:6px 12px; border-radius:999px; background:rgba(0,113,227,0.08); color: var(--accent-blue-deep); font-size:0.78rem; font-weight:800; flex-shrink:0;">
                     ${f(n,`EUR`)} ${h(`settlement.settledSuffix`)}
                 </span>
             `:``}
         </div>
     `}function D(e,t){let n=(v.expenses||[]).filter(t=>t.tripId===e.id&&t.isSettlement).length,r=(e,n,r)=>`
         <button class="settle-tab${t===e?` is-active`:``}" data-tab="${e}" type="button"
-            style="background:none; border:0; padding:12px 4px; font-size:0.95rem; font-weight:${t===e?`800`:`600`}; color:${t===e?`#005bb8`:`var(--text-secondary)`}; cursor:pointer; border-bottom:2px solid ${t===e?`var(--accent-blue)`:`transparent`}; margin-bottom:-1px; letter-spacing:-0.01em; transition: color 0.2s, border-color 0.2s;">
-            ${n}${r!==void 0&&r>0?` <span style="background:rgba(0,113,227,0.12); color:#005bb8; padding:1px 6px; border-radius:999px; font-size:0.7rem; font-weight:800; margin-left:2px;">${r}</span>`:``}
+            style="background:none; border:0; padding:12px 4px; font-size:0.95rem; font-weight:${t===e?`800`:`600`}; color:${t===e?`var(--accent-blue-deep)`:`var(--text-secondary)`}; cursor:pointer; border-bottom:2px solid ${t===e?`var(--accent-blue)`:`transparent`}; margin-bottom:-1px; letter-spacing:-0.01em; transition: color 0.2s, border-color 0.2s;">
+            ${n}${r!==void 0&&r>0?` <span style="background:rgba(0,113,227,0.12); color: var(--accent-blue-deep); padding:1px 6px; border-radius:999px; font-size:0.7rem; font-weight:800; margin-left:2px;">${r}</span>`:``}
         </button>
     `;return`
         <nav style="display:flex; gap:36px; border-bottom: 1px solid rgba(0,113,227,0.25); margin: 22px 0 22px; padding: 0 4px;">
@@ -50,50 +50,50 @@ import{r as e,t}from"./vendor-react-CAxw18f3.js";import{Bt as n,Ct as r,Dt as i,
             <div style="display:flex; flex-wrap:wrap; gap:24px; align-items:center; justify-content:space-between;">
                 <div style="min-width:0;">
                     <div style="font-size:0.66rem; font-weight:800; text-transform:uppercase; letter-spacing:0.12em; color:var(--text-secondary); margin-bottom:6px;">${h(`settlement.tripTotal`)}</div>
-                    <div style="font-size:2rem; font-weight:800; color:#002d5b; letter-spacing:-0.02em;">${f(o,`EUR`)}</div>
+                    <div style="font-size:2rem; font-weight:800; color: var(--text-brand-navy); letter-spacing:-0.02em;">${f(o,`EUR`)}</div>
                 </div>
                 ${s?`
                     <div style="text-align:center; min-width:120px;">
                         <div style="font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.12em; color:#34c759;">${h(`settlement.topPayer`)}</div>
-                        <div style="font-size:1.1rem; font-weight:800; color:#002d5b; margin-top:4px;">${r(s.name)}</div>
+                        <div style="font-size:1.1rem; font-weight:800; color: var(--text-brand-navy); margin-top:4px;">${r(s.name)}</div>
                         <div style="font-size:0.78rem; font-weight:700; color:var(--text-secondary);">${f(s.paid,`EUR`)}</div>
                     </div>
                 `:``}
                 ${l&&l.net>.01?`
                     <div style="text-align:center; min-width:120px;">
                         <div style="font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.12em; color:#34c759;">${h(`settlement.topOwed`)}</div>
-                        <div style="font-size:1.1rem; font-weight:800; color:#002d5b; margin-top:4px;">${r(l.name)}</div>
+                        <div style="font-size:1.1rem; font-weight:800; color: var(--text-brand-navy); margin-top:4px;">${r(l.name)}</div>
                         <div style="font-size:0.78rem; font-weight:700; color:#1a6b3c;">+${f(l.net,`EUR`)}</div>
                     </div>
                 `:``}
                 ${c&&c.net<-.01?`
                     <div style="text-align:center; min-width:120px;">
                         <div style="font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.12em; color:#ff3b30;">${h(`settlement.topOwes`)}</div>
-                        <div style="font-size:1.1rem; font-weight:800; color:#002d5b; margin-top:4px;">${r(c.name)}</div>
+                        <div style="font-size:1.1rem; font-weight:800; color: var(--text-brand-navy); margin-top:4px;">${r(c.name)}</div>
                         <div style="font-size:0.78rem; font-weight:700; color:#a30000;">${f(c.net,`EUR`)}</div>
                     </div>
                 `:``}
             </div>
         </div>
     `:``,d=Object.entries(n).map(([e,t])=>{let n=t>.01,i=t<-.01;return`
-            <div style="display:flex; align-items:center; gap:14px; padding:12px 14px; background:white; border:1px solid rgba(0,0,0,0.06); border-radius:14px;">
+            <div style="display:flex; align-items:center; gap:14px; padding:12px 14px; background: var(--card-bg); border:1px solid rgba(0,0,0,0.06); border-radius:14px;">
                 <div style="width:34px; height:34px; border-radius:50%; background: ${n?`rgba(52,199,89,0.12)`:i?`rgba(255,59,48,0.1)`:`rgba(0,0,0,0.04)`}; color: ${n?`#1a6b3c`:i?`#a30000`:`rgba(0,0,0,0.5)`}; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:0.95rem; flex-shrink:0;">
                     ${r(e.charAt(0).toUpperCase())}
                 </div>
-                <div style="flex:1; min-width:0; font-weight:800; color:#002d5b; font-size:0.95rem; overflow:hidden; text-overflow:ellipsis;">${r(e)}</div>
+                <div style="flex:1; min-width:0; font-weight:800; color: var(--text-brand-navy); font-size:0.95rem; overflow:hidden; text-overflow:ellipsis;">${r(e)}</div>
                 <div style="font-weight:800; color: ${n?`#1a6b3c`:i?`#a30000`:`var(--text-secondary)`}; font-size:1rem;">
                     ${n?`+`:``}${f(t,`EUR`)}
                 </div>
             </div>
         `}).join(``)||`<p class="text-muted" style="padding: 20px; text-align:center;">${h(`settlement.emptyNoCompanions`)}</p>`,p=i.length===0?`<div style="text-align:center; padding: 40px 20px;"><div style="font-size:2.2rem; margin-bottom:8px;">🥂</div><p style="margin:0; font-weight:800; color:#1a6b3c;">${h(`settlement.allSettledTitle`)}</p><p style="margin:6px 0 0; color:var(--text-secondary); font-size:0.85rem;">${h(`settlement.allSettledBody`)}</p></div>`:i.map(n=>`
-            <div style="display:flex; align-items:center; gap:14px; padding:14px 16px; background:white; border:1px solid rgba(0,0,0,0.06); border-radius:16px;">
+            <div style="display:flex; align-items:center; gap:14px; padding:14px 16px; background: var(--card-bg); border:1px solid rgba(0,0,0,0.06); border-radius:16px;">
                 <div style="flex:1; min-width:0;">
                     <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
                         <span style="font-weight:700; color:var(--text-secondary); font-size:0.78rem;">${r(n.from)}</span>
                         <span style="color:rgba(0,0,0,0.3);">→</span>
-                        <span style="font-weight:800; color:#002d5b; font-size:0.95rem;">${r(n.to)}</span>
+                        <span style="font-weight:800; color: var(--text-brand-navy); font-size:0.95rem;">${r(n.to)}</span>
                     </div>
-                    <div style="font-size:1.3rem; font-weight:800; color:#002d5b; letter-spacing:-0.01em; margin-top:2px;">${f(n.amount,`EUR`)}</div>
+                    <div style="font-size:1.3rem; font-weight:800; color: var(--text-brand-navy); letter-spacing:-0.01em; margin-top:2px;">${f(n.amount,`EUR`)}</div>
                 </div>
                 ${t?`
                     <button class="btn-primary settle-debt-btn" data-trip-id="${r(e.id)}" data-from="${r(n.from)}" data-to="${r(n.to)}" data-amount="${n.amount}"
@@ -105,7 +105,7 @@ import{r as e,t}from"./vendor-react-CAxw18f3.js";import{Bt as n,Ct as r,Dt as i,
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:18px; margin-bottom:24px;">
             <div class="card glass" style="padding: 22px 24px; border-radius: 28px;">
                 <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
-                    <h3 style="margin:0; font-size:1.05rem; color:#002d5b; font-weight:800; letter-spacing:-0.02em;">${h(`settlement.tripBalancesTitle`)}</h3>
+                    <h3 style="margin:0; font-size:1.05rem; color: var(--text-brand-navy); font-weight:800; letter-spacing:-0.02em;">${h(`settlement.tripBalancesTitle`)}</h3>
                     <span style="font-size:0.7rem; font-weight:800; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.1em;">${_(`settlement.peopleCount`,Object.keys(n).length)}</span>
                 </div>
                 <div style="display:flex; flex-direction:column; gap:8px;">
@@ -115,7 +115,7 @@ import{r as e,t}from"./vendor-react-CAxw18f3.js";import{Bt as n,Ct as r,Dt as i,
             <div class="card glass" style="padding: 22px 24px; border-radius: 28px;">
                 <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:14px;">
                     <div style="min-width:0;">
-                        <h3 style="margin:0; font-size:1.05rem; color:#002d5b; font-weight:800; letter-spacing:-0.02em;">${h(`settlement.suggestedPaymentsTitle`)}</h3>
+                        <h3 style="margin:0; font-size:1.05rem; color: var(--text-brand-navy); font-weight:800; letter-spacing:-0.02em;">${h(`settlement.suggestedPaymentsTitle`)}</h3>
                         <div style="font-size:0.7rem; font-weight:700; color:var(--text-secondary); margin-top:3px;">${h(`settlement.suggestedPaymentsSubtitle`)}</div>
                     </div>
                     <span style="font-size:0.7rem; font-weight:800; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.1em; flex-shrink:0;">${_(`settlement.paymentsCount`,i.length)}</span>
@@ -128,7 +128,7 @@ import{r as e,t}from"./vendor-react-CAxw18f3.js";import{Bt as n,Ct as r,Dt as i,
         ${t?`
             <div style="text-align:center; margin-bottom: 24px;">
                 <button class="btn-ghost open-manual-settle-btn" data-trip-id="${r(e.id)}" type="button"
-                    style="background: white; border:1px solid rgba(0,0,0,0.08); color:#002d5b; padding: 10px 24px; border-radius: 999px; font-weight:800; font-size:0.85rem; cursor:pointer; box-shadow: 0 4px 12px rgba(0,45,91,0.05);">
+                    style="background: var(--card-bg); border:1px solid rgba(0,0,0,0.08); color: var(--text-brand-navy); padding: 10px 24px; border-radius: 999px; font-weight:800; font-size:0.85rem; cursor:pointer; box-shadow: 0 4px 12px rgba(0,45,91,0.05);">
                     ${h(`settlement.manualSettleOpenBtn`)}
                 </button>
             </div>
@@ -136,13 +136,13 @@ import{r as e,t}from"./vendor-react-CAxw18f3.js";import{Bt as n,Ct as r,Dt as i,
     `}function k(e,t){let n=(v.expenses||[]).filter(t=>t.tripId===e.id&&t.isSettlement).sort((e,t)=>new Date(t.date).getTime()-new Date(e.date).getTime());if(n.length===0)return`
             <div class="card glass" style="padding: 48px 32px; text-align:center; border-radius: 28px; border:1.5px dashed rgba(0,113,227,0.3); background: rgba(0,113,227,0.04);">
                 <div style="font-size:2.5rem; margin-bottom: 8px;">📜</div>
-                <h2 style="margin:0 0 6px; color:#002d5b;">${h(`settlement.historyEmptyTitle`)}</h2>
+                <h2 style="margin:0 0 6px; color: var(--text-brand-navy);">${h(`settlement.historyEmptyTitle`)}</h2>
                 <p class="text-muted" style="margin:0;">${h(`settlement.historyEmptyBody`)}</p>
             </div>
         `;let i={};for(let e of n){let t=e.date||`undated`;i[t]||(i[t]=[]),i[t].push(e)}let a=new Date().toISOString().slice(0,10),o=new Date;o.setDate(o.getDate()-1);let s=o.toISOString().slice(0,10),c=e=>{if(e===`undated`)return h(`settlement.historyDateNoDate`);if(e===a)return h(`settlement.historyDateToday`);if(e===s)return h(`settlement.historyDateYesterday`);let t=new Date(e);return isNaN(t.getTime())?e:t.toLocaleDateString(void 0,{weekday:`short`,month:`short`,day:`numeric`,year:`numeric`})},l=Object.keys(i).sort((e,t)=>e===`undated`?1:t===`undated`?-1:t.localeCompare(e));return`
         <div class="card glass" style="padding: 22px 24px; border-radius: 28px;">
             <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
-                <h3 style="margin:0; font-size:1.05rem; color:#002d5b; font-weight:800; letter-spacing:-0.02em;">${h(`settlement.historyTitle`)}</h3>
+                <h3 style="margin:0; font-size:1.05rem; color: var(--text-brand-navy); font-weight:800; letter-spacing:-0.02em;">${h(`settlement.historyTitle`)}</h3>
                 <span style="font-size:0.7rem; font-weight:800; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.1em;">${h(`settlement.historyRecorded`,{count:n.length})}</span>
             </div>
             <div style="display:flex; flex-direction:column; gap:18px;">
@@ -154,13 +154,13 @@ import{r as e,t}from"./vendor-react-CAxw18f3.js";import{Bt as n,Ct as r,Dt as i,
                             </div>
                             <div style="display:flex; flex-direction:column; gap:8px;">
                                 ${a.map(n=>{let i=Object.keys(n.splits||{})[0]||`?`;return`
-                                        <div style="display:flex; align-items:center; gap:14px; padding:12px 14px; background:white; border:1px solid rgba(0,0,0,0.06); border-radius:14px;">
+                                        <div style="display:flex; align-items:center; gap:14px; padding:12px 14px; background: var(--card-bg); border:1px solid rgba(0,0,0,0.06); border-radius:14px;">
                                             <div style="width:34px; height:34px; border-radius:50%; background:rgba(52,199,89,0.12); color:#1a6b3c; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:0.95rem; flex-shrink:0;">${r((n.who||`?`).charAt(0).toUpperCase())}</div>
                                             <div style="flex:1; min-width:0;">
                                                 <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
-                                                    <span style="font-weight:800; color:#002d5b; font-size:0.95rem;">${r(n.who)}</span>
+                                                    <span style="font-weight:800; color: var(--text-brand-navy); font-size:0.95rem;">${r(n.who)}</span>
                                                     <span style="color:rgba(0,0,0,0.3); font-weight:600;">→</span>
-                                                    <span style="font-weight:800; color:#002d5b; font-size:0.95rem;">${r(i)}</span>
+                                                    <span style="font-weight:800; color: var(--text-brand-navy); font-size:0.95rem;">${r(i)}</span>
                                                     <span style="display:inline-flex; align-items:center; gap:3px; background:rgba(52,199,89,0.12); color:#1a6b3c; padding:1px 8px; border-radius:999px; font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">${h(`settlement.historyChipSettled`)}</span>
                                                 </div>
                                             </div>
@@ -168,7 +168,7 @@ import{r as e,t}from"./vendor-react-CAxw18f3.js";import{Bt as n,Ct as r,Dt as i,
                                             ${t?`
                                                 <div style="display:flex; gap:6px; flex-shrink:0;">
                                                     <button class="edit-settlement-btn" data-settlement-id="${r(n.id)}" type="button"
-                                                        style="background:rgba(0,113,227,0.08); border:1px solid rgba(0,113,227,0.22); color:#005bb8; padding:5px 12px; border-radius:999px; font-size:0.72rem; font-weight:800; cursor:pointer;">${h(`settlement.historyEditBtn`)}</button>
+                                                        style="background:rgba(0,113,227,0.08); border:1px solid rgba(0,113,227,0.22); color: var(--accent-blue-deep); padding:5px 12px; border-radius:999px; font-size:0.72rem; font-weight:800; cursor:pointer;">${h(`settlement.historyEditBtn`)}</button>
                                                     <button class="unsettle-settlement-btn" data-settlement-id="${r(n.id)}" data-trip-id="${r(e.id)}" type="button"
                                                         style="background:rgba(255,59,48,0.08); border:1px solid rgba(255,59,48,0.22); color:#ff3b30; padding:5px 12px; border-radius:999px; font-size:0.72rem; font-weight:800; cursor:pointer;">${h(`settlement.historyUnsettleBtn`)}</button>
                                                 </div>
@@ -183,23 +183,23 @@ import{r as e,t}from"./vendor-react-CAxw18f3.js";import{Bt as n,Ct as r,Dt as i,
     `}function A(){let e=C(),t=Object.entries(e).sort((e,t)=>t[1]-e[1]),n=Math.max(...Object.values(e).map(Math.abs),1),i=t.some(([,e])=>Math.abs(e)>.01);if(t.length===0)return`
             <div class="card glass" style="padding: 48px 32px; text-align:center; border-radius: 28px; border:1.5px dashed rgba(0,113,227,0.3); background: rgba(0,113,227,0.04);">
                 <div style="font-size:2.5rem; margin-bottom: 8px;">🌍</div>
-                <h2 style="margin:0 0 6px; color:#002d5b;">${h(`settlement.crossTripEmptyTitle`)}</h2>
+                <h2 style="margin:0 0 6px; color: var(--text-brand-navy);">${h(`settlement.crossTripEmptyTitle`)}</h2>
                 <p class="text-muted" style="margin:0;">${h(`settlement.crossTripEmptyBody`)}</p>
             </div>
         `;let a=S(e);return`
         <div class="card glass" style="padding: 22px 24px; border-radius: 28px;">
             <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
-                <h3 style="margin:0; font-size:1.05rem; color:#002d5b; font-weight:800; letter-spacing:-0.02em;">${h(`settlement.crossTripTitle`)}</h3>
+                <h3 style="margin:0; font-size:1.05rem; color: var(--text-brand-navy); font-weight:800; letter-spacing:-0.02em;">${h(`settlement.crossTripTitle`)}</h3>
                 <span style="font-size:0.7rem; font-weight:800; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.1em;">${h(`settlement.crossTripSubtitle`)}</span>
             </div>
             <div style="display:flex; flex-direction:column; gap:8px;">
                 ${t.map(([e,t])=>{let a=i?Math.min(Math.abs(t)/n*100,100):0,o=t>.01,s=t<-.01,c=o?`#1a6b3c`:s?`#a30000`:`var(--text-secondary)`;return`
-                        <div style="display:flex; flex-direction:column; gap:10px; padding:12px 14px; background:white; border:1px solid rgba(0,0,0,0.06); border-radius:14px;">
+                        <div style="display:flex; flex-direction:column; gap:10px; padding:12px 14px; background: var(--card-bg); border:1px solid rgba(0,0,0,0.06); border-radius:14px;">
                             <div style="display:flex; align-items:center; gap:14px;">
                                 <div style="width:34px; height:34px; border-radius:50%; background: ${o?`rgba(52,199,89,0.12)`:s?`rgba(255,59,48,0.1)`:`rgba(0,0,0,0.04)`}; color: ${o?`#1a6b3c`:s?`#a30000`:`rgba(0,0,0,0.5)`}; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:0.95rem; flex-shrink:0;">
                                     ${r(e.charAt(0).toUpperCase())}
                                 </div>
-                                <div style="flex:1; min-width:0; font-weight:800; color:#002d5b; font-size:0.95rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${r(e)}</div>
+                                <div style="flex:1; min-width:0; font-weight:800; color: var(--text-brand-navy); font-size:0.95rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${r(e)}</div>
                                 <div style="font-weight:800; color: ${c}; font-size:1rem;">
                                     ${o?`+`:``}${f(t,`EUR`)}
                                 </div>
@@ -219,21 +219,21 @@ import{r as e,t}from"./vendor-react-CAxw18f3.js";import{Bt as n,Ct as r,Dt as i,
             <div class="card glass" style="margin-top:18px; padding: 22px 24px; border-radius: 28px;">
                 <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:14px;">
                     <div style="min-width:0;">
-                        <h3 style="margin:0; font-size:1.05rem; color:#002d5b; font-weight:800; letter-spacing:-0.02em;">Suggested cross-trip payments</h3>
+                        <h3 style="margin:0; font-size:1.05rem; color: var(--text-brand-navy); font-weight:800; letter-spacing:-0.02em;">Suggested cross-trip payments</h3>
                         <div style="font-size:0.7rem; font-weight:700; color:var(--text-secondary); margin-top:3px;">Fewest payments to clear everyone across every trip you share. Record the actual settlement on whichever trip's tab fits.</div>
                     </div>
                     <span style="font-size:0.7rem; font-weight:800; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.1em; flex-shrink:0;">${a.length} ${a.length===1?`payment`:`payments`}</span>
                 </div>
                 <div style="display:flex; flex-direction:column; gap:10px;">
                     ${a.map(e=>`
-                        <div style="display:flex; align-items:center; gap:14px; padding:14px 16px; background:white; border:1px solid rgba(0,0,0,0.06); border-radius:16px;">
+                        <div style="display:flex; align-items:center; gap:14px; padding:14px 16px; background: var(--card-bg); border:1px solid rgba(0,0,0,0.06); border-radius:16px;">
                             <div style="flex:1; min-width:0;">
                                 <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
                                     <span style="font-weight:700; color:var(--text-secondary); font-size:0.78rem;">${r(e.from)}</span>
                                     <span style="color:rgba(0,0,0,0.3);">→</span>
-                                    <span style="font-weight:800; color:#002d5b; font-size:0.95rem;">${r(e.to)}</span>
+                                    <span style="font-weight:800; color: var(--text-brand-navy); font-size:0.95rem;">${r(e.to)}</span>
                                 </div>
-                                <div style="font-size:1.3rem; font-weight:800; color:#002d5b; letter-spacing:-0.01em; margin-top:2px;">${f(e.amount,`EUR`)}</div>
+                                <div style="font-size:1.3rem; font-weight:800; color: var(--text-brand-navy); letter-spacing:-0.01em; margin-top:2px;">${f(e.amount,`EUR`)}</div>
                             </div>
                         </div>
                     `).join(``)}
@@ -245,9 +245,9 @@ import{r as e,t}from"./vendor-react-CAxw18f3.js";import{Bt as n,Ct as r,Dt as i,
             <p class="text-subtitle">${h(`settlement.manualSubtitle`)}</p>
             <form id="manualSettleForm" style="display:flex; flex-direction:column; gap: var(--space-3); margin-top: var(--space-4);">
                 <label class="form-label">From</label>
-                <select id="manualSettleFrom" class="glass-input" style="padding: var(--space-3); border-radius: 12px; background:white;">${t}</select>
+                <select id="manualSettleFrom" class="glass-input" style="padding: var(--space-3); border-radius: 12px; background: var(--card-bg);">${t}</select>
                 <label class="form-label" style="margin-top:6px;">To</label>
-                <select id="manualSettleTo" class="glass-input" style="padding: var(--space-3); border-radius: 12px; background:white;">${t}</select>
+                <select id="manualSettleTo" class="glass-input" style="padding: var(--space-3); border-radius: 12px; background: var(--card-bg);">${t}</select>
                 <label class="form-label" style="margin-top:6px;">Amount (${r(n)})</label>
                 <input type="number" step="0.01" min="0.01" id="manualSettleAmount" class="glass-input" placeholder="0.00" required style="padding: var(--space-3); border-radius: 12px;">
                 <div style="display:flex; gap: var(--space-3); margin-top: var(--space-4);">
@@ -259,9 +259,9 @@ import{r as e,t}from"./vendor-react-CAxw18f3.js";import{Bt as n,Ct as r,Dt as i,
             <h2 class="h2-display">${h(`settlement.editTitle`)}</h2>
             <form id="editSettlementForm" style="display:flex; flex-direction:column; gap: var(--space-3); margin-top: var(--space-4);">
                 <label class="form-label">From</label>
-                <select id="editSettleFrom" class="glass-input" style="padding: var(--space-3); border-radius: 12px; background:white;">${u}</select>
+                <select id="editSettleFrom" class="glass-input" style="padding: var(--space-3); border-radius: 12px; background: var(--card-bg);">${u}</select>
                 <label class="form-label" style="margin-top:6px;">To</label>
-                <select id="editSettleTo" class="glass-input" style="padding: var(--space-3); border-radius: 12px; background:white;">${f}</select>
+                <select id="editSettleTo" class="glass-input" style="padding: var(--space-3); border-radius: 12px; background: var(--card-bg);">${f}</select>
                 <label class="form-label" style="margin-top:6px;">Amount (${r(m)})</label>
                 <input type="number" step="0.01" min="0.01" id="editSettleAmount" value="${p(t.euroValue||0,`EUR`,m).toFixed(2)}" class="glass-input" required style="padding: var(--space-3); border-radius: 12px;">
                 <label class="form-label" style="margin-top:6px;">Date</label>
@@ -272,4 +272,4 @@ import{r as e,t}from"./vendor-react-CAxw18f3.js";import{Bt as n,Ct as r,Dt as i,
                 </div>
             </form>
         `});a(_,`#cancelEditSettleBtn`).onclick=()=>y(),a(_,`#editSettlementForm`).onsubmit=e=>{e.preventDefault();let r=a(_,`#editSettleFrom`).value,o=a(_,`#editSettleTo`).value,s=parseFloat(a(_,`#editSettleAmount`).value),c=a(_,`#editSettleDate`).value;if(r===o){i(h(`settlement.toastSenderEqualsReceiver`));return}t.who=r,t.splits={[o]:100},t.value=s,t.currency=m,t.euroValue=p(s,m,`EUR`),t.date=c,t.label=`Settlement: ${r} → ${o}`,n(l.STATE_CHANGED),y()}}var F=t();function I(){let e=y(e=>e.trips),t=y(e=>e.activeTripId);y(e=>e.expenses);let[n,r]=(0,b.useState)(`trip`),[i,a]=(0,b.useState)(()=>t||(e.length>0?e[0].id:null));(0,b.useEffect)(()=>{i&&!e.find(e=>e.id===i)&&a(t||(e.length>0?e[0].id:null))},[e,i,t]);let o=e.find(e=>e.id===i)||null,s=d(o),c=(0,b.useMemo)(()=>T(o,s,n,i),[o,s,n,i,y.length]),l=(0,b.useRef)(null);return(0,F.jsx)(`div`,{ref:l,onClick:e=>{let t=e.target;if(!t)return;let n=t.closest(`.settlement-trip-pill`);if(n?.dataset.tripId){a(n.dataset.tripId);return}let i=t.closest(`.settle-tab`);if(i?.dataset.tab){r(i.dataset.tab);return}let o=t.closest(`.settle-debt-btn`);if(o?.dataset.tripId&&o.dataset.from&&o.dataset.to&&o.dataset.amount&&!o.disabled){o.disabled=!0,o.textContent=h(`settlement.recordingBtn`),j(o.dataset.tripId,o.dataset.from,o.dataset.to,parseFloat(o.dataset.amount),`EUR`);return}let s=t.closest(`.open-manual-settle-btn`);if(s?.dataset.tripId){N(s.dataset.tripId);return}let c=t.closest(`.edit-settlement-btn`);if(c?.dataset.settlementId){P(c.dataset.settlementId);return}let l=t.closest(`.unsettle-settlement-btn`);if(l?.dataset.settlementId){M(l.dataset.settlementId);return}},onChange:e=>{let t=e.target;if(t&&t.id===`settlementTripSelect`){let e=t;e.value&&a(e.value)}},dangerouslySetInnerHTML:{__html:c}})}function L(e){m(e,(0,b.createElement)(I))}export{L as mountSettlement};
-//# sourceMappingURL=mount-DV388fA4.js.map
+//# sourceMappingURL=mount-BEpz-LDw.js.map

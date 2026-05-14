@@ -3515,7 +3515,9 @@ body.is-signed-out .trip-controls-popover {
     min-width: 0;
     font-weight: 700;
     font-size: 0.95rem;
-    color: #002d5b;
+    /* Was hardcoded #002d5b — invisible on the dark .cat-row in
+       dark mode. Tokenised so it flips with theme. */
+    color: var(--text-brand-navy);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
