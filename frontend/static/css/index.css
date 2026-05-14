@@ -7890,3 +7890,94 @@ main#app-container.nav-anim-backward {
     background: var(--card-bg);
     border-color: rgba(255, 255, 255, 0.08);
 }
+
+/* Settings page section card — desktop uses generous padding +
+   radius. Mobile override below shrinks both. Replaces the
+   per-call-site inline `style={{ padding: 32, borderRadius: 28 }}`
+   pattern across Settings.tsx so the responsive layout can take
+   effect without an !important war against inline styles. */
+.settings-section {
+    padding: 32px;
+    border-radius: 28px;
+}
+
+/* ── Settings → General → POI filters: responsive layout ───────────
+   The desktop layout is a 6-column grid that doesn't fit a phone
+   (icon | label/hint | anchor select | rating select | reset |
+   visibility switch — with min-widths of 132px + 110px on the two
+   selects alone, total content easily passes 420px). At ≤720px,
+   collapse to a 4-row stack: top row keeps icon + label + the
+   visibility switch on one line; the anchor select, rating select
+   and reset button each take their own full-width row beneath.
+
+   Also handles the Settings menu cards (management-card) — 32px
+   padding × 28px radius reads as cramped luxury on a phone; tighter
+   numbers feel intentional rather than squeezed. */
+@media (max-width: 720px) {
+    .poi-filter-row {
+        grid-template-columns: 32px 1fr auto;
+        grid-template-areas:
+            "icon body switch"
+            "anchor anchor anchor"
+            "rating rating rating"
+            "default default default";
+        gap: var(--space-2);
+        padding: var(--space-3);
+    }
+    .poi-filter-row__icon { grid-area: icon; }
+    .poi-filter-row__body { grid-area: body; min-width: 0; }
+    .poi-visibility-switch { grid-area: switch; margin-left: 0; }
+    .poi-filter-row > .poi-anchor-mode {
+        grid-area: anchor;
+        width: 100%;
+        min-width: 0;
+    }
+    .poi-filter-row > .poi-filter-rating {
+        grid-area: rating;
+        width: 100%;
+        min-width: 0;
+    }
+    .poi-filter-row__default {
+        grid-area: default;
+        text-align: left;
+        min-width: 0;
+    }
+    /* The hint text inside __body wraps fine; cap font-size a touch
+       on mobile so 4-line tooltips don't crowd the row. */
+    .poi-filter-row__label { font-size: 0.95rem; }
+    .poi-filter-row__hint { font-size: 0.72rem; }
+
+    /* General-subtabs strip — pill row that can overflow off-
+       screen on narrow viewports. Let it scroll horizontally and
+       hide the scrollbar for a cleaner look (Apple-style horizontal
+       pill scroller). */
+    .general-subtabs {
+        display: flex;
+        max-width: 100%;
+        overflow-x: auto;
+        scrollbar-width: none;        /* Firefox */
+        -ms-overflow-style: none;     /* IE */
+    }
+    .general-subtabs::-webkit-scrollbar { display: none; }  /* WebKit */
+    .general-subtab {
+        flex-shrink: 0;
+        padding: 9px 16px;
+    }
+    .general-subtab__icon { font-size: 0.9rem; }
+
+    /* Management cards (menu view) — desktop has 32px padding +
+       28px radius; tighter on phones. */
+    .management-card {
+        padding: var(--space-5);
+        border-radius: var(--radius-xl);
+    }
+
+    /* Settings page section cards (.settings-section) — replaces
+       the inline `padding: 32 / borderRadius: 28` style that used
+       to ship with each card. Compact padding on phones so the
+       inner controls actually fit. */
+    .settings-section {
+        padding: var(--space-4);
+        border-radius: var(--radius-xl);
+    }
+}

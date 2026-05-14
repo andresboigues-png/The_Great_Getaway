@@ -384,7 +384,12 @@ function GeneralPillsSection() {
     const rows = POI_CATEGORIES.filter((c) => c.placesType);
 
     return (
-        <div className="card glass" style={{ padding: 32, borderRadius: 28 }}>
+        // Padding + borderRadius moved into the .settings-section
+        // CSS class so the responsive mobile sweep can shrink them
+        // (inline styles otherwise win specificity and force an
+        // !important elsewhere). See "Settings → General → POI
+        // filters: responsive layout" in index.css.
+        <div className="card glass settings-section">
             <h2 style={{ color: '#005bb8', marginTop: 0 }}>{t('settings.poiTitle')}</h2>
             <p style={{ color: 'var(--text-secondary)', marginBottom: 16 }}>
                 {t('settings.poiIntroVisibility')}
@@ -524,7 +529,7 @@ function GeneralAppearanceSection() {
     );
 
     return (
-        <div className="card glass" style={{ padding: 32, borderRadius: 28 }}>
+        <div className="card glass settings-section">
             <h2 style={{ color: '#5856d6', marginTop: 0 }}>{t('settings.appearance')}</h2>
             <p style={{ color: 'var(--text-secondary)', marginBottom: 24 }}>
                 {t('settings.themePickerSubtitle')}
@@ -574,7 +579,7 @@ function GeneralLanguageSection() {
     );
 
     return (
-        <div className="card glass" style={{ padding: 32, borderRadius: 28 }}>
+        <div className="card glass settings-section">
             <h2 style={{ color: '#5856d6', marginTop: 0 }}>{t('settings.language')}</h2>
             <p style={{ color: 'var(--text-secondary)', marginBottom: 24 }}>
                 {t('settings.languageDesc')}
@@ -714,7 +719,7 @@ function FormatView() {
     const availableVars = MANDATORY_VARS.concat(OPTIONAL_VARS).filter((v) => !used.has(v));
 
     return (
-        <div className="card glass" style={{ padding: 32, borderRadius: 28 }}>
+        <div className="card glass settings-section">
             <h2 style={{ color: '#a85d00', marginTop: 0 }}>{t('settings.formatTitle')}</h2>
             <p style={{ color: 'var(--text-secondary)', marginBottom: 24 }}>
                 {t('settings.formatSubtitle')}
