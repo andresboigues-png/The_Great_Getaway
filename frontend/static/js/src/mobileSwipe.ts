@@ -1,16 +1,23 @@
 /**
  * Mobile-only horizontal-swipe navigation between bottom-tab pages.
  *
- * Round 3 reorg: the user expects iOS-style swipe-between-tabs on the
- * mobile bottom nav (Home | Feed | Plan AI | Expenses | Insights).
+ * iOS-style swipe-between-tabs on the mobile bottom nav. After the
+ * 2026-05-14 reorg the bottom-nav houses Home | To-do | Plan AI |
+ * Expenses (Feed moved to the top navbar's right cluster, Insights
+ * folded into Expenses as a tab).
  * - Swipe LEFT  → next tab in the SWIPE_ORDER list.
  * - Swipe RIGHT → previous tab in the list.
  * - At the LEFT boundary (Home) a right-swipe opens the burger drawer
  *   instead of being a no-op (the drawer is the "what's even further
  *   left of Home" surface, so this matches user mental model).
- * - At the RIGHT boundary (Insights) a left-swipe is a no-op — there's
- *   nothing past Insights and we don't want to surprise the user with
+ * - At the RIGHT boundary (Expenses) a left-swipe is a no-op — there's
+ *   nothing past Expenses and we don't want to surprise the user with
  *   an unexpected modal.
+ * - On non-bottom-tab pages (Feed, Collections, Profile, Settings,
+ *   etc.) swipes are no-ops — there's no meaningful "next/previous"
+ *   when the user is off the main bottom-tab axis. They navigate to
+ *   one of the four bottom-tab pages first to re-enter the swipe
+ *   surface.
  *
  * Why a custom touch handler instead of a library:
  * - No deps — keeps the bundle lean (the entry already lazy-loads page
@@ -229,10 +236,11 @@ export function initMobileSwipe(): void {
 
             if (dx < 0) {
                 // Swipe LEFT → next tab. No-op at the right boundary
-                // (Insights) per user spec. 'forward' tells the router
-                // to slide the new page in from the right edge — the
-                // direction the finger came from — so the animation
-                // matches the gesture instead of materialising in place.
+                // (Expenses, post-2026-05-14 swap) per user spec.
+                // 'forward' tells the router to slide the new page in
+                // from the right edge — the direction the finger came
+                // from — so the animation matches the gesture instead
+                // of materialising in place.
                 const next = SWIPE_ORDER[idx + 1];
                 if (next) navigate(next, null, false, 'forward');
             } else {
