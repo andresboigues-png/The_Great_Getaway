@@ -1,0 +1,2 @@
+import{r as e,t}from"./vendor-react-CAxw18f3.js";import{G as n,L as r,W as i}from"../app.bundle.js";var a=e(),o=t();function s(){let e=(0,a.useRef)(null);return(0,a.useEffect)(()=>{let t=e.current;if(t)return t.innerHTML=``,t.appendChild(i()),()=>{n(),t.innerHTML=``}},[]),(0,o.jsx)(`div`,{ref:e})}function c(e){r(e,(0,a.createElement)(s))}export{c as mountHome};
+//# sourceMappingURL=mount-222UQxCW.js.map
