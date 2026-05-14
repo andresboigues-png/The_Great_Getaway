@@ -57,22 +57,81 @@ export type PoiCategory = {
     defaultMinRating: number;
     tooltip: string;
     useAnchorAlways?: boolean;
+    /** Types passed as additional `type=` parameters to nearbySearch.
+     *  Adding entries here multiplies API requests on the home map
+     *  (one extra nearbySearch per type) — only use for genuinely
+     *  separate pill targets like medical = hospital+pharmacy. */
     extraPlacesTypes?: string[];
+    /** Free-text keywords for nearbySearch's `keyword=` param. Like
+     *  extraPlacesTypes, each entry is an additional request. */
     extraKeywords?: string[];
+    /** Types treated as belonging to this category by
+     *  `guessCategoryByTypes()` — used to bucket free-form Places
+     *  search results AND AI-verified itinerary items into the
+     *  right pill. UNLIKE extraPlacesTypes, this is purely a
+     *  client-side classifier — no extra API calls. Add liberally
+     *  here when Places API NEW surfaces granular subtypes (e.g.
+     *  `castle`, `cafe`, `golf_course`) so bucketing stays accurate
+     *  even when the place isn't tagged with the legacy umbrella
+     *  type (`tourist_attraction`, `restaurant`, `stadium`). */
+    guessTypes?: string[];
 };
 
 
+// guessTypes lists below catch the Places API NEW granular subtypes
+// that the legacy umbrella type (`tourist_attraction`, `restaurant`,
+// etc.) no longer covers. Without these, AI-verified places like
+// `["castle", "historical_landmark"]` or `["coffee_shop", "cafe"]`
+// fall through guessCategoryByTypes() and land under "Other places"
+// in the to-do list. Lists are deliberately client-side only — they
+// don't trigger extra nearbySearch requests (see PoiCategory type).
+
 export const POI_CATEGORIES: PoiCategory[] = [
-    { key: 'restaurants', placesType: 'restaurant',         searchStrategy: 'distance', icon: '🍽️', label: 'Restaurants',     color: '#ff9500', defaultMinRating: 4, tooltip: 'Closest restaurants (≤60) to the search center — defaults to 4★+, tweak in Settings → General' },
-    { key: 'supermarkets',placesType: 'supermarket',        searchStrategy: 'distance', icon: '🛒', label: 'Supermarkets',    color: '#34c759', defaultMinRating: 0, tooltip: 'Closest supermarkets and grocery stores' },
-    { key: 'hotels',      placesType: 'lodging',            searchStrategy: 'distance', icon: '🛏️', label: 'Hotels',          color: '#5856d6', defaultMinRating: 4, tooltip: 'Closest hotels and lodging — defaults to 4★+' },
+    { key: 'restaurants', placesType: 'restaurant', guessTypes: [
+        'bar', 'cafe', 'bakery', 'coffee_shop', 'tea_house',
+        'meal_takeaway', 'meal_delivery', 'sandwich_shop', 'deli',
+        'ice_cream_shop', 'donut_shop', 'food_court',
+        'pub', 'wine_bar', 'brewery',
+        'american_restaurant', 'italian_restaurant', 'chinese_restaurant',
+        'french_restaurant', 'japanese_restaurant', 'korean_restaurant',
+        'mexican_restaurant', 'indian_restaurant', 'thai_restaurant',
+        'vietnamese_restaurant', 'mediterranean_restaurant',
+        'spanish_restaurant', 'greek_restaurant', 'turkish_restaurant',
+        'pizza_restaurant', 'sushi_restaurant', 'seafood_restaurant',
+        'steak_house', 'fine_dining_restaurant', 'fast_food_restaurant',
+        'ramen_restaurant', 'breakfast_restaurant', 'brunch_restaurant',
+        'buffet_restaurant', 'cafeteria', 'dessert_restaurant', 'diner',
+        'vegan_restaurant', 'vegetarian_restaurant',
+    ], searchStrategy: 'distance', icon: '🍽️', label: 'Restaurants',     color: '#ff9500', defaultMinRating: 4, tooltip: 'Closest restaurants (≤60) to the search center — defaults to 4★+, tweak in Settings → General' },
+    { key: 'supermarkets',placesType: 'supermarket', guessTypes: [
+        'grocery_or_supermarket', 'grocery_store', 'convenience_store',
+        'food_store', 'market',
+    ],    searchStrategy: 'distance', icon: '🛒', label: 'Supermarkets',    color: '#34c759', defaultMinRating: 0, tooltip: 'Closest supermarkets and grocery stores' },
+    { key: 'hotels',      placesType: 'lodging', guessTypes: [
+        'hotel', 'motel', 'hostel', 'bed_and_breakfast',
+        'resort_hotel', 'extended_stay_hotel', 'guest_house', 'inn',
+        'cottage', 'campground', 'rv_park', 'private_guest_room',
+    ],        searchStrategy: 'distance', icon: '🛏️', label: 'Hotels',          color: '#5856d6', defaultMinRating: 4, tooltip: 'Closest hotels and lodging — defaults to 4★+' },
     // sights / parks / worship: epicenter-aware. People often
     // plan these per-day ("what attractions are near today's
     // pin"), so the user-picked day epicenter is the right
     // anchor.
-    { key: 'sights',      placesType: 'tourist_attraction', searchStrategy: 'wide',     icon: '🏖️', label: 'Sights',          color: '#a460ed', defaultMinRating: 0, tooltip: 'Tourist attractions across the wider trip area (50 km)' },
-    { key: 'parks',       placesType: 'park',               searchStrategy: 'wide',     icon: '🌳', label: 'Parks',           color: '#1a6b3c', defaultMinRating: 0, tooltip: 'Parks and gardens across the wider trip area' },
-    { key: 'worship',     placesType: 'church',             searchStrategy: 'wide',     icon: '⛪', label: 'Worship',         color: '#a460ed', defaultMinRating: 0, tooltip: 'Churches and places of worship across the wider trip area' },
+    { key: 'sights',      placesType: 'tourist_attraction', guessTypes: [
+        'castle', 'historical_landmark', 'historical_place', 'historic_site',
+        'monument', 'museum', 'art_gallery', 'cultural_landmark',
+        'cultural_center', 'visitor_center', 'plaza', 'observation_deck',
+        'planetarium', 'opera_house', 'concert_hall', 'philharmonic_hall',
+        'performing_arts_theater', 'sculpture',
+        'aquarium', 'zoo', 'amusement_park', 'theme_park', 'water_park',
+    ], searchStrategy: 'wide',     icon: '🏖️', label: 'Sights',          color: '#a460ed', defaultMinRating: 0, tooltip: 'Tourist attractions across the wider trip area (50 km)' },
+    { key: 'parks',       placesType: 'park', guessTypes: [
+        'national_park', 'state_park', 'garden', 'botanical_garden',
+        'wildlife_park', 'wildlife_refuge', 'beach', 'natural_feature',
+        'hiking_area',
+    ],               searchStrategy: 'wide',     icon: '🌳', label: 'Parks',           color: '#1a6b3c', defaultMinRating: 0, tooltip: 'Parks and gardens across the wider trip area' },
+    { key: 'worship',     placesType: 'church', guessTypes: [
+        'mosque', 'synagogue', 'temple', 'hindu_temple', 'place_of_worship',
+    ],             searchStrategy: 'wide',     icon: '⛪', label: 'Worship',         color: '#a460ed', defaultMinRating: 0, tooltip: 'Churches and places of worship across the wider trip area' },
 
     // useAnchorAlways: sparse, trip-wide-concept categories.
     // There's not many to find, and "where are the hospitals
@@ -80,12 +139,28 @@ export const POI_CATEGORIES: PoiCategory[] = [
     // locking to a single day pin would just mean missing the
     // obvious ones two neighborhoods over. Always anchored on
     // anchor.
-    { key: 'medical',     placesType: 'hospital',           extraPlacesTypes: ['pharmacy'], extraKeywords: ['pharmacy', 'drugstore'], searchStrategy: 'wide', useAnchorAlways: true, icon: '🏥', label: 'Medical',         color: '#ff3b30', defaultMinRating: 0, tooltip: 'Hospitals, doctors, pharmacies, drugstores and clinics across the wider trip area. Vets are excluded — they live on the Pets pill.' },
+    { key: 'medical',     placesType: 'hospital', guessTypes: [
+        'doctor', 'dental_clinic', 'medical_lab', 'physiotherapist',
+        'wellness_center', 'drugstore', 'chiropractor', 'skin_care_clinic',
+        'spa', 'massage',
+    ],           extraPlacesTypes: ['pharmacy'], extraKeywords: ['pharmacy', 'drugstore'], searchStrategy: 'wide', useAnchorAlways: true, icon: '🏥', label: 'Medical',         color: '#ff3b30', defaultMinRating: 0, tooltip: 'Hospitals, doctors, pharmacies, drugstores and clinics across the wider trip area. Vets are excluded — they live on the Pets pill.' },
     { key: 'pets',        placesType: 'veterinary_care',    extraPlacesTypes: ['pet_store'], searchStrategy: 'wide', useAnchorAlways: true, icon: '🐾', label: 'Pets',           color: '#a460ed', defaultMinRating: 0, tooltip: 'Vets and pet stores across the wider trip area' },
-    { key: 'schools',     placesType: 'school',             searchStrategy: 'wide', useAnchorAlways: true, icon: '🎓', label: 'Schools',         color: '#0071e3', defaultMinRating: 0, tooltip: 'Schools and universities. Always searches the wider trip area.' },
-    { key: 'sports',      placesType: 'stadium',            searchStrategy: 'wide', useAnchorAlways: true, icon: '🏟️', label: 'Sports',          color: '#ff2d55', defaultMinRating: 0, tooltip: 'Stadiums and gyms. Always searches the wider trip area — they\'re landmarks, you want them all.' },
-    { key: 'transit',     placesType: 'transit_station',    extraPlacesTypes: ['ferry_terminal'], searchStrategy: 'wide', useAnchorAlways: true, icon: '🚉', label: 'Public transport', color: '#0a3d6b', defaultMinRating: 0, tooltip: 'Train, metro, light rail, smaller commuter stations + ferry terminals. For the dotted ferry-route lines and subway/bus geometry over water and on land, switch the map to Road view via the controls in the top-right corner — those route lines only render on the road map type, not on satellite. Bus stops are excluded because Google\'s API uses the same `bus_station` type for both hub terminals and street-corner stops.' },
-    { key: 'traffic',     placesType: 'gas_station',        searchStrategy: 'wide', useAnchorAlways: true, icon: '🛣️', label: 'Roads & traffic', color: '#0a3d6b', defaultMinRating: 0, tooltip: 'Highway / arterial road names + live Google traffic congestion + gas stations across the wider trip area' },
+    { key: 'schools',     placesType: 'school', guessTypes: [
+        'university', 'primary_school', 'secondary_school', 'preschool',
+    ],             searchStrategy: 'wide', useAnchorAlways: true, icon: '🎓', label: 'Schools',         color: '#0071e3', defaultMinRating: 0, tooltip: 'Schools and universities. Always searches the wider trip area.' },
+    { key: 'sports',      placesType: 'stadium', guessTypes: [
+        'golf_course', 'gym', 'fitness_center', 'sports_complex',
+        'swimming_pool', 'sports_club', 'sports_activity_location',
+        'arena', 'athletic_field',
+    ],            searchStrategy: 'wide', useAnchorAlways: true, icon: '🏟️', label: 'Sports',          color: '#ff2d55', defaultMinRating: 0, tooltip: 'Stadiums and gyms. Always searches the wider trip area — they\'re landmarks, you want them all.' },
+    { key: 'transit',     placesType: 'transit_station', guessTypes: [
+        'train_station', 'subway_station', 'light_rail_station',
+        'airport', 'airport_terminal', 'transit_depot', 'taxi_stand',
+    ],    extraPlacesTypes: ['ferry_terminal'], searchStrategy: 'wide', useAnchorAlways: true, icon: '🚉', label: 'Public transport', color: '#0a3d6b', defaultMinRating: 0, tooltip: 'Train, metro, light rail, smaller commuter stations + ferry terminals. For the dotted ferry-route lines and subway/bus geometry over water and on land, switch the map to Road view via the controls in the top-right corner — those route lines only render on the road map type, not on satellite. Bus stops are excluded because Google\'s API uses the same `bus_station` type for both hub terminals and street-corner stops.' },
+    { key: 'traffic',     placesType: 'gas_station', guessTypes: [
+        'parking', 'rest_stop', 'electric_vehicle_charging_station',
+        'truck_stop',
+    ],        searchStrategy: 'wide', useAnchorAlways: true, icon: '🛣️', label: 'Roads & traffic', color: '#0a3d6b', defaultMinRating: 0, tooltip: 'Highway / arterial road names + live Google traffic congestion + gas stations across the wider trip area' },
 ];
 
 
@@ -237,6 +312,10 @@ export function guessCategoryByTypes(types: string[] | undefined): PoiCategory |
         if (!cat.placesType) continue;
         if (types.includes(cat.placesType)) return cat;
         if (Array.isArray(cat.extraPlacesTypes) && cat.extraPlacesTypes.some((t: string) => types.includes(t))) return cat;
+        // Places API NEW returns granular subtypes (castle,
+        // historical_landmark, coffee_shop, golf_course, …) that
+        // the legacy umbrella types miss. guessTypes catches those.
+        if (Array.isArray(cat.guessTypes) && cat.guessTypes.some((t: string) => types.includes(t))) return cat;
     }
     return null;
 }
