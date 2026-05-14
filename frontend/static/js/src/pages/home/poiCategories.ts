@@ -216,3 +216,27 @@ export function isPrimaryMatch(categoryKey: string, types: string[] | undefined 
     if (firstConflict < 0) return true;        // matches and nothing else competes
     return firstMatch < firstConflict;         // matches AND outranks the conflict
 }
+
+
+/** Pick the best `POI_CATEGORIES` entry for a place given its Google
+ *  Places `types[]` array. Used by:
+ *    - mapSearch.ts's free-form Places search, so a search hit lands
+ *      under the right pill colour + icon.
+ *    - markedPlaces.ts's `addOrUpdatePlaceFromVerified`, so AI-
+ *      verified items get a real category (Restaurant / Hotel /
+ *      Sight / …) instead of the 📋 generic fallback.
+ *
+ *  The walk is order-sensitive — POI_CATEGORIES is declared with
+ *  the most specific / common categories first, so e.g. a place
+ *  tagged `[restaurant, lodging]` matches Restaurants first and not
+ *  Hotels. Returns null when nothing matches (caller decides the
+ *  fallback). */
+export function guessCategoryByTypes(types: string[] | undefined): PoiCategory | null {
+    if (!Array.isArray(types)) return null;
+    for (const cat of POI_CATEGORIES) {
+        if (!cat.placesType) continue;
+        if (types.includes(cat.placesType)) return cat;
+        if (Array.isArray(cat.extraPlacesTypes) && cat.extraPlacesTypes.some((t: string) => types.includes(t))) return cat;
+    }
+    return null;
+}

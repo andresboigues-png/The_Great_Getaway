@@ -179,18 +179,21 @@ def _verify_place(query: str, destination: str, api_key: str) -> dict | None:
             "Content-Type": "application/json",
             "X-Goog-Api-Key": api_key,
             # FieldMask:
-            #   - id, displayName, formattedAddress, location, photos.name
-            #     are Places API NEW "Basic Data" tier (cheapest).
+            #   - id, displayName, formattedAddress, location,
+            #     photos.name, types are Places API NEW "Basic Data"
+            #     tier (cheapest).
             #   - rating, userRatingCount are "Advanced Data" tier.
             # Pricing is set by the highest tier in the mask, so we're
-            # already paying Advanced. Adding `location` (Basic) is
-            # free at this tier and gives the frontend the lat/lng it
-            # needs to render an AI-suggested place as a to-do marker
-            # on the home map without a separate Place Details fetch.
+            # already paying Advanced. Adding `location` + `types`
+            # (both Basic) is free at this tier. `types` is what the
+            # frontend uses to bucket each AI item into the right POI
+            # category (Restaurants / Hotels / Sights / …) on the
+            # to-do list — without it every AI item fell into the
+            # generic "Other places" group.
             "X-Goog-FieldMask": (
                 "places.id,places.displayName,places.formattedAddress,"
                 "places.location,places.rating,places.userRatingCount,"
-                "places.googleMapsUri,places.photos.name"
+                "places.googleMapsUri,places.photos.name,places.types"
             ),
         }
         payload = {"textQuery": text_query, "maxResultCount": 1}
@@ -231,6 +234,12 @@ def _verify_place(query: str, destination: str, api_key: str) -> dict | None:
             # tier — free at the Advanced tier we're already paying).
             "lat": location.get("latitude"),
             "lng": location.get("longitude"),
+            # Google Places `types[]` array — drives client-side
+            # category bucketing via guessCategoryByTypes() so AI
+            # items land under Restaurants / Hotels / Sights / …
+            # rather than the generic "Other places" group. Always
+            # an array (empty if Places didn't return any types).
+            "types": p.get("types") or [],
         }
     except Exception as e:
         logger.warning(f"Places verification error for '{text_query}': {e}")

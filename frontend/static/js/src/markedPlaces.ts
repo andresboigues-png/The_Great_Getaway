@@ -26,6 +26,8 @@
 // field as optional and default to []; write sites use these helpers
 // so the array shape stays consistent.
 
+import { guessCategoryByTypes } from './pages/home/poiCategories.js';
+
 /**
  * @typedef {object} MarkedPlace
  * @property {string} placeId
@@ -181,6 +183,12 @@ export interface VerifiedAIItem {
     why?: string;
     /** LLM-supplied surprising fact about the place. */
     fact?: string;
+    /** Google Places `types[]` array. Used to bucket AI items into
+     *  the right POI category (Restaurants / Hotels / Sights / …)
+     *  via guessCategoryByTypes(). Optional because the field was
+     *  added in the 2026-05-14 backend bump — pre-existing
+     *  itineraries cached in trip.aiPlan won't have it. */
+    types?: string[];
 }
 
 /** Phase G slice 2 — push a verified AI itinerary item into the
@@ -208,6 +216,13 @@ export function addOrUpdatePlaceFromVerified(
 ): void {
     if (!trip || !item || !item.verified || !item.placeId) return;
     if (!Array.isArray(trip.markedPlaces)) trip.markedPlaces = [];
+    // Resolve a real POI category from the Google Places `types[]`
+    // array (added to the backend response 2026-05-14). When the
+    // lookup hits, the AI item lands under Restaurants / Hotels /
+    // Sights / … on the to-do list instead of the generic 📋. Falls
+    // back to null on a miss — caller branches below decide the
+    // fallback shape (existing: keep stored icon; fresh: stamp 📋).
+    const cat = guessCategoryByTypes(item.types);
     const existing = trip.markedPlaces.find((p: any) => p.placeId === item.placeId);
     if (existing) {
         // Refresh rich fields so a second AI run picks up updated
@@ -233,6 +248,17 @@ export function addOrUpdatePlaceFromVerified(
         if (item.mapsUrl) existing.mapsUrl = item.mapsUrl;
         if (item.why) existing.why = item.why;
         if (item.fact) existing.fact = item.fact;
+        // Backfill the icon/color when a category resolves AND the
+        // existing entry is still on the generic 📋 fallback. This
+        // re-categorises pre-2026-05-14 AI items on the next AI run
+        // (or Accept Plan) without touching items the user had
+        // already given a real category. Only mutates from 📋 →
+        // something real — never overwrites a non-📋 icon, so
+        // manually-categorised places stay put.
+        if (cat && (existing.icon === '📋' || !existing.icon)) {
+            existing.icon = cat.icon;
+            existing.color = cat.color;
+        }
         // Don't flip forManual / forAI off — the user may have
         // already curated these flags on a previous addition.
         if (!existing.forManual) existing.forManual = true;
@@ -251,8 +277,11 @@ export function addOrUpdatePlaceFromVerified(
         // off the coast of West Africa.
         lat: typeof item.lat === 'number' ? item.lat : 0,
         lng: typeof item.lng === 'number' ? item.lng : 0,
-        icon: '📋',
-        color: '#9b59b6',
+        // Real category from Google Places `types[]` when we have it;
+        // 📋 generic + purple fallback when types are missing (legacy
+        // itineraries) or didn't match any POI_CATEGORIES entry.
+        icon: cat ? cat.icon : '📋',
+        color: cat ? cat.color : '#9b59b6',
         forAI: true,
         forManual: true,
         dayId: dayId || null,
