@@ -15,6 +15,7 @@ import { useNavigate } from '../../react/useNavigate.js';
 import { apiFetch } from '../../api.js';
 import { showLiquidAlert, showConfirmModal } from '../../utils.js';
 import { EmptyState } from '../../react/components/EmptyState.js';
+import { Avatar } from '../../react/components/Avatar.js';
 import { t, tn } from '../../i18n.js';
 
 interface FriendRow {
@@ -33,59 +34,11 @@ type SearchStatus =
     | { kind: 'error' }
     | { kind: 'sent' };
 
-/** Avatar circle — picture if available, otherwise a gradient
- *  initials badge. Mirrors the legacy avatar() helper. */
-function Avatar({ user, size = 44 }: { user: { name?: string; email?: string; picture?: string }; size?: number }) {
-    const initial = (user.name || user.email || '?').charAt(0).toUpperCase();
-    const fallbackBox = (
-        <div
-            style={{
-                width: `${size}px`,
-                height: `${size}px`,
-                borderRadius: '50%',
-                background: 'var(--gradient-day)',
-                color: 'white',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontWeight: 800,
-                fontSize: `${Math.round(size * 0.4)}px`,
-                flexShrink: 0,
-                boxShadow: '0 2px 8px rgba(0,113,227,0.18)',
-            }}
-        >
-            {initial}
-        </div>
-    );
-    if (user.picture) {
-        // Fall back to initials on broken-image — done via onError swap.
-        return (
-            <img
-                src={user.picture}
-                alt=""
-                referrerPolicy="no-referrer"
-                onError={(e) => {
-                    // Swap broken image with initials fallback. Replace
-                    // outerHTML so the layout doesn't shift.
-                    const el = e.currentTarget;
-                    const wrap = document.createElement('div');
-                    wrap.innerHTML = `<div style="width:${size}px; height:${size}px; border-radius:50%; background: var(--gradient-day); color:white; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:${Math.round(size * 0.4)}px; flex-shrink:0; box-shadow: 0 2px 8px rgba(0,113,227,0.18);">${initial}</div>`;
-                    el.replaceWith(wrap.firstChild as Node);
-                }}
-                style={{
-                    width: `${size}px`,
-                    height: `${size}px`,
-                    borderRadius: '50%',
-                    objectFit: 'cover',
-                    flexShrink: 0,
-                    border: '2px solid rgba(255,255,255,0.6)',
-                    boxShadow: '0 2px 8px rgba(0,45,91,0.12)',
-                }}
-            />
-        );
-    }
-    return fallbackBox;
-}
+// Avatar promoted to react/components/Avatar.tsx (C4 extraction —
+// 4+ JSX sites had near-duplicate copies of this fallback-on-
+// broken-image pattern). The shared component uses React state for
+// the error swap instead of the outerHTML replacement the local
+// copy did. Imported below.
 
 interface UserCardProps {
     user: FriendRow;

@@ -8,6 +8,7 @@
 // No state of its own; it's a pure presentational component.
 
 import type { ExploreFeedItem } from '../../api.js';
+import { Avatar } from '../../react/components/Avatar.js';
 
 
 export function ExploreCard({ item }: { item: ExploreFeedItem }) {
@@ -18,8 +19,6 @@ export function ExploreCard({ item }: { item: ExploreFeedItem }) {
               backgroundPosition: 'center',
           }
         : { background: 'linear-gradient(135deg, #00c7be 0%, #007aff 100%)' };
-
-    const firstInitial = (item.owner.firstName || '?').slice(0, 1).toUpperCase();
 
     return (
         <a
@@ -83,31 +82,10 @@ export function ExploreCard({ item }: { item: ExploreFeedItem }) {
                     {item.country}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    {item.owner.picture ? (
-                        <img
-                            src={item.owner.picture}
-                            alt=""
-                            referrerPolicy="no-referrer"
-                            style={{ width: 24, height: 24, borderRadius: '50%', objectFit: 'cover' }}
-                        />
-                    ) : (
-                        <div
-                            style={{
-                                width: 24,
-                                height: 24,
-                                borderRadius: '50%',
-                                background: 'rgba(0,113,227,0.18)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                color: '#005bb8',
-                                fontSize: '0.7rem',
-                                fontWeight: 800,
-                            }}
-                        >
-                            {firstInitial}
-                        </div>
-                    )}
+                    <Avatar
+                        user={{ name: item.owner.firstName, picture: item.owner.picture }}
+                        size={24}
+                    />
                     <span
                         style={{
                             fontSize: '0.8rem',
