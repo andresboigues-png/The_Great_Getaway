@@ -204,8 +204,8 @@ function renderTripTab(trip: any, tripIsEditable: boolean): string {
                 const isCredit = bal > 0.01;
                 const isDebt = bal < -0.01;
                 return `
-            <div style="display:flex; align-items:center; gap:14px; padding:12px 14px; background: var(--card-bg); border:1px solid rgba(0,0,0,0.06); border-radius:14px;">
-                <div style="width:34px; height:34px; border-radius:50%; background: ${isCredit ? 'rgba(52,199,89,0.12)' : isDebt ? 'rgba(255,59,48,0.1)' : 'rgba(0,0,0,0.04)'}; color: ${isCredit ? '#1a6b3c' : isDebt ? '#a30000' : 'rgba(0,0,0,0.5)'}; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:0.95rem; flex-shrink:0;">
+            <div style="display:flex; align-items:center; gap:14px; padding:12px 14px; background: var(--card-bg); border:1px solid var(--border-subtle); border-radius:14px;">
+                <div style="width:34px; height:34px; border-radius:50%; background: ${isCredit ? 'rgba(52,199,89,0.18)' : isDebt ? 'rgba(255,59,48,0.18)' : 'var(--surface-subtle)'}; color: ${isCredit ? '#1a6b3c' : isDebt ? '#a30000' : 'var(--text-secondary)'}; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:0.95rem; flex-shrink:0;">
                     ${esc(person.charAt(0).toUpperCase())}
                 </div>
                 <div style="flex:1; min-width:0; font-weight:800; color: var(--text-brand-navy); font-size:0.95rem; overflow:hidden; text-overflow:ellipsis;">${esc(person)}</div>
@@ -224,7 +224,7 @@ function renderTripTab(trip: any, tripIsEditable: boolean): string {
             : debts
                   .map(
                       (d) => `
-            <div style="display:flex; align-items:center; gap:14px; padding:14px 16px; background: var(--card-bg); border:1px solid rgba(0,0,0,0.06); border-radius:16px;">
+            <div style="display:flex; align-items:center; gap:14px; padding:14px 16px; background: var(--card-bg); border:1px solid var(--border-subtle); border-radius:16px;">
                 <div style="flex:1; min-width:0;">
                     <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
                         <span style="font-weight:700; color:var(--text-secondary); font-size:0.78rem;">${esc(d.from)}</span>
@@ -276,7 +276,7 @@ function renderTripTab(trip: any, tripIsEditable: boolean): string {
                 ? `
             <div style="text-align:center; margin-bottom: 24px;">
                 <button class="btn-ghost open-manual-settle-btn" data-trip-id="${esc(trip.id)}" type="button"
-                    style="background: var(--card-bg); border:1px solid rgba(0,0,0,0.08); color: var(--text-brand-navy); padding: 10px 24px; border-radius: 999px; font-weight:800; font-size:0.85rem; cursor:pointer; box-shadow: 0 4px 12px rgba(0,45,91,0.05);">
+                    style="background: var(--card-bg); border:1px solid var(--border-subtle); color: var(--text-brand-navy); padding: 10px 24px; border-radius: 999px; font-weight:800; font-size:0.85rem; cursor:pointer; box-shadow: 0 4px 12px rgba(0,45,91,0.05);">
                     ${t('settlement.manualSettleOpenBtn')}
                 </button>
             </div>
@@ -355,7 +355,7 @@ function renderHistoryTab(trip: any, tripIsEditable: boolean): string {
                                         const toPerson = Object.keys(s.splits || {})[0] || '?';
                                         const fromInitial = (s.who || '?').charAt(0).toUpperCase();
                                         return `
-                                        <div style="display:flex; align-items:center; gap:14px; padding:12px 14px; background: var(--card-bg); border:1px solid rgba(0,0,0,0.06); border-radius:14px;">
+                                        <div style="display:flex; align-items:center; gap:14px; padding:12px 14px; background: var(--card-bg); border:1px solid var(--border-subtle); border-radius:14px;">
                                             <div style="width:34px; height:34px; border-radius:50%; background:rgba(52,199,89,0.12); color:#1a6b3c; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:0.95rem; flex-shrink:0;">${esc(fromInitial)}</div>
                                             <div style="flex:1; min-width:0;">
                                                 <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
@@ -431,14 +431,14 @@ function renderGlobalTab(): string {
                             ? 'rgba(52,199,89,0.12)'
                             : isDebt
                               ? 'rgba(255,59,48,0.1)'
-                              : 'rgba(0,0,0,0.04)';
+                              : 'var(--surface-subtle)';
                         const avatarColor = isCredit
                             ? '#1a6b3c'
                             : isDebt
                               ? '#a30000'
-                              : 'rgba(0,0,0,0.5)';
+                              : 'var(--text-secondary)';
                         return `
-                        <div style="display:flex; flex-direction:column; gap:10px; padding:12px 14px; background: var(--card-bg); border:1px solid rgba(0,0,0,0.06); border-radius:14px;">
+                        <div style="display:flex; flex-direction:column; gap:10px; padding:12px 14px; background: var(--card-bg); border:1px solid var(--border-subtle); border-radius:14px;">
                             <div style="display:flex; align-items:center; gap:14px;">
                                 <div style="width:34px; height:34px; border-radius:50%; background: ${avatarBg}; color: ${avatarColor}; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:0.95rem; flex-shrink:0;">
                                     ${esc(person.charAt(0).toUpperCase())}
@@ -480,7 +480,7 @@ function renderGlobalTab(): string {
                     ${globalDebts
                         .map(
                             (d) => `
-                        <div style="display:flex; align-items:center; gap:14px; padding:14px 16px; background: var(--card-bg); border:1px solid rgba(0,0,0,0.06); border-radius:16px;">
+                        <div style="display:flex; align-items:center; gap:14px; padding:14px 16px; background: var(--card-bg); border:1px solid var(--border-subtle); border-radius:16px;">
                             <div style="flex:1; min-width:0;">
                                 <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
                                     <span style="font-weight:700; color:var(--text-secondary); font-size:0.78rem;">${esc(d.from)}</span>
