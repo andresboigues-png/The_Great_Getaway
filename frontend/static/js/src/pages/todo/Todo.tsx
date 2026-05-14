@@ -36,7 +36,7 @@ import {
     getMarkedPlaces,
     removeMarkedPlace,
     toggleMarkedPlaceForAI,
-    setAllMarkedPlacesForAI,
+    setMarkedPlacesForAIByIds,
     clearAllMarkedPlaces,
 } from '../../markedPlaces.js';
 import { openNewTripModal } from '../../modals.js';
@@ -611,20 +611,6 @@ export function Todo() {
      *  Confirmation modal protects against accidental wipe — the
      *  message includes the count so the user knows what they'll
      *  lose before tapping through. */
-    /** Bulk Select / Unselect all for AI consideration.
-     *
-     *  When the user has 20+ items on the to-do list, ticking each row
-     *  by hand for an AI generation is friction. This flips every
-     *  item's `forAI` flag in one operation. Mode toggles with state:
-     *  if any item is unticked → "select all" turns them on; if all
-     *  are ticked → "unselect all" turns them off. */
-    const handleToggleAllForAI = () => {
-        const allTicked = todoItems.length > 0 && tickedCount === todoItems.length;
-        setAllMarkedPlacesForAI(activeTrip, !allTicked);
-        emit(EVENTS.STATE_CHANGED);
-        upsertTrip(activeTrip);
-    };
-
     const handleClearAll = () => {
         showConfirmModal({
             title: t('todo.clearConfirmTitle'),
@@ -762,6 +748,26 @@ export function Todo() {
         groups.set('*', filteredItems);
     }
 
+    /** "Mark all for AI" applies to the VISIBLE list — not the whole
+     *  to-do. User feedback: when the user has filtered to a single
+     *  type (e.g. Restaurants), tapping "Mark all" should mark only
+     *  the visible restaurants, not also the hidden hotels and
+     *  sights. The visible-ticked count drives both the click
+     *  behaviour and the button label flip below. */
+    const visibleTickedCount = filteredItems.filter((p) => p.forAI).length;
+    const allVisibleTicked =
+        filteredItems.length > 0 && visibleTickedCount === filteredItems.length;
+    const handleToggleAllForAI = () => {
+        if (filteredItems.length === 0) return;
+        setMarkedPlacesForAIByIds(
+            activeTrip,
+            filteredItems.map((p) => p.placeId),
+            !allVisibleTicked,
+        );
+        emit(EVENTS.STATE_CHANGED);
+        upsertTrip(activeTrip);
+    };
+
     // ── LIST STATE ──────────────────────────────────────────────────
     return (
         <div style={{ maxWidth: '760px', margin: '0 auto' }}>
@@ -893,13 +899,21 @@ export function Todo() {
                 <span
                     dangerouslySetInnerHTML={{ __html: t('todo.explainer') }}
                 />
-                {tripIsEditable && (
+                {tripIsEditable && filteredItems.length > 0 && (
                     <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                        {/* The button applies to the CURRENTLY VISIBLE
+                            list (filteredItems), not the whole to-do.
+                            Label + tooltip flip based on whether every
+                            visible item is already ticked — so a
+                            user filtering to "Restaurants" sees
+                            "Mark all" until all visible restaurants
+                            are ticked, then it flips to "Unmark all".
+                            Hidden rows are untouched. */}
                         <button
                             type="button"
                             onClick={handleToggleAllForAI}
                             title={
-                                tickedCount === todoItems.length
+                                allVisibleTicked
                                     ? t('todo.unselectAllForAiTooltip')
                                     : t('todo.selectAllForAiTooltip')
                             }
@@ -923,7 +937,7 @@ export function Todo() {
                                 e.currentTarget.style.borderColor = 'rgba(155, 89, 182, 0.38)';
                             }}
                         >
-                            {tickedCount === todoItems.length
+                            {allVisibleTicked
                                 ? t('todo.unselectAllForAiBtn')
                                 : t('todo.selectAllForAiBtn')}
                         </button>

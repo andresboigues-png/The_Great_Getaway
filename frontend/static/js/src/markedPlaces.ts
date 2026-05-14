@@ -178,6 +178,27 @@ export function setAllMarkedPlacesForAI(trip: any, value: boolean): void {
     }
 }
 
+/** Set the AI tick on a SUBSET of to-do-list entries, identified
+ *  by placeId. Powers the "Mark all for AI" button when the user
+ *  has narrowed the visible list via the Show / Type filters —
+ *  ticking should only apply to what they're actually looking at,
+ *  not to hidden rows. Like the bulk-all variant above, only
+ *  touches forManual rows. Items whose placeId isn't in the set
+ *  are left exactly as they were. */
+export function setMarkedPlacesForAIByIds(
+    trip: any,
+    placeIds: Iterable<string>,
+    value: boolean,
+): void {
+    if (!trip || !Array.isArray(trip.markedPlaces)) return;
+    const targetIds = new Set(placeIds);
+    for (const p of trip.markedPlaces) {
+        if (!p.forManual) continue;
+        if (!targetIds.has(p.placeId)) continue;
+        p.forAI = !!value;
+    }
+}
+
 /** Phase G slice 2 — verified-place item from a Gemini-enriched
  *  itinerary. The shape emitted by `_enrich_itinerary` server-side
  *  (see routes/integrations.py). */
