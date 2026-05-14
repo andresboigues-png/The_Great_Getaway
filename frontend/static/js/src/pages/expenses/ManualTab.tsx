@@ -378,14 +378,14 @@ export function ManualTab() {
     return (
         <div>
             <div
-                className="card glass"
+                className="card glass manual-expense-card"
                 style={{
                     maxWidth: 600,
                     margin: '0 auto',
                     width: '100%',
                     borderRadius: 44,
-                    border: '1px solid rgba(255,255,255,0.4)',
-                    background: 'rgba(255,255,255,0.15)',
+                    border: '1px solid var(--glass-border)',
+                    background: 'var(--glass-bg)',
                     backdropFilter: 'blur(25px)',
                     padding: 48,
                     boxShadow: '0 40px 100px rgba(0,0,0,0.25)',
@@ -396,7 +396,7 @@ export function ManualTab() {
                     style={{
                         fontSize: '2.2rem',
                         marginBottom: 32,
-                        color: '#000000',
+                        color: 'var(--text-primary)',
                         letterSpacing: '-0.06em',
                         fontWeight: 800,
                         textAlign: 'center',
@@ -754,7 +754,7 @@ export function ManualTab() {
                                 marginBottom: 16,
                                 fontSize: '0.9rem',
                                 fontWeight: 800,
-                                color: '#000000',
+                                color: 'var(--text-primary)',
                                 letterSpacing: '-0.02em',
                             }}
                         >
@@ -772,7 +772,7 @@ export function ManualTab() {
                                     padding: 14,
                                     borderRadius: 16,
                                     background: 'rgba(255,255,255,0.4)',
-                                    color: '#000000',
+                                    color: 'var(--text-primary)',
                                     fontWeight: 600,
                                     border: '1px solid rgba(0,0,0,0.05)',
                                     boxSizing: 'border-box',

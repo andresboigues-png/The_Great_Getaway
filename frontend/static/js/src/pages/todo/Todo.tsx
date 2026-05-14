@@ -898,12 +898,12 @@ export function Todo() {
                 visual distance between explanation and action. */}
             <div
                 style={{
-                    background: 'rgba(155, 89, 182, 0.07)',
-                    border: '1px solid rgba(155, 89, 182, 0.18)',
+                    background: 'var(--accent-purple-bg-soft)',
+                    border: '1px solid var(--accent-purple-border-soft)',
                     borderRadius: '12px',
                     padding: '12px 14px',
                     fontSize: '0.84rem',
-                    color: '#3d2a5c',
+                    color: 'var(--text-primary)',
                     lineHeight: 1.5,
                     marginBottom: '16px',
                     display: 'flex',
@@ -932,24 +932,23 @@ export function Todo() {
                                     ? t('todo.unselectAllForAiTooltip')
                                     : t('todo.selectAllForAiTooltip')
                             }
+                            // Uses the theme-aware accent-purple tokens
+                            // so the button reads as a coloured pill on
+                            // both themes — light mode: dark-purple text
+                            // on soft purple bg; dark mode: bright purple
+                            // text on the same translucent bg with the
+                            // dark fallback handling contrast.
+                            className="todo-mark-all-btn"
                             style={{
                                 padding: '7px 14px',
                                 borderRadius: '999px',
                                 fontSize: '0.78rem',
                                 fontWeight: 700,
-                                background: 'rgba(155, 89, 182, 0.14)',
-                                color: '#6d28a0',
-                                border: '1px solid rgba(155, 89, 182, 0.38)',
+                                background: 'var(--accent-purple-bg-soft)',
+                                color: 'var(--accent-purple)',
+                                border: '1px solid var(--accent-purple-border-soft)',
                                 cursor: 'pointer',
                                 transition: 'background 0.18s ease, border-color 0.18s ease',
-                            }}
-                            onMouseEnter={(e) => {
-                                e.currentTarget.style.background = 'rgba(155, 89, 182, 0.22)';
-                                e.currentTarget.style.borderColor = 'rgba(155, 89, 182, 0.6)';
-                            }}
-                            onMouseLeave={(e) => {
-                                e.currentTarget.style.background = 'rgba(155, 89, 182, 0.14)';
-                                e.currentTarget.style.borderColor = 'rgba(155, 89, 182, 0.38)';
                             }}
                         >
                             {allVisibleTicked

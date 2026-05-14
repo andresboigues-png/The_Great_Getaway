@@ -7648,3 +7648,60 @@ main#app-container.nav-anim-backward {
     background: var(--card-bg);
     color: var(--text-primary);
 }
+
+/* Mark-all-for-AI pill on the to-do explainer card. Lives in CSS
+   instead of inline mouse handlers so the hover state can use the
+   theme-aware accent-purple variables (the inline handlers used
+   hardcoded rgba(155,89,182,…) which we replaced with tokens). */
+.todo-mark-all-btn:hover,
+.todo-mark-all-btn:focus-visible {
+    background: var(--accent-purple-bg-soft);
+    /* Slightly stronger border on hover for affordance. */
+    border-color: var(--accent-purple) !important;
+    filter: brightness(1.08);
+}
+.todo-mark-all-btn:focus-visible {
+    outline: 2px solid var(--accent-purple);
+    outline-offset: 2px;
+}
+
+/* Form classes that hardcode dark-on-light values for the light
+   theme. They look right on the white expense form card (Manual
+   Tab) and the light expense-history filter row — but render as
+   black-on-black in dark mode. Override here so the same classes
+   work on both themes without touching the underlying components. */
+:root[data-theme="dark"] .form-label-light {
+    /* Light grey for "secondary label" tone on dark — same role as
+       the original rgba(0,0,0,0.62) on light. */
+    color: rgba(255, 255, 255, 0.7);
+}
+:root[data-theme="dark"] .glass-input-light {
+    background: var(--card-bg-elevated);
+    color: var(--text-primary);
+    border-color: var(--border-subtle);
+}
+:root[data-theme="dark"] .glass-input-light:focus-visible {
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.28);
+}
+:root[data-theme="dark"] .glass-input-light::placeholder {
+    color: rgba(255, 255, 255, 0.45);
+}
+
+:root[data-theme="dark"] .filter-input {
+    background: var(--card-bg-elevated);
+    color: var(--text-primary);
+    border-color: var(--border-subtle);
+}
+:root[data-theme="dark"] .filter-input::placeholder {
+    color: rgba(255, 255, 255, 0.45);
+}
+
+/* "Add Expense" / form titles that use .card-title sometimes get an
+   inline color, sometimes not. In dark mode, default the title text
+   to --text-primary so the heading reads clearly against the dark
+   card surface. Inline `color: var(--text-primary)` already wins
+   where present; this is a baseline for everything else. */
+:root[data-theme="dark"] .card-title {
+    color: var(--text-primary);
+}
