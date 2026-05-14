@@ -248,12 +248,25 @@ def _enrich_itinerary(itinerary: list, destination: str) -> list:
     cache de-dupes lookups (the LLM often mentions the same landmark
     in multiple slots — we pay the API once).
 
-    No-op when GOOGLE_MAPS_API_KEY is unset — items stay as strings,
+    No-op when no Maps key is configured — items stay as strings,
     frontend's renderSlotBody falls through to the legacy text-bullet
     rendering. Lets dev / self-hosted setups skip the Maps integration
     without breaking anything; verification is value-add, not structural.
+
+    Key resolution: prefer `GOOGLE_MAPS_SERVER_KEY` (a server-only key
+    with no HTTP referrer restriction — the right shape for outbound
+    POSTs to places.googleapis.com) and fall back to the legacy
+    `GOOGLE_MAPS_API_KEY` if the server key isn't set. The legacy var
+    is still passed through the index.html template for the browser-
+    side Maps JS API, where it SHOULD remain referrer-restricted —
+    splitting them lets the public key stay locked down while the
+    server side can call Places without the empty-referrer rejection.
     """
-    api_key = os.getenv("GOOGLE_MAPS_API_KEY") or ""
+    api_key = (
+        os.getenv("GOOGLE_MAPS_SERVER_KEY")
+        or os.getenv("GOOGLE_MAPS_API_KEY")
+        or ""
+    )
     if not api_key:
         return itinerary
 
