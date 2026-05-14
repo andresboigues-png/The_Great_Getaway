@@ -8031,6 +8031,27 @@ main#app-container.nav-anim-backward {
     background: rgba(255, 255, 255, 0.06);
 }
 
+/* General sub-tab pill wrapper (Settings → General). Base has
+   `background: rgba(255, 255, 255, 0.72)` — bright translucent
+   white that stays bright on top of the dark page. The inactive
+   tab labels then read as low-contrast grey-on-white. Flip the
+   wrapper to a frosted-dark surface so inactive tabs gain
+   accent-blue text per the rest of the dark-mode UI; the active
+   tab keeps its accent-blue gradient (theme-neutral). */
+:root[data-theme="dark"] .general-subtabs {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.10);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+}
+:root[data-theme="dark"] .general-subtab:not(.is-active):not(.is-coming-soon) {
+    color: var(--accent-blue);
+}
+:root[data-theme="dark"] .general-subtab:hover:not(.is-active):not(.is-coming-soon),
+:root[data-theme="dark"] .general-subtab:active:not(.is-active):not(.is-coming-soon),
+:root[data-theme="dark"] .general-subtab:focus-visible:not(.is-active):not(.is-coming-soon) {
+    background: rgba(10, 132, 255, 0.14);
+}
+
 /* Achievement pills on Profile — inline white bg + faint blue
    border. Flip both via attribute selector so the inline style
    doesn't win specificity. (Could also restructure the inline

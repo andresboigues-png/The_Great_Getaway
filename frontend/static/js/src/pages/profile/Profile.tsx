@@ -744,54 +744,55 @@ function ProfileInfoSection({
                 ) : null}
             </div>
 
+            {/* Profile stats — visual identity shared across all 4
+                values. Each row reads `{count}  {accent-blue label}`.
+                The blue label colour comes from --accent-blue-deep
+                so it pops on both light + dark. Friends is an extra
+                button (interactive); the other three are read-only
+                spans but adopt the same visual rhythm. */}
             <div
                 className="profile-stats"
                 style={{ display: 'flex', gap: 32, marginBottom: 24, flexWrap: 'wrap' }}
             >
-                <div style={{ textAlign: 'left' }}>
-                    <span style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                        {trips.length}
-                    </span>
-                    <span
-                        style={{ fontSize: '1.1rem', color: 'var(--text-primary)', fontWeight: 400, marginLeft: 4 }}
-                    >
-                        {tn('profile.publicTripsLabel', trips.length)}
-                    </span>
-                </div>
-                <div style={{ textAlign: 'left' }}>
-                    <span style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                        {uniqueCountries.length}
-                    </span>
-                    <span
-                        style={{ fontSize: '1.1rem', color: 'var(--text-primary)', fontWeight: 400, marginLeft: 4 }}
-                    >
-                        {tn('profile.countriesLabel', uniqueCountries.length)}
-                    </span>
-                </div>
-                <div style={{ textAlign: 'left' }}>
-                    <span style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                        {followers}
-                    </span>
-                    <span
-                        style={{ fontSize: '1.1rem', color: 'var(--text-primary)', fontWeight: 400, marginLeft: 4 }}
-                    >
-                        followers
-                    </span>
-                </div>
-                <div style={{ textAlign: 'left' }}>
-                    <span style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                        {followSnap.following}
-                    </span>
-                    <span
-                        style={{ fontSize: '1.1rem', color: 'var(--text-primary)', fontWeight: 400, marginLeft: 4 }}
-                    >
-                        following
-                    </span>
-                </div>
+                <ProfileStat
+                    count={trips.length}
+                    label={tn('profile.publicTripsLabel', trips.length)}
+                />
+                <ProfileStat
+                    count={uniqueCountries.length}
+                    label={tn('profile.countriesLabel', uniqueCountries.length)}
+                />
+                <ProfileStat count={followers} label="followers" />
+                <ProfileStat count={followSnap.following} label="following" />
                 {isOwnProfile ? <FriendsStat /> : null}
             </div>
 
             <BioBlock isOwnProfile={isOwnProfile} user={user} />
+        </div>
+    );
+}
+
+
+// ── Shared stat row component — `{number} {accent-blue label}`. ───
+// Used by trips / countries / followers / following. Friends stat
+// is a separate component because it's a clickable button (opens
+// the friends modal) — but it adopts the same visual rhythm via
+// the same inner span styles.
+function ProfileStat({ count, label }: { count: number; label: string }) {
+    return (
+        <div style={{ textAlign: 'left', display: 'inline-flex', alignItems: 'baseline', gap: 4 }}>
+            <span style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                {count}
+            </span>
+            <span
+                style={{
+                    fontSize: '1.1rem',
+                    color: 'var(--accent-blue-deep)',
+                    fontWeight: 600,
+                }}
+            >
+                {label}
+            </span>
         </div>
     );
 }
@@ -854,10 +855,10 @@ function FriendsStat() {
             <span
                 style={{
                     fontSize: '1.1rem',
-                    color: '#005bb8',
+                    color: 'var(--accent-blue-deep)',
                     fontWeight: 600,
                     textDecoration: 'underline',
-                    textDecorationColor: 'rgba(0,113,227,0.25)',
+                    textDecorationColor: 'rgba(0,113,227,0.32)',
                     textUnderlineOffset: 3,
                 }}
             >
