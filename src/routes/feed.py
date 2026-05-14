@@ -19,7 +19,7 @@ from typing import Callable
 from flask import Blueprint, jsonify, request
 
 from auth import current_user_id, require_auth
-from database import get_db
+from database import get_db, retry_on_lock
 from extensions import limiter
 from observability import get_logger
 
@@ -863,6 +863,7 @@ def explore_feed():
 @bp.route("/api/feed/share", methods=["POST"])
 @require_auth
 @limiter.limit("30/minute")
+@retry_on_lock()
 def share_trip_to_feed():
     """Create a feed_post (original share — repost_of_post_id NULL) for
     the caller's trip. Idempotent: re-sharing returns the existing
@@ -947,6 +948,7 @@ def share_status_for_trip(trip_id):
 @bp.route("/api/feed/share/<int:post_id>", methods=["DELETE"])
 @require_auth
 @limiter.limit("30/minute")
+@retry_on_lock()
 def unshare_feed_post(post_id):
     """Delete the caller's own share (and cascade-delete any reposts of
     it). Author-only — silently no-ops on someone else's post
@@ -974,6 +976,7 @@ def unshare_feed_post(post_id):
 @bp.route("/api/feed/repost/<int:post_id>", methods=["POST"])
 @require_auth
 @limiter.limit("30/minute")
+@retry_on_lock()
 def repost_feed_post(post_id):
     """Repost an existing feed_post. Creates a new feed_post pointing
     at the original via repost_of_post_id. Idempotent per (caller,
@@ -1011,6 +1014,7 @@ def repost_feed_post(post_id):
 @bp.route("/api/feed/like/<event_id>", methods=["POST"])
 @require_auth
 @limiter.limit("120/minute")
+@retry_on_lock()
 def toggle_feed_like(event_id):
     """Toggle the caller's like on a feed event. Returns the new state
     + the new global count. Notification fires only on the +1
@@ -1052,6 +1056,7 @@ def toggle_feed_like(event_id):
 @bp.route("/api/feed/bookmark/<event_id>", methods=["POST"])
 @require_auth
 @limiter.limit("120/minute")
+@retry_on_lock()
 def toggle_feed_bookmark(event_id):
     """Toggle the caller's bookmark on a feed event. Personal — there's
     no global count exposed (deliberate; bookmarks are private).
@@ -1118,6 +1123,7 @@ def list_feed_comments(event_id):
 @bp.route("/api/feed/comment/<event_id>", methods=["POST"])
 @require_auth
 @limiter.limit("60/minute")
+@retry_on_lock()
 def add_feed_comment(event_id):
     """Append a comment to a feed event. body capped at 500 chars
     (silently truncated, not 400'd, so a copy-paste of a giant message
@@ -1167,6 +1173,7 @@ def add_feed_comment(event_id):
 @bp.route("/api/feed/comment/<int:comment_id>", methods=["DELETE"])
 @require_auth
 @limiter.limit("60/minute")
+@retry_on_lock()
 def delete_feed_comment(comment_id):
     """Delete a comment. Author-only — silently no-ops on someone else's
     comment to keep DELETE idempotent."""

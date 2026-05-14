@@ -33,7 +33,7 @@ reads from it post-Model-B.
 from flask import Blueprint, jsonify, request
 
 from auth import current_user_id, require_auth
-from database import get_db
+from database import get_db, retry_on_lock
 from extensions import limiter
 from helpers import ensure_user_exists
 from social import mutuals_of
@@ -125,6 +125,7 @@ def _follow(cursor, follower_id: str, followee_id: str, source: str) -> bool:
 @bp.route("/api/friends/add", methods=["POST"])
 @limiter.limit("30 per minute")
 @require_auth
+@retry_on_lock()
 def add_friend():
     """Façade for "follow this user". The body still ships `friend_id`
     so existing clients (which haven't migrated to /api/follows/<id>)
@@ -150,6 +151,7 @@ def add_friend():
 @bp.route("/api/friends/accept", methods=["POST"])
 @limiter.limit("30 per minute")
 @require_auth
+@retry_on_lock()
 def accept_friend():
     """Façade for "follow them back". Pre-Model-B this was the accept
     half of the friend-request dance; under Model B it just records a
@@ -198,6 +200,7 @@ def reject_friend():
 @bp.route("/api/friends/remove", methods=["POST"])
 @limiter.limit("30 per minute")
 @require_auth
+@retry_on_lock()
 def remove_friend():
     """Unfollow MY side of the pair. The other party may continue to
     follow me — that's the Twitter/Instagram unfriend semantic, and

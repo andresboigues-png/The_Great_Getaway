@@ -9,7 +9,7 @@ just by guessing an id.
 from flask import Blueprint, jsonify, request
 
 from auth import current_user_id, require_auth
-from database import get_db
+from database import get_db, retry_on_lock
 
 
 bp = Blueprint("budgets", __name__)
@@ -17,6 +17,7 @@ bp = Blueprint("budgets", __name__)
 
 @bp.route("/api/budgets", methods=["POST"])
 @require_auth
+@retry_on_lock()
 def upsert_budget():
     """Create or update a single budget."""
     data = request.json or {}
@@ -42,6 +43,7 @@ def upsert_budget():
 
 @bp.route("/api/budgets/<budget_id>", methods=["DELETE"])
 @require_auth
+@retry_on_lock()
 def delete_budget(budget_id):
     """Delete a single budget. Owner-of-budget only."""
     user_id = current_user_id()

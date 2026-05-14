@@ -9,7 +9,7 @@ in the message body.
 from flask import Blueprint, jsonify, request
 
 from auth import current_user_id, require_auth
-from database import get_db
+from database import get_db, retry_on_lock
 from extensions import limiter
 
 
@@ -35,6 +35,7 @@ def list_notifications():
 
 @bp.route("/api/notifications/read", methods=["POST"])
 @require_auth
+@retry_on_lock()
 def read_notifications():
     """Mark all notifications as read for a user."""
     user_id = current_user_id()
@@ -48,6 +49,7 @@ def read_notifications():
 @bp.route("/api/notifications/trip_public", methods=["POST"])
 @limiter.limit("5 per hour")
 @require_auth
+@retry_on_lock()
 def notify_trip_public():
     """Notify friends that a user made a trip public.
 

@@ -1,17 +1,37 @@
-import sqlite3
+import functools
+import logging
 import os
+import random
+import sqlite3
+import time
+
+logger = logging.getLogger(__name__)
 
 # DB_PATH is read on every call so tests can point at a temp DB by setting
 # the env var before init_db() runs. Default keeps existing behavior.
 def _db_path():
     return os.getenv("GG_DB_PATH", "travel_planner.db")
 
+
+# busy_timeout — milliseconds SQLite will spin waiting for a contended
+# lock before raising `database is locked`. Bumped from 5s → 30s on
+# 2026-05-14 after a wave of 500s on /api/sync + /api/friends/add: a
+# fully-loaded sync_data() transaction on PA's networked filesystem can
+# easily take >5s, blocking any concurrent writer (friend add, follow,
+# expense upsert) past the previous 5s ceiling. 30s comfortably covers
+# the upper bound of a worst-case sync write while still bounding the
+# worst-case user-facing latency. Companion change: `sync_data` now
+# commits per-table so the writer lock is released between sections,
+# making the 30s headroom rarely needed in practice.
+BUSY_TIMEOUT_MS = 30_000
+
+
 def get_db():
     conn = sqlite3.connect(_db_path())
     conn.row_factory = sqlite3.Row
     # FIXING_ROADMAP §1.4: SQLite hardening.
     #
-    # `busy_timeout=5000` gives any contended op 5 seconds of
+    # `busy_timeout` gives any contended op N milliseconds of
     # exponential-backoff retry before returning the lock error.
     # Without this, the default 0ms wait raises `database is locked`
     # the moment two writers meet — common under our 15s polling
@@ -40,8 +60,84 @@ def get_db():
     #   pointing at deleted trips, etc.) would cause any update
     #   touching such rows to throw. Tracked as a follow-up in the
     #   roadmap — needs an orphan-row audit + cleanup migration first.
-    conn.execute("PRAGMA busy_timeout=5000")
+    conn.execute(f"PRAGMA busy_timeout={BUSY_TIMEOUT_MS}")
     return conn
+
+
+def _is_locked_error(exc: BaseException) -> bool:
+    """True for the specific OperationalError flavour SQLite raises when
+    a write can't acquire the lock within busy_timeout. We narrow to
+    this string so other OperationalErrors (disk full, schema drift,
+    etc.) propagate immediately instead of retrying pointlessly."""
+    if not isinstance(exc, sqlite3.OperationalError):
+        return False
+    msg = str(exc).lower()
+    return "database is locked" in msg or "database is busy" in msg
+
+
+def retry_on_lock(max_attempts: int = 4, base_delay: float = 0.05, max_delay: float = 1.5):
+    """Decorator: retry the wrapped function when SQLite raises
+    `database is locked`. Other OperationalErrors propagate
+    immediately.
+
+    Rationale (2026-05-14 incident): even with `busy_timeout=30s`,
+    PA's networked filesystem can serialise a long sync_data() past
+    that ceiling, causing concurrent writers to 500. Retrying the
+    failed handler at the route boundary catches the residual.
+
+    Default budget — 4 attempts × exponential backoff (0.05s, 0.1s,
+    0.2s, 0.4s, capped at 1.5s) + jitter — gives ~0.75s of total
+    sleep time worst-case, on top of busy_timeout's wait. Total
+    wall-clock cap per request ~30s + ~0.75s = ~31s, still inside
+    PA's default 60s WSGI timeout.
+
+    Apply BENEATH @require_auth (auth shouldn't be re-checked) and
+    BENEATH @limiter.limit (rate-limit shouldn't double-count
+    retries). Recommended decorator stack:
+
+        @bp.route(...)
+        @limiter.limit(...)
+        @require_auth
+        @retry_on_lock()
+        def handler(...): ...
+
+    The wrapped function should be idempotent — almost all of our
+    write paths already are (INSERT OR IGNORE, ON CONFLICT UPDATE,
+    notification-deduplication guards, etc.). Non-idempotent side
+    effects outside the DB transaction (sending emails, hitting
+    paid APIs) would be doubled on retry; none of our current
+    routes do that.
+
+    Args:
+        max_attempts: total attempts including the first. 4 means
+            1 initial + up to 3 retries.
+        base_delay: seconds slept before the first retry. Each
+            subsequent retry doubles, capped at max_delay.
+        max_delay: cap on per-attempt sleep so a long backoff
+            doesn't blow past PA's WSGI timeout.
+    """
+    def deco(fn):
+        @functools.wraps(fn)
+        def wrapped(*args, **kwargs):
+            attempt = 0
+            while True:
+                try:
+                    return fn(*args, **kwargs)
+                except sqlite3.OperationalError as exc:
+                    attempt += 1
+                    if not _is_locked_error(exc) or attempt >= max_attempts:
+                        raise
+                    delay = min(base_delay * (2 ** (attempt - 1)), max_delay)
+                    # Small jitter to spread out a thundering herd of
+                    # retrying requests that all hit the same lock.
+                    delay += random.uniform(0, delay * 0.25)
+                    logger.warning(
+                        "db locked on %s (attempt %d/%d), retrying in %.3fs",
+                        fn.__name__, attempt, max_attempts, delay,
+                    )
+                    time.sleep(delay)
+        return wrapped
+    return deco
 
 def _safe_alter(cursor, ddl):
     """Run a schema-add ALTER, swallowing only the "this column/table

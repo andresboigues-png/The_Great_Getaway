@@ -13,7 +13,7 @@ Endpoints:
 from flask import Blueprint, jsonify, request
 
 from auth import current_user_id, require_auth
-from database import get_db
+from database import get_db, retry_on_lock
 
 
 bp = Blueprint("settings", __name__)
@@ -21,6 +21,7 @@ bp = Blueprint("settings", __name__)
 
 @bp.route("/api/categories", methods=["POST"])
 @require_auth
+@retry_on_lock()
 def sync_categories():
     """Replace the category list for a user."""
     data = request.json or {}
@@ -43,6 +44,7 @@ def sync_categories():
 
 @bp.route("/api/profile/update", methods=["POST"])
 @require_auth
+@retry_on_lock()
 def update_profile():
     """Update user bio, status, home currency, and/or profile picture.
     Any field omitted in the payload is left unchanged so callers can

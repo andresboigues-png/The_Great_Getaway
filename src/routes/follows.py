@@ -30,7 +30,7 @@ round-trip (see routes/public.py + routes/auth.py).
 from flask import Blueprint, jsonify
 
 from auth import current_user_id, require_auth
-from database import get_db
+from database import get_db, retry_on_lock
 from extensions import limiter
 from helpers import ensure_user_exists
 from observability import get_logger, log_extra
@@ -71,6 +71,7 @@ def is_following(cursor, follower_id: str, followee_id: str) -> bool:
 @bp.route("/api/follows/<user_id>", methods=["POST"])
 @require_auth
 @limiter.limit("60/minute")
+@retry_on_lock()
 def follow_user(user_id):
     """Start following `user_id`. Idempotent — re-POSTing while
     already following is a no-op (no error, no duplicate notification).
@@ -141,6 +142,7 @@ def follow_user(user_id):
 @bp.route("/api/follows/<user_id>", methods=["DELETE"])
 @require_auth
 @limiter.limit("60/minute")
+@retry_on_lock()
 def unfollow_user(user_id):
     """Stop following `user_id`. Idempotent — DELETE on a non-existent
     follow is a no-op, returns counts so the UI can repaint anyway."""

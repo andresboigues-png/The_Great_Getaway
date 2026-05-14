@@ -17,7 +17,7 @@ from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 
 from auth import bump_user_jti, current_user_id, issue_token, require_auth
-from database import get_db
+from database import get_db, retry_on_lock
 from extensions import limiter
 
 
@@ -64,6 +64,7 @@ def user_status():
 
 @bp.route("/api/auth/google", methods=["POST"])
 @limiter.limit("10 per minute")
+@retry_on_lock()
 def google_auth():
     """Verify Google ID Token and manage user session."""
     # Support both 'token' and 'credential' keys
@@ -178,6 +179,7 @@ def google_auth():
 
 @bp.route("/api/auth/logout", methods=["POST"])
 @require_auth
+@retry_on_lock()
 def logout():
     """Server-side logout — bumps the user's `token_jti` so every
     JWT we've ever issued them is rejected on the next request.

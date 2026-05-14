@@ -18,7 +18,7 @@ from achievements import (
     notify_achievements,
 )
 from auth import current_user_id, require_auth
-from database import get_db
+from database import get_db, retry_on_lock
 from extensions import limiter
 from helpers import (
     can_edit_expenses,
@@ -37,8 +37,24 @@ bp = Blueprint("data", __name__)
 @bp.route("/api/sync", methods=["POST"])
 @limiter.limit("30 per minute")
 @require_auth
+@retry_on_lock()
 def sync_data():
-    """Sync client-side STATE to the database for a logged-in user."""
+    """Sync client-side STATE to the database for a logged-in user.
+
+    2026-05-14: commits per-section instead of one giant terminal
+    commit. The frontend polls /api/sync every 15s, and on PA's
+    networked filesystem a single transaction covering trips +
+    archived_trips + their expenses + active expenses + categories
+    + budgets + trip_days could easily run >5s for users with
+    accumulated state, blocking concurrent writers (friend add,
+    follow, expense upsert) past the previous busy_timeout. Now
+    each table's worth of writes commits before the next starts,
+    releasing the writer lock between sub-batches. Partial-sync
+    semantics are unchanged in practice — the frontend re-sends
+    the full payload on every 15s tick, so any rolled-back
+    section reconciles on the next poll. retry_on_lock wraps the
+    whole handler as a belt-and-braces safety net in case any
+    individual section still contends past busy_timeout=30s."""
     data = request.json or {}
     user_id = current_user_id()
     trips = data.get("trips", [])
@@ -117,6 +133,11 @@ def sync_data():
                   t.get('coverUrl')))
             ensure_owner_member_row(cursor, t['id'], user_id)
 
+        # Commit trips section before moving on — releases the writer
+        # lock so concurrent friend/follow/expense writers don't wait
+        # on the full sync transaction.
+        conn.commit()
+
         # Sync Archived Trips — same editor-set gate as the active
         # trips block (FIXING_ROADMAP §1.10).
         archived_trips = data.get("archived_trips", [])
@@ -183,6 +204,10 @@ def sync_data():
                             receipt_url=excluded.receipt_url
                     ''', (e['id'], t['id'], e['who'], e['categoryId'], e['label'], e['date'], e['country'], e['value'], e['currency'], e['euroValue'], e.get('receiptUrl')))
 
+        # Commit archived-trips section (plus the inline archived
+        # expenses) before moving to active expenses.
+        conn.commit()
+
         # Sync Expenses — gate per-row. Planners and Budgeteers may write;
         # Relaxers blocked. Without this the bulk path bypasses the
         # per-expense delta gate.
@@ -214,6 +239,9 @@ def sync_data():
                     receipt_url=excluded.receipt_url
             ''', (e['id'], e['tripId'], e['who'], e['categoryId'], e['label'], e['date'], e['country'], e['value'], e['currency'], e['euroValue'], e.get('receiptUrl')))
 
+        # Commit active-expenses section before categories.
+        conn.commit()
+
         # Sync Categories
         categories = data.get("categories", [])
         if categories:
@@ -225,6 +253,9 @@ def sync_data():
                     ON CONFLICT(id, user_id) DO UPDATE SET
                         name=excluded.name, icon=excluded.icon, color=excluded.color
                 ''', (cat['id'], user_id, cat['name'], cat.get('icon', ''), cat.get('color', '#007aff')))
+
+        # Commit categories section before budgets.
+        conn.commit()
 
         # Sync Budgets — replace mode (delete user's budgets not in
         # the current list, then upsert the rest).
@@ -242,6 +273,9 @@ def sync_data():
                 ON CONFLICT(id) DO UPDATE SET
                     label=excluded.label, amount=excluded.amount, currency=excluded.currency, trip_id=excluded.trip_id
             ''', (b['id'], user_id, b.get('tripId'), b.get('label', ''), b.get('amount', 0), b.get('currency', 'EUR')))
+
+        # Commit budgets section before trip days.
+        conn.commit()
 
         # Sync Trip Days
         trip_days = data.get("trip_days", [])

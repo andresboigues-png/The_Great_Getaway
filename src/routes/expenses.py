@@ -9,7 +9,7 @@ itinerary.
 from flask import Blueprint, jsonify, request
 
 from auth import current_user_id, require_auth
-from database import get_db
+from database import get_db, retry_on_lock
 from helpers import can_edit_expenses
 
 
@@ -18,6 +18,7 @@ bp = Blueprint("expenses", __name__)
 
 @bp.route("/api/expenses", methods=["POST"])
 @require_auth
+@retry_on_lock()
 def upsert_expense():
     """Create or update a single expense."""
     data = request.json or {}
@@ -52,6 +53,7 @@ def upsert_expense():
 
 @bp.route("/api/expenses/<expense_id>", methods=["DELETE"])
 @require_auth
+@retry_on_lock()
 def delete_expense(expense_id):
     """Delete a single expense by ID. Caller from JWT, not body."""
     user_id = current_user_id()

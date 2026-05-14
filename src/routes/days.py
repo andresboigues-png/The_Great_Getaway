@@ -11,7 +11,7 @@ or a curl-wielding user fires the request anyway.
 from flask import Blueprint, jsonify, request
 
 from auth import current_user_id, require_auth
-from database import get_db
+from database import get_db, retry_on_lock
 from helpers import can_edit_trip
 
 
@@ -20,6 +20,7 @@ bp = Blueprint("days", __name__)
 
 @bp.route("/api/days", methods=["POST"])
 @require_auth
+@retry_on_lock()
 def upsert_day():
     """Create or update a single trip day."""
     data = request.json or {}
@@ -60,6 +61,7 @@ def upsert_day():
 
 @bp.route("/api/days/<day_id>", methods=["DELETE"])
 @require_auth
+@retry_on_lock()
 def delete_day(day_id):
     """Delete a single trip day."""
     user_id = current_user_id()

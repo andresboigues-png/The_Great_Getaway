@@ -16,7 +16,7 @@ import secrets
 from flask import Blueprint, jsonify, request
 
 from auth import current_user_id, require_auth
-from database import get_db
+from database import get_db, retry_on_lock
 from extensions import limiter
 from helpers import (
     can_edit_trip,
@@ -31,6 +31,7 @@ bp = Blueprint("trips", __name__)
 
 @bp.route("/api/trips", methods=["POST"])
 @require_auth
+@retry_on_lock()
 def upsert_trip():
     """Create or update a single trip. Auto-creates the owner's
     membership row on insert; rejects edits from non-planners on
@@ -98,6 +99,7 @@ def upsert_trip():
 
 @bp.route("/api/trips/<trip_id>", methods=["DELETE"])
 @require_auth
+@retry_on_lock()
 def delete_trip(trip_id):
     """Delete a trip and all its expenses. Owner-only; non-owners can
     only leave the trip via the members/remove flow (they don't get
@@ -116,6 +118,7 @@ def delete_trip(trip_id):
 
 @bp.route("/api/trips/<trip_id>/archive", methods=["POST"])
 @require_auth
+@retry_on_lock()
 def archive_trip(trip_id):
     """Per-user archive toggle — flips THIS caller's
     `trip_members.is_archived` only. Other members keep their own
@@ -143,6 +146,7 @@ def archive_trip(trip_id):
 
 @bp.route("/api/trips/<trip_id>/silence", methods=["POST"])
 @require_auth
+@retry_on_lock()
 def silence_trip_actions(trip_id):
     """Toggle per-trip Actions-feed silencing. When `hidden=True`,
     /api/feed's Actions queries (joined-trip / added-day /
@@ -172,6 +176,7 @@ def silence_trip_actions(trip_id):
 
 @bp.route("/api/trips/<trip_id>/unarchive", methods=["POST"])
 @require_auth
+@retry_on_lock()
 def unarchive_trip(trip_id):
     """Inverse of /archive — flips THIS caller's
     `trip_members.is_archived` back to 0 so the trip returns to their
@@ -198,6 +203,7 @@ def unarchive_trip(trip_id):
 @bp.route("/api/trips/invite", methods=["POST"])
 @limiter.limit("30 per minute")
 @require_auth
+@retry_on_lock()
 def invite_trip_member():
     """Planner invites a friend to a trip with a role. Creates a
     `pending` member row + fires a `trip_invite` notification at the
@@ -263,6 +269,7 @@ def invite_trip_member():
 
 @bp.route("/api/trips/invite/respond", methods=["POST"])
 @require_auth
+@retry_on_lock()
 def respond_trip_invite():
     """Accept or decline a pending trip invite. On accept the member
     row flips to `accepted` and the trip starts appearing in /api/data;
@@ -323,6 +330,7 @@ def respond_trip_invite():
 
 @bp.route("/api/trips/members/remove", methods=["POST"])
 @require_auth
+@retry_on_lock()
 def remove_trip_member():
     """Planner kicks a member from a trip. Hard remove — the kicked
     user's account stops seeing the trip on next /api/data poll.
@@ -373,6 +381,7 @@ def remove_trip_member():
 @bp.route("/api/trips/<trip_id>/share", methods=["POST"])
 @require_auth
 @limiter.limit("30 per hour")
+@retry_on_lock()
 def create_share_link(trip_id):
     """Owner-only: generate or replace the share token for a trip.
 
@@ -424,6 +433,7 @@ def create_share_link(trip_id):
 @bp.route("/api/trips/<trip_id>/share", methods=["DELETE"])
 @require_auth
 @limiter.limit("30 per hour")
+@retry_on_lock()
 def revoke_share_link(trip_id):
     """Owner-only: clear the share token so the public URL stops
     working. View count is preserved — re-sharing later starts a new
@@ -605,6 +615,7 @@ def _caller_can_see_trip(cursor, trip_id, user_id):
 @bp.route("/api/trips/clone/<source_id>", methods=["POST"])
 @require_auth
 @limiter.limit("30 per hour")
+@retry_on_lock()
 def clone_trip(source_id):
     """Clone a trip the caller can see (public OR a trip they're a
     member of). Returns `{ tripId }` for the new draft owned by the
@@ -628,6 +639,7 @@ def clone_trip(source_id):
 @bp.route("/api/share/<token>/clone", methods=["POST"])
 @require_auth
 @limiter.limit("30 per hour")
+@retry_on_lock()
 def clone_trip_from_share_token(token):
     """Clone via a share-link token. The recipient of a /share/<token>
     URL clicks "I want this trip"; the SPA boots, the user logs in if

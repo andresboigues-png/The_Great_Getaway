@@ -35,7 +35,7 @@ import secrets
 from flask import Blueprint, jsonify, request
 
 from auth import current_user_id, require_auth
-from database import get_db
+from database import get_db, retry_on_lock
 from extensions import limiter
 from helpers import trip_member_role
 from observability import get_logger, log_extra
@@ -91,6 +91,7 @@ def serialize_settlement_row(row) -> dict:
 @bp.route("/api/settlements", methods=["POST"])
 @require_auth
 @limiter.limit("30/minute")
+@retry_on_lock()
 def create_settlement():
     """Record `from_user_id` paid `to_user_id` `amount currency` for
     `trip_id`. Caller must be an accepted member of the trip; the two
@@ -240,6 +241,7 @@ def list_settlements_for_trip(trip_id):
 @bp.route("/api/settlements/<settlement_id>", methods=["DELETE"])
 @require_auth
 @limiter.limit("30/minute")
+@retry_on_lock()
 def delete_settlement(settlement_id):
     """Undo a settlement. Allowed for:
       - the trip owner (full control on their own trip)
