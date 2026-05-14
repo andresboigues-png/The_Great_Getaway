@@ -713,7 +713,7 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                                 fontSize: '0.85rem',
                                 textTransform: 'uppercase',
                                 letterSpacing: '0.07em',
-                                color: '#005bb8',
+                                color: 'var(--accent-blue-deep)',
                                 marginBottom: 14,
                             }}
                         >
@@ -798,7 +798,7 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                             style={{
                                 fontSize: '0.85rem',
                                 textTransform: 'uppercase',
-                                color: '#005bb8',
+                                color: 'var(--accent-blue-deep)',
                                 marginBottom: 10,
                                 letterSpacing: '0.05em',
                             }}
@@ -1051,7 +1051,7 @@ function AIUsageCard({
                         fontSize: '0.85rem',
                         textTransform: 'uppercase',
                         letterSpacing: '0.07em',
-                        color: '#7c3a9e',
+                        color: 'var(--accent-purple-deep)',
                         margin: 0,
                     }}
                 >
@@ -1146,7 +1146,7 @@ function AIUsageCard({
                     width: '100%',
                     background: 'transparent',
                     border: '1px dashed rgba(155,89,182,0.35)',
-                    color: '#7c3a9e',
+                    color: 'var(--accent-purple-deep)',
                     fontWeight: 700,
                     fontSize: '0.82rem',
                     padding: '8px 12px',
@@ -1186,7 +1186,7 @@ function AIUsageCard({
                                 fontWeight: 700,
                                 textTransform: 'uppercase',
                                 letterSpacing: '0.06em',
-                                color: '#7c3a9e',
+                                color: 'var(--accent-purple-deep)',
                             }}
                         >
                             {t('ai.usageByoSectionTitle')}
@@ -1200,7 +1200,7 @@ function AIUsageCard({
                             style={{
                                 background: 'rgba(155,89,182,0.12)',
                                 border: '1px solid rgba(155,89,182,0.35)',
-                                color: '#7c3a9e',
+                                color: 'var(--accent-purple-deep)',
                                 width: 22,
                                 height: 22,
                                 borderRadius: '50%',
@@ -1358,7 +1358,7 @@ function GenerationErrorCard({
                         cursor: 'pointer',
                         fontSize: '0.78rem',
                         fontWeight: 700,
-                        color: '#7c3a9e',
+                        color: 'var(--accent-purple-deep)',
                     }}
                 >
                     {t('ai.errorTechnicalDetails')}
@@ -1638,7 +1638,7 @@ function TodoListPanel({ activeTrip, datesSet }: TodoListPanelProps) {
                         <h3
                             style={{
                                 margin: 0,
-                                color: '#7c3a9e',
+                                color: 'var(--accent-purple-deep)',
                                 fontWeight: 800,
                                 letterSpacing: '-0.01em',
                             }}
@@ -1688,7 +1688,7 @@ function TodoListPanel({ activeTrip, datesSet }: TodoListPanelProps) {
                         <h3
                             style={{
                                 margin: 0,
-                                color: '#7c3a9e',
+                                color: 'var(--accent-purple-deep)',
                                 fontWeight: 800,
                                 letterSpacing: '-0.01em',
                             }}
@@ -1742,7 +1742,7 @@ function TodoListPanel({ activeTrip, datesSet }: TodoListPanelProps) {
                     <h3
                         style={{
                             margin: 0,
-                            color: '#7c3a9e',
+                            color: 'var(--accent-purple-deep)',
                             fontWeight: 800,
                             letterSpacing: '-0.01em',
                         }}
@@ -1751,7 +1751,7 @@ function TodoListPanel({ activeTrip, datesSet }: TodoListPanelProps) {
                         <span
                             style={{
                                 background: 'rgba(155,89,182,0.12)',
-                                color: '#7c3a9e',
+                                color: 'var(--accent-purple-deep)',
                                 fontSize: '0.7rem',
                                 padding: '2px 8px',
                                 borderRadius: 999,
@@ -1768,7 +1768,7 @@ function TodoListPanel({ activeTrip, datesSet }: TodoListPanelProps) {
                             marginLeft: 'auto',
                             background: 'transparent',
                             border: 0,
-                            color: '#005bb8',
+                            color: 'var(--accent-blue-deep)',
                             fontWeight: 700,
                             fontSize: '0.82rem',
                             cursor: 'pointer',

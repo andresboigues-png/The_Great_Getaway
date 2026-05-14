@@ -37,6 +37,17 @@
     --accent-purple: #7c3a9e;
     --accent-purple-bg-soft: rgba(155, 89, 182, 0.10);
     --accent-purple-border-soft: rgba(155, 89, 182, 0.32);
+    /* Deeper section-label variants — used by small uppercase
+       caption headers like "TRAVEL DATES", "REQUIREMENTS",
+       "AI USAGE", "BRING YOUR OWN GEMINI KEY". In light mode
+       these read as a deeper blue / purple than the body accents
+       (intentional — they're calmer, label-tone). In dark mode
+       they flip to a brighter shade so the small uppercase text
+       still pops against the dark page. Tokenised replaces the
+       hardcoded `#005bb8` / `#7c3a9e` inline literals on the AI +
+       Settings pages. */
+    --accent-blue-deep: #005bb8;
+    --accent-purple-deep: #7c3a9e;
     --card-bg: #ffffff;
     /* Slightly elevated solid surface — same as card in light mode
        (the page background is already a step down at #f5f5f7);
@@ -253,7 +264,12 @@
 
     /* Text */
     --text-primary: #f5f5f7;
-    --text-secondary: #a0a0a8;
+    /* Lifted from #a0a0a8 → #c4c4cc so secondary captions / hints
+       have the same "pop" as the brand-blue accent rather than
+       reading as half-faded. Still meaningfully calmer than
+       --text-primary (#f5f5f7) so the hierarchy holds. ~6.2:1
+       contrast on --bg-color (#0a0a0a) — comfortably AAA. */
+    --text-secondary: #c4c4cc;
     /* Slightly muted brand-navy alternative — used by surfaces that
        were previously hardcoded to #002d5b. Maps to the standard
        text-primary in dark; stays at the brand navy in light (see
@@ -265,6 +281,12 @@
     --accent-purple: #c084ee;
     --accent-purple-bg-soft: rgba(192, 132, 238, 0.14);
     --accent-purple-border-soft: rgba(192, 132, 238, 0.32);
+    /* Lifted section-label tones for dark mode — the light variants
+       (#005bb8 deep-blue / #7c3a9e deep-purple) read as too dim on
+       a dark surface. Brighter shades restore "pop" while keeping
+       the calmer-than-body-accent label feel. */
+    --accent-blue-deep: #5cb6ff;
+    --accent-purple-deep: #d49bff;
 
     /* Brand accent — Apple's dark-mode blue is slightly brighter
        so it pops on dark surfaces (system blue is #0a84ff in dark
@@ -7891,6 +7913,50 @@ main#app-container.nav-anim-backward {
 :root[data-theme="dark"] .trip-companions-card {
     background: var(--card-bg);
     border-color: rgba(255, 255, 255, 0.08);
+}
+
+/* Day-wheel chips (.path-chip) on the home Path tab — the small
+   numbered circles + the "anchor" + "+" buttons. Base CSS has
+   `background: white` + `box-shadow: 0 0 0 3px white` to "knock
+   out" the timeline line that runs behind them. In dark mode the
+   white circle reads as a bright pill on the page; flip to the
+   card-bg surface and update the surrounding shadow to match the
+   page bg so the timeline line still appears clipped. */
+:root[data-theme="dark"] .path-chip {
+    background: var(--card-bg);
+    box-shadow: 0 0 0 3px var(--bg-color);
+}
+:root[data-theme="dark"] .path-chip:hover,
+:root[data-theme="dark"] .path-chip:active,
+:root[data-theme="dark"] .path-chip:focus-visible {
+    background: rgba(10, 132, 255, 0.18);
+}
+:root[data-theme="dark"] .path-chip.is-selected {
+    background: var(--accent-blue);
+    color: white;
+    box-shadow: 0 0 0 3px var(--bg-color), 0 6px 14px rgba(10, 132, 255, 0.42);
+}
+:root[data-theme="dark"] .path-chip--today::after {
+    background: var(--card-bg-elevated);
+    color: #ff9500;
+    box-shadow: 0 1px 4px rgba(255, 149, 0, 0.32);
+}
+
+/* Path / Companions tab strip (.trip-tabnav) on the home page —
+   pill container holding the two tabs. Light theme uses a
+   translucent-white pill bg; dark mode flips to a frosted dark
+   surface so the toggle reads as part of the page chrome rather
+   than a glaring white pill. The active tab already uses an
+   accent-blue gradient (theme-neutral) so it stands out cleanly. */
+:root[data-theme="dark"] .trip-tabnav {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.10);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+}
+:root[data-theme="dark"] .trip-tabnav__tab:hover:not(.is-active),
+:root[data-theme="dark"] .trip-tabnav__tab:active:not(.is-active),
+:root[data-theme="dark"] .trip-tabnav__tab:focus-visible:not(.is-active) {
+    background: rgba(10, 132, 255, 0.14);
 }
 
 /* Trip selector pill (.btn-primary-pill--inverse) — the dropdown

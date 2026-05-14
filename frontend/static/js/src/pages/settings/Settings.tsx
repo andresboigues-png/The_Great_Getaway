@@ -241,13 +241,13 @@ function MenuView() {
                 className="card-button-reset card glass management-card"
                 onClick={() => setSettingsTab('general')}
             >
-                <h2 className="card-title" style={{ color: '#005bb8', margin: 0 }}>
+                <h2 className="card-title" style={{ color: 'var(--accent-blue-deep)', margin: 0 }}>
                     {t('settings.cardGeneralTitle')}
                 </h2>
                 <p style={{ color: 'var(--text-secondary)', margin: '8px 0 0' }}>
                     {t('settings.cardGeneralBody')}
                 </p>
-                <div style={{ marginTop: 20, color: '#005bb8', fontWeight: 700, fontSize: '0.85rem' }}>
+                <div style={{ marginTop: 20, color: 'var(--accent-blue-deep)', fontWeight: 700, fontSize: '0.85rem' }}>
                     {t('settings.cardConfigureCta')}
                 </div>
             </button>
@@ -413,7 +413,7 @@ function GeneralPillsSection() {
         // !important elsewhere). See "Settings → General → POI
         // filters: responsive layout" in index.css.
         <div className="card glass settings-section">
-            <h2 style={{ color: '#005bb8', marginTop: 0 }}>{t('settings.poiTitle')}</h2>
+            <h2 style={{ color: 'var(--accent-blue-deep)', marginTop: 0 }}>{t('settings.poiTitle')}</h2>
             <p style={{ color: 'var(--text-secondary)', marginBottom: 16 }}>
                 {t('settings.poiIntroVisibility')}
             </p>
