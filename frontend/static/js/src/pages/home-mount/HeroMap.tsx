@@ -517,18 +517,30 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
         const poiTogglesEl = document.getElementById('homeMapPoiToggles');
         const onPoiTogglesClick = (ev: Event) => {
             const target = ev.target as HTMLElement | null;
-            const pill = target?.closest('.map-poi-toggle');
+            const pill = target?.closest('.map-poi-toggle') as HTMLElement | null;
             if (!pill) return;
-            const key = (pill as HTMLElement).dataset.poi;
+            const key = pill.dataset.poi;
             if (!key) return;
             const willBeOn = !enabledPois.has(key);
             if (willBeOn) enabledPois.add(key);
             else enabledPois.delete(key);
             map.setOptions({ styles: buildPoiStyles(enabledPois) });
             if (key === 'traffic') setTrafficVisible(willBeOn);
-            setPlacesPillVisible(key, willBeOn);
             pill.classList.toggle('is-on', willBeOn);
             pill.setAttribute('aria-pressed', String(willBeOn));
+            // "Thinking" indicator while the Places API call is in
+            // flight + markers are being dropped. Only painted when
+            // we're turning a pill ON (the OFF path clears markers
+            // synchronously and resolves immediately — no need to
+            // flash a spinner). The `.finally()` removes the class
+            // whether the fetch succeeded or threw; the dedupe
+            // inside `fetchPlacesForTrip` means rapid re-clicks share
+            // the same underlying promise, so the spinner clears
+            // cleanly even with toggle-on/off/on bursts.
+            if (willBeOn) pill.classList.add('is-loading');
+            Promise.resolve(setPlacesPillVisible(key, willBeOn)).finally(() => {
+                pill.classList.remove('is-loading');
+            });
             persistEnabledPois();
         };
         poiTogglesEl?.addEventListener('click', onPoiTogglesClick);

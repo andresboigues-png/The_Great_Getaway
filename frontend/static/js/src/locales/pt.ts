@@ -372,7 +372,7 @@ export const pt: Translations = {
         tickedSummary: '{ticked} de {total} marcados para a IA',
         filterStatusLabel: 'Mostrar',
         filterStatusAll: 'Todos',
-        filterStatusTicked: '✓ Para a IA',
+        filterStatusTicked: 'Para a IA',
         filterStatusUnticked: 'Sem IA',
         categoryFilterLabel: 'Tipo',
         categoryAll: 'Todos os tipos',

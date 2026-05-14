@@ -2229,6 +2229,37 @@ body.is-signed-out .trip-controls-popover {
     outline: 2px solid var(--accent-blue);
     outline-offset: 2px;
 }
+/* "Thinking" indicator — appears when a pill is fetching its Nearby
+   Search results from Google Places. JS toggles .is-loading on click;
+   the pseudo-element renders a 10px spinning ring using the pill's
+   current text colour so it adapts to both on (white-on-blue) and off
+   (blue-on-white) states. Cursor flips to `progress` so the
+   user gets a second cue that the action is being processed. */
+.map-poi-toggle.is-loading {
+    cursor: progress;
+}
+.map-poi-toggle.is-loading::after {
+    /* `.map-poi-toggle` is display:inline-flex with gap:4px, so the
+       pseudo-element becomes a flex item and inherits the gap for
+       spacing from the label text — no margin needed. width/height
+       gives the spinner its 10px footprint inside the pill. */
+    content: '';
+    width: 10px;
+    height: 10px;
+    border: 2px solid currentColor;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: gg-pill-spin 0.7s linear infinite;
+    flex-shrink: 0;
+    /* Slight opacity dampening keeps the spinner from looking
+       heavier than the pill text alongside it. */
+    opacity: 0.85;
+}
+@keyframes gg-pill-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
 
 /* Settings → General: per-pill rating filter rows. One row per
    Places-API pill, with the icon, label/hint, a min-rating dropdown,

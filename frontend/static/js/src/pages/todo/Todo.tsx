@@ -649,7 +649,14 @@ export function Todo() {
         const key = p.icon || '📍';
         iconCounts.set(key, (iconCounts.get(key) || 0) + 1);
     }
-    const allIcons = [...iconCounts.keys()];
+    // Exclude the 📋 "AI suggestions" pseudo-type from the filter row.
+    // AI-sourced items ARE real places (restaurants, hotels, sights)
+    // that happen to lack a category icon because the LLM doesn't
+    // emit one; surfacing "AI suggestions" as a Type pill alongside
+    // Restaurants / Hotels confused the user — it's a SOURCE, not a
+    // type. The "✦ AI" chip on the row plus the dedicated "For AI"
+    // status filter already cover the AI-vs-manual axis.
+    const allIcons = [...iconCounts.keys()].filter((icon) => icon !== '📋');
 
     // Apply the AI-status filter, then the category filter. Both
     // independent; combining them gives "unticked Restaurants" etc.

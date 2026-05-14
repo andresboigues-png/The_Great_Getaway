@@ -447,7 +447,7 @@ export const en = {
         // Filter pills — AI tick status. "All" clears the filter.
         filterStatusLabel: 'Show',
         filterStatusAll: 'All',
-        filterStatusTicked: '✓ For AI',
+        filterStatusTicked: 'For AI',
         filterStatusUnticked: 'Not for AI',
         categoryFilterLabel: 'Type',
         categoryAll: 'All types',
