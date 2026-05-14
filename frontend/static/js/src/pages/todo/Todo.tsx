@@ -469,58 +469,64 @@ function TodoRow({ place: p, isTicked, tripIsEditable, onTickToggle, onRemove }:
     );
 }
 
-/** Filter pill — one row at the top of /todo + the day-detail to-do
- *  table. Active state mirrors the wheel-chip aesthetic (filled
- *  blue, white text) so clicks visually register at-a-glance. */
-interface FilterPillProps {
-    icon: string;
+/** Filter dropdown — `[Label]: [option ▾]` pair. Replaces the
+ *  previous FilterPill row layout (one click to toggle each pill)
+ *  with a more compact <select>-based UI. Uses the same pill-style
+ *  rounded outline as the sort dropdown so the three filter
+ *  controls read as a coherent set. */
+interface FilterSelectProps {
     label: string;
-    count: number;
-    active: boolean;
-    onClick: () => void;
+    value: string;
+    onChange: (value: string) => void;
+    options: ReadonlyArray<{ value: string; label: string }>;
+    style?: React.CSSProperties;
 }
-function FilterPill({ icon, label, count, active, onClick }: FilterPillProps) {
+function FilterSelect({ label, value, onChange, options, style }: FilterSelectProps) {
     return (
-        <button
-            type="button"
-            onClick={onClick}
-            aria-pressed={active}
+        <label
             style={{
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '6px',
-                padding: '6px 12px',
-                borderRadius: '999px',
-                border: `1.5px solid ${active ? 'var(--accent-blue)' : 'rgba(0, 45, 91, 0.12)'}`,
-                background: active ? 'var(--accent-blue)' : 'white',
-                color: active ? 'white' : '#002d5b',
                 fontSize: '0.78rem',
-                fontWeight: 700,
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-                transition: 'background 0.15s ease, border-color 0.15s ease, color 0.15s ease',
-                flexShrink: 0,
+                color: 'var(--text-secondary)',
+                ...style,
             }}
         >
-            <span style={{ fontSize: '0.95rem', lineHeight: 1 }}>{icon}</span>
-            <span>{label}</span>
             <span
                 style={{
-                    fontSize: '0.66rem',
-                    fontWeight: 800,
-                    padding: '1px 6px',
-                    borderRadius: '999px',
-                    background: active ? 'rgba(255, 255, 255, 0.22)' : 'rgba(0, 45, 91, 0.06)',
-                    color: active ? 'white' : 'var(--text-secondary)',
-                    minWidth: '14px',
-                    textAlign: 'center',
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
                 }}
             >
-                {count}
+                {label}
             </span>
-        </button>
+            <select
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                style={{
+                    padding: '6px 10px',
+                    borderRadius: '999px',
+                    border: '1.5px solid rgba(0, 45, 91, 0.12)',
+                    background: 'white',
+                    color: '#002d5b',
+                    fontSize: '0.8rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                }}
+            >
+                {options.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                    </option>
+                ))}
+            </select>
+        </label>
     );
 }
+
 
 /** Display modes for the to-do list. `category` (the default) keeps
  *  the existing grouped-by-icon view; the other four flatten the list
@@ -540,12 +546,14 @@ export function Todo() {
     // call. Pre-fix this was the find-by-id-against-the-trips-array
     // recipe copy-pasted across ~12 components.
     const { trip: activeTrip } = useActiveTrip();
-    /** Per-icon filter set. Empty = "All" (no filter); non-empty
-     *  shows ONLY items whose icon is in the set. Multi-select so
-     *  the user can mix categories ("show restaurants AND hotels").
-     *  Set kept inside React state so it survives a re-render
-     *  triggered by membership changes (tick / remove). */
-    const [filterIcons, setFilterIcons] = useState<Set<string>>(new Set());
+    /** Per-icon filter. Empty string = "All" (no filter); non-empty
+     *  shows ONLY items whose normalised icon equals it. Single-
+     *  select via the new <select> dropdown — previous iteration
+     *  used multi-select pills; the dropdown trades the "AND mix"
+     *  affordance for compact UI + clearer UX. The empty-string
+     *  sentinel mirrors the convention used by the sort dropdown's
+     *  "All types" option below. */
+    const [filterIcon, setFilterIcon] = useState<string>('');
     /** AI-tick filter — independent of the category filter so the
      *  user can ask "show unticked Restaurants" by combining the two. */
     const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -690,9 +698,9 @@ export function Todo() {
     } else if (statusFilter === 'unticked') {
         filteredItems = filteredItems.filter((p) => !p.forAI);
     }
-    if (filterIcons.size > 0) {
-        filteredItems = filteredItems.filter((p) =>
-            filterIcons.has(groupingIcon(p.icon)),
+    if (filterIcon !== '') {
+        filteredItems = filteredItems.filter(
+            (p) => groupingIcon(p.icon) === filterIcon,
         );
     }
 
@@ -727,14 +735,15 @@ export function Todo() {
     }
 
     // Group filtered items by icon — only when sort=category AND the
-    // user has actively narrowed the type filter. The "All types"
-    // case (filterIcons.size === 0) flattens regardless of sort:
-    // the user is looking at everything, so the per-type section
-    // headers are visual noise and the flat list lets the user
-    // scan in one continuous view. As soon as they tap a specific
-    // type pill, grouping kicks back in so multi-type selections
-    // ("Hotels + Restaurants") read as two clearly-separated
-    // sections.
+    // user has picked a specific type. The "All types" case (filterIcon
+    // === '') flattens regardless of sort: the user is looking at
+    // everything, so the per-type section headers are visual noise
+    // and the flat list lets the user scan in one continuous view.
+    // The moment they pick a type from the dropdown, grouping kicks
+    // back in — though with a single-select filter that always means
+    // exactly one section header. We keep the grouping branch alive
+    // for the "single type + sort=category" case because the section
+    // header still reinforces what the user is viewing.
     //
     // Other sort modes always flatten — sort-by-name with category
     // headers would split alphabetical runs awkwardly.
@@ -743,7 +752,7 @@ export function Todo() {
     // re-renders. The '*' key flags the flat-list branch (can't
     // collide with a real emoji).
     const groups = new Map<string, TodoMarkedPlace[]>();
-    if (sortMode === 'category' && filterIcons.size > 0) {
+    if (sortMode === 'category' && filterIcon !== '') {
         for (const p of filteredItems) {
             const key = groupingIcon(p.icon);
             if (!groups.has(key)) groups.set(key, []);
@@ -752,15 +761,6 @@ export function Todo() {
     } else if (filteredItems.length > 0) {
         groups.set('*', filteredItems);
     }
-
-    /** Toggle one icon in/out of the filter set. Empty set after a
-     *  toggle = back to "All". */
-    const toggleFilterIcon = (icon: string) => {
-        const next = new Set(filterIcons);
-        if (next.has(icon)) next.delete(icon);
-        else next.add(icon);
-        setFilterIcons(next);
-    };
 
     // ── LIST STATE ──────────────────────────────────────────────────
     return (
@@ -931,154 +931,76 @@ export function Todo() {
                 )}
             </div>
 
-            {/* Filter + sort toolbar. AI-status pills on the left so
-                the most common filter ("just the ones I've marked")
-                is one tap. Sort dropdown on the right — collapsed UI
-                rather than a row of pills so this row stays compact
-                on mobile. The category pills sit on their own row
-                below so they can multi-select without crowding. */}
+            {/* Filter + sort toolbar — three dropdowns on one row.
+                User feedback: the previous pill-row layout took too
+                much vertical space and read as visually busy. Three
+                <select>s are more compact, more familiar (native
+                control), and don't require a multi-select mental
+                model for the type filter (the rare "Hotels AND
+                Restaurants" case is the trade-off; the common
+                "just one category at a time" case is now clearer).
+                Each dropdown shows the current pick + bracketed
+                count so the user reads "Show: For AI (4)" at a
+                glance. Flex-wrap so the row stacks gracefully on
+                narrow screens. */}
             <div
                 style={{
                     display: 'flex',
                     flexWrap: 'wrap',
                     gap: '10px',
                     alignItems: 'center',
-                    marginBottom: '12px',
+                    marginBottom: '18px',
                 }}
             >
-                <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
-                    <span
-                        style={{
-                            fontSize: '0.72rem',
-                            fontWeight: 700,
-                            color: 'var(--text-secondary)',
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.05em',
-                            marginRight: '2px',
-                        }}
-                    >
-                        {t('todo.filterStatusLabel')}
-                    </span>
-                    <FilterPill
-                        icon="✨"
-                        label={t('todo.filterStatusAll')}
-                        count={todoItems.length}
-                        active={statusFilter === 'all'}
-                        onClick={() => setStatusFilter('all')}
+                <FilterSelect
+                    label={t('todo.filterStatusLabel')}
+                    value={statusFilter}
+                    onChange={(v) => setStatusFilter(v as StatusFilter)}
+                    options={[
+                        { value: 'all', label: `${t('todo.filterStatusAll')} (${todoItems.length})` },
+                        { value: 'ticked', label: `${t('todo.filterStatusTicked')} (${tickedCount})` },
+                        { value: 'unticked', label: `${t('todo.filterStatusUnticked')} (${todoItems.length - tickedCount})` },
+                    ]}
+                />
+                {allIcons.length >= 1 && (
+                    <FilterSelect
+                        label={t('todo.categoryFilterLabel')}
+                        value={filterIcon}
+                        onChange={setFilterIcon}
+                        options={[
+                            { value: '', label: `${t('todo.categoryAll')} (${todoItems.length})` },
+                            ...allIcons.map((icon) => ({
+                                value: icon,
+                                label: `${icon} ${ICON_TO_LABEL[icon] || 'Other'} (${iconCounts.get(icon) || 0})`,
+                            })),
+                        ]}
                     />
-                    <FilterPill
-                        icon="✓"
-                        label={t('todo.filterStatusTicked')}
-                        count={tickedCount}
-                        active={statusFilter === 'ticked'}
-                        onClick={() => setStatusFilter('ticked')}
-                    />
-                    <FilterPill
-                        icon="○"
-                        label={t('todo.filterStatusUnticked')}
-                        count={todoItems.length - tickedCount}
-                        active={statusFilter === 'unticked'}
-                        onClick={() => setStatusFilter('unticked')}
-                    />
-                </div>
-                <label
-                    style={{
-                        marginLeft: 'auto',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        fontSize: '0.78rem',
-                        color: 'var(--text-secondary)',
-                    }}
-                >
-                    <span
-                        style={{
-                            fontSize: '0.72rem',
-                            fontWeight: 700,
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.05em',
-                        }}
-                    >
-                        {t('todo.sortLabel')}
-                    </span>
-                    <select
-                        value={sortMode}
-                        onChange={(e) => setSortMode(e.target.value as SortMode)}
-                        style={{
-                            padding: '6px 10px',
-                            borderRadius: '999px',
-                            border: '1.5px solid rgba(0, 45, 91, 0.12)',
-                            background: 'white',
-                            color: '#002d5b',
-                            fontSize: '0.8rem',
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                        }}
-                    >
-                        <option value="category">{t('todo.sortCategory')}</option>
-                        <option value="ai-first">{t('todo.sortAiFirst')}</option>
-                        <option value="name-asc">{t('todo.sortNameAsc')}</option>
-                        <option value="name-desc">{t('todo.sortNameDesc')}</option>
-                        <option value="recent">{t('todo.sortRecent')}</option>
-                    </select>
-                </label>
+                )}
+                <FilterSelect
+                    label={t('todo.sortLabel')}
+                    value={sortMode}
+                    onChange={(v) => setSortMode(v as SortMode)}
+                    // Sort dropdown sits last so its width is whatever's
+                    // left on the row; on wide screens the marginLeft:auto
+                    // also pushes it to the right edge so it visually
+                    // anchors the row's terminator.
+                    style={{ marginLeft: 'auto' }}
+                    options={[
+                        { value: 'category', label: t('todo.sortCategory') },
+                        { value: 'ai-first', label: t('todo.sortAiFirst') },
+                        { value: 'name-asc', label: t('todo.sortNameAsc') },
+                        { value: 'name-desc', label: t('todo.sortNameDesc') },
+                        { value: 'recent', label: t('todo.sortRecent') },
+                    ]}
+                />
             </div>
-
-            {/* Type filter pills. Multi-select; empty set = show all
-                types. The row always renders when there's at least
-                one place — so even a single-type list shows an
-                "All types" + "🍽 Restaurants" pair, which makes the
-                affordance discoverable even before the user adds a
-                second type. The "All types" pill clears the filter
-                set. */}
-            {allIcons.length >= 1 && (
-                <div
-                    style={{
-                        display: 'flex',
-                        flexWrap: 'wrap',
-                        gap: '8px',
-                        marginBottom: '18px',
-                        alignItems: 'center',
-                    }}
-                >
-                    <span
-                        style={{
-                            fontSize: '0.72rem',
-                            fontWeight: 700,
-                            color: 'var(--text-secondary)',
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.05em',
-                            marginRight: '2px',
-                        }}
-                    >
-                        {t('todo.categoryFilterLabel')}
-                    </span>
-                    <FilterPill
-                        icon="✨"
-                        label={t('todo.categoryAll')}
-                        count={todoItems.length}
-                        active={filterIcons.size === 0}
-                        onClick={() => setFilterIcons(new Set())}
-                    />
-                    {allIcons.map((icon) => (
-                        <FilterPill
-                            key={icon}
-                            icon={icon}
-                            label={ICON_TO_LABEL[icon] || 'Other'}
-                            count={iconCounts.get(icon) || 0}
-                            active={filterIcons.has(icon)}
-                            onClick={() => toggleFilterIcon(icon)}
-                        />
-                    ))}
-                </div>
-            )}
 
             {/* Empty-filter hint — fires whenever any active filter
                 (category, AI status, or both) wipes the list down to
                 zero. The reset button clears EVERY filter so a single
                 tap brings the whole list back regardless of how the
                 user got stuck. */}
-            {groups.size === 0 && (filterIcons.size > 0 || statusFilter !== 'all') && (
+            {groups.size === 0 && (filterIcon !== '' || statusFilter !== 'all') && (
                 <div
                     style={{
                         padding: '24px 16px',
@@ -1094,7 +1016,7 @@ export function Todo() {
                     <button
                         type="button"
                         onClick={() => {
-                            setFilterIcons(new Set());
+                            setFilterIcon('');
                             setStatusFilter('all');
                         }}
                         style={{
