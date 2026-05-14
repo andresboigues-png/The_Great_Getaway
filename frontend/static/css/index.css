@@ -7128,9 +7128,21 @@ main#app-container.nav-anim-backward {
         text-align: center;
     }
     .profile-page .profile-stats {
+        /* The 4-stat row (trips · countries · followers · following)
+           overflows on a 375px phone with the default gap: 32px and
+           1.1rem text. Tighten gap, drop a row-gap so wrapped stats
+           stack legibly, and centre the row so it reads as a tidy
+           grid rather than a left-aligned overflow strip. */
         justify-content: center !important;
-        gap: 20px !important;
+        gap: 14px 20px !important;
         margin-bottom: 16px !important;
+        flex-wrap: wrap !important;
+    }
+    /* Each stat number/label pair stays on one line, but the row as
+       a whole can wrap to 2 lines. The numbers are bold so they read
+       as headers; the labels stay calmer. */
+    .profile-page .profile-stats > div {
+        font-size: 0.95rem;
     }
     .profile-page .profile-bio-block {
         text-align: left;
@@ -7957,6 +7969,91 @@ main#app-container.nav-anim-backward {
 :root[data-theme="dark"] .trip-tabnav__tab:active:not(.is-active),
 :root[data-theme="dark"] .trip-tabnav__tab:focus-visible:not(.is-active) {
     background: rgba(10, 132, 255, 0.14);
+}
+
+/* Icon-square buttons next to the trip title — Silence + Edit
+   trip pair on the home page. Light variant uses rgba(0,0,0,0.03)
+   bg + #002d5b text (dark navy on near-white). In dark mode that
+   reads as black-on-black ghost shapes; flip to the standard
+   "accent-blue pop" treatment used by other map-side action
+   pills so the buttons read consistently as on-brand. */
+:root[data-theme="dark"] .icon-btn-square {
+    background: rgba(10, 132, 255, 0.14);
+    border-color: rgba(10, 132, 255, 0.32);
+    color: var(--accent-blue);
+}
+:root[data-theme="dark"] .icon-btn-square:hover,
+:root[data-theme="dark"] .icon-btn-square:active,
+:root[data-theme="dark"] .icon-btn-square:focus-visible {
+    background: rgba(10, 132, 255, 0.22);
+    border-color: rgba(10, 132, 255, 0.5);
+    color: var(--accent-blue);
+}
+
+/* Day-wheel prev/next chevrons (.path-nav-btn) — the small
+   circular arrows flanking the day-chip row. Base has `background:
+   white` + `color: #002d5b` — bright white circles in dark mode
+   with invisible navy arrows. Flip both. */
+:root[data-theme="dark"] .path-nav-btn {
+    background: var(--card-bg);
+    border-color: rgba(10, 132, 255, 0.32);
+    color: var(--accent-blue);
+}
+:root[data-theme="dark"] .path-nav-btn:hover:not(:disabled),
+:root[data-theme="dark"] .path-nav-btn:active:not(:disabled),
+:root[data-theme="dark"] .path-nav-btn:focus-visible:not(:disabled) {
+    background: rgba(10, 132, 255, 0.18);
+}
+
+/* Theme-picker option cards on Settings → Appearance. The light-
+   mode override sets border-color but leaves the bg as
+   var(--card-bg) which equals #1c1c1e in dark — almost identical
+   to the page bg, so the cards barely showed up. Switch to
+   --card-bg-elevated (#2c2c2e) for the resting state so they're
+   clearly tappable surfaces against the page. The is-active
+   override keeps the purple-gradient wash. */
+:root[data-theme="dark"] .theme-option-card {
+    background: var(--card-bg-elevated);
+    border-color: rgba(255, 255, 255, 0.10);
+}
+
+/* Personalization category rows (.cat-row). Hardcoded
+   `background: white`; flip to card-bg-elevated so rows stand
+   out from the dark card behind them. The coloured stripe on
+   the left edge already provides theme-neutral identity. */
+:root[data-theme="dark"] .cat-row {
+    background: var(--card-bg-elevated);
+    border-color: rgba(255, 255, 255, 0.08);
+}
+:root[data-theme="dark"] .cat-row__icon {
+    /* Inner icon chip used a faint rgba black bg that disappears
+       on the dark row. Lift to a soft white. */
+    background: rgba(255, 255, 255, 0.06);
+}
+
+/* Achievement pills on Profile — inline white bg + faint blue
+   border. Flip both via attribute selector so the inline style
+   doesn't win specificity. (Could also restructure the inline
+   to use vars; this is a less-invasive fix.) */
+:root[data-theme="dark"] .achievement-pill {
+    background: var(--card-bg-elevated) !important;
+    border-color: rgba(10, 132, 255, 0.4) !important;
+    color: var(--text-primary) !important;
+}
+:root[data-theme="dark"] .achievement-pill .achievement-tooltip {
+    background: var(--card-bg) !important;
+    color: var(--text-primary) !important;
+    border-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+/* Apple-toggle (Bookmarked switch on Feed). Track bg uses
+   rgba(0,0,0,0.16) which is invisible on dark. Lift to a soft
+   white. The accent-coloured checked state already pops. */
+:root[data-theme="dark"] .apple-toggle__track {
+    background: rgba(255, 255, 255, 0.18);
+}
+:root[data-theme="dark"] .apple-toggle__thumb {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5), 0 0 1px rgba(0, 0, 0, 0.4);
 }
 
 /* Trip selector pill (.btn-primary-pill--inverse) — the dropdown

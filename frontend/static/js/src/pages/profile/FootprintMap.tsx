@@ -49,20 +49,43 @@ export function FootprintMap({ trips, uniqueCountries }: FootprintMapProps) {
         if (!mapContainer) return;
 
         // Profile-page footprint map has its own muted base style
-        // (labels off, light landscape, white water) that reads as
-        // a country-fill canvas. applyMapTheme spreads the
-        // dark/system base FIRST then these PROFILE styles, so the
-        // page-specific overrides win when keys overlap.
-        const profileMapStyles = [
-            { featureType: 'all', elementType: 'labels', stylers: [{ visibility: 'off' }] },
-            {
-                featureType: 'administrative',
-                elementType: 'geometry',
-                stylers: [{ visibility: 'on' }, { color: '#e0e0e0' }],
-            },
-            { featureType: 'landscape', stylers: [{ color: '#f0f0f5' }] },
-            { featureType: 'water', stylers: [{ color: '#ffffff' }] },
-        ];
+        // (labels off, white-water canvas in light, slate-water in
+        // dark) that reads as a country-fill canvas. applyMapTheme
+        // spreads the dark/system base FIRST then these PROFILE
+        // styles, so the page-specific overrides win when keys
+        // overlap.
+        //
+        // 2026-05-14: added a dark-mode variant so the footprint
+        // map doesn't appear as a bright white sheet against the
+        // rest of a dark page. The colored country fills (the
+        // actual data layer) stay vivid in both themes — they're
+        // drawn on top of the base style via data.overrideStyle so
+        // the base palette only affects the un-visited landscape +
+        // water + admin lines.
+        const isDark =
+            typeof document !== 'undefined' &&
+            document.documentElement.dataset.theme === 'dark';
+        const profileMapStyles = isDark
+            ? [
+                  { featureType: 'all', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+                  {
+                      featureType: 'administrative',
+                      elementType: 'geometry',
+                      stylers: [{ visibility: 'on' }, { color: '#3a3a42' }],
+                  },
+                  { featureType: 'landscape', stylers: [{ color: '#1c1c1e' }] },
+                  { featureType: 'water', stylers: [{ color: '#0a0a0a' }] },
+              ]
+            : [
+                  { featureType: 'all', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+                  {
+                      featureType: 'administrative',
+                      elementType: 'geometry',
+                      stylers: [{ visibility: 'on' }, { color: '#e0e0e0' }],
+                  },
+                  { featureType: 'landscape', stylers: [{ color: '#f0f0f5' }] },
+                  { featureType: 'water', stylers: [{ color: '#ffffff' }] },
+              ];
 
         const map = new google.maps.Map(mapContainer, {
             center: { lat: 20, lng: 0 },
@@ -162,9 +185,14 @@ export function FootprintMap({ trips, uniqueCountries }: FootprintMapProps) {
                         };
                     }
                     return {
-                        fillColor: '#d0d0d5',
-                        fillOpacity: 0.2,
-                        strokeColor: '#ffffff',
+                        // Un-visited countries — use a theme-aware
+                        // fill so they don't blast as white shapes
+                        // on a dark map. Stroke also flips to a soft
+                        // dark border to outline the country
+                        // silhouettes against the dark landscape.
+                        fillColor: isDark ? '#2a2a30' : '#d0d0d5',
+                        fillOpacity: isDark ? 0.65 : 0.2,
+                        strokeColor: isDark ? '#3a3a42' : '#ffffff',
                         strokeWeight: 0.5,
                         visible: true,
                     };

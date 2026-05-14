@@ -392,7 +392,7 @@ function ProfileContent({
                         fontSize: '0.9rem',
                         letterSpacing: '0.05em',
                         textTransform: 'uppercase',
-                        color: 'var(--text-primary)',
+                        color: 'var(--accent-blue)',
                     }}
                 >
                     {/* Literal footprint glyph (sole + 5 toes). */}
