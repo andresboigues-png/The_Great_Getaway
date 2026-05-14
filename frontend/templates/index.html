@@ -449,21 +449,6 @@
          green (Preferences). The user's profile avatar pinned at
          the bottom mirrors the burger drawer's footer pattern. -->
     <aside id="sidebarRail" class="sidebar-rail" aria-label="Quick navigation">
-        <!-- Profile pinned at the TOP — mirrors the position the
-             profile block occupies in the burger drawer (right
-             below the Menu header). Same #railProfilePic /
-             #railProfileFallback ids preserved so main.ts's
-             updateUserUI keeps mirroring the avatar without
-             changes. Hover ring + fallback initial all unchanged. -->
-        <a href="#" class="sidebar-rail__item sidebar-rail__profile" data-page="profile" aria-label="Profile" data-i18n-aria-label="nav.profile" title="Profile">
-            <span id="railProfileFallback" class="sidebar-rail__profile-fallback" aria-hidden="true">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                    <circle cx="12" cy="7" r="4"></circle>
-                </svg>
-            </span>
-            <img id="railProfilePic" src="" alt="" referrerpolicy="no-referrer" style="display: none;">
-        </a>
         <a href="#" class="sidebar-rail__item" data-page="search" aria-label="Search" data-i18n-aria-label="nav.search" title="Search">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <circle cx="11" cy="11" r="7"></circle>
@@ -507,6 +492,21 @@
                 <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path>
                 <circle cx="12" cy="12" r="3"></circle>
             </svg>
+        </a>
+        <!-- Profile pinned at the bottom — circular avatar that
+             updates from the same source the burger-drawer profile
+             entry uses (sidebarProfilePic). The img stays hidden
+             until main.ts's updateUserUI() lands a real URL on it
+             post-login; we render a fallback initial in the meantime
+             so the rail never shows a broken-image icon. -->
+        <a href="#" class="sidebar-rail__item sidebar-rail__profile" data-page="profile" aria-label="Profile" data-i18n-aria-label="nav.profile" title="Profile">
+            <span id="railProfileFallback" class="sidebar-rail__profile-fallback" aria-hidden="true">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="12" cy="7" r="4"></circle>
+                </svg>
+            </span>
+            <img id="railProfilePic" src="" alt="" referrerpolicy="no-referrer" style="display: none;">
         </a>
     </aside>
 

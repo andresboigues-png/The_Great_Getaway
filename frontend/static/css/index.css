@@ -895,44 +895,21 @@ h1 {
     display: flex;
     flex-direction: column;
     align-items: center;
-    /* Padding-top sized so the profile avatar (first child) lands
-       at the SAME viewport-Y as the burger drawer's profile-top
-       block. Math: drawer profile starts at y=100 (sidebar 24px
-       padding + 28px header content + 16px header padding-bottom +
-       32px header margin-bottom). Rail top is at y=56 (below the
-       navbar), so padding-top = 100 - 56 = 44 puts the rail's first
-       child at y=100. Pre-fix this was 14px and the rail profile
-       sat ~30px ABOVE the drawer profile — visibly misaligned. */
-    padding: 44px 0 18px;
+    padding: 14px 0 18px;
     gap: 6px;
     overflow-y: auto;
 }
-/* Profile pic at the TOP of the rail — aligned with where it
-   appears in the burger drawer (right below the Menu header).
-   The profile is the first child in the DOM now (was last); the
-   ordering change alone puts it at the top of the flex column.
-   No special CSS positioning needed — it sits at top + 14px
-   padding naturally.
-
-   Nav items below the profile remain vertically centered in the
-   leftover space between profile and rail bottom. Two competing
-   auto-margins do the centering: the first nav item (search,
-   `:nth-child(2)`) gets `margin-top: auto`, the last child gets
-   `margin-bottom: auto`. Flexbox splits the free space equally
-   between both. Net layout:
-
-      [padding-top: 14px]
-      [profile]
-      [free space / 2]
-      [nav items + dots]
-      [free space / 2]
-      [padding-bottom: 18px]
-*/
-.sidebar-rail > :nth-child(2) {
+/* Vertically centre the nav items as a group while keeping the
+   profile pinned to the bottom. The trick: two auto-margins on
+   opposite "tops" — one above the first child and one above the
+   profile (last child, which carries its own `margin-top: auto`
+   via the .sidebar-rail__profile rule below). Flexbox splits the
+   available leftover space equally between both auto-margins,
+   putting half above the first item and half above the profile.
+   Net effect: the nav-item stack floats in the vertical middle,
+   profile still hugs the bottom edge. */
+.sidebar-rail > :first-child {
     margin-top: auto;
-}
-.sidebar-rail > :last-child {
-    margin-bottom: auto;
 }
 .sidebar-rail__item {
     flex-shrink: 0;
@@ -981,13 +958,9 @@ h1 {
     margin: 6px auto;
     box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.6);
 }
-/* Profile avatar at the top of the rail — aligned with the
-   drawer's profile-top block. Pre-fix this rule carried a
-   `margin-top: auto` to push the avatar to the bottom; with the
-   DOM reorder (profile is now the first child of the rail) that
-   margin would push it back to the bottom edge again, so it's
-   gone. */
+/* Profile avatar pinned to the bottom of the rail. */
 .sidebar-rail__profile {
+    margin-top: auto;
     padding: 0;
     overflow: hidden;
     /* The image sits flush inside the rounded button — drop the
