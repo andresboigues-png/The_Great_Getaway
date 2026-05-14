@@ -376,10 +376,15 @@
             <a href="#" class="nav-item" data-page="todo" data-i18n-key="nav.todo">To do list</a>
             <a href="#" class="nav-item" data-page="ai" data-i18n-key="nav.ai">Plan with AI ✦</a>
             <a href="#" class="nav-item" data-page="expenses" data-i18n-key="nav.expenses">Expenses</a>
-            <a href="#" class="nav-item" data-page="insights" data-i18n-key="nav.insights">Insights</a>
-            <!-- Desktop feed icon — sits just RIGHT of "Insights"
-                 (per-user request, bookends the page-link row with
-                 the bell on the other side). The data-page="feed"
+            <!-- "Insights" used to live here as its own nav item +
+                 top-level page. 2026-05-14 restructure folded it
+                 into Expenses as a tab — see pages/expenses/
+                 Expenses.tsx. The old /insights route still works
+                 as a redirect (pages/insights/mount.ts) so any
+                 stale links land on the Expenses page with the
+                 Insights tab active. -->
+            <!-- Desktop feed icon — sits just RIGHT of "Expenses"
+                 now that Insights has moved. The data-page="feed"
                  attribute hooks into main.ts's generic [data-page]
                  click delegation, so no explicit JS wiring needed. -->
             <a href="#" data-page="feed" id="navFeedBtnDesktop" class="notif-desktop-btn notif-desktop-btn--feed" aria-label="Feed" title="Feed — what your friends are up to">
@@ -591,14 +596,11 @@
             </svg>
             <span>Expenses</span>
         </a>
-        <a href="#" class="nav-item mobile-bottom-nav__item" data-page="insights" aria-label="Insights">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <line x1="18" y1="20" x2="18" y2="10"></line>
-                <line x1="12" y1="20" x2="12" y2="4"></line>
-                <line x1="6" y1="20" x2="6" y2="14"></line>
-            </svg>
-            <span>Insights</span>
-        </a>
+        <!-- "Insights" used to be its own bottom-nav item here.
+             2026-05-14 restructure folded it into Expenses as a
+             tab (Upload | Insights | History). The bottom nav is
+             4 items now instead of 5; the CSS in index.css scales
+             flex-basis off item count so no spacing fix is needed. -->
     </nav>
 
     {% if dev_mode %}

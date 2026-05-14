@@ -1,27 +1,23 @@
-// pages/insights/mount.ts — bridges the legacy router to the React tree.
+// pages/insights/mount.ts — 2026-05-14 restructure.
 //
-// router.ts's HOME / EXPENSES / etc. cases call `pageEl = renderXxx()`
-// which returns an HTMLElement that gets appended to #app-container.
-// React mounts differently — it owns its own root and writes into a
-// container element directly. This adapter exposes the same external
-// shape (function called from a route case) but instead of returning
-// an element, it mounts the React tree into the supplied container.
+// Pre-restructure: this file mounted <Insights /> at the /insights
+// route. After the restructure, Insights lives as a tab inside
+// Expenses (alongside Upload + History). The /insights route is
+// kept alive purely as a redirect so existing bookmarks +
+// in-app links land in the right place — it sets the Expenses
+// tab to 'insights' and navigates to /expenses, which mounts the
+// actual Insights component as a tab.
 //
-// `mountInsights(container)` calls mountReact() which clears any
-// previously-mounted React tree (so navigating /insights → /insights
-// is clean) and renders <Insights />. The router doesn't need to do
-// anything special with the return value.
-//
-// Once C2 is stable for one full session, the legacy
-// `renderInsights()` function in pages/insights.ts will be deleted.
+// The Insights React component itself is still imported by
+// Expenses.tsx — it just no longer has its own route mount.
 
-import { createElement } from 'react';
-import { mountReact } from '../../react/reactMount.js';
-import { Insights } from './Insights.js';
+import { navigate } from '../../router.js';
+import { setExpensesTab } from '../expenses.js';
 
-export function mountInsights(container: HTMLElement): void {
-    // createElement(Component) is the non-JSX form — used here so this
-    // file stays .ts (no compile-time JSX). Equivalent to `<Insights />`
-    // in a .tsx call site.
-    mountReact(container, createElement(Insights));
+export function mountInsights(_container: HTMLElement): void {
+    // Set the tab BEFORE navigating so the Expenses mount on
+    // arrival reads the right tab state. The `_container` arg is
+    // unused — navigate replaces the current page entirely.
+    setExpensesTab('insights');
+    navigate('expenses');
 }

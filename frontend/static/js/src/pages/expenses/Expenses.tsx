@@ -1,16 +1,16 @@
-// pages/expenses/Expenses.tsx — §3.3 React migration.
+// pages/expenses/Expenses.tsx — §3.3 React migration + 2026-05-14
+// structural restructure.
 //
-// Was a thin wrapper that mounted the legacy renderExpenses() into
-// a React tree (Phase C3 wave 2). This commit replaces the wrapper
-// with a full JSX implementation — the legacy 1013-line imperative
-// renderer in pages/expenses.ts is now retired.
+// 2026-05-14 restructure:
+//   - "Manual" + "Batch" tabs collapsed into a single "Upload" tab
+//     with an inner Manual/Batch toggle (see UploadTab.tsx).
+//   - "Insights" promoted from a top-level page into a tab here.
+//     It used to be its own route at /insights; that route now
+//     redirects to /expenses with the Insights tab active.
+//   - The mobile bottom-nav Insights item is gone too — Insights
+//     lives inside Expenses on every viewport now.
 //
-// Three tabs:
-//   - Manual: per-row expense entry form. Now lives in ManualTab.tsx.
-//   - Batch:  spreadsheet import wizard, kept as the legacy
-//             renderUpload() output (the upload page hasn't graduated
-//             to JSX yet). Hosted via a small ref + appendChild.
-//   - History: filterable + sortable list. Lives in HistoryTab.tsx.
+// New tab order: Upload | Insights | History
 //
 // Tab state is externalised in ./tabState — so external callers
 // (router.ts after /upload, openEditExpenseModal after an edit
@@ -18,15 +18,16 @@
 // setActiveExpensesTab(); the live React tree picks up the change
 // without needing a navigate('expenses') re-mount.
 //
-// Permissions: Manual + Batch are planner-only. Relaxers see a
-// friendly "you're a relaxer here" notice on those two tabs. The
-// History tab is universally visible (read-only ledger view).
+// Permissions: Upload is planner-only (both Manual + Batch sub-
+// modes write to the trip). Relaxers see a friendly "you're a
+// relaxer here" notice on that tab. Insights + History are
+// universally visible — Insights is a read-only chart, History is
+// a read-only ledger.
 
-import { useEffect, useRef, useSyncExternalStore } from 'react';
+import { useSyncExternalStore } from 'react';
 import { STATE } from '../../state.js';
 import { canEditExpenses } from '../../permissions.js';
 import { t } from '../../i18n.js';
-import { renderUpload } from '../upload.js';
 import {
     getActiveExpensesTab,
     setActiveExpensesTab,
@@ -34,8 +35,9 @@ import {
     getExpensesTabVersion,
     type ExpensesTab,
 } from './tabState.js';
-import { ManualTab } from './ManualTab.js';
+import { UploadTab } from './UploadTab.js';
 import { HistoryTab } from './HistoryTab.js';
+import { Insights } from '../insights/Insights.js';
 
 
 /** useSyncExternalStore hook over the module-level tab state. The
@@ -113,30 +115,23 @@ export function Expenses() {
                 {t('expenses.title')}
             </h1>
             <nav className="expenses-tabnav" role="tablist">
-                {tabBtn('manual', t('expenses.tabManual'))}
-                {tabBtn('batch', t('expenses.tabBatch'))}
+                {tabBtn('upload', 'Upload')}
+                {tabBtn('insights', 'Insights')}
                 {tabBtn('history', t('expenses.tabHistory'))}
             </nav>
 
             <div>
-                {tab === 'manual' ? (
+                {tab === 'upload' ? (
                     isReadOnly ? (
                         <ReadOnlyNotice
-                            tabLabel={t('expenses.tabManual')}
+                            tabLabel="Upload"
                             verb={t('expenses.readOnlyVerbManual')}
                         />
                     ) : (
-                        <ManualTab />
+                        <UploadTab />
                     )
-                ) : tab === 'batch' ? (
-                    isReadOnly ? (
-                        <ReadOnlyNotice
-                            tabLabel={t('expenses.tabBatch')}
-                            verb={t('expenses.readOnlyVerbBatch')}
-                        />
-                    ) : (
-                        <BatchTabHost />
-                    )
+                ) : tab === 'insights' ? (
+                    <Insights />
                 ) : (
                     <HistoryTab />
                 )}
@@ -146,10 +141,11 @@ export function Expenses() {
 }
 
 
-/** Friendly "you're a Relaxer here" panel — used in the Manual + Batch
- *  tabs when the current user can't edit the active trip. Keeps the
- *  tab structure visible so there's no confusing "tab disappeared" UX,
- *  but blocks the form / file picker behind a clear explanation. */
+/** Friendly "you're a Relaxer here" panel — used in the Upload
+ *  tab when the current user can't edit the active trip. Keeps
+ *  the tab structure visible so there's no confusing "tab
+ *  disappeared" UX, but blocks the form / file picker behind a
+ *  clear explanation. */
 function ReadOnlyNotice({ tabLabel, verb }: { tabLabel: string; verb: string }) {
     return (
         <div
@@ -183,22 +179,4 @@ function ReadOnlyNotice({ tabLabel, verb }: { tabLabel: string; verb: string }) 
             />
         </div>
     );
-}
-
-
-/** Imperative host for the legacy renderUpload() output. The upload
- *  page hasn't been migrated to JSX yet — when it is, this can fold
- *  into <UploadPage /> directly. Until then, the host div lets the
- *  legacy HTMLElement live inside the React tree. */
-function BatchTabHost() {
-    const hostRef = useRef<HTMLDivElement | null>(null);
-
-    useEffect(() => {
-        const host = hostRef.current;
-        if (!host) return;
-        host.innerHTML = '';
-        host.appendChild(renderUpload());
-    }, []);
-
-    return <div ref={hostRef} />;
 }
