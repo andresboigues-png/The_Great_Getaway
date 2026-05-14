@@ -1,0 +1,748 @@
+// pages/home-mount/HeroMap.tsx — §3.3 React migration.
+//
+// The Google Maps hero card on the active-trip Home page. This is
+// the heart of the legacy renderHome() setTimeout(100) block —
+// ~940 lines of closure-coupled imperative setup that builds the
+// satellite map, the Places API search + per-pill markers, the
+// shared InfoWindow with "add to to-do" wiring, the day-pin markers
+// + route polyline, plus the local-time chip clock.
+//
+// Why one big useEffect instead of broken-out hooks?
+//   - The setup is genuinely a single transaction: every closure
+//     function below references shared state (placesMarkers,
+//     placesCache, placesPending, enabledPois, trafficLayer,
+//     placesInfoWindow, _placesService) that all has to live in the
+//     same scope. Splitting it would mean lifting all that state
+//     into refs and passing it around — the same shape, more
+//     ceremony, no actual decoupling.
+//   - The legacy code lives in a `setTimeout(100)` for the same
+//     reason: it needs the DOM committed before it can find
+//     mapContainer + wire all the click handlers. useEffect runs
+//     post-commit so the timing matches.
+//
+// What's React-shaped here:
+//   - The hero-card JSX wraps the imperative #homeHeroMap div.
+//   - The single quote shown in the cover-card overlay comes from
+//     the slideshow controller's initial roster (no 6s rotation
+//     for active-trip Home — that's the WelcomePage's path).
+//   - editingDayId + activeMapClickListener come from
+//     ./handlers — module state survives navigate-driven remounts
+//     so the pin-edit flow works across the legacy navigate('home')
+//     cycles addDayPin / saveDayPin trigger.
+
+import { useEffect, useRef, useState } from 'react';
+import { STATE, emit } from '../../state.js';
+import { upsertTrip } from '../../api.js';
+import { applyMapTheme } from '../../theme.js';
+import {
+    fetchTimeZone,
+    formatLocalTime,
+    mobileSafeGestureHandling,
+} from '../../googleMapsServices.js';
+import { canEdit } from '../../permissions.js';
+import { findMarkedPlace, toggleTodoListMembership } from '../../markedPlaces.js';
+import { esc } from '../../utils.js';
+import {
+    POI_CATEGORIES,
+    pickPlaceIcon,
+    isPrimaryMatch,
+} from '../home/poiCategories.js';
+import { setupSlideshow, stopHomeSlideshow } from '../home/slideshow.js';
+import {
+    registerPathSelectionHooks,
+    resolveSelectedDayId,
+    getSelectedDayId,
+} from '../home/pathSelection.js';
+import { paintDayMarkers } from '../home/dayMarkers.js';
+import { paintTodoMarkers } from '../home/todoMarkers.js';
+import { renderDayRoutePolyline } from '../home/routePolyline.js';
+import { wireMapSearchBanner } from '../home/mapSearch.js';
+import {
+    activeMapClickListener,
+    editingDayId,
+    setLocalTimeClockInterval,
+    _localTimeClockInterval,
+} from './handlers.js';
+import type { Trip } from '../../types';
+
+
+export interface HeroMapProps {
+    activeTrip: Trip;
+}
+
+
+export function HeroMap({ activeTrip }: HeroMapProps) {
+    const mapContainerRef = useRef<HTMLDivElement | null>(null);
+
+    // Slideshow controller built lazily (once per mount). The active-
+    // trip Home doesn't rotate the slideshow — only the quote at
+    // index 0 paints in the cover-card overlay. The controller is
+    // still kept around because the map setup's reverse-geocode loop
+    // calls slideshow.addDiscoveredCountry to widen the roster for
+    // future renders (cached in sessionStorage). Also stop any
+    // leftover timer from a previous no-trip render.
+    const [slideshow] = useState(() => {
+        stopHomeSlideshow();
+        return setupSlideshow(activeTrip);
+    });
+    const initialQuote = slideshow.quotes[0] || '';
+
+    useEffect(() => {
+        // ── Local-time chip wiring ────────────────────────────────
+        // One Time Zone API call per render (cached by coords inside
+        // googleMapsServices), then a 30s setInterval keeps the
+        // displayed clock fresh without refetching. Clear any prior
+        // interval first so re-mounts don't stack tickers.
+        if (_localTimeClockInterval !== null) {
+            clearInterval(_localTimeClockInterval);
+            setLocalTimeClockInterval(null);
+        }
+        if (typeof activeTrip.lat === 'number' && typeof activeTrip.lng === 'number') {
+            fetchTimeZone(activeTrip.lat, activeTrip.lng).then((tz) => {
+                if (!tz) return;
+                const chip = document.getElementById('homeTripLocalTimeChip');
+                if (!chip) return;
+                const paint = () => {
+                    const { time, offsetLabel } = formatLocalTime(tz);
+                    chip.innerHTML =
+                        `<span class="trip-local-time-chip__icon">🕐</span>` +
+                        `<span class="trip-local-time-chip__time">${time}</span>` +
+                        `<span class="trip-local-time-chip__offset">${offsetLabel}</span>`;
+                    chip.style.display = 'inline-flex';
+                };
+                paint();
+                setLocalTimeClockInterval(setInterval(paint, 30 * 1000));
+            });
+        }
+
+        const mapContainer = mapContainerRef.current;
+        if (!mapContainer || typeof google === 'undefined' || !google.maps) return;
+
+        // Legacy trips only have `country` (sometimes "USA - California"
+        // pre-Places-migration). Build a free-text query for the
+        // Geocoder backfill that runs when viewport is missing.
+        const query = activeTrip.country || '';
+        const isLegacyUSState = query.includes(' - ');
+        const searchQuery = isLegacyUSState ? (query.split(' - ')[1] + ', USA') : query;
+
+        const tripMapKey = activeTrip ? activeTrip.id : null;
+        const savedMapView = tripMapKey && STATE.mapViews && STATE.mapViews[tripMapKey];
+
+        /** Default styles: hide all POI labels, transit labels, and
+         *  road labels. The map shows only the satellite imagery +
+         *  administrative labels. Pills bring back what the user
+         *  actually wants — POIs via Places API markers, road names
+         *  via the Roads & traffic pill. */
+        const HIDE_ALL_POI_STYLES = [
+            { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+            { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+            { featureType: 'road', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+        ];
+
+        const buildPoiStyles = (enabledSet: Set<string>) => {
+            const styles: any[] = HIDE_ALL_POI_STYLES.slice();
+            if (enabledSet.has('traffic')) {
+                // Highway / arterial road labels visible only when
+                // Roads & traffic is on. Local streets stay hidden.
+                styles.push(
+                    { featureType: 'road.highway', elementType: 'labels', stylers: [{ visibility: 'on' }] },
+                    {
+                        featureType: 'road.highway',
+                        elementType: 'labels.text.fill',
+                        stylers: [{ color: '#0a3d6b' }, { weight: 2 }],
+                    },
+                    {
+                        featureType: 'road.highway',
+                        elementType: 'labels.text.stroke',
+                        stylers: [{ color: '#ffffff' }, { weight: 4 }],
+                    },
+                    { featureType: 'road.arterial', elementType: 'labels', stylers: [{ visibility: 'on' }] },
+                );
+            }
+            if (enabledSet.has('transit')) {
+                // Re-enable transit route geometry (ferry crossings,
+                // subway/bus geometry). Only render on `roadmap` map
+                // type — silently no-op on hybrid/satellite.
+                styles.push(
+                    { featureType: 'transit.line', elementType: 'geometry', stylers: [{ visibility: 'on' }] },
+                    {
+                        featureType: 'transit.line',
+                        elementType: 'geometry.stroke',
+                        stylers: [{ color: '#00e5ff' }, { weight: 6 }],
+                    },
+                    {
+                        featureType: 'transit.line',
+                        elementType: 'geometry.fill',
+                        stylers: [{ color: '#5ad8ff' }, { weight: 6 }],
+                    },
+                    { featureType: 'transit.line', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+                    { featureType: 'transit.station', stylers: [{ visibility: 'off' }] },
+                );
+            }
+            return styles;
+        };
+
+        // ── Places API: per-pill Nearby Search ──────────────────
+        let _placesService: any | null = null;
+        const getPlacesService = () => {
+            if (_placesService) return _placesService;
+            if (typeof google === 'undefined' || !google.maps || !google.maps.places) return null;
+            _placesService = new google.maps.places.PlacesService(map);
+            return _placesService;
+        };
+
+        // Markers grouped by pill key so we can clear one category
+        // without disturbing the others.
+        const placesMarkers: Record<string, any[]> = {};
+
+        // Cache of nearbySearch results keyed by `${tripId}|${pillKey}|${anchorId}|${strategy}`.
+        const placesCache: Record<string, any[]> = {};
+
+        // In-flight fetches keyed the same way. Concurrent toggles
+        // resolve to the same promise instead of firing duplicate
+        // searches.
+        const placesPending: Record<string, Promise<any[]> | undefined> = {};
+
+        // Single shared InfoWindow — reused across every Places
+        // marker so only one bubble is ever open at a time.
+        let placesInfoWindow: any | null = null;
+        const getInfoWindow = () => {
+            if (placesInfoWindow) return placesInfoWindow;
+            placesInfoWindow = new google.maps.InfoWindow();
+            return placesInfoWindow;
+        };
+
+        const tripIsEditable = canEdit(activeTrip);
+
+        const buildInfoWindowHtml = (cat: any, place: any) => {
+            const safeName = esc(place.name || cat.label);
+            const safeVicinity = esc(place.vicinity || '');
+            const ratingHtml =
+                typeof place.rating === 'number'
+                    ? `<div style="margin-top: 6px; font-size: 0.8125rem; color: #444;"><span style="color: #a85d00;">★</span> ${place.rating.toFixed(1)}${place.user_ratings_total ? ` <span style="color: #888;">(${place.user_ratings_total})</span>` : ''}</div>`
+                    : '';
+            const mapsUrl = place.place_id
+                ? `https://www.google.com/maps/place/?q=place_id:${encodeURIComponent(place.place_id)}`
+                : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.name || '')}`;
+            const marked = findMarkedPlace(activeTrip, place.place_id);
+            const isOnTodo = !!marked?.forManual;
+            const markBtnsHtml =
+                tripIsEditable && place.place_id
+                    ? `
+                        <div style="display: flex; gap: 6px; margin-top: 10px;">
+                            <button type="button" data-action="toggle-todo" data-place-id="${esc(place.place_id)}"
+                                style="flex: 1; padding: 7px 12px; border-radius: 8px; font-size: 0.75rem; font-weight: 700; cursor: pointer; border: 1.5px solid #9b59b6; background: ${isOnTodo ? '#7c3a9e' : 'white'}; color: ${isOnTodo ? 'white' : '#7c3a9e'};">
+                                ${isOnTodo ? '✓ On your to-do list' : '📋 Add to to-do list'}
+                            </button>
+                        </div>
+                    `
+                    : '';
+            const headerIcon = pickPlaceIcon(cat, place);
+            return `
+                <div style="font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif; min-width: 240px; max-width: 280px; padding: 4px 2px;">
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                        <span style="font-size: 1.125rem;">${headerIcon}</span>
+                        <strong style="font-size: 0.9375rem; color: #002d5b; line-height: 1.25;">${safeName}</strong>
+                    </div>
+                    ${safeVicinity ? `<div style="font-size: 0.75rem; color: #666; line-height: 1.4;">${safeVicinity}</div>` : ''}
+                    ${ratingHtml}
+                    <a href="${mapsUrl}" target="_blank" rel="noopener" style="display: inline-block; margin-top: 10px; padding: 6px 12px; background: ${cat.color}; color: white; text-decoration: none; border-radius: 8px; font-size: 0.75rem; font-weight: 700;">View on Google Maps →</a>
+                    ${markBtnsHtml}
+                </div>
+            `;
+        };
+
+        const wireInfoWindowMarkButtons = (cat: any, place: any) => {
+            const iw = getInfoWindow();
+            const todoBtn = document.querySelector(
+                `.gm-style-iw [data-action="toggle-todo"][data-place-id="${place.place_id}"]`,
+            ) as HTMLButtonElement | null;
+            if (!todoBtn) return;
+            const refresh = () => {
+                iw.setContent(buildInfoWindowHtml(cat, place));
+                google.maps.event.addListenerOnce(iw, 'domready', () => {
+                    wireInfoWindowMarkButtons(cat, place);
+                });
+            };
+            todoBtn.onclick = () => {
+                const sortedDays = [...(STATE.tripDays || [])]
+                    .filter((d) => d.tripId === activeTrip.id)
+                    .sort((a, b) => a.dayNumber - b.dayNumber);
+                const selectedId = resolveSelectedDayId(activeTrip, sortedDays);
+                const selectedDay = sortedDays.find((d) => d.id === selectedId);
+                const dayIdForAdd = selectedDay && selectedDay.dayNumber > 0 ? selectedDay.id : null;
+                toggleTodoListMembership(activeTrip, place, cat, dayIdForAdd);
+                emit('state:changed');
+                upsertTrip(activeTrip);
+                refresh();
+            };
+        };
+
+        const dropPlaceMarker = (cat: any, place: any) => {
+            const loc = place.geometry?.location;
+            if (!loc) return null;
+            const markerIcon = pickPlaceIcon(cat, place);
+            const svg =
+                'data:image/svg+xml;utf8,' +
+                `<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44">` +
+                `<defs><filter id="s" x="-20%" y="-20%" width="140%" height="140%">` +
+                `<feDropShadow dx="0" dy="2" stdDeviation="2" flood-opacity="0.35"/>` +
+                `</filter></defs>` +
+                `<circle cx="22" cy="22" r="18" fill="white" stroke="${encodeURIComponent(cat.color)}" stroke-width="3.5" filter="url(%23s)"/>` +
+                `<text x="22" y="29" text-anchor="middle" font-size="20">${markerIcon}</text>` +
+                '</svg>';
+            const marker = new google.maps.Marker({
+                map,
+                position: loc,
+                title: place.name || cat.label,
+                icon: {
+                    url: svg,
+                    scaledSize: new google.maps.Size(40, 40),
+                    anchor: new google.maps.Point(20, 20),
+                },
+                zIndex: 1,
+            });
+            marker.addListener('click', () => {
+                const iw = getInfoWindow();
+                const anchor = (iw as any).getAnchor?.();
+                const iwIsOpen = !!(iw as any).getMap?.();
+                if (iwIsOpen && anchor === marker) {
+                    iw.close();
+                    return;
+                }
+                iw.setContent(buildInfoWindowHtml(cat, place));
+                google.maps.event.addListenerOnce(iw, 'domready', () => {
+                    wireInfoWindowMarkButtons(cat, place);
+                });
+                iw.open({ map, anchor: marker });
+                map.panTo(loc);
+                if (map.getZoom() < 17) map.setZoom(17);
+            });
+            return marker;
+        };
+
+        // ── search-center resolution + per-pill anchoring ──────
+        const resolveSearchCenter = (forceAnchor = false) => {
+            if (!forceAnchor && activeTrip) {
+                const sortedDays = [...(STATE.tripDays || [])]
+                    .filter((d) => d.tripId === activeTrip.id)
+                    .sort((a, b) => a.dayNumber - b.dayNumber);
+                const selectedId = resolveSelectedDayId(activeTrip, sortedDays);
+                if (selectedId) {
+                    const sel = sortedDays.find((d) => d.id === selectedId);
+                    if (sel && sel.lat != null) {
+                        return {
+                            center: { lat: sel.lat, lng: sel.lng || sel.lon },
+                            anchorId: sel.id,
+                        };
+                    }
+                }
+            }
+            const anchor = currentTripDays.find((d) => d.dayNumber === 0 && d.lat);
+            if (anchor) {
+                return {
+                    center: { lat: anchor.lat as number, lng: (anchor.lng || anchor.lon) as number },
+                    anchorId: 'anchor',
+                };
+            }
+            if (activeTrip?.lat) {
+                return {
+                    center: { lat: activeTrip.lat as number, lng: activeTrip.lng as number },
+                    anchorId: 'trip',
+                };
+            }
+            return { center: null, anchorId: '' };
+        };
+
+        const shouldForceAnchor = (cat: any) => {
+            const userPref = STATE.preferences?.poiAnchoring?.[cat.key];
+            return userPref === 'anchor';
+        };
+
+        const fetchPlacesForTrip = (cat: any): Promise<any[]> => {
+            const tripId = activeTrip?.id || '';
+            const { center, anchorId } = resolveSearchCenter(shouldForceAnchor(cat));
+            const key = `${tripId}|${cat.key}|${anchorId}|${cat.searchStrategy}`;
+            if (placesCache[key]) return Promise.resolve(placesCache[key]);
+            const pending = placesPending[key];
+            if (pending) return pending;
+
+            const promise = new Promise<any[]>((resolve) => {
+                if (!center || typeof center.lat !== 'number' || typeof center.lng !== 'number') {
+                    resolve([]);
+                    return;
+                }
+                const svc = getPlacesService();
+                if (!svc) {
+                    resolve([]);
+                    return;
+                }
+                const all: any[] = [];
+                const typesToSearch = [cat.placesType, ...(cat.extraPlacesTypes || [])];
+                const keywordsToSearch = cat.extraKeywords || [];
+                let pendingSearches = typesToSearch.length + keywordsToSearch.length;
+                const sharedHandle = (results: any, status: string, pagination: any) => {
+                    const ok =
+                        status === google.maps.places.PlacesServiceStatus.OK ||
+                        status === google.maps.places.PlacesServiceStatus.ZERO_RESULTS;
+                    if (ok && Array.isArray(results)) all.push(...results);
+                    if (!ok) {
+                        console.warn(`[POI ${cat.key}] Places search status=${status}`);
+                    }
+                    if (pagination && pagination.hasNextPage && all.length < 60) {
+                        setTimeout(() => pagination.nextPage(), 200);
+                    } else if (--pendingSearches === 0) {
+                        const seen = new Set();
+                        const deduped: any[] = [];
+                        for (const p of all) {
+                            if (!p?.place_id || seen.has(p.place_id)) continue;
+                            seen.add(p.place_id);
+                            deduped.push(p);
+                        }
+                        resolve(deduped);
+                    }
+                };
+                const runSearch = (extra: Record<string, any>) => {
+                    const base =
+                        cat.searchStrategy === 'distance'
+                            ? { location: center, rankBy: google.maps.places.RankBy.DISTANCE }
+                            : { location: center, radius: 50000 };
+                    svc.nearbySearch({ ...base, ...extra }, sharedHandle);
+                };
+                typesToSearch.forEach((t: string) => runSearch({ type: t }));
+                keywordsToSearch.forEach((kw: string) => runSearch({ keyword: kw }));
+            });
+            placesPending[key] = promise;
+            promise.then((list) => {
+                placesCache[key] = list;
+                delete placesPending[key];
+            });
+            return promise;
+        };
+
+        const setPlacesPillVisible = async (pillKey: string, visible: boolean) => {
+            const cat = POI_CATEGORIES.find((c) => c.key === pillKey);
+            if (!cat || !cat.placesType) return;
+
+            // Clear unconditionally so the off path AND the "rapidly
+            // toggled on twice" path both reset cleanly.
+            (placesMarkers[pillKey] || []).forEach((m) => m.setMap(null));
+            placesMarkers[pillKey] = [];
+
+            if (!visible) return;
+
+            const results = await fetchPlacesForTrip(cat);
+            // Re-check after the await — the user may have toggled
+            // the pill back off while we were waiting.
+            if (!enabledPois.has(pillKey)) return;
+
+            const userFilter = STATE.preferences?.poiFilters?.[pillKey] || {};
+            const minRating =
+                typeof userFilter.minRating === 'number' ? userFilter.minRating : cat.defaultMinRating;
+
+            const markers: any[] = [];
+            const seen = new Set();
+            results.forEach((place) => {
+                const pid = place.place_id;
+                if (pid && seen.has(pid)) return;
+                if (pid) seen.add(pid);
+                if (!isPrimaryMatch(cat.key, place.types, place.name)) return;
+                const rating = typeof place.rating === 'number' ? place.rating : 0;
+                if (rating < minRating) return;
+                const m = dropPlaceMarker(cat, place);
+                if (m) markers.push(m);
+            });
+            placesMarkers[pillKey] = markers;
+        };
+
+        // ── enabledPois set: per-trip pill toggles persist via STATE ─
+        const tripIdForPills = activeTrip?.id || '';
+        const persistedPills = (STATE.preferences?.enabledPois?.[tripIdForPills] || []).filter((k) =>
+            POI_CATEGORIES.some((c) => c.key === k),
+        );
+        const enabledPois: Set<string> = new Set(persistedPills);
+
+        const currentTripDays = activeTrip
+            ? (STATE.tripDays || []).filter((d) => d.tripId === activeTrip.id)
+            : [];
+
+        const mapOptions = {
+            center: savedMapView ? { lat: savedMapView.lat, lng: savedMapView.lng } : { lat: 20, lng: 0 },
+            zoom: savedMapView ? savedMapView.zoom : 2,
+            minZoom: 2,
+            mapTypeId: 'hybrid',
+            disableDefaultUI: true,
+            keyboardShortcuts: false,
+            gestureHandling: mobileSafeGestureHandling(),
+            backgroundColor: '#ffffff',
+            styles: buildPoiStyles(enabledPois),
+            restriction: {
+                latLngBounds: { north: 85, south: -85, west: -180, east: 180 },
+                strictBounds: true,
+            },
+        };
+
+        const map = new google.maps.Map(mapContainer, mapOptions);
+        (window as any).activeMap = map;
+        // Phase D2: merge dark map style on top of the POI styles
+        // when the user is in dark mode.
+        applyMapTheme(map, buildPoiStyles(enabledPois));
+
+        // ── Live traffic overlay ───────────────────────────────
+        let trafficLayer: any | null = null;
+        const setTrafficVisible = (visible: boolean) => {
+            if (visible) {
+                if (!trafficLayer) trafficLayer = new google.maps.TrafficLayer();
+                trafficLayer.setMap(map);
+            } else if (trafficLayer) {
+                trafficLayer.setMap(null);
+            }
+        };
+
+        const persistEnabledPois = () => {
+            if (!STATE.preferences) return;
+            if (!STATE.preferences.enabledPois) STATE.preferences.enabledPois = {};
+            const tripId = activeTrip?.id || '';
+            if (!tripId) return;
+            STATE.preferences.enabledPois[tripId] = POI_CATEGORIES.filter((c) =>
+                enabledPois.has(c.key),
+            ).map((c) => c.key);
+            emit('state:changed');
+        };
+
+        // ── POI pill click delegation ──────────────────────────
+        const poiTogglesEl = document.getElementById('homeMapPoiToggles');
+        const onPoiTogglesClick = (ev: Event) => {
+            const target = ev.target as HTMLElement | null;
+            const pill = target?.closest('.map-poi-toggle');
+            if (!pill) return;
+            const key = (pill as HTMLElement).dataset.poi;
+            if (!key) return;
+            const willBeOn = !enabledPois.has(key);
+            if (willBeOn) enabledPois.add(key);
+            else enabledPois.delete(key);
+            map.setOptions({ styles: buildPoiStyles(enabledPois) });
+            if (key === 'traffic') setTrafficVisible(willBeOn);
+            setPlacesPillVisible(key, willBeOn);
+            pill.classList.toggle('is-on', willBeOn);
+            pill.setAttribute('aria-pressed', String(willBeOn));
+            persistEnabledPois();
+        };
+        poiTogglesEl?.addEventListener('click', onPoiTogglesClick);
+
+        // Restore previously-active pills from preferences.
+        if (enabledPois.size > 0) {
+            map.setOptions({ styles: buildPoiStyles(enabledPois) });
+            if (enabledPois.has('traffic')) setTrafficVisible(true);
+            enabledPois.forEach((key) => {
+                const pill = poiTogglesEl?.querySelector(`.map-poi-toggle[data-poi="${key}"]`);
+                if (pill) {
+                    pill.classList.add('is-on');
+                    pill.setAttribute('aria-pressed', 'true');
+                }
+                setPlacesPillVisible(key, true);
+            });
+        }
+
+        // ── Selection-change hook: re-fetch active pills ───────
+        registerPathSelectionHooks({
+            onSelectedDayChange: () => {
+                // Re-paint to-do markers (cheap; matches Phase G slice 2).
+                repaintTodoMarkers();
+                if (enabledPois.size === 0) return;
+                enabledPois.forEach((key) => {
+                    const cat = POI_CATEGORIES.find((c) => c.key === key);
+                    if (cat && shouldForceAnchor(cat)) return;
+                    setPlacesPillVisible(key, false);
+                    setPlacesPillVisible(key, true);
+                });
+            },
+        });
+
+        // ── Map search banner wiring ──────────────────────────
+        wireMapSearchBanner({
+            map,
+            activeTrip,
+            getInfoWindow,
+            getPlacesService,
+            buildInfoWindowHtml,
+            wireInfoWindowMarkButtons,
+        });
+
+        // ── Day markers ───────────────────────────────────────
+        paintDayMarkers({
+            map,
+            activeTrip,
+            days: currentTripDays,
+            editingDayId,
+            getInfoWindow,
+        });
+
+        // ── To-do markers (per-wheel-day visibility) ─────────
+        let todoMarkers: Record<string, google.maps.Marker> = {};
+        const repaintTodoMarkers = () => {
+            for (const m of Object.values(todoMarkers)) m.setMap(null);
+            todoMarkers = paintTodoMarkers({
+                map,
+                activeTrip,
+                days: currentTripDays,
+                selectedDayId: activeTrip ? getSelectedDayId(activeTrip.id) || null : null,
+                getInfoWindow,
+            });
+        };
+        repaintTodoMarkers();
+
+        // ── Empty-map-click closes the InfoWindow ─────────────
+        map.addListener('click', () => {
+            try {
+                getInfoWindow().close();
+            } catch (_) {
+                /* IW may not be initialised yet */
+            }
+        });
+
+        // ── Day-to-day route polyline ─────────────────────────
+        renderDayRoutePolyline(map, currentTripDays, activeTrip);
+
+        // ── Re-attach pin-edit map click listener if active ──
+        if (activeMapClickListener) {
+            const cb = activeMapClickListener;
+            map.addListener('click', (e: any) =>
+                cb({ latlng: { lat: e.latLng.lat(), lng: e.latLng.lng() } }),
+            );
+            mapContainer.style.cursor = 'crosshair';
+        }
+
+        // ── Persist map view on idle ──────────────────────────
+        map.addListener('idle', () => {
+            if (!tripMapKey) return;
+            if (!STATE.mapViews) STATE.mapViews = {};
+            const center = map.getCenter();
+            STATE.mapViews[tripMapKey] = {
+                lat: center.lat(),
+                lng: center.lng(),
+                zoom: map.getZoom(),
+            };
+            emit('state:changed');
+        });
+
+        // ── Border & zoom ─────────────────────────────────────
+        const cleanQuery = searchQuery.trim();
+        if (!savedMapView) {
+            if (activeTrip.viewport) {
+                const v = activeTrip.viewport;
+                const bounds = new google.maps.LatLngBounds(
+                    { lat: v.south, lng: v.west },
+                    { lat: v.north, lng: v.east },
+                );
+                google.maps.event.addListenerOnce(map, 'tilesloaded', () => {
+                    map.fitBounds(bounds);
+                });
+            } else {
+                const geocoder = new google.maps.Geocoder();
+                geocoder.geocode({ address: cleanQuery }, (results: any, status: string) => {
+                    if (status === 'OK' && results[0]) {
+                        const bounds = results[0].geometry.viewport;
+                        google.maps.event.addListenerOnce(map, 'tilesloaded', () => {
+                            map.fitBounds(bounds);
+                        });
+                        const sw = bounds.getSouthWest();
+                        const ne = bounds.getNorthEast();
+                        const center = results[0].geometry.location;
+                        activeTrip.lat = center.lat();
+                        activeTrip.lng = center.lng();
+                        activeTrip.viewport = {
+                            south: sw.lat(),
+                            west: sw.lng(),
+                            north: ne.lat(),
+                            east: ne.lng(),
+                        };
+                        upsertTrip(activeTrip);
+                    }
+                });
+            }
+        }
+
+        // ── Slideshow country detection ────────────────────────
+        // Reverse-geocode each day pin once + pull country code;
+        // feed addDiscoveredCountry so the slideshow roster widens
+        // on next render. Cached in sessionStorage so trip
+        // navigations don't re-bill the Geocoder quota.
+        if (currentTripDays.some((d) => typeof d.lat === 'number')) {
+            const DAY_CACHE_PREFIX = 'tggDayCountry:';
+            const cachedCountryFor = async (lat: number, lng: number) => {
+                const key = `${lat.toFixed(4)},${lng.toFixed(4)}`;
+                try {
+                    const hit = sessionStorage.getItem(DAY_CACHE_PREFIX + key);
+                    if (hit) return hit;
+                } catch (_) {
+                    /* unavailable */
+                }
+                try {
+                    const geocoder = new google.maps.Geocoder();
+                    const resp = await geocoder.geocode({ location: { lat, lng } });
+                    const results = (resp && resp.results) || [];
+                    for (const r of results) {
+                        const cc = (r.address_components || []).find((c: any) =>
+                            (c.types || []).includes('country'),
+                        );
+                        if (cc && cc.short_name) {
+                            const code = cc.short_name.toUpperCase();
+                            try {
+                                sessionStorage.setItem(DAY_CACHE_PREFIX + key, code);
+                            } catch (_) {
+                                /* ignore */
+                            }
+                            return code;
+                        }
+                    }
+                } catch (_) {
+                    /* ignore — no slideshow widening for this pin */
+                }
+                return '';
+            };
+            (async () => {
+                for (const day of currentTripDays) {
+                    const pinLat = day.lat;
+                    const pinLng = day.lon || day.lng;
+                    if (typeof pinLat !== 'number' || typeof pinLng !== 'number') continue;
+                    const code = await cachedCountryFor(pinLat, pinLng);
+                    if (code) slideshow.addDiscoveredCountry(code);
+                }
+            })();
+        }
+
+        return () => {
+            // Cleanup on unmount: tear down the POI delegation
+            // listener. The map + markers + InfoWindow are owned by
+            // the now-removed DOM element, so Google's GC handles
+            // them when their containers go away.
+            poiTogglesEl?.removeEventListener('click', onPoiTogglesClick);
+            if (_localTimeClockInterval !== null) {
+                clearInterval(_localTimeClockInterval);
+                setLocalTimeClockInterval(null);
+            }
+        };
+        // Intentional: this effect runs once per mount. activeTrip is
+        // captured by closure; if the user switches active trip, the
+        // parent component re-mounts the whole Home tree via
+        // navigate('home'), which re-runs this effect with the new trip.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    return (
+        <div className="card glass cover-card cover-card--md">
+            <div
+                ref={mapContainerRef}
+                id="homeHeroMap"
+                style={{ width: '100%', height: '100%', position: 'absolute', inset: 0, zIndex: 0 }}
+            />
+            <div className="cover-card__gradient" style={{ pointerEvents: 'none', zIndex: 1 }} />
+            <div className="cover-card__content" style={{ pointerEvents: 'none', zIndex: 2 }}>
+                <p id="homeQuote" className="cover-card__quote">
+                    {initialQuote}
+                </p>
+            </div>
+        </div>
+    );
+}

@@ -1,0 +1,270 @@
+// pages/home-mount/handlers.ts — §3.3 React migration support.
+//
+// Module-level state + day-pin helpers extracted from the legacy
+// renderHome() function. The mutable state (`editingDayId`,
+// `activeMapClickListener`, `activeHomeTab`, `_localTimeClockInterval`)
+// lives here so:
+//
+//   1. Day-pin action buttons rendered inside React (PathTab inner)
+//      can dispatch addDayPin / editDayPin / saveDayPin /
+//      deleteDayPin / deleteDay via direct onClick handlers.
+//   2. The HeroMap useEffect reads `editingDayId` and
+//      `activeMapClickListener` on every mount so the pin-edit
+//      flow (click map to drop a pin) keeps working — the helper
+//      sets the listener + navigate('home'); the new mount picks
+//      it up and attaches it to the freshly-created map.
+//
+// Why module state and not React state?
+//   - The legacy code uses navigate('home') after every action,
+//     which now triggers an unmount/remount of the React tree.
+//     Component-local useState would reset across mounts; module
+//     state survives because it's not part of any React tree.
+//   - Mirrors the pattern used by pages/home/pathSelection.ts
+//     (selectedDayByTrip) and other home/* extractions that
+//     pre-date this React migration.
+
+import { STATE, emit } from '../../state.js';
+import { showLiquidAlert, showConfirmModal, generateId } from '../../utils.js';
+import { upsertDay, deleteDayOnServer } from '../../api.js';
+import { navigate } from '../../router.js';
+import { clearSelectedDay, getSelectedDayId } from '../home/pathSelection.js';
+import type { HomeTab } from '../home/dayDetailModal.js';
+import type { Trip } from '../../types';
+
+
+// ── module-level mutable state ─────────────────────────────────────
+// editingDayId: which day's pin the user is currently dragging /
+//   re-positioning (set by addDayPin/editDayPin, cleared on save/
+//   delete). HeroMap reads this to render the "click the map" UI
+//   state and to attach the pending click listener.
+export let editingDayId: string | null = null;
+
+// activeMapClickListener: the closure HeroMap attaches to the Google
+// Map's click event while editingDayId is set. addDayPin builds it +
+// stashes it; the new mount reads + attaches it. Single-shot — the
+// closure clears itself after firing.
+export let activeMapClickListener: ((e: { latlng: { lat: number; lng: number } }) => void) | null = null;
+
+// _localTimeClockInterval: setInterval id for the trip-header local
+// time chip. HeroMap owns this — it clears any prior interval before
+// starting a new one so re-mounts don't stack tickers.
+export let _localTimeClockInterval: ReturnType<typeof setInterval> | null = null;
+
+// activeHomeTab: which sub-tab of the trip view is showing
+// (Path / Companions / Documents / Photos). Documents/Photos are
+// only reached by openDayDetail's setActiveHomeTab callback (then
+// navigate'd back to home so the modal can paint).
+export let activeHomeTab: HomeTab = 'days';
+
+
+// ── setters (exported for external callers) ────────────────────────
+export function setEditingDayId(id: string | null): void {
+    editingDayId = id;
+}
+
+export function setActiveMapClickListener(
+    cb: ((e: { latlng: { lat: number; lng: number } }) => void) | null,
+): void {
+    activeMapClickListener = cb;
+}
+
+export function setLocalTimeClockInterval(
+    id: ReturnType<typeof setInterval> | null,
+): void {
+    _localTimeClockInterval = id;
+}
+
+export function setActiveHomeTab(tab: HomeTab): void {
+    activeHomeTab = tab;
+}
+
+
+// ── day pin helpers ────────────────────────────────────────────────
+// Replicate the legacy behaviour line-for-line:
+//   - addDayPin: arm a map click listener, navigate to refresh
+//   - editDayPin: just mark editing + refresh (legacy did the same)
+//   - saveDayPin: clear editing, persist, navigate
+//   - deleteDayPin: null the day's coords + persist
+//   - deleteDay: confirm + remove the day + renumber + persist
+
+export const addDayPin = (dayId: string): void => {
+    const day = STATE.tripDays.find((d) => d.id === dayId);
+    if (!day) return;
+
+    editingDayId = dayId;
+    showLiquidAlert('Click on the map to set the location for this day!');
+
+    activeMapClickListener = (e) => {
+        day.lat = e.latlng.lat;
+        day.lon = e.latlng.lng;
+        day.lng = e.latlng.lng;
+        activeMapClickListener = null;
+        navigate('home', null, true);
+    };
+
+    navigate('home', null, true);
+};
+
+export const editDayPin = (dayId: string): void => {
+    editingDayId = dayId;
+    navigate('home', null, true);
+};
+
+export const saveDayPin = async (dayId: string): Promise<void> => {
+    const day = STATE.tripDays.find((d) => d.id === dayId);
+    if (!day) return;
+
+    editingDayId = null;
+    activeMapClickListener = null;
+    emit('state:changed');
+    await upsertDay(day);
+    showLiquidAlert('Location saved!');
+    navigate('home', null, true);
+};
+
+export const deleteDayPin = async (dayId: string): Promise<void> => {
+    const day = STATE.tripDays.find((d) => d.id === dayId);
+    if (!day) return;
+
+    day.lat = null;
+    day.lon = null;
+    day.lng = null;
+    editingDayId = null;
+    activeMapClickListener = null;
+
+    emit('state:changed');
+    await upsertDay(day);
+    navigate('home', null, true);
+};
+
+/** Ensure every trip with a known location has a Day 0 / Trip Anchor.
+ *
+ *  Idempotent — checks both `tripDays` (already in STATE) and a
+ *  sessionStorage flag to handle the race where a pullFromServer
+ *  hasn't completed by the time the next render runs. Called from
+ *  mount.ts BEFORE mountReact so the first render sees day 0
+ *  already in tripDays.
+ *
+ *  Also dedups existing duplicates first — keeps oldest by id,
+ *  deletes the rest from STATE + backend. Self-heals trips that
+ *  accumulated duplicates from earlier buggy versions. */
+export function ensureDayZero(activeTrip: Trip | null | undefined): void {
+    if (!activeTrip) return;
+    const tripDays = (STATE.tripDays || []).filter((d) => d.tripId === activeTrip.id);
+
+    // Dedup any existing day-0 duplicates first.
+    const existingDay0s = tripDays.filter((d) => Number(d.dayNumber) === 0);
+    if (existingDay0s.length > 1) {
+        for (const dup of existingDay0s.slice(1)) {
+            STATE.tripDays = STATE.tripDays.filter((d) => d.id !== dup.id);
+            deleteDayOnServer(dup.id);
+        }
+    }
+
+    const day0FlagKey = `tggDay0Created:${activeTrip.id}`;
+    let flagSet = false;
+    try {
+        flagSet = sessionStorage.getItem(day0FlagKey) === '1';
+    } catch (_) {
+        /* sessionStorage unavailable */
+    }
+    const hasDay0 = STATE.tripDays.some(
+        (d) => d.tripId === activeTrip.id && Number(d.dayNumber) === 0,
+    );
+
+    // If we have one already, just remember it for this session.
+    if (hasDay0 && !flagSet) {
+        try {
+            sessionStorage.setItem(day0FlagKey, '1');
+        } catch (_) {
+            /* unavailable */
+        }
+    }
+
+    // Create only when both signals say "missing" — no day-0 in
+    // state AND we haven't already created one this session.
+    if (
+        !hasDay0 &&
+        !flagSet &&
+        typeof activeTrip.lat === 'number' &&
+        typeof activeTrip.lng === 'number'
+    ) {
+        const day0 = {
+            id: generateId(),
+            tripId: activeTrip.id,
+            name: 'Trip Anchor',
+            date: '',
+            dayNumber: 0,
+            lat: activeTrip.lat,
+            lng: activeTrip.lng,
+            photos: [],
+            notes: '',
+            plan: { morning: '', afternoon: '', evening: '' },
+            tickets: [],
+            documents: [],
+        };
+        STATE.tripDays.push(day0);
+        try {
+            sessionStorage.setItem(day0FlagKey, '1');
+        } catch (_) {
+            /* unavailable */
+        }
+        upsertDay(day0);
+        emit('state:changed');
+    }
+}
+
+
+export const deleteDay = (dayId: string): void => {
+    const day = STATE.tripDays.find((d) => d.id === dayId);
+    if (!day) return;
+    // Anchor is the trip's anchor — pill search, wide-area POIs, and
+    // the lazy day-0 sessionStorage flag all key off it. The delete
+    // button is already hidden on the anchor card; this guard is
+    // belt-and-braces in case some old in-memory STATE / external
+    // call site reaches deleteDay with a day-0 id.
+    if (Number(day.dayNumber) === 0) {
+        showLiquidAlert("Trip Anchor can't be deleted — it anchors the trip.");
+        return;
+    }
+
+    showConfirmModal({
+        title: `Delete Day ${day.dayNumber}?`,
+        message: "This removes the day and all its journaling, photos, and documents. This can't be undone.",
+        confirmText: 'Delete Day',
+        onConfirm: async () => {
+            const tripId = day.tripId;
+            STATE.tripDays = STATE.tripDays.filter((d) => d.id !== dayId);
+
+            // Renumber remaining numbered days starting from 1.
+            // Day 0 (Trip Anchor) is preserved as-is — not part of
+            // the sequential numbering.
+            STATE.tripDays
+                .filter((d) => d.tripId === tripId && Number(d.dayNumber) > 0)
+                .sort((a, b) => a.dayNumber - b.dayNumber)
+                .forEach((d, i) => {
+                    d.dayNumber = i + 1;
+                });
+
+            // If the deleted day was someone's last selected day on
+            // this trip, drop the cached selection so resolveSelectedDayId
+            // re-derives a sensible default on next render.
+            if (getSelectedDayId(tripId) === dayId) {
+                clearSelectedDay(tripId);
+            }
+            if (editingDayId === dayId) {
+                editingDayId = null;
+                activeMapClickListener = null;
+            }
+
+            emit('state:changed');
+            await deleteDayOnServer(dayId);
+            // Persist the renumbered survivors so server stays in sync.
+            await Promise.all(
+                STATE.tripDays.filter((d) => d.tripId === tripId).map((d) => upsertDay(d)),
+            );
+            showLiquidAlert('Day deleted');
+            navigate('home', null, true);
+        },
+    });
+};
