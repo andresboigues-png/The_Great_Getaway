@@ -71,7 +71,14 @@ interface TodoMarkedPlace {
  *  for icons not in the table — covers the 📋 default that
  *  `addOrUpdatePlaceFromVerified` stamps on AI-only items + the 📍
  *  default that the home InfoWindow uses when no category was active.
- *  Pre-G items keyed by their POI emoji always hit a known label. */
+ *  Pre-G items keyed by their POI emoji always hit a known label.
+ *
+ *  Note: 📋 is intentionally absent — `groupingIcon()` normalises
+ *  AI-sourced items (which carry icon='📋' on their data) into 📍
+ *  "Other places" for filter + grouping purposes. They keep their
+ *  raw icon on the row data (so the `+ AI` chip + edit-modal can
+ *  read it), but visually merge into the "Other places" bucket
+ *  instead of getting a dedicated section. */
 const ICON_TO_LABEL: Record<string, string> = {
     '🍽️': 'Restaurants',
     '🛒': 'Supermarkets',
@@ -89,9 +96,16 @@ const ICON_TO_LABEL: Record<string, string> = {
     '🏟️': 'Sports',
     '🚉': 'Transit',
     '🛣️': 'Roads & traffic',
-    '📋': 'AI suggestions',
     '📍': 'Other places',
 };
+
+/** Resolve the icon used for filtering + grouping. Treats the
+ *  AI-generic 📋 the same as 📍 — see the ICON_TO_LABEL comment.
+ *  Anything else passes through. */
+function groupingIcon(raw: string | undefined): string {
+    const i = raw || '📍';
+    return i === '📋' ? '📍' : i;
+}
 
 const titleH1Style = {
     margin: '0 0 6px',
@@ -643,20 +657,15 @@ export function Todo() {
     // Per-icon counts BEFORE the filter applies — pill counts always
     // reflect the full list so the user can see "Hotels: 1, Sights: 3"
     // even when Hotels is currently filtered out. (Tally-ho UX:
-    // counts are the catalogue, not the filtered view.)
+    // counts are the catalogue, not the filtered view.) AI items get
+    // normalised to 📍 here so they don't form a standalone bucket —
+    // see groupingIcon() above.
     const iconCounts = new Map<string, number>();
     for (const p of todoItems) {
-        const key = p.icon || '📍';
+        const key = groupingIcon(p.icon);
         iconCounts.set(key, (iconCounts.get(key) || 0) + 1);
     }
-    // Exclude the 📋 "AI suggestions" pseudo-type from the filter row.
-    // AI-sourced items ARE real places (restaurants, hotels, sights)
-    // that happen to lack a category icon because the LLM doesn't
-    // emit one; surfacing "AI suggestions" as a Type pill alongside
-    // Restaurants / Hotels confused the user — it's a SOURCE, not a
-    // type. The "✦ AI" chip on the row plus the dedicated "For AI"
-    // status filter already cover the AI-vs-manual axis.
-    const allIcons = [...iconCounts.keys()].filter((icon) => icon !== '📋');
+    const allIcons = [...iconCounts.keys()];
 
     // Apply the AI-status filter, then the category filter. Both
     // independent; combining them gives "unticked Restaurants" etc.
@@ -668,7 +677,7 @@ export function Todo() {
     }
     if (filterIcons.size > 0) {
         filteredItems = filteredItems.filter((p) =>
-            filterIcons.has(p.icon || '📍'),
+            filterIcons.has(groupingIcon(p.icon)),
         );
     }
 
@@ -710,7 +719,7 @@ export function Todo() {
     const groups = new Map<string, TodoMarkedPlace[]>();
     if (sortMode === 'category') {
         for (const p of filteredItems) {
-            const key = p.icon || '📍';
+            const key = groupingIcon(p.icon);
             if (!groups.has(key)) groups.set(key, []);
             groups.get(key)!.push(p);
         }
