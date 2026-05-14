@@ -59,7 +59,9 @@ import { renderDayRoutePolyline } from '../home/routePolyline.js';
 import { wireMapSearchBanner } from '../home/mapSearch.js';
 import {
     activeMapClickListener,
+    cancelPinEdit,
     editingDayId,
+    saveDayPin,
     setLocalTimeClockInterval,
     _localTimeClockInterval,
 } from './handlers.js';
@@ -73,6 +75,7 @@ export interface HeroMapProps {
 
 export function HeroMap({ activeTrip }: HeroMapProps) {
     const mapContainerRef = useRef<HTMLDivElement | null>(null);
+    const cardRef = useRef<HTMLDivElement | null>(null);
 
     // Slideshow controller built lazily (once per mount). The active-
     // trip Home doesn't rotate the slideshow — only the quote at
@@ -730,8 +733,45 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+    // ── Auto-scroll the map card into view when entering edit
+    // mode. The user clicks Add Pin / Edit Pin from the day card
+    // (down the page), and the navigate-driven remount preserves
+    // scroll — leaving the user at the day card while the map is
+    // off-screen above. Scroll the cover-card into view so the
+    // pin-edit toolbar is immediately visible + the map is where
+    // the next click happens.
+    useEffect(() => {
+        if (!editingDayId) return;
+        const card = cardRef.current;
+        if (!card) return;
+        card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // ── Pin-edit toolbar (Save / Cancel) ──────────────────────
+    // Visible whenever editingDayId is set — saves the user from
+    // having to scroll back down to the day card to commit a new
+    // pin location. The Save button is disabled while the day
+    // doesn't yet have coords (the Add-pin flow before the user's
+    // first map click). Cancel always works — it reverts the day
+    // to its pre-edit snapshot via cancelPinEdit().
+    const editingDay = editingDayId
+        ? STATE.tripDays.find((d) => d.id === editingDayId)
+        : null;
+    const editingHasCoords =
+        editingDay && typeof editingDay.lat === 'number' && editingDay.lat !== null;
+    const editingLabel = editingDay
+        ? Number(editingDay.dayNumber) === 0
+            ? 'Trip Anchor pin'
+            : `Day ${editingDay.dayNumber} pin`
+        : '';
+    const onSaveClick = () => {
+        if (editingDayId) void saveDayPin(editingDayId);
+    };
+    const onCancelClick = () => cancelPinEdit();
+
     return (
-        <div className="card glass cover-card cover-card--md">
+        <div ref={cardRef} className="card glass cover-card cover-card--md">
             <div
                 ref={mapContainerRef}
                 id="homeHeroMap"
@@ -743,6 +783,144 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
                     {initialQuote}
                 </p>
             </div>
+            {editingDay ? (
+                <PinEditToolbar
+                    label={editingLabel}
+                    canSave={!!editingHasCoords}
+                    onSave={onSaveClick}
+                    onCancel={onCancelClick}
+                />
+            ) : null}
+        </div>
+    );
+}
+
+
+// ── Pin-edit floating toolbar ──────────────────────────────────
+// Top-center overlay on the map card. Shows the day being edited
+// plus green-tick ✓ Save and red-cross ✕ Cancel buttons so the
+// user can commit / abort without scrolling down to the day card.
+//
+// Disabled-state Save: in the Add-Pin flow the day starts with no
+// coords. Save is disabled until the user clicks the map; the
+// disabled label nudges them with the right next action.
+interface PinEditToolbarProps {
+    label: string;
+    canSave: boolean;
+    onSave: () => void;
+    onCancel: () => void;
+}
+
+function PinEditToolbar({ label, canSave, onSave, onCancel }: PinEditToolbarProps) {
+    return (
+        <div
+            role="toolbar"
+            aria-label="Pin edit controls"
+            style={{
+                position: 'absolute',
+                top: 12,
+                left: '50%',
+                transform: 'translateX(-50%)',
+                zIndex: 1000,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '6px 6px 6px 14px',
+                background: 'rgba(255,255,255,0.96)',
+                backdropFilter: 'blur(20px) saturate(160%)',
+                WebkitBackdropFilter: 'blur(20px) saturate(160%)',
+                border: '1px solid rgba(0,45,91,0.10)',
+                borderRadius: 999,
+                boxShadow: '0 12px 32px rgba(0,45,91,0.18)',
+                maxWidth: 'calc(100% - 24px)',
+            }}
+        >
+            <span
+                style={{
+                    fontSize: '0.82rem',
+                    fontWeight: 700,
+                    color: '#002d5b',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                }}
+            >
+                {canSave ? `📍 ${label}` : '👆 Tap the map to place the pin'}
+            </span>
+            <button
+                type="button"
+                onClick={onSave}
+                disabled={!canSave}
+                title={canSave ? 'Save new location' : 'Tap the map to place the pin first'}
+                aria-label="Save new pin location"
+                style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: 34,
+                    height: 34,
+                    borderRadius: '50%',
+                    border: 0,
+                    background: canSave ? '#34c759' : 'rgba(52,199,89,0.35)',
+                    color: 'white',
+                    cursor: canSave ? 'pointer' : 'not-allowed',
+                    boxShadow: canSave
+                        ? '0 4px 12px rgba(52,199,89,0.4)'
+                        : '0 2px 4px rgba(0,0,0,0.06)',
+                    transition: 'background 0.15s ease, box-shadow 0.15s ease',
+                    flexShrink: 0,
+                }}
+            >
+                <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                >
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+            </button>
+            <button
+                type="button"
+                onClick={onCancel}
+                title="Cancel — revert to the previous location"
+                aria-label="Cancel pin edit"
+                style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: 34,
+                    height: 34,
+                    borderRadius: '50%',
+                    border: 0,
+                    background: '#ff3b30',
+                    color: 'white',
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 12px rgba(255,59,48,0.4)',
+                    transition: 'background 0.15s ease, box-shadow 0.15s ease',
+                    flexShrink: 0,
+                }}
+            >
+                <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                >
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
         </div>
     );
 }

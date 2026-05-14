@@ -45,6 +45,17 @@ export let editingDayId: string | null = null;
 // closure clears itself after firing.
 export let activeMapClickListener: ((e: { latlng: { lat: number; lng: number } }) => void) | null = null;
 
+// _pinEditOriginalCoords: snapshot of the editing day's coords at
+// edit-start, so cancelPinEdit() can revert the in-memory mutation
+// the user accumulated (via dragend or the activeMapClickListener
+// closure). null when no edit session is active. Cleared on save +
+// delete + cancel.
+let _pinEditOriginalCoords: {
+    lat: number | null | undefined;
+    lon: number | null | undefined;
+    lng: number | null | undefined;
+} | null = null;
+
 // _localTimeClockInterval: setInterval id for the trip-header local
 // time chip. HeroMap owns this — it clears any prior interval before
 // starting a new one so re-mounts don't stack tickers.
@@ -91,6 +102,10 @@ export const addDayPin = (dayId: string): void => {
     const day = STATE.tripDays.find((d) => d.id === dayId);
     if (!day) return;
 
+    // Snapshot pre-edit coords (mostly null on Add) so cancelPinEdit
+    // can revert any unsaved mutation. Done BEFORE editingDayId is
+    // set so a re-entry doesn't overwrite the previous snapshot.
+    _pinEditOriginalCoords = { lat: day.lat, lon: day.lon, lng: day.lng };
     editingDayId = dayId;
     showLiquidAlert('Click on the map to set the location for this day!');
 
@@ -106,7 +121,43 @@ export const addDayPin = (dayId: string): void => {
 };
 
 export const editDayPin = (dayId: string): void => {
+    const day = STATE.tripDays.find((d) => d.id === dayId);
+    if (!day) return;
+    // Snapshot pre-edit coords so cancelPinEdit can revert the
+    // dragend mutations that paintDayMarkers wires up while the
+    // marker is in `draggable: true` mode.
+    _pinEditOriginalCoords = { lat: day.lat, lon: day.lon, lng: day.lng };
     editingDayId = dayId;
+    navigate('home', null, true);
+};
+
+/** Cancel the in-flight pin edit: revert the day's coords to the
+ *  pre-edit snapshot, clear all edit state, navigate to repaint.
+ *
+ *  Wired to the red ✕ button on the HeroMap floating toolbar that
+ *  appears whenever editingDayId is set. Without this helper a
+ *  user who'd dragged the pin to the wrong spot had to either
+ *  (a) drag it back manually, or (b) reload — both bad UX. */
+export const cancelPinEdit = (): void => {
+    const dayId = editingDayId;
+    const snapshot = _pinEditOriginalCoords;
+    editingDayId = null;
+    activeMapClickListener = null;
+    _pinEditOriginalCoords = null;
+    if (dayId && snapshot) {
+        const day = STATE.tripDays.find((d) => d.id === dayId);
+        if (day) {
+            // `?? null` because exactOptionalPropertyTypes rejects the
+            // direct undefined→optional assignment; the snapshot
+            // captures undefined when a freshly-created day had no
+            // coords pre-edit. Storing null is the canonical "no
+            // location" representation downstream.
+            day.lat = snapshot.lat ?? null;
+            day.lon = snapshot.lon ?? null;
+            day.lng = snapshot.lng ?? null;
+        }
+    }
+    emit('state:changed');
     navigate('home', null, true);
 };
 
@@ -116,6 +167,7 @@ export const saveDayPin = async (dayId: string): Promise<void> => {
 
     editingDayId = null;
     activeMapClickListener = null;
+    _pinEditOriginalCoords = null;
     emit('state:changed');
     await upsertDay(day);
     showLiquidAlert('Location saved!');
@@ -131,6 +183,7 @@ export const deleteDayPin = async (dayId: string): Promise<void> => {
     day.lng = null;
     editingDayId = null;
     activeMapClickListener = null;
+    _pinEditOriginalCoords = null;
 
     emit('state:changed');
     await upsertDay(day);
@@ -255,6 +308,7 @@ export const deleteDay = (dayId: string): void => {
             if (editingDayId === dayId) {
                 editingDayId = null;
                 activeMapClickListener = null;
+                _pinEditOriginalCoords = null;
             }
 
             emit('state:changed');
