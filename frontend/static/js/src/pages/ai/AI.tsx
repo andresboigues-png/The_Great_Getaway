@@ -151,7 +151,7 @@ function EmptyTripView() {
                         className="premium-glass-card"
                         style={{
                             textAlign: 'center',
-                            color: '#002d5b',
+                            color: 'var(--text-brand-navy)',
                             padding: 48,
                             maxWidth: 500,
                             background: 'rgba(255,255,255,0.6)',
@@ -1244,8 +1244,8 @@ function AIUsageCard({
                                 borderRadius: 10,
                                 fontSize: '0.85rem',
                                 fontFamily: "'SF Mono', monospace",
-                                background: 'white',
-                                color: '#002d5b',
+                                background: 'var(--card-bg)',
+                                color: 'var(--text-brand-navy)',
                             }}
                         />
                         <button
@@ -1842,7 +1842,7 @@ function MarkedCard({
             className="ai-marked-card"
             data-place-id={place.placeId}
             style={{
-                background: 'white',
+                background: 'var(--card-bg)',
                 border: `1.5px solid ${place.color}`,
                 borderRadius: 14,
                 padding: 14,
@@ -1859,7 +1859,7 @@ function MarkedCard({
                     <div
                         style={{
                             fontWeight: 800,
-                            color: '#002d5b',
+                            color: 'var(--text-brand-navy)',
                             fontSize: '0.95rem',
                             lineHeight: 1.25,
                         }}
@@ -1893,7 +1893,7 @@ function MarkedCard({
                             borderRadius: 8,
                             border: '1px solid rgba(0,0,0,0.1)',
                             fontSize: '0.78rem',
-                            background: 'white',
+                            background: 'var(--card-bg)',
                         }}
                     >
                         <option value="">{t('ai.dayOptionAny')}</option>
@@ -1916,7 +1916,7 @@ function MarkedCard({
                             borderRadius: 8,
                             border: '1px solid rgba(0,0,0,0.1)',
                             fontSize: '0.78rem',
-                            background: 'white',
+                            background: 'var(--card-bg)',
                         }}
                     >
                         <option value="">{t('ai.timeOptionAny')}</option>

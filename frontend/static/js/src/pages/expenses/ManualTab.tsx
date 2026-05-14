@@ -671,7 +671,7 @@ export function ManualTab() {
                                     padding: '10px 16px',
                                     fontSize: '0.85rem',
                                     fontWeight: 700,
-                                    color: '#002d5b',
+                                    color: 'var(--text-brand-navy)',
                                     background: 'rgba(0,0,0,0.04)',
                                     border: '1px solid rgba(0,0,0,0.08)',
                                 }}

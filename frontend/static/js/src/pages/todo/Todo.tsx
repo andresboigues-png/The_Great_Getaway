@@ -158,11 +158,17 @@ function TodoRow({ place: p, isTicked, tripIsEditable, onTickToggle, onRemove }:
         <div
             data-place-id={p.placeId}
             style={{
-                background: 'white',
-                border: `1.5px solid ${isTicked ? p.color : 'rgba(0,0,0,0.08)'}`,
+                background: 'var(--card-bg)',
+                // isTicked uses the per-place colour so the border reads
+                // as "this row is in the AI pool" — colour comes from the
+                // POI category and is theme-neutral. Unticked falls back
+                // to a theme-aware subtle border so the outline stays
+                // visible on dark backgrounds (the previous rgba(0,0,0)
+                // disappeared on the dark canvas).
+                border: `1.5px solid ${isTicked ? p.color : 'var(--border-subtle)'}`,
                 borderRadius: '12px',
                 padding: '10px 12px',
-                boxShadow: `0 2px 8px rgba(0,0,0,${isTicked ? '0.05' : '0.02'})`,
+                boxShadow: `var(--shadow-sm)`,
                 opacity: isTicked ? 1 : 0.78,
                 transition: 'opacity 0.15s, border-color 0.15s, box-shadow 0.18s',
             }}
@@ -279,7 +285,7 @@ function TodoRow({ place: p, isTicked, tripIsEditable, onTickToggle, onRemove }:
                                 onClick={(e) => e.stopPropagation()}
                                 style={{
                                     fontWeight: 700,
-                                    color: '#002d5b',
+                                    color: 'var(--text-brand-navy)',
                                     fontSize: '0.92rem',
                                     lineHeight: 1.25,
                                     overflow: 'hidden',
@@ -308,7 +314,7 @@ function TodoRow({ place: p, isTicked, tripIsEditable, onTickToggle, onRemove }:
                             <span
                                 style={{
                                     fontWeight: 700,
-                                    color: '#002d5b',
+                                    color: 'var(--text-brand-navy)',
                                     fontSize: '0.92rem',
                                     lineHeight: 1.25,
                                     overflow: 'hidden',
@@ -518,9 +524,9 @@ function FilterSelect({ label, value, onChange, options, style }: FilterSelectPr
                 style={{
                     padding: '6px 10px',
                     borderRadius: '999px',
-                    border: '1.5px solid rgba(0, 45, 91, 0.12)',
-                    background: 'white',
-                    color: '#002d5b',
+                    border: '1.5px solid var(--border-subtle)',
+                    background: 'var(--card-bg)',
+                    color: 'var(--text-brand-navy)',
                     fontSize: '0.8rem',
                     fontWeight: 700,
                     cursor: 'pointer',
@@ -817,7 +823,7 @@ export function Todo() {
                         <div
                             style={{
                                 fontWeight: 800,
-                                color: '#002d5b',
+                                color: 'var(--text-brand-navy)',
                                 fontSize: '1rem',
                                 lineHeight: 1.2,
                             }}
@@ -1032,7 +1038,7 @@ export function Todo() {
                         fontSize: '0.86rem',
                         background: 'rgba(0, 45, 91, 0.03)',
                         borderRadius: '12px',
-                        border: '1.5px dashed rgba(0, 45, 91, 0.12)',
+                        border: '1.5px dashed var(--border-subtle)',
                     }}
                 >
                     {t('todo.noFilterMatch')}{' '}
@@ -1077,7 +1083,7 @@ export function Todo() {
                             <span
                                 style={{
                                     fontWeight: 800,
-                                    color: '#002d5b',
+                                    color: 'var(--text-brand-navy)',
                                     fontSize: '0.82rem',
                                     letterSpacing: '0.04em',
                                     textTransform: 'uppercase',

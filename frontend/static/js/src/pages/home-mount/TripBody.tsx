@@ -423,7 +423,7 @@ export function TripBody({ activeTrip }: TripBodyProps) {
                                 letterSpacing: '-0.03em',
                                 margin: 0,
                                 fontWeight: 800,
-                                color: '#002d5b',
+                                color: 'var(--text-brand-navy)',
                             }}
                         >
                             {tripTitle}

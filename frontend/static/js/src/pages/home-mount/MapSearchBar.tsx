@@ -62,7 +62,7 @@ export function MapSearchBar() {
                         background: 'transparent',
                         padding: '6px 0',
                         fontSize: '0.95rem',
-                        color: '#002d5b',
+                        color: 'var(--text-brand-navy)',
                         fontWeight: 600,
                     }}
                 />

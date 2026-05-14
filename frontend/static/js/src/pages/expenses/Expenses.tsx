@@ -165,7 +165,7 @@ function ReadOnlyNotice({ tabLabel, verb }: { tabLabel: string; verb: string }) 
                     margin: '0 0 12px',
                     fontSize: '1.4rem',
                     fontWeight: 800,
-                    color: '#002d5b',
+                    color: 'var(--text-brand-navy)',
                     letterSpacing: '-0.02em',
                 }}
             >

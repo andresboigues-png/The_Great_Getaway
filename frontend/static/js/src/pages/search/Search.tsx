@@ -87,7 +87,7 @@ const inputStyle = {
     outline: 'none',
     boxSizing: 'border-box' as const,
     boxShadow: '0 10px 30px rgba(0,0,0,0.06)',
-    color: '#002d5b',
+    color: 'var(--text-brand-navy)',
 };
 
 const sectionLabelStyle = {
@@ -533,7 +533,7 @@ function ResultRow({
                     style={{
                         fontWeight: 800,
                         fontSize: '0.98rem',
-                        color: '#002d5b',
+                        color: 'var(--text-brand-navy)',
                         whiteSpace: 'nowrap',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',

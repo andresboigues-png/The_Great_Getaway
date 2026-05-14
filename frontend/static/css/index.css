@@ -1,5 +1,13 @@
 /* Base Apple-like Aesthetics */
 :root {
+    /* Pair with [data-theme="dark"]'s `color-scheme: dark` below.
+       Declaring `light` here makes the user-agent default to
+       light-styled form controls (date pickers, autofill, native
+       scrollbars) in light mode — important because the page
+       background is light, so a UA-default-dark control would
+       look wrong. */
+    color-scheme: light;
+
     --bg-color: #f5f5f7;
     --text-primary: #1d1d1f;
     /* D3 contrast fix: was #86868b (3.32:1 on the page background — fails
@@ -10,11 +18,30 @@
        Dark-mode override at the .dark scope below keeps the darker-on-
        dark variant unchanged. */
     --text-secondary: #5a5a5e;
+    /* Brand navy used by many surfaces (#002d5b inline). Tokenised
+       so dark mode can swap it for a light-on-dark variant via the
+       :root[data-theme="dark"] override. Stays at the original
+       navy in light mode. */
+    --text-brand-navy: #002d5b;
     --glass-bg: rgba(255, 255, 255, 0.72);
     --glass-border: rgba(255, 255, 255, 0.2);
+    /* Solid (non-glass) border for cards / inputs that need a
+       visible 1px outline. Darker in light mode so it reads
+       against #ffffff backgrounds; lighter in dark mode (see
+       override below). */
+    --border-subtle: rgba(0, 0, 0, 0.1);
     --accent-blue: #0071e3;
     --accent-blue-hover: #0077ed;
+    /* Brand purple — used by the To-do + AI explainer blocks and the
+       "✦ AI" chip. Tokenised so dark mode can lift the shade. */
+    --accent-purple: #7c3a9e;
+    --accent-purple-bg-soft: rgba(155, 89, 182, 0.10);
+    --accent-purple-border-soft: rgba(155, 89, 182, 0.32);
     --card-bg: #ffffff;
+    /* Slightly elevated solid surface — same as card in light mode
+       (the page background is already a step down at #f5f5f7);
+       distinct from card in dark mode for visual hierarchy. */
+    --card-bg-elevated: #ffffff;
     --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.04);
     --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08);
     --radius-lg: 18px;
@@ -200,13 +227,40 @@
    #34c759 (success), #ff3b30 (danger), #ff9500 (warning) accents
    used inline across pages. */
 :root[data-theme="dark"] {
+    /* Tell the browser to render native form controls (date pickers,
+       <select> dropdowns, scrollbars, native focus rings, autofill
+       highlight) with the dark colour scheme. Without this, an
+       <input type="date"> picker pops as a bright white sheet
+       against the dark page — Apple's iOS Safari is especially
+       jarring here. A single property fixes all of them at once. */
+    color-scheme: dark;
+
     /* Surfaces */
     --bg-color: #000000;
     --card-bg: #1c1c1e;
+    /* Slightly lifted surface for nested elements that need to
+       distinguish themselves from the page (e.g. dropdown / input
+       on a card). Sits a notch above --card-bg for hierarchy. */
+    --card-bg-elevated: #2c2c2e;
+    /* Border / divider that reads as a faint line on dark surfaces.
+       Lighter than --glass-border so it works on solid (non-glass)
+       cards where the glass border would disappear. */
+    --border-subtle: rgba(255, 255, 255, 0.14);
 
     /* Text */
     --text-primary: #f5f5f7;
     --text-secondary: #a0a0a8;
+    /* Slightly muted brand-navy alternative — used by surfaces that
+       were previously hardcoded to #002d5b. Maps to the standard
+       text-primary in dark; stays at the brand navy in light (see
+       :root default block). */
+    --text-brand-navy: #f5f5f7;
+    /* Accent-purple variant tuned for dark surfaces. The light-mode
+       #7c3a9e reads as too saturated / too dark on the #1c1c1e
+       card-bg; this lighter shade keeps the brand identity legible. */
+    --accent-purple: #c084ee;
+    --accent-purple-bg-soft: rgba(192, 132, 238, 0.14);
+    --accent-purple-border-soft: rgba(192, 132, 238, 0.32);
 
     /* Brand accent — Apple's dark-mode blue is slightly brighter
        so it pops on dark surfaces (system blue is #0a84ff in dark
