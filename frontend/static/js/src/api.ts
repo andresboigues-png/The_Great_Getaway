@@ -875,6 +875,52 @@ export async function markNotificationsRead() {
     }
 }
 
+// ── Gemini host-key pool status ──────────────────────────────────────
+//
+// The backend rotates through up to 6 host Gemini keys before asking
+// the user to bring their own. The AI page surfaces the pool state to
+// the user as a horizontal "AI usage" bar — see pages/ai/AI.tsx.
+//
+// Shape mirrors src/routes/integrations.py::_pool_status:
+//   { total, exhausted, available }
+// where `total` counts CONFIGURED slots (env-var present), not the
+// theoretical max of 6. A self-hosted operator with only 1 key
+// configured sees total=1; the bar is at 100% as soon as that key
+// cools, which IS the right signal — there's no pool to fall back on.
+
+export interface GeminiHostKeyStatus {
+    total: number;
+    exhausted: number;
+    available: number;
+}
+
+/** Fetch the current host-key pool snapshot. Returns null on any
+ *  failure (network, 401, malformed JSON) — the AI page just hides
+ *  the bar in that case rather than showing a misleading number.
+ *  Auth-gated server-side; apiFetch attaches the bearer header. */
+export async function fetchGeminiHostKeyStatus(): Promise<GeminiHostKeyStatus | null> {
+    if (!STATE.user) return null;
+    try {
+        const res = await apiFetch('/api/gemini/host-keys/status');
+        if (!res.ok) return null;
+        const body = await res.json();
+        if (
+            body &&
+            typeof body.total === 'number' &&
+            typeof body.exhausted === 'number' &&
+            typeof body.available === 'number'
+        ) {
+            return body as GeminiHostKeyStatus;
+        }
+        return null;
+    } catch (e: any) {
+        if (e?.name === 'AbortError') return null;
+        console.error('fetchGeminiHostKeyStatus failed:', e);
+        return null;
+    }
+}
+
+
 export async function fetchHistoricalRates(dates: string[]) {
     if (dates.length === 0) return;
 

@@ -30,7 +30,14 @@ import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../../react/store.js';
 import { STATE, emit } from '../../state.js';
 import { showLiquidAlert, formatDayDate, q } from '../../utils.js';
-import { apiFetch, upsertDay, deleteDayOnServer, upsertTrip } from '../../api.js';
+import {
+    apiFetch,
+    upsertDay,
+    deleteDayOnServer,
+    upsertTrip,
+    fetchGeminiHostKeyStatus,
+    type GeminiHostKeyStatus,
+} from '../../api.js';
 import { applyMapTheme } from '../../theme.js';
 import { mobileSafeGestureHandling } from '../../googleMapsServices.js';
 import { showModal } from '../../components/Modal.js';
@@ -237,6 +244,32 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
         hint: string;
         raw: string;
     } | null>(null);
+
+    // ── Shared Gemini host-key pool ─────────────────────────────
+    // The backend rotates through up to 6 host keys before asking
+    // the user to bring their own. We surface the pool state as a
+    // "usage bar" so the user sees AT A GLANCE how much of today's
+    // shared budget is left (filled = drained). State is GLOBAL —
+    // every user shares the same key pool. Re-fetches after every
+    // generation since `host_keys` rides in both the success and
+    // 429 response bodies.
+    //
+    // The BYO panel starts collapsed — the bar is the first-class
+    // path, and the input is the escape hatch.
+    const [hostPoolStatus, setHostPoolStatus] = useState<GeminiHostKeyStatus | null>(null);
+    const [showByoCard, setShowByoCard] = useState<boolean>(
+        () => Boolean((STATE.geminiApiKey || '').trim()),
+    );
+
+    useEffect(() => {
+        let cancelled = false;
+        fetchGeminiHostKeyStatus().then((s) => {
+            if (!cancelled) setHostPoolStatus(s);
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, []);
 
     // Google Map + markers — managed in a useEffect with refs.
     const mapContainerRef = useRef<HTMLDivElement | null>(null);
@@ -492,6 +525,13 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                 }),
             });
             const d = await r.json();
+            // Backend rides the latest pool snapshot in both success
+            // and error responses (see src/routes/integrations.py).
+            // Update the bar BEFORE the throw so the user sees the
+            // freshly-drained slot count even on a 429.
+            if (d && d.host_keys) {
+                setHostPoolStatus(d.host_keys as GeminiHostKeyStatus);
+            }
             if (d.error) throw new Error(d.error);
             const generated = d.itinerary;
             if (generated != null) {
@@ -508,9 +548,12 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
             if (/UNAVAILABLE|503|overloaded/i.test(rawMsg)) {
                 msg = t('ai.errorOverloaded');
                 hint = t('ai.errorOverloadedHint');
-            } else if (/quota|limit|RESOURCE_EXHAUSTED|429/i.test(rawMsg)) {
+            } else if (/quota|limit|RESOURCE_EXHAUSTED|429|fully booked/i.test(rawMsg)) {
                 msg = t('ai.errorQuota');
                 hint = t('ai.errorQuotaHint');
+                // Pool drained → auto-pop the BYO panel so the user
+                // sees their escape hatch without hunting for it.
+                setShowByoCard(true);
             } else if (/key|api[_ ]?key|UNAUTHENTICATED|401|403/i.test(rawMsg)) {
                 msg = t('ai.errorBadKey');
                 hint = t('ai.errorBadKeyHint');
@@ -520,6 +563,13 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
             }
             setGenerationError({ msg, hint, raw: rawMsg || t('ai.errorUnknown') });
             showLiquidAlert(msg);
+            // Last-ditch refresh — if the throw came from a non-JSON
+            // response or a network error, the inline `d.host_keys`
+            // update above never fired. Fall back to a status fetch
+            // so the bar isn't stuck on a stale snapshot.
+            fetchGeminiHostKeyStatus().then((s) => {
+                if (s) setHostPoolStatus(s);
+            });
         } finally {
             setGenerating(false);
         }
@@ -614,9 +664,18 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                         {t('ai.title')}
                     </h1>
                 </div>
-                <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '1rem' }}>
-                    {t('ai.subtitlePlanning', { country: tripCountry })}
-                </p>
+                <p
+                    style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '1rem' }}
+                    // The translation string contains <strong>{country}</strong> so
+                    // the country name renders bold. Passing it through React's
+                    // text path escaped the tags — set them as innerHTML instead.
+                    // Safe because: (a) the surrounding template is a hard-coded
+                    // translation string, not user input, and (b) tripCountry is
+                    // server-validated when set on the trip.
+                    dangerouslySetInnerHTML={{
+                        __html: t('ai.subtitlePlanning', { country: tripCountry }),
+                    }}
+                />
             </div>
 
             <div
@@ -633,121 +692,18 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                     id="aiControlsPanel"
                     style={{ display: 'flex', flexDirection: 'column', gap: 16, minHeight: 700 }}
                 >
-                    {/* AI Engine — Gemini key */}
-                    <div
-                        className="card glass"
-                        style={{ padding: 18, borderColor: 'rgba(155,89,182,0.3)', flex: '0 0 auto' }}
-                    >
-                        <div
-                            style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                marginBottom: 6,
-                            }}
-                        >
-                            <h2
-                                className="card-title"
-                                style={{
-                                    fontSize: '0.85rem',
-                                    textTransform: 'uppercase',
-                                    letterSpacing: '0.07em',
-                                    color: '#7c3a9e',
-                                    margin: 0,
-                                }}
-                            >
-                                {t('ai.sectionAiEngine')}
-                            </h2>
-                            <button
-                                id="aiKeyHelpBtn"
-                                type="button"
-                                title={t('ai.keyHelpBtnTitle')}
-                                aria-label={t('ai.keyHelpBtnTitle')}
-                                onClick={onShowKeyHelp}
-                                style={{
-                                    background: 'rgba(155,89,182,0.12)',
-                                    border: '1px solid rgba(155,89,182,0.35)',
-                                    color: '#7c3a9e',
-                                    width: 24,
-                                    height: 24,
-                                    borderRadius: '50%',
-                                    cursor: 'pointer',
-                                    fontWeight: 800,
-                                    fontSize: '0.78rem',
-                                    lineHeight: 1,
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    fontFamily: 'Georgia, serif',
-                                    fontStyle: 'italic',
-                                }}
-                            >
-                                i
-                            </button>
-                        </div>
-                        <p
-                            style={{
-                                color: 'var(--text-secondary)',
-                                fontSize: '0.78rem',
-                                margin: '0 0 10px',
-                            }}
-                        >
-                            {t('ai.keyCardSubtitle')}
-                        </p>
-                        <div style={{ position: 'relative' }}>
-                            <input
-                                type={showKey ? 'text' : 'password'}
-                                placeholder={t('ai.keyInputPlaceholder')}
-                                autoComplete="off"
-                                spellCheck={false}
-                                value={geminiKey}
-                                onChange={onKeyChange}
-                                style={{
-                                    width: '100%',
-                                    boxSizing: 'border-box',
-                                    padding: '10px 42px 10px 12px',
-                                    border: '1px solid rgba(0,0,0,0.12)',
-                                    borderRadius: 10,
-                                    fontSize: '0.85rem',
-                                    fontFamily: "'SF Mono', monospace",
-                                    background: 'white',
-                                    color: '#002d5b',
-                                }}
-                            />
-                            <button
-                                type="button"
-                                title={showKey ? t('ai.keyToggleHide') : t('ai.keyToggleShow')}
-                                aria-label={t('ai.keyToggleAriaLabel')}
-                                onClick={() => setShowKey((s) => !s)}
-                                style={{
-                                    position: 'absolute',
-                                    right: 6,
-                                    top: '50%',
-                                    transform: 'translateY(-50%)',
-                                    background: 'transparent',
-                                    border: 0,
-                                    cursor: 'pointer',
-                                    padding: '4px 8px',
-                                    color: 'rgba(0,0,0,0.5)',
-                                    fontSize: '0.95rem',
-                                    lineHeight: 1,
-                                }}
-                            >
-                                {showKey ? '🙈' : '👁'}
-                            </button>
-                        </div>
-                        <div
-                            style={{
-                                marginTop: 6,
-                                fontSize: '0.7rem',
-                                fontWeight: 700,
-                                minHeight: '1em',
-                                color: keyStatus.color,
-                            }}
-                        >
-                            {keyStatus.text}
-                        </div>
-                    </div>
+                    {/* AI usage — shared host-key pool + BYO escape hatch */}
+                    <AIUsageCard
+                        hostPoolStatus={hostPoolStatus}
+                        showByoCard={showByoCard}
+                        onToggleByo={() => setShowByoCard((v) => !v)}
+                        geminiKey={geminiKey}
+                        onKeyChange={onKeyChange}
+                        showKey={showKey}
+                        onToggleShowKey={() => setShowKey((s) => !s)}
+                        keyStatus={keyStatus}
+                        onShowKeyHelp={onShowKeyHelp}
+                    />
 
                     {/* Dates */}
                     <div className="card glass" style={{ padding: 20, flex: '0 0 auto' }}>
@@ -1022,6 +978,313 @@ function zoomToLocation(map: any, location: string, activeTrip: Trip) {
             map.fitBounds(results[0].geometry.viewport);
         }
     });
+}
+
+
+// ── AI usage card ──────────────────────────────────────────────
+//
+// Replaces the old "AI Engine" key-input card. The first-class
+// surface is now a horizontal usage bar showing how drained the
+// shared host-key pool is for the day. The BYO key form is
+// tucked behind a "Use my own key" expander — still one click
+// away for power users / when the pool is dry, but no longer
+// the first thing the user sees.
+//
+// Pool semantics (see src/routes/integrations.py):
+//   - total      : number of host keys configured in env
+//   - exhausted  : keys currently in 24h cooldown after a quota hit
+//   - available  : total - exhausted
+//   - fillRatio  : exhausted / total  (0 → empty bar, 1 → full bar)
+//
+// On a self-hosted instance with 0 host keys configured we skip
+// the bar entirely — there's no pool to display — and the BYO
+// expander defaults open since that's the only working path.
+
+interface AIUsageCardProps {
+    hostPoolStatus: GeminiHostKeyStatus | null;
+    showByoCard: boolean;
+    onToggleByo: () => void;
+    geminiKey: string;
+    onKeyChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+    showKey: boolean;
+    onToggleShowKey: () => void;
+    keyStatus: { text: string; color: string };
+    onShowKeyHelp: () => void;
+}
+
+function AIUsageCard({
+    hostPoolStatus,
+    showByoCard,
+    onToggleByo,
+    geminiKey,
+    onKeyChange,
+    showKey,
+    onToggleShowKey,
+    keyStatus,
+    onShowKeyHelp,
+}: AIUsageCardProps) {
+    const hasPool = hostPoolStatus != null && hostPoolStatus.total > 0;
+    const ratio = hasPool && hostPoolStatus
+        ? Math.max(0, Math.min(1, hostPoolStatus.exhausted / hostPoolStatus.total))
+        : 0;
+    const pct = Math.round(ratio * 100);
+    const drained = hasPool && hostPoolStatus
+        ? hostPoolStatus.available === 0
+        : false;
+
+    return (
+        <div
+            className="card glass"
+            style={{ padding: 18, borderColor: 'rgba(155,89,182,0.3)', flex: '0 0 auto' }}
+        >
+            <div
+                style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    marginBottom: 8,
+                }}
+            >
+                <h2
+                    className="card-title"
+                    style={{
+                        fontSize: '0.85rem',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.07em',
+                        color: '#7c3a9e',
+                        margin: 0,
+                    }}
+                >
+                    AI Usage
+                </h2>
+                {hasPool && hostPoolStatus ? (
+                    <span
+                        style={{
+                            fontSize: '0.7rem',
+                            fontWeight: 700,
+                            color: drained ? '#a82424' : '#5b3a7e',
+                            background: drained
+                                ? 'rgba(168,36,36,0.10)'
+                                : 'rgba(155,89,182,0.10)',
+                            padding: '3px 8px',
+                            borderRadius: 999,
+                            letterSpacing: '0.02em',
+                        }}
+                    >
+                        {hostPoolStatus.available}/{hostPoolStatus.total} free
+                    </span>
+                ) : null}
+            </div>
+
+            {hasPool && hostPoolStatus ? (
+                <>
+                    {/* The bar. Filled portion = drained portion of the pool.
+                        Empty bar = pool fully available, full bar = every host
+                        key is in cooldown for the day. */}
+                    <div
+                        role="progressbar"
+                        aria-valuenow={pct}
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-label="AI usage today"
+                        style={{
+                            position: 'relative',
+                            height: 10,
+                            borderRadius: 999,
+                            background: 'rgba(155,89,182,0.10)',
+                            border: '1px solid rgba(155,89,182,0.18)',
+                            overflow: 'hidden',
+                            marginTop: 2,
+                        }}
+                    >
+                        <div
+                            style={{
+                                position: 'absolute',
+                                left: 0,
+                                top: 0,
+                                bottom: 0,
+                                width: `${pct}%`,
+                                background: drained
+                                    ? 'linear-gradient(90deg, #ff9500 0%, #ff3b30 100%)'
+                                    : 'linear-gradient(90deg, #7c3a9e 0%, #c084ee 100%)',
+                                transition: 'width 0.4s ease',
+                            }}
+                        />
+                    </div>
+                    <p
+                        style={{
+                            margin: '8px 0 0',
+                            fontSize: '0.78rem',
+                            color: drained ? '#a82424' : 'var(--text-secondary)',
+                            lineHeight: 1.45,
+                        }}
+                    >
+                        {drained
+                            ? "Today's shared AI quota is fully booked. Add your own key below to keep generating."
+                            : `Shared AI requests: ${hostPoolStatus.available} of ${hostPoolStatus.total} keys available today. Resets every 24h.`}
+                    </p>
+                </>
+            ) : (
+                <p
+                    style={{
+                        margin: 0,
+                        fontSize: '0.78rem',
+                        color: 'var(--text-secondary)',
+                        lineHeight: 1.45,
+                    }}
+                >
+                    No shared AI quota on this instance — add your own Gemini key below.
+                </p>
+            )}
+
+            <button
+                type="button"
+                onClick={onToggleByo}
+                aria-expanded={showByoCard}
+                style={{
+                    marginTop: 12,
+                    width: '100%',
+                    background: 'transparent',
+                    border: '1px dashed rgba(155,89,182,0.35)',
+                    color: '#7c3a9e',
+                    fontWeight: 700,
+                    fontSize: '0.82rem',
+                    padding: '8px 12px',
+                    borderRadius: 10,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 6,
+                }}
+            >
+                <span style={{ fontSize: '0.7rem' }}>{showByoCard ? '▾' : '▸'}</span>
+                Use my own key
+            </button>
+
+            {showByoCard ? (
+                <div
+                    style={{
+                        marginTop: 12,
+                        background: 'rgba(155,89,182,0.04)',
+                        border: '1px solid rgba(155,89,182,0.18)',
+                        borderRadius: 12,
+                        padding: 12,
+                    }}
+                >
+                    <div
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            marginBottom: 6,
+                        }}
+                    >
+                        <span
+                            style={{
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.06em',
+                                color: '#7c3a9e',
+                            }}
+                        >
+                            Bring your own Gemini key
+                        </span>
+                        <button
+                            id="aiKeyHelpBtn"
+                            type="button"
+                            title={t('ai.keyHelpBtnTitle')}
+                            aria-label={t('ai.keyHelpBtnTitle')}
+                            onClick={onShowKeyHelp}
+                            style={{
+                                background: 'rgba(155,89,182,0.12)',
+                                border: '1px solid rgba(155,89,182,0.35)',
+                                color: '#7c3a9e',
+                                width: 22,
+                                height: 22,
+                                borderRadius: '50%',
+                                cursor: 'pointer',
+                                fontWeight: 800,
+                                fontSize: '0.72rem',
+                                lineHeight: 1,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontFamily: 'Georgia, serif',
+                                fontStyle: 'italic',
+                            }}
+                        >
+                            i
+                        </button>
+                    </div>
+                    <p
+                        style={{
+                            color: 'var(--text-secondary)',
+                            fontSize: '0.76rem',
+                            margin: '0 0 8px',
+                            lineHeight: 1.5,
+                        }}
+                    >
+                        {t('ai.keyCardSubtitle')}
+                    </p>
+                    <div style={{ position: 'relative' }}>
+                        <input
+                            type={showKey ? 'text' : 'password'}
+                            placeholder={t('ai.keyInputPlaceholder')}
+                            autoComplete="off"
+                            spellCheck={false}
+                            value={geminiKey}
+                            onChange={onKeyChange}
+                            style={{
+                                width: '100%',
+                                boxSizing: 'border-box',
+                                padding: '9px 40px 9px 11px',
+                                border: '1px solid rgba(0,0,0,0.12)',
+                                borderRadius: 10,
+                                fontSize: '0.85rem',
+                                fontFamily: "'SF Mono', monospace",
+                                background: 'white',
+                                color: '#002d5b',
+                            }}
+                        />
+                        <button
+                            type="button"
+                            title={showKey ? t('ai.keyToggleHide') : t('ai.keyToggleShow')}
+                            aria-label={t('ai.keyToggleAriaLabel')}
+                            onClick={onToggleShowKey}
+                            style={{
+                                position: 'absolute',
+                                right: 6,
+                                top: '50%',
+                                transform: 'translateY(-50%)',
+                                background: 'transparent',
+                                border: 0,
+                                cursor: 'pointer',
+                                padding: '4px 8px',
+                                color: 'rgba(0,0,0,0.5)',
+                                fontSize: '0.95rem',
+                                lineHeight: 1,
+                            }}
+                        >
+                            {showKey ? '🙈' : '👁'}
+                        </button>
+                    </div>
+                    <div
+                        style={{
+                            marginTop: 6,
+                            fontSize: '0.7rem',
+                            fontWeight: 700,
+                            minHeight: '1em',
+                            color: keyStatus.color,
+                        }}
+                    >
+                        {keyStatus.text}
+                    </div>
+                </div>
+            ) : null}
+        </div>
+    );
 }
 
 

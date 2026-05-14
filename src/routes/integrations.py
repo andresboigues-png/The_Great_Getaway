@@ -16,6 +16,7 @@ text-bullet form).
 import json
 import logging
 import os
+import time
 
 import requests
 from flask import Blueprint, jsonify, request
@@ -26,6 +27,136 @@ from extensions import limiter
 
 logger = logging.getLogger(__name__)
 bp = Blueprint("integrations", __name__)
+
+
+# ── Gemini host-key pool ──────────────────────────────────────────
+#
+# The free-tier Gemini API has a per-key daily quota. To give users
+# significant headroom before they need to bring their own key, we
+# rotate through up to N host-side keys (GEMINI_API_KEY,
+# GEMINI_API_KEY_2, … GEMINI_API_KEY_<N>) on each request. When a
+# key returns RESOURCE_EXHAUSTED / 429, it's marked cooled for 24h
+# (Gemini's daily-quota window). The next request skips cooled keys
+# and tries the rest.
+#
+# State is in-memory, shared across requests within a single WSGI
+# process. PA's free tier runs a single worker so this is consistent
+# globally. A WSGI reload clears the state — at worst that means a
+# few API calls land on quota-exhausted keys before being re-marked.
+# Acceptable: Gemini's response is fast and the rotation continues.
+#
+# The frontend reads `_pool_status()` via /api/gemini/host-keys/
+# status to drive the AI-page "usage bar" (filled portion =
+# exhausted / total). The bar is intentionally shared/global since
+# every user pulls from the same key pool.
+
+# 24h matches Gemini's daily-quota reset window. A per-minute rate
+# hit will also cool the key for 24h here (we can't easily tell them
+# apart from the error message). That's pessimistic but it's the
+# safe default — re-trying a known-bad key burns latency on every
+# generation; under-using a still-good key just means we move to
+# the next one slightly sooner.
+_KEY_COOLDOWN_SECONDS = 24 * 3600
+_HOST_KEY_SLOTS = 6  # GEMINI_API_KEY + _2 through _6
+_exhausted_keys: dict[int, float] = {}  # key_slot (1..N) → timestamp
+
+
+def _host_key_for_slot(slot: int) -> str:
+    """Return the env-var value for a given slot. Slot 1 is the
+    bare GEMINI_API_KEY (legacy); slots 2..N are GEMINI_API_KEY_2
+    through GEMINI_API_KEY_N."""
+    if slot == 1:
+        return os.getenv("GEMINI_API_KEY", "") or ""
+    return os.getenv(f"GEMINI_API_KEY_{slot}", "") or ""
+
+
+def _is_key_cooled(slot: int) -> bool:
+    """True if `slot` is currently marked exhausted AND the
+    cooldown hasn't expired. Side-effect: clears stale entries so
+    the dict doesn't grow unbounded across long-running processes."""
+    ts = _exhausted_keys.get(slot)
+    if ts is None:
+        return False
+    if time.time() - ts >= _KEY_COOLDOWN_SECONDS:
+        del _exhausted_keys[slot]
+        return False
+    return True
+
+
+def _mark_key_exhausted(slot: int) -> None:
+    """Stamp a key as exhausted at the current time. Cleared
+    automatically by `_is_key_cooled` once the 24h window passes."""
+    _exhausted_keys[slot] = time.time()
+    logger.warning(
+        "gemini host key slot %d marked exhausted (24h cooldown)", slot,
+    )
+
+
+def _available_host_keys() -> list[tuple[int, str]]:
+    """Return (slot, key) pairs for every configured host key that
+    isn't currently cooled. Order matches slot number so the
+    rotation is deterministic — slot 1 always tries first, then 2,
+    etc. Empty / missing env vars are filtered out (a user only
+    configures the slots they have keys for)."""
+    out: list[tuple[int, str]] = []
+    for slot in range(1, _HOST_KEY_SLOTS + 1):
+        key = _host_key_for_slot(slot)
+        if not key:
+            continue
+        if _is_key_cooled(slot):
+            continue
+        out.append((slot, key))
+    return out
+
+
+def _pool_status() -> dict:
+    """Snapshot of the host-key pool for the frontend usage bar.
+    `total` = configured slots that have a key set in env (not the
+    theoretical 6). `exhausted` = currently cooled. `available` =
+    `total - exhausted`. Frontend can compute the fill ratio as
+    `exhausted / total` (so the bar fills as the pool drains)."""
+    total = 0
+    exhausted = 0
+    for slot in range(1, _HOST_KEY_SLOTS + 1):
+        if not _host_key_for_slot(slot):
+            continue
+        total += 1
+        if _is_key_cooled(slot):
+            exhausted += 1
+    return {
+        "total": total,
+        "exhausted": exhausted,
+        "available": total - exhausted,
+    }
+
+
+def _looks_like_quota_error(err_msg: str) -> bool:
+    """Match the strings Gemini returns when a key has hit its
+    quota. We try the next key in the pool on these; other errors
+    (network, model 500s, INVALID_REQUEST) propagate to the user
+    without rotating — there's no reason to think the next key
+    would behave differently."""
+    s = err_msg.lower()
+    return (
+        "resource_exhausted" in s
+        or "quota" in s
+        or "rate limit" in s
+        or "429" in s
+        or "exceeded" in s
+    )
+
+
+@bp.route("/api/gemini/host-keys/status", methods=["GET"])
+@require_auth
+def gemini_host_keys_status():
+    """Lightweight read of the host-key pool state. Called by
+    pages/ai/AI.tsx on mount + periodically while the AI page is
+    open, to drive the usage bar visible to every user.
+
+    Auth-gated so anonymous traffic can't probe how much of the
+    quota is left (which would let them time their own
+    quota-burning script to land when the pool is healthy)."""
+    return jsonify(_pool_status())
 
 
 def _verify_place(query: str, destination: str, api_key: str) -> dict | None:
@@ -244,15 +375,36 @@ def generate_itinerary():
     date_to = _scrub(date_to).strip()
     context = _scrub(context).strip()
 
-    # BYO key path: client sends its own Gemini key in the request body
-    # so we don't burn the host's quota on friends/family rollouts. We
-    # never persist this to disk — used for the API call only and then
-    # discarded with the request lifecycle. Empty / missing falls back
-    # to the env var so dev + self-hosted setups still work.
+    # BYO key path: client sends its own Gemini key in the request
+    # body so power users (or the user whose pool we exhausted) can
+    # keep generating. We never persist this to disk — used for
+    # the API call only and then discarded with the request
+    # lifecycle.
+    #
+    # If BYO key is set, we try ONLY that key (no rotation — the
+    # host pool isn't ours to spend on a user who's brought their
+    # own).
+    #
+    # If no BYO key, we walk the host pool in slot order, skipping
+    # any slot whose key is currently marked cooled. On a quota
+    # error from a key, we mark it cooled and try the next slot.
+    # Other errors (network, model 500s, invalid request)
+    # propagate immediately — those aren't pool-rotation events.
     user_key = (data.get("gemini_key") or "").strip()
-    api_key = user_key or os.getenv("GEMINI_API_KEY") or ""
-    if not api_key:
-        return jsonify({"error": "Gemini API key required. Click the (i) on the AI Engine card to learn how to get one — it's free for personal use."}), 400
+    keys_to_try: list[tuple[int, str]] = []
+    if user_key:
+        keys_to_try.append((0, user_key))  # slot 0 = BYO
+    else:
+        keys_to_try = _available_host_keys()
+
+    if not keys_to_try:
+        return jsonify({
+            "error": (
+                "Today's shared AI quota is fully booked. Add your own "
+                "Gemini API key (free for personal use) to keep generating."
+            ),
+            "host_keys": _pool_status(),
+        }), 429
 
     prompt = f"""
     You are an expert travel planner. Create a detailed {num_days}-day itinerary for {destination} from {date_from} to {date_to}.
@@ -299,39 +451,78 @@ def generate_itinerary():
     result_text = None
     last_error = None
 
-    for model in models:
-        try:
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
-            headers = {"Content-Type": "application/json"}
-            payload = {
-                "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {
-                    "temperature": 0.7,
-                    "responseMimeType": "application/json",
-                },
-            }
+    # Nested loop: outer = key rotation, inner = model fallback.
+    #
+    # For each candidate key we try every model in order. On a quota
+    # error we mark the slot cooled (BYO slot 0 is exempt — that key
+    # isn't ours to track) and skip to the next key without burning
+    # latency on the other models. On any other error we still try
+    # the next model on the same key, then fall through to the next
+    # key after exhausting model options.
+    for slot, api_key in keys_to_try:
+        for model in models:
+            try:
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+                headers = {"Content-Type": "application/json"}
+                payload = {
+                    "contents": [{"parts": [{"text": prompt}]}],
+                    "generationConfig": {
+                        "temperature": 0.7,
+                        "responseMimeType": "application/json",
+                    },
+                }
 
-            resp = requests.post(url, headers=headers, json=payload, timeout=30)
-            # Capture Google's error body before raising — a bare HTTPError
-            # message ("503 Server Error") hides the actual reason.
-            if not resp.ok:
-                try:
-                    err_body = resp.json().get("error", {})
-                    raise RuntimeError(f"{err_body.get('status', resp.status_code)}: {err_body.get('message', resp.text[:200])}")
-                except ValueError:
-                    raise RuntimeError(f"HTTP {resp.status_code}: {resp.text[:200]}")
+                resp = requests.post(url, headers=headers, json=payload, timeout=30)
+                # Capture Google's error body before raising — a bare HTTPError
+                # message ("503 Server Error") hides the actual reason.
+                if not resp.ok:
+                    try:
+                        err_body = resp.json().get("error", {})
+                        raise RuntimeError(f"{err_body.get('status', resp.status_code)}: {err_body.get('message', resp.text[:200])}")
+                    except ValueError:
+                        raise RuntimeError(f"HTTP {resp.status_code}: {resp.text[:200]}")
 
-            result = resp.json()
-            result_text = result.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "[]")
-            if result_text:
-                break
-        except Exception as e:
-            last_error = str(e)
-            logger.warning(f"Gemini model {model} failed: {e}")
-            continue
+                result = resp.json()
+                result_text = result.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "[]")
+                if result_text:
+                    break
+            except Exception as e:
+                last_error = str(e)
+                # Quota / rate-limit errors → the key is cooked for
+                # the day. Mark it (unless BYO) and bail out of the
+                # model loop — the other model on the same key will
+                # hit the same quota wall.
+                if _looks_like_quota_error(last_error):
+                    if slot != 0:
+                        _mark_key_exhausted(slot)
+                    logger.warning(
+                        "Gemini slot %d quota hit on model %s: %s",
+                        slot, model, e,
+                    )
+                    break
+                logger.warning(f"Gemini model {model} on slot {slot} failed: {e}")
+                continue
+        if result_text:
+            break
 
     if not result_text:
-        return jsonify({"error": f"AI generation failed. Last error: {last_error}"}), 502
+        # If every host slot is now cooled the user can't recover
+        # without bringing their own key — return 429 so the frontend
+        # can surface the BYO panel. Otherwise it's a transient 502.
+        host_status = _pool_status()
+        was_quota = (
+            host_status["total"] > 0
+            and host_status["available"] == 0
+        )
+        return jsonify({
+            "error": (
+                "Today's shared AI quota is fully booked. Add your own "
+                "Gemini API key (free for personal use) to keep generating."
+                if was_quota
+                else f"AI generation failed. Last error: {last_error}"
+            ),
+            "host_keys": host_status,
+        }), (429 if was_quota else 502)
 
     raw_text = result_text.strip()
     if raw_text.startswith("```json"):
@@ -347,7 +538,14 @@ def generate_itinerary():
         # when the LLM made it up. No-op when GOOGLE_MAPS_API_KEY
         # isn't set — items stay as strings.
         itinerary = _enrich_itinerary(itinerary, destination)
-        return jsonify({"status": "success", "itinerary": itinerary})
+        # Include the pool snapshot on success too so the frontend
+        # bar refreshes after every generation — useful when one
+        # request silently drains the last available slot.
+        return jsonify({
+            "status": "success",
+            "itinerary": itinerary,
+            "host_keys": _pool_status(),
+        })
     except Exception as e:
         logger.error(f"Gemini API Error: {e}")
         return jsonify({"error": str(e)}), 500
