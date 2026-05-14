@@ -726,13 +726,24 @@ export function Todo() {
         });
     }
 
-    // Group filtered items by icon — only when sort=category. The
-    // other sort modes flatten the list into a single rendering
-    // group (key '*' chosen so it can't collide with a real emoji).
+    // Group filtered items by icon — only when sort=category AND the
+    // user has actively narrowed the type filter. The "All types"
+    // case (filterIcons.size === 0) flattens regardless of sort:
+    // the user is looking at everything, so the per-type section
+    // headers are visual noise and the flat list lets the user
+    // scan in one continuous view. As soon as they tap a specific
+    // type pill, grouping kicks back in so multi-type selections
+    // ("Hotels + Restaurants") read as two clearly-separated
+    // sections.
+    //
+    // Other sort modes always flatten — sort-by-name with category
+    // headers would split alphabetical runs awkwardly.
+    //
     // Map preserves insertion order, so groups stay stable across
-    // re-renders.
+    // re-renders. The '*' key flags the flat-list branch (can't
+    // collide with a real emoji).
     const groups = new Map<string, TodoMarkedPlace[]>();
-    if (sortMode === 'category') {
+    if (sortMode === 'category' && filterIcons.size > 0) {
         for (const p of filteredItems) {
             const key = groupingIcon(p.icon);
             if (!groups.has(key)) groups.set(key, []);
