@@ -7665,6 +7665,53 @@ main#app-container.nav-anim-backward {
     outline-offset: 2px;
 }
 
+/* Sidebar surfaces — both the always-visible icon rail
+   (.sidebar-rail) on desktop and the slide-in burger drawer
+   (.sidebar) on mobile use a light-translucent fill in the base
+   CSS (rgba(255,255,255,0.85) for the rail, glass-bg for the
+   drawer). In dark mode that surface read as a bright silvery
+   strip against the dark page — visually wrong even though the
+   inner icons still rendered fine.
+   The dark-mode replacement is a "frosted graphite" gradient:
+   a slight top-to-bottom tonal shift gives the silvery metallic
+   feel macOS-style sidebars have, the backdrop-filter blur
+   carries through from the base rule, and a soft inner highlight
+   on the right edge defines where the rail ends against the
+   page bg. */
+:root[data-theme="dark"] .sidebar-rail {
+    background: linear-gradient(
+        180deg,
+        rgba(54, 54, 60, 0.88) 0%,
+        rgba(38, 38, 44, 0.92) 100%
+    );
+    border-right-color: rgba(255, 255, 255, 0.06);
+    box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.04);
+}
+/* Active rail icon — the small accent-blue dot/highlight that
+   marks the current page. The base rule uses a translucent blue
+   tint that's correct on light but reads as too pale on the new
+   dark rail. Lift the saturation. */
+:root[data-theme="dark"] .sidebar-rail__item.active {
+    background: rgba(10, 132, 255, 0.18);
+}
+:root[data-theme="dark"] .sidebar-rail__item:hover,
+:root[data-theme="dark"] .sidebar-rail__item:focus-visible {
+    background: rgba(255, 255, 255, 0.06);
+}
+
+/* Burger drawer — wider full-height panel that slides in from the
+   left on mobile (and on desktop when the brand button is clicked).
+   Same graphite-with-tonal-shift treatment for visual consistency
+   between the rail and the drawer. */
+:root[data-theme="dark"] .sidebar {
+    background: linear-gradient(
+        180deg,
+        rgba(54, 54, 60, 0.94) 0%,
+        rgba(38, 38, 44, 0.97) 100%
+    );
+    border-right-color: rgba(255, 255, 255, 0.08);
+}
+
 /* Form classes that hardcode dark-on-light values for the light
    theme. They look right on the white expense form card (Manual
    Tab) and the light expense-history filter row — but render as
