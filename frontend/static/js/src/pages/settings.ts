@@ -41,7 +41,10 @@ export const showPersTab = (tab: string) => {
     }
 };
 
-const deleteCategory = (id: string) => {
+// Exported so the React Personalization page can dispatch this from
+// its delete-button click handler. Confirm-modal flow + state delete
+// + server sync + re-navigate to land back on the categories sub-tab.
+export const deleteCategory = (id: string) => {
     showConfirmModal({
         title: t('settings.categoryDeleteConfirmTitle'),
         message: t('settings.categoryDeleteConfirmMessage'),
@@ -706,8 +709,13 @@ export function renderSettings() {
 
 /** Open a modal to edit an existing category's name / icon / color.
  *  Saves directly into STATE.categories, syncs to the server, and
- *  re-renders the personalization page so the row reflects the change. */
-function openEditCategoryModal(categoryId: string) {
+ *  re-renders the personalization page so the row reflects the change.
+ *
+ *  Exported so the React Personalization page can call it from its
+ *  edit-button click handler (pre-§3.3 React migration this was
+ *  module-internal; the imperative renderPersonalization called it
+ *  via a delegated click handler in the same file). */
+export function openEditCategoryModal(categoryId: string) {
     const cat = STATE.categories.find(c => c.id === categoryId);
     if (!cat) return;
 
@@ -751,115 +759,14 @@ function openEditCategoryModal(categoryId: string) {
     };
 }
 
-export function renderPersonalization() {
-    const div = document.createElement('div');
-
-    // Category rows — card-style instead of plain table cells.
-    // Each row gets a colored left stripe (the category color),
-    // a glyph + name in the middle, and edit/delete chips on the
-    // right. Hover lifts the card slightly so it reads as
-    // tappable. Designed to scan vertically (categories are
-    // dense lists in real-world use).
-    const catsHtml = STATE.categories.map(c => `
-        <div class="cat-row" style="--cat-color: ${esc(c.color)};">
-            <span class="cat-row__stripe" aria-hidden="true"></span>
-            <span class="cat-row__icon">${esc(c.icon)}</span>
-            <span class="cat-row__name">${esc(c.name)}</span>
-            <span class="cat-row__swatch" style="background:${esc(c.color)};" aria-label="Color ${esc(c.color)}"></span>
-            <div class="cat-row__actions">
-                <button class="cat-row__btn cat-row__btn--edit edit-category-btn" data-category-id="${esc(c.id)}" title="${t('settings.categoryEditTooltip')}" aria-label="${t('settings.categoryEditAriaLabel')}">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <path d="M12 20h9"></path>
-                        <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
-                    </svg>
-                </button>
-                <button class="cat-row__btn cat-row__btn--delete delete-category-btn" data-category-id="${esc(c.id)}" title="${t('settings.categoryDeleteTooltip')}" aria-label="${t('settings.categoryDeleteAriaLabel')}">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <line x1="18" y1="6" x2="6" y2="18"></line>
-                        <line x1="6" y1="6" x2="18" y2="18"></line>
-                    </svg>
-                </button>
-            </div>
-        </div>
-    `).join('');
-
-    div.innerHTML = `
-        <div class="ai-page-header">
-            <h1 class="gradient-text" style="--g-from: #1a6b3c; --g-to: #34c759;">${t('settings.personalizationTitle')}</h1>
-            <p>${t('settings.personalizationSubtitle')}</p>
-        </div>
-
-        <div id="persMenu" class="grid-2">
-            <button type="button" class="card-button-reset card glass card-glow-blue pers-tab-card" data-tab="categories">
-                <h2 class="card-title" style="color: #005bb8;">${t('settings.manageCategoriesTitle')}</h2>
-                <p class="text-muted">${t('settings.manageCategoriesBody')}</p>
-            </button>
-        </div>
-
-        <div id="persContent" style="display: none;">
-            <button class="btn btn-small btn-liquid-glass pers-tab-card" data-tab="menu" style="margin-bottom: 20px;">${t('settings.backToPersonalization')}</button>
-
-            <div id="persCategories" style="display: none;">
-                <div class="card glass card-glow-blue">
-                    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom: var(--space-4); flex-wrap:wrap;">
-                        <h2 class="card-title" style="color: #005bb8; margin: 0;">${t('settings.categoriesTitle')}</h2>
-                        <span class="cat-count-chip">${STATE.categories.length}</span>
-                    </div>
-                    <div class="cat-list" style="margin-bottom: var(--space-5);">
-                        ${catsHtml || '<div class="cat-list__empty">' + t('settings.categoriesEmpty') + '</div>'}
-                    </div>
-
-                    <div class="section-divider">
-                        <h3 style="margin-bottom: var(--space-3); font-size: var(--font-lg);">${t('settings.categoryAddNewHeading')}</h3>
-                        <div style="display:flex; gap: var(--space-3); flex-wrap: wrap;">
-                            <select id="catIcon" class="glass-input" style="width: 80px;">
-                                <option value="🍷">🍷</option><option value="🏨">🏨</option><option value="✈️">✈️</option><option value="🚕">🚕</option><option value="🍕">🍕</option>
-                                <option value="🎟️">🎟️</option><option value="🛍️">🛍️</option><option value="🍦">🍦</option><option value="🥐">🥐</option><option value="🏛️">🏛️</option>
-                                <option value="🏖️">🏖️</option><option value="🎢">🎢</option><option value="🚠">🚠</option><option value="🚌">🚌</option><option value="🚆">🚆</option>
-                                <option value="🌍">🌍</option><option value="🗺️">🗺️</option><option value="🎒">🎒</option><option value="📸">📸</option><option value="☕">☕</option>
-                            </select>
-                            <input type="text" id="catName" class="glass-input" placeholder="${t('settings.categoryNamePlaceholder')}" style="flex:1; min-width: 150px;">
-                            <input type="color" id="catColor" class="glass-input" value="#ff3b30" style="width: 50px; padding: 2px;">
-                            <button id="addCatBtn" class="btn-primary" style="padding: var(--space-3) var(--space-5);">${t('settings.categoryAddBtn')}</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-
-    // Delegated handler for category-row delete + the menu/back tab cards.
-    div.addEventListener('click', (e) => {
-        const target = (e.target as HTMLElement | null);
-        if (!target) return;
-
-        const persTabCard = (target.closest('.pers-tab-card') as HTMLElement | null);
-        if (persTabCard?.dataset.tab) { showPersTab(persTabCard.dataset.tab); return; }
-
-        const editCatBtn = (target.closest('.edit-category-btn') as HTMLElement | null);
-        if (editCatBtn?.dataset.categoryId) { openEditCategoryModal(editCatBtn.dataset.categoryId); return; }
-
-        const delCatBtn = (target.closest('.delete-category-btn') as HTMLElement | null);
-        if (delCatBtn?.dataset.categoryId) { deleteCategory(delCatBtn.dataset.categoryId); return; }
-    });
-
-    setTimeout(() => {
-        const addCatBtn = div.querySelector('#addCatBtn');
-        if (addCatBtn) addCatBtn.addEventListener('click', () => {
-            const icon = (q(div, '#catIcon') as HTMLSelectElement).value;
-            const name = (q(div, '#catName') as HTMLInputElement).value.trim();
-            const color = (q(div, '#catColor') as HTMLInputElement).value;
-            if (name) {
-                STATE.categories.push({ id: generateId(), name, icon, color });
-                emit('state:changed');
-                syncCategories(); // Delta: sync new category
-                navigate('personalization');
-                setTimeout(() => showPersTab('categories'), 50);
-            }
-        });
-
-    }, 0);
-
-    return div;
-}
+// renderPersonalization moved to pages/settings/Personalization.tsx
+// as part of §3.3 React migration. The old 110-line imperative
+// renderer used innerHTML templating + delegated handlers; the new
+// JSX implementation reads the same STATE.categories slice and
+// dispatches to the same exported helpers (deleteCategory,
+// openEditCategoryModal) so behaviour is identical.
+//
+// The PAGES.PERSONALIZATION route still mounts Personalization.tsx
+// via pages/settings/mount.ts → mountPersonalization — that wiring
+// is unchanged.
 
