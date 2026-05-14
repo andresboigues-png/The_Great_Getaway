@@ -7791,3 +7791,102 @@ main#app-container.nav-anim-backward {
 :root[data-theme="dark"] .map-poi-toggle-bar:focus-visible {
     background: rgba(255, 255, 255, 0.10);
 }
+
+/* Mobile bottom-tab nav — the fixed Home / To-do / Plan AI /
+   Expenses strip at the bottom of the viewport on ≤720px.
+   The base rule uses rgba(255,255,255,0.92) for that frosted-
+   white iOS feel; in dark mode the same translucent fill renders
+   as a glaring bright stripe at the bottom of an otherwise dark
+   page. Flip to a frosted-graphite gradient matching the sidebar
+   so the bottom nav reads as the same surface material. */
+:root[data-theme="dark"] .mobile-bottom-nav {
+    background: linear-gradient(
+        180deg,
+        rgba(38, 38, 44, 0.92) 0%,
+        rgba(28, 28, 32, 0.96) 100%
+    ) !important;
+    border-top-color: rgba(255, 255, 255, 0.08) !important;
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.5) !important;
+}
+:root[data-theme="dark"] .mobile-bottom-nav__item {
+    /* Resting state — light text-primary so labels read on the
+       new dark surface. Brand-blue still wins on the active state
+       below. */
+    color: var(--text-primary);
+}
+:root[data-theme="dark"] .mobile-bottom-nav__item.active {
+    background: rgba(10, 132, 255, 0.20);
+    color: var(--accent-blue);
+}
+
+/* Day-action buttons (Trip checklist / Edit anchor pin / Documents
+   / Photos on the home Path tab — and several other expense /
+   day-detail places). Base tones use rgba(0,0,0,0.03) backgrounds
+   which are essentially invisible on dark, and #002d5b text which
+   reads as a smudge. The button outlines / borders are ALSO not
+   defined (border:none on the base), so on dark mode the buttons
+   look like floating text with no shape. Add visible dark-mode
+   backgrounds + theme-flipped text colours. */
+:root[data-theme="dark"] .day-action-btn--neutral {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-primary);
+}
+:root[data-theme="dark"] .day-action-btn--neutral:hover,
+:root[data-theme="dark"] .day-action-btn--neutral:active,
+:root[data-theme="dark"] .day-action-btn--neutral:focus-visible,
+:root[data-theme="dark"] .day-action-btn--neutral.is-hovered {
+    background: rgba(255, 255, 255, 0.12);
+}
+:root[data-theme="dark"] .day-action-btn--brand {
+    background: rgba(10, 132, 255, 0.14);
+    /* color: var(--accent-blue) already in light rule and that
+       variable flips correctly in dark, so no override needed. */
+}
+:root[data-theme="dark"] .day-action-btn--brand:hover,
+:root[data-theme="dark"] .day-action-btn--brand:active,
+:root[data-theme="dark"] .day-action-btn--brand:focus-visible,
+:root[data-theme="dark"] .day-action-btn--brand.is-hovered {
+    background: rgba(10, 132, 255, 0.22);
+}
+:root[data-theme="dark"] .day-action-btn--danger {
+    background: rgba(255, 59, 48, 0.14);
+}
+:root[data-theme="dark"] .day-action-btn--danger:hover,
+:root[data-theme="dark"] .day-action-btn--danger:active,
+:root[data-theme="dark"] .day-action-btn--danger:focus-visible,
+:root[data-theme="dark"] .day-action-btn--danger.is-hovered {
+    background: rgba(255, 59, 48, 0.22);
+}
+:root[data-theme="dark"] .day-action-btn--danger-fill {
+    background: rgba(255, 59, 48, 0.18);
+}
+:root[data-theme="dark"] .day-action-btn--danger-fill:hover,
+:root[data-theme="dark"] .day-action-btn--danger-fill:active,
+:root[data-theme="dark"] .day-action-btn--danger-fill:focus-visible,
+:root[data-theme="dark"] .day-action-btn--danger-fill.is-hovered {
+    background: rgba(255, 59, 48, 0.26);
+}
+
+/* Trip-controls popover — the mobile compass-icon dropdown that
+   surfaces "+ New Trip" + the current-trip selector + the
+   ✓ / 🗑 chips. Base bg is rgba(255,255,255,0.96) — bright on
+   dark. Flip to the same frosted-graphite material the sidebar
+   uses so the popover reads as a coherent piece of chrome. */
+:root[data-theme="dark"] .trip-controls-popover {
+    background: linear-gradient(
+        180deg,
+        rgba(54, 54, 60, 0.94) 0%,
+        rgba(38, 38, 44, 0.97) 100%
+    );
+    border-color: rgba(255, 255, 255, 0.08);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+}
+
+/* Travel companions card — the white body block on the home Path
+   tab Companions view. Renders as a bright white rectangle on the
+   dark page. Flip to the standard card-bg surface and let the
+   blue gradient header keep its identity. */
+:root[data-theme="dark"] .trip-companions-card {
+    background: var(--card-bg);
+    border-color: rgba(255, 255, 255, 0.08);
+}
