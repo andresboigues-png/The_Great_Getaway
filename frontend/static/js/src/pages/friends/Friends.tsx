@@ -107,7 +107,7 @@ function UserCard({ user, variant = 'neutral', onClick, rightSide, rowClass = ''
                 <div
                     style={{
                         fontWeight: 800,
-                        color: '#002d5b',
+                        color: 'var(--text-brand-navy)',
                         fontSize: '0.95rem',
                         lineHeight: 1.2,
                         overflow: 'hidden',
@@ -297,7 +297,7 @@ export function Friends() {
                         alignItems: 'center',
                         gap: '8px',
                         background: 'rgba(0,113,227,0.08)',
-                        color: '#005bb8',
+                        color: 'var(--accent-blue-deep)',
                         padding: '6px 14px',
                         borderRadius: '999px',
                         fontSize: '0.82rem',
@@ -313,7 +313,7 @@ export function Friends() {
                         alignItems: 'center',
                         gap: '8px',
                         background: 'rgba(0,0,0,0.04)',
-                        color: '#002d5b',
+                        color: 'var(--text-brand-navy)',
                         padding: '6px 14px',
                         borderRadius: '999px',
                         fontSize: '0.82rem',
@@ -329,7 +329,7 @@ export function Friends() {
                         alignItems: 'center',
                         gap: '8px',
                         background: 'rgba(0,0,0,0.04)',
-                        color: '#002d5b',
+                        color: 'var(--text-brand-navy)',
                         padding: '6px 14px',
                         borderRadius: '999px',
                         fontSize: '0.82rem',
@@ -358,7 +358,7 @@ export function Friends() {
                         style={{
                             margin: 0,
                             fontSize: '1.05rem',
-                            color: '#002d5b',
+                            color: 'var(--text-brand-navy)',
                             fontWeight: 800,
                             letterSpacing: '-0.02em',
                         }}
@@ -413,12 +413,12 @@ export function Friends() {
                                 width: '100%',
                                 boxSizing: 'border-box',
                                 padding: '10px 12px 10px 36px',
-                                border: '1px solid rgba(0,0,0,0.08)',
+                                border: '1px solid var(--border-subtle)',
                                 borderRadius: '999px',
                                 fontSize: '0.9rem',
-                                background: 'white',
+                                background: 'var(--card-bg)',
                                 fontWeight: 600,
-                                color: '#002d5b',
+                                color: 'var(--text-brand-navy)',
                                 outline: 0,
                             }}
                         />
@@ -670,7 +670,7 @@ function NetworkSection({
                     style={{
                         margin: 0,
                         fontSize: '1.05rem',
-                        color: '#002d5b',
+                        color: 'var(--text-brand-navy)',
                         fontWeight: 800,
                         letterSpacing: '-0.02em',
                     }}
