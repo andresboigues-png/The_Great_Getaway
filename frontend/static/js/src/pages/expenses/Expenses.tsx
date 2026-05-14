@@ -115,8 +115,8 @@ export function Expenses() {
                 {t('expenses.title')}
             </h1>
             <nav className="expenses-tabnav" role="tablist">
-                {tabBtn('upload', 'Upload')}
-                {tabBtn('insights', 'Insights')}
+                {tabBtn('upload', t('expenses.tabUpload'))}
+                {tabBtn('insights', t('expenses.tabInsights'))}
                 {tabBtn('history', t('expenses.tabHistory'))}
             </nav>
 
@@ -124,7 +124,7 @@ export function Expenses() {
                 {tab === 'upload' ? (
                     isReadOnly ? (
                         <ReadOnlyNotice
-                            tabLabel="Upload"
+                            tabLabel={t('expenses.tabUpload')}
                             verb={t('expenses.readOnlyVerbManual')}
                         />
                     ) : (

@@ -487,6 +487,19 @@ export const en = {
         // Pre-trip empty-state.
         noTripTitle: 'Ready for a new adventure?',
         noTripBody: "To generate a personalized AI itinerary, you'll need to create a trip first.",
+        noTripCta: '+ Start Your Journey',
+        // Inline date-range validation under the date pickers.
+        dateValidityErr: 'End date must be on or after the start date.',
+        // Requirements textarea placeholder.
+        requirementsPlaceholder: 'e.g. Vegetarian friendly, no walking more than 2km...',
+        // ── AI Usage card (shared host-key pool) ──
+        usageCardTitle: 'AI Usage',
+        usagePctPill: '{pct}% used',
+        usageQuotaUsed: "Today's shared AI quota: {pct}% used. Resets every 24h.",
+        usageDrained: "Today's shared AI quota is fully booked. Add your own key below to keep generating.",
+        usageNoPool: 'No shared AI quota on this instance — add your own Gemini key below.',
+        usageUseMyKeyBtn: 'Use my own key',
+        usageByoSectionTitle: 'Bring your own Gemini key',
         // Page subtitle (with destination interpolated).
         subtitlePlanning: 'Planning your trip to <strong>{country}</strong>',
         // Section labels.
@@ -730,6 +743,8 @@ export const en = {
         tabManual: 'Manual Upload',
         tabBatch: 'Batch Upload',
         tabHistory: 'History',
+        tabUpload: 'Upload',
+        tabInsights: 'Insights',
         // Manual-tab verbs in read-only notice.
         readOnlyVerbManual: 'log new expenses',
         readOnlyVerbBatch: 'import expenses',
@@ -883,6 +898,32 @@ export const en = {
         noTrips: 'No trips yet',
         noExpenses: 'No expenses yet',
         noFeed: 'Nothing in your feed yet',
+    },
+    // ── POI category labels ───────────────────────────────────────
+    // Human-readable labels for the POI emoji set used by the home
+    // map's category pills AND the to-do list's category section
+    // headers / type filter. Keyed by the emoji that every
+    // marked-place record carries so the same data shape works on
+    // both surfaces.
+    poi: {
+        restaurants: 'Restaurants',
+        supermarkets: 'Supermarkets',
+        hotels: 'Hotels',
+        sights: 'Sights',
+        parks: 'Parks',
+        worship: 'Worship',
+        medical: 'Medical',
+        pharmacies: 'Pharmacies',
+        doctors: 'Doctors',
+        dentists: 'Dentists',
+        pets: 'Pets',
+        petStores: 'Pet stores',
+        schools: 'Schools',
+        sports: 'Sports',
+        transit: 'Transit',
+        roadsTraffic: 'Roads & traffic',
+        otherPlaces: 'Other places',
+        other: 'Other',
     },
 } as const;
 

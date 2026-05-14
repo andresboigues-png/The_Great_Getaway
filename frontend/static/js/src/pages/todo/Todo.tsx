@@ -68,11 +68,17 @@ interface TodoMarkedPlace {
 }
 
 /** Map the per-place `icon` (which mirrors POI_CATEGORIES emoji) to a
- *  human-readable section heading. Falls through to "Other places"
- *  for icons not in the table — covers the 📋 default that
- *  `addOrUpdatePlaceFromVerified` stamps on AI-only items + the 📍
- *  default that the home InfoWindow uses when no category was active.
- *  Pre-G items keyed by their POI emoji always hit a known label.
+ *  human-readable, locale-aware section heading. Falls through to
+ *  "Other places" for icons not in the table — covers the 📋 default
+ *  that `addOrUpdatePlaceFromVerified` stamps on AI-only items + the
+ *  📍 default that the home InfoWindow uses when no category was
+ *  active. Pre-G items keyed by their POI emoji always hit a known
+ *  label.
+ *
+ *  Function (not const map) so each call resolves via t() against
+ *  the active locale. Previous iteration was a module-level
+ *  Record<string, string> baked at load time — fine in English but
+ *  silently leaked English strings into pt/es/fr.
  *
  *  Note: 📋 is intentionally absent — `groupingIcon()` normalises
  *  AI-sourced items (which carry icon='📋' on their data) into 📍
@@ -80,28 +86,31 @@ interface TodoMarkedPlace {
  *  raw icon on the row data (so the `+ AI` chip + edit-modal can
  *  read it), but visually merge into the "Other places" bucket
  *  instead of getting a dedicated section. */
-const ICON_TO_LABEL: Record<string, string> = {
-    '🍽️': 'Restaurants',
-    '🛒': 'Supermarkets',
-    '🛏️': 'Hotels',
-    '🏖️': 'Sights',
-    '🌳': 'Parks',
-    '⛪': 'Worship',
-    '🏥': 'Medical',
-    '💊': 'Pharmacies',
-    '🩺': 'Doctors',
-    '🦷': 'Dentists',
-    '🐾': 'Pets',
-    '🐶': 'Pet stores',
-    '🎓': 'Schools',
-    '🏟️': 'Sports',
-    '🚉': 'Transit',
-    '🛣️': 'Roads & traffic',
-    '📍': 'Other places',
-};
+function iconToLabel(icon: string): string {
+    switch (icon) {
+        case '🍽️': return t('poi.restaurants');
+        case '🛒': return t('poi.supermarkets');
+        case '🛏️': return t('poi.hotels');
+        case '🏖️': return t('poi.sights');
+        case '🌳': return t('poi.parks');
+        case '⛪': return t('poi.worship');
+        case '🏥': return t('poi.medical');
+        case '💊': return t('poi.pharmacies');
+        case '🩺': return t('poi.doctors');
+        case '🦷': return t('poi.dentists');
+        case '🐾': return t('poi.pets');
+        case '🐶': return t('poi.petStores');
+        case '🎓': return t('poi.schools');
+        case '🏟️': return t('poi.sports');
+        case '🚉': return t('poi.transit');
+        case '🛣️': return t('poi.roadsTraffic');
+        case '📍': return t('poi.otherPlaces');
+        default: return t('poi.other');
+    }
+}
 
 /** Resolve the icon used for filtering + grouping. Treats the
- *  AI-generic 📋 the same as 📍 — see the ICON_TO_LABEL comment.
+ *  AI-generic 📋 the same as 📍 — see the iconToLabel comment.
  *  Anything else passes through. */
 function groupingIcon(raw: string | undefined): string {
     const i = raw || '📍';
@@ -985,7 +994,7 @@ export function Todo() {
                             { value: '', label: `${t('todo.categoryAll')} (${todoItems.length})` },
                             ...allIcons.map((icon) => ({
                                 value: icon,
-                                label: `${icon} ${ICON_TO_LABEL[icon] || 'Other'} (${iconCounts.get(icon) || 0})`,
+                                label: `${icon} ${iconToLabel(icon)} (${iconCounts.get(icon) || 0})`,
                             })),
                         ]}
                     />
@@ -1074,7 +1083,7 @@ export function Todo() {
                                     textTransform: 'uppercase',
                                 }}
                             >
-                                {ICON_TO_LABEL[icon] || 'Other places'}
+                                {iconToLabel(icon)}
                             </span>
                             <span
                                 style={{

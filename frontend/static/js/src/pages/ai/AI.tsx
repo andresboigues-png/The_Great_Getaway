@@ -203,7 +203,7 @@ function EmptyTripView() {
                                 fontSize: '1.15rem',
                             }}
                         >
-                            + Start Your Journey
+                            {t('ai.noTripCta')}
                         </button>
                     </div>
                 </div>
@@ -383,7 +383,7 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
     // ── Date validity ────────────────────────────────────────────
     const dateValidityErr =
         dateFrom && dateTo && dateTo < dateFrom
-            ? 'End date must be on or after the start date.'
+            ? t('ai.dateValidityErr')
             : null;
 
     // ── Persist context to STATE on input ───────────────────────
@@ -809,7 +809,7 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                             className="glass-input"
                             value={context}
                             onChange={onContextChange}
-                            placeholder="e.g. Vegetarian friendly, no walking more than 2km..."
+                            placeholder={t('ai.requirementsPlaceholder')}
                             style={{
                                 width: '100%',
                                 resize: 'none',
@@ -1055,7 +1055,7 @@ function AIUsageCard({
                         margin: 0,
                     }}
                 >
-                    AI Usage
+                    {t('ai.usageCardTitle')}
                 </h2>
                 {hasPool && hostPoolStatus ? (
                     <span
@@ -1071,7 +1071,7 @@ function AIUsageCard({
                             letterSpacing: '0.02em',
                         }}
                     >
-                        {pct}% used
+                        {t('ai.usagePctPill', { pct: String(pct) })}
                     </span>
                 ) : null}
             </div>
@@ -1120,8 +1120,8 @@ function AIUsageCard({
                         }}
                     >
                         {drained
-                            ? "Today's shared AI quota is fully booked. Add your own key below to keep generating."
-                            : `Today's shared AI quota: ${pct}% used. Resets every 24h.`}
+                            ? t('ai.usageDrained')
+                            : t('ai.usageQuotaUsed', { pct: String(pct) })}
                     </p>
                 </>
             ) : (
@@ -1133,7 +1133,7 @@ function AIUsageCard({
                         lineHeight: 1.45,
                     }}
                 >
-                    No shared AI quota on this instance — add your own Gemini key below.
+                    {t('ai.usageNoPool')}
                 </p>
             )}
 
@@ -1159,7 +1159,7 @@ function AIUsageCard({
                 }}
             >
                 <span style={{ fontSize: '0.7rem' }}>{showByoCard ? '▾' : '▸'}</span>
-                Use my own key
+                {t('ai.usageUseMyKeyBtn')}
             </button>
 
             {showByoCard ? (
@@ -1189,7 +1189,7 @@ function AIUsageCard({
                                 color: '#7c3a9e',
                             }}
                         >
-                            Bring your own Gemini key
+                            {t('ai.usageByoSectionTitle')}
                         </span>
                         <button
                             id="aiKeyHelpBtn"
