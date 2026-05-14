@@ -1,0 +1,170 @@
+// pages/feed/BundleCard.tsx — §3.3 React migration (Feed wave 7).
+//
+// Aggregated Action bundle — same actor + type + day rolled into one
+// card with an expand affordance. The bundle card itself shows a
+// summary line (actor + verb count); the per-event member rows render
+// underneath when the card is expanded.
+//
+// Bookmark state is PER-EVENT not per-bundle, so each member row
+// carries its own bookmark button. The bundle's expand state lives
+// in module-level pages/feed/state.ts so it survives tab/filter
+// toggles.
+
+import {
+    actionIconSvg,
+    avatar,
+    bundleLine,
+    eventAccent,
+    eventLine,
+    relativeTime,
+    type Actor,
+    type FeedEvent,
+    ACTION_ACCENTS,
+} from './render.js';
+import { t } from '../../i18n.js';
+
+
+export interface BundleCardProps {
+    bundle: {
+        bundled: true;
+        id: string;
+        type: string;
+        actor: Actor;
+        when: string | null;
+        members: FeedEvent[];
+    };
+    isExpanded: boolean;
+    onToggleExpand: (bundleId: string) => void;
+    onBookmark: (eventId: string, willBookmark: boolean, btn: HTMLButtonElement) => void;
+}
+
+
+export function BundleCard({ bundle, isExpanded, onToggleExpand, onBookmark }: BundleCardProps) {
+    const accent = eventAccent(bundle.type);
+    const time = relativeTime(bundle.when);
+
+    return (
+        <div
+            className="card glass feed-event feed-bundle"
+            data-bundle-id={bundle.id}
+            style={{
+                padding: '16px 18px',
+                borderRadius: 18,
+                background: 'white',
+                border: `1px solid ${accent.color}22`,
+                borderLeft: `4px solid ${accent.color}`,
+                boxShadow: '0 4px 14px rgba(0,45,91,0.06)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 0,
+            }}
+        >
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+                {/* Avatar — kept as imperative HTML emitter from render.ts
+                    (the click is caught by .feed-avatar-btn delegation on
+                    the parent Feed component). */}
+                <span dangerouslySetInnerHTML={{ __html: avatar(bundle.actor) }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                    <div
+                        style={{
+                            fontSize: '0.95rem',
+                            lineHeight: 1.4,
+                            color: 'var(--text-secondary)',
+                        }}
+                    >
+                        <span style={{ marginRight: 6 }}>{accent.icon}</span>
+                        <span dangerouslySetInnerHTML={{ __html: bundleLine(bundle) }} />
+                    </div>
+                    {time ? (
+                        <div
+                            style={{
+                                fontSize: '0.72rem',
+                                color: 'var(--text-secondary)',
+                                marginTop: 4,
+                                fontWeight: 600,
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.06em',
+                            }}
+                        >
+                            {time}
+                        </div>
+                    ) : null}
+                </div>
+                <button
+                    type="button"
+                    className="feed-bundle-toggle"
+                    onClick={() => onToggleExpand(bundle.id)}
+                    style={{
+                        background: 'transparent',
+                        border: 0,
+                        color: '#005bb8',
+                        cursor: 'pointer',
+                        padding: '4px 10px',
+                        fontSize: '0.78rem',
+                        fontWeight: 800,
+                        flexShrink: 0,
+                    }}
+                >
+                    {isExpanded ? t('feed.bundleCollapse') : t('feed.bundleViewAll')}
+                </button>
+            </div>
+
+            <div
+                className="feed-bundle-members"
+                style={{
+                    marginTop: isExpanded ? 8 : 0,
+                    paddingTop: isExpanded ? 4 : 0,
+                    display: isExpanded ? 'block' : 'none',
+                }}
+            >
+                {bundle.members.map((m) => {
+                    const bookmarked = !!m.is_bookmarked;
+                    return (
+                        <div
+                            key={m.id}
+                            className="feed-bundle-member"
+                            data-event-id={m.id}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 10,
+                                padding: '8px 0',
+                                borderTop: '1px dashed rgba(0,45,91,0.06)',
+                            }}
+                        >
+                            <div
+                                style={{
+                                    flex: 1,
+                                    minWidth: 0,
+                                    fontSize: '0.88rem',
+                                    color: 'var(--text-secondary)',
+                                    lineHeight: 1.4,
+                                }}
+                                dangerouslySetInnerHTML={{ __html: eventLine(m) }}
+                            />
+                            <button
+                                type="button"
+                                className="icon-btn-circle feed-bookmark-btn"
+                                style={{
+                                    ['--accent' as any]: bookmarked
+                                        ? ACTION_ACCENTS.bookmark
+                                        : ACTION_ACCENTS.muted,
+                                }}
+                                data-event-id={m.id}
+                                data-bookmarked={bookmarked ? '1' : '0'}
+                                title={bookmarked ? 'Remove bookmark' : 'Bookmark'}
+                                aria-label={bookmarked ? 'Remove bookmark' : 'Bookmark'}
+                                onClick={(e) =>
+                                    onBookmark(m.id, !bookmarked, e.currentTarget)
+                                }
+                                dangerouslySetInnerHTML={{
+                                    __html: actionIconSvg('bookmark', bookmarked),
+                                }}
+                            />
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
