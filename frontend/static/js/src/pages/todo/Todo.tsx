@@ -829,72 +829,32 @@ export function Todo() {
                     }}
                 >
                     {tripIsEditable && (
-                        <>
-                            {/* Select/Unselect-all toggle. The label
-                                flips depending on whether every item
-                                is currently ticked — one button, two
-                                modes, no extra UI cost. Purple/accent
-                                styling so it visually echoes the AI
-                                tick column on each row. */}
-                            <button
-                                type="button"
-                                onClick={handleToggleAllForAI}
-                                title={
-                                    tickedCount === todoItems.length
-                                        ? t('todo.unselectAllForAiTooltip')
-                                        : t('todo.selectAllForAiTooltip')
-                                }
-                                style={{
-                                    padding: '9px 14px',
-                                    borderRadius: '999px',
-                                    fontSize: '0.78rem',
-                                    fontWeight: 700,
-                                    background: 'rgba(155, 89, 182, 0.10)',
-                                    color: '#6d28a0',
-                                    border: '1px solid rgba(155, 89, 182, 0.32)',
-                                    cursor: 'pointer',
-                                    transition: 'background 0.18s ease, border-color 0.18s ease',
-                                }}
-                                onMouseEnter={(e) => {
-                                    e.currentTarget.style.background = 'rgba(155, 89, 182, 0.18)';
-                                    e.currentTarget.style.borderColor = 'rgba(155, 89, 182, 0.55)';
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.currentTarget.style.background = 'rgba(155, 89, 182, 0.10)';
-                                    e.currentTarget.style.borderColor = 'rgba(155, 89, 182, 0.32)';
-                                }}
-                            >
-                                {tickedCount === todoItems.length
-                                    ? t('todo.unselectAllForAiBtn')
-                                    : t('todo.selectAllForAiBtn')}
-                            </button>
-                            <button
-                                type="button"
-                                onClick={handleClearAll}
-                                title={t('todo.clearAllTooltip')}
-                                style={{
-                                    padding: '9px 14px',
-                                    borderRadius: '999px',
-                                    fontSize: '0.78rem',
-                                    fontWeight: 700,
-                                    background: 'rgba(255, 59, 48, 0.08)',
-                                    color: '#c73128',
-                                    border: '1px solid rgba(255, 59, 48, 0.28)',
-                                    cursor: 'pointer',
-                                    transition: 'background 0.18s ease, border-color 0.18s ease',
-                                }}
-                                onMouseEnter={(e) => {
-                                    e.currentTarget.style.background = 'rgba(255, 59, 48, 0.14)';
-                                    e.currentTarget.style.borderColor = 'rgba(255, 59, 48, 0.45)';
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.currentTarget.style.background = 'rgba(255, 59, 48, 0.08)';
-                                    e.currentTarget.style.borderColor = 'rgba(255, 59, 48, 0.28)';
-                                }}
-                            >
-                                {t('todo.clearAllBtn')}
-                            </button>
-                        </>
+                        <button
+                            type="button"
+                            onClick={handleClearAll}
+                            title={t('todo.clearAllTooltip')}
+                            style={{
+                                padding: '9px 14px',
+                                borderRadius: '999px',
+                                fontSize: '0.78rem',
+                                fontWeight: 700,
+                                background: 'rgba(255, 59, 48, 0.08)',
+                                color: '#c73128',
+                                border: '1px solid rgba(255, 59, 48, 0.28)',
+                                cursor: 'pointer',
+                                transition: 'background 0.18s ease, border-color 0.18s ease',
+                            }}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.background = 'rgba(255, 59, 48, 0.14)';
+                                e.currentTarget.style.borderColor = 'rgba(255, 59, 48, 0.45)';
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.background = 'rgba(255, 59, 48, 0.08)';
+                                e.currentTarget.style.borderColor = 'rgba(255, 59, 48, 0.28)';
+                            }}
+                        >
+                            {t('todo.clearAllBtn')}
+                        </button>
                     )}
                     <button
                         className="btn-primary"
@@ -910,20 +870,66 @@ export function Todo() {
                 checking a row's box does. Soft-purple background +
                 stronger text on the verb + destination tab so a
                 quick scan catches the workflow without reading the
-                whole sentence. */}
+                whole sentence. The "Mark all for AI" toggle lives
+                INSIDE this block so the action sits next to the
+                rule that explains what ticking does — moving it
+                out into the stats toolbar (earlier iteration) put
+                visual distance between explanation and action. */}
             <div
                 style={{
                     background: 'rgba(155, 89, 182, 0.07)',
                     border: '1px solid rgba(155, 89, 182, 0.18)',
                     borderRadius: '12px',
-                    padding: '10px 14px',
+                    padding: '12px 14px',
                     fontSize: '0.84rem',
                     color: '#3d2a5c',
                     lineHeight: 1.5,
                     marginBottom: '16px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px',
                 }}
-                dangerouslySetInnerHTML={{ __html: t('todo.explainer') }}
-            />
+            >
+                <span
+                    dangerouslySetInnerHTML={{ __html: t('todo.explainer') }}
+                />
+                {tripIsEditable && (
+                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                        <button
+                            type="button"
+                            onClick={handleToggleAllForAI}
+                            title={
+                                tickedCount === todoItems.length
+                                    ? t('todo.unselectAllForAiTooltip')
+                                    : t('todo.selectAllForAiTooltip')
+                            }
+                            style={{
+                                padding: '7px 14px',
+                                borderRadius: '999px',
+                                fontSize: '0.78rem',
+                                fontWeight: 700,
+                                background: 'rgba(155, 89, 182, 0.14)',
+                                color: '#6d28a0',
+                                border: '1px solid rgba(155, 89, 182, 0.38)',
+                                cursor: 'pointer',
+                                transition: 'background 0.18s ease, border-color 0.18s ease',
+                            }}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.background = 'rgba(155, 89, 182, 0.22)';
+                                e.currentTarget.style.borderColor = 'rgba(155, 89, 182, 0.6)';
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.background = 'rgba(155, 89, 182, 0.14)';
+                                e.currentTarget.style.borderColor = 'rgba(155, 89, 182, 0.38)';
+                            }}
+                        >
+                            {tickedCount === todoItems.length
+                                ? t('todo.unselectAllForAiBtn')
+                                : t('todo.selectAllForAiBtn')}
+                        </button>
+                    </div>
+                )}
+            </div>
 
             {/* Filter + sort toolbar. AI-status pills on the left so
                 the most common filter ("just the ones I've marked")
