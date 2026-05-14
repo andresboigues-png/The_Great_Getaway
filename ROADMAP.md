@@ -347,10 +347,10 @@ code addressable for the React migration in Phase C.
     | Map setup + polyline animation init                 |     ? |             ? | ⏳     |
     | Hash listeners + closing wiring                     |     ? |             ? | ⏳     |
 
-                    Pacing is "one clean slice per session"; each commit is
-                    reviewable, behaviour-preserving (full safety net green), and
-                    shrinks home.ts by 200-400 lines. Goal is home.ts under 800
-                    lines (the bound the rest of B1 targets).
+                      Pacing is "one clean slice per session"; each commit is
+                      reviewable, behaviour-preserving (full safety net green), and
+                      shrinks home.ts by 200-400 lines. Goal is home.ts under 800
+                      lines (the bound the rest of B1 targets).
 
 **Status**: 4 of ~8 slices landed. home.ts: 2,580 → **2,017** lines
 (−563 across the slice arc). The POI-palette block (~700 lines, deeply
@@ -1629,19 +1629,19 @@ expenses ADD COLUMN receipt_url TEXT`, threaded through
     round-trip via `STATE.draftExpense.receiptUrl` so re-opening
     an expense pre-fills the picker.
 
-                                                                **Latent bug uncovered + fixed**: while wiring this up I
-                                                                discovered the server was writing expense fields camelCase via
-                                                                `/api/expenses` but reading them back from `/api/data` as
-                                                                snake_case (`trip_id`, `category_id`, `euro_value`,
-                                                                `receipt_url`) — frontend filters like
-                                                                `e.tripId === STATE.activeTripId` would silently return empty
-                                                                on cold-load. The History tab and Settlement page would have
-                                                                appeared empty until the user added a fresh expense locally.
-                                                                Translation now lives in both `routes/data.py` and
-                                                                `routes/public.py` so the public archived-trip detail also
-                                                                benefits. 2 pytests for the round-trip (set + clear), legacy
-                                                                compat test, and 1 e2e for the receipt clip icon. Net: 161/161
-                                                                pytests + 43/43 e2e + 20/20 visual.
+                                                                    **Latent bug uncovered + fixed**: while wiring this up I
+                                                                    discovered the server was writing expense fields camelCase via
+                                                                    `/api/expenses` but reading them back from `/api/data` as
+                                                                    snake_case (`trip_id`, `category_id`, `euro_value`,
+                                                                    `receipt_url`) — frontend filters like
+                                                                    `e.tripId === STATE.activeTripId` would silently return empty
+                                                                    on cold-load. The History tab and Settlement page would have
+                                                                    appeared empty until the user added a fresh expense locally.
+                                                                    Translation now lives in both `routes/data.py` and
+                                                                    `routes/public.py` so the public archived-trip detail also
+                                                                    benefits. 2 pytests for the round-trip (set + clear), legacy
+                                                                    compat test, and 1 e2e for the receipt clip icon. Net: 161/161
+                                                                    pytests + 43/43 e2e + 20/20 visual.
 
 5.  **Trip share-via-link (read-only)** — `4-6 hours`, schema +
     public backend route + new public frontend route + Views counter.
@@ -1689,6 +1689,420 @@ has critical mass OR a B2B prospect signs.
   public-trip detail hero. Major demo win.
 - **Trip timeline animation** — when viewing a public trip, animate
   the day pins appearing in order along the polyline.
+
+---
+
+## Audit findings — 2026-05-14
+
+Captured from a full-sweep audit across four dimensions (bugs +
+error handling, code quality + architecture, UX gaps + feature
+wishlist, performance + security). Each item carries a severity
+tag so the next planning pass can pick by risk, not by alphabet.
+
+### Bugs to fix (prioritized)
+
+The strict "every fix lands with tests + the safety net of any
+phase" rule still applies.
+
+#### Critical — fix in the next 1–2 sessions
+
+- **B1. Notification dedup parameter mismatch.**
+  `src/routes/notifications.py:104-106` runs a daily-dedup `WHERE
+related_id = ?` query bound to `user_id` when it should be bound
+  to `trip_id`. The intended "one trip_public per (caller, trip)
+  per day" cap is broken — currently a single trip can spam the
+  feed with unlimited public-toggle notifications. **Fix:** rename
+  the param + add a regression pytest that fires the trigger twice
+  in a row and asserts only one row lands.
+
+- **B2. `trip_collaborators` table referenced but doesn't exist.**
+  `src/routes/feed.py` reads from a `trip_collaborators` table
+  that's nowhere in `src/database.py`. Either dead code (delete
+  the path) or stale rename of `trip_members` (refactor the call
+  sites). Latent runtime 500 if the path is hit.
+
+- **B3. `/api/share/<token>` has no rate limit.**
+  `src/routes/public.py:422` — public unauthenticated endpoint.
+  Token entropy is ~128 bits so brute force is currently
+  impractical, but adding `@limiter.limit("20 per minute")` is a
+  one-line defence-in-depth that costs nothing.
+
+- **B4. Friends → follows migration silently swallows errors.**
+  `src/database.py:735-744` catches every exception with a `print`
+  and moves on. If the migration genuinely fails (disk full, schema
+  drift), the social graph silently breaks for the affected users.
+  **Fix:** route the exception through `logger.error` so Sentry
+  picks it up + add a startup health check that asserts the
+  follows table is populated for any existing friend pair.
+
+#### High — fix in the next sprint
+
+- **B5. Notifications / categories / data GETs lack `@retry_on_lock`.**
+  `src/routes/notifications.py:19`, `src/routes/data.py` GET
+  handler — high-contention endpoints (polled every 15s) without
+  the retry decorator that `/api/sync` now uses. During a write,
+  reads will 500. **Fix:** add the decorator + a pytest covering
+  the lock-then-read scenario.
+
+- **B6. JWT expiry is 30 days, no refresh strategy.**
+  `src/auth.py:38` — a stolen token is valid for a month. **Fix:**
+  shorten to 7 days for the access token + add a refresh-token
+  endpoint that issues a fresh access token on demand. Token
+  revocation already exists via `token_jti` so the new flow plugs
+  in cleanly.
+
+- **B7. Missing index on `trips(user_id)` and `trip_members(user_id)`.**
+  Every `/api/data` poll runs three UNION'd `WHERE user_id = ?`
+  queries that scan the whole trips table. With >100 active users
+  this becomes the dominant cost on PA. **Fix:** add `CREATE INDEX
+idx_trips_user ON trips(user_id)` and `idx_trip_members_user_id
+ON trip_members(user_id)` to `database.py:init_db()`. Same path
+  for `feed_likes.event_id` + `feed_bookmarks.event_id`.
+
+- **B8. `/api/sync` write is not atomic across tables.**
+  `src/routes/data.py` commits per-table (good for lock contention)
+  but if a settlement insert fails mid-sync the trip + expense
+  inserts have already committed — the client sees a half-applied
+  state on next poll. **Fix:** wrap each call in a savepoint and
+  rollback-all on the first per-table failure, OR document the
+  eventual-consistency contract explicitly.
+
+- **B9. `useStore` triggers a full re-render on every `state:changed`.**
+  `frontend/static/js/src/react/store.ts:44-75` — the version
+  counter increments on every emit and ALL subscribers re-render.
+  Acceptable today (4-5 React pages), painful as more pages
+  migrate. **Fix:** swap to per-selector subscription via
+  `useSyncExternalStore`'s `getSnapshot` equality check (already
+  done for `expensesTab` — generalise it).
+
+- **B10. Map markers leak on POI pill toggle.**
+  `frontend/static/js/src/pages/home-mount/HeroMap.tsx:297+` —
+  `placesMarkers[pillKey]` is reassigned without `setMap(null)`'ing
+  the old array. Toggling Restaurants on/off 20 times leaves
+  20 × N orphan markers in memory. **Fix:** in the toggle handler,
+  call `setMap(null)` on the existing array before reassigning.
+
+#### Medium — fix when touching the file
+
+- **B11. Prompt-injection scrubber missing Unicode line separators.**
+  `src/routes/integrations.py:393-399` strips `\r\n\t` but not
+  U+2028 / U+2029, which Gemini parses as instruction breaks.
+  Add them to the allow-set.
+
+- **B12. Trip name via `dangerouslySetInnerHTML` in Todo subtitle.**
+  `frontend/static/js/src/pages/todo/Todo.tsx:657-668` — relies on
+  the backend's SQL-escape, NOT HTML escape. Currently fine because
+  trip names get UI-side length caps, but the unsanitized path is
+  one schema migration away from being exploited. **Fix:** swap to
+  a `<strong>` JSX node with the country name as a text child, or
+  HTML-escape the interpolated name explicitly.
+
+- **B13. `_exhausted_keys` dict in Gemini pool can grow stale.**
+  `src/routes/integrations.py:61` — only self-cleans on read. A
+  WSGI worker that never queries a slot keeps the timestamp
+  forever. Bounded (≤6 entries) so not a real leak, but a sweep
+  pass in `_is_key_cooled()` would tidy it.
+
+- **B14. `/api/public-profile/<user_id>` has no rate limit.**
+  Unauthenticated → user enumeration. Add `@limiter.limit("60 per
+minute")`.
+
+- **B15. `/api/follows/<user_id>` POST/DELETE lack rate limits.**
+  Mass-follow spam is an easy abuse vector. Add `@limiter.limit("30
+per minute")`.
+
+- **B16. Email search still enumerable.**
+  `src/routes/friends.py:47` — 10/min is reasonable but an attacker
+  can harvest emails by prefix over hours. Consider requiring an
+  invite-only friend graph OR returning dummy results after N
+  failed searches per IP.
+
+- **B17. Hardcoded English in `notification_message` for trip_public.**
+  `src/routes/notifications.py:122` — the i18n discipline is
+  enforced everywhere on the frontend; the backend should localise
+  notification payloads via the recipient's preferred locale
+  (already stored in `users.language`).
+
+- **B18. Stale comments / docs drift.**
+  `src/routes/public.py:51` claims to enumerate columns but lines
+  143 + 178 still `SELECT *`. `src/routes/feed.py:242` claims
+  achievements can't be commented but the code allows it. Sweep
+  with `grep "TODO\|FIXME\|FIXING_ROADMAP §"` and either close
+  or recomment.
+
+---
+
+### Code quality + architecture improvements
+
+The §3.3 React migration + dark-mode sweep landed a lot of code
+quickly; this is the pay-down pass.
+
+#### Structural (must address before the codebase doubles in size)
+
+- **Q1. God files — split the worst seven.**
+  `pages/ai/AI.tsx` (1942 lines), `frontend/static/css/index.css`
+  (7793 lines), `src/routes/feed.py` (1195), `frontend/static/js/
+src/modals.ts` (1192), `pages/feed/Feed.tsx` (1170), `pages/
+home-mount/HeroMap.tsx` (938), `pages/expenses/ManualTab.tsx`
+  (886). Target: nothing over 600 lines without explicit
+  justification. Each file gets a "C5 follow-up" PR.
+
+- **Q2. CSS extraction.**
+  `index.css` → split into `tokens.css` + `modals.css` +
+  `sidebar.css` + `responsive.css` + `dark-mode.css` + `pages/*.css`.
+  Vite already supports CSS modules — no infra work needed. ~10K
+  lines of CSS becomes ~7 × ~1.5K files, each ownable in one
+  reviewer's head.
+
+- **Q3. Proper migration framework.**
+  `src/database.py:142-163`'s `_safe_alter()` pattern (try/except
+  on `ALTER TABLE`) is fragile — masks real schema-drift bugs.
+  Add Alembic with versioned migrations + a `migrations/` folder.
+  Start with the 2026-05-14 audit as version 1; everything before
+  it is "baseline".
+
+- **Q4. Foreign-key enforcement + orphan cleanup.**
+  `database.py:58-62` disables FKs because legacy data has
+  orphans. Write a one-shot cleanup script (`scripts/migrations/
+001_cleanup_orphans.py`) that finds + deletes orphan expenses /
+  settlements / photos, then enables `PRAGMA foreign_keys = ON`
+  in the connection bootstrap.
+
+#### Moderate
+
+- **Q5. Type-safety pass — `: any` audit.**
+  ~215 `: any` annotations across frontend. Prioritize:
+  `HeroMap.tsx` (15+), `schemas.ts` (10+), `modals.ts` (3, but
+  high-traffic), `tripMedia.ts` (4 in one helper). Land a typed
+  `google.maps.*` shim (a 50-line `types/google-maps.d.ts`
+  covers the surface we actually use).
+
+- **Q6. Duplicated logic — extract three helpers.**
+    - `serializeUserRow(cursor, user_id)` — replaces 5 ad-hoc SELECTs
+      of `name, picture, bio` across routes.
+    - `normalizeGooglePlace(rawPlace)` — extracts the lat / lng /
+      country-code parsing duplicated in HeroMap, markedPlaces, and
+      tripMedia.
+    - `useDateRangeValidation(fromId, toId)` — the modal + manual
+      expense form + AI page each re-implement the same min-date
+      sync + validity hint logic.
+
+- **Q7. Inline-style → CSS-token sweep.**
+  86+ inline `color: '#XXXXXX'` hex literals shadow the design
+  tokens (e.g. `#005bb8`, `#a85d00`, `#ff3b30`). The dark-mode
+  pass swept the worst offenders but Settings, Insights,
+  Collections, and the Hero InfoWindow are still littered with
+  them. Target: every page exposed in nav has zero raw hex
+  literals; CSS classes or `var(--*)` everywhere.
+
+- **Q8. N+1 user-name lookups in feed builders.**
+  `src/routes/feed.py:243,253,323,364` — each `_build_*` does its
+  own `SELECT name FROM users WHERE id = ?`. **Fix:** batch-fetch
+  all distinct user IDs up front, hydrate from a dict, build
+  events from the hydrated map.
+
+- **Q9. Dead code sweep.**
+  Confirmed-dead exports: `openFriendsListModal` (profile.ts:179),
+  `subscribeSettingsTab` (settings/tabState.ts:71),
+  `stopHomeSlideshow` (home/slideshow.ts). Confirmed-dead CSS:
+  `.card-button-reset`, `.ai-page-2col` (AI.tsx uses inline grid).
+  ~10 KB of bundle savings + cleaner navigation in the editor.
+
+- **Q10. Bundle bloat — lazy-load Chart.js.**
+  Chart.js is referenced as `declare const Chart: any` in
+  `Insights.tsx:31` — injected via script tag, ~80 KB min. Used
+  on exactly one tab. Switch to a dynamic `import()` inside the
+  Insights component's first render. Same pattern would work for
+  the Google Maps loader on Home-only paths.
+
+#### Cosmetic
+
+- **Q11. Atomic transaction wrap on `/api/sync`.** See B8.
+- **Q12. `Translations` typing for backend.** Add a `notifications/
+templates.py` keyed by `locale → event_type → template` so
+  multilingual notifications are a lookup, not a hardcode.
+
+---
+
+### UX gaps + new-feature backlog
+
+Ordered by value × ease. Each estimates "ship size" in the
+familiar half-day / day / week buckets.
+
+#### Quick wins (≤ half day each, high signal)
+
+- **U1. Unread-count badge on the notifications bell.**
+  The bell already polls; surface the unread count as a red dot
+  with the number, matching the iOS pattern. One template change
+    - one CSS class.
+
+- **U2. Batch CSV upload — "X of Y rows imported" toast + link to
+  History.** Currently the form clears silently after a 50-row
+  upload. Add a `showLiquidAlert` with the count + a "View in
+  History" link that flips the Expenses tab.
+
+- **U3. AI generator — friendly message when the host pool is
+  empty AND there's no BYO key.** Right now the user sees a
+  generic "AI generation failed" toast. The drained-pool case is
+  detectable (`hostPoolStatus.available === 0 && !geminiKey`) and
+  should pop the BYO panel automatically with a one-liner like
+  "Daily AI quota is full — add your own free Gemini key to keep
+  going."
+
+- **U4. To-do empty state — "+ Mark a place" CTA.**
+  When the to-do list is empty, link directly to the home map
+  with a tooltip on the Restaurants pill that says "Click any pin
+  and tap 📋 to add it here."
+
+- **U5. Settlement confirmation toast.**
+  After `createSettlement` resolves, show `showLiquidAlert("✓
+Settled €X between Alice and Bob.")`. Currently the row
+  disappears with no feedback.
+
+- **U6. File-picker shows the selected filename.**
+  Batch upload + receipt upload — replace "Choose file" with the
+  picked filename. Native `<input type="file">` provides this for
+  free; we're overriding the label.
+
+- **U7. Mobile file picker label fix.** Same as U6 but specifically
+  for the receipt photo on Manual expense — currently keeps the
+  generic "📎 Attach receipt" even after selection.
+
+- **U8. Cmd+K / Ctrl+K to focus the search bar.**
+  One-line `useEffect` keydown listener that focuses
+  `#navSearchBtn` (or directly navigates to /search and focuses
+  the input). Search is the highest-traffic surface that should
+  feel instant.
+
+- **U9. Progressive disclosure in Settings.**
+  Settings has 8 tabs but only the Gemini-key one matters on day
+  one. Hide Format / Integrations / Personalization behind an
+  "Advanced settings" expander; surface General + Account by
+  default.
+
+- **U10. Hide the "📋 AI suggestions" sub-tab name globally.**
+  The "AI suggestions" pseudo-type was bucketed into "Other
+  places" on the to-do list (recently shipped). Audit other
+  surfaces (Path tab, day-detail modal) for the same stale label.
+
+#### Medium-effort UX improvements (≤ 1 day each)
+
+- **U11. Onboarding tour — three tooltips.**
+  After the first successful login, show three sequential
+  tooltips: "This is your map," "Here's your itinerary,"
+  "Log expenses here." Dismissable, never re-shown.
+
+- **U12. Trip templates — "Sample weekend in Lisbon".**
+  A `templates/` folder with 2-3 prefab trips (Lisbon weekend,
+  Italy 1-week, Japan 10-day). On the empty-state home page,
+  surface "Start from a template" alongside "New trip". Cloning
+  reuses the existing `/api/trips/clone` endpoint.
+
+- **U13. Insights link in main nav.**
+  Currently buried inside Expenses tab. Add a sidebar-rail item
+  for power users who want to jump straight to the chart.
+
+- **U14. Weather forecast tile on Home.**
+  README mentions weather grounding for the AI prompt; the home
+  page doesn't display it. Add a 60×60 chip on the active-trip
+  header pulling from a free weather API (Open-Meteo — no key
+  required).
+
+- **U15. Consistent button labels.**
+  "Archive trip" (Edit modal) and "Move to Collections" (Banner)
+  → pick one term; "Move to Collections" reads more user-friendly.
+
+- **U16. Modal Escape semantics.**
+  Nested modals (edit trip → edit category) currently close both
+  on Escape. Maintain a modal stack so Escape pops only the top.
+
+- **U17. Modal focus traps include the close button reliably.**
+  Audit `components/Modal.tsx` — the X should be the first focused
+  element after open, the last reachable on shift-tab.
+
+- **U18. Mobile modal as bottom-sheet.**
+  Trip-creation + edit-trip modals should snap to a bottom-sheet
+  position on screens < 720 px so the map behind stays visible.
+
+- **U19. Empty-state copy + CTA on Budgets page.**
+  Currently "No budgets yet" — add 1-2 sentences explaining what
+  budgets are for + a "+ New budget" primary button.
+
+- **U20. Bookmarked feed posts filter — persist filter state +
+  show "stale" indicator.** Currently the tab refreshes and users
+  can't tell what's loaded.
+
+#### Bigger features (1+ day, pair with the right phase)
+
+- **F1. iCal export of trip days.**
+  Generate `.ics` content server-side from a trip's days, serve via
+  `/api/trips/<id>/calendar.ics`. Users add the URL to Apple
+  Calendar / Google Calendar; updates flow automatically.
+
+- **F2. Cost forecast vs. actual.**
+  Budgets exist; add a "forecast" field on each budget. On the
+  Insights tab, draw a forecast line on the spend chart so the
+  user sees "you're €120 under budget for accommodation".
+
+- **F3. Day-level cost breakdown.**
+  Settlements are trip-wide; users want "on Day 3 in Rome, Alice
+  paid €80 for dinner for 4 → Bob, Carol, and Dave each owe €20".
+  Requires a per-day rollup in `Insights` + a "who owes whom on
+  this day" row in the Day Detail modal.
+
+- **F4. Friend-trip discovery beyond Feed.**
+  "Find friends going to Lisbon" — a map view colouring users by
+  upcoming-trip country. Strong reason for a user to keep public
+  trips set to public.
+
+- **F5. Trip itinerary export to PDF.**
+  Headless render of the active trip's days → PDF. Useful for
+  printing or sharing with non-app users. Server-side via
+  `weasyprint` or similar; renders the same HTML the user sees.
+
+- **F6. Offline map tiles for a saved region.**
+  Pre-download a 50 km² area's tiles for a future trip when the
+  user is on Wi-Fi. Hard on the web platform (no native FS) but
+  service-worker caching of Google's tile URLs would get 80% of
+  the way there.
+
+- **F7. Group splitting (Splitwise parity).**
+  Settlements compute net balances but not per-expense splits in
+  a navigable way. Add a "Splits" tab on Expenses showing every
+  shared expense with the per-person owed amount + a "settle"
+  shortcut. Big feature; pair with a Settlements UX revisit.
+
+- **F8. Packing-list templates per trip type.**
+  When creating a trip, ask "what kind?" (beach / hiking / city /
+  road trip / business) and pre-load a packing checklist on the
+  Trip Anchor. The checklist surface already exists (`anchor →
+checklist`); just need the templates.
+
+- **F9. Cmd+K command palette.**
+  Beyond U8's "focus search", a full command palette that lets
+  the user jump to any trip, day, or expense with fuzzy match.
+  Search already does this on the dedicated page; the palette is
+  the keyboard-driven version.
+
+- **F10. Anniversary / nostalgia notifications.**
+  "A year ago today, you were in Castro Marim." Pulls from
+  trip_days dates. Drives re-engagement; trivial backend (a
+  scheduled task that queries `WHERE date = today - 1 year` and
+  posts to the notifications table).
+
+- **F11. Profile achievements visualization.**
+  Countries-visited map already exists; add per-country trip
+  counts as a badge on each colored country. Pairs with the
+  existing achievements system.
+
+- **F12. Trip cover photo on Home hero.**
+  Cover photo currently surfaces only in Collections + archived
+  detail. Active trip hero is a Google Map. Could show the cover
+  as a parallax banner ABOVE the map; small visual win, big
+  emotional payoff for the user revisiting an in-progress trip.
+
+- **F13. Aerial View API 3D fly-through** (already in roadmap;
+  re-confirmed as a major demo win).
 
 ---
 
