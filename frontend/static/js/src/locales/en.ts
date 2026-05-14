@@ -99,6 +99,8 @@ export const en = {
         cardDataMgmtTitle: 'Data Management',
         cardDataMgmtBody: 'Wipe specific data categories or perform a factory reset.',
         cardDataMgmtCta: 'Manage Data →',
+        cardPersonalizationTitle: 'Personalization',
+        cardPersonalizationBody: 'Customise expense categories and the look of your trips.',
         // General sub-tabs.
         subtabPills: 'Map pills',
         // Theme picker.

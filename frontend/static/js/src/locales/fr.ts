@@ -96,6 +96,8 @@ export const fr: Translations = {
         cardDataMgmtTitle: 'Gestion des données',
         cardDataMgmtBody: 'Efface des catégories spécifiques de données ou effectue une réinitialisation d\'usine.',
         cardDataMgmtCta: 'Gérer les données →',
+        cardPersonalizationTitle: 'Personnalisation',
+        cardPersonalizationBody: 'Personnalise les catégories de dépenses et l\'apparence de tes voyages.',
         subtabPills: 'Pastilles de la carte',
         themePickerSubtitle: 'Choisis un thème. <strong>Système</strong> suit l\'apparence de ton appareil et se met à jour en direct quand elle change.',
         themeBodyLight: 'Surfaces claires, texte sombre. Classique.',

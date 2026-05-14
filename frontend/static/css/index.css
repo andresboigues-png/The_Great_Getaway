@@ -7809,13 +7809,15 @@ main#app-container.nav-anim-backward {
     box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.5) !important;
 }
 :root[data-theme="dark"] .mobile-bottom-nav__item {
-    /* Resting state — light text-primary so labels read on the
-       new dark surface. Brand-blue still wins on the active state
-       below. */
-    color: var(--text-primary);
+    /* Use accent-blue for both icon stroke (via currentColor on
+       the SVG) and the small text label, matching the
+       app-wide "blue is the brand colour" aesthetic. The active
+       state still steps up to a slightly stronger background +
+       same blue to mark the current tab. */
+    color: var(--accent-blue);
 }
 :root[data-theme="dark"] .mobile-bottom-nav__item.active {
-    background: rgba(10, 132, 255, 0.20);
+    background: rgba(10, 132, 255, 0.22);
     color: var(--accent-blue);
 }
 
@@ -7889,6 +7891,37 @@ main#app-container.nav-anim-backward {
 :root[data-theme="dark"] .trip-companions-card {
     background: var(--card-bg);
     border-color: rgba(255, 255, 255, 0.08);
+}
+
+/* Trip selector pill (.btn-primary-pill--inverse) — the dropdown
+   showing the currently-active trip name (e.g. "test"). Light
+   theme renders this as a white pill on white-ish chrome; in
+   dark mode the white pill became a glaring bright indicator on
+   an otherwise dark popover. Flip to card-bg + accent-blue text
+   so the pill reads as part of the dark surface. The chevron SVG
+   is data-URL-encoded with a fixed stroke colour (#0071e3) — we
+   override that via background-image with a brighter blue variant
+   that matches the dark-mode --accent-blue (#0a84ff). */
+:root[data-theme="dark"] .btn-primary-pill--inverse {
+    background-color: rgba(255, 255, 255, 0.08);
+    color: var(--accent-blue);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10' fill='none' stroke='%230a84ff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='2 4 5 7 8 4'/></svg>");
+}
+:root[data-theme="dark"] .btn-primary-pill--inverse:hover,
+:root[data-theme="dark"] .btn-primary-pill--inverse:active,
+:root[data-theme="dark"] .btn-primary-pill--inverse:focus-visible {
+    background-color: rgba(10, 132, 255, 0.20);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
+}
+/* The dropdown's open option-list — native browser UI. The base
+   rule was `background: white` for legibility in dark OS themes;
+   with `color-scheme: dark` on :root the OS now renders option
+   text correctly, but the inline background still wins. Flip to
+   card-bg so the open list matches the closed pill. */
+:root[data-theme="dark"] .btn-primary-pill--inverse option {
+    background: var(--card-bg);
+    color: var(--text-primary);
 }
 
 /* Settings page section card — desktop uses generous padding +

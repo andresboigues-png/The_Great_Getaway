@@ -212,14 +212,11 @@
 
         <div class="sidebar-section">
             <div class="sidebar-section-label" style="color: #34c759;">Preferences</div>
-            <a href="#" class="sidebar-item" data-page="personalization">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                    stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z">
-                    </path>
-                </svg>
-                Personalization
-            </a>
+            <!-- 2026-05-14: Personalization moved into Settings as a
+                 sub-section card; the dedicated sidebar entry was
+                 collapsing the Preferences section into two near-
+                 identical items. Direct /personalization route still
+                 works for any deep-linked bookmark. -->
             <a href="#" class="sidebar-item" data-page="settings">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                     stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings">
@@ -498,11 +495,8 @@
             </svg>
         </a>
         <span class="sidebar-rail__dot" aria-hidden="true" style="--dot-color: #34c759"></span>
-        <a href="#" class="sidebar-rail__item" data-page="personalization" aria-label="Personalization" title="Personalization">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path>
-            </svg>
-        </a>
+        <!-- 2026-05-14: Personalization rail entry removed — folded
+             into Settings as a sub-card on the Menu view. -->
         <a href="#" class="sidebar-rail__item" data-page="settings" aria-label="Settings" data-i18n-aria-label="nav.settings" title="Settings">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path>

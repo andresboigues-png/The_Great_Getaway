@@ -27,7 +27,7 @@
 // version integer increments on every change, guaranteeing React
 // notices.
 
-export type SettingsTab = 'menu' | 'general' | 'format' | 'reset';
+export type SettingsTab = 'menu' | 'general' | 'format' | 'reset' | 'personalization';
 export type GeneralSubTab = 'pills' | 'appearance' | 'language';
 
 

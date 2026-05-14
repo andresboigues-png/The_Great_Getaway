@@ -47,6 +47,7 @@ import {
     getSettingsTabVersion,
     type GeneralSubTab,
 } from './tabState.js';
+import { Personalization } from './Personalization.js';
 
 
 // MANDATORY column variables — without 'category' every imported
@@ -223,6 +224,7 @@ export function Settings() {
                     {tab === 'general' && <GeneralView />}
                     {tab === 'format' && <FormatView />}
                     {tab === 'reset' && <ResetView />}
+                    {tab === 'personalization' && <Personalization />}
                 </>
             )}
         </div>
@@ -262,6 +264,27 @@ function MenuView() {
                     {t('settings.cardFormatBody')}
                 </p>
                 <div style={{ marginTop: 20, color: '#a85d00', fontWeight: 700, fontSize: '0.85rem' }}>
+                    {t('settings.cardConfigureCta')}
+                </div>
+            </button>
+
+            {/* Personalization — was a top-level sidebar entry; folded
+                into Settings as a 4th menu card in 2026-05-14 to keep
+                the Preferences sidebar section from carrying two
+                near-identical items. Direct /personalization route
+                still mounts the same page (kept for deep links). */}
+            <button
+                type="button"
+                className="card-button-reset card glass management-card"
+                onClick={() => setSettingsTab('personalization')}
+            >
+                <h2 className="card-title" style={{ color: '#34c759', margin: 0 }}>
+                    {t('settings.cardPersonalizationTitle')}
+                </h2>
+                <p style={{ color: 'var(--text-secondary)', margin: '8px 0 0' }}>
+                    {t('settings.cardPersonalizationBody')}
+                </p>
+                <div style={{ marginTop: 20, color: '#34c759', fontWeight: 700, fontSize: '0.85rem' }}>
                     {t('settings.cardConfigureCta')}
                 </div>
             </button>
