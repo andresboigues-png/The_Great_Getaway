@@ -25,10 +25,10 @@ export function MapSearchBar() {
                     display: 'flex',
                     alignItems: 'center',
                     gap: 10,
-                    background: 'rgba(255,255,255,0.94)',
+                    background: 'var(--glass-bg)',
                     backdropFilter: 'blur(20px) saturate(160%)',
                     WebkitBackdropFilter: 'blur(20px) saturate(160%)',
-                    border: '1px solid rgba(0,0,0,0.08)',
+                    border: '1px solid var(--glass-border)',
                     borderRadius: 999,
                     padding: '10px 16px',
                     boxShadow: '0 8px 24px rgba(0,45,91,0.10)',
@@ -39,7 +39,7 @@ export function MapSearchBar() {
                     height="18"
                     viewBox="0 0 24 24"
                     fill="none"
-                    stroke="#002d5b"
+                    stroke="var(--text-brand-navy)"
                     strokeWidth="2.2"
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -100,7 +100,7 @@ export function MapSearchBar() {
                     top: 'calc(100% + 6px)',
                     left: 0,
                     right: 0,
-                    background: 'rgba(255,255,255,0.98)',
+                    background: 'var(--surface-glass-light)',
                     backdropFilter: 'blur(22px) saturate(160%)',
                     WebkitBackdropFilter: 'blur(22px) saturate(160%)',
                     border: '1px solid rgba(0,0,0,0.08)',

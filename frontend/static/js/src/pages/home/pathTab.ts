@@ -165,7 +165,7 @@ function buildDayCardBody(
         <div style="display:flex; align-items:center; gap:14px;">
             ${badge}
             <div style="flex:1; min-width:0;">
-                <h3 style="margin:0; font-size:${isAnchor ? '1.05rem' : '1.25rem'}; font-weight:800; color:#002d5b; letter-spacing:-0.02em; line-height:1.2; ${isAnchor ? 'overflow:hidden; text-overflow:ellipsis; white-space:nowrap;' : ''}">${title}</h3>
+                <h3 style="margin:0; font-size:${isAnchor ? '1.05rem' : '1.25rem'}; font-weight:800; color:var(--text-brand-navy); letter-spacing:-0.02em; line-height:1.2; ${isAnchor ? 'overflow:hidden; text-overflow:ellipsis; white-space:nowrap;' : ''}">${title}</h3>
                 <div style="font-size:0.82rem; color:var(--text-secondary); font-weight:600; margin-top:4px; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
                     ${subtitleParts.map(p => `<span>${p}</span>`).join('<span style="opacity:0.4;">·</span>')}
                 </div>

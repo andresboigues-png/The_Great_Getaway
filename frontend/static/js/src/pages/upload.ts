@@ -258,7 +258,7 @@ export function renderUpload() {
             <div id="popularNote" class="callout-tinted callout-tinted--lg" style="margin-bottom: var(--space-5); --accent: 0,113,227;">
                 <span class="callout-tinted__label">💡 FORMAT PREVIEW</span>
                 <p class="callout-tinted__body">Ensure your file contains these columns. We will try to auto-detect categories.</p>
-                <div id="popularFormatTableContainer" style="margin-top: var(--space-4); overflow-x: auto; background: white; border-radius: var(--radius-sm); border: 1px solid rgba(0,0,0,0.05);"></div>
+                <div id="popularFormatTableContainer" style="margin-top: var(--space-4); overflow-x: auto; background: var(--card-bg); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"></div>
             </div>
 
             <div class="callout-tinted" style="margin-bottom: 15px; --accent: 0,113,227;">

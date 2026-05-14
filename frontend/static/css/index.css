@@ -7752,3 +7752,42 @@ main#app-container.nav-anim-backward {
 :root[data-theme="dark"] .card-title {
     color: var(--text-primary);
 }
+
+/* POI category pill row on the home map + the wrapping
+   .map-poi-toggles--inline panel. Light theme uses translucent
+   whites; flip to dark surfaces in dark mode so the pills don't
+   form a bright stripe under the search bar. */
+:root[data-theme="dark"] .map-poi-toggles--inline {
+    background: rgba(28, 28, 30, 0.85);
+    border-color: rgba(255, 255, 255, 0.08);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+}
+:root[data-theme="dark"] .map-poi-toggle {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(10, 132, 255, 0.32);
+    color: var(--accent-blue);
+}
+:root[data-theme="dark"] .map-poi-toggle:hover,
+:root[data-theme="dark"] .map-poi-toggle:active,
+:root[data-theme="dark"] .map-poi-toggle:focus-visible {
+    background: rgba(255, 255, 255, 0.10);
+}
+:root[data-theme="dark"] .map-poi-toggle.is-on {
+    background: var(--accent-blue);
+    color: white;
+    border-color: var(--accent-blue);
+}
+
+/* "Discover places nearby" expand toggle (.map-poi-toggle-bar)
+   sitting above the toggles row. Same translucent-white → dark
+   flip. */
+:root[data-theme="dark"] .map-poi-toggle-bar {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(10, 132, 255, 0.32);
+    color: var(--accent-blue);
+}
+:root[data-theme="dark"] .map-poi-toggle-bar:hover,
+:root[data-theme="dark"] .map-poi-toggle-bar:active,
+:root[data-theme="dark"] .map-poi-toggle-bar:focus-visible {
+    background: rgba(255, 255, 255, 0.10);
+}
