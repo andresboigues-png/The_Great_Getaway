@@ -347,10 +347,10 @@ code addressable for the React migration in Phase C.
     | Map setup + polyline animation init                 |     ? |             ? | ⏳     |
     | Hash listeners + closing wiring                     |     ? |             ? | ⏳     |
 
-                  Pacing is "one clean slice per session"; each commit is
-                  reviewable, behaviour-preserving (full safety net green), and
-                  shrinks home.ts by 200-400 lines. Goal is home.ts under 800
-                  lines (the bound the rest of B1 targets).
+                    Pacing is "one clean slice per session"; each commit is
+                    reviewable, behaviour-preserving (full safety net green), and
+                    shrinks home.ts by 200-400 lines. Goal is home.ts under 800
+                    lines (the bound the rest of B1 targets).
 
 **Status**: 4 of ~8 slices landed. home.ts: 2,580 → **2,017** lines
 (−563 across the slice arc). The POI-palette block (~700 lines, deeply
@@ -669,9 +669,10 @@ As pages migrate, extract repeated UI as reusable React components:
       "img with referrerPolicy + initials fallback" pattern.
 
 **The C4 extraction trigger** is "2+ pages need it after their
-migration tier". After §3.3 (6/8 thin wrappers graduated to full
-JSX), multiple components hit the bar. Feed and AI remain thin
-wrappers so they don't yet count toward the trigger.
+migration tier". After §3.3 (8/8 thin wrappers graduated to full
+JSX, complete on 2026-05-14), every page contributes JSX call
+sites to the extraction list — multiple components are now well
+past the trigger threshold.
 
 ### C5 — TypeScript strict pass on the migration ✅
 
@@ -708,19 +709,19 @@ insights.ts`, `todo.ts`, `budgets.ts`, `friends.ts`,
 
 **Operational goals** (all ✅):
 
-- ✅ Every page mounts via React (12/12 leaves, 6 of 8 thin
-  wrappers graduated to full JSX via §3.3; Feed + AI remain thin
-  wrappers)
+- ✅ Every page mounts via React + every page is full JSX
+  (8/8 thin wrappers graduated to full JSX via §3.3, complete
+  on 2026-05-14)
 - ✅ Bundle size inventoried + understood (508 → 205 KB main
   bundle after §3.3, -60%; per-route chunks load lazily)
-- ✅ All tests green (38 e2e, 20 visual, 255 pytest @ 95%)
+- ✅ All tests green (38 e2e, 20 visual, 267 pytest @ 95%)
 - ✅ React migration code is `any`-free (modulo Chart.js CDN
   global)
 - ✅ TypeScript at the strictest practical configuration the
   codebase will run: `strict + exactOptionalPropertyTypes +
 noUncheckedIndexedAccess`
 
-**§3.3 — full-JSX migration of imperative pages** (6/8 ✅):
+**§3.3 — full-JSX migration of imperative pages** (8/8 ✅):
 
 - ✅ Collections (436 → JSX, commit 7467d35)
 - ✅ Personalization (110 → JSX, commit 1639bea)
@@ -732,17 +733,19 @@ noUncheckedIndexedAccess`
   Maps imperative wiring inside one useEffect — Google
   InfoWindows render outside the React tree, so the wiring
   fundamentally can't decouple from Google's DOM ownership.
-- [ ] Feed (823 lines) — thin wrapper. Optimistic-UI flips
-    - lazy comment thread fetch make this the next-most-coupled
-      page after Home; budget similarly.
-- [ ] AI (947 lines) — thin wrapper. Streaming Gemini
-      responses + day-assignment state make this discrete from
-      Feed.
+- ✅ Feed (823 → JSX across 4 files in pages/feed/, commit
+  c2f3217). Optimistic-UI flips happen via setEvents over a
+  map mutation; the legacy mega-delegated click handler is
+  replaced by per-button JSX onClick. avatar() / commentRowHtml()
+  HTML emitters reused via dangerouslySetInnerHTML where
+  cheaper than re-JSX-ifying.
+- ✅ AI (947 → JSX in pages/ai/AI.tsx, commit ae014fb).
+  Map markers re-paint via a deps-watched useEffect when the
+  itinerary state changes. Generate flow + Gemini error
+  classification preserved end-to-end.
 
 **Aspirational goals** (deferred to future focused sessions):
 
-- ⚠️ Graduate Feed + AI to full JSX (the remaining 2/8 thin
-  wrappers).
 - ⚠️ Extract more shared components from `react/components/`.
   After §3.3 the trigger is met for `<Pill>`, `<SegmentedTabs>`,
   `<MemberChip>`, `<Avatar>` (2+ JSX users each). EmptyState
@@ -750,11 +753,11 @@ noUncheckedIndexedAccess`
 - ⚠️ `/components` preview page showcases new shared primitives.
   Lights up automatically as components extract.
 
-**Status**: Phase C is **complete-as-defined**. Every operational
-goal is met. §3.3 graduated 6 of 8 thin-wrapper pages to full
-JSX; Feed and AI remain as the last two thin wrappers.
-The codebase is ready for Phase D (quality polish)
-under a fully React + strictest-practical TypeScript substrate.
+**Status**: Phase C is **fully complete**. Every operational
+goal is met. §3.3 graduated all 8 thin-wrapper pages to full
+JSX; no `renderXxx()` imperative fallback paths remain.
+The codebase is ready for Phase D (quality polish) under a
+fully React + strictest-practical TypeScript substrate.
 
 **Recommended next moves** (post-Phase-C, see Feature backlog
 below for details):
@@ -1381,8 +1384,8 @@ to land on). The single biggest accuracy improvement available.
   our verify-after approach.
 - [x] **Replace freeform string items with `placeId`-backed entries**
       — wire shape: `items: { text, verified, placeId?, photoUrl?,
-  rating?, userRatingsTotal?, address?, lat?, lng?, mapsUrl?,
-  verifiedName? }[]`. Frontend renderer handles three shapes
+rating?, userRatingsTotal?, address?, lat?, lng?, mapsUrl?,
+verifiedName? }[]`. Frontend renderer handles three shapes
       (verified objects → rich card, unverified objects → chip,
       legacy strings → bullet). The `MarkedPlace` interface in
       `types.d.ts` carries the same fields so an AI-verified place
@@ -1393,7 +1396,7 @@ to land on). The single biggest accuracy improvement available.
       Search (`places:searchText`), batched with a per-itinerary
       cache so duplicate names cost one API call. FieldMask requests
       `id, displayName, formattedAddress, location, rating,
-  userRatingCount, googleMapsUri, photos.name`. Pricing tier is
+userRatingCount, googleMapsUri, photos.name`. Pricing tier is
       set by the highest field group requested (Advanced because of
       `rating`); `location` was added at zero marginal cost since
       Basic-tier fields are free at the Advanced tier.
@@ -1407,7 +1410,7 @@ to land on). The single biggest accuracy improvement available.
 - [x] **"Add to to-do list" stamps the suggestion with the same
       `placeId`** — Accept Plan flow walks every itinerary slot and
       calls `addOrUpdatePlaceFromVerified(trip, item, dayId,
-  timeOfDay)` for each verified item, which inserts a fresh
+timeOfDay)` for each verified item, which inserts a fresh
       markedPlace stamped with the day's ID + time-of-day slot, or
       updates the day-pinning + refreshes rich fields when the
       placeId is already tracked. Idempotent (safe to re-run a
@@ -1626,19 +1629,19 @@ expenses ADD COLUMN receipt_url TEXT`, threaded through
     round-trip via `STATE.draftExpense.receiptUrl` so re-opening
     an expense pre-fills the picker.
 
-                                                            **Latent bug uncovered + fixed**: while wiring this up I
-                                                            discovered the server was writing expense fields camelCase via
-                                                            `/api/expenses` but reading them back from `/api/data` as
-                                                            snake_case (`trip_id`, `category_id`, `euro_value`,
-                                                            `receipt_url`) — frontend filters like
-                                                            `e.tripId === STATE.activeTripId` would silently return empty
-                                                            on cold-load. The History tab and Settlement page would have
-                                                            appeared empty until the user added a fresh expense locally.
-                                                            Translation now lives in both `routes/data.py` and
-                                                            `routes/public.py` so the public archived-trip detail also
-                                                            benefits. 2 pytests for the round-trip (set + clear), legacy
-                                                            compat test, and 1 e2e for the receipt clip icon. Net: 161/161
-                                                            pytests + 43/43 e2e + 20/20 visual.
+                                                                **Latent bug uncovered + fixed**: while wiring this up I
+                                                                discovered the server was writing expense fields camelCase via
+                                                                `/api/expenses` but reading them back from `/api/data` as
+                                                                snake_case (`trip_id`, `category_id`, `euro_value`,
+                                                                `receipt_url`) — frontend filters like
+                                                                `e.tripId === STATE.activeTripId` would silently return empty
+                                                                on cold-load. The History tab and Settlement page would have
+                                                                appeared empty until the user added a fresh expense locally.
+                                                                Translation now lives in both `routes/data.py` and
+                                                                `routes/public.py` so the public archived-trip detail also
+                                                                benefits. 2 pytests for the round-trip (set + clear), legacy
+                                                                compat test, and 1 e2e for the receipt clip icon. Net: 161/161
+                                                                pytests + 43/43 e2e + 20/20 visual.
 
 5.  **Trip share-via-link (read-only)** — `4-6 hours`, schema +
     public backend route + new public frontend route + Views counter.
