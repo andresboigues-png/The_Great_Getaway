@@ -272,16 +272,20 @@
         <div class="navbar-cluster navbar-cluster--center navbar-icon-mobile-only"></div>
 
         <!-- RIGHT cluster (grid column 3, mobile only).
-             Round 3 reorg: all four action icons cluster here, in this
-             reading order:
+             Reading order (2026-05-14 swap — Feed promoted from
+             the bottom-nav up to here, To-do demoted down to the
+             bottom-nav slot Feed left behind):
                1. Notifications bell — incoming social pings.
                2. Trip-controls compass — "what trip am I on?" anchor.
                3. Search — find anything across trips/days/expenses.
-               4. To-do — daily-action triage.
+               4. Feed — friends' activity stream.
              The notifications + compass pair pushes "social/trip
-             context" closest to the brand; search + to-do are the
-             "find / do" pair on the outside. Feed is absent from the
-             navbar — it now lives in the bottom-tab nav. -->
+             context" closest to the brand; search + feed are the
+             "find / discover" pair on the outside. To-do moved to
+             the bottom nav because it's a working-with-a-trip task
+             (sits next to Plan AI / Expenses there); Feed is a
+             cross-trip "what's everyone doing" surface and reads
+             more like Search + Notifications. -->
         <div class="navbar-cluster navbar-cluster--right navbar-icon-mobile-only">
             <!-- Notifications bell — mobile copy. Pinned at the start
                  of the right cluster so it sits closest to the brand
@@ -332,11 +336,18 @@
                     <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                 </svg>
             </a>
-            <a href="#" data-page="todo" id="navTodoBtn" aria-label="To do list" title="To do list"
+            <!-- Feed — mobile top-nav slot. Same broadcast-arc glyph
+                 as the desktop Feed icon (#navFeedBtnDesktop) and the
+                 previous bottom-nav Feed entry, so the visual identity
+                 stays consistent across surfaces. data-page="feed"
+                 routes through the standard nav delegate in
+                 bootstrap/nav-chrome.ts — no extra wiring needed. -->
+            <a href="#" data-page="feed" id="navFeedBtnMobile" aria-label="Feed" title="Feed — what your friends are up to"
                 style="background: transparent; border: none; cursor: pointer; padding: 8px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: background 0.2s; text-decoration: none; color: inherit; -webkit-tap-highlight-color: transparent;">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="9 11 12 14 22 4"></polyline>
-                    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4 11a9 9 0 0 1 9 9"></path>
+                    <path d="M4 4a16 16 0 0 1 16 16"></path>
+                    <circle cx="5" cy="19" r="1"></circle>
                 </svg>
             </a>
         </div>
@@ -521,33 +532,35 @@
     </main>
 
     <!-- Mobile bottom-tab nav. Visible only on max-width:720px,
-         hidden on desktop. Houses the five most-used "task" pages
-         (Home, Feed, Plan with AI, Expenses, Insights) — the ones a
-         traveler hits day-to-day during a trip. Collections /
-         Profile remain reachable via the burger drawer.
+         hidden on desktop. Houses the four most-used "task" pages
+         (Home, To-do, Plan with AI, Expenses) — the ones a
+         traveler hits day-to-day WHILE working a specific trip.
+         Cross-trip surfaces (Feed, Search, Notifications) live in
+         the top navbar; Collections / Profile remain reachable
+         via the burger drawer.
 
-         Round 3 reorg: Feed moved DOWN from the top navbar to
-         between Home and Plan AI here. Bottom-nav order:
-         Home | Feed | Plan AI | Expenses | Insights. Mobile-swipe
-         (mobileSwipe.ts) cycles through this same order; right-swipe
-         from Home opens the burger drawer, left-swipe from Insights
-         is a no-op (boundary).
-
-         Per earlier reorg: To-do list lives in the top navbar's
-         right cluster (#navTodoBtn), not here. Home is the
-         leftmost bottom-nav slot — primary "back to my trip
-         overview" anchor, matching iOS/Android norms.
+         2026-05-14 swap: Feed moved UP from the bottom nav to the
+         top navbar's right cluster (#navFeedBtnMobile). To-do
+         moved DOWN from the top navbar to here, between Home and
+         Plan AI. New bottom-nav order:
+         Home | To-do | Plan AI | Expenses. Mobile-swipe
+         (mobileSwipe.ts) cycles through this same order; right-
+         swipe from Home opens the burger drawer, left-swipe from
+         Expenses is a no-op (boundary). The rationale for the
+         swap: Feed is a "scroll the world" surface that pairs
+         with Search and Notifications (top-nav right cluster);
+         To-do is a "working on this trip" surface that pairs
+         with Plan AI and Expenses (bottom-nav).
 
          Icons:
          - Home: house outline
-         - Feed: wifi/broadcast arc (matches the desktop Feed icon
-           in .nav-links so the two surfaces read as the same thing)
+         - To-do: clipboard with check (matches the page's 📋
+           identity)
          - Plan with AI: 4-point sparkle (the canonical "AI" icon
            — distinct from the 5-point star used elsewhere)
          - Expenses: credit card (distinct from the dollar-sign
            icon used by Settlements in the sidebar, so the two
-           don't read as the same thing)
-         - Insights: bar chart -->
+           don't read as the same thing) -->
     <nav class="mobile-bottom-nav" aria-label="Primary navigation (mobile)">
         <a href="#" class="nav-item mobile-bottom-nav__item" data-page="home" aria-label="Home">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -555,22 +568,17 @@
             </svg>
             <span>Home</span>
         </a>
-        <a href="#" class="nav-item mobile-bottom-nav__item" data-page="feed" aria-label="Feed">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <!-- Wi-fi / broadcast arc — the canonical "feed" glyph
-                     used by the desktop Feed icon in .nav-links. Two
-                     concentric arcs + dot read as "stream of incoming
-                     activity" — matches the social-feed semantics.
-                     Stroke-width 2.4 (was 2) to match the perceived
-                     visual weight of the denser icons next to it
-                     (Home/Expenses/Insights have filled-shape paths
-                     while Feed is just 2 arcs + a dot — would read
-                     lighter at the same stroke width). */ -->
-                <path d="M4 11a9 9 0 0 1 9 9"></path>
-                <path d="M4 4a16 16 0 0 1 16 16"></path>
-                <circle cx="5" cy="19" r="1"></circle>
+        <a href="#" class="nav-item mobile-bottom-nav__item" data-page="todo" aria-label="To do list">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <!-- Clipboard with check — same glyph used by the
+                     desktop sidebar's To-do link and (until the
+                     2026-05-14 swap) the mobile top-nav. Reads as
+                     "list of things to act on" — matches the page's
+                     📋 identity in the title bar. -->
+                <polyline points="9 11 12 14 22 4"></polyline>
+                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
             </svg>
-            <span>Feed</span>
+            <span>To-do</span>
         </a>
         <a href="#" class="nav-item mobile-bottom-nav__item" data-page="ai" aria-label="Plan with AI">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">

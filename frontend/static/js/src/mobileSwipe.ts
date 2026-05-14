@@ -43,15 +43,24 @@
 import { navigate } from './router.js';
 import { PAGES, type PageName } from './constants.js';
 
-// Order matches the bottom-tab nav (round 3 reorg added Feed between
-// Home and Plan AI). Index 0 = Home (left), last = Insights (right).
-// A left-swipe advances the index by 1; a right-swipe rewinds by 1.
+// Order mirrors the mobile bottom-tab nav. Index 0 = Home (left),
+// last = Expenses (right). A left-swipe advances the index by 1;
+// a right-swipe rewinds by 1.
+//
+// 2026-05-14 swap: Feed moved out of the bottom nav (now in the
+// top navbar's right cluster); To-do moved IN where Feed was. The
+// swipe order tracks the new bottom-nav order Home | To-do | Plan
+// AI | Expenses so a left/right swipe always lands on the next /
+// previous bottom-tab item.
+//
+// Insights is intentionally absent — the 2026-05-14 restructure
+// folded Insights into Expenses as a tab, so the bottom-nav is
+// four items now. A left-swipe from Expenses is a boundary no-op.
 const SWIPE_ORDER: PageName[] = [
     PAGES.HOME,
-    PAGES.FEED,
+    PAGES.TODO,
     PAGES.AI,
     PAGES.EXPENSES,
-    PAGES.INSIGHTS,
 ];
 
 // Mobile breakpoint — matches the @media (max-width: 720px) used
