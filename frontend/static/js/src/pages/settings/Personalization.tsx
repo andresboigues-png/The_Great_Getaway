@@ -80,56 +80,32 @@ export function Personalization() {
     };
 
     return (
+        // 2026-05-14: Personalization now renders as a flat content
+        // block inside the Settings sub-tab. Removed:
+        //   1. The Personalization title + subtitle — Settings.tsx
+        //      already provides page-level context via "System
+        //      Control" and the "← Back to Control Center" button.
+        //      Two titles on the same page read as duplicated chrome.
+        //   2. The single-card "Manage Categories" menu wrapper —
+        //      Companion management used to live here but moved to
+        //      per-trip; with only one item left, the menu / content
+        //      split was pointless. Show the categories management
+        //      directly.
+        // The #persMenu / #persContent / #persCategories ids are kept
+        // as `display: contents` anchors so showPersTab() — still
+        // called by gettingStartedGuide — doesn't blow up if invoked.
+        // showPersTab toggles display: none on these nodes; with
+        // `display: contents` as the new "expanded" default, the
+        // categories card renders as a direct child of Settings.
         <div>
-            <div className="ai-page-header">
-                <h1
-                    className="gradient-text"
-                    style={{
-                        ['--g-from' as any]: '#1a6b3c',
-                        ['--g-to' as any]: '#34c759',
-                    }}
-                >
-                    {t('settings.personalizationTitle')}
-                </h1>
-                <p>{t('settings.personalizationSubtitle')}</p>
-            </div>
-
-            {/* Menu card — only "Manage Categories" today. Companion
-                management used to live here too before the per-trip
-                refactor; this is what's left. The pers-tab-card
-                class hooks into showPersTab's DOM toggle (sets
-                #persMenu display:none + #persContent display:block). */}
-            <div id="persMenu" className="grid-2">
-                <button
-                    type="button"
-                    className="card-button-reset card glass card-glow-blue pers-tab-card"
-                    data-tab="categories"
-                    onClick={() => showPersTab('categories')}
-                >
-                    <h2 className="card-title" style={{ color: '#005bb8' }}>
-                        {t('settings.manageCategoriesTitle')}
-                    </h2>
-                    <p className="text-muted">{t('settings.manageCategoriesBody')}</p>
-                </button>
-            </div>
-
-            {/* Content area — hidden by default, revealed by showPersTab.
-                Same #persContent / #persCategories ids the imperative
-                helper toggles via inline style. React doesn't need to
-                manage display itself; showPersTab still works because
-                we render the same id'd nodes. */}
-            <div id="persContent" style={{ display: 'none' }}>
-                <button
-                    className="btn btn-small btn-liquid-glass pers-tab-card"
-                    data-tab="menu"
-                    onClick={() => showPersTab('menu')}
-                    style={{ marginBottom: '20px' }}
-                >
-                    {t('settings.backToPersonalization')}
-                </button>
-
-                <div id="persCategories" style={{ display: 'none' }}>
-                    <div className="card glass card-glow-blue">
+            {/* Backwards-compat anchors for showPersTab(). React-tree-
+                wise these are empty wrappers; their `display: contents`
+                style passes the children through to the parent's
+                layout context. */}
+            <div id="persMenu" style={{ display: 'none' }} />
+            <div id="persContent" style={{ display: 'contents' }}>
+                <div id="persCategories" style={{ display: 'contents' }}>
+                    <div className="card glass settings-section card-glow-blue">
                         <div
                             style={{
                                 display: 'flex',

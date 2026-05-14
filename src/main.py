@@ -18,6 +18,7 @@ from observability import (
     setup_logging,
     setup_sentry,
 )
+from routes.admin import bp as admin_bp
 from routes.auth import bp as auth_bp
 from routes.budgets import bp as budgets_bp
 from routes.data import bp as data_bp
@@ -95,6 +96,7 @@ limiter.init_app(app)
 # Phase B4 splits each domain (media / auth / trips / feed / ...) into its
 # own routes/<domain>.py blueprint. Add new blueprints to this list as the
 # split progresses; main.py shrinks accordingly.
+app.register_blueprint(admin_bp)
 app.register_blueprint(auth_bp)
 app.register_blueprint(budgets_bp)
 app.register_blueprint(data_bp)

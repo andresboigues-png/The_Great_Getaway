@@ -48,6 +48,19 @@ import {
     type GeneralSubTab,
 } from './tabState.js';
 import { Personalization } from './Personalization.js';
+import { Developer } from './Developer.js';
+
+/** Email allowlist for the Developer settings card. Must match
+ *  src/routes/admin.py::ADMIN_EMAILS — the real gate is server-side
+ *  (any non-admin caller gets 403 from /api/admin/stats), this list
+ *  just hides the menu entry so non-admins don't see a 403'ing card.
+ *  Lowercased compare to avoid case-sensitivity bugs on Google-issued
+ *  email addresses. */
+const ADMIN_EMAILS = new Set(['andres.boigues@gmail.com']);
+function isAdminUser(): boolean {
+    const email = (STATE.user?.email || '').trim().toLowerCase();
+    return ADMIN_EMAILS.has(email);
+}
 
 
 // MANDATORY column variables — without 'category' every imported
@@ -225,6 +238,7 @@ export function Settings() {
                     {tab === 'format' && <FormatView />}
                     {tab === 'reset' && <ResetView />}
                     {tab === 'personalization' && <Personalization />}
+                    {tab === 'developer' && isAdminUser() && <Developer />}
                 </>
             )}
         </div>
@@ -288,6 +302,31 @@ function MenuView() {
                     {t('settings.cardConfigureCta')}
                 </div>
             </button>
+
+            {/* Developer settings — admin-only secret dashboard.
+                Rendered only when STATE.user.email matches one of
+                the ADMIN_EMAILS allow-listed at the top of this
+                file. The 403 from /api/admin/stats is the real gate;
+                this hide-the-card check is just to keep non-admins
+                from seeing a card that would error if they tapped
+                it. */}
+            {isAdminUser() && (
+                <button
+                    type="button"
+                    className="card-button-reset card glass management-card"
+                    onClick={() => setSettingsTab('developer')}
+                >
+                    <h2 className="card-title" style={{ color: 'var(--accent-purple-deep)', margin: 0 }}>
+                        {t('settings.cardDeveloperTitle')}
+                    </h2>
+                    <p style={{ color: 'var(--text-secondary)', margin: '8px 0 0' }}>
+                        {t('settings.cardDeveloperBody')}
+                    </p>
+                    <div style={{ marginTop: 20, color: 'var(--accent-purple-deep)', fontWeight: 700, fontSize: '0.85rem' }}>
+                        {t('settings.cardConfigureCta')}
+                    </div>
+                </button>
+            )}
 
             <button
                 type="button"
