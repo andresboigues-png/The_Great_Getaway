@@ -186,6 +186,17 @@ def init_db():
         # home_currency stays NULL for legacy users — the frontend interprets
         # NULL as "not set yet" and defaults from browser locale on first load.
         _safe_alter(cursor, "ALTER TABLE users ADD COLUMN home_currency TEXT")
+        # Home country — what the user calls "home base". Used by the
+        # profile page (display + future "you've travelled X km away"
+        # stats), and by the AI itinerary generator as a default
+        # "starting from" location when the user doesn't specify
+        # otherwise. Stored as the canonical English country name
+        # from the COUNTRIES list in constants.ts so it round-trips
+        # to/from the same UI dropdown without normalisation.
+        # NULL for users who haven't set it (which is most pre-2026
+        # accounts); the frontend renders an empty pill with the
+        # call-out to set one.
+        _safe_alter(cursor, "ALTER TABLE users ADD COLUMN home_country TEXT")
         # i18n session 3 — language follows the user across devices.
         # Stored as the 2-letter Locale code ('en' | 'pt' | 'es' | 'fr')
         # or NULL for legacy users (frontend then derives from browser

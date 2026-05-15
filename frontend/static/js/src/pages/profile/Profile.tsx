@@ -32,7 +32,7 @@ import { useStore } from '../../react/store.js';
 import { STATE, emit } from '../../state.js';
 import { apiFetch, uploadMedia } from '../../api.js';
 import { showLiquidAlert, getHomeCurrency } from '../../utils.js';
-import { CONVERSION_RATES, CURRENCY_SYMBOLS } from '../../constants.js';
+import { CONVERSION_RATES, CURRENCY_SYMBOLS, COUNTRIES } from '../../constants.js';
 import { navigate } from '../../router.js';
 import { t, tn } from '../../i18n.js';
 import {
@@ -883,6 +883,7 @@ function BioBlock({
     const statusRef = useRef<HTMLSelectElement | null>(null);
     const bioRef = useRef<HTMLTextAreaElement | null>(null);
     const homeCurrencyRef = useRef<HTMLSelectElement | null>(null);
+    const homeCountryRef = useRef<HTMLSelectElement | null>(null);
     const [dirty, setDirty] = useState(false);
     const [saving, setSaving] = useState(false);
 
@@ -893,6 +894,13 @@ function BioBlock({
         const newHomeCurrency = homeCurrencyRef.current
             ? homeCurrencyRef.current.value
             : STATE.user.homeCurrency || null;
+        // Empty string = "Not set" sentinel from the dropdown — store
+        // as null so downstream readers (AI page default destination,
+        // country-stats) can distinguish "user actively cleared" from
+        // "never picked" without two states.
+        const newHomeCountry = homeCountryRef.current
+            ? homeCountryRef.current.value || null
+            : STATE.user.homeCountry || null;
         setSaving(true);
         try {
             const res = await apiFetch('/api/profile/update', {
@@ -902,12 +910,14 @@ function BioBlock({
                     bio: newBio,
                     status: newStatus,
                     homeCurrency: newHomeCurrency,
+                    homeCountry: newHomeCountry,
                 }),
             });
             if (res.ok) {
                 STATE.user.bio = newBio;
                 STATE.user.status = newStatus;
                 STATE.user.homeCurrency = newHomeCurrency;
+                STATE.user.homeCountry = newHomeCountry;
                 emit('state:changed');
                 setDirty(false);
                 showLiquidAlert(t('profile.updated'));
@@ -991,6 +1001,43 @@ function BioBlock({
                         defaultValue={user.bio || ''}
                         onInput={() => setDirty(true)}
                     />
+
+                    <div style={{ marginTop: 14, maxWidth: 500 }}>
+                        <label
+                            style={{
+                                display: 'block',
+                                fontSize: '0.75rem',
+                                fontWeight: 700,
+                                color: 'var(--text-secondary)',
+                                marginBottom: 6,
+                                letterSpacing: '0.04em',
+                            }}
+                        >
+                            Home country — where you call "home base"
+                        </label>
+                        <div style={{ position: 'relative', display: 'inline-block' }}>
+                            <select
+                                ref={homeCountryRef}
+                                className="brand-select"
+                                defaultValue={user.homeCountry || ''}
+                                onChange={() => setDirty(true)}
+                                style={{ padding: '6px 28px 6px 12px', fontSize: 'var(--font-sm)' }}
+                            >
+                                {/* Empty option = "not set" sentinel.
+                                    Picking it clears the home country
+                                    server-side (we send null). */}
+                                <option value="">— Not set —</option>
+                                {COUNTRIES.map((c) => (
+                                    <option key={c} value={c}>
+                                        {c}
+                                    </option>
+                                ))}
+                            </select>
+                            <div className="brand-select-chevron" style={{ right: 10 }}>
+                                ▼
+                            </div>
+                        </div>
+                    </div>
 
                     <div style={{ marginTop: 14, maxWidth: 500 }}>
                         <label

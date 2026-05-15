@@ -153,12 +153,32 @@ def update_profile():
                 "error": "language must be one of en, pt, es, fr (or null)",
             }), 400
 
+    # Home country — accept either a string matching one of the
+    # COUNTRIES list values (validated client-side via the dropdown),
+    # an empty string (= clear), or null. We don't allowlist
+    # server-side against the 195-country list because:
+    #   1. The dropdown is the only entry path — invalid values
+    #      can't be picked.
+    #   2. The list might drift between frontend revisions; we don't
+    #      want a server-side check to start rejecting Cape Verde
+    #      because we renamed it to Cabo Verde in constants.ts.
+    # We DO cap length + scrub control chars (same pattern as bio
+    # / destination on the AI route) to keep nasties out of the DB.
+    if "homeCountry" in payload:
+        v = payload.get("homeCountry")
+        if v is not None:
+            if not isinstance(v, str):
+                return jsonify({"error": "homeCountry must be a string or null"}), 400
+            scrubbed = "".join(c for c in v if ord(c) >= 0x20 and c not in "\r\n\t")
+            payload["homeCountry"] = scrubbed.strip()[:120] or None
+
     fields = []
     values = []
     for key, column in (
         ("bio", "bio"),
         ("status", "status"),
         ("homeCurrency", "home_currency"),
+        ("homeCountry", "home_country"),
         ("picture", "picture"),
         ("language", "language"),
     ):

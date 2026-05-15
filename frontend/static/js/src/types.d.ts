@@ -18,6 +18,12 @@ export interface User {
      *  callers should use `getHomeCurrency()` which falls back to the
      *  browser-locale default. */
     homeCurrency?: string | null;
+    /** User's "home base" country — one of the strings in COUNTRIES
+     *  (constants.ts). NULL/undefined for accounts that haven't set
+     *  one yet. Used on the profile page (display) and as a future
+     *  default-starting-point for AI itinerary generation. Backed by
+     *  the `home_country` column added 2026-05-15. */
+    homeCountry?: string | null;
     /** i18n session 3 — server-persisted display language. NULL/undefined
      *  for users who haven't picked yet (boot derives from
      *  navigator.language via detectBrowserLocale in i18n.ts). Backed
