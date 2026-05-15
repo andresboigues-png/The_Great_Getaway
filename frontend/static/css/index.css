@@ -7175,6 +7175,28 @@ main#app-container.nav-anim-backward {
         grid-template-columns: 1fr !important;
     }
 
+    /* ── Insights hero + metric values: smaller on mobile ──────────
+       The desktop sizes (4.5rem for the hero total, 2.5rem for the
+       per-card metric values) are tuned for a wide column. On a
+       375px viewport they overflow when the formatted number is
+       in the thousands ("€2,333.00") — the dollar sign + 4 digits
+       + decimals already wraps past the right edge. Pull both
+       sizes down so the totals stay on one line with room to
+       breathe. */
+    .hero-stat-card__value {
+        font-size: 2.6rem;
+        letter-spacing: -0.03em;
+    }
+    .hero-stat-card__currency {
+        font-size: 1.05rem;
+    }
+    .hero-stat-card__sub {
+        font-size: 0.92rem;
+    }
+    .metric-value {
+        font-size: 1.8rem;
+    }
+
     /* ── Home cover-card quote: even smaller on mobile ────────────
        The desktop tweak in `.cover-card__quote` brought it to 1rem;
        on a 375px viewport country facts (a sentence + sometimes

@@ -310,8 +310,16 @@ export function Insights() {
 
     return (
         <div>
-            {/* Header Section */}
+            {/* Header Section — wraps cleanly on mobile (title + subtitle
+                on the first row, controls collapsed below). Title uses
+                browser-default h1 sizing to match Expenses / other pages
+                (previously hardcoded 3.5rem made it visibly bigger AND
+                overflowed on narrow viewports). Controls switch from a
+                horizontal toggle pair + dropdown to a tighter row at
+                <520px so the currency selector doesn't push beyond the
+                right edge. */}
             <div
+                className="insights-header"
                 style={{
                     display: 'flex',
                     flexWrap: 'wrap',
@@ -323,7 +331,7 @@ export function Insights() {
                     borderBottom: '1px solid var(--glass-border)',
                 }}
             >
-                <div>
+                <div style={{ minWidth: 0, flex: '1 1 240px' }}>
                     <h1
                         style={{
                             display: 'inline-block',
@@ -331,24 +339,30 @@ export function Insights() {
                             WebkitBackgroundClip: 'text',
                             WebkitTextFillColor: 'transparent',
                             backgroundClip: 'text',
-                            margin: 0,
-                            fontSize: '3.5rem',
-                            letterSpacing: '-0.04em',
+                            marginBottom: 12,
                         }}
                     >
-                        Insights
+                        {t('insights.title')}
                     </h1>
                     <p
                         style={{
                             color: 'var(--text-secondary)',
-                            margin: '8px 0 0 0',
-                            fontSize: '1.1rem',
+                            margin: '0',
+                            fontSize: '1rem',
                         }}
                     >
                         {t('insights.subtitle')}
                     </p>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+                <div
+                    className="insights-header__controls"
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        flexWrap: 'wrap',
+                    }}
+                >
                     <div
                         className="glass"
                         style={{
@@ -373,28 +387,26 @@ export function Insights() {
                         </button>
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <select
-                            id="insightCurrencySelector"
-                            className="glass-input"
-                            aria-label={t('insights.currencySelectorAriaLabel')}
-                            value={targetCurr}
-                            onChange={(e) => setCurrency(e.target.value)}
-                            style={{
-                                width: '110px',
-                                padding: '8px 12px',
-                                fontWeight: 500,
-                                fontSize: '0.9rem',
-                                background: 'var(--glass-bg)',
-                            }}
-                        >
-                            {Object.keys(CONVERSION_RATES).map((c) => (
-                                <option key={c} value={c}>
-                                    {c}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
+                    <select
+                        id="insightCurrencySelector"
+                        className="glass-input"
+                        aria-label={t('insights.currencySelectorAriaLabel')}
+                        value={targetCurr}
+                        onChange={(e) => setCurrency(e.target.value)}
+                        style={{
+                            width: '110px',
+                            padding: '8px 12px',
+                            fontWeight: 500,
+                            fontSize: '0.9rem',
+                            background: 'var(--glass-bg)',
+                        }}
+                    >
+                        {Object.keys(CONVERSION_RATES).map((c) => (
+                            <option key={c} value={c}>
+                                {c}
+                            </option>
+                        ))}
+                    </select>
                 </div>
             </div>
 
