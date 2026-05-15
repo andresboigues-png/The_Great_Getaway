@@ -179,25 +179,39 @@ export function Settlement() {
         }
     };
 
-    // Phase G v3 — `<select>` change handler for the new trip
-    // dropdown. React's onChange on a div proxies the native change
-    // events that select elements bubble, so this fires for the
-    // imperative-DOM <select id="settlementTripSelect"> rendered by
-    // legacyRender.ts.
-    const handleChange = (e: React.ChangeEvent<HTMLDivElement>) => {
-        const target = e.target as HTMLElement | null;
-        if (!target) return;
-        if (target.id === 'settlementTripSelect') {
-            const sel = target as unknown as HTMLSelectElement;
-            if (sel.value) pickTrip(sel.value);
-        }
-    };
+    // React 19 BUG: synthetic onChange on a <div> wrapper does NOT
+    // catch native `change` events bubbling from a <select> rendered
+    // via dangerouslySetInnerHTML. The user picks a trip → browser
+    // updates the <select> visual → React's onChange never fires →
+    // currentTripId stays stuck → the headers say "test" while the
+    // dropdown says "Atlanta WQ 2026". Verified empirically from a
+    // screenshot showing exactly that mismatch.
+    //
+    // Fix: attach a NATIVE `change` listener directly to the wrapper
+    // DOM via useEffect + ref. The listener uses pickTripRef so it
+    // always invokes the latest closure without re-binding on every
+    // render (no need for a deps array stocked with every captured
+    // var).
+    const pickTripRef = useRef(pickTrip);
+    pickTripRef.current = pickTrip;
+    useEffect(() => {
+        const wrapper = wrapperRef.current;
+        if (!wrapper) return;
+        const onNativeChange = (e: Event) => {
+            const target = e.target as HTMLElement | null;
+            if (target?.id === 'settlementTripSelect') {
+                const sel = target as HTMLSelectElement;
+                if (sel.value) pickTripRef.current(sel.value);
+            }
+        };
+        wrapper.addEventListener('change', onNativeChange);
+        return () => wrapper.removeEventListener('change', onNativeChange);
+    }, []);
 
     return (
         <div
             ref={wrapperRef}
             onClick={handleClick}
-            onChange={handleChange}
             dangerouslySetInnerHTML={{ __html: html }}
         />
     );
