@@ -159,13 +159,21 @@ function renderTripTab(trip: any, tripIsEditable: boolean): string {
     const topOwes = [...board].sort((a, b) => a.net - b.net)[0];
     const topOwed = [...board].sort((a, b) => b.net - a.net)[0];
 
+    // Build a trip-name banner so the user sees AT A GLANCE which
+    // trip's data is on screen. Pre-fix this card just said "TRIP
+    // TOTAL" with no reference to which trip — when the user picked
+    // a different trip and the math happened to produce the same
+    // numbers (same companions, same expense pattern across two
+    // trips), it looked like the picker had done nothing. Now the
+    // trip name sits above the total so the page is unambiguous.
+    const tripNameLabel = esc(trip?.name || 'Trip');
     const leaderboardCard =
         totalPaid > 0
             ? `
         <div class="card glass" style="margin-bottom: 18px; padding: 22px 26px; border-radius: 28px; background: linear-gradient(135deg, rgba(255,214,10,0.05), rgba(255,159,10,0.03)); border:1px solid rgba(255,159,10,0.18);">
             <div style="display:flex; flex-wrap:wrap; gap:24px; align-items:center; justify-content:space-between;">
                 <div style="min-width:0;">
-                    <div style="font-size:0.66rem; font-weight:800; text-transform:uppercase; letter-spacing:0.12em; color:var(--text-secondary); margin-bottom:6px;">${t('settlement.tripTotal')}</div>
+                    <div style="font-size:0.66rem; font-weight:800; text-transform:uppercase; letter-spacing:0.12em; color:var(--text-secondary); margin-bottom:6px;">${t('settlement.tripTotal')} · ${tripNameLabel}</div>
                     <div style="font-size:2rem; font-weight:800; color: var(--text-brand-navy); letter-spacing:-0.02em;">${formatHome(totalPaid, 'EUR')}</div>
                 </div>
                 ${
@@ -259,7 +267,7 @@ function renderTripTab(trip: any, tripIsEditable: boolean): string {
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:18px; margin-bottom:24px;">
             <div class="card glass" style="padding: 22px 24px; border-radius: 28px;">
                 <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
-                    <h3 style="margin:0; font-size:1.05rem; color: var(--text-brand-navy); font-weight:800; letter-spacing:-0.02em;">${t('settlement.tripBalancesTitle')}</h3>
+                    <h3 style="margin:0; font-size:1.05rem; color: var(--text-brand-navy); font-weight:800; letter-spacing:-0.02em;">${t('settlement.tripBalancesTitle')} · ${tripNameLabel}</h3>
                     <span style="font-size:0.7rem; font-weight:800; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.1em;">${tn('settlement.peopleCount', Object.keys(balances).length)}</span>
                 </div>
                 <div style="display:flex; flex-direction:column; gap:8px;">
@@ -269,7 +277,7 @@ function renderTripTab(trip: any, tripIsEditable: boolean): string {
             <div class="card glass" style="padding: 22px 24px; border-radius: 28px;">
                 <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:14px;">
                     <div style="min-width:0;">
-                        <h3 style="margin:0; font-size:1.05rem; color: var(--text-brand-navy); font-weight:800; letter-spacing:-0.02em;">${t('settlement.suggestedPaymentsTitle')}</h3>
+                        <h3 style="margin:0; font-size:1.05rem; color: var(--text-brand-navy); font-weight:800; letter-spacing:-0.02em;">${t('settlement.suggestedPaymentsTitle')} · ${tripNameLabel}</h3>
                         <div style="font-size:0.7rem; font-weight:700; color:var(--text-secondary); margin-top:3px;">${t('settlement.suggestedPaymentsSubtitle')}</div>
                     </div>
                     <span style="font-size:0.7rem; font-weight:800; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.1em; flex-shrink:0;">${tn('settlement.paymentsCount', debts.length)}</span>

@@ -45,11 +45,11 @@ import{r as e,t}from"./vendor-react-CAxw18f3.js";import{Bt as n,Ct as r,Dt as i,
             ${r(`history`,h(`settlement.tabHistory`),n)}
             ${r(`global`,h(`settlement.tabCrossTrip`))}
         </nav>
-    `}function O(e,t){let{balances:n}=x(e),i=S(n),a=w(e),o=a.reduce((e,t)=>e+t.paid,0),s=[...a].sort((e,t)=>t.paid-e.paid)[0],c=[...a].sort((e,t)=>e.net-t.net)[0],l=[...a].sort((e,t)=>t.net-e.net)[0],u=o>0?`
+    `}function O(e,t){let{balances:n}=x(e),i=S(n),a=w(e),o=a.reduce((e,t)=>e+t.paid,0),s=[...a].sort((e,t)=>t.paid-e.paid)[0],c=[...a].sort((e,t)=>e.net-t.net)[0],l=[...a].sort((e,t)=>t.net-e.net)[0],u=r(e?.name||`Trip`),d=o>0?`
         <div class="card glass" style="margin-bottom: 18px; padding: 22px 26px; border-radius: 28px; background: linear-gradient(135deg, rgba(255,214,10,0.05), rgba(255,159,10,0.03)); border:1px solid rgba(255,159,10,0.18);">
             <div style="display:flex; flex-wrap:wrap; gap:24px; align-items:center; justify-content:space-between;">
                 <div style="min-width:0;">
-                    <div style="font-size:0.66rem; font-weight:800; text-transform:uppercase; letter-spacing:0.12em; color:var(--text-secondary); margin-bottom:6px;">${h(`settlement.tripTotal`)}</div>
+                    <div style="font-size:0.66rem; font-weight:800; text-transform:uppercase; letter-spacing:0.12em; color:var(--text-secondary); margin-bottom:6px;">${h(`settlement.tripTotal`)} · ${u}</div>
                     <div style="font-size:2rem; font-weight:800; color: var(--text-brand-navy); letter-spacing:-0.02em;">${f(o,`EUR`)}</div>
                 </div>
                 ${s?`
@@ -75,7 +75,7 @@ import{r as e,t}from"./vendor-react-CAxw18f3.js";import{Bt as n,Ct as r,Dt as i,
                 `:``}
             </div>
         </div>
-    `:``,d=Object.entries(n).map(([e,t])=>{let n=t>.01,i=t<-.01;return`
+    `:``,p=Object.entries(n).map(([e,t])=>{let n=t>.01,i=t<-.01;return`
             <div style="display:flex; align-items:center; gap:14px; padding:12px 14px; background: var(--card-bg); border:1px solid var(--border-subtle); border-radius:14px;">
                 <div style="width:34px; height:34px; border-radius:50%; background: ${n?`rgba(52,199,89,0.18)`:i?`rgba(255,59,48,0.18)`:`var(--surface-subtle)`}; color: ${n?`#1a6b3c`:i?`#a30000`:`var(--text-secondary)`}; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:0.95rem; flex-shrink:0;">
                     ${r(e.charAt(0).toUpperCase())}
@@ -85,7 +85,7 @@ import{r as e,t}from"./vendor-react-CAxw18f3.js";import{Bt as n,Ct as r,Dt as i,
                     ${n?`+`:``}${f(t,`EUR`)}
                 </div>
             </div>
-        `}).join(``)||`<p class="text-muted" style="padding: 20px; text-align:center;">${h(`settlement.emptyNoCompanions`)}</p>`,p=i.length===0?`<div style="text-align:center; padding: 40px 20px;"><div style="font-size:2.2rem; margin-bottom:8px;">🥂</div><p style="margin:0; font-weight:800; color:#1a6b3c;">${h(`settlement.allSettledTitle`)}</p><p style="margin:6px 0 0; color:var(--text-secondary); font-size:0.85rem;">${h(`settlement.allSettledBody`)}</p></div>`:i.map(n=>`
+        `}).join(``)||`<p class="text-muted" style="padding: 20px; text-align:center;">${h(`settlement.emptyNoCompanions`)}</p>`,m=i.length===0?`<div style="text-align:center; padding: 40px 20px;"><div style="font-size:2.2rem; margin-bottom:8px;">🥂</div><p style="margin:0; font-weight:800; color:#1a6b3c;">${h(`settlement.allSettledTitle`)}</p><p style="margin:6px 0 0; color:var(--text-secondary); font-size:0.85rem;">${h(`settlement.allSettledBody`)}</p></div>`:i.map(n=>`
             <div style="display:flex; align-items:center; gap:14px; padding:14px 16px; background: var(--card-bg); border:1px solid var(--border-subtle); border-radius:16px;">
                 <div style="flex:1; min-width:0;">
                     <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
@@ -101,27 +101,27 @@ import{r as e,t}from"./vendor-react-CAxw18f3.js";import{Bt as n,Ct as r,Dt as i,
                 `:``}
             </div>
         `).join(``);return`
-        ${u}
+        ${d}
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:18px; margin-bottom:24px;">
             <div class="card glass" style="padding: 22px 24px; border-radius: 28px;">
                 <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
-                    <h3 style="margin:0; font-size:1.05rem; color: var(--text-brand-navy); font-weight:800; letter-spacing:-0.02em;">${h(`settlement.tripBalancesTitle`)}</h3>
+                    <h3 style="margin:0; font-size:1.05rem; color: var(--text-brand-navy); font-weight:800; letter-spacing:-0.02em;">${h(`settlement.tripBalancesTitle`)} · ${u}</h3>
                     <span style="font-size:0.7rem; font-weight:800; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.1em;">${_(`settlement.peopleCount`,Object.keys(n).length)}</span>
                 </div>
                 <div style="display:flex; flex-direction:column; gap:8px;">
-                    ${d}
+                    ${p}
                 </div>
             </div>
             <div class="card glass" style="padding: 22px 24px; border-radius: 28px;">
                 <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:14px;">
                     <div style="min-width:0;">
-                        <h3 style="margin:0; font-size:1.05rem; color: var(--text-brand-navy); font-weight:800; letter-spacing:-0.02em;">${h(`settlement.suggestedPaymentsTitle`)}</h3>
+                        <h3 style="margin:0; font-size:1.05rem; color: var(--text-brand-navy); font-weight:800; letter-spacing:-0.02em;">${h(`settlement.suggestedPaymentsTitle`)} · ${u}</h3>
                         <div style="font-size:0.7rem; font-weight:700; color:var(--text-secondary); margin-top:3px;">${h(`settlement.suggestedPaymentsSubtitle`)}</div>
                     </div>
                     <span style="font-size:0.7rem; font-weight:800; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.1em; flex-shrink:0;">${_(`settlement.paymentsCount`,i.length)}</span>
                 </div>
                 <div style="display:flex; flex-direction:column; gap:10px;">
-                    ${p}
+                    ${m}
                 </div>
             </div>
         </div>
@@ -271,5 +271,5 @@ import{r as e,t}from"./vendor-react-CAxw18f3.js";import{Bt as n,Ct as r,Dt as i,
                     <button type="submit" class="btn-primary" style="flex:2; border-radius: var(--radius-lg);">Update</button>
                 </div>
             </form>
-        `});a(_,`#cancelEditSettleBtn`).onclick=()=>y(),a(_,`#editSettlementForm`).onsubmit=e=>{e.preventDefault();let r=a(_,`#editSettleFrom`).value,o=a(_,`#editSettleTo`).value,s=parseFloat(a(_,`#editSettleAmount`).value),c=a(_,`#editSettleDate`).value;if(r===o){i(h(`settlement.toastSenderEqualsReceiver`));return}t.who=r,t.splits={[o]:100},t.value=s,t.currency=m,t.euroValue=p(s,m,`EUR`),t.date=c,t.label=`Settlement: ${r} → ${o}`,n(l.STATE_CHANGED),y()}}var F=t();function I(){let e=y(e=>e.trips),t=y(e=>e.activeTripId),r=y(e=>e.expenses),[i,a]=(0,b.useState)(`trip`),o=t||(e.length>0?e[0].id:null);(0,b.useEffect)(()=>{o&&!e.find(e=>e.id===o)&&(v.activeTripId=e.length>0?e[0].id:null,n(l.STATE_CHANGED))},[e,o]);let s=e=>{v.activeTripId=e,n(l.STATE_CHANGED),i===`global`&&a(`trip`)},c=e.find(e=>e.id===o)||null,u=d(c),f=(0,b.useMemo)(()=>T(c,u,i,o),[c,u,i,o,r]),p=(0,b.useRef)(null);return(0,F.jsx)(`div`,{ref:p,onClick:e=>{let t=e.target;if(!t)return;let n=t.closest(`.settlement-trip-pill`);if(n?.dataset.tripId){s(n.dataset.tripId);return}let r=t.closest(`.settle-tab`);if(r?.dataset.tab){a(r.dataset.tab);return}let i=t.closest(`.settle-debt-btn`);if(i?.dataset.tripId&&i.dataset.from&&i.dataset.to&&i.dataset.amount&&!i.disabled){i.disabled=!0,i.textContent=h(`settlement.recordingBtn`),j(i.dataset.tripId,i.dataset.from,i.dataset.to,parseFloat(i.dataset.amount),`EUR`);return}let o=t.closest(`.open-manual-settle-btn`);if(o?.dataset.tripId){N(o.dataset.tripId);return}let c=t.closest(`.edit-settlement-btn`);if(c?.dataset.settlementId){P(c.dataset.settlementId);return}let l=t.closest(`.unsettle-settlement-btn`);if(l?.dataset.settlementId){M(l.dataset.settlementId);return}},onChange:e=>{let t=e.target;if(t&&t.id===`settlementTripSelect`){let e=t;e.value&&s(e.value)}},dangerouslySetInnerHTML:{__html:f}})}function L(e){m(e,(0,b.createElement)(I))}export{L as mountSettlement};
-//# sourceMappingURL=mount-DZGHtFe6.js.map
+        `});a(_,`#cancelEditSettleBtn`).onclick=()=>y(),a(_,`#editSettlementForm`).onsubmit=e=>{e.preventDefault();let r=a(_,`#editSettleFrom`).value,o=a(_,`#editSettleTo`).value,s=parseFloat(a(_,`#editSettleAmount`).value),c=a(_,`#editSettleDate`).value;if(r===o){i(h(`settlement.toastSenderEqualsReceiver`));return}t.who=r,t.splits={[o]:100},t.value=s,t.currency=m,t.euroValue=p(s,m,`EUR`),t.date=c,t.label=`Settlement: ${r} → ${o}`,n(l.STATE_CHANGED),y()}}var F=t();function I(){let e=y(e=>e.trips),t=y(e=>e.activeTripId),r=y(e=>e.expenses),[i,a]=(0,b.useState)(`trip`),[o,s]=(0,b.useState)(()=>t||(e.length>0?e[0].id:null));(0,b.useEffect)(()=>{t&&t!==o&&s(t)},[t,o]),(0,b.useEffect)(()=>{if(o&&!e.find(e=>e.id===o)){let t=e.length>0?e[0].id:null;s(t),t&&(v.activeTripId=t,n(l.STATE_CHANGED))}},[e,o]);let c=e=>{s(e),v.activeTripId=e,n(l.STATE_CHANGED),i===`global`&&a(`trip`)},u=e.find(e=>e.id===o)||null,f=d(u),p=(0,b.useMemo)(()=>T(u,f,i,o),[u,f,i,o,r]),m=(0,b.useRef)(null);return(0,F.jsx)(`div`,{ref:m,onClick:e=>{let t=e.target;if(!t)return;let n=t.closest(`.settlement-trip-pill`);if(n?.dataset.tripId){c(n.dataset.tripId);return}let r=t.closest(`.settle-tab`);if(r?.dataset.tab){a(r.dataset.tab);return}let i=t.closest(`.settle-debt-btn`);if(i?.dataset.tripId&&i.dataset.from&&i.dataset.to&&i.dataset.amount&&!i.disabled){i.disabled=!0,i.textContent=h(`settlement.recordingBtn`),j(i.dataset.tripId,i.dataset.from,i.dataset.to,parseFloat(i.dataset.amount),`EUR`);return}let o=t.closest(`.open-manual-settle-btn`);if(o?.dataset.tripId){N(o.dataset.tripId);return}let s=t.closest(`.edit-settlement-btn`);if(s?.dataset.settlementId){P(s.dataset.settlementId);return}let l=t.closest(`.unsettle-settlement-btn`);if(l?.dataset.settlementId){M(l.dataset.settlementId);return}},onChange:e=>{let t=e.target;if(t&&t.id===`settlementTripSelect`){let e=t;e.value&&c(e.value)}},dangerouslySetInnerHTML:{__html:p}})}function L(e){m(e,(0,b.createElement)(I))}export{L as mountSettlement};
+//# sourceMappingURL=mount-Cv92depo.js.map

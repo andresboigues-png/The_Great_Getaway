@@ -41,33 +41,55 @@ export function Settlement() {
 
     const [activeTab, setActiveTab] = useState<SettlementTab>('trip');
 
-    // currentTripId follows the global active trip — picking a trip in
-    // the settlement picker also sets it as the active trip globally so
-    // the rest of the app (navbar trip selector, Home, Expenses, etc.)
-    // stays in sync. We track it as derived state via the useStore
-    // subscription on activeTripId rather than separate useState; this
-    // removes the previous bug where picking trip B in settlement left
-    // STATE.activeTripId stuck on trip A and the home page never caught
-    // up.
-    const currentTripId = activeTripId || (trips.length > 0 ? trips[0]!.id : null);
+    // Picker state — local React useState so picking a trip is a
+    // guaranteed React re-render (setCurrentTripId queues a render
+    // synchronously). Earlier we tried deriving currentTripId from
+    // useStore(s => s.activeTripId), which SHOULD have re-rendered
+    // via the version-counter snapshot bump, but the user reported
+    // the picker not actually re-rendering — likely a dangerouslySet-
+    // InnerHTML + useSyncExternalStore edge case. Using useState
+    // removes that whole class of doubt: React owns the source of
+    // truth for the picker.
+    //
+    // We STILL sync the picker to STATE.activeTripId on every change
+    // so the rest of the app (navbar trip selector, Home, Expenses,
+    // etc.) follows along.
+    const [currentTripId, setCurrentTripId] = useState<string | null>(
+        () => activeTripId || (trips.length > 0 ? trips[0]!.id : null),
+    );
 
-    // If the active trip got archived/deleted, fall back to a sensible
-    // default. Updates STATE.activeTripId so every consumer follows.
+    // If the global activeTripId changes EXTERNALLY (e.g., the user
+    // switched trips via the navbar dropdown while on this page),
+    // pull that change into our local state so the picker stays in
+    // sync with the rest of the app.
+    useEffect(() => {
+        if (activeTripId && activeTripId !== currentTripId) {
+            setCurrentTripId(activeTripId);
+        }
+    }, [activeTripId, currentTripId]);
+
+    // If the selected trip got archived/deleted, fall back to a
+    // sensible default. Mirrors the legacy renderSettlement guard.
     useEffect(() => {
         if (currentTripId && !trips.find((t) => t.id === currentTripId)) {
             const next = trips.length > 0 ? trips[0]!.id : null;
-            STATE.activeTripId = next;
-            emit(EVENTS.STATE_CHANGED);
+            setCurrentTripId(next);
+            if (next) {
+                STATE.activeTripId = next;
+                emit(EVENTS.STATE_CHANGED);
+            }
         }
     }, [trips, currentTripId]);
 
-    // Helper — pick a trip in the picker. Sets the global activeTripId
-    // (so the rest of the app reflects the choice) AND auto-switches
-    // back to the per-trip tab. The auto-switch addresses the user's
-    // reported confusion: picking a trip while on Cross-Trip tab did
-    // nothing visible because Cross-Trip totals are global. Bouncing
-    // to Trip tab on picker change makes the action feel responsive.
+    // Helper — pick a trip in the picker. Updates BOTH local React
+    // state (guaranteed re-render of this component) AND the global
+    // STATE.activeTripId (so the rest of the app follows the choice).
+    // Also auto-switches back to the per-trip tab if the user was on
+    // Cross-Trip — picking a trip on the Cross-Trip tab does nothing
+    // visible (cross-trip totals are global), so bouncing to the
+    // per-trip tab makes the action feel responsive.
     const pickTrip = (tripId: string) => {
+        setCurrentTripId(tripId);
         STATE.activeTripId = tripId;
         emit(EVENTS.STATE_CHANGED);
         if (activeTab === 'global') setActiveTab('trip');
