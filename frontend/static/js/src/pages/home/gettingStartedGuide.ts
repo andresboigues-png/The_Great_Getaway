@@ -92,14 +92,20 @@ export function appendGettingStartedGuide(opts: GettingStartedGuideOptions): voi
     if (hasSettlement) STATE.guideProgress.settlement = true;
     if (hasFriends) STATE.guideProgress.friends = true;
 
+    // Step copy refreshed 2026-05-15 to reflect the current
+    // surface — AI plan now has separate food + sightseeing
+    // prompts, Budgets is a first-class spending control,
+    // Collections holds completed trips, Friends + Feed are
+    // the social layer. Order roughly follows the natural
+    // user flow: sign in → plan → log → reconcile → share.
     const steps: GuideStep[] = [
-        { text: 'Log in to your account', done: !!STATE.guideProgress.login, icon: '🔐', action: () => navigate('profile') },
+        { text: 'Sign in with Google', done: !!STATE.guideProgress.login, icon: '🔐', action: () => navigate('profile') },
         { text: 'Create your first trip', done: !!STATE.guideProgress.trip, icon: '✈️', action: () => openNewTripModal() },
         // Companions are per-trip now — the action opens the
         // trip-companion picker on Home (or just navigates Home
         // if there's no active trip yet, since the picker is
         // reachable from the trip header there).
-        { text: 'Add your travel companions', done: !!STATE.guideProgress.companions, icon: '👥', action: () => {
+        { text: 'Invite your travel companions', done: !!STATE.guideProgress.companions, icon: '👥', action: () => {
             if (activeTrip) openCompanionPickerModal(activeTrip.id);
             else navigate('home');
         } },
@@ -107,13 +113,13 @@ export function appendGettingStartedGuide(opts: GettingStartedGuideOptions): voi
         // #persCategories) only exists once the page has
         // rendered, so navigate first and switch the tab on the
         // next tick.
-        { text: 'Set your own categories', done: !!STATE.guideProgress.categories, icon: '🏷️', action: () => { navigate('personalization'); setTimeout(() => showPersTab('categories'), 50); } },
-        { text: 'Generate your AI travel plan<br><span style="font-size: 0.85rem; opacity: 0.8; font-weight: 500;">(or <span data-guide-action="open-add-day" class="link-underline">create it manually</span>)</span>', done: !!STATE.guideProgress.plan, icon: '✦', action: () => navigate('ai') },
-        { text: 'Input your expenses<br><span style="font-size: 0.85rem; opacity: 0.8; font-weight: 500;">(<span data-guide-action="navigate-expenses" class="link-underline">Manually</span> or <span data-guide-action="navigate-upload" class="link-underline">in a batch</span>)</span>', done: !!STATE.guideProgress.expenses, icon: '💰', action: () => navigate('expenses') },
-        { text: 'Explore Budgets', done: !!STATE.guideProgress.budgets, icon: '📊', action: () => navigate('budgets') },
-        { text: 'Settle your first expenses', done: !!STATE.guideProgress.settlement, icon: '🤝', action: () => navigate('settlement') },
-        { text: 'Discover Collections', done: !!STATE.guideProgress.collections, icon: '📂', action: () => navigate('collections') },
-        { text: 'Connect with your friends', done: !!STATE.guideProgress.friends, icon: '📱', action: () => navigate('friends') },
+        { text: 'Customize your expense categories', done: !!STATE.guideProgress.categories, icon: '🏷️', action: () => { navigate('personalization'); setTimeout(() => showPersTab('categories'), 50); } },
+        { text: 'Plan with AI<br><span style="font-size: 0.85rem; opacity: 0.8; font-weight: 500;">(food + sights prompts — or <span data-guide-action="open-add-day" class="link-underline">build days manually</span>)</span>', done: !!STATE.guideProgress.plan, icon: '✦', action: () => navigate('ai') },
+        { text: 'Log your expenses<br><span style="font-size: 0.85rem; opacity: 0.8; font-weight: 500;">(<span data-guide-action="navigate-expenses" class="link-underline">manually</span> or <span data-guide-action="navigate-upload" class="link-underline">batch upload</span>)</span>', done: !!STATE.guideProgress.expenses, icon: '💰', action: () => navigate('expenses') },
+        { text: 'Set a budget per trip', done: !!STATE.guideProgress.budgets, icon: '📊', action: () => navigate('budgets') },
+        { text: 'Settle up — who owes who', done: !!STATE.guideProgress.settlement, icon: '🤝', action: () => navigate('settlement') },
+        { text: 'Complete a trip to your Collections', done: !!STATE.guideProgress.collections, icon: '📂', action: () => navigate('collections') },
+        { text: 'Follow friends + share trips on your Feed', done: !!STATE.guideProgress.friends, icon: '📱', action: () => navigate('friends') },
     ];
 
     const allDone = steps.every(s => s.done) || !!STATE.guideAllDone;
@@ -160,15 +166,21 @@ export function appendGettingStartedGuide(opts: GettingStartedGuideOptions): voi
         return;
     }
 
+    // 2026-05-15 dark-mode sweep — every hardcoded color literal
+    // (#002d5b, white, rgba(0,0,0,*), rgba(0,45,91,*)) replaced
+    // with theme tokens so the card stays readable on both light
+    // and dark surfaces. The green-tick state keeps its #34c759
+    // accent (intentional — green is the success color in both
+    // themes and reads fine against either background).
     guideContainer.innerHTML = `
-        <div class="card glass" style="padding: 32px; border-radius: 28px; border: 1.5px solid ${allDone ? 'rgba(0,0,0,0.05)' : 'rgba(0, 122, 255, 0.15)'}; background: ${allDone ? 'rgba(255,255,255,0.4)' : 'linear-gradient(165deg, rgba(255,255,255,0.9), rgba(240,247,255,0.8))'}; position: relative;">
+        <div class="card glass" style="padding: 32px; border-radius: 28px; border: 1.5px solid ${allDone ? 'var(--border-subtle)' : 'rgba(0, 122, 255, 0.25)'}; background: var(--card-bg); position: relative;">
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px;">
                 <div style="display: flex; align-items: center; gap: 12px;">
-                    <div style="background: ${allDone ? '#000000' : 'var(--accent-blue)'}; color: white; width: 32px; height: 32px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem;">${allDone ? '⚡️' : '🧭'}</div>
-                    <h2 style="margin: 0; font-size: 1.5rem; letter-spacing: -0.02em; color: #002d5b;">${allDone ? 'Quick Access' : 'Getting Started Guide'}</h2>
+                    <div style="background: ${allDone ? 'var(--text-brand-navy)' : 'var(--accent-blue)'}; color: white; width: 32px; height: 32px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem;">${allDone ? '⚡️' : '🧭'}</div>
+                    <h2 style="margin: 0; font-size: 1.5rem; letter-spacing: -0.02em; color: var(--text-brand-navy);">${allDone ? 'Quick Access' : 'Getting Started Guide'}</h2>
                 </div>
                 <div style="display: flex; align-items: center; gap: 12px;">
-                    ${allDone ? `<span style="font-size: 0.75rem; font-weight: 800; color: rgba(0,45,91,0.4); text-transform: uppercase; letter-spacing: 0.05em;">Toolbar</span>` : ''}
+                    ${allDone ? `<span style="font-size: 0.75rem; font-weight: 800; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">Toolbar</span>` : ''}
                     <button id="hideQuickAccessBtn" class="pill-btn-warn-hover">Hide</button>
                 </div>
             </div>
@@ -177,17 +189,17 @@ export function appendGettingStartedGuide(opts: GettingStartedGuideOptions): voi
                 ${steps.map((step, i) => {
                     const showTick = !allDone && step.done;
                     return `
-                        <button type="button" class="card-button-reset guide-step-card" data-index="${i}" style="display: flex; align-items: center; gap: var(--space-4); padding: var(--space-4) var(--space-5); background: ${showTick ? 'rgba(52, 199, 89, 0.08)' : 'white'}; border-radius: var(--radius-xl); border: 1px solid ${showTick ? 'rgba(52, 199, 89, 0.2)' : 'rgba(0,0,0,0.05)'}; cursor: pointer; position: relative; overflow: hidden;">
+                        <button type="button" class="card-button-reset guide-step-card" data-index="${i}" style="display: flex; align-items: center; gap: var(--space-4); padding: var(--space-4) var(--space-5); background: ${showTick ? 'rgba(52, 199, 89, 0.10)' : 'var(--card-bg-elevated)'}; border-radius: var(--radius-xl); border: 1px solid ${showTick ? 'rgba(52, 199, 89, 0.25)' : 'var(--border-subtle)'}; cursor: pointer; position: relative; overflow: hidden;">
                             ${allDone ? `
                             <div style="font-size: 1.4rem; flex-shrink: 0; line-height: 1;">${step.icon}</div>
                             ` : `
-                            <div style="width: 24px; height: 24px; border-radius: 50%; border: 2px solid ${showTick ? '#34c759' : 'rgba(0,45,91,0.1)'}; display: flex; align-items: center; justify-content: center; color: ${showTick ? '#34c759' : 'rgba(0,0,0,0.4)'}; font-weight: 800; font-size: 0.8rem; background: ${showTick ? 'white' : 'rgba(0,0,0,0.02)'}; flex-shrink: 0;">
+                            <div style="width: 24px; height: 24px; border-radius: 50%; border: 2px solid ${showTick ? '#34c759' : 'var(--border-subtle)'}; display: flex; align-items: center; justify-content: center; color: ${showTick ? '#34c759' : 'var(--text-secondary)'}; font-weight: 800; font-size: 0.8rem; background: ${showTick ? 'var(--card-bg)' : 'var(--surface-subtle)'}; flex-shrink: 0;">
                                 ${showTick ? '✓' : step.icon}
                             </div>
                             `}
                             <div style="display: flex; flex-direction: column;">
-                                ${!allDone ? `<div style="font-size: 0.75rem; font-weight: 800; color: ${showTick ? '#34c759' : 'rgba(0,45,91,0.4)'}; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px;">Step ${i + 1}</div>` : ''}
-                                <div style="font-size: 1rem; font-weight: 700; color: ${showTick ? 'rgba(0,45,91,0.6)' : '#002d5b'}; text-decoration: ${showTick ? 'line-through' : 'none'};">
+                                ${!allDone ? `<div style="font-size: 0.75rem; font-weight: 800; color: ${showTick ? '#34c759' : 'var(--text-secondary)'}; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px;">Step ${i + 1}</div>` : ''}
+                                <div style="font-size: 1rem; font-weight: 700; color: ${showTick ? 'var(--text-secondary)' : 'var(--text-brand-navy)'}; text-decoration: ${showTick ? 'line-through' : 'none'};">
                                     ${step.text}
                                 </div>
                             </div>
