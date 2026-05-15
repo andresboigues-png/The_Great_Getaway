@@ -48,8 +48,14 @@ export async function attemptPendingClone(): Promise<void> {
             showLiquidAlert("Couldn't clone that trip. Try again from Collections.");
             return;
         }
+        const newTripId = res.body.tripId;
+        // Mirror the defensive pattern from archivedDetail.ts — stamp
+        // activeTripId BEFORE the pull so the pull's re-validate sees
+        // it as a valid id (no fallback to trips[0]), then re-stamp
+        // after as belt-and-braces against read-after-write lag.
+        STATE.activeTripId = newTripId;
         await pullFromServer();
-        STATE.activeTripId = res.body.tripId;
+        STATE.activeTripId = newTripId;
         emit(EVENTS.STATE_CHANGED);
         showLiquidAlert('Trip cloned! Edit your draft on Home.');
         navigate(PAGES.HOME);

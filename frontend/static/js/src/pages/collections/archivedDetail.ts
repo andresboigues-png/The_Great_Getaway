@@ -407,6 +407,20 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
         // pull canonical state, switch active trip to the new one,
         // navigate home so the user lands on their copy ready to
         // edit. On failure, toast + stay put.
+        //
+        // Fix for the "source becomes active" bug:
+        // The previous flow awaited pullFromServer FIRST, then set
+        // activeTripId. pullFromServer's internal `navigate(current)`
+        // (api.ts:313) fires a fresh page mount BEFORE the new
+        // activeTripId stamp lands — if the current page was the
+        // archived-trip detail (where Clone lives), the in-flight
+        // re-mount briefly used the previously-active trip as the
+        // resolved activeTripId. Setting activeTripId BEFORE the pull
+        // means any internal re-validate or re-mount that runs during
+        // the pull sees the new clone as the intended active trip; we
+        // then re-stamp after the pull as belt-and-braces in case the
+        // server's read-after-write momentarily returned a trip list
+        // without the new id.
         const cloneBtn = (target?.closest('#cloneTripBtn') as HTMLElement | null);
         if (cloneBtn?.dataset.tripId) {
             cloneBtn.setAttribute('disabled', 'true');
@@ -420,11 +434,27 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
                     cloneBtn.innerHTML = originalText;
                     return;
                 }
-                // Pull state so the new trip lands in STATE.trips with
-                // its days + myRole + member chips populated. Then
-                // switch active and navigate home.
+                const newTripId = res.body.tripId;
+                // Stamp the new clone as active BEFORE pulling state.
+                // pullFromServer's re-validate gate is "current
+                // activeTripId not in STATE.trips → fall back to
+                // trips[0]"; once the pull adds the new clone to
+                // STATE.trips, the gate sees newTripId IS in trips
+                // (we set it pre-pull) and leaves activeTripId alone.
+                STATE.activeTripId = newTripId;
                 await pullFromServer();
-                STATE.activeTripId = res.body.tripId;
+                // Belt-and-braces re-stamp — if the server's response
+                // for some reason didn't yet include the new clone
+                // (transient read-after-write inconsistency), the
+                // re-validate would have reset activeTripId to
+                // trips[0] (the previous active trip), which would
+                // leave the user on their OLD active trip — exactly
+                // the bug the user reported. Force the stamp post-pull
+                // so even that edge case lands on the new clone (Home
+                // will then render WelcomePage briefly if trips
+                // doesn't actually have it yet, but the next pull
+                // cycle will surface it).
+                STATE.activeTripId = newTripId;
                 emit('state:changed');
                 showLiquidAlert('Trip cloned! Edit your draft on Home.');
                 navigate('home');
