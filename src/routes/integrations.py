@@ -288,9 +288,57 @@ def _enrich_itinerary(itinerary: list, destination: str) -> list:
         cache[item_text] = meta
         return meta
 
+    def _enrich_one(raw) -> dict | None:
+        """Resolve a single place dict / string against Places API and
+        emit the verified-card shape the frontend's slots.ts expects.
+        Returns None if there's no text to verify (lets callers drop
+        the entry cleanly)."""
+        if isinstance(raw, dict):
+            text = str(raw.get("name") or "").strip()
+            why = str(raw.get("why") or "").strip()
+            fact = str(raw.get("fact") or "").strip()
+        elif isinstance(raw, str):
+            text = raw.strip()
+            why = ""
+            fact = ""
+        else:
+            text = str(raw or "").strip()
+            why = ""
+            fact = ""
+        if not text:
+            return None
+        meta = resolve(text)
+        base: dict = {"text": text}
+        if why:
+            base["why"] = why
+        if fact:
+            base["fact"] = fact
+        if meta and meta.get("placeId"):
+            return {**base, "verified": True, **meta}
+        return {**base, "verified": False}
+
     for day in itinerary or []:
         if not isinstance(day, dict):
             continue
+        # NEW schema (post-food/sights split) — singletons for each
+        # meal slot. Each is a dict, not a slot-with-items array.
+        for meal in ("breakfast", "lunch", "dinner"):
+            slot = day.get(meal)
+            if not isinstance(slot, dict):
+                continue
+            enriched = _enrich_one(slot)
+            if enriched is not None:
+                day[meal] = enriched
+        # NEW schema — top-level `sights` list, separate from meals.
+        sights = day.get("sights")
+        if isinstance(sights, list):
+            day["sights"] = [
+                e for e in (_enrich_one(s) for s in sights) if e is not None
+            ]
+        # LEGACY schema — morning/afternoon/evening each have an
+        # items[] list mixed with restaurants + sights. Older saved
+        # itineraries flow through here so the rerender path doesn't
+        # break for users with cached aiPlan blobs in localStorage.
         for slot_name in ("morning", "afternoon", "evening"):
             slot = day.get(slot_name)
             if not isinstance(slot, dict):
@@ -298,38 +346,11 @@ def _enrich_itinerary(itinerary: list, destination: str) -> list:
             items = slot.get("items")
             if not isinstance(items, list):
                 continue
-            new_items = []
+            new_items: list[dict] = []
             for raw in items:
-                # Three input shapes supported:
-                #   1. NEW (post-Phase-G refresh) — { name, why, fact }
-                #      objects from the updated Gemini prompt.
-                #   2. Pre-G plain strings — older itineraries cached
-                #      in trip.aiPlan from before the prompt update.
-                #   3. Anything else — coerced to string for safety.
-                if isinstance(raw, dict):
-                    text = str(raw.get("name") or "").strip()
-                    why = str(raw.get("why") or "").strip()
-                    fact = str(raw.get("fact") or "").strip()
-                elif isinstance(raw, str):
-                    text = raw.strip()
-                    why = ""
-                    fact = ""
-                else:
-                    text = str(raw or "").strip()
-                    why = ""
-                    fact = ""
-                if not text:
-                    continue
-                meta = resolve(text)
-                base = {"text": text}
-                if why:
-                    base["why"] = why
-                if fact:
-                    base["fact"] = fact
-                if meta and meta.get("placeId"):
-                    new_items.append({**base, "verified": True, **meta})
-                else:
-                    new_items.append({**base, "verified": False})
+                enriched = _enrich_one(raw)
+                if enriched is not None:
+                    new_items.append(enriched)
             slot["items"] = new_items
     return itinerary
 
@@ -385,7 +406,15 @@ def generate_itinerary():
         num_days = 3
     date_from = str(data.get("dateFrom", ""))[:32]
     date_to = str(data.get("dateTo", ""))[:32]
-    context = str(data.get("context", ""))[:500]
+    # The legacy single-context field stays accepted for back-compat
+    # with any in-flight client that hasn't reloaded yet. The new
+    # food / sightseeing split is the primary path — splitting the
+    # ask makes the LLM produce one restaurant per meal slot AND a
+    # separate sightseeing list, which the UI then renders as two
+    # distinct clusters per day instead of mixed-bag items[].
+    food_context = str(data.get("foodContext", ""))[:500]
+    sights_context = str(data.get("sightseeingContext", ""))[:500]
+    legacy_context = str(data.get("context", ""))[:500]
     # Strip control chars (incl. newlines) from destination + dates +
     # context so a prompt injection can't smuggle in an instruction
     # break via "\n\nIgnore the previous instructions". The model
@@ -395,7 +424,9 @@ def generate_itinerary():
     destination = _scrub(destination).strip()
     date_from = _scrub(date_from).strip()
     date_to = _scrub(date_to).strip()
-    context = _scrub(context).strip()
+    food_context = _scrub(food_context).strip()
+    sights_context = _scrub(sights_context).strip()
+    legacy_context = _scrub(legacy_context).strip()
 
     # BYO key path: client sends its own Gemini key in the request
     # body so power users (or the user whose pool we exhausted) can
@@ -428,20 +459,41 @@ def generate_itinerary():
             "host_keys": _pool_status(),
         }), 429
 
+    # Build the prompt's "additional context" block. Two named fields
+    # (food + sightseeing) read more directly to the model than one
+    # mixed paragraph, and they let the user say things like "we hate
+    # spicy food" without that getting picked up by the sightseeing
+    # generator. Legacy `context` is appended as a fallback so any
+    # client running the old single-textarea version still works.
+    context_lines: list[str] = []
+    if food_context:
+        context_lines.append(f"Food preferences: {food_context}")
+    if sights_context:
+        context_lines.append(f"Sightseeing preferences: {sights_context}")
+    if legacy_context and not (food_context or sights_context):
+        context_lines.append(f"Additional context: {legacy_context}")
+    context_block = "\n    ".join(context_lines) or "Additional context: (none provided)"
+
     prompt = f"""
     You are an expert travel planner. Create a detailed {num_days}-day itinerary for {destination} from {date_from} to {date_to}.
-    Additional context: {context}
+    {context_block}
 
     CRITICAL INSTRUCTION: You MUST return ONLY valid JSON. Do not wrap the JSON in markdown blocks.
 
-    For EACH day provide morning, afternoon, evening time slots with REAL specific place names in {destination}.
-    Each slot has an `activity` (the headline) and an `items` array of 2-4 places to visit during that slot, in the order the traveler should visit them.
+    For EACH day, return:
+      - ONE breakfast restaurant (`breakfast`)
+      - ONE lunch restaurant (`lunch`)
+      - ONE dinner restaurant (`dinner`)
+      - A list of 2–4 sightseeing places (`sights`) for the day, in the
+        order the traveller should visit them. Sights are SEPARATE from
+        meals so the user can see eating and sightseeing as two distinct
+        clusters.
 
-    Each item is an object with three fields:
-      - `name`:  the REAL specific place name (the LLM-grounded suggestion). This is what the user is going there to see / do / eat.
+    Each restaurant (breakfast / lunch / dinner) and each sight is an object with three fields:
+      - `name`:  the REAL specific place name in {destination}. This is what the user is going there to see / do / eat.
       - `why`:   ONE short sentence (max ~18 words) explaining why this place was chosen — what makes it worth the stop, why it pairs well with the rest of the day, or what kind of traveller it suits. Direct and concrete, no fluff.
       - `fact`:  ONE short surprising fact (max ~22 words) about the place — historical, cultural, or quirky. Avoid generic statements ("it's famous") — give the user something they didn't already know that they'd be excited to mention.
-    Both `why` and `fact` MUST be filled (non-empty strings). They appear under the place card in the UI; an empty string would render an awkward gap.
+    Both `why` and `fact` MUST be filled (non-empty strings). They appear under each place card in the UI; an empty string would render an awkward gap.
 
     Also include a "mainLocation" field with the name of the most iconic place visited that day (used for map geocoding).
 
@@ -452,15 +504,13 @@ def generate_itinerary():
         "date": "{date_from}",
         "title": "Day title",
         "mainLocation": "Specific place name",
-        "morning": {{
-          "activity": "headline",
-          "items": [
-            {{"name": "Place name", "why": "Why this place fits here.", "fact": "Surprising fact about it."}},
-            {{"name": "Another place", "why": "...", "fact": "..."}}
-          ]
-        }},
-        "afternoon": {{ "activity": "headline", "items": [{{...}}, {{...}}] }},
-        "evening":   {{ "activity": "headline", "items": [{{...}}, {{...}}] }}
+        "breakfast": {{"name": "Cafe name",     "why": "Why this fits.", "fact": "Surprising fact."}},
+        "lunch":     {{"name": "Bistro name",   "why": "...",            "fact": "..."}},
+        "dinner":    {{"name": "Restaurant name","why": "...",           "fact": "..."}},
+        "sights": [
+          {{"name": "Place name", "why": "Why this place fits here.", "fact": "Surprising fact about it."}},
+          {{"name": "Another place", "why": "...", "fact": "..."}}
+        ]
       }}
     ]
     """

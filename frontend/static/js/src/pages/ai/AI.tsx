@@ -55,7 +55,15 @@ import {
     addOrUpdatePlaceFromVerified,
     dropAITaggedPlaces,
 } from '../../markedPlaces.js';
-import { renderSlotBody, flattenSlotForTextarea } from './slots.js';
+import {
+    renderSlotBody,
+    flattenSlotForTextarea,
+    renderRestaurantCard,
+    renderSightsList,
+    flattenMealForTextarea,
+    flattenSightsForTip,
+    isFoodSightsSchema,
+} from './slots.js';
 import { t, tn } from '../../i18n.js';
 import type { Trip } from '../../types';
 
@@ -231,7 +239,19 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
     // React state for form inputs.
     const [dateFrom, setDateFrom] = useState(initialDates.from);
     const [dateTo, setDateTo] = useState(initialDates.to);
-    const [context, setContext] = useState<string>(activeTrip.aiContext || '');
+    // Food + sightseeing context — split into two boxes per the user's
+    // request so the LLM gets a structured ask ("here's what I want to
+    // eat" / "here's what I want to see") instead of one mixed blob.
+    // Migrates any legacy single-blob `aiContext` into `aiFoodContext`
+    // so the previous-session text isn't lost — that field is the
+    // closest semantic fit (most legacy notes describe food + activity
+    // mix, leaning food).
+    const [foodContext, setFoodContext] = useState<string>(
+        () => activeTrip.aiFoodContext ?? activeTrip.aiContext ?? '',
+    );
+    const [sightseeingContext, setSightseeingContext] = useState<string>(
+        () => activeTrip.aiSightseeingContext ?? '',
+    );
     const [geminiKey, setGeminiKey] = useState<string>(STATE.geminiApiKey || '');
     const [showKey, setShowKey] = useState(false);
     const [generating, setGenerating] = useState(false);
@@ -386,11 +406,20 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
             ? t('ai.dateValidityErr')
             : null;
 
-    // ── Persist context to STATE on input ───────────────────────
-    const onContextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    // ── Persist food / sights context to STATE on input ─────────
+    // Two write paths now — one per textarea. Each stores onto the
+    // active trip so a re-mount or app reload preserves the input,
+    // matching the previous single-context persistence.
+    const onFoodContextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         const v = e.target.value;
-        setContext(v);
-        activeTrip.aiContext = v;
+        setFoodContext(v);
+        activeTrip.aiFoodContext = v;
+        emit('state:changed');
+    };
+    const onSightseeingContextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        const v = e.target.value;
+        setSightseeingContext(v);
+        activeTrip.aiSightseeingContext = v;
         emit('state:changed');
     };
 
@@ -504,8 +533,16 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                 .join('\n');
             markedSuffix = `\n\nThe user has marked these specific places to include in the itinerary. Please incorporate them where they fit, respecting any day/time assignments where given:\n${lines}`;
         }
-        const fullContext = context + markedSuffix;
-        activeTrip.aiContext = context;
+        // The "marked places" suffix carries the user's to-do list as
+        // hints into the prompt. It applies to BOTH food + sightseeing
+        // (a to-do entry can be either) so we append it to the sights
+        // context — the LLM treats the suffix as places to incorporate
+        // where they fit. Sticking to sights avoids the awkwardness of
+        // having a marked restaurant suddenly land in the sightseeing
+        // section AND the breakfast slot.
+        const sightsContextWithMarked = sightseeingContext + markedSuffix;
+        activeTrip.aiFoodContext = foodContext;
+        activeTrip.aiSightseeingContext = sightseeingContext;
         activeTrip.aiNumDays = numDays;
         emit('state:changed');
 
@@ -520,7 +557,8 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                     numDays,
                     dateFrom,
                     dateTo,
-                    context: fullContext,
+                    foodContext,
+                    sightseeingContext: sightsContextWithMarked,
                     gemini_key: (STATE.geminiApiKey || '').trim(),
                 }),
             });
@@ -593,7 +631,25 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
         itinerary.forEach((dayInfo: any, idx: number) => {
             const dayDate = dayInfo.date || new Date().toISOString().split('T')[0];
             const dayId = 'day_' + Date.now() + '_' + idx;
-            const newDay = {
+            // Schema fork: the new food/sights split stores each meal
+            // (one restaurant) as the morning/afternoon/evening plan
+            // text, and the sights list as the day's `tip` field so the
+            // home day card surfaces it under "Tip / Notes" without a
+            // tripDays schema migration. Legacy schema keeps the
+            // existing flatten-slot path so cached aiPlan blobs still
+            // accept cleanly.
+            const usesFoodSights = isFoodSightsSchema(dayInfo);
+            const planMorning = usesFoodSights
+                ? flattenMealForTextarea(dayInfo.breakfast, '🥐 Breakfast')
+                : flattenSlotForTextarea(dayInfo.morning);
+            const planAfternoon = usesFoodSights
+                ? flattenMealForTextarea(dayInfo.lunch, '🥗 Lunch')
+                : flattenSlotForTextarea(dayInfo.afternoon);
+            const planEvening = usesFoodSights
+                ? flattenMealForTextarea(dayInfo.dinner, '🍷 Dinner')
+                : flattenSlotForTextarea(dayInfo.evening);
+            const tip = usesFoodSights ? flattenSightsForTip(dayInfo.sights) : '';
+            const newDay: any = {
                 id: dayId,
                 tripId: activeTrip.id,
                 date: dayDate,
@@ -605,24 +661,52 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                 tickets: [],
                 notes: '',
                 plan: {
-                    morning: flattenSlotForTextarea(dayInfo.morning),
-                    afternoon: flattenSlotForTextarea(dayInfo.afternoon),
-                    evening: flattenSlotForTextarea(dayInfo.evening),
+                    morning: planMorning,
+                    afternoon: planAfternoon,
+                    evening: planEvening,
                 },
             };
+            if (tip) newDay.tip = tip;
             STATE.tripDays.push(newDay);
             upsertDay(newDay);
 
             // Auto-push verified places to the to-do list.
-            const slots: Array<['morning' | 'afternoon' | 'evening', any]> = [
-                ['morning', dayInfo.morning],
-                ['afternoon', dayInfo.afternoon],
-                ['evening', dayInfo.evening],
-            ];
-            for (const [timeOfDay, slot] of slots) {
-                const items = Array.isArray(slot?.items) ? slot.items : [];
-                for (const item of items) {
-                    addOrUpdatePlaceFromVerified(activeTrip, item, dayId, timeOfDay);
+            if (usesFoodSights) {
+                // New schema — one restaurant per meal slot + the
+                // sights list. Tag each restaurant to its meal's
+                // time-of-day; sights get a neutral tag (no specific
+                // time-of-day) so the to-do list shows them as
+                // open-slot items the user can later assign.
+                const meals: Array<['morning' | 'afternoon' | 'evening', any]> = [
+                    ['morning', dayInfo.breakfast],
+                    ['afternoon', dayInfo.lunch],
+                    ['evening', dayInfo.dinner],
+                ];
+                for (const [timeOfDay, place] of meals) {
+                    if (place && typeof place === 'object' && (place.text || place.name)) {
+                        addOrUpdatePlaceFromVerified(activeTrip, place, dayId, timeOfDay);
+                    }
+                }
+                const sights = Array.isArray(dayInfo.sights) ? dayInfo.sights : [];
+                for (const sight of sights) {
+                    // Sights don't have a fixed time-of-day in the
+                    // new schema — they're a separate cluster. Pass
+                    // null so the to-do entry stays day-tagged but
+                    // not slot-tagged; the user can later assign one.
+                    addOrUpdatePlaceFromVerified(activeTrip, sight, dayId, null);
+                }
+            } else {
+                // Legacy schema — items[] under each time-of-day.
+                const slots: Array<['morning' | 'afternoon' | 'evening', any]> = [
+                    ['morning', dayInfo.morning],
+                    ['afternoon', dayInfo.afternoon],
+                    ['evening', dayInfo.evening],
+                ];
+                for (const [timeOfDay, slot] of slots) {
+                    const items = Array.isArray(slot?.items) ? slot.items : [];
+                    for (const item of items) {
+                        addOrUpdatePlaceFromVerified(activeTrip, item, dayId, timeOfDay);
+                    }
                 }
             }
         });
@@ -782,7 +866,13 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                         </div>
                     </div>
 
-                    {/* Requirements / extra context */}
+                    {/* Requirements / extra context — split into Food
+                        + Sightseeing per the user's request so the LLM
+                        gets a structured ask instead of one mixed blob.
+                        The split makes the result much cleaner: each
+                        meal slot gets ONE restaurant honouring the food
+                        prefs, and the sights list is built off the
+                        sightseeing prefs separately. */}
                     <div
                         className="card glass"
                         style={{
@@ -791,6 +881,7 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                             display: 'flex',
                             flexDirection: 'column',
                             minHeight: 0,
+                            gap: 14,
                         }}
                     >
                         <h2
@@ -799,26 +890,68 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                                 fontSize: '0.85rem',
                                 textTransform: 'uppercase',
                                 color: 'var(--accent-blue-deep)',
-                                marginBottom: 10,
+                                marginBottom: 0,
                                 letterSpacing: '0.05em',
                             }}
                         >
                             {t('ai.sectionRequirements')}
                         </h2>
-                        <textarea
-                            className="glass-input"
-                            value={context}
-                            onChange={onContextChange}
-                            placeholder={t('ai.requirementsPlaceholder')}
-                            style={{
-                                width: '100%',
-                                resize: 'none',
-                                fontSize: '0.9rem',
-                                boxSizing: 'border-box',
-                                flex: '1 1 auto',
-                                minHeight: 120,
-                            }}
-                        />
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            <label
+                                htmlFor="aiFoodContext"
+                                style={{
+                                    fontSize: '0.72rem',
+                                    fontWeight: 800,
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.08em',
+                                    color: 'var(--text-secondary)',
+                                }}
+                            >
+                                🍽️ {t('ai.foodReqLabel')}
+                            </label>
+                            <textarea
+                                id="aiFoodContext"
+                                className="glass-input"
+                                value={foodContext}
+                                onChange={onFoodContextChange}
+                                placeholder={t('ai.foodReqPlaceholder')}
+                                style={{
+                                    width: '100%',
+                                    resize: 'none',
+                                    fontSize: '0.9rem',
+                                    boxSizing: 'border-box',
+                                    minHeight: 72,
+                                }}
+                            />
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            <label
+                                htmlFor="aiSightseeingContext"
+                                style={{
+                                    fontSize: '0.72rem',
+                                    fontWeight: 800,
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.08em',
+                                    color: 'var(--text-secondary)',
+                                }}
+                            >
+                                🏛️ {t('ai.sightsReqLabel')}
+                            </label>
+                            <textarea
+                                id="aiSightseeingContext"
+                                className="glass-input"
+                                value={sightseeingContext}
+                                onChange={onSightseeingContextChange}
+                                placeholder={t('ai.sightsReqPlaceholder')}
+                                style={{
+                                    width: '100%',
+                                    resize: 'none',
+                                    fontSize: '0.9rem',
+                                    boxSizing: 'border-box',
+                                    minHeight: 72,
+                                }}
+                            />
+                        </div>
                     </div>
 
                     {/* Generate button (or role notice) */}
@@ -1539,22 +1672,59 @@ function ItineraryOutput({
                                         {day.date || ''}
                                     </span>
                                 </div>
-                                <div
-                                    className="ai-day-slots"
-                                    style={{
-                                        display: 'grid',
-                                        gridTemplateColumns: '1fr 1fr 1fr',
-                                        gap: 'var(--space-4)',
-                                    }}
-                                >
-                                    <SlotBlock title="🌅 Morning" accent="0,113,227" slot={day.morning} />
-                                    <SlotBlock
-                                        title="☀️ Afternoon"
-                                        accent="255,149,0"
-                                        slot={day.afternoon}
-                                    />
-                                    <SlotBlock title="🌙 Evening" accent="155,89,182" slot={day.evening} />
-                                </div>
+                                {isFoodSightsSchema(day) ? (
+                                    <>
+                                        {/* New food/sights split — 3 meal cards
+                                            on top + a wide sights card below.
+                                            Each meal slot holds ONE restaurant
+                                            (breakfast/lunch/dinner) per the
+                                            user's request; sightseeing is a
+                                            separate cluster underneath. */}
+                                        <div
+                                            className="ai-day-slots"
+                                            style={{
+                                                display: 'grid',
+                                                gridTemplateColumns: '1fr 1fr 1fr',
+                                                gap: 'var(--space-4)',
+                                                marginBottom: 'var(--space-4)',
+                                            }}
+                                        >
+                                            <MealBlock
+                                                title="🥐 Breakfast"
+                                                accent="0,113,227"
+                                                place={day.breakfast}
+                                            />
+                                            <MealBlock
+                                                title="🥗 Lunch"
+                                                accent="255,149,0"
+                                                place={day.lunch}
+                                            />
+                                            <MealBlock
+                                                title="🍷 Dinner"
+                                                accent="155,89,182"
+                                                place={day.dinner}
+                                            />
+                                        </div>
+                                        <SightsBlock sights={day.sights} />
+                                    </>
+                                ) : (
+                                    <div
+                                        className="ai-day-slots"
+                                        style={{
+                                            display: 'grid',
+                                            gridTemplateColumns: '1fr 1fr 1fr',
+                                            gap: 'var(--space-4)',
+                                        }}
+                                    >
+                                        <SlotBlock title="🌅 Morning" accent="0,113,227" slot={day.morning} />
+                                        <SlotBlock
+                                            title="☀️ Afternoon"
+                                            accent="255,149,0"
+                                            slot={day.afternoon}
+                                        />
+                                        <SlotBlock title="🌙 Evening" accent="155,89,182" slot={day.evening} />
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -1596,6 +1766,63 @@ function SlotBlock({ title, accent, slot }: { title: string; accent: string; slo
             <div className="ai-plan-block__tag">{title}</div>
             <div className="ai-plan-block__title">{slot?.activity || ''}</div>
             <div dangerouslySetInnerHTML={{ __html: renderSlotBody(slot) }} />
+        </div>
+    );
+}
+
+
+// ── New-schema rendering ──────────────────────────────────────────
+//
+// MealBlock renders ONE restaurant per time-of-day card; SightsBlock
+// renders a wide card with the day's sightseeing list. Together they
+// replace the three mixed-bag SlotBlock columns when the day uses the
+// new food/sights schema (post-split). Visual style mirrors SlotBlock
+// (same .ai-plan-block class + accent variable) so the rest of the
+// page chrome stays untouched.
+
+function MealBlock({ title, accent, place }: { title: string; accent: string; place: any }) {
+    const hasPlace = !!(place && typeof place === 'object' && (place.text || place.name));
+    return (
+        <div className="ai-plan-block" style={{ ['--accent' as any]: accent }}>
+            <div className="ai-plan-block__tag">{title}</div>
+            {hasPlace ? (
+                <div dangerouslySetInnerHTML={{ __html: renderRestaurantCard(place) }} />
+            ) : (
+                <div
+                    style={{
+                        color: 'var(--text-secondary)',
+                        fontSize: '0.82rem',
+                        padding: '6px 2px',
+                    }}
+                >
+                    {/* Defensive: an LLM glitch could omit a meal.
+                        Render a small dash so the column doesn't
+                        collapse and the user knows what's missing. */}
+                    —
+                </div>
+            )}
+        </div>
+    );
+}
+
+function SightsBlock({ sights }: { sights: any }) {
+    const list = Array.isArray(sights) ? sights.filter(Boolean) : [];
+    return (
+        <div className="ai-plan-block" style={{ ['--accent' as any]: '52,199,89' }}>
+            <div className="ai-plan-block__tag">🏛️ Sightseeing</div>
+            {list.length > 0 ? (
+                <div dangerouslySetInnerHTML={{ __html: renderSightsList(list) }} />
+            ) : (
+                <div
+                    style={{
+                        color: 'var(--text-secondary)',
+                        fontSize: '0.82rem',
+                        padding: '6px 2px',
+                    }}
+                >
+                    No sightseeing suggested for this day.
+                </div>
+            )}
         </div>
     );
 }

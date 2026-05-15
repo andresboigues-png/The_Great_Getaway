@@ -83,8 +83,14 @@ export interface Trip {
     expenses?: Expense[];
     /** Last AI-generated plan markdown, persisted so it survives navigation. */
     aiPlan?: string;
-    /** Free-form context the user types in for AI plan generation. */
+    /** Legacy single-textarea context; superseded by aiFoodContext +
+     *  aiSightseeingContext. Still read on init to seed the new
+     *  food box for users with prior sessions saved. */
     aiContext?: string;
+    /** Food-only context the user types in for the AI planner. */
+    aiFoodContext?: string;
+    /** Sightseeing-only context the user types in for the AI planner. */
+    aiSightseeingContext?: string;
     /** How many days the AI was asked to plan for. */
     aiNumDays?: number | string;
     /** Last-used Excel-import format mapping for this trip (id ref). */

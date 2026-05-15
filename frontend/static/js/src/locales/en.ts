@@ -520,8 +520,17 @@ export const en = {
         noTripCta: '+ Start Your Journey',
         // Inline date-range validation under the date pickers.
         dateValidityErr: 'End date must be on or after the start date.',
-        // Requirements textarea placeholder.
+        // Requirements textarea placeholder (legacy single-box copy,
+        // kept for back-compat with anything still wired to it).
         requirementsPlaceholder: 'e.g. Vegetarian friendly, no walking more than 2km...',
+        // Split food + sightseeing boxes — labels + placeholders.
+        // Splitting the ask makes the LLM honour each side cleanly
+        // (food prefs land in the meal slots, sights prefs in the
+        // sightseeing list).
+        foodReqLabel: 'Food preferences',
+        foodReqPlaceholder: 'e.g. Vegetarian friendly, no spicy food, love seafood, ~€20/meal...',
+        sightsReqLabel: 'Sightseeing preferences',
+        sightsReqPlaceholder: 'e.g. Love museums + parks, avoid long walks, kid-friendly, off-the-beaten-path...',
         // ── AI Usage card (shared host-key pool) ──
         usageCardTitle: 'AI Usage',
         usagePctPill: '{pct}% used',

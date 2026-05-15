@@ -184,3 +184,85 @@ export function flattenSlotForTextarea(slot: any): string {
     if (slot.activity && slot.description) return `${slot.activity}: ${slot.description}`;
     return slot.activity || slot.description || '';
 }
+
+// ── New-schema helpers (food / sights split) ───────────────────────
+//
+// The Gemini prompt now returns per-day:
+//   - `breakfast` / `lunch` / `dinner` — single restaurant object each
+//   - `sights` — array of sightseeing place objects
+// Each entry has the same { text, why, fact, verified, ... } shape
+// the legacy items[] enrichment produces. The helpers below render
+// the AI plan output (visual cards) and flatten the new schema into
+// the morning/afternoon/evening text fields that the rest of the app
+// already reads — preserving the home-day-card rendering without a
+// schema migration on tripDays.
+
+/** Render a single restaurant card (breakfast / lunch / dinner). The
+ *  `place` is the enriched object from the backend. Reuses the
+ *  verified-card markup from `renderSlotItem` so the visual style
+ *  matches the legacy items list. */
+export function renderRestaurantCard(place: any): string {
+    if (!place) return '';
+    // Reuse the items-list rendering with a single-item array so the
+    // verified-card vs unverified-chip logic stays in one place. The
+    // <ul> wrapper has list-style:none in CSS so the single card
+    // renders cleanly without a bullet marker.
+    return `<ul class="ai-plan-block__list">${renderSlotItem(place)}</ul>`;
+}
+
+/** Render the day's sightseeing list. Same item shape as restaurants,
+ *  just rendered as a multi-item list. */
+export function renderSightsList(sights: any[]): string {
+    if (!Array.isArray(sights) || sights.length === 0) return '';
+    return `<ul class="ai-plan-block__list">${sights.map((s) => renderSlotItem(s)).join('')}</ul>`;
+}
+
+/** Flatten a single restaurant entry into the morning/afternoon/
+ *  evening textarea string the home day card reads. Format mirrors
+ *  flattenSlotForTextarea so the visual on the home card stays
+ *  consistent — one-liner headline + bullet item with the place
+ *  name. The why/fact lines are appended below so the user keeps
+ *  the LLM's reasoning visible after Accept. */
+export function flattenMealForTextarea(place: any, mealLabel: string): string {
+    if (!place) return '';
+    const text = itemToText(place);
+    if (!text) return '';
+    const lines: string[] = [`${mealLabel}:`, `- ${text}`];
+    if (place && typeof place === 'object') {
+        if (place.why) lines.push(`  Why: ${place.why}`);
+        if (place.fact) lines.push(`  Fun fact: ${place.fact}`);
+    }
+    return lines.join('\n');
+}
+
+/** Flatten the day's `sights` list into a single string suitable for
+ *  the TripDay.tip field (re-purposed as the day's sightseeing
+ *  summary post-split). One bullet per sight, with the why-line so
+ *  the user keeps context on what each sight is for. */
+export function flattenSightsForTip(sights: any[]): string {
+    if (!Array.isArray(sights) || sights.length === 0) return '';
+    const lines: string[] = ['Sightseeing:'];
+    for (const s of sights) {
+        const text = itemToText(s);
+        if (!text) continue;
+        lines.push(`- ${text}`);
+        if (s && typeof s === 'object') {
+            if (s.why) lines.push(`  Why: ${s.why}`);
+            if (s.fact) lines.push(`  Fun fact: ${s.fact}`);
+        }
+    }
+    return lines.length > 1 ? lines.join('\n') : '';
+}
+
+/** True iff the day uses the new food/sights schema (post-split).
+ *  Lets the renderer + Accept flow fork on shape without duplicating
+ *  the field-name guards in every consumer. */
+export function isFoodSightsSchema(day: any): boolean {
+    if (!day || typeof day !== 'object') return false;
+    return (
+        (day.breakfast && typeof day.breakfast === 'object')
+        || (day.lunch && typeof day.lunch === 'object')
+        || (day.dinner && typeof day.dinner === 'object')
+        || Array.isArray(day.sights)
+    );
+}
