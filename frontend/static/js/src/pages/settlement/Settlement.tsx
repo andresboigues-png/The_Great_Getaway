@@ -20,6 +20,8 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useStore } from '../../react/store.js';
 import { canEditExpenses } from '../../permissions.js';
+import { STATE, emit } from '../../state.js';
+import { EVENTS } from '../../constants.js';
 import {
     buildPageHtml,
     settleDebt,
@@ -35,34 +37,54 @@ export function Settlement() {
     const activeTripId = useStore((s) => s.activeTripId);
     // Subscribe to expenses so mutations (settle/unsettle/edit) trigger
     // a fresh buildPageHtml call.
-    useStore((s) => s.expenses);
+    const expenses = useStore((s) => s.expenses);
 
     const [activeTab, setActiveTab] = useState<SettlementTab>('trip');
 
-    // Initial currentTripId mirrors the legacy module-level fallback:
-    // active trip first, then first trip in the list, else null.
-    const [currentTripId, setCurrentTripId] = useState<string | null>(() => {
-        return activeTripId || (trips.length > 0 ? trips[0]!.id : null);
-    });
+    // currentTripId follows the global active trip — picking a trip in
+    // the settlement picker also sets it as the active trip globally so
+    // the rest of the app (navbar trip selector, Home, Expenses, etc.)
+    // stays in sync. We track it as derived state via the useStore
+    // subscription on activeTripId rather than separate useState; this
+    // removes the previous bug where picking trip B in settlement left
+    // STATE.activeTripId stuck on trip A and the home page never caught
+    // up.
+    const currentTripId = activeTripId || (trips.length > 0 ? trips[0]!.id : null);
 
-    // If the selected trip got archived/deleted, fall back to a sensible
-    // default. Mirrors the legacy renderSettlement guard.
+    // If the active trip got archived/deleted, fall back to a sensible
+    // default. Updates STATE.activeTripId so every consumer follows.
     useEffect(() => {
         if (currentTripId && !trips.find((t) => t.id === currentTripId)) {
-            setCurrentTripId(activeTripId || (trips.length > 0 ? trips[0]!.id : null));
+            const next = trips.length > 0 ? trips[0]!.id : null;
+            STATE.activeTripId = next;
+            emit(EVENTS.STATE_CHANGED);
         }
-    }, [trips, currentTripId, activeTripId]);
+    }, [trips, currentTripId]);
+
+    // Helper — pick a trip in the picker. Sets the global activeTripId
+    // (so the rest of the app reflects the choice) AND auto-switches
+    // back to the per-trip tab. The auto-switch addresses the user's
+    // reported confusion: picking a trip while on Cross-Trip tab did
+    // nothing visible because Cross-Trip totals are global. Bouncing
+    // to Trip tab on picker change makes the action feel responsive.
+    const pickTrip = (tripId: string) => {
+        STATE.activeTripId = tripId;
+        emit(EVENTS.STATE_CHANGED);
+        if (activeTab === 'global') setActiveTab('trip');
+    };
 
     const trip = trips.find((t) => t.id === currentTripId) || null;
     const tripIsEditable = canEditExpenses(trip);
 
-    // Re-derive HTML on every relevant change. useMemo's deps include
-    // STATE.expenses (subscribed via useStore above) so settles trigger
-    // a re-render naturally.
+    // Re-derive HTML on every relevant change. The previous version
+    // had `useStore.length` (= 1, a constant) as a dep instead of the
+    // actual expenses array, so settling an expense didn't trigger a
+    // re-derive — the cached HTML kept showing the pre-settle debts
+    // even after STATE.expenses changed. Threading `expenses` in as
+    // a real dep fixes that.
     const html = useMemo(
         () => buildPageHtml(trip, tripIsEditable, activeTab, currentTripId),
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-        [trip, tripIsEditable, activeTab, currentTripId, useStore.length],
+        [trip, tripIsEditable, activeTab, currentTripId, expenses],
     );
 
     const wrapperRef = useRef<HTMLDivElement | null>(null);
@@ -80,7 +102,7 @@ export function Settlement() {
         // pill-based trip switcher (visual-regression demos, etc.).
         const tripCard = target.closest('.settlement-trip-pill') as HTMLElement | null;
         if (tripCard?.dataset.tripId) {
-            setCurrentTripId(tripCard.dataset.tripId);
+            pickTrip(tripCard.dataset.tripId);
             return;
         }
 
@@ -145,7 +167,7 @@ export function Settlement() {
         if (!target) return;
         if (target.id === 'settlementTripSelect') {
             const sel = target as unknown as HTMLSelectElement;
-            if (sel.value) setCurrentTripId(sel.value);
+            if (sel.value) pickTrip(sel.value);
         }
     };
 

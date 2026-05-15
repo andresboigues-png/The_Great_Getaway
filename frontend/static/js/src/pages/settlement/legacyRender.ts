@@ -43,7 +43,15 @@ export function buildPageHtml(
     activeTab: SettlementTab,
     currentTripId: string | null,
 ): string {
-    const tripsStrip = renderTripsStrip(currentTripId);
+    // Trip picker is only meaningful on per-trip tabs (Trip + History) —
+    // it scopes "this trip's balances" / "this trip's settled history".
+    // On the Cross-Trip tab, totals are aggregated across every trip
+    // the user is part of, so picking a trip in the picker would have
+    // no effect on what's shown. Hiding the picker there removes the
+    // confusion the user reported ("change trips in settlements but
+    // the who-owes-who totals stay the same"). Cross-Trip gets its
+    // own subtitle clarifying the global scope.
+    const tripsStrip = activeTab === 'global' ? '' : renderTripsStrip(currentTripId);
     const header = `
         <div class="ai-page-header">
             <h1 class="gradient-text" style="--g-from: #ffd60a; --g-to: #ff9f0a;">${t('settlement.title')}</h1>
