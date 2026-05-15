@@ -105,7 +105,7 @@ export function Budgets() {
                                     filterTrip === ''
                                         ? 'rgba(255,159,10,0.16)'
                                         : 'rgba(0,0,0,0.04)',
-                                color: filterTrip === '' ? '#a35200' : '#002d5b',
+                                color: filterTrip === '' ? '#a35200' : 'var(--text-brand-navy)',
                                 border: `1px solid ${filterTrip === '' ? 'rgba(255,159,10,0.4)' : 'rgba(0,0,0,0.08)'}`,
                                 padding: '7px 14px',
                                 borderRadius: '999px',
@@ -131,7 +131,7 @@ export function Budgets() {
                                         background: active
                                             ? 'rgba(255,159,10,0.16)'
                                             : 'rgba(0,0,0,0.04)',
-                                        color: active ? '#a35200' : '#002d5b',
+                                        color: active ? '#a35200' : 'var(--text-brand-navy)',
                                         border: `1px solid ${active ? 'rgba(255,159,10,0.4)' : 'rgba(0,0,0,0.08)'}`,
                                         padding: '7px 14px',
                                         borderRadius: '999px',
@@ -218,14 +218,14 @@ export function Budgets() {
                                         style={{
                                             fontSize: '1.8rem',
                                             fontWeight: 800,
-                                            color: '#002d5b',
+                                            color: 'var(--text-brand-navy)',
                                             letterSpacing: '-0.02em',
                                         }}
                                     >
                                         {formatHome(totalSpent, 'EUR')}
                                     </div>
                                 </div>
-                                <span style={{ color: 'rgba(0,0,0,0.25)', fontSize: '1.5rem' }}>/</span>
+                                <span style={{ color: 'var(--text-secondary)', opacity: 0.45, fontSize: '1.5rem' }}>/</span>
                                 <div>
                                     <div
                                         style={{
@@ -242,7 +242,7 @@ export function Budgets() {
                                         style={{
                                             fontSize: '1.8rem',
                                             fontWeight: 800,
-                                            color: '#002d5b',
+                                            color: 'var(--text-brand-navy)',
                                             opacity: 0.55,
                                             letterSpacing: '-0.02em',
                                         }}
@@ -295,7 +295,7 @@ export function Budgets() {
                     <div
                         style={{
                             height: '8px',
-                            background: 'rgba(0,0,0,0.06)',
+                            background: 'var(--surface-subtle)',
                             borderRadius: '999px',
                             overflow: 'hidden',
                             marginTop: '16px',
@@ -387,7 +387,7 @@ export function Budgets() {
                                         <div
                                             style={{
                                                 fontWeight: 800,
-                                                color: '#002d5b',
+                                                color: 'var(--text-brand-navy)',
                                                 fontSize: '1rem',
                                                 lineHeight: 1.25,
                                                 overflow: 'hidden',
@@ -445,7 +445,7 @@ export function Budgets() {
                                             style={{
                                                 fontSize: '1.5rem',
                                                 fontWeight: 800,
-                                                color: '#002d5b',
+                                                color: 'var(--text-brand-navy)',
                                                 letterSpacing: '-0.02em',
                                             }}
                                         >
@@ -464,7 +464,7 @@ export function Budgets() {
                                     <div
                                         style={{
                                             height: '8px',
-                                            background: 'rgba(0,0,0,0.05)',
+                                            background: 'var(--surface-subtle)',
                                             borderRadius: '999px',
                                             overflow: 'hidden',
                                         }}
