@@ -488,13 +488,13 @@ Not bugs — leverage. Each unblocks future feature velocity.
 - [ ] `dom-helpers.ts` (`esc`, empty-state cards)
 - [ ] `showConfirmModal` → `components/`
 
-### 3.8 Sentry + structured logging
+### 3.8 Sentry + structured logging — ✅ Shipped 2026-05-16
 
-**S** · `src/main.py`, every route
+**S** · `src/observability.py`, every trip-scoped route
 
-- [ ] Tag every request with `user_id` / `trip_id` via `logging.info(extra={...})`.
-- [ ] Sentry release tags wired into the deploy.
-- [ ] Highest-leverage 1-hour change before any wider launch.
+- [x] Tag every request with `user_id` / `trip_id` via `logging.info(extra={...})`. The framework-level `attach_request_context` sets request_id + user_id on every request automatically; trip_id is opt-in per route via `bind_trip_context(trip_id)`. Wired into routes/trips, days, expenses, settlements, public so every trip-mutating event carries the trip context on its log line + Sentry scope. (Shipped 2026-05-16)
+- [x] Sentry release tags wired into the deploy. `resolve_release()` walks `SENTRY_RELEASE` env → `GG_RELEASE` env → `git rev-parse --short=12 HEAD` → None. Deploy step doesn't need to set anything new; the running WSGI process self-identifies its release from the repo. Subprocess failure modes (no git, locked repo, 1.5s timeout) all fall through silently — observability MUST NOT block boot. (Shipped 2026-05-16)
+- [x] Highest-leverage 1-hour change before any wider launch. (Shipped 2026-05-16)
 
 ---
 
