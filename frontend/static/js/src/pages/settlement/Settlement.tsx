@@ -174,7 +174,14 @@ export function Settlement() {
 
         const unsettleBtn = target.closest('.unsettle-settlement-btn') as HTMLElement | null;
         if (unsettleBtn?.dataset.settlementId) {
-            deleteSettlement(unsettleBtn.dataset.settlementId);
+            // §4.5 cleanup: the source attribute is set by
+            // renderHistoryTab and tells deleteSettlement whether to
+            // hit STATE.expenses (legacy) or /api/settlements (server).
+            // Defaults to 'expense' for back-compat if missing.
+            const source = (unsettleBtn.dataset.source === 'settlement'
+                ? 'settlement'
+                : 'expense') as 'expense' | 'settlement';
+            deleteSettlement(unsettleBtn.dataset.settlementId, source);
             return;
         }
     };

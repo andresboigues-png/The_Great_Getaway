@@ -10,7 +10,61 @@
 // rather than inlined into one of the renderers.
 
 import { STATE } from '../../state.js';
-import { getTripCompanionNames } from '../../companions.js';
+import {
+    getTripCompanionNames,
+    findTripCompanionByLinkedUser,
+} from '../../companions.js';
+import type { Settlement } from '../../types';
+
+
+/** Apply a server-side `Settlement` row to a per-person balance map.
+ *
+ *  FIXING_ROADMAP §4.5 retirement of the dual-write: pre-cleanup,
+ *  `settleDebt` pushed a synthetic "isSettlement" expense row into
+ *  STATE.expenses AND posted to /api/settlements, because the balance
+ *  math here only knew how to read expenses. The fake-expense row was
+ *  load-bearing for the balance shift.
+ *
+ *  After cleanup, `settleDebt` for user-linked companions writes ONLY
+ *  to STATE.settlements (via the server). This helper produces the
+ *  same balance shift that the fake-expense pattern produced, but
+ *  reading from the server settlement row directly:
+ *
+ *    fromUserId paid toUserId `amount`:
+ *      balances[fromName] += amount   (they paid out → +owed)
+ *      balances[toName]   -= amount   (they received → no longer owed)
+ *
+ *  Name resolution: walks `trip.companions[].linkedUserId` to map the
+ *  settlement's user_ids back to the companion names the balance map
+ *  is keyed by. If either side doesn't resolve (e.g. the settlement
+ *  involves the trip owner, who isn't in the companions list), the
+ *  helper silently skips the row — the balance stays where it was,
+ *  no double-counting risk. This matches the modal's pre-existing
+ *  scope (companions only, not owners).
+ *
+ *  Legacy isSettlement expense rows (from before §4.5 frontend
+ *  wiring shipped) STAY in STATE.expenses and continue to drive the
+ *  balance via the regular expense math. Combined with this helper,
+ *  the math handles both pre-§4.5 settlements (expense path) and
+ *  post-§4.5 settlements (server path) correctly without
+ *  double-counting because new writes only land in ONE store. */
+export function applySettlementToBalances(
+    balances: Record<string, number>,
+    settlement: Settlement,
+    trip: any,
+): void {
+    const fromName = findTripCompanionByLinkedUser(trip, settlement.fromUserId)?.name;
+    const toName = findTripCompanionByLinkedUser(trip, settlement.toUserId)?.name;
+    if (!fromName || !toName) return;
+    if (balances[fromName] === undefined || balances[toName] === undefined) return;
+    // euroValue is the cross-currency-normalised amount the balance
+    // math uses everywhere else. Falls back to `amount` only when
+    // euroValue is null (older / non-EUR rows that pre-date the
+    // server's conversion logic).
+    const amount = settlement.euroValue || settlement.amount || 0;
+    balances[fromName] += amount;
+    balances[toName] -= amount;
+}
 
 /** A single debt → creditor settlement edge produced by simplifyDebts. */
 export interface SettlementDebt {
@@ -60,6 +114,19 @@ export function computeTripBalances(trip: any) {
             });
         }
     }
+
+    // §4.5 retirement of the dual-write: apply server-side settlements
+    // for this trip on top of the expense-derived balances. New
+    // settlements (post-§4.5) live in STATE.settlements; legacy
+    // isSettlement expense rows (pre-§4.5) ride the expense loop
+    // above. New writes only land in ONE store so no double-counting.
+    const tripSettlements = (STATE.settlements || []).filter(
+        (s) => s.tripId === trip.id,
+    );
+    for (const settlement of tripSettlements) {
+        applySettlementToBalances(balances, settlement, trip);
+    }
+
     return { balances, roster, expenses: tripExps };
 }
 
@@ -132,6 +199,23 @@ export function computeGlobalBalances() {
             });
         }
     }
+
+    // §4.5 retirement: server-side settlements across every trip the
+    // viewer is a member of. We look the trip up per-settlement so the
+    // name-resolution helper has the right companion list to walk.
+    // Archived trips don't carry settlements today (the table is
+    // active-trip-only) so the active STATE.trips loop covers
+    // everything.
+    const tripsById = new Map<string, any>();
+    for (const t of [...STATE.trips, ...(STATE.archivedTrips || [])]) {
+        tripsById.set(t.id, t);
+    }
+    for (const s of STATE.settlements || []) {
+        const trip = tripsById.get(s.tripId);
+        if (!trip) continue;
+        applySettlementToBalances(globalBalances, s, trip);
+    }
+
     return globalBalances;
 }
 

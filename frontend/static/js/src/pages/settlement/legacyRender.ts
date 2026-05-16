@@ -23,8 +23,12 @@ import {
     esc,
     showLiquidAlert,
 } from '../../utils.js';
-import { getTripCompanionNames, findTripCompanion } from '../../companions.js';
-import { createSettlement } from '../../api.js';
+import {
+    getTripCompanionNames,
+    findTripCompanion,
+    findTripCompanionByLinkedUser,
+} from '../../companions.js';
+import { createSettlement, deleteSettlementOnServer } from '../../api.js';
 import { showModal } from '../../components/Modal.js';
 import {
     computeTripBalances,
@@ -35,6 +39,37 @@ import {
 import { t, tn } from '../../i18n.js';
 
 export type SettlementTab = 'trip' | 'history' | 'global';
+
+
+/** Total settled amount for `tripId` in EUR — counts BOTH legacy
+ *  isSettlement expense rows AND server-side STATE.settlements
+ *  rows. Used by the trip-picker chip + the History tab count
+ *  badge so the visible numbers match the History list itself
+ *  (which renders the union via collectSettlementHistory).
+ *
+ *  §4.5 cleanup: pre-cleanup this only counted expense rows
+ *  because settlements lived as fake-isSettlement expenses. After
+ *  the dual-write retirement, new settlements between user-linked
+ *  parties land in STATE.settlements only, so the counter needs to
+ *  read both stores or the user sees a mismatch between "3 settled"
+ *  in the chip and "5 rows" in History. */
+function settledStatsForTrip(tripId: string): { count: number; eurTotal: number } {
+    let count = 0;
+    let eurTotal = 0;
+    for (const e of STATE.expenses || []) {
+        if (e.tripId === tripId && e.isSettlement) {
+            count += 1;
+            eurTotal += e.euroValue || 0;
+        }
+    }
+    for (const s of STATE.settlements || []) {
+        if (s.tripId === tripId) {
+            count += 1;
+            eurTotal += s.euroValue || s.amount || 0;
+        }
+    }
+    return { count, eurTotal };
+}
 
 // ── Markup ────────────────────────────────────────────────────────────
 
@@ -91,18 +126,12 @@ function renderTripsStrip(currentTripId: string | null): string {
     // settlement view halfway down the page. Settlements-total chip
     // for the picked trip moves to a small pill beside the select.
     const activeTrip = STATE.trips.find((tr) => tr.id === currentTripId);
-    const settledTotal = activeTrip
-        ? (STATE.expenses || [])
-            .filter((e) => e.tripId === activeTrip.id && e.isSettlement)
-            .reduce((sum, e) => sum + (e.euroValue || 0), 0)
-        : 0;
+    const settledTotal = activeTrip ? settledStatsForTrip(activeTrip.id).eurTotal : 0;
     const optionsHtml = STATE.trips
         // Renamed map param from `t` to `tr` so the imported i18n `t`
         // helper isn't shadowed.
         .map((tr) => {
-            const total = (STATE.expenses || [])
-                .filter((e) => e.tripId === tr.id && e.isSettlement)
-                .reduce((sum, e) => sum + (e.euroValue || 0), 0);
+            const total = settledStatsForTrip(tr.id).eurTotal;
             const totalLabel = total > 0 ? ` — ${formatHome(total, 'EUR')} ${t('settlement.settledSuffix')}` : '';
             return `<option value="${esc(tr.id)}"${tr.id === currentTripId ? ' selected' : ''}>${esc(tr.name)}${totalLabel}</option>`;
         })
@@ -128,9 +157,7 @@ function renderTripsStrip(currentTripId: string | null): string {
 }
 
 function renderTabsNav(trip: any, activeTab: SettlementTab): string {
-    const settlementsCount = (STATE.expenses || []).filter(
-        (e) => e.tripId === trip.id && e.isSettlement,
-    ).length;
+    const settlementsCount = settledStatsForTrip(trip.id).count;
     // D3 contrast: active tab text uses #005bb8 (darker brand blue,
     // 5.3:1) instead of var(--accent-blue) (#0071e3, 4.31:1) so the
     // active state passes WCAG AA. Border/badge can keep the brand
@@ -303,10 +330,84 @@ function renderTripTab(trip: any, tripIsEditable: boolean): string {
     `;
 }
 
+/** Unified history-row shape. Renders identical to the legacy
+ *  isSettlement expense in the History tab, but `source` tells the
+ *  click handlers which store to mutate on edit/undo:
+ *    'expense'    → STATE.expenses (legacy fake-isSettlement row)
+ *    'settlement' → STATE.settlements (post-§4.5 server row;
+ *                   undo goes through DELETE /api/settlements/<id>) */
+interface HistoryItem {
+    id: string;
+    source: 'expense' | 'settlement';
+    who: string;
+    to: string;
+    euroValue: number;
+    date: string;
+    /** Only set for 'settlement' source — surfaced as a chip next
+     *  to the amount. */
+    method?: string | null;
+    note?: string | null;
+}
+
+
+/** Merge legacy isSettlement expense rows + server-side settlement
+ *  rows into a single sorted (newest-first) list. The renderer in
+ *  renderHistoryTab walks this unified shape. */
+function collectSettlementHistory(trip: any): HistoryItem[] {
+    const items: HistoryItem[] = [];
+
+    // Source A — legacy isSettlement expense rows. These remain in
+    // STATE.expenses indefinitely (old data + new fallback for
+    // name-only companion pairs that can't go to the settlements
+    // table).
+    for (const e of STATE.expenses || []) {
+        if (!(e.tripId === trip.id && e.isSettlement)) continue;
+        const toPerson = Object.keys(e.splits || {})[0] || '?';
+        items.push({
+            id: e.id,
+            source: 'expense',
+            who: e.who || '?',
+            to: toPerson,
+            euroValue: e.euroValue || 0,
+            date: e.date || '',
+        });
+    }
+
+    // Source B — server-side settlements (post-§4.5). Map user_ids
+    // back to companion names so the renderer can show them
+    // alongside the legacy rows. Skip rows where either party
+    // doesn't resolve (e.g. owner-as-party, which the modal can't
+    // produce yet — those settlements would only exist if created
+    // via direct API call, which the UI can't trigger).
+    for (const s of STATE.settlements || []) {
+        if (s.tripId !== trip.id) continue;
+        const fromName = findTripCompanionByLinkedUser(trip, s.fromUserId)?.name;
+        const toName = findTripCompanionByLinkedUser(trip, s.toUserId)?.name;
+        if (!fromName || !toName) continue;
+        items.push({
+            id: s.id,
+            source: 'settlement',
+            who: fromName,
+            to: toName,
+            euroValue: s.euroValue || s.amount || 0,
+            // s.createdAt is a full ISO timestamp; we group by
+            // YYYY-MM-DD so the renderer's date logic works on
+            // both shapes.
+            date: (s.createdAt || '').slice(0, 10),
+            method: s.method ?? null,
+            note: s.note ?? null,
+        });
+    }
+
+    items.sort((a, b) =>
+        new Date(b.date).getTime() - new Date(a.date).getTime(),
+    );
+    return items;
+}
+
+
 function renderHistoryTab(trip: any, tripIsEditable: boolean): string {
-    const past = (STATE.expenses || [])
-        .filter((e) => e.tripId === trip.id && e.isSettlement)
-        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const past = collectSettlementHistory(trip);
 
     if (past.length === 0) {
         return `
@@ -369,8 +470,31 @@ function renderHistoryTab(trip: any, tripIsEditable: boolean): string {
                             <div style="display:flex; flex-direction:column; gap:8px;">
                                 ${items
                                     .map((s) => {
-                                        const toPerson = Object.keys(s.splits || {})[0] || '?';
                                         const fromInitial = (s.who || '?').charAt(0).toUpperCase();
+                                        // Method chip: only for server settlements (source='settlement').
+                                        // Legacy expense rows don't carry method/note.
+                                        const methodChip = (s.method && s.source === 'settlement')
+                                            ? `<span style="display:inline-flex; align-items:center; gap:3px; background:rgba(0,113,227,0.08); color:var(--accent-blue-deep); padding:1px 8px; border-radius:999px; font-size:0.62rem; font-weight:700; text-transform:uppercase; letter-spacing:0.05em;">${esc(s.method.replace(/_/g, ' '))}</span>`
+                                            : '';
+                                        // Note row: optional, only when present.
+                                        const noteRow = (s.note && s.source === 'settlement')
+                                            ? `<div style="font-size:0.78rem; color:var(--text-secondary); margin-top:4px; font-style:italic;">"${esc(s.note)}"</div>`
+                                            : '';
+                                        // Edit affordance — server settlements aren't editable in
+                                        // the UI today; only legacy isSettlement expense rows are.
+                                        // (Server-side edit would need a PATCH endpoint we haven't
+                                        // shipped. Undo via DELETE works for both.)
+                                        const editBtn = (tripIsEditable && s.source === 'expense')
+                                            ? `<button class="edit-settlement-btn" data-settlement-id="${esc(s.id)}" type="button"
+                                                style="background:rgba(0,113,227,0.08); border:1px solid rgba(0,113,227,0.22); color: var(--accent-blue-deep); padding:5px 12px; border-radius:999px; font-size:0.72rem; font-weight:800; cursor:pointer;">${t('settlement.historyEditBtn')}</button>`
+                                            : '';
+                                        // Undo affordance — both sources support it. The
+                                        // data-source attribute lets deleteSettlement route to
+                                        // the right store (expense vs settlement).
+                                        const undoBtn = tripIsEditable
+                                            ? `<button class="unsettle-settlement-btn" data-settlement-id="${esc(s.id)}" data-source="${esc(s.source)}" data-trip-id="${esc(trip.id)}" type="button"
+                                                style="background:rgba(255,59,48,0.08); border:1px solid rgba(255,59,48,0.22); color:#ff3b30; padding:5px 12px; border-radius:999px; font-size:0.72rem; font-weight:800; cursor:pointer;">${t('settlement.historyUnsettleBtn')}</button>`
+                                            : '';
                                         return `
                                         <div style="display:flex; align-items:center; gap:14px; padding:12px 14px; background: var(--card-bg); border:1px solid var(--border-subtle); border-radius:14px;">
                                             <div style="width:34px; height:34px; border-radius:50%; background:rgba(52,199,89,0.12); color:#1a6b3c; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:0.95rem; flex-shrink:0;">${esc(fromInitial)}</div>
@@ -378,21 +502,16 @@ function renderHistoryTab(trip: any, tripIsEditable: boolean): string {
                                                 <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
                                                     <span style="font-weight:800; color: var(--text-brand-navy); font-size:0.95rem;">${esc(s.who)}</span>
                                                     <span style="color:rgba(0,0,0,0.3); font-weight:600;">→</span>
-                                                    <span style="font-weight:800; color: var(--text-brand-navy); font-size:0.95rem;">${esc(toPerson)}</span>
+                                                    <span style="font-weight:800; color: var(--text-brand-navy); font-size:0.95rem;">${esc(s.to)}</span>
                                                     <span style="display:inline-flex; align-items:center; gap:3px; background:rgba(52,199,89,0.12); color:#1a6b3c; padding:1px 8px; border-radius:999px; font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">${t('settlement.historyChipSettled')}</span>
+                                                    ${methodChip}
                                                 </div>
+                                                ${noteRow}
                                             </div>
                                             <div style="font-size:1rem; font-weight:800; color:#1a6b3c; flex-shrink:0;">${formatHome(s.euroValue || 0, 'EUR')}</div>
                                             ${
-                                                tripIsEditable
-                                                    ? `
-                                                <div style="display:flex; gap:6px; flex-shrink:0;">
-                                                    <button class="edit-settlement-btn" data-settlement-id="${esc(s.id)}" type="button"
-                                                        style="background:rgba(0,113,227,0.08); border:1px solid rgba(0,113,227,0.22); color: var(--accent-blue-deep); padding:5px 12px; border-radius:999px; font-size:0.72rem; font-weight:800; cursor:pointer;">${t('settlement.historyEditBtn')}</button>
-                                                    <button class="unsettle-settlement-btn" data-settlement-id="${esc(s.id)}" data-trip-id="${esc(trip.id)}" type="button"
-                                                        style="background:rgba(255,59,48,0.08); border:1px solid rgba(255,59,48,0.22); color:#ff3b30; padding:5px 12px; border-radius:999px; font-size:0.72rem; font-weight:800; cursor:pointer;">${t('settlement.historyUnsettleBtn')}</button>
-                                                </div>
-                                            `
+                                                tripIsEditable && (editBtn || undoBtn)
+                                                    ? `<div style="display:flex; gap:6px; flex-shrink:0;">${editBtn}${undoBtn}</div>`
                                                     : ''
                                             }
                                         </div>
@@ -522,38 +641,46 @@ function renderGlobalTab(): string {
 
 /** Record a settlement between two trip members.
  *
- *  §4.5 — dual-path implementation while the balance math is still
- *  expense-keyed:
+ *  §4.5 — single-write architecture (post-cleanup of the dual-write
+ *  transition pattern). Routes by whether the two parties have user
+ *  accounts:
  *
- *    1. ALWAYS push a local "Settlement: X → Y" fake-expense row into
- *       STATE.expenses with `isSettlement: true`. Existing balance
- *       math (balances.ts / leaderboard) reads from STATE.expenses
- *       and naturally subtracts the payment via the splits. Optimistic
- *       UI update — the page reflects the new balance immediately.
+ *    A. Both parties have `companion.linkedUserId`:
+ *       - POST /api/settlements with the user_ids + amount + method
+ *         + note + currency.
+ *       - On success: splice the server's `Settlement` row into
+ *         STATE.settlements and emit STATE_CHANGED. The balance math
+ *         in balances.ts reads STATE.settlements via
+ *         applySettlementToBalances, producing the right shift.
+ *       - On failure: keep silent (no fake-expense fallback for
+ *         this path — the user can retry; this avoids polluting
+ *         the data layer with "did it or didn't it" rows).
+ *       - Notifications + the `settled_up` feed event fire on the
+ *         server side automatically.
  *
- *    2. WHEN both parties resolve to user_ids via the trip's
- *       companion linkage (companion.linkedUserId), ALSO POST to
- *       /api/settlements so the server creates the real settlement
- *       row, fires a notification to the recipient, and the
- *       `settled_up` feed event surfaces for both parties. Fire-and-
- *       forget — the optimistic UI doesn't wait on the network.
+ *    B. At least one party is a name-only companion (no
+ *       linkedUserId):
+ *       - Cannot POST to /api/settlements (the table is user_id
+ *         keyed). Push a legacy "Settlement: X → Y" expense row
+ *         with `isSettlement: true` into STATE.expenses. The
+ *         expense-based balance math handles it as before.
+ *       - No notification, no feed event for this path — there's
+ *         no user account to notify.
  *
- *  Once balance math is migrated to read STATE.settlements, the
- *  fake-expense step (step 1) goes away. Until then, dual-write
- *  is the cleanest path that delivers §4.5's user-visible promise
- *  (notifications + feed event) without re-plumbing balances.
- *
- *  `options.method` / `options.note` flow into the API call. The
- *  legacy fake-expense ignores them (the receipt context lives on
- *  the server-side record only). */
-export function settleDebt(
+ *  Pre-cleanup history: the previous version of this function did
+ *  both — pushed a fake-expense AND posted to the API. That avoided
+ *  the impedance mismatch in balances.ts during the §4.5 frontend
+ *  wiring rollout. balances.ts now reads STATE.settlements directly
+ *  via applySettlementToBalances, so the fake-expense is no longer
+ *  load-bearing for the linked-user path. */
+export async function settleDebt(
     tripId: string,
     from: string,
     to: string,
     amount: number,
     currency: string,
     options?: { method?: string; note?: string },
-): void {
+): Promise<void> {
     if (from === to) {
         showLiquidAlert(t('settlement.toastSenderEqualsReceiver'));
         return;
@@ -564,9 +691,47 @@ export function settleDebt(
     }
     const euroValue = convertCurrency(amount, currency, 'EUR');
 
-    // STEP 1 — optimistic local update. The fake-settlement expense
-    // produces the right balance shift immediately so the page can
-    // re-render before the API round-trip completes.
+    const trip = STATE.trips.find((tr) => tr.id === tripId);
+    const fromUserId = findTripCompanion(trip, from)?.linkedUserId;
+    const toUserId = findTripCompanion(trip, to)?.linkedUserId;
+
+    if (fromUserId && toUserId) {
+        // PATH A — server-side settlement. Await the POST so we can
+        // splice the server's row (with its real id + createdAt) into
+        // STATE.settlements before emitting. The brief in-flight wait
+        // (~200-500ms) is acceptable; the next /api/data poll would
+        // hydrate the same row anyway, but we don't want to block on
+        // it for the UI update.
+        const result = await createSettlement({
+            tripId,
+            fromUserId,
+            toUserId,
+            amount,
+            currency,
+            euroValue,
+            ...(options?.method ? { method: options.method } : {}),
+            ...(options?.note ? { note: options.note } : {}),
+        });
+        if (result.settlement) {
+            STATE.settlements.push(result.settlement);
+            emit(EVENTS.STATE_CHANGED);
+            showLiquidAlert(`Recorded ${formatHome(euroValue, 'EUR')} ${from} → ${to} · notified ${to}`);
+        } else {
+            // Log + toast. We deliberately don't fall back to the
+            // fake-expense pattern here — keeping the data layer
+            // clean is worth the user-visible failure mode.
+            // Sentry catches via §3.8's structured logging.
+            console.warn('[settlement] /api/settlements failed:', result.error);
+            showLiquidAlert(
+                `Settlement failed: ${result.error || 'Network error'}`,
+            );
+        }
+        return;
+    }
+
+    // PATH B — legacy fake-expense for name-only companions. The
+    // settlements table can't store these rows (it's user_id keyed),
+    // so we keep the expense-driven balance shift as the only path.
     const settlementExp = {
         id: generateId(),
         tripId: tripId,
@@ -583,54 +748,50 @@ export function settleDebt(
     };
     STATE.expenses.push(settlementExp);
     emit(EVENTS.STATE_CHANGED);
-
-    // STEP 2 — server-side settlement row when both parties have
-    // user accounts (companion.linkedUserId). The legacy companion-
-    // by-name flow (companion not linked to any account) stays on
-    // STEP 1 only: there's no user to notify or surface a feed
-    // event for.
-    const trip = STATE.trips.find((tr) => tr.id === tripId);
-    const fromUserId = findTripCompanion(trip, from)?.linkedUserId;
-    const toUserId = findTripCompanion(trip, to)?.linkedUserId;
-
-    if (fromUserId && toUserId) {
-        // Fire-and-forget — UI already updated optimistically in
-        // step 1. The next /api/data poll will hydrate STATE.
-        // settlements with the server row. We don't ROLLBACK the
-        // fake-expense on API failure: balance math stays correct
-        // either way; only the notification / feed event would
-        // miss, which the user can re-trigger by hitting Settle
-        // again. Logging the error is enough for diagnostics
-        // (Sentry catches it via §3.8's structured logging).
-        createSettlement({
-            tripId,
-            fromUserId,
-            toUserId,
-            amount,
-            currency,
-            euroValue,
-            ...(options?.method ? { method: options.method } : {}),
-            ...(options?.note ? { note: options.note } : {}),
-        }).then((result) => {
-            if (result.error) {
-                // Don't toast — the local settlement already
-                // succeeded in step 1. The error is for ops, not
-                // the user.
-                console.warn('[settlement] /api/settlements failed:', result.error);
-            }
-        });
-        showLiquidAlert(`Recorded ${formatHome(euroValue, 'EUR')} ${from} → ${to} · notified ${to}`);
-    } else {
-        showLiquidAlert(`Recorded ${formatHome(euroValue, 'EUR')} ${from} → ${to}`);
-    }
+    showLiquidAlert(`Recorded ${formatHome(euroValue, 'EUR')} ${from} → ${to}`);
 }
 
-export function deleteSettlement(id: string): void {
+/** Undo a recorded settlement. Routes by source:
+ *
+ *    - 'expense'    (legacy isSettlement fake-row) — filter
+ *                   STATE.expenses synchronously. The next /api/sync
+ *                   pushes the removal to the server.
+ *
+ *    - 'settlement' (post-§4.5 server row) — DELETE
+ *                   /api/settlements/<id>. The server enforces the
+ *                   "creator OR trip owner" rule (recipient gets
+ *                   403 — see settlements.py:delete_settlement).
+ *                   On success we splice the row out of
+ *                   STATE.settlements locally so the UI updates
+ *                   immediately; on failure we log + toast and
+ *                   leave local state intact.
+ *
+ *  Falls back to 'expense' when source isn't supplied (back-compat
+ *  with any earlier callsite that didn't pass it). */
+export async function deleteSettlement(
+    id: string,
+    source: 'expense' | 'settlement' = 'expense',
+): Promise<void> {
     showConfirmModal({
         title: t('settlement.toastUnsettleConfirmTitle'),
         message: t('settlement.toastUnsettleConfirmMessage'),
         confirmText: t('settlement.toastUnsettleConfirmBtn'),
-        onConfirm: () => {
+        onConfirm: async () => {
+            if (source === 'settlement') {
+                const result = await deleteSettlementOnServer(id);
+                if (result.error) {
+                    console.warn('[settlement] delete failed:', result.error);
+                    showLiquidAlert(
+                        `Couldn't undo: ${result.error || 'Network error'}`,
+                    );
+                    return;
+                }
+                STATE.settlements = STATE.settlements.filter((s) => s.id !== id);
+                emit(EVENTS.STATE_CHANGED);
+                return;
+            }
+            // Legacy expense path — local mutation; the next /api/sync
+            // round-trip persists the removal server-side.
             STATE.expenses = STATE.expenses.filter((e) => e.id !== id);
             emit(EVENTS.STATE_CHANGED);
         },

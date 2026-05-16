@@ -565,17 +565,18 @@ Ordered by leverage on the VISION's three killer features (social, expenses, pla
 
 **Why:** today the feed is quiet for weeks between trips. Achievements generate organic activity AND reward internal/domestic tourism (VISION call-out).
 
-### 4.5 Settle Up flow — ✅ Frontend wiring shipped 2026-05-16
+### 4.5 Settle Up flow — ✅ Shipped 2026-05-16 (single-write, server-canonical)
 
-**M** · `frontend/static/js/src/pages/settlement/legacyRender.ts`
+**M** · `frontend/static/js/src/pages/settlement/legacyRender.ts`, `balances.ts`, `Settlement.tsx`
 
 - [x] "Settle Up" button on each balance row in `pages/settlement/` — pre-existed via the per-row `.settle-debt-btn` + the `.open-manual-settle-btn` for the with-method-and-note flow.
-- [x] Manual settle modal now collects **method** (Cash / Revolut / Bank transfer / Wise / PayPal / Custom) + **optional note** in addition to from/to/amount. Mirrors the server's `_ALLOWED_METHODS` set so every value persists unchanged. (Shipped 2026-05-16.)
-- [x] Server writes the `settlements` row, drops a `settled_up` feed event, fires a notification to the recipient — **automatically** via the existing backend (POST /api/settlements + `_build_settled_up` + the settlement route's notification emitter). The new frontend wiring in `settleDebt` calls `createSettlement(...)` whenever both parties resolve to user_ids (via `companion.linkedUserId`); legacy companion-by-name pairs fall back to the local fake-expense path only.
-- [x] Balance UI re-renders via the existing optimistic fake-expense push (kept dual-write while balance math is still expense-keyed) — the API call is fire-and-forget so the UI doesn't wait on the network.
-- [x] Preserve original currency for receipts — `createSettlement` passes `currency` + `euroValue` through to the server unchanged; the settlements table stores both.
-
-**What's still ahead** (deliberately a follow-up): retire the dual-write by migrating `balances.ts` to subtract `STATE.settlements` directly (currently it only reads `STATE.expenses`). Once that lands, the fake-expense push can drop — the server-side settlement record will be the single source of truth.
+- [x] Manual settle modal collects **method** (Cash / Revolut / Bank transfer / Wise / PayPal / Custom) + **optional note** in addition to from/to/amount. Mirrors the server's `_ALLOWED_METHODS` set so every value persists unchanged. (Shipped 2026-05-16.)
+- [x] Server writes the `settlements` row, drops a `settled_up` feed event, fires a notification to the recipient — automatically via the existing backend (POST /api/settlements + `_build_settled_up` + the settlement route's notification emitter). `settleDebt` calls `createSettlement(...)` and awaits the response when both parties resolve to user_ids (via `companion.linkedUserId`); the server's `Settlement` row is then spliced into `STATE.settlements` for immediate UI update. Legacy companion-by-name pairs (no user account on at least one side) keep the local fake-expense path — there's no user_id to attach the server row to.
+- [x] Balance math reads `STATE.settlements` directly via the new `applySettlementToBalances` helper in `balances.ts` (both per-trip and cross-trip computations). User_ids on the settlement row are mapped back to companion names via `findTripCompanionByLinkedUser`. No double-counting risk: new writes land in exactly ONE store (settlements for user-linked, expenses for name-only).
+- [x] Preserve original currency for receipts — `createSettlement` passes `currency` + `euroValue` through to the server unchanged; the settlements table stores both. The chip + history rows display `euroValue` so the cross-currency math stays consistent.
+- [x] Dual-write retired: `settleDebt` for user-linked pairs no longer pushes a fake `isSettlement` expense row. The server settlement is the single source of truth. Old isSettlement expense rows (from pre-§4.5 data + name-only fallback) continue to contribute via the expense-based math; they coexist cleanly because no new write goes to both stores.
+- [x] History tab + trip-picker chip + tab-nav settlement count all merged across the two stores via `collectSettlementHistory` + `settledStatsForTrip` helpers — users see one list with all their settlements, regardless of source. Method gets a small uppercase chip on server-side rows; note renders as italic subtitle.
+- [x] `deleteSettlement` now routes by `source` attribute ('expense' → STATE.expenses filter; 'settlement' → DELETE /api/settlements/<id>). Server enforces "creator OR trip owner" rule; recipient gets 403.
 
 **Why:** today expense calc stops at "Sara owes Andrés €45." Closing the loop keeps users in TGG instead of bouncing to Splitwise.
 
