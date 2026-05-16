@@ -491,6 +491,13 @@ def test_delete_day_rejects_non_planner(
 
 def test_upsert_budget_happy_path(client, seed_user, auth_headers):
     """Owner can create + update their own budget."""
+    # §1.4 FK enforcement: budgets.trip_id is now a real FK to trips(id)
+    # with ON DELETE SET NULL. Seed the trip first so the budget insert
+    # doesn't trip the constraint. Before §1.4 this worked silently
+    # because foreign_keys=OFF treated the FK as advisory.
+    client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": "trip-1", "name": "Test trip", "country": "FR"},
+    })
     res = client.post("/api/budgets", headers=auth_headers, json={
         "budget": {
             "id": "budget-1", "tripId": "trip-1", "label": "Food",
@@ -513,6 +520,12 @@ def test_delete_budget_only_deletes_own_budget(
     is a silent no-op — the WHERE clause's `user_id = ?` makes the SQL
     delete zero rows. The endpoint still returns 200/{deleted} for
     idempotency, but the row stays put for the real owner."""
+    # §1.4 FK enforcement: budgets.trip_id → trips(id). Seed the trip
+    # so the budget insert below survives the FK check. See companion
+    # comment on test_upsert_budget_happy_path for the rationale.
+    client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": "trip-1", "name": "Test trip", "country": "FR"},
+    })
     # Owner creates a budget
     client.post("/api/budgets", headers=auth_headers, json={
         "budget": {
@@ -3294,22 +3307,41 @@ def test_main_cleanup_feed_orphans_logs_when_rows_deleted(client, caplog):
 
     §3.8: was `capsys.readouterr().out` against a `print(...)` line; now
     we read through `caplog` because cleanup goes through `logger.info`
-    via the structured-logging module."""
+    via the structured-logging module.
+
+    §1.4 FK enforcement: the prior version of this test inserted rows
+    referencing a non-existent `user-old` to simulate orphans from a
+    deleted account. That's no longer possible under FK enforcement —
+    `feed_likes.user_id` is a real FK to users(id) with ON DELETE
+    CASCADE, so a user deletion now CASCADE-deletes their feed rows
+    automatically. The cleanup job still has a job to do: stale rows
+    older than 90 days (the cleanup's intended scope). We exercise
+    that path by inserting feed rows that reference a REAL user but
+    with a created_at that's past the 90-day cutoff.
+    """
     import logging as _logging
     import main as main_module
     from database import get_db
 
     with get_db() as conn:
         c = conn.cursor()
+        # Seed a real user so the feed_likes / feed_comments FK on
+        # user_id is satisfied. The cleanup still triggers because the
+        # created_at is past the 90-day window, which is the cleanup's
+        # actual gate (not user-deletion).
+        c.execute(
+            "INSERT OR IGNORE INTO users (id, email, name) VALUES (?, ?, ?)",
+            ("user-stale", "stale@example.com", "Stale User"),
+        )
         c.execute(
             "INSERT INTO feed_likes (user_id, event_id, created_at) "
             "VALUES (?, ?, datetime('now', '-100 days'))",
-            ("user-old", "share_1"),
+            ("user-stale", "share_1"),
         )
         c.execute(
             "INSERT INTO feed_comments (user_id, event_id, body, created_at) "
             "VALUES (?, ?, ?, datetime('now', '-100 days'))",
-            ("user-old", "share_1", "old comment"),
+            ("user-stale", "share_1", "old comment"),
         )
         conn.commit()
 

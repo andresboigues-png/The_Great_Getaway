@@ -29,7 +29,10 @@ BUSY_TIMEOUT_MS = 30_000
 def get_db():
     conn = sqlite3.connect(_db_path())
     conn.row_factory = sqlite3.Row
-    # FIXING_ROADMAP §1.4: SQLite hardening.
+    # FIXING_ROADMAP §1.4: SQLite hardening. Two PRAGMAs per
+    # connection — both have to be re-set on every fresh sqlite3
+    # connection because SQLite scopes PRAGMA state per-connection,
+    # not per-database.
     #
     # `busy_timeout` gives any contended op N milliseconds of
     # exponential-backoff retry before returning the lock error.
@@ -38,29 +41,33 @@ def get_db():
     # interval where sync + notification-fetch can fire while a user
     # action is also writing.
     #
+    # `foreign_keys=ON` makes the FK constraints declared in CREATE
+    # TABLE actually enforced. Until 2026-05-16 this was OFF (SQLite
+    # default) because a live DB might contain pre-existing orphan
+    # rows that would crash any update touching them. Phase 4 of
+    # §1.4 shipped after Phase 1 (scripts/fk_audit.py) confirmed
+    # zero orphans across all 28 FK relationships on the live PA DB,
+    # AND Phase 4's migration (declare_foreign_keys) re-declared each
+    # FK with explicit ON DELETE behaviour. With both prerequisites
+    # in place, this PRAGMA can flip safely.
+    #
     # NOT enabled here:
     #
-    # - `journal_mode=WAL` — was originally part of this fix, but
-    #   removed 2026-05-13 after a "database disk image is malformed"
-    #   incident on PythonAnywhere. PA's free-tier user storage is on
-    #   a NETWORKED FILESYSTEM, and SQLite explicitly documents that
-    #   WAL mode is unsafe on networked filesystems
+    # - `journal_mode=WAL` — was originally part of §1.4, but removed
+    #   2026-05-13 after a "database disk image is malformed" incident
+    #   on PythonAnywhere. PA's free-tier user storage is on a NETWORKED
+    #   FILESYSTEM, and SQLite explicitly documents that WAL mode is
+    #   unsafe on networked filesystems
     #   (https://www.sqlite.org/wal.html — "WAL does not work over a
-    #   network filesystem"). The symptom was a WAL file that grew
-    #   far larger than the main DB (~770KB vs ~135KB) and didn't
-    #   auto-checkpoint, then individual reads from Flask workers
-    #   started failing with the malformed-image error mid-query
-    #   while the sqlite3 CLI could still parse the same file.
-    #   Default rollback journal mode is safer on PA at the cost of
-    #   readers waiting on writers — busy_timeout above is what
-    #   keeps that wait bounded.
-    #
-    # - `foreign_keys=ON` — flipping FK enforcement on a live
-    #   database that may already contain orphan rows (expenses
-    #   pointing at deleted trips, etc.) would cause any update
-    #   touching such rows to throw. Tracked as a follow-up in the
-    #   roadmap — needs an orphan-row audit + cleanup migration first.
+    #   network filesystem"). The symptom was a WAL file that grew far
+    #   larger than the main DB (~770KB vs ~135KB) and didn't auto-
+    #   checkpoint, then individual reads from Flask workers started
+    #   failing with the malformed-image error mid-query while the
+    #   sqlite3 CLI could still parse the same file. Default rollback
+    #   journal mode is safer on PA at the cost of readers waiting on
+    #   writers — busy_timeout above is what keeps that wait bounded.
     conn.execute(f"PRAGMA busy_timeout={BUSY_TIMEOUT_MS}")
+    conn.execute("PRAGMA foreign_keys=ON")
     return conn
 
 
@@ -231,7 +238,7 @@ def init_db():
                 share_show_cost INTEGER DEFAULT 0,
                 share_show_plans INTEGER DEFAULT 0,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY(user_id) REFERENCES users(id)
+                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
             )
         ''')
         # Partial UNIQUE on share_token so two trips can't collide on
@@ -259,10 +266,10 @@ def init_db():
                 currency TEXT,
                 euro_value REAL,
                 receipt_url TEXT,
-                FOREIGN KEY(trip_id) REFERENCES trips(id)
+                FOREIGN KEY(trip_id) REFERENCES trips(id) ON DELETE CASCADE
             )
         ''')
-        
+
         # Friends Table — created_at is part of the CREATE TABLE
         # now (handled in the catchup revision for prod DBs).
         cursor.execute('''
@@ -272,8 +279,8 @@ def init_db():
                 status TEXT DEFAULT 'pending', -- 'pending', 'accepted'
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY(user_id, friend_id),
-                FOREIGN KEY(user_id) REFERENCES users(id),
-                FOREIGN KEY(friend_id) REFERENCES users(id)
+                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY(friend_id) REFERENCES users(id) ON DELETE CASCADE
             )
         ''')
         
@@ -285,8 +292,8 @@ def init_db():
                 trip_id TEXT,
                 user_id TEXT,
                 PRIMARY KEY(trip_id, user_id),
-                FOREIGN KEY(trip_id) REFERENCES trips(id),
-                FOREIGN KEY(user_id) REFERENCES users(id)
+                FOREIGN KEY(trip_id) REFERENCES trips(id) ON DELETE CASCADE,
+                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
             )
         ''')
 
@@ -307,8 +314,9 @@ def init_db():
                 invitation_status TEXT DEFAULT 'accepted',
                 invited_by TEXT,
                 PRIMARY KEY(trip_id, user_id),
-                FOREIGN KEY(trip_id) REFERENCES trips(id),
-                FOREIGN KEY(user_id) REFERENCES users(id)
+                FOREIGN KEY(trip_id) REFERENCES trips(id) ON DELETE CASCADE,
+                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY(invited_by) REFERENCES users(id) ON DELETE SET NULL
             )
         ''')
 
@@ -325,8 +333,8 @@ def init_db():
                 linked_user_id TEXT,
                 link_status TEXT,
                 PRIMARY KEY(user_id, name),
-                FOREIGN KEY(user_id) REFERENCES users(id),
-                FOREIGN KEY(linked_user_id) REFERENCES users(id)
+                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY(linked_user_id) REFERENCES users(id) ON DELETE SET NULL
             )
         ''')
 
@@ -339,7 +347,7 @@ def init_db():
                 icon TEXT,
                 color TEXT,
                 PRIMARY KEY(id, user_id),
-                FOREIGN KEY(user_id) REFERENCES users(id)
+                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
             )
         ''')
 
@@ -352,7 +360,8 @@ def init_db():
                 label TEXT,
                 amount REAL,
                 currency TEXT DEFAULT 'EUR',
-                FOREIGN KEY(user_id) REFERENCES users(id)
+                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY(trip_id) REFERENCES trips(id) ON DELETE SET NULL
             )
         ''')
 
@@ -367,7 +376,7 @@ def init_db():
                 message TEXT,
                 is_read INTEGER DEFAULT 0,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY(user_id) REFERENCES users(id)
+                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
             )
         ''')
 
@@ -387,8 +396,9 @@ def init_db():
                 repost_of_post_id INTEGER,
                 caption TEXT,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY(user_id) REFERENCES users(id),
-                FOREIGN KEY(trip_id) REFERENCES trips(id)
+                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY(trip_id) REFERENCES trips(id) ON DELETE CASCADE,
+                FOREIGN KEY(repost_of_post_id) REFERENCES feed_posts(id) ON DELETE SET NULL
             )
         ''')
         # NOTE: caption was added post-feed_posts launch — handled in
@@ -406,7 +416,7 @@ def init_db():
                 event_id TEXT NOT NULL,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (user_id, event_id),
-                FOREIGN KEY(user_id) REFERENCES users(id)
+                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
             )
         ''')
         # feed_bookmarks: personal save. Same event_id keying as likes.
@@ -417,7 +427,7 @@ def init_db():
                 event_id TEXT NOT NULL,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (user_id, event_id),
-                FOREIGN KEY(user_id) REFERENCES users(id)
+                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
             )
         ''')
         # feed_comments: replies on feed events. event_id keys the same
@@ -434,7 +444,7 @@ def init_db():
                 user_id TEXT NOT NULL,
                 body TEXT NOT NULL,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY(user_id) REFERENCES users(id)
+                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
             )
         ''')
         cursor.execute(
@@ -459,7 +469,7 @@ def init_db():
                 tip TEXT,
                 lat REAL,
                 lng REAL,
-                FOREIGN KEY(trip_id) REFERENCES trips(id)
+                FOREIGN KEY(trip_id) REFERENCES trips(id) ON DELETE CASCADE
             )
         ''')
 
@@ -483,8 +493,8 @@ def init_db():
                 followee_id TEXT NOT NULL,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(follower_id, followee_id),
-                FOREIGN KEY(follower_id) REFERENCES users(id),
-                FOREIGN KEY(followee_id) REFERENCES users(id)
+                FOREIGN KEY(follower_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY(followee_id) REFERENCES users(id) ON DELETE CASCADE
             )
         ''')
 
@@ -509,7 +519,7 @@ def init_db():
                 earned_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 context_json TEXT,
                 UNIQUE(user_id, badge_id),
-                FOREIGN KEY(user_id) REFERENCES users(id)
+                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
             )
         ''')
 
@@ -528,12 +538,18 @@ def init_db():
         # with an enum table, large enough that "Custom" lets users type
         # whatever they actually used.
         #
-        # No DELETE-cascade FK to users: a user account deletion goes
-        # through /api/user-data which scopes its DELETEs by user_id +
-        # owned trip_id (see data.py:delete_user_data). We rely on that
-        # path rather than ON DELETE CASCADE because SQLite's FK
-        # cascades require PRAGMA foreign_keys = ON which isn't
-        # universally on across our environments yet.
+        # ON DELETE CASCADE on all three FKs as of FIXING_ROADMAP §1.4
+        # Phase 4: user account deletion (via /api/user-data → delete_
+        # user_data) now propagates through the FK cascade for any
+        # settlements the user participated in, including ones on
+        # trips they don't own. The explicit DELETE in delete_user_data
+        # remains for trip-owned settlements (so the route's per-section
+        # commit boundary stays meaningful) — the cascade just covers
+        # the long tail. If product policy later treats settlements as
+        # audit-trail records that must outlive account deletion, swap
+        # these specific FKs to ON DELETE SET NULL in a follow-up
+        # migration. See declare_foreign_keys migration docstring for
+        # the design discussion.
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS settlements (
                 id TEXT PRIMARY KEY,
@@ -546,9 +562,9 @@ def init_db():
                 method TEXT,
                 note TEXT,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY(trip_id) REFERENCES trips(id),
-                FOREIGN KEY(from_user_id) REFERENCES users(id),
-                FOREIGN KEY(to_user_id) REFERENCES users(id)
+                FOREIGN KEY(trip_id) REFERENCES trips(id) ON DELETE CASCADE,
+                FOREIGN KEY(from_user_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY(to_user_id) REFERENCES users(id) ON DELETE CASCADE
             )
         ''')
 
