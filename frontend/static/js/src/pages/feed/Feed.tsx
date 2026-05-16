@@ -89,6 +89,11 @@ import {
 } from './state.js';
 import { ExploreCard } from './ExploreCard.js';
 import { BundleCard } from './BundleCard.js';
+// Page-scoped CSS — avatar button :hover, trip-card :hover, tabs row
+// + mobile-stack override. FIXING_ROADMAP §3.1 fifth slice. Vite
+// chunks this alongside the Feed JS bundle so users who never visit
+// /feed don't pay for these styles in the initial CSS payload.
+import './feed.css';
 
 
 export function Feed() {

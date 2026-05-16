@@ -1,0 +1,95 @@
+/* Per-page CSS for the Feed page.
+ *
+ * Fifth slice of FIXING_ROADMAP §3.1. Feed-only classes that aren't
+ * showcased on the components preview — Vite chunks this alongside
+ * the Feed JS bundle so users who never visit /feed don't pay for
+ * these styles in the initial CSS payload.
+ *
+ * In this file:
+ *   .feed-avatar-btn — round headshot wrapper on event cards + comment
+ *     rows; click navigates to the user's profile.
+ *   .feed-trip-card — :hover/:active states for the trip-anchor card
+ *     under share/repost event captions. (The base layout lives on
+ *     inline styles in feed.ts/Feed.tsx; this rule only adds the
+ *     interaction states that can't be expressed inline.)
+ *   .feed-tabs-row + .feed-tabs-row__bookmark + mobile-stack override
+ *     — the Actions/Posts tab nav with absolute-positioned bookmark
+ *     toggle, plus the @media (max-width:720px) rule that flows the
+ *     toggle below the tabs on narrow viewports.
+ *
+ * Stays in index.css (preview-shown / multi-page reuse):
+ *   .notification-item family (used by the bell dropdown app-wide,
+ *      not just Feed)
+ *   .user-row family (search results, friends list, modals)
+ */
+
+/* ── Feed event-card avatar button ───────────────────────────────
+   Wraps the round headshot on each event card + each comment row.
+   Visually invisible (no background, no border) so the avatar fills
+   it; on hover the picture lifts slightly and gains a soft ring so
+   users see "this is clickable" without any chrome being added.
+   Click navigates to that user's profile via the feed dispatcher. */
+.feed-avatar-btn {
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+    border-radius: 50%;
+}
+.feed-avatar-btn:hover,
+.feed-avatar-btn:active,
+.feed-avatar-btn:focus-visible {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(0, 113, 227, 0.30);
+}
+.feed-avatar-btn:focus-visible {
+    outline: 2px solid var(--accent-blue);
+    outline-offset: 2px;
+}
+
+/* ── Feed trip card (share/repost anchor) ────────────────────────
+   Sits below caption on share/repost events to anchor the post to
+   a specific trip. Click navigates to the sharer's profile. The
+   base transform/shadow live on inline styles in Feed.tsx; this
+   rule only adds the :hover / :active states that can't be inlined. */
+.feed-trip-card:hover,
+.feed-trip-card:active,
+.feed-trip-card:focus-visible {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(0,45,91,0.10) !important;
+}
+.feed-trip-card:active {
+    transform: translateY(0);
+}
+
+/* ── Feed sub-tabs row ────────────────────────────────────────────
+   Actions/Posts/Explore tabs centered; bookmarked-only toggle
+   absolute-positioned on the right. Mobile @media (<720px): the
+   toggle drops to its own row below the tabs so it can't overlap
+   the Actions tab on a narrow viewport. */
+.feed-tabs-row {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+}
+.feed-tabs-row__bookmark {
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+}
+@media (max-width: 720px) {
+    /* Stack the bookmark toggle below the tabs nav. flex-wrap on the
+       parent already lets a wide toggle fall to a new line, but the
+       absolute positioning keeps it in the original row. Switching
+       to relative flow makes it drop naturally — the parent's
+       flex-wrap does the rest. */
+    .feed-tabs-row__bookmark {
+        position: static;
+        transform: none;
+        /* Center the toggle's own contents horizontally so it doesn't
+           hug the left edge once it drops to its own row. */
+        margin: 4px auto 0;
+    }
+}

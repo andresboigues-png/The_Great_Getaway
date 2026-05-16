@@ -2918,36 +2918,9 @@ body.is-signed-out .trip-controls-popover {
    to pages/profile/profile.css 2026-05-16 — FIXING_ROADMAP §3.1
    slice 4. ~95 lines.) */
 
-/* Feed avatar button — wraps the round headshot on each event
-   card + each comment row. Visually invisible (no background,
-   no border) so the avatar fills it; on hover the picture lifts
-   slightly and gains a soft ring so users see "this is
-   clickable" without any chrome being added. Click navigates to
-   that user's profile via the feed dispatcher. */
-.feed-avatar-btn {
-    transition: transform 0.18s ease, box-shadow 0.18s ease;
-    border-radius: 50%;
-}
-.feed-avatar-btn:hover , .feed-avatar-btn:active , .feed-avatar-btn:focus-visible {
-    transform: translateY(-1px);
-    box-shadow: 0 6px 16px rgba(0, 113, 227, 0.30);
-}
-.feed-avatar-btn:focus-visible {
-    outline: 2px solid var(--accent-blue);
-    outline-offset: 2px;
-}
-
-/* Feed trip card — sits below caption on share/repost events to
-   anchor the post to a specific trip. Click navigates to the
-   sharer's profile. The transform/shadow already live on the inline
-   style; this rule just adds the :hover state (can't inline that). */,    style; this rule just adds the :active state (can't inline that). */,    style; this rule just adds the :focus-visible state (can't inline that). */
-.feed-trip-card:hover , .feed-trip-card:active , .feed-trip-card:focus-visible {
-    transform: translateY(-1px);
-    box-shadow: 0 6px 16px rgba(0,45,91,0.10) !important;
-}
-.feed-trip-card:active {
-    transform: translateY(0);
-}
+/* (.feed-avatar-btn and .feed-trip-card hover/active state rules
+   moved to pages/feed/feed.css 2026-05-16 — FIXING_ROADMAP §3.1
+   slice 5. ~30 lines.) */
 
 /* Profile inline-bio textarea — invisible until focused, then a subtle
    surface appears. Replaces inline `onfocus`/`onblur` handlers. */
@@ -4313,39 +4286,13 @@ body.is-signed-out .trip-controls-popover {
     gap: 7px;
 }
 
-/* Phase G v3 — Feed tabs row. Desktop: tabs centered with the
-   bookmarked toggle absolute-positioned on the right. Mobile: the
-   toggle drops to its own row below the tabs so it can't overlap
-   the Actions tab on a narrow viewport. */
-.feed-tabs-row {
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 12px;
-    margin-bottom: 16px;
-    flex-wrap: wrap;
-}
-.feed-tabs-row__bookmark {
-    position: absolute;
-    right: 0;
-    top: 50%;
-    transform: translateY(-50%);
-}
+/* (.feed-tabs-row + .feed-tabs-row__bookmark + their @media (<720px)
+   mobile-stack override moved to pages/feed/feed.css 2026-05-16 —
+   FIXING_ROADMAP §3.1 slice 5. The Collections-row mobile override
+   that lived in the SAME @media block stays here as it's Collections
+   page chrome, loaded with the Collections JS bundle in a future
+   slice. ~30 lines.) */
 @media (max-width: 720px) {
-    /* Stack the bookmark toggle below the tabs nav. flex-wrap on the
-       parent already lets a wide toggle fall to a new line, but the
-       absolute positioning keeps it in the original row. Switching
-       to relative makes it flow naturally — the parent's flex-wrap
-       does the rest. */
-    .feed-tabs-row__bookmark {
-        position: static;
-        transform: none;
-        /* Center the toggle's own contents horizontally so it doesn't
-           hug the left edge once it drops to its own row. */
-        margin: 4px auto 0;
-    }
-
     /* Collections row card — desktop is a single horizontal row with
        cover thumb / name / Public toggle / Restore + Delete buttons
        all side-by-side. On mobile that overflows the viewport (the
