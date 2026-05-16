@@ -1,0 +1,458 @@
+/* Per-page CSS for the Home / Trip detail page.
+ *
+ * Seventh slice of FIXING_ROADMAP §3.1 — the biggest single page in
+ * the app, so the leverage is significant. Holds Home-only chrome
+ * that isn't on the components preview:
+ *   - .trip-tabnav* — Path / Companions toggle (segmented capsule)
+ *   - .trip-companions-card* — Companions card body (gradient header
+ *      + chip row + CTA)
+ *   - .path-strip + .path-chips + .path-chip* — the horizontal day
+ *      wheel (numbered chips strung on a fade-to-transparent line),
+ *      including the --today / --anchor / --add variants
+ *   - .path-nav-btn — prev/next chevrons flanking the day wheel
+ *   - .path-summary — the small uppercase label under the wheel
+ *   - Every :root[data-theme="dark"] override for the above (chips
+ *      need bg + box-shadow swaps so they don't read as bright white
+ *      pills on the dark page; trip-companions-card needs the white
+ *      body lifted to card-bg)
+ *
+ * Stays in index.css (preview-shown / multi-page reuse):
+ *   .ai-page-header (used by ~7 pages as their header wrapper)
+ *   .day-card (in preview)
+ *   .cover-card* (used by WelcomePage but also by HomeHeader on every
+ *      Home variant — keeping in index.css for now, candidate for a
+ *      later slice if cleanly self-contained)
+ */
+
+/* ── Path / Companions tab nav (segmented capsule) ─────────────────
+   Home page sub-tab — Path | Companions. Rounded-full glass container
+   with two interior pills. Active pill carries the Day-badge gradient
+   (blue → purple), inactive pills are transparent text. */
+.trip-tabnav-wrap {
+    display: flex;
+    justify-content: center;
+    margin: var(--space-5) 0 var(--space-6);
+}
+.trip-tabnav {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px;
+    background: rgba(255, 255, 255, 0.72);
+    backdrop-filter: blur(14px) saturate(160%);
+    -webkit-backdrop-filter: blur(14px) saturate(160%);
+    border: 1px solid rgba(0, 45, 91, 0.08);
+    border-radius: 999px;
+    box-shadow: 0 4px 14px rgba(0, 45, 91, 0.06);
+}
+.trip-tabnav__tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 22px;
+    border: 0;
+    background: transparent;
+    border-radius: 999px;
+    font-size: 0.84rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    cursor: pointer;
+    letter-spacing: -0.01em;
+    transition: background 0.2s ease, color 0.2s ease,
+                box-shadow 0.2s ease, transform 0.18s ease;
+}
+.trip-tabnav__tab svg {
+    flex-shrink: 0;
+    opacity: 0.75;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.trip-tabnav__tab:hover:not(.is-active),
+.trip-tabnav__tab:active:not(.is-active),
+.trip-tabnav__tab:focus-visible:not(.is-active) {
+    color: var(--accent-blue);
+    background: rgba(0, 113, 227, 0.06);
+}
+.trip-tabnav__tab:hover:not(.is-active) svg,
+.trip-tabnav__tab:active:not(.is-active) svg,
+.trip-tabnav__tab:focus-visible:not(.is-active) svg {
+    opacity: 1;
+}
+.trip-tabnav__tab.is-active {
+    color: white;
+    background: linear-gradient(135deg, var(--accent-blue), #5856d6);
+    box-shadow: 0 4px 12px rgba(0, 113, 227, 0.28);
+    font-weight: 800;
+}
+.trip-tabnav__tab.is-active svg {
+    opacity: 1;
+    transform: scale(1.05);
+}
+
+/* ── Companions card (Home → Companions tab) ──────────────────────
+   Glass card with a blue-purple gradient header strip + chip row +
+   gradient CTA underneath. Max-width capped at 560px so it doesn't
+   stretch into wall-of-gradient territory on wide screens. */
+.trip-companions-card {
+    max-width: 560px;
+    margin: 0 auto;
+    background: white;
+    border: 1px solid rgba(0, 113, 227, 0.14);
+    border-radius: 24px;
+    box-shadow: 0 8px 24px rgba(0, 45, 91, 0.08);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+.trip-companions-card__header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 18px 22px;
+    background: linear-gradient(135deg, var(--accent-blue) 0%, #5856d6 100%);
+    color: white;
+}
+.trip-companions-card__icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.18);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    flex-shrink: 0;
+}
+.trip-companions-card__heading {
+    flex: 1;
+    min-width: 0;
+}
+.trip-companions-card__title {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: white;
+    line-height: 1.2;
+}
+.trip-companions-card__subtitle {
+    margin: 2px 0 0;
+    font-size: 0.78rem;
+    color: rgba(255, 255, 255, 0.85);
+    font-weight: 600;
+}
+.trip-companions-card__count {
+    background: rgba(255, 255, 255, 0.25);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.32);
+    font-weight: 800;
+    font-size: 0.95rem;
+    min-width: 36px;
+    height: 36px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    padding: 0 10px;
+}
+.trip-companions-card__chips {
+    padding: 18px 22px;
+    background: linear-gradient(180deg, rgba(0, 113, 227, 0.02), rgba(255, 255, 255, 0));
+    min-height: 60px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+.trip-companions-card__empty {
+    color: var(--text-secondary);
+    font-size: 0.88rem;
+    line-height: 1.5;
+    padding: 8px 0;
+    flex: 1;
+}
+.trip-companions-card__cta {
+    margin: 0 22px 22px;
+    padding: 14px 22px;
+    border: 0;
+    border-radius: 14px;
+    background: linear-gradient(135deg, var(--accent-blue), #5856d6);
+    color: white;
+    font-weight: 800;
+    font-size: 0.95rem;
+    cursor: pointer;
+    box-shadow: 0 6px 18px rgba(0, 113, 227, 0.28);
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+    letter-spacing: -0.01em;
+}
+.trip-companions-card__cta:hover,
+.trip-companions-card__cta:active,
+.trip-companions-card__cta:focus-visible {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 24px rgba(0, 113, 227, 0.38);
+}
+.trip-companions-card__cta:active {
+    transform: translateY(0);
+}
+
+/* ── Path tab — day wheel ─────────────────────────────────────────
+   The vertical day-by-day timeline was replaced with a horizontal
+   "wheel": Anchor pinned on the left, the user-selected day on the
+   right, with a clickable numbered chip strip above for jumping to
+   any day directly. Visual aesthetic mirrors the OLD vertical
+   timeline — circles strung along a thin gradient line — just
+   rotated 90° so the same line+dots metaphor reads horizontally. */
+.path-strip {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 14px 0 6px;
+}
+.path-chips {
+    display: flex;
+    align-items: center;
+    /* Center the chip group within the strip so Anchor + the days
+       sit at the visual middle of the wheel as you add days, instead
+       of left-anchored. `safe center` falls back to flex-start when
+       the chips overflow the available width — that prevents the
+       leading chips from being clipped behind the prev arrow on
+       narrow strips. */
+    justify-content: safe center;
+    gap: 14px;                /* gap between circles — line shows in the gap */
+    overflow-x: auto;
+    scroll-behavior: smooth;
+    /* Vertical padding leaves room for the scaled-up Selected chip
+       and the "TODAY" pill label that sits underneath today's chip
+       without clipping. */
+    padding: 14px 4px 26px;
+    flex: 1;
+    min-width: 0;
+    position: relative;       /* anchor for the ::before line */
+    scrollbar-width: none;    /* hide scrollbar — feels like a control row */
+}
+.path-chips::-webkit-scrollbar { height: 0; width: 0; }
+
+/* The horizontal "timeline line" — same gradient-fade-to-transparent
+   look the old vertical line had, just rotated 90°. Sits behind the
+   circles; the white circle backgrounds visually break the line at
+   each day so it reads as a string-of-beads. SYMMETRIC fade
+   (transparent → solid → transparent) because the chips are
+   center-justified — without symmetric fade you get a hard line
+   trailing off into the empty space past the last chip on one
+   side. */
+.path-chips::before {
+    content: '';
+    position: absolute;
+    left: 14px;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    height: 2px;
+    background: linear-gradient(90deg,
+        rgba(0, 113, 227, 0.05) 0%,
+        rgba(0, 113, 227, 0.4) 50%,
+        rgba(0, 113, 227, 0.05) 100%);
+    border-radius: 1px;
+    z-index: 0;
+    pointer-events: none;
+}
+
+/* The chip itself — small circle on the line, number/letter inside.
+   Selected state: filled accent + grow + halo shadow. Mirrors the
+   old vertical-timeline dot but big enough to be touch-friendly and
+   to fit a number/letter. */
+.path-chip {
+    position: relative;
+    z-index: 1;
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border-radius: 50%;
+    border: 2px solid var(--accent-blue);
+    background: white;
+    color: var(--accent-blue);
+    cursor: pointer;
+    font-weight: 800;
+    font-size: 0.78rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    /* D4: transform uses --easing-spring so the scale(1.3) on
+       .is-selected overshoots momentarily — the chip "pops" to
+       size instead of snapping. Other properties keep the smooth
+       decel since they're colour/border-only and a spring on
+       those reads as jitter. Slightly longer duration on transform
+       to let the overshoot breathe (180ms is too punchy for a
+       spring). */
+    transition: background 0.18s ease,
+                transform 0.32s var(--easing-spring),
+                border-color 0.18s ease,
+                box-shadow 0.18s ease,
+                color 0.18s ease;
+    box-shadow: 0 0 0 3px white;  /* "knock out" the line behind the circle */
+}
+.path-chip:hover,
+.path-chip:active,
+.path-chip:focus-visible {
+    background: rgba(0, 113, 227, 0.06);
+}
+.path-chip.is-selected {
+    background: var(--accent-blue);
+    color: white;
+    transform: scale(1.3);
+    box-shadow: 0 0 0 3px white, 0 6px 14px rgba(0, 113, 227, 0.32);
+}
+
+/* Today modifier — flags the chip whose .date matches the user's
+   actual calendar today. Used to share the same accent-blue as
+   selected state — that meant Day 1 (when today = Day 1) read as
+   "still selected" even after the user navigated to Day 3. Now
+   today uses ORANGE (matches the sidebar's #ff9500), so it visibly
+   means "this is today" and is unambiguous against the blue
+   selection state. */
+.path-chip--today::after {
+    content: 'TODAY';
+    position: absolute;
+    bottom: -14px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.55rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    color: #ff9500;
+    line-height: 1;
+    background: white;
+    padding: 1px 5px;
+    border-radius: 999px;
+    box-shadow: 0 1px 4px rgba(255, 149, 0, 0.18);
+    pointer-events: none;
+}
+.path-chip--today:not(.is-selected) {
+    border-color: rgba(255, 149, 0, 0.55);
+    color: #ff9500;
+}
+.path-chip--today:not(.is-selected):hover,
+.path-chip--today:not(.is-selected):active,
+.path-chip--today:not(.is-selected):focus-visible {
+    background: rgba(255, 149, 0, 0.06);
+}
+/* Anchor = trip headquarters; styled gold across the board so it
+   visually outranks numbered days and reads as the trip's anchor
+   / central hub. */
+.path-chip--anchor {
+    border-color: #c89a18;
+    color: #8b6e0c;
+}
+.path-chip--anchor:hover,
+.path-chip--anchor:active,
+.path-chip--anchor:focus-visible {
+    background: rgba(212, 160, 23, 0.08);
+}
+.path-chip--anchor.is-selected {
+    background: linear-gradient(135deg, #e8b923, #8b6e0c);
+    color: white;
+    border-color: #8b6e0c;
+    box-shadow: 0 0 0 3px white, 0 6px 14px rgba(212, 160, 23, 0.4);
+}
+.path-chip--add {
+    border-style: dashed;
+    border-color: rgba(0, 113, 227, 0.35);
+    color: rgba(0, 113, 227, 0.55);
+    font-size: 1rem;
+}
+.path-chip--add:hover,
+.path-chip--add:active,
+.path-chip--add:focus-visible {
+    border-color: var(--accent-blue);
+    color: var(--accent-blue);
+    background: rgba(0, 113, 227, 0.04);
+}
+
+/* Day-wheel prev/next chevrons flanking the chip row. */
+.path-nav-btn {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 1px solid rgba(0, 113, 227, 0.18);
+    background: white;
+    color: #002d5b;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s ease, transform 0.15s ease;
+}
+.path-nav-btn:hover:not(:disabled),
+.path-nav-btn:active:not(:disabled),
+.path-nav-btn:focus-visible:not(:disabled) {
+    background: rgba(0, 113, 227, 0.06);
+    transform: scale(1.04);
+}
+.path-nav-btn:disabled {
+    opacity: 0.32;
+    cursor: not-allowed;
+}
+.path-summary {
+    text-align: center;
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 14px;
+}
+
+/* ── Dark-mode overrides ─────────────────────────────────────────
+   .trip-companions-card is bright white in light mode — flip to
+   card-bg so it doesn't read as a glaring rectangle on the dark
+   page. The blue gradient header keeps its identity in both themes.
+   .path-chip + .path-nav-btn need bg + box-shadow swaps so they
+   don't read as bright white pills on the dark page. */
+:root[data-theme="dark"] .trip-companions-card {
+    background: var(--card-bg);
+    border-color: rgba(255, 255, 255, 0.08);
+}
+:root[data-theme="dark"] .path-chip {
+    background: var(--card-bg);
+    box-shadow: 0 0 0 3px var(--bg-color);
+}
+:root[data-theme="dark"] .path-chip:hover,
+:root[data-theme="dark"] .path-chip:active,
+:root[data-theme="dark"] .path-chip:focus-visible {
+    background: rgba(10, 132, 255, 0.18);
+}
+:root[data-theme="dark"] .path-chip.is-selected {
+    background: var(--accent-blue);
+    color: white;
+    box-shadow: 0 0 0 3px var(--bg-color), 0 6px 14px rgba(10, 132, 255, 0.42);
+}
+:root[data-theme="dark"] .path-chip--today::after {
+    background: var(--card-bg-elevated);
+    color: #ff9500;
+    box-shadow: 0 1px 4px rgba(255, 149, 0, 0.32);
+}
+:root[data-theme="dark"] .trip-tabnav {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.10);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+}
+:root[data-theme="dark"] .trip-tabnav__tab:hover:not(.is-active),
+:root[data-theme="dark"] .trip-tabnav__tab:active:not(.is-active),
+:root[data-theme="dark"] .trip-tabnav__tab:focus-visible:not(.is-active) {
+    background: rgba(10, 132, 255, 0.14);
+}
+:root[data-theme="dark"] .path-nav-btn {
+    background: var(--card-bg);
+    border-color: rgba(10, 132, 255, 0.32);
+    color: var(--accent-blue);
+}
+:root[data-theme="dark"] .path-nav-btn:hover:not(:disabled),
+:root[data-theme="dark"] .path-nav-btn:active:not(:disabled),
+:root[data-theme="dark"] .path-nav-btn:focus-visible:not(:disabled) {
+    background: rgba(10, 132, 255, 0.18);
+}

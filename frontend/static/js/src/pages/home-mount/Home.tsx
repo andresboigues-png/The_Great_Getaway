@@ -40,6 +40,12 @@ import { PoiPillsRow } from './PoiPillsRow.js';
 import { HeroMap } from './HeroMap.js';
 import { TripBody } from './TripBody.js';
 import type { Trip } from '../../types';
+// Page-scoped CSS — Path/Companions tab nav, Companions card,
+// day-wheel chips + nav buttons, plus every dark-mode override for
+// the above. FIXING_ROADMAP §3.1 seventh slice. Vite chunks this
+// alongside the Home JS bundle so the ~280 lines of Home-specific
+// CSS lazy-load with the page.
+import './home.css';
 
 
 export function Home() {
