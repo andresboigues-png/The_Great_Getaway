@@ -144,9 +144,9 @@ Things an attacker could exploit against the live site today.
 **Fix:**
 
 - [x] Narrow to `sqlite3.OperationalError`; check message contains "duplicate column" / "already exists" before swallowing. (Shipped 2026-05-13 via new `_safe_alter()` helper in `database.py`. Every `except Exception: pass` after an ALTER replaced.)
-- [ ] Decide canonical migration source: Alembic. `init_db` becomes a sanity check, not a parallel schema mutator (see 1.6).
+- [x] Decide canonical migration source: **Alembic**. `init_db` is now a sanity check, not a parallel schema mutator. (Shipped 2026-05-16. `_safe_alter` removed; CREATE TABLEs include every current column; sanity-check at end of init_db raises with `alembic upgrade head` hint when columns are missing.)
 
-### 1.6 Two parallel migration paths (init_db ALTER chain + Alembic)
+### 1.6 Two parallel migration paths (init_db ALTER chain + Alembic) — ✅ Shipped 2026-05-16
 
 🟠 **M** · `src/database.py:14+`, `migrations/versions/`
 
@@ -154,8 +154,8 @@ Things an attacker could exploit against the live site today.
 
 **Fix:**
 
-- [ ] Convert remaining `init_db` ALTERs to Alembic revisions.
-- [ ] Reduce `init_db` to a no-op assertion (verify expected columns exist, exit otherwise).
+- [x] Convert remaining `init_db` ALTERs to Alembic revisions. (Shipped — new catchup revision `f9a3b7e1c842_catchup_post_baseline.py` adds every column / table / index that existed in `init_db` but not in any Alembic revision: `users.home_country` / `users.language`; `trips.checklist_json` / `actions_hidden` / `cover_url` / `public_show_expenses`; `expenses.receipt_url`; `friends.created_at`; entire tables `feed_posts` / `feed_likes` / `feed_bookmarks` / `feed_comments` / `follows` / `user_achievements` / `settlements`; the §2.1 perf indexes; the `idx_trips_share_token` partial-unique. Each ALTER is idempotent via a duplicate-column swallow; every CREATE TABLE/INDEX uses IF NOT EXISTS.)
+- [x] Reduce `init_db` to a no-op assertion (verify expected columns exist, exit otherwise). (Shipped — `_safe_alter` helper and the ~17 ALTER calls removed. `init_db` now only does CREATE TABLE/INDEX IF NOT EXISTS for fresh DBs + a final `_assert_schema_current()` that raises `RuntimeError("Database schema is stale — missing: …. Run `alembic upgrade head`")` if any expected column is gone. Deploy procedure for existing prod DBs documented in `migrations/README.md` — `alembic stamp head` once to mark the catchup as applied without re-running its DDL.)
 
 ### 1.7 `/api/data` and `/api/feed` query patterns are N+1 / sequential-by-default
 

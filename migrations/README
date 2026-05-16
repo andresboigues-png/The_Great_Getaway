@@ -1,22 +1,119 @@
 Alembic migrations for the SQLite DB at ./travel_planner.db.
 
-The first migration (0c7a67724fda_baseline.py) captures the schema as it
-stood at the start of Phase G. From now on, every schema change should be
-a new migration file generated via:
+CANONICAL SOURCE OF TRUTH
+=========================
 
-    alembic revision -m "describe change"
+As of 2026-05-16 (FIXING_ROADMAP §1.5/§1.6 cutover), **Alembic is the
+only place that mutates schema**. `init_db()` in `src/database.py` still
+runs at boot but is now a SAFE shape:
 
-…and applied with:
+  1. CREATE TABLE IF NOT EXISTS for every table, with full current
+     columns inlined. Idempotent — no-op on existing DBs.
+  2. CREATE INDEX IF NOT EXISTS for the hot-path indexes. Idempotent.
+  3. A one-shot `friends → follows` DATA migration (not schema).
+  4. A sanity check (`_assert_schema_current`) that PRAGMA-queries each
+     expected table + column. If anything is missing, init_db raises
+     with the message "Database schema is stale — missing: ….  Run
+     `alembic upgrade head` …" — failing loud at boot is better than
+     500'ing on every request.
 
+Bottom line: **if you need to add or change a column, write an Alembic
+revision**. Do NOT add a new `_safe_alter` / ALTER TABLE call to
+init_db. Update the CREATE TABLE in init_db AND add the column to
+`_EXPECTED_COLUMNS` so fresh DBs and the sanity check both stay in sync.
+
+
+REVISION CHAIN
+==============
+
+    0c7a67724fda  baseline (Phase G start)
+        ↓
+    c374584f6044  add marked_places_json to trips
+        ↓
+    d8a1f3e9b240  add documents_photos_json to trips
+        ↓
+    a8c7e2f1b9d4  add token_jti to users
+        ↓
+    b1d2e3f4c5a6  add share_token + share_views + share_show_cost to trips
+        ↓
+    c2e3d4f5a6b7  add share_show_plans to trips
+        ↓
+    f9a3b7e1c842  catchup — everything else init_db had ALTER'd in
+
+`f9a3b7e1c842` is the catchup migration that closed the gap between
+init_db's `_safe_alter` chain and Alembic. It adds:
+
+  - users.home_country, users.language
+  - trips.checklist_json, actions_hidden, cover_url, public_show_expenses
+  - expenses.receipt_url
+  - friends.created_at (+ backfill)
+  - tables: feed_posts (+caption), feed_likes, feed_bookmarks,
+            feed_comments, follows, user_achievements, settlements
+  - all §2.1 perf indexes + idx_trips_share_token
+
+Every ALTER in the catchup is wrapped to swallow the "duplicate column"
+case, so it's safe to apply against a DB that already has these
+columns (e.g. PA prod, which built them up via the old _safe_alter
+chain). CREATE TABLE / INDEX uses IF NOT EXISTS.
+
+
+DEPLOY PROCEDURE
+================
+
+Fresh DB (CI, new dev setup, test DBs created by conftest.py):
+
+    alembic upgrade head     # produces full schema
+    # OR
+    python -m database       # init_db() — same final shape, idempotent
+
+Existing prod DB (PA's `travel_planner.db`, dev DBs older than 2026-05-16):
+
+    cd ~/gg
+    git pull origin main
+    alembic stamp head       # ONE-TIME: marks catchup as applied
+                             # since init_db's old _safe_alter chain
+                             # already produced these columns.
+    touch /var/www/tgg_pythonanywhere_com_wsgi.py
+
+After the one-time `alembic stamp head`, future deploys are just:
+
+    cd ~/gg
+    git pull origin main
     alembic upgrade head
+    touch /var/www/tgg_pythonanywhere_com_wsgi.py
 
-Existing dev/prod DBs that already had the schema (created by
-database.init_db running at startup) need a one-time:
 
-    alembic stamp head
+ADDING A SCHEMA CHANGE
+======================
 
-…to mark them as up-to-date without re-running the baseline CREATEs.
-The repo's dev DB (src/travel_planner.db) was stamped on 2026-05-05.
+    1. `alembic revision -m "add foo_bar column to widgets"`
+    2. Edit the generated file. For an ADD COLUMN:
 
-init_db() still runs at Flask startup as a safety net for fresh dev setups.
-It will be retired once all schema management goes through migrations.
+           op.execute("ALTER TABLE widgets ADD COLUMN foo_bar TEXT")
+
+       For a new table, copy the pattern from
+       `f9a3b7e1c842_catchup_post_baseline.py`.
+
+    3. Update `src/database.py`:
+        - Add the column to the CREATE TABLE for `widgets` (so fresh DBs
+          land with it instead of needing the ALTER round-trip).
+        - Add the column to `_EXPECTED_COLUMNS["widgets"]` so the
+          sanity check catches a stale DB.
+
+    4. Test: `python -c "from database import init_db; init_db()"`
+       on a temp DB should produce the new schema; on an old DB it
+       should raise the sanity-check error.
+
+    5. Deploy as above.
+
+
+HISTORICAL NOTE
+===============
+
+Pre-2026-05-16, init_db carried a long chain of `_safe_alter(...)`
+ALTER calls that captured every schema delta after the Phase G
+baseline. Each new column was added in TWO places (init_db AND
+Alembic) and the two drifted silently for months — the catchup
+revision above is the result of the diff. The `_safe_alter` helper
+has been removed; if you're tempted to add ALTER TABLE here again,
+read the comment in database.py first.
