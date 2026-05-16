@@ -460,13 +460,15 @@ Not bugs — leverage. Each unblocks future feature velocity.
 - [ ] Repeat one page per quarter until all pages are JSX.
 - [ ] Until done, every visual feature in Phase 4 costs 30% more.
 
-### 3.4 `TripContext` + `useActiveTrip()` hook
+### 3.4 `TripContext` + `useActiveTrip()` hook — ✅ Shipped 2026-05-17
 
-**S** · new `frontend/static/js/src/react/TripContext.tsx`
+**S** · `frontend/static/js/src/react/TripContext.tsx`, ~6 React pages
 
-- [ ] One canonical place that resolves "active trip + all derived fields."
-- [ ] Memoized selectors with shallow-eq.
-- [ ] Backwards-compat: project the active trip into legacy STATE for the unmigrated `.ts` files.
+- [x] One canonical place that resolves "active trip + all derived fields." `useActiveTrip()` returns `{ trip, activeTripId, expenses, tripDays, settlements, members, isOwner, canEdit, canEditExpenses, canDelete }` — every shape a consumer might want, derived in one place. Companion hook `useTrip(tripId)` for the picked-but-not-active case (Settlement page picker).
+- [x] Memoized selectors. The hook reads via `useStore` slices + a `useMemo` that re-runs only when the upstream slices (trips, expenses, tripDays, settlements) change identity — not on every `state:changed` emit. Notification polls + unrelated emits no longer recompute the active-trip's expense filter.
+- [x] Backwards-compat preserved. The hook reads from the SAME `STATE` container the legacy `.ts` imperative pages mutate; no projection layer needed. React + imperative code see the same trip identity at every moment.
+- [x] Six React pages migrated to `useActiveTrip` / `useTrip`: AI.tsx, Expenses.tsx, HistoryTab.tsx, Insights.tsx, Settlement.tsx, Home.tsx. Deliberately skipped: ManualTab.tsx (one-shot render by design, doesn't subscribe), Search.tsx + Collections.tsx + Settings.tsx (writers of activeTripId, not readers of trip identity).
+- [x] Pre-existing Todo.tsx consumer kept (already on the hook from §3.3 wave).
 
 ### 3.5 Extract `serialize_trip_row` / `serialize_expense_row`
 

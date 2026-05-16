@@ -19,7 +19,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useStore } from '../../react/store.js';
-import { canEditExpenses } from '../../permissions.js';
+import { useTrip } from '../../react/TripContext.js';
 import { STATE, emit } from '../../state.js';
 import { EVENTS } from '../../constants.js';
 import {
@@ -95,8 +95,12 @@ export function Settlement() {
         if (activeTab === 'global') setActiveTab('trip');
     };
 
-    const trip = trips.find((t) => t.id === currentTripId) || null;
-    const tripIsEditable = canEditExpenses(trip);
+    // §3.4 — `useTrip` resolves the PICKED trip (Settlement has its
+    // own picker that can differ from STATE.activeTripId — see the
+    // pickTrip handler above). Returns the trip + the editability
+    // flag in one shot, replacing the legacy `trips.find` +
+    // `canEditExpenses(trip)` pair.
+    const { trip, canEditExpenses: tripIsEditable } = useTrip(currentTripId);
 
     // Re-derive HTML on every relevant change. The previous version
     // had `useStore.length` (= 1, a constant) as a dep instead of the

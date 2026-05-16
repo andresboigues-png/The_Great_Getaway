@@ -28,7 +28,7 @@
 //     cycles that addDayPin / saveDayPin trigger.
 
 import { useEffect, useRef, useState } from 'react';
-import { useStore } from '../../react/store.js';
+import { useActiveTrip } from '../../react/TripContext.js';
 import { STATE } from '../../state.js';
 import { wireRoleButtonKeys } from '../../components/Keyboard.js';
 import { appendGettingStartedGuide } from '../home/gettingStartedGuide.js';
@@ -49,12 +49,12 @@ import './home.css';
 
 
 export function Home() {
-    // useStore subscription: when the user switches active trips
-    // (via the trip selector chrome), this picks up the change and
-    // re-renders with the new trip.
-    const activeTripId = useStore((s) => s.activeTripId);
-    const trips = useStore((s) => s.trips) || [];
-    const activeTrip = activeTripId ? trips.find((t) => t.id === activeTripId) : null;
+    // §3.4 — `useActiveTrip` subscribes via useStore underneath, so
+    // switching the active trip (navbar trip selector, post-login
+    // hydrate, etc.) still triggers a re-render in place — same
+    // behaviour as the old useStore(s.activeTripId) + useStore(s.trips)
+    // + trips.find recipe, just memoized + behind a single hook.
+    const { trip: activeTrip } = useActiveTrip();
 
     // Cleanup on full unmount: router.ts already calls
     // stopHomeSlideshow() defensively on every navigate; doing it

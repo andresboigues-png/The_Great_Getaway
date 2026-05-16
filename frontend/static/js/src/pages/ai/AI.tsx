@@ -28,6 +28,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../../react/store.js';
+import { useActiveTrip } from '../../react/TripContext.js';
 import { STATE, emit } from '../../state.js';
 import { showLiquidAlert, formatDayDate, q } from '../../utils.js';
 import {
@@ -76,11 +77,14 @@ import './ai.css';
 
 // ── Top-level ──────────────────────────────────────────────────
 export function AI() {
-    // useStore subscription so add-trip / select-trip transitions
-    // re-render in place without a full router navigate.
-    const activeTripId = useStore((s) => s.activeTripId);
-    const trips = useStore((s) => s.trips) || [];
-    const activeTrip = activeTripId ? trips.find((tr) => tr.id === activeTripId) : null;
+    // §3.4 — `useActiveTrip` is the single canonical resolver of
+    // "what trip is the user looking at" + the derived fields the
+    // sub-views care about. Pre-§3.4 this was a hand-rolled
+    // `STATE.trips.find(...)` chain that re-ran on every state
+    // change (notification poll, expense edit, etc.). The hook
+    // memoizes on the right slices so this top-level only re-renders
+    // when the trip identity actually changes.
+    const { trip: activeTrip } = useActiveTrip();
 
     if (!activeTrip) {
         return <EmptyTripView />;

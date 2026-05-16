@@ -18,6 +18,7 @@
 
 import { useEffect, useMemo, useRef } from 'react';
 import { useStore } from '../../react/store.js';
+import { useActiveTrip } from '../../react/TripContext.js';
 import { useNavigate } from '../../react/useNavigate.js';
 import { STATE, emit } from '../../state.js';
 import { CONVERSION_RATES, EVENTS } from '../../constants.js';
@@ -46,8 +47,13 @@ interface ConvertedExpense {
 
 export function Insights() {
     const navigate = useNavigate();
-    const activeTripId = useStore((s) => s.activeTripId);
-    const expenses = useStore((s) => s.expenses);
+    // §3.4 — `useActiveTrip` provides the activeTripId + the
+    // already-filtered expenses array. The Insights chart wants
+    // expenses MINUS settlements (it's a spend-by-category view,
+    // not a balance view), so we further filter below. Note: the
+    // hook's `expenses` slice is filter-by-tripId; the
+    // !isSettlement filter is Insights-specific and stays here.
+    const { activeTripId, expenses: tripExpensesAll } = useActiveTrip();
     const categories = useStore((s) => s.categories);
     const insightCurrency = useStore((s) => s.insightCurrency);
     const rateMode = useStore((s) => s.rateMode);
@@ -77,9 +83,13 @@ export function Insights() {
 
     // ── Compute trip slice + derived stats (memoized so chart effects
     //    don't thrash on unrelated re-renders) ────────────────────────────
+    // §3.4 — `useActiveTrip` returns expenses already scoped to the
+    // active trip; we further strip settlements here because Insights
+    // is a "real spend" view (a Sara→Andrés settlement isn't a fresh
+    // outflow, just a balance shift).
     const tripExps = useMemo(
-        () => expenses.filter((e: Expense) => e.tripId === activeTripId && !e.isSettlement),
-        [expenses, activeTripId],
+        () => tripExpensesAll.filter((e: Expense) => !e.isSettlement),
+        [tripExpensesAll],
     );
 
     // Background fetch for historical rates — fire-and-forget. The

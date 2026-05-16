@@ -25,11 +25,11 @@
 
 import { useMemo, useState } from 'react';
 import { useStore } from '../../react/store.js';
+import { useActiveTrip } from '../../react/TripContext.js';
 import { STATE, emit } from '../../state.js';
 import { showConfirmModal, formatHome, getHomeCurrency } from '../../utils.js';
 import { deleteExpenseOnServer } from '../../api.js';
 import { navigate } from '../../router.js';
-import { canEditExpenses } from '../../permissions.js';
 import { t, tn } from '../../i18n.js';
 import { EmptyState } from '../../react/components/EmptyState.js';
 import { openEditExpenseModal, deleteExpense } from '../expenses.js';
@@ -45,12 +45,15 @@ import {
 export function HistoryTab() {
     const expenses = useStore((s) => s.expenses) || [];
     const categories = useStore((s) => s.categories) || [];
-    const trips = useStore((s) => s.trips) || [];
-    const activeTripId = useStore((s) => s.activeTripId);
     const lastImportBatch = useStore((s) => s.lastImportBatch);
-
-    const activeTrip = trips.find((tr) => tr.id === activeTripId);
-    const showRowActions = canEditExpenses(activeTrip);
+    // §3.4 — single resolver replaces the trips+activeTripId+find chain
+    // + the canEditExpenses(trip) permission read. canEditExpenses
+    // comes back boolean already (the hook does the computation once).
+    const {
+        trip: activeTrip,
+        activeTripId,
+        canEditExpenses: showRowActions,
+    } = useActiveTrip();
     const homeCurrency = getHomeCurrency();
 
     // Payer filter draws from this trip's companions. Falls back to

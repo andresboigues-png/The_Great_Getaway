@@ -25,8 +25,7 @@
 // a read-only ledger.
 
 import { useSyncExternalStore } from 'react';
-import { STATE } from '../../state.js';
-import { canEditExpenses } from '../../permissions.js';
+import { useActiveTrip } from '../../react/TripContext.js';
 import { t } from '../../i18n.js';
 import {
     getActiveExpensesTab,
@@ -65,11 +64,18 @@ export function Expenses() {
     // is harmless even when there's no active trip — the snapshot
     // just isn't read for rendering in that branch.
     const tab = useActiveTab();
+    // §3.4 — single canonical resolver. Pre-§3.4 the read was
+    // `STATE.trips.find((tr) => tr.id === STATE.activeTripId)` against
+    // raw STATE (no useStore subscription) so an external mutation
+    // (e.g. trip rename via Settings) wouldn't trigger a re-render
+    // here. `useActiveTrip` subscribes via useStore underneath, so the
+    // page reacts to every legitimate state change.
+    const { activeTripId, canEditExpenses: canWrite } = useActiveTrip();
 
     // No useStore here — the empty-trip check + tab-strip don't need
     // to re-render on every state:changed emit. The sub-tab components
     // subscribe themselves.
-    if (!STATE.activeTripId) {
+    if (!activeTripId) {
         return (
             <div>
                 <h1
@@ -90,8 +96,7 @@ export function Expenses() {
         );
     }
 
-    const activeTrip = STATE.trips.find((tr) => tr.id === STATE.activeTripId);
-    const isReadOnly = !canEditExpenses(activeTrip);
+    const isReadOnly = !canWrite;
 
     const tabBtn = (key: ExpensesTab, label: string) => (
         <button
