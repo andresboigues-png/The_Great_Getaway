@@ -206,23 +206,10 @@
     --shadow-pulse: 0 0 16px rgba(0, 229, 255, 0.4);
 }
 
-/* ── Touch-device focus pattern ─────────────────────────────────────────────
-   Phase B3 requirement: replace `:hover`-only affordances with the trio
-   `:hover, :active, :focus-visible` so touch devices (no hover state) and
-   keyboard users still get the affordance. Applied here as a baseline rule
-   for any element with .has-hover-affordance — components opt in by adding
-   this class instead of hand-rolling the trio everywhere. Existing
-   `.btn-primary:hover` etc. style blocks stay untouched (they target
-   button-specific elements with their own hover/active/focus styles); this
-   rule covers the generic case. */
-.has-hover-affordance:hover, .has-hover-affordance:active, .has-hover-affordance:focus-visible,
-.has-hover-affordance:active,
-.has-hover-affordance:focus-visible {
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-md);
-    transition: transform var(--duration-fast) var(--easing-smooth),
-                box-shadow var(--duration-fast) var(--easing-smooth);
-}
+/* (.has-hover-affordance generic-hover utility REMOVED 2026-05-16 —
+   zero refs. The hover/active/focus-visible trio is hand-rolled per
+   component instead (.btn-primary, .icon-btn-circle, etc.). Was a
+   Phase-B3 generic that no component actually opted into. -10 lines.) */
 
 /* ── Dark mode (Phase D2) ────────────────────────────────────────
    Dark counterparts for every token. Activated by JS setting
@@ -416,43 +403,10 @@ body {
     justify-self: end;
 }
 
-/* Trip Sub-navigation */
-.trip-nav {
-    margin-bottom: 24px;
-    padding: 8px !important;
-    background: var(--glass-bg);
-    border: 1px solid var(--glass-border);
-    display: flex;
-    gap: 8px !important;
-}
-
-.trip-tab {
-    padding: 8px 16px !important;
-    border-radius: 10px !important;
-    font-size: 0.85rem !important;
-    font-weight: 600 !important;
-    color: var(--accent-blue) !important;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
-    border: 1px solid transparent !important;
-}
-
-.trip-tab:hover , .trip-tab:active , .trip-tab:focus-visible {
-    background: rgba(0, 0, 0, 0.05);
-    color: var(--text-primary) !important;
-}
-
-.trip-tab.active {
-    background: var(--card-bg) !important;
-    color: var(--accent-blue) !important;
-    box-shadow: var(--shadow-sm) !important;
-    border: 1px solid var(--glass-border) !important;
-}
-
-:root[data-theme="dark"] .trip-tab:hover,
-:root[data-theme="dark"] .trip-tab:active,
-:root[data-theme="dark"] .trip-tab:focus-visible {
-    background: rgba(255, 255, 255, 0.05);
-}
+/* (.trip-nav + .trip-tab + .trip-tab.active + .trip-tab :hover + the
+   dark-mode override REMOVED 2026-05-16 — zero refs. Trip sub-nav now
+   uses the .trip-tabnav family (capsule-segmented Path / Companions
+   toggle) further down in this file. -38 lines.) */
 
 .nav-trips {
     display: flex;
@@ -573,14 +527,11 @@ body {
    above is used, by Personalization, Budgets, Collections, and the
    components preview. -24 lines.) */
 
-/* Apple-style Switch */
-.switch-container {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 24px;
-}
-
+/* Apple-style Switch — the `.switch` / `.slider` / `input:checked+
+   .slider` pattern below is alive (45 refs). The `.switch-container`
+   wrapper that used to sit above this block was removed 2026-05-16
+   (zero refs — every call site uses inline flex layout for the
+   surrounding row now). */
 .switch {
     position: relative;
     display: inline-block;
@@ -1225,32 +1176,9 @@ body.is-signed-out .trip-controls-popover {
     margin: 0;
 }
 
-.tourism-tag {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 8px 16px;
-    border-radius: 980px;
-    border: 1.5px solid var(--glass-border);
-    cursor: pointer;
-    font-size: 0.9rem;
-    font-weight: 500;
-    color: var(--text-secondary);
-    background: transparent;
-    transition: all 0.2s ease;
-    user-select: none;
-}
-
-.tourism-tag.selected {
-    background: var(--accent-blue);
-    color: white;
-    border-color: var(--accent-blue);
-}
-
-.tourism-tag:hover:not(.selected) , .tourism-tag:active:not(.selected) , .tourism-tag:focus-visible:not(.selected) {
-    border-color: var(--accent-blue);
-    color: var(--accent-blue);
-}
+/* (.tourism-tag + .selected + :hover variants REMOVED 2026-05-16 —
+   zero refs. Originally a pill row of trip-type filters that never
+   shipped; superseded by the country-picker dropdown. -27 lines.) */
 
 /* (.ai-generate-btn moved to pages/ai/ai.css 2026-05-16 — FIXING_ROADMAP
    §3.1 slice 2. The .itinerary-day*, .itinerary-day-header*, .itinerary-
@@ -1560,7 +1488,10 @@ body.is-signed-out .trip-controls-popover {
     box-shadow: 0 40px 80px rgba(0,0,0,0.15), 0 15px 30px rgba(0,113,227,0.15);
 }
 
-.zoom-badge.is-hovered, #aiZoomBadge.is-hovered { background: rgba(255,255,255,0.2); }
+/* (.zoom-badge.is-hovered REMOVED 2026-05-16 — zero refs. The
+   matching #aiZoomBadge.is-hovered selector also dropped since the
+   is-hovered simulator is only used by the components preview, which
+   doesn't render the AI zoom badge.) */
 
 #sidebarLogoutBtn.is-hovered { color: #ff3b30; }
 #resetMapViewBtn.is-hovered h2 { color: var(--accent-blue); }
@@ -1578,13 +1509,9 @@ body.is-signed-out .trip-controls-popover {
     outline-offset: 2px;
 }
 
-/* Map City Labels */
-.map-city-label {
-    text-shadow: 0 0 4px rgba(0,0,0,0.8), 0 0 8px rgba(0,0,0,0.5);
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-    letter-spacing: -0.01em;
-    pointer-events: none;
-}
+/* (.map-city-label REMOVED 2026-05-16 — zero refs. Google Maps' own
+   POI labels are styled via the JS map style options now, not via
+   a CSS overlay class.) */
 
 /* ════════════════════════════════════════════════════════════════════════
    Phase D — Component classes
@@ -2985,100 +2912,11 @@ body.is-signed-out .trip-controls-popover {
    ended up using inline styles instead. Zero refs in src/ + templates/.
    -140 lines.) */
 
-.profile-iw {
-    min-width: 240px;
-    max-width: 300px;
-    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
-}
-.profile-iw__header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 14px 16px;
-    background: linear-gradient(135deg, var(--accent-blue) 0%, #5856d6 100%);
-    color: white;
-}
-.profile-iw__pin-icon {
-    font-size: 1.4rem;
-    line-height: 1;
-    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.18));
-}
-.profile-iw__header-text {
-    flex: 1;
-    min-width: 0;
-}
-.profile-iw__country {
-    font-weight: 800;
-    font-size: 0.95rem;
-    letter-spacing: -0.01em;
-    color: white;
-    line-height: 1.2;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-.profile-iw__count {
-    font-size: 0.68rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: rgba(255, 255, 255, 0.85);
-    margin-top: 2px;
-}
-.profile-iw__body {
-    padding: 8px;
-    background: white;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-.profile-iw__trip-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 12px;
-    border-radius: 10px;
-    transition: background 0.18s ease;
-}
-.profile-iw__trip-row:hover , .profile-iw__trip-row:active , .profile-iw__trip-row:focus-visible {
-    background: rgba(0, 113, 227, 0.06);
-}
-.profile-iw__trip-info {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    min-width: 0;
-}
-.profile-iw__trip-icon {
-    font-size: 1.05rem;
-    flex-shrink: 0;
-}
-.profile-iw__trip-name {
-    font-weight: 700;
-    font-size: 0.88rem;
-    color: #002d5b;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-.profile-iw__view-btn {
-    background: linear-gradient(135deg, var(--accent-blue), #5856d6);
-    color: white;
-    border: 0;
-    padding: 6px 14px;
-    border-radius: 999px;
-    font-weight: 800;
-    font-size: 0.72rem;
-    cursor: pointer;
-    box-shadow: 0 2px 8px rgba(0, 113, 227, 0.32);
-    transition: transform 0.18s ease, box-shadow 0.18s ease;
-    flex-shrink: 0;
-}
-.profile-iw__view-btn:hover , .profile-iw__view-btn:active , .profile-iw__view-btn:focus-visible {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(0, 113, 227, 0.42);
-}
+/* (.profile-iw + every BEM child (__header / __pin-icon / __header-text
+   / __country / __count / __body / __trip-row / __trip-info /
+   __trip-icon / __trip-name / __view-btn) and :hover variants moved
+   to pages/profile/profile.css 2026-05-16 — FIXING_ROADMAP §3.1
+   slice 4. ~95 lines.) */
 
 /* Feed avatar button — wraps the round headshot on each event
    card + each comment row. Visually invisible (no background,
@@ -3274,15 +3112,9 @@ body.is-signed-out .trip-controls-popover {
 .icon-x-btn:focus-visible { outline: 2px solid #ff3b30; outline-offset: 2px; }
 
 /* Saved-format row — list item showing format name + Edit/Delete. */
-.saved-format-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    background: rgba(255,255,255,0.03);
-    padding: var(--space-4);
-    border-radius: var(--radius-lg);
-    border: 1px solid var(--glass-border);
-}
+/* (.saved-format-row REMOVED 2026-05-16 — zero refs. The Settings →
+   Personalization saved-format list now renders as cards via JSX
+   with inline styles.) */
 
 /* Top-nav primary button — "+ New Trip". Pill, lifts on hover. */
 .btn-primary-pill {
@@ -3373,17 +3205,15 @@ body.is-signed-out .trip-controls-popover {
    Archive verb to a positive Complete one, so it gets a constant
    neon-green glow + a stronger pulse on hover. The sibling Delete-trip
    button keeps the muted shadow because it IS destructive.
-   The glow recipe is reused below as `.icon-btn-circle--glow-success`
-   so other "positive ✓" affordances (Accept friend request) inherit
-   the same visual language. */
-.icon-btn-circle--glow-success,
+   (The `.icon-btn-circle--glow-success` companion selector was
+   removed 2026-05-16 — zero refs; never reused by other "positive ✓"
+   affordances.) */
 #completeTripBtn {
     box-shadow:
         0 0 0 1px rgba(52, 199, 89, 0.35),
         0 0 16px rgba(52, 199, 89, 0.45),
         0 8px 22px rgba(52, 199, 89, 0.25);
 }
-.icon-btn-circle--glow-success:hover, .icon-btn-circle--glow-success:active, .icon-btn-circle--glow-success:focus-visible,
 #completeTripBtn:hover , #completeTripBtn:active , #completeTripBtn:focus-visible {
     box-shadow:
         0 0 0 2px rgba(52, 199, 89, 0.6),
@@ -3997,42 +3827,9 @@ body.is-signed-out .trip-controls-popover {
 }
 .icon-btn-square:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 2px; }
 
-/* Trip-header pill button for the companions picker — same height as the
-   icon-btn-square next to it, but wider for an icon + count. */
-.trip-companions-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-2);
-    padding: 0 var(--space-3);
-    height: 32px;
-    border-radius: 10px;
-    border: 1px solid rgba(0,113,227,0.18);
-    background: rgba(0,113,227,0.06);
-    color: var(--accent-blue);
-    font-weight: 700;
-    font-size: var(--font-sm);
-    cursor: pointer;
-    transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.1s ease;
-    letter-spacing: -0.01em;
-}
-.trip-companions-pill:hover , .trip-companions-pill:active , .trip-companions-pill:focus-visible {
-    background: rgba(0,113,227,0.12);
-    border-color: rgba(0,113,227,0.32);
-}
-.trip-companions-pill:active { transform: scale(0.97); }
-.trip-companions-pill__count {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 20px;
-    height: 20px;
-    padding: 0 6px;
-    border-radius: 999px;
-    background: var(--accent-blue);
-    color: #fff;
-    font-size: var(--font-2xs);
-    font-weight: 800;
-}
+/* (.trip-companions-pill + :hover/:active + .__count REMOVED
+   2026-05-16 — zero refs. The companions picker is now invoked from
+   the Companions card / sidebar entry, no header pill needed.) */
 
 /* Companion-picker modal row — checkbox + name, with a locked variant
    when the companion has historical expenses on the trip and can't be
@@ -4254,11 +4051,9 @@ body.is-signed-out .trip-controls-popover {
     color: #5b5b62;
     border: 1px solid rgba(142, 142, 147, 0.25);
 }
-.trip-role-badge--planner {
-    background: rgba(0, 113, 227, 0.1);
-    color: var(--accent-blue);
-    border: 1px solid rgba(0, 113, 227, 0.25);
-}
+/* (.trip-role-badge--planner REMOVED 2026-05-16 — zero refs. The
+   planner role is the default visual state of .trip-role-badge so a
+   modifier isn't needed; only --relaxer has a distinct fill.) */
 
 /* Compact role dropdown rendered inline next to a linked-companion row
    in the trip companion picker. Sized to fit alongside the existing
@@ -4280,15 +4075,9 @@ body.is-signed-out .trip-controls-popover {
     outline-offset: 2px;
 }
 
-/* The companions section sits below the "X Days of adventure" subtitle
-   on the home trip header. Holds the pill (rename/count) on top of the
-   member-chips panel. */
-.trip-companions-section {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
-    align-items: flex-start;
-}
+/* (.trip-companions-section REMOVED 2026-05-16 — zero refs. The
+   home-page companions panel is rendered via the React Companions
+   card with inline-styled section wrappers.) */
 
 /* Home sub-tab nav (Days / Companions) — same thin-blue-baseline pattern
    as the expenses-tabnav so both pages share a consistent rhythm. The
@@ -5386,17 +5175,10 @@ body.is-signed-out .trip-controls-popover {
 .home-tab-content { display: none !important; }
 .home-tab-content.is-active { display: flex !important; }
 
-/* Inline member chips on the trip header — at-a-glance roster with role
-   badges. Click anywhere on the panel routes to the same modal as the
-   pill button (picker for owners, read-only members for others). */
-.trip-members-panel {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2);
-    margin-top: 0;
-    padding: 0;
-    cursor: pointer;
-}
+/* Inline member chips on the trip header — at-a-glance roster with
+   role badges. The `.trip-members-panel` outer wrapper was removed
+   2026-05-16 (zero refs — the chips render directly into the
+   Companions card's flex container now). */
 .member-chip {
     display: inline-flex;
     align-items: center;
@@ -5466,22 +5248,15 @@ body.is-signed-out .trip-controls-popover {
     color: #b06b00;
     border: 1px solid rgba(255, 159, 10, 0.32);
 }
-.member-chip__role--planner {
-    background: rgba(0, 113, 227, 0.12);
-    color: var(--accent-blue);
-    border: 1px solid rgba(0, 113, 227, 0.28);
-}
+/* (.member-chip__role--planner + .member-chip__role--budgeteer REMOVED
+   2026-05-16 — zero refs. The base .member-chip__role uses the planner-
+   blue tint as its default, and budgeteer was never wired in render
+   sites — every member-chip role variant currently in use is owner /
+   relaxer / companion.) */
 .member-chip__role--relaxer {
     background: rgba(142, 142, 147, 0.16);
     color: #5b5b62;
     border: 1px solid rgba(142, 142, 147, 0.28);
-}
-/* Budgeteer — green tint to signal "money-handler" between Planner blue
-   and Relaxer grey. */
-.member-chip__role--budgeteer {
-    background: rgba(52, 199, 89, 0.14);
-    color: #1a6b3c;
-    border: 1px solid rgba(52, 199, 89, 0.32);
 }
 .member-chip__role--companion {
     background: rgba(155, 89, 182, 0.12);

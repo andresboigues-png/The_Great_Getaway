@@ -1,0 +1,120 @@
+/* Per-page CSS for the Profile page.
+ *
+ * Fourth slice of FIXING_ROADMAP §3.1. Holds Profile-only classes
+ * that aren't on the components preview — moving them here means
+ * users who never visit a profile don't pay for these styles in
+ * the initial CSS payload.
+ *
+ * In this file (Profile page only, not on preview):
+ *   .profile-iw + every BEM child + variants — the Google Maps
+ *   InfoWindow chrome used by FootprintMap.tsx when the user clicks
+ *   a country marker. ~95 lines.
+ *
+ * Stays in index.css (design-system tier, used across the app):
+ *   .achievement-pill family, .follow-btn, etc. (multi-page reuse)
+ */
+
+/* ── Profile footprint-map InfoWindow ─────────────────────────────
+   Country-marker popover shown when the user taps a pin on the
+   profile's footprint map. Mirrors the standard GG InfoWindow
+   structure: gradient header strip (country name + trip count) +
+   white body listing the trips that touched that country, each
+   with a tap-through "View" button. */
+.profile-iw {
+    min-width: 240px;
+    max-width: 300px;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+}
+.profile-iw__header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    background: linear-gradient(135deg, var(--accent-blue) 0%, #5856d6 100%);
+    color: white;
+}
+.profile-iw__pin-icon {
+    font-size: 1.4rem;
+    line-height: 1;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.18));
+}
+.profile-iw__header-text {
+    flex: 1;
+    min-width: 0;
+}
+.profile-iw__country {
+    font-weight: 800;
+    font-size: 0.95rem;
+    letter-spacing: -0.01em;
+    color: white;
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.profile-iw__count {
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: rgba(255, 255, 255, 0.85);
+    margin-top: 2px;
+}
+.profile-iw__body {
+    padding: 8px;
+    background: white;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.profile-iw__trip-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    transition: background 0.18s ease;
+}
+.profile-iw__trip-row:hover,
+.profile-iw__trip-row:active,
+.profile-iw__trip-row:focus-visible {
+    background: rgba(0, 113, 227, 0.06);
+}
+.profile-iw__trip-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+.profile-iw__trip-icon {
+    font-size: 1.05rem;
+    flex-shrink: 0;
+}
+.profile-iw__trip-name {
+    font-weight: 700;
+    font-size: 0.88rem;
+    color: #002d5b;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.profile-iw__view-btn {
+    background: linear-gradient(135deg, var(--accent-blue), #5856d6);
+    color: white;
+    border: 0;
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-weight: 800;
+    font-size: 0.72rem;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 113, 227, 0.32);
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+    flex-shrink: 0;
+}
+.profile-iw__view-btn:hover,
+.profile-iw__view-btn:active,
+.profile-iw__view-btn:focus-visible {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 113, 227, 0.42);
+}

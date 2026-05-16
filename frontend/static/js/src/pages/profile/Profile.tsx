@@ -45,6 +45,11 @@ import { FootprintMap } from './FootprintMap.js';
 import { AchievementsStrip, type ProfileAchievement } from './AchievementsStrip.js';
 import { FollowButton } from './FollowButton.js';
 import type { Trip, User } from '../../types';
+// Page-scoped CSS — Google Maps InfoWindow chrome (.profile-iw*).
+// FIXING_ROADMAP §3.1 fourth slice. Vite chunks this alongside the
+// Profile JS bundle so users who never view a profile don't pay for
+// these ~95 lines in the initial CSS payload.
+import './profile.css';
 
 
 export interface ProfileProps {
