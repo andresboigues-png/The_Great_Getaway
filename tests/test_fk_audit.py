@@ -94,24 +94,40 @@ def test_audit_fresh_db_has_zero_orphans(fresh_db):
     )
 
 
-def test_audit_discovers_declared_and_implicit_relationships(fresh_db):
-    """The discovery walk must cover both PRAGMA-reported FKs AND the
-    hardcoded IMPLICIT_FKS list. We assert representative members of
-    each source category are present."""
+def test_audit_discovers_declared_relationships(fresh_db):
+    """Every FK declared in CREATE TABLE FOREIGN KEY clauses must show
+    up in the audit set with source="declared". As of §1.4 Phase 4
+    the three formerly-implicit FKs (budgets.trip_id,
+    trip_members.invited_by, feed_posts.repost_of_post_id) ALSO
+    became declared via migration e1b8d2a3c4f5 — they're now
+    discovered by PRAGMA foreign_key_list along with the rest.
+    IMPLICIT_FKS is currently empty (the migration absorbed every
+    relationship that was on it); the test for "implicit" coverage
+    re-arms automatically as soon as a future schema change adds a
+    new column that can't get a real FK without a rebuild."""
     import fk_audit
     classes = fk_audit.audit(fresh_db, samples=0)
     sources = {(c.child_table, c.child_column): c.source for c in classes}
 
-    # Declared FKs from baseline migration.
+    # Baseline-era declared FKs.
     assert sources.get(("expenses", "trip_id")) == "declared"
     assert sources.get(("trip_members", "user_id")) == "declared"
     assert sources.get(("settlements", "from_user_id")) == "declared"
 
-    # Implicit FKs from IMPLICIT_FKS — column added post-baseline via
-    # ALTER, no FK clause possible without rebuild.
-    assert sources.get(("budgets", "trip_id")) == "implicit"
-    assert sources.get(("trip_members", "invited_by")) == "implicit"
-    assert sources.get(("feed_posts", "repost_of_post_id")) == "implicit"
+    # Phase 4 promoted these three from implicit to declared.
+    assert sources.get(("budgets", "trip_id")) == "declared"
+    assert sources.get(("trip_members", "invited_by")) == "declared"
+    assert sources.get(("feed_posts", "repost_of_post_id")) == "declared"
+
+    # No duplicates: each (child_table, child_column) pair appears
+    # exactly once in the audit set (the bug §1.4 deploy surfaced —
+    # if IMPLICIT_FKS lists a now-declared FK, the audit reports it
+    # twice).
+    keys = [(c.child_table, c.child_column) for c in classes]
+    assert len(keys) == len(set(keys)), (
+        f"duplicate FK entries in audit: "
+        f"{[k for k in keys if keys.count(k) > 1]}"
+    )
 
 
 def test_audit_detects_synthetic_orphan_expense(fresh_db_with_users):

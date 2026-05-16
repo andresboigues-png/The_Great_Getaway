@@ -81,34 +81,25 @@ from typing import Optional
 # Columns that logically reference another table but lack a declared
 # FOREIGN KEY clause in their CREATE TABLE. SQLite cannot add an FK
 # to an existing column via ALTER, so retrofitting requires either
-# a table rebuild (Phase 4) or a defacto enforcement at the
-# application layer.
+# a table rebuild (Phase 4) or de-facto enforcement at the application
+# layer.
 #
 # Each entry: (child_table, child_col, parent_table, parent_col, nullable_ok, reason)
 #   nullable_ok=True  → NULL values are valid (the relationship is
 #                       optional) and don't count as orphans.
 #   nullable_ok=False → NULL means orphan (column should never be
 #                       NULL semantically).
+#
+# 2026-05-16: list emptied. The three relationships that lived here
+# (budgets.trip_id, trip_members.invited_by, feed_posts.repost_of_
+# post_id) became real declared FKs in migration e1b8d2a3c4f5 and now
+# get discovered by PRAGMA foreign_key_list automatically. Listing
+# them here too would double-count in the report. The slot stays —
+# if a future schema change adds another column that should reference
+# another table but can't get a real FK without a table rebuild, it
+# lands here until the next batch rebuild migrates it to declared.
 IMPLICIT_FKS = [
-    # budgets.trip_id is NULL for global / non-trip-scoped budgets.
-    # When set, must reference an existing trip.
-    (
-        "budgets", "trip_id", "trips", "id", True,
-        "no declared FK; trip_id is nullable (global budgets allowed)",
-    ),
-    # trip_members.invited_by is NULL for the owner's self-created
-    # membership row (no inviter). When set, must reference a user.
-    (
-        "trip_members", "invited_by", "users", "id", True,
-        "no declared FK; NULL for owner self-membership rows",
-    ),
-    # feed_posts.repost_of_post_id is NULL for original posts. When
-    # set, must reference an existing post (self-reference within
-    # the same table).
-    (
-        "feed_posts", "repost_of_post_id", "feed_posts", "id", True,
-        "self-reference; NULL for original (non-repost) posts",
-    ),
+    # (empty — see comment above)
 ]
 
 

@@ -122,18 +122,22 @@ Things an attacker could exploit against the live site today.
 - [x] Regex-validate prefix against the allowlist (`trip_created_*`, `trip_archived_*`, `trip_joined_*`, `share_*`, `repost_*`, `friendship_*`). (Shipped 2026-05-13 — `_parse_event_id()` in feed.py.)
 - [x] Resolve `event_id` to its underlying record; verify caller can see it (friend of actor OR member of trip). (Shipped 2026-05-13 — `_caller_can_see_event()` gates all four endpoints: like, bookmark, comment-list, comment-post.)
 
-### 1.4 SQLite running without WAL, FK enforcement, or busy_timeout
+### 1.4 SQLite hardening: WAL, FK enforcement, busy_timeout — ✅ Shipped 2026-05-16
 
-🟠 **S** · `src/database.py:9`
+**S** · `src/database.py`, `migrations/versions/e1b8d2a3c4f5_declare_foreign_keys.py`, `scripts/fk_audit.py`
 
-**Why:** Default journal mode serializes writers — concurrent feed + sync raises `database is locked`. FOREIGN KEY columns aren't enforced; expenses can orphan-reference deleted trips. **Single highest-value backend fix.**
+**Why:** Default journal mode serializes writers — concurrent feed + sync raises `database is locked`. FOREIGN KEY columns weren't enforced; expenses could orphan-reference deleted trips. **Single highest-value backend fix.**
 
 **Fix:**
 
-- [x] In `get_db()`, immediately after connect: `PRAGMA busy_timeout=5000`. (Shipped 2026-05-13.)
+- [x] In `get_db()`, immediately after connect: `PRAGMA busy_timeout=30000`. (Shipped 2026-05-13; bumped from 5s to 30s on 2026-05-14 after sync_data contention on PA's networked filesystem.)
 - [ ] ~~`PRAGMA journal_mode=WAL`~~ — **rolled back 2026-05-13** after a "database disk image is malformed" incident on PythonAnywhere. PA's free-tier home directory is a networked filesystem, and [SQLite documents](https://www.sqlite.org/wal.html) that WAL is unsafe on networked filesystems. Recovery: `PRAGMA wal_checkpoint(TRUNCATE)` + `PRAGMA journal_mode=DELETE`. Reconsider once we move off PA's networked storage.
-- [ ] `PRAGMA foreign_keys=ON` deferred — flipping it on a live DB without an orphan-row audit risks errors on any update touching pre-existing orphan rows. Pair with the `scripts/fk_audit.py` task below.
-- [ ] Run a one-off `scripts/fk_audit.py` to find existing orphan rows before flipping `foreign_keys=ON`.
+- [x] **FK audit script** (`scripts/fk_audit.py`) — read-only orphan inventory; auto-discovers declared FKs via `PRAGMA foreign_key_list`, augments with implicit relationships, skips polymorphic columns. JSON + human-readable output, exit code per CI contract. (Shipped 2026-05-16 commit `26c4d6a`.)
+- [x] **Live PA audit ran clean** — zero orphans across all 28 (now 31) FK relationships on the production DB. Audit-then-cleanup workflow short-circuited Phases 2–3 because there was nothing to clean. (Verified 2026-05-16.)
+- [x] **Migration `e1b8d2a3c4f5_declare_foreign_keys`** — rebuilds every FK-bearing table with explicit `ON DELETE CASCADE` / `ON DELETE SET NULL` clauses. SQLite cannot `ALTER TABLE ADD CONSTRAINT FOREIGN KEY` on existing columns; the migration uses rename → create → copy → drop with indexes re-applied per table. ON DELETE choices: CASCADE for ownership relationships (parent's death implies child's), SET NULL for the four optional/breakable references (`budgets.trip_id`, `trip_members.invited_by`, `companions.linked_user_id`, `feed_posts.repost_of_post_id`). (Shipped 2026-05-16 commit `ad47bf7`.)
+- [x] **`PRAGMA foreign_keys=ON` in `get_db()`** — every connection now enforces declared FKs. Companion change in `init_db()` adds the same ON DELETE clauses so fresh DBs (CI / dev / new prod installs) get the new schema without depending on the migration running. (Shipped 2026-05-16 commit `ad47bf7`.)
+- [x] **`tests/test_referential_integrity.py`** — 15-test regression net covering the PRAGMA, IntegrityError on dangling inserts, CASCADE chains (delete_trip → trip_days + expenses; delete_user → trips + dependents), and SET NULL for all four optional FKs. Plus reflexive check: audit returns zero orphans after fresh init_db. (Shipped 2026-05-16 commit `ad47bf7`.)
+- [x] Deployed to PA 2026-05-16 — stamp at `f9a3b7e1c842` → `alembic upgrade head` → re-audit confirms 0 orphans → WSGI reload. End-to-end verified.
 
 ### 1.5 `init_db()` swallows every exception silently
 
