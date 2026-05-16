@@ -565,14 +565,17 @@ Ordered by leverage on the VISION's three killer features (social, expenses, pla
 
 **Why:** today the feed is quiet for weeks between trips. Achievements generate organic activity AND reward internal/domestic tourism (VISION call-out).
 
-### 4.5 Settle Up flow
+### 4.5 Settle Up flow — ✅ Frontend wiring shipped 2026-05-16
 
-**M** · New `settlements` table + `routes/settlements.py`
+**M** · `frontend/static/js/src/pages/settlement/legacyRender.ts`
 
-- [ ] "Settle Up" button on each balance row in `pages/settlement/`.
-- [ ] Modal: amount + method (Cash / Revolut / Bank transfer / Custom) + optional note.
-- [ ] Server writes `settlements` row, drops a `settled_up` feed event, fires notification to the recipient, re-balances the page.
-- [ ] Preserve original currency for receipts.
+- [x] "Settle Up" button on each balance row in `pages/settlement/` — pre-existed via the per-row `.settle-debt-btn` + the `.open-manual-settle-btn` for the with-method-and-note flow.
+- [x] Manual settle modal now collects **method** (Cash / Revolut / Bank transfer / Wise / PayPal / Custom) + **optional note** in addition to from/to/amount. Mirrors the server's `_ALLOWED_METHODS` set so every value persists unchanged. (Shipped 2026-05-16.)
+- [x] Server writes the `settlements` row, drops a `settled_up` feed event, fires a notification to the recipient — **automatically** via the existing backend (POST /api/settlements + `_build_settled_up` + the settlement route's notification emitter). The new frontend wiring in `settleDebt` calls `createSettlement(...)` whenever both parties resolve to user_ids (via `companion.linkedUserId`); legacy companion-by-name pairs fall back to the local fake-expense path only.
+- [x] Balance UI re-renders via the existing optimistic fake-expense push (kept dual-write while balance math is still expense-keyed) — the API call is fire-and-forget so the UI doesn't wait on the network.
+- [x] Preserve original currency for receipts — `createSettlement` passes `currency` + `euroValue` through to the server unchanged; the settlements table stores both.
+
+**What's still ahead** (deliberately a follow-up): retire the dual-write by migrating `balances.ts` to subtract `STATE.settlements` directly (currently it only reads `STATE.expenses`). Once that lands, the fake-expense push can drop — the server-side settlement record will be the single source of truth.
 
 **Why:** today expense calc stops at "Sara owes Andrés €45." Closing the loop keeps users in TGG instead of bouncing to Splitwise.
 

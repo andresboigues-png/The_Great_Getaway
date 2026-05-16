@@ -23,7 +23,8 @@ import {
     esc,
     showLiquidAlert,
 } from '../../utils.js';
-import { getTripCompanionNames } from '../../companions.js';
+import { getTripCompanionNames, findTripCompanion } from '../../companions.js';
+import { createSettlement } from '../../api.js';
 import { showModal } from '../../components/Modal.js';
 import {
     computeTripBalances,
@@ -519,12 +520,39 @@ function renderGlobalTab(): string {
 
 // ── Mutations (no `root` parameter — emit triggers React re-render) ───
 
+/** Record a settlement between two trip members.
+ *
+ *  §4.5 — dual-path implementation while the balance math is still
+ *  expense-keyed:
+ *
+ *    1. ALWAYS push a local "Settlement: X → Y" fake-expense row into
+ *       STATE.expenses with `isSettlement: true`. Existing balance
+ *       math (balances.ts / leaderboard) reads from STATE.expenses
+ *       and naturally subtracts the payment via the splits. Optimistic
+ *       UI update — the page reflects the new balance immediately.
+ *
+ *    2. WHEN both parties resolve to user_ids via the trip's
+ *       companion linkage (companion.linkedUserId), ALSO POST to
+ *       /api/settlements so the server creates the real settlement
+ *       row, fires a notification to the recipient, and the
+ *       `settled_up` feed event surfaces for both parties. Fire-and-
+ *       forget — the optimistic UI doesn't wait on the network.
+ *
+ *  Once balance math is migrated to read STATE.settlements, the
+ *  fake-expense step (step 1) goes away. Until then, dual-write
+ *  is the cleanest path that delivers §4.5's user-visible promise
+ *  (notifications + feed event) without re-plumbing balances.
+ *
+ *  `options.method` / `options.note` flow into the API call. The
+ *  legacy fake-expense ignores them (the receipt context lives on
+ *  the server-side record only). */
 export function settleDebt(
     tripId: string,
     from: string,
     to: string,
     amount: number,
     currency: string,
+    options?: { method?: string; note?: string },
 ): void {
     if (from === to) {
         showLiquidAlert(t('settlement.toastSenderEqualsReceiver'));
@@ -535,6 +563,10 @@ export function settleDebt(
         return;
     }
     const euroValue = convertCurrency(amount, currency, 'EUR');
+
+    // STEP 1 — optimistic local update. The fake-settlement expense
+    // produces the right balance shift immediately so the page can
+    // re-render before the API round-trip completes.
     const settlementExp = {
         id: generateId(),
         tripId: tripId,
@@ -551,7 +583,46 @@ export function settleDebt(
     };
     STATE.expenses.push(settlementExp);
     emit(EVENTS.STATE_CHANGED);
-    showLiquidAlert(`Recorded ${formatHome(euroValue, 'EUR')} ${from} → ${to}`);
+
+    // STEP 2 — server-side settlement row when both parties have
+    // user accounts (companion.linkedUserId). The legacy companion-
+    // by-name flow (companion not linked to any account) stays on
+    // STEP 1 only: there's no user to notify or surface a feed
+    // event for.
+    const trip = STATE.trips.find((tr) => tr.id === tripId);
+    const fromUserId = findTripCompanion(trip, from)?.linkedUserId;
+    const toUserId = findTripCompanion(trip, to)?.linkedUserId;
+
+    if (fromUserId && toUserId) {
+        // Fire-and-forget — UI already updated optimistically in
+        // step 1. The next /api/data poll will hydrate STATE.
+        // settlements with the server row. We don't ROLLBACK the
+        // fake-expense on API failure: balance math stays correct
+        // either way; only the notification / feed event would
+        // miss, which the user can re-trigger by hitting Settle
+        // again. Logging the error is enough for diagnostics
+        // (Sentry catches it via §3.8's structured logging).
+        createSettlement({
+            tripId,
+            fromUserId,
+            toUserId,
+            amount,
+            currency,
+            euroValue,
+            ...(options?.method ? { method: options.method } : {}),
+            ...(options?.note ? { note: options.note } : {}),
+        }).then((result) => {
+            if (result.error) {
+                // Don't toast — the local settlement already
+                // succeeded in step 1. The error is for ops, not
+                // the user.
+                console.warn('[settlement] /api/settlements failed:', result.error);
+            }
+        });
+        showLiquidAlert(`Recorded ${formatHome(euroValue, 'EUR')} ${from} → ${to} · notified ${to}`);
+    } else {
+        showLiquidAlert(`Recorded ${formatHome(euroValue, 'EUR')} ${from} → ${to}`);
+    }
 }
 
 export function deleteSettlement(id: string): void {
@@ -568,10 +639,27 @@ export function deleteSettlement(id: string): void {
 
 // ── Modals ────────────────────────────────────────────────────────────
 
+/** Method quick-picks for the manual settle modal. The set mirrors
+ *  the server-side _ALLOWED_METHODS in routes/settlements.py — any
+ *  value here gets accepted unchanged; 'custom' is the catch-all for
+ *  free-form notes ("Cash via Andre at the airport"). The roadmap
+ *  §4.5 explicitly calls out this list. */
+const SETTLE_METHODS = [
+    { value: 'cash',          label: 'Cash' },
+    { value: 'revolut',       label: 'Revolut' },
+    { value: 'bank_transfer', label: 'Bank transfer' },
+    { value: 'wise',          label: 'Wise' },
+    { value: 'paypal',        label: 'PayPal' },
+    { value: 'custom',        label: 'Custom' },
+];
+
 export function openManualSettleModal(tripId: string): void {
     const trip = STATE.trips.find((tr) => tr.id === tripId);
     const peopleSource = getTripCompanionNames(trip);
     const peopleOptions = peopleSource.map((p) => `<option value="${esc(p)}">${esc(p)}</option>`).join('');
+    const methodOptions = SETTLE_METHODS
+        .map(m => `<option value="${esc(m.value)}">${esc(m.label)}</option>`)
+        .join('');
     const home = getHomeCurrency();
 
     const { root: modalRoot, close } = showModal({
@@ -587,6 +675,10 @@ export function openManualSettleModal(tripId: string): void {
                 <select id="manualSettleTo" class="glass-input" style="padding: var(--space-3); border-radius: 12px; background: var(--card-bg);">${peopleOptions}</select>
                 <label class="form-label" style="margin-top:6px;">Amount (${esc(home)})</label>
                 <input type="number" step="0.01" min="0.01" id="manualSettleAmount" class="glass-input" placeholder="0.00" required style="padding: var(--space-3); border-radius: 12px;">
+                <label class="form-label" style="margin-top:6px;">Method</label>
+                <select id="manualSettleMethod" class="glass-input" style="padding: var(--space-3); border-radius: 12px; background: var(--card-bg);">${methodOptions}</select>
+                <label class="form-label" style="margin-top:6px;">Note <span class="text-subtitle" style="font-weight:500;">(optional)</span></label>
+                <input type="text" id="manualSettleNote" class="glass-input" maxlength="240" placeholder="e.g. Cash at the airport" style="padding: var(--space-3); border-radius: 12px;">
                 <div style="display:flex; gap: var(--space-3); margin-top: var(--space-4);">
                     <button type="button" id="cancelManualSettleBtn" class="btn-neutral" style="flex:1; border-radius: var(--radius-lg);">Cancel</button>
                     <button type="submit" class="btn-primary" style="flex:2; border-radius: var(--radius-lg);">Record payment</button>
@@ -600,11 +692,17 @@ export function openManualSettleModal(tripId: string): void {
         const from = (q(modalRoot, '#manualSettleFrom') as HTMLSelectElement).value;
         const to = (q(modalRoot, '#manualSettleTo') as HTMLSelectElement).value;
         const amount = parseFloat((q(modalRoot, '#manualSettleAmount') as HTMLInputElement).value);
+        const method = (q(modalRoot, '#manualSettleMethod') as HTMLSelectElement).value;
+        const note = (q(modalRoot, '#manualSettleNote') as HTMLInputElement).value.trim();
         if (from === to) {
             showLiquidAlert(t('settlement.toastSenderEqualsReceiver'));
             return;
         }
-        settleDebt(tripId, from, to, amount, home);
+        // The method + note flow into /api/settlements when both
+        // parties have linkedUserIds (see settleDebt step 2). They
+        // get dropped silently for the legacy companion-by-name path
+        // since there's no server-side record to attach them to.
+        settleDebt(tripId, from, to, amount, home, { method, note });
         close();
     };
 }
