@@ -1213,3 +1213,274 @@
     border-color: rgb(var(--accent));
     box-shadow: 0 0 0 3px rgba(var(--accent), 0.16);
 }
+
+/* ── Companion picker modal + trip role badge ────────────────────
+   Emitted by modals/companions.ts (the trip companion picker +
+   members modal) and TripBody.tsx (.trip-role-badge). Both modal
+   entrypoints (openCompanionPickerModal, openTripMembersModal)
+   are only called from Home (pages/home-mount/TripBody.tsx and
+   pages/home/gettingStartedGuide.ts), so the CSS lazy-loads with
+   the Home bundle and the modal's open-time has the styles ready.
+   Stack:
+     - .companion-row (+ .is-locked) + __name / __lock /
+       __role-select (compact role dropdown inline next to a
+       linked-companion row)
+     - .companion-picker-add-form (+ __input / __btn) — inline
+       "Add new companion" form
+     - .companion-picker-add-section (+ __friend-btn) — wraps the
+       inline form alongside the friend-picker trigger
+     - .companion-picker-friend-sheet (+ __header / __list) —
+       slide-in friend list
+     - .friend-pick-row (+ nested .companion-row__name) — friend
+       picker row variant of .companion-row
+     - .companion-link-pill (+ --pending / --linked) — link-state
+       chip on each companion
+     - .btn-link-action — row-inline action button used for "Link
+       to friend", "Cancel", "Unlink"
+     - .trip-role-badge (+ --relaxer) — trip-header chip flagging
+       Relaxer role
+   FIXING_ROADMAP §3.1 slice 11. */
+
+/* Companion-picker modal row — checkbox + name, with a locked variant
+   when the companion has historical expenses on the trip and can't be
+   removed without orphaning balance math. */
+.companion-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-md);
+    background: rgba(0,0,0,0.03);
+    border: 1px solid rgba(0,0,0,0.05);
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+.companion-row:hover , .companion-row:active , .companion-row:focus-visible { background: rgba(0,113,227,0.06); border-color: rgba(0,113,227,0.18); }
+.companion-row.is-locked {
+    cursor: default;
+    background: rgba(52,199,89,0.06);
+    border-color: rgba(52,199,89,0.2);
+}
+.companion-row.is-locked:hover , .companion-row.is-locked:active , .companion-row.is-locked:focus-visible { background: rgba(52,199,89,0.06); border-color: rgba(52,199,89,0.2); }
+/* (.companion-row__cb REMOVED 2026-05-16 — zero refs. The picker
+   modal now renders its checkboxes via inline styles on bare <input
+   type="checkbox">.) */
+.companion-row__name {
+    flex: 1;
+    font-weight: 600;
+    color: #002d5b;
+}
+.companion-row__lock {
+    font-size: var(--font-base);
+    opacity: 0.7;
+}
+
+/* Inline "Add new companion" form inside the trip-companion picker
+   modal — sits between the checkbox list and the Save / Cancel
+   buttons. Submits via Enter on the input or click on the button. */
+.companion-picker-add-form {
+    display: flex;
+    gap: var(--space-2);
+    margin-bottom: var(--space-5);
+    flex-shrink: 0;
+}
+.companion-picker-add-form__input {
+    flex: 1;
+    min-width: 0;
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-md);
+    background: rgba(0, 0, 0, 0.04);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    color: #002d5b;
+    font-weight: 600;
+    font-family: inherit;
+    font-size: var(--font-base);
+    outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    box-sizing: border-box;
+}
+.companion-picker-add-form__input:focus-visible {
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.18);
+}
+.companion-picker-add-form__input::placeholder {
+    color: rgba(0, 0, 0, 0.45);
+    font-weight: 600;
+}
+.companion-picker-add-form__btn {
+    padding: 0 var(--space-5);
+    border-radius: var(--radius-md);
+    border: 1px solid rgba(0, 113, 227, 0.32);
+    background: rgba(0, 113, 227, 0.08);
+    color: var(--accent-blue);
+    font-weight: 800;
+    font-size: var(--font-sm);
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+.companion-picker-add-form__btn:hover , .companion-picker-add-form__btn:active , .companion-picker-add-form__btn:focus-visible {
+    background: rgba(0, 113, 227, 0.16);
+    border-color: rgba(0, 113, 227, 0.48);
+}
+.companion-picker-add-form__btn:active { transform: scale(0.97); }
+
+/* The add-section in the trip-companion picker holds two affordances
+   side-by-side: the friend picker trigger + the inline plain-name form. */
+.companion-picker-add-section {
+    display: flex;
+    gap: var(--space-3);
+    margin-bottom: var(--space-5);
+    flex-shrink: 0;
+}
+.companion-picker-add-section__friend-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-md);
+    background: rgba(0, 113, 227, 0.08);
+    border: 1px solid rgba(0, 113, 227, 0.32);
+    color: var(--accent-blue);
+    font-weight: 700;
+    font-size: var(--font-sm);
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+    flex-shrink: 0;
+    letter-spacing: -0.01em;
+    font-family: inherit;
+}
+.companion-picker-add-section__friend-btn:hover , .companion-picker-add-section__friend-btn:active , .companion-picker-add-section__friend-btn:focus-visible {
+    background: rgba(0, 113, 227, 0.16);
+    border-color: rgba(0, 113, 227, 0.48);
+}
+.companion-picker-add-section__friend-btn:active { transform: scale(0.97); }
+.companion-picker-add-section .companion-picker-add-form { flex: 1; }
+
+/* Friend-picker sheet — slides in below the add-section when the user
+   clicks "Add a friend" (or the inline "Link to friend" on an unlinked
+   row). Each row has avatar + name + role select + Add button. */
+.companion-picker-friend-sheet {
+    margin-bottom: var(--space-5);
+    padding: var(--space-3);
+    border-radius: var(--radius-lg);
+    background: rgba(0, 113, 227, 0.04);
+    border: 1px solid rgba(0, 113, 227, 0.16);
+    flex-shrink: 0;
+    max-height: 240px;
+    overflow-y: auto;
+}
+.companion-picker-friend-sheet__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-2);
+    padding: 0 var(--space-2);
+    color: #002d5b;
+    font-size: 0.85rem;
+}
+.companion-picker-friend-sheet__list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+/* Friend-pick variant of `.companion-row` — same shell, but uses a radio
+   input instead of a checkbox and adds room for the avatar + email.
+   Bumps gap so the avatar doesn't crowd the name. */
+.friend-pick-row {
+    gap: var(--space-3);
+}
+.friend-pick-row .companion-row__name { flex: 0 1 auto; }
+
+/* Companion link-state pill — small, monochrome chip next to the name in
+   the personalization companions table. Three colour variants for the
+   three states: pending (amber), linked (green), declined (grey). */
+.companion-link-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    line-height: 1.6;
+}
+.companion-link-pill--pending {
+    background: rgba(255, 159, 10, 0.14);
+    color: #b06b00;
+    border: 1px solid rgba(255, 159, 10, 0.3);
+}
+.companion-link-pill--linked {
+    background: rgba(52, 199, 89, 0.14);
+    color: #157a36;
+    border: 1px solid rgba(52, 199, 89, 0.3);
+}
+/* (.companion-link-pill--self REMOVED 2026-05-16 — zero refs. The
+   "you" self-link case is now rendered with inline styles in the
+   picker modal.) */
+
+/* Tiny row-inline action button — used for "Link to friend", "Cancel",
+   "Unlink". Sits next to the existing `.btn-x-bare` delete button. */
+.btn-link-action {
+    background: rgba(0, 113, 227, 0.06);
+    border: 1px solid rgba(0, 113, 227, 0.18);
+    color: var(--accent-blue);
+    font-weight: 700;
+    font-size: 0.78rem;
+    padding: 4px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+    letter-spacing: -0.01em;
+}
+.btn-link-action:hover , .btn-link-action:active , .btn-link-action:focus-visible {
+    background: rgba(0, 113, 227, 0.12);
+    border-color: rgba(0, 113, 227, 0.32);
+}
+.btn-link-action:active { transform: scale(0.97); }
+
+/* Trip-role badge — small pill in the trip header that flags Relaxers
+   so the read-only state is obvious at a glance. Same shell as the
+   companion-link-pill but a different colour palette to distinguish
+   "trip role" from "companion link state". */
+.trip-role-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 12px;
+    height: 24px;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    line-height: 1;
+}
+.trip-role-badge--relaxer {
+    background: rgba(142, 142, 147, 0.12);
+    color: #5b5b62;
+    border: 1px solid rgba(142, 142, 147, 0.25);
+}
+/* (.trip-role-badge--planner REMOVED 2026-05-16 — zero refs. The
+   planner role is the default visual state of .trip-role-badge so a
+   modifier isn't needed; only --relaxer has a distinct fill.) */
+
+/* Compact role dropdown rendered inline next to a linked-companion row
+   in the trip companion picker. Sized to fit alongside the existing
+   `.companion-link-pill--linked` chip without crowding the row. */
+.companion-row__role-select {
+    flex-shrink: 0;
+    padding: 4px 8px;
+    border-radius: 8px;
+    border: 1px solid rgba(0, 113, 227, 0.25);
+    background: rgba(0, 113, 227, 0.04);
+    color: var(--accent-blue);
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+}
+.companion-row__role-select:focus-visible {
+    outline: 2px solid var(--accent-blue);
+    outline-offset: 2px;
+}
