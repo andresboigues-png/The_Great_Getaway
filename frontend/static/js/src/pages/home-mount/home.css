@@ -1675,3 +1675,36 @@
     border-color: rgba(10, 132, 255, 0.42);
     box-shadow: 0 8px 22px rgba(10, 132, 255, 0.18);
 }
+
+/* ── Getting Started Guide step cards + Home Path/Companions tab body
+   - .guide-step-card (+ :hover/.is-hovered) — empty-state guide
+     cards on the Welcome page, emitted by pages/home/
+     gettingStartedGuide.ts. Lifts on hover; background/border are
+     set inline because they vary with the step's completion state.
+   - .home-tab-content (+ .is-active) — Path/Companions tab body
+     swap on the active-trip view, emitted by pages/home-mount/
+     TripBody.tsx. Both blocks stay mounted so per-day delegated
+     handlers don't churn on tab change; display:none hides the
+     inactive block.
+   FIXING_ROADMAP §3.1 slice 13. */
+.guide-step-card {
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.guide-step-card:hover , .guide-step-card:active , .guide-step-card:focus-visible {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 24px rgba(0,0,0,0.08);
+}
+.guide-step-card.is-hovered {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 24px rgba(0,0,0,0.08);
+}
+
+/* Tab content swap — both blocks stay in the DOM so per-day delegated
+   handlers don't churn on tab change. `display: none` on the inactive
+   block keeps it from taking layout space; `is-active` reveals it. The
+   Days tab keeps its inline `display: flex` styles, so we override
+   only when inactive (the cascade order matters: this rule must come
+   AFTER any inline flex declarations, but inline beats class — so we
+   force `display: none !important` for inactive). */
+.home-tab-content { display: none !important; }
+.home-tab-content.is-active { display: flex !important; }

@@ -93,3 +93,84 @@
         margin: 4px auto 0;
     }
 }
+
+/* ── home-tabnav segmented capsule tabs (Feed page Posts/Actions/Explore)
+   The class name still carries `home-` for historical reasons (the
+   pattern was first introduced on Home, then reused on Feed). The
+   only live consumer today is pages/feed/Feed.tsx — Home moved to
+   its own .trip-tabnav family. A future rename to `feed-tabnav` is
+   tracked separately; for now the class lives next to its only
+   caller. FIXING_ROADMAP §3.1 slice 13. */
+.home-tabnav {
+    display: flex;
+    gap: 36px;
+    border-bottom: 1px solid rgba(0, 113, 227, 0.25);
+    margin: var(--space-5) 0 var(--space-6);
+    padding: 0 4px;
+}
+.home-tabnav__tab {
+    background: none;
+    border: 0;
+    padding: 12px 0 10px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: color 0.2s ease, border-color 0.2s ease;
+    letter-spacing: -0.01em;
+}
+.home-tabnav__tab:hover , .home-tabnav__tab:active , .home-tabnav__tab:focus-visible { color: var(--accent-blue); }
+.home-tabnav__tab.is-active {
+    color: var(--accent-blue);
+    border-bottom-color: var(--accent-blue);
+    font-weight: 800;
+}
+
+/* `home-tabnav--centered` modifier — used by the Feed page so the
+   Posts/Actions pair sits in the middle instead of left-anchored,
+   and drops the bottom baseline (the feed already has the action-row
+   divider on each card; an extra baseline above the cards reads as
+   visual noise). Tabs themselves carry their own --accent CSS var
+   (set inline per-tab) so each gets a palette colour: Posts purple,
+   Actions orange — see feed.js. The active border-bottom turns into
+   a subtle pill backdrop instead, since there's no baseline to sit on. */
+.home-tabnav--centered {
+    justify-content: center;
+    border-bottom: 0;
+    gap: 8px;
+}
+.home-tabnav--centered .home-tabnav__tab {
+    --accent: 0, 113, 227;
+    border-bottom: 0;
+    padding: 10px 18px;
+    border-radius: 999px;
+    /* D3 contrast fix: was `rgba(var(--accent), 0.55)` — fine for blue
+       (--accent 0,113,227 → ~5.5:1) but the Feed "Actions" tab uses
+       --accent: 255, 149, 0 (orange), which at 0.55 alpha rendered as
+       #fbc06f and only hit 2.39:1 on the page background. Use the
+       grey secondary text token for the *inactive* state instead so
+       contrast is consistent regardless of accent hue; the active
+       state below still uses `rgb(var(--accent))` so each tab keeps
+       its identity colour when selected. */
+    color: var(--text-secondary);
+}
+.home-tabnav--centered .home-tabnav__tab:hover , .home-tabnav--centered .home-tabnav__tab:active , .home-tabnav--centered .home-tabnav__tab:focus-visible {
+    color: rgb(var(--accent));
+    background: rgba(var(--accent), 0.06);
+}
+.home-tabnav--centered .home-tabnav__tab.is-active {
+    /* D3 contrast: the original `color: rgb(var(--accent))` failed AA
+       on the rgba(...) backdrop for the purple Feed-Posts tab (4.41:1
+       baseline; 3.93 once we tried darkening the bg). Use color-mix
+       to drop the active foreground to ~75% lightness — for purple
+       (88,86,214) → ~#4240a0, which clears AA on the lighter backdrop;
+       for blue (0,113,227) → ~#0055aa, also clears. color-mix is
+       Baseline-supported (Chrome 111+, Safari 16.4+, Firefox 113+) so
+       no fallback is needed. */
+    color: color-mix(in srgb, rgb(var(--accent)) 75%, black);
+    background: rgba(var(--accent), 0.12);
+    border-bottom: 0;
+    font-weight: 800;
+}

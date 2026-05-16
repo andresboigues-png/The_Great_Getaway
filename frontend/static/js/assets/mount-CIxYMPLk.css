@@ -1339,3 +1339,21 @@
     border-color: #0a84ff6b;
     box-shadow: 0 8px 22px #0a84ff2e;
 }
+.guide-step-card {
+    transition:
+        transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.guide-step-card:hover,
+.guide-step-card:active,
+.guide-step-card:focus-visible,
+.guide-step-card.is-hovered {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 24px #00000014;
+}
+.home-tab-content {
+    display: none !important;
+}
+.home-tab-content.is-active {
+    display: flex !important;
+}

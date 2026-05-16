@@ -1478,10 +1478,10 @@ body.is-signed-out .trip-controls-popover {
    .settlement-trip-pill in the settlements revamp; inline styles
    on the new class own the hover/active appearance now.) */
 
-.guide-step-card.is-hovered {
-    transform: translateY(-4px);
-    box-shadow: 0 12px 24px rgba(0,0,0,0.08);
-}
+/* (.guide-step-card.is-hovered moved to pages/home-mount/home.css
+   2026-05-16 — FIXING_ROADMAP §3.1 slice 13. Lives next to the
+   .guide-step-card base rule that already moved with the rest of
+   the home-only classes. */
 
 .premium-glass-card.is-hovered {
     transform: translateY(-5px);
@@ -2930,17 +2930,9 @@ body.is-signed-out .trip-controls-popover {
 #resetMapViewBtn h2 { transition: color var(--duration-normal) ease; }
 #resetMapViewBtn:hover h2 , #resetMapViewBtn:active h2 , #resetMapViewBtn:focus-visible h2 { color: var(--accent-blue); }
 
-/* Guide step card on the home empty-state. Lifts on hover (replaces
-   inline onmouseover/onmouseout transform). Background and border are
-   set inline because they vary with completion state, but the hover
-   lift + shadow are universal. */
-.guide-step-card {
-    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-.guide-step-card:hover , .guide-step-card:active , .guide-step-card:focus-visible {
-    transform: translateY(-4px);
-    box-shadow: 0 12px 24px rgba(0,0,0,0.08);
-}
+/* (.guide-step-card (+ :hover/.is-hovered) moved to pages/home-mount/
+   home.css 2026-05-16 — FIXING_ROADMAP §3.1 slice 13. Welcome-page
+   empty-state guide cards emitted by pages/home/gettingStartedGuide.ts. */
 
 /* Quick-access show button — light glass pill with bg darkening on hover. */
 .btn-glass-light {
@@ -3151,32 +3143,10 @@ body.is-signed-out .trip-controls-popover {
    different set of classes (used by feed.js's Actions / Posts toggle)
    and stays here. ~55 lines. */
 
-.home-tabnav {
-    display: flex;
-    gap: 36px;
-    border-bottom: 1px solid rgba(0, 113, 227, 0.25);
-    margin: var(--space-5) 0 var(--space-6);
-    padding: 0 4px;
-}
-.home-tabnav__tab {
-    background: none;
-    border: 0;
-    padding: 12px 0 10px;
-    font-size: 0.95rem;
-    font-weight: 600;
-    color: var(--text-secondary);
-    cursor: pointer;
-    border-bottom: 2px solid transparent;
-    margin-bottom: -1px;
-    transition: color 0.2s ease, border-color 0.2s ease;
-    letter-spacing: -0.01em;
-}
-.home-tabnav__tab:hover , .home-tabnav__tab:active , .home-tabnav__tab:focus-visible { color: var(--accent-blue); }
-.home-tabnav__tab.is-active {
-    color: var(--accent-blue);
-    border-bottom-color: var(--accent-blue);
-    font-weight: 800;
-}
+/* (.home-tabnav + __tab + states + .is-active moved to pages/feed/
+   feed.css 2026-05-16 — FIXING_ROADMAP §3.1 slice 13. Despite the
+   `home-` prefix the only live consumer is pages/feed/Feed.tsx;
+   Home's own tab strip moved to .trip-tabnav (slice 7). */
 
 /* (.path-strip + .path-chips + scrollbar-hide rule moved to
    pages/home-mount/home.css 2026-05-16 — FIXING_ROADMAP §3.1 slice 7.
@@ -3316,62 +3286,13 @@ body.is-signed-out .trip-controls-popover {
    FIXING_ROADMAP §3.1 slice 12. ~190 lines. Emitted by
    pages/home/pathTab.ts + pages/home-mount/TripBody.tsx. */
 
-/* `home-tabnav--centered` modifier — used by the Feed page so the
-   Posts/Actions pair sits in the middle instead of left-anchored,
-   and drops the bottom baseline (the feed already has the action-row
-   divider on each card; an extra baseline above the cards reads as
-   visual noise). Tabs themselves carry their own --accent CSS var
-   (set inline per-tab) so each gets a palette colour: Posts purple,
-   Actions orange — see feed.js. The active border-bottom turns into
-   a subtle pill backdrop instead, since there's no baseline to sit on. */
-.home-tabnav--centered {
-    justify-content: center;
-    border-bottom: 0;
-    gap: 8px;
-}
-.home-tabnav--centered .home-tabnav__tab {
-    --accent: 0, 113, 227;
-    border-bottom: 0;
-    padding: 10px 18px;
-    border-radius: 999px;
-    /* D3 contrast fix: was `rgba(var(--accent), 0.55)` — fine for blue
-       (--accent 0,113,227 → ~5.5:1) but the Feed "Actions" tab uses
-       --accent: 255, 149, 0 (orange), which at 0.55 alpha rendered as
-       #fbc06f and only hit 2.39:1 on the page background. Use the
-       grey secondary text token for the *inactive* state instead so
-       contrast is consistent regardless of accent hue; the active
-       state below still uses `rgb(var(--accent))` so each tab keeps
-       its identity colour when selected. */
-    color: var(--text-secondary);
-}
-.home-tabnav--centered .home-tabnav__tab:hover , .home-tabnav--centered .home-tabnav__tab:active , .home-tabnav--centered .home-tabnav__tab:focus-visible {
-    color: rgb(var(--accent));
-    background: rgba(var(--accent), 0.06);
-}
-.home-tabnav--centered .home-tabnav__tab.is-active {
-    /* D3 contrast: the original `color: rgb(var(--accent))` failed AA
-       on the rgba(...) backdrop for the purple Feed-Posts tab (4.41:1
-       baseline; 3.93 once we tried darkening the bg). Use color-mix
-       to drop the active foreground to ~75% lightness — for purple
-       (88,86,214) → ~#4240a0, which clears AA on the lighter backdrop;
-       for blue (0,113,227) → ~#0055aa, also clears. color-mix is
-       Baseline-supported (Chrome 111+, Safari 16.4+, Firefox 113+) so
-       no fallback is needed. */
-    color: color-mix(in srgb, rgb(var(--accent)) 75%, black);
-    background: rgba(var(--accent), 0.12);
-    border-bottom: 0;
-    font-weight: 800;
-}
+/* (.home-tabnav--centered + nested __tab states moved to pages/feed/
+   feed.css 2026-05-16 — FIXING_ROADMAP §3.1 slice 13. */
 
-/* Tab content swap — both blocks stay in the DOM so per-day delegated
-   handlers don't churn on tab change. `display: none` on the inactive
-   block keeps it from taking layout space; `is-active` reveals it. The
-   Days tab keeps its inline `display: flex` styles, so we override
-   only when inactive (the cascade order matters: this rule must come
-   AFTER any inline flex declarations, but inline beats class — so we
-   force `display: none !important` for inactive). */
-.home-tab-content { display: none !important; }
-.home-tab-content.is-active { display: flex !important; }
+/* (.home-tab-content + .is-active moved to pages/home-mount/home.css
+   2026-05-16 — FIXING_ROADMAP §3.1 slice 13. Emitted by
+   pages/home-mount/TripBody.tsx for the Path/Companions tab body
+   swap. */
 
 /* Inline member chips on the trip header — at-a-glance roster with
    role badges. The `.trip-members-panel` outer wrapper was removed
