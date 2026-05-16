@@ -424,7 +424,14 @@ Three rapid swipes can race the cleanup listener; no leak today but ordering dep
 
 Not bugs — leverage. Each unblocks future feature velocity.
 
-### 3.1 Split `index.css` (7,456 lines) — **highest single-file leverage**
+### 3.1 Split `index.css` (8,224 → 7,992 → … lines) — **highest single-file leverage** — ⚠️ first slice shipped 2026-05-16
+
+**Progress (2026-05-16):**
+
+- Dead-code sweep: 11 unused "Collections Revamp" classes removed (`.trip-banner`, `.day-block*`, `.mini-gallery-*`, `.custom-scrollbar`, etc.). All confirmed zero-reference in src/ + templates/. -136 lines.
+- First per-page CSS chunk: Theme picker (110 lines, `.theme-options` + `.theme-option-card` + BEM children + dark-mode overrides) extracted to `frontend/static/js/src/pages/settings/settings.css`. Imported as a side-effect from `Settings.tsx`. Vite emits it as `assets/mount-*.css` and the entry bundle's preload helper injects a `<link rel="stylesheet">` when Settings is navigated to — users who never visit /settings don't pay for these styles.
+- Build hook: `declare module '*.css'` global declaration in new `frontend/static/js/src/globals.d.ts` so TypeScript accepts the side-effect imports without erroring.
+- Pattern established for future per-page extractions. Each subsequent slice = `pages/<name>/<name>.css` + `import './<name>.css'` from the page's mount/component module.
 
 **M** · `frontend/static/css/index.css`
 

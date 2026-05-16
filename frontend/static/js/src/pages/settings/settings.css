@@ -1,0 +1,133 @@
+/* Per-page CSS for the Settings page.
+ *
+ * First slice of FIXING_ROADMAP §3.1 (CSS split) — moves the Theme
+ * picker styles out of the monolithic frontend/static/css/index.css
+ * into a per-page file. Vite picks up the `import` statement in
+ * Settings.tsx and emits this as its own CSS chunk alongside the page
+ * chunk, so users who never visit /settings don't pay for these
+ * ~110 lines.
+ *
+ * Scope rule for this file: ONLY classes that are exclusively used
+ * by Settings (the theme + locale picker cards). Anything that's
+ * reused on other pages stays in index.css so the design-system
+ * primitives don't fork. The Theme picker classes (.theme-options,
+ * .theme-option-card and its BEM children) qualify — they appear
+ * only in pages/settings/Settings.tsx and the matching components
+ * preview row.
+ *
+ * Dark-mode overrides live alongside their light-mode rules in this
+ * file (same `:root[data-theme="dark"] .X` pattern as index.css)
+ * rather than at the bottom — local cohesion over global ordering.
+ */
+
+/* ── Theme picker (Phase D2 — moved here from index.css 2026-05-16) ─
+   Three option cards stacked vertically (one per theme: light /
+   dark / system). The active card gets a purple accent border +
+   check mark; the rest read as neutral choices. */
+.theme-options {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+.theme-option-card {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    grid-template-areas:
+        "icon label check"
+        "icon body  check";
+    align-items: center;
+    column-gap: var(--space-4);
+    row-gap: 2px;
+    padding: var(--space-4) var(--space-5);
+    border-radius: var(--radius-xl);
+    /* Solid card-bg so the option reads as a tappable card distinct
+       from the translucent .glass parent. (The previous --surface-
+       subtle background was rgba(0,0,0,0.04) which is essentially
+       invisible on a white .glass parent — invisible cards.) */
+    background: var(--card-bg);
+    border: 1.5px solid rgba(0, 0, 0, 0.08);
+    box-shadow: var(--shadow-sm);
+    color: var(--text-primary);
+    cursor: pointer;
+    text-align: left;
+    transition: background var(--duration-fast) var(--easing-smooth),
+                border-color var(--duration-fast) var(--easing-smooth),
+                box-shadow var(--duration-fast) var(--easing-smooth),
+                transform var(--duration-instant) var(--easing-smooth);
+    -webkit-tap-highlight-color: transparent;
+}
+:root[data-theme="dark"] .theme-option-card {
+    /* Dark mode: stronger border so the card outline reads on the
+       darker translucent parent, where the default 0.08-alpha black
+       border disappears. */
+    border-color: rgba(255, 255, 255, 0.1);
+}
+.theme-option-card:hover,
+.theme-option-card:focus-visible {
+    border-color: rgba(88, 86, 214, 0.35);
+    box-shadow: 0 4px 12px rgba(88, 86, 214, 0.12);
+    transform: translateY(-1px);
+    outline: none;
+}
+.theme-option-card:active {
+    transform: scale(0.99);
+}
+.theme-option-card.is-active {
+    /* Purple accent border + soft purple wash so the active state
+       reads at a glance. The check pill in the right column is the
+       second cue. */
+    background: linear-gradient(
+        180deg,
+        rgba(88, 86, 214, 0.06) 0%,
+        var(--card-bg) 100%
+    );
+    border-color: #5856d6;
+    box-shadow: 0 6px 18px rgba(88, 86, 214, 0.18);
+}
+:root[data-theme="dark"] .theme-option-card.is-active {
+    background: linear-gradient(
+        180deg,
+        rgba(88, 86, 214, 0.18) 0%,
+        var(--card-bg) 100%
+    );
+    border-color: #7c79e0;
+    box-shadow: 0 6px 18px rgba(88, 86, 214, 0.28);
+}
+.theme-option-card__icon {
+    grid-area: icon;
+    font-size: 1.6rem;
+    line-height: 1;
+}
+.theme-option-card__label {
+    grid-area: label;
+    font-weight: 800;
+    font-size: var(--font-lg);
+    color: var(--text-primary);
+}
+.theme-option-card__body {
+    grid-area: body;
+    font-size: var(--font-sm);
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+.theme-option-card__check {
+    grid-area: check;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: #5856d6;
+    color: white;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+    opacity: 0;
+    transform: scale(0.7);
+    transition: opacity var(--duration-fast) var(--easing-smooth),
+                transform var(--duration-fast) var(--easing-smooth);
+}
+.theme-option-card.is-active .theme-option-card__check {
+    opacity: 1;
+    transform: scale(1);
+}

@@ -49,6 +49,11 @@ import {
 } from './tabState.js';
 import { Personalization } from './Personalization.js';
 import { Developer } from './Developer.js';
+// Page-scoped CSS — Theme picker styles. FIXING_ROADMAP §3.1 first
+// slice: importing CSS from the page module lets Vite chunk it into
+// the Settings JS bundle, so users who never visit /settings don't
+// pay for these styles in the initial CSS payload.
+import './settings.css';
 
 /** Email allowlist for the Developer settings card. Must match
  *  src/routes/admin.py::ADMIN_EMAILS — the real gate is server-side

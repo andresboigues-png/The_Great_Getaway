@@ -1,0 +1,89 @@
+.theme-options {
+    gap: var(--space-3);
+    flex-direction: column;
+    display: flex;
+}
+.theme-option-card {
+    align-items: center;
+    column-gap: var(--space-4);
+    padding: var(--space-4) var(--space-5);
+    border-radius: var(--radius-xl);
+    background: var(--card-bg);
+    box-shadow: var(--shadow-sm);
+    color: var(--text-primary);
+    cursor: pointer;
+    text-align: left;
+    transition:
+        background var(--duration-fast) var(--easing-smooth),
+        border-color var(--duration-fast) var(--easing-smooth),
+        box-shadow var(--duration-fast) var(--easing-smooth),
+        transform var(--duration-instant) var(--easing-smooth);
+    -webkit-tap-highlight-color: transparent;
+    border: 1.5px solid #00000014;
+    grid-template-columns: auto 1fr auto;
+    grid-template-areas: 'icon label check' 'icon body check';
+    row-gap: 2px;
+    display: grid;
+}
+:root[data-theme='dark'] .theme-option-card {
+    border-color: #ffffff1a;
+}
+.theme-option-card:hover,
+.theme-option-card:focus-visible {
+    border-color: #5856d659;
+    outline: none;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px #5856d61f;
+}
+.theme-option-card:active {
+    transform: scale(0.99);
+}
+.theme-option-card.is-active {
+    background: linear-gradient(180deg, #5856d60f 0%, var(--card-bg) 100%);
+    border-color: #5856d6;
+    box-shadow: 0 6px 18px #5856d62e;
+}
+:root[data-theme='dark'] .theme-option-card.is-active {
+    background: linear-gradient(180deg, #5856d62e 0%, var(--card-bg) 100%);
+    border-color: #7c79e0;
+    box-shadow: 0 6px 18px #5856d647;
+}
+.theme-option-card__icon {
+    grid-area: icon;
+    font-size: 1.6rem;
+    line-height: 1;
+}
+.theme-option-card__label {
+    font-weight: 800;
+    font-size: var(--font-lg);
+    color: var(--text-primary);
+    grid-area: label;
+}
+.theme-option-card__body {
+    font-size: var(--font-sm);
+    color: var(--text-secondary);
+    grid-area: body;
+    font-weight: 500;
+}
+.theme-option-card__check {
+    color: #fff;
+    opacity: 0;
+    width: 28px;
+    height: 28px;
+    transition:
+        opacity var(--duration-fast) var(--easing-smooth),
+        transform var(--duration-fast) var(--easing-smooth);
+    background: #5856d6;
+    border-radius: 50%;
+    grid-area: check;
+    justify-content: center;
+    align-items: center;
+    font-size: 0.85rem;
+    font-weight: 800;
+    display: flex;
+    transform: scale(0.7);
+}
+.theme-option-card.is-active .theme-option-card__check {
+    opacity: 1;
+    transform: scale(1);
+}

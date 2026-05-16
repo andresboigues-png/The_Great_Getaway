@@ -4,6 +4,11 @@
 // Pure declarations — no runtime emit. Lives next to the code so paths stay
 // short. Files opt into checking with `// @ts-check`.
 
+// Side-effect CSS imports declared in `globals.d.ts` (a non-module file),
+// since `declare module '*.css'` only works at the global scope and this
+// file is already a module (the `export interface` declarations below).
+// See globals.d.ts for the wildcard declaration.
+
 export interface User {
     id: string;
     name: string;
