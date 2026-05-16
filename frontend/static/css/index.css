@@ -2747,95 +2747,11 @@ body.is-signed-out .trip-controls-popover {
     border-radius: 14px;
     background: rgba(0, 113, 227, 0.03);
 }
-.cat-row {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px 14px 12px 18px;
-    background: white;
-    border: 1px solid rgba(0, 0, 0, 0.06);
-    border-radius: 14px;
-    box-shadow: 0 2px 8px rgba(0, 45, 91, 0.04);
-    position: relative;
-    overflow: hidden;
-    transition: transform 0.18s ease, box-shadow 0.18s ease;
-}
-.cat-row:hover , .cat-row:active , .cat-row:focus-visible {
-    transform: translateY(-1px);
-    box-shadow: 0 6px 16px rgba(0, 45, 91, 0.10);
-}
-.cat-row__stripe {
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 5px;
-    background: var(--cat-color);
-}
-.cat-row__icon {
-    font-size: 1.4rem;
-    line-height: 1;
-    flex-shrink: 0;
-    width: 36px;
-    height: 36px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(0, 0, 0, 0.04);
-    border-radius: 10px;
-}
-.cat-row__name {
-    flex: 1;
-    min-width: 0;
-    font-weight: 700;
-    font-size: 0.95rem;
-    /* Was hardcoded #002d5b — invisible on the dark .cat-row in
-       dark mode. Tokenised so it flips with theme. */
-    color: var(--text-brand-navy);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    letter-spacing: -0.01em;
-}
-.cat-row__swatch {
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    flex-shrink: 0;
-    border: 2px solid white;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
-}
-.cat-row__actions {
-    display: flex;
-    gap: 6px;
-    flex-shrink: 0;
-}
-.cat-row__btn {
-    width: 30px;
-    height: 30px;
-    border-radius: 8px;
-    border: 1px solid rgba(0, 0, 0, 0.08);
-    background: rgba(0, 0, 0, 0.03);
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
-}
-.cat-row__btn--edit {
-    color: var(--accent-blue);
-}
-.cat-row__btn--edit:hover , .cat-row__btn--edit:active , .cat-row__btn--edit:focus-visible {
-    background: rgba(0, 113, 227, 0.10);
-    border-color: rgba(0, 113, 227, 0.32);
-}
-.cat-row__btn--delete {
-    color: #ff3b30;
-}
-.cat-row__btn--delete:hover , .cat-row__btn--delete:active , .cat-row__btn--delete:focus-visible {
-    background: rgba(255, 59, 48, 0.08);
-    border-color: rgba(255, 59, 48, 0.32);
-}
+/* (.cat-row + every BEM child (__stripe, __icon, __name, __swatch,
+   __actions, __btn + --edit/--delete variants + :hover states) moved
+   to pages/settings/settings.css 2026-05-16 — FIXING_ROADMAP §3.1
+   slice 6. Used exclusively by Personalization.tsx (Settings sub-
+   page); chunks correctly into the Settings JS bundle. ~90 lines. */
 
 /* Profile-map InfoWindow — restyled when the user clicks a red
    pin on the country footprint map. The default Google bubble is
@@ -6722,24 +6638,11 @@ main#app-container.nav-anim-backward {
    --card-bg-elevated (#2c2c2e) for the resting state so they're
    clearly tappable surfaces against the page. The is-active
    override keeps the purple-gradient wash. */
-:root[data-theme="dark"] .theme-option-card {
-    background: var(--card-bg-elevated);
-    border-color: rgba(255, 255, 255, 0.10);
-}
-
-/* Personalization category rows (.cat-row). Hardcoded
-   `background: white`; flip to card-bg-elevated so rows stand
-   out from the dark card behind them. The coloured stripe on
-   the left edge already provides theme-neutral identity. */
-:root[data-theme="dark"] .cat-row {
-    background: var(--card-bg-elevated);
-    border-color: rgba(255, 255, 255, 0.08);
-}
-:root[data-theme="dark"] .cat-row__icon {
-    /* Inner icon chip used a faint rgba black bg that disappears
-       on the dark row. Lift to a soft white. */
-    background: rgba(255, 255, 255, 0.06);
-}
+/* (:root[data-theme="dark"] .theme-option-card and .cat-row[__icon]
+   dark-mode background lifts moved to pages/settings/settings.css
+   2026-05-16. They were orphaned in this dark-mode block from earlier
+   sweeps; consolidating them with the matching light-mode rules in
+   settings.css keeps theme-picker + cat-row styling in one file.) */
 
 /* General sub-tab pill wrapper (Settings → General). Base has
    `background: rgba(255, 255, 255, 0.72)` — bright translucent
