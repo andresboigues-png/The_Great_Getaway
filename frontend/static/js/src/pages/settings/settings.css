@@ -714,3 +714,64 @@
     border-radius: 14px;
     background: rgba(0, 113, 227, 0.03);
 }
+
+/* ── Settings-only button variants ───────────────────────────────
+   Two button styles consumed only on the Settings page (and its
+   Developer sub-tab). Despite the `.btn-*` design-system prefix,
+   neither appears in components.html preview — they live here so
+   the Settings bundle stays the only consumer. FIXING_ROADMAP §3.1
+   slice 16. */
+
+/* Liquid Glass Buttons - Neutral — used by Settings.tsx + Developer.tsx
+   for secondary action buttons that need a translucent-blur surface
+   (e.g. "Export data", "Refresh feature flags"). */
+.btn-liquid-glass {
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(10px) saturate(180%);
+    -webkit-backdrop-filter: blur(10px) saturate(180%);
+    border: 1px solid var(--glass-border);
+    color: var(--text-primary);
+    border-radius: 980px;
+    padding: 10px 20px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-liquid-glass:hover , .btn-liquid-glass:active , .btn-liquid-glass:focus-visible {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.4);
+}
+
+.btn-liquid-glass:active {
+    transform: scale(0.97);
+}
+
+/* Confirm-danger button — emphasised red action used inside the
+   Settings "delete account" confirmation modal. Lifts + glows
+   stronger on hover; disabled state is the visual gate before the
+   user has typed the confirmation phrase. */
+.btn-confirm-danger {
+    background: #ff3b30;
+    color: white;
+    padding: 16px 32px;
+    border-radius: 18px;
+    font-weight: 800;
+    box-shadow: 0 10px 25px rgba(255, 59, 48, 0.3);
+    border: none;
+    cursor: pointer;
+    width: 100%;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.btn-confirm-danger:hover , .btn-confirm-danger:active , .btn-confirm-danger:focus-visible {
+    transform: scale(1.02);
+    box-shadow: 0 15px 35px rgba(255, 59, 48, 0.5);
+}
+
+.btn-confirm-danger:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+    transform: none;
+}

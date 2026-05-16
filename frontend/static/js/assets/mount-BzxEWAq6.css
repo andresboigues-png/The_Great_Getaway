@@ -610,3 +610,47 @@
     padding: 24px 12px;
     font-size: 0.88rem;
 }
+.btn-liquid-glass {
+    -webkit-backdrop-filter: blur(10px) saturate(180%);
+    border: 1px solid var(--glass-border);
+    color: var(--text-primary);
+    cursor: pointer;
+    background: #ffffff0d;
+    border-radius: 980px;
+    padding: 10px 20px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+.btn-liquid-glass:hover,
+.btn-liquid-glass:active,
+.btn-liquid-glass:focus-visible {
+    background: #ffffff1f;
+    border-color: #fff6;
+}
+.btn-liquid-glass:active {
+    transform: scale(0.97);
+}
+.btn-confirm-danger {
+    color: #fff;
+    cursor: pointer;
+    background: #ff3b30;
+    border: none;
+    border-radius: 18px;
+    width: 100%;
+    padding: 16px 32px;
+    font-weight: 800;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 10px 25px #ff3b304d;
+}
+.btn-confirm-danger:hover,
+.btn-confirm-danger:active,
+.btn-confirm-danger:focus-visible {
+    transform: scale(1.02);
+    box-shadow: 0 15px 35px #ff3b3080;
+}
+.btn-confirm-danger:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+    transform: none;
+}
