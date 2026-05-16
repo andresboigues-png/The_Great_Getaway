@@ -475,13 +475,15 @@ Not bugs — leverage. Each unblocks future feature velocity.
 - [ ] Move the camelCase shaping out of `routes/data.py:295-322` and `routes/public.py:75-93`.
 - [ ] Single helper for both; reduces drift risk.
 
-### 3.6 Feed-event registry
+### 3.6 Feed-event registry — ✅ Shipped 2026-05-16
 
-**M** · `src/routes/feed.py`
+**M** · `src/feed_events.py`, `src/routes/feed.py`
 
-- [ ] `FEED_EVENT_TYPES: dict[str, EventBuilder]` registry.
-- [ ] Each event type = ~20 lines: builder + reader + notification template.
-- [ ] Adding `settle_up`, `achievement_unlocked`, `trip_cloned` becomes one PR each.
+- [x] `FEED_EVENT_TYPES: list[FeedEventType]` registry — one dataclass entry per event type bundling `name`, `id_pattern`, `visibility_check`, `build`, and (optional) `engagement_recipient`. (Shipped 2026-05-16.)
+- [x] Each event type ≈ self-contained in `feed_events.py`: pattern + visibility callable + builder function + optional engagement-recipient hook. The eight existing types (trip_created, trip_archived, trip_joined, friendship, share, repost, settled_up, achievement) migrated unchanged in behaviour.
+- [x] Adding `trip_cloned` / `expense_added` / etc. now becomes a single new FeedEventType entry — no edits to `routes/feed.py`. The dispatch helpers `parse_event_id`, `caller_can_see_event`, `engagement_recipient`, and the `FEED_EVENT_BUILDERS` iteration all read straight from the registry.
+- [x] `routes/feed.py` shrank from 1,195 → ~600 lines (-50%) — the per-event-type knowledge moved to `feed_events.py`, the route file is now focused on HTTP handlers + engagement-notification emission.
+- [x] 30 new unit tests in `tests/test_feed_events.py` cover registry invariants (unique names, every entry has the required fields, every pattern matches its own canonical id), `parse_event_id` round-trips for every shape, `caller_can_see_event` delegation, and `engagement_recipient` (returns post owner for share/repost, None for everything else).
 
 ### 3.7 Decompose `utils.ts` (526 lines)
 
