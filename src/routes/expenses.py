@@ -11,6 +11,7 @@ from flask import Blueprint, jsonify, request
 from auth import current_user_id, require_auth
 from database import get_db, retry_on_lock
 from helpers import can_edit_expenses
+from observability import bind_trip_context
 
 
 bp = Blueprint("expenses", __name__)
@@ -26,6 +27,7 @@ def upsert_expense():
     e = data.get("expense")
     if not e:
         return jsonify({"error": "Missing data"}), 400
+    bind_trip_context(e.get("tripId"))
     with get_db() as conn:
         cursor = conn.cursor()
         if not can_edit_expenses(cursor, e["tripId"], user_id):
@@ -63,6 +65,7 @@ def delete_expense(expense_id):
         row = cursor.fetchone()
         if not row:
             return jsonify({"status": "deleted"})  # idempotent
+        bind_trip_context(row["trip_id"])
         if not can_edit_expenses(cursor, row["trip_id"], user_id):
             return jsonify({"error": "Forbidden"}), 403
         cursor.execute("DELETE FROM expenses WHERE id = ?", (expense_id,))

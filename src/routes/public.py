@@ -17,6 +17,7 @@ from flask import Blueprint, jsonify
 from auth import current_user_id
 from database import get_db
 from achievements import list_user_achievements
+from observability import bind_trip_context
 from helpers import (
     serialize_expense_row,
     serialize_trip_row,
@@ -45,6 +46,7 @@ def get_public_trip(trip_id):
     Companions / markedPlaces / per-trip photos / documents / checklist
     are all included so the read-only renderer renders the same body
     a local archive view would."""
+    bind_trip_context(trip_id)
     caller_id = current_user_id()  # may be None if not authed
     with get_db() as conn:
         cursor = conn.cursor()
@@ -319,6 +321,7 @@ def fetch_share_payload(token):
         row = cursor.fetchone()
         if not row:
             return None
+        bind_trip_context(row["id"])
         trip = {
             "id": row["id"],
             "name": row["name"] or "Untitled trip",

@@ -36,7 +36,8 @@ The `log_extra(...)` helper builds the dict of structured fields. Plain
 import logging
 import os
 import secrets
-from typing import Any
+import subprocess
+from typing import Any, Optional
 
 
 # ── Public helpers ───────────────────────────────────────────────────
@@ -67,6 +68,62 @@ def new_request_id() -> str:
     enough (2^32) that collisions inside a 15-second polling window are
     astronomically unlikely."""
     return secrets.token_hex(4)
+
+
+def resolve_release() -> Optional[str]:
+    """Resolve the deploy release identifier — used as Sentry's `release`
+    tag so every error event is associated with a specific commit. The
+    deploy script doesn't have to set anything; if a `.git` dir is reachable
+    at runtime, we read HEAD ourselves.
+
+    Resolution order:
+      1. `SENTRY_RELEASE` env var (explicit override — wins everything).
+      2. `GG_RELEASE` env var (deploy convention — useful when the running
+         user can't read `.git` but the deploy step DID know the SHA).
+      3. `git rev-parse --short=12 HEAD` via subprocess. Short SHA, not
+         full — Sentry uses the value as a free-text identifier, no
+         reason to bloat the log line with the full 40 chars.
+      4. None — Sentry then auto-generates a release based on the SDK's
+         own heuristics (typically "<unknown>"), which is fine for dev.
+
+    Subprocess errors (no git binary, no .git dir, repo in weird state)
+    fall through silently to `None` — observability MUST NOT block boot.
+    The function is intentionally cheap (≤30ms for `git rev-parse`) so
+    calling it once at setup_sentry() time has no measurable overhead.
+
+    Returns the resolved identifier, or None when no source produced one.
+    The setup_sentry() caller uses the returned value (or None → omit
+    `release=` from `sentry_sdk.init(...)`).
+
+    FIXING_ROADMAP §3.8.
+    """
+    env_release = os.getenv("SENTRY_RELEASE") or os.getenv("GG_RELEASE")
+    if env_release:
+        return env_release.strip() or None
+
+    try:
+        # 1.5s timeout — `git rev-parse` should be <30ms; a longer hang
+        # means something is wrong (filesystem, repo lock) and we'd
+        # rather drop the tag than block app startup.
+        result = subprocess.run(
+            ["git", "rev-parse", "--short=12", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=1.5,
+            check=False,
+            # cwd defaults to whatever the Flask process was launched
+            # from. On PA that's the repo root (via `manage.py runserver`
+            # in dev or the WSGI loader in prod). If launched from
+            # elsewhere `git rev-parse` will fail with the standard
+            # "not a git repository" error → we fall through to None.
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        return None
+
+    if result.returncode != 0:
+        return None
+    sha = result.stdout.strip()
+    return sha or None
 
 
 # ── Setup — called once from main.py boot ────────────────────────────
@@ -134,6 +191,18 @@ def setup_sentry() -> bool:
         level=logging.WARNING,   # breadcrumb threshold
         event_level=logging.ERROR,
     )
+    # §3.8 — auto-resolve the release tag from git SHA when neither
+    # SENTRY_RELEASE nor GG_RELEASE is set in env. With releases tagged,
+    # every Sentry event is associated with a specific commit and the
+    # SDK can auto-resolve issues once a fix ships on a later release.
+    release = resolve_release()
+    if release:
+        get_logger(__name__).info(
+            "sentry release tag resolved: %s",
+            release,
+            extra=log_extra(release=release),
+        )
+
     sentry_sdk.init(
         dsn=dsn,
         integrations=[FlaskIntegration(), logging_integration],
@@ -142,18 +211,64 @@ def setup_sentry() -> bool:
         traces_sample_rate=float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.05")),
         profiles_sample_rate=float(os.getenv("SENTRY_PROFILES_SAMPLE_RATE", "0.0")),
         environment=os.getenv("SENTRY_ENV", "production"),
-        release=os.getenv("SENTRY_RELEASE"),
+        release=release,
         send_default_pii=False,  # email/IP off by default; PII opt-in only
     )
     return True
+
+
+def bind_trip_context(trip_id: Optional[str]) -> None:
+    """Stash the trip_id this request is operating on. Route handlers
+    call this once they've resolved the trip from a URL param or body
+    payload; the after_request hook then includes the trip_id on the
+    per-request log line AND attaches it as a Sentry tag.
+
+    Idempotent + tolerant — `None` / empty / non-trip requests are no-ops
+    so callers don't need to branch. Calling outside a request context
+    is also a no-op (e.g. from a CLI / job; Flask raises on g access).
+
+    Usage in a route:
+
+        @bp.delete("/api/trips/<trip_id>")
+        def delete_trip(trip_id):
+            bind_trip_context(trip_id)
+            # … rest of the handler …
+
+    FIXING_ROADMAP §3.8 — gives every error event a trip_id tag, so
+    Sentry can filter "errors hitting this specific trip" or roll up by
+    trip on a regression. Beats sprinkling `extra=log_extra(trip_id=tid)`
+    on every individual log call.
+    """
+    if not trip_id:
+        return
+    try:
+        from flask import g, has_request_context
+        if not has_request_context():
+            return
+        g.trip_id = trip_id
+    except Exception:
+        # Flask not available / no app context — observability MUST NOT
+        # raise into the caller's hot path.
+        return
+
+    try:
+        import sentry_sdk
+        scope = sentry_sdk.get_current_scope()
+        scope.set_tag("trip_id", trip_id)
+    except ImportError:
+        pass
+    except Exception:
+        # SDK init half-failed / scope unavailable — silently degrade.
+        pass
 
 
 def attach_request_context(app, current_user_id_fn) -> None:
     """Wire Flask before_request / after_request hooks so every request:
       - gets a fresh `request_id` stashed on `flask.g`
       - logs an INFO line at completion with method, path, status, user_id
-      - sets the user_id + request_id on the Sentry scope (no-op without
-        Sentry)
+        AND trip_id (when the route has called `bind_trip_context(tid)`)
+      - sets the user_id + request_id (+ trip_id when set) on the Sentry
+        scope (no-op without Sentry)
 
     `current_user_id_fn` is injected so this module doesn't import auth
     (would be a circular import — auth uses helpers from us instead).
@@ -171,6 +286,10 @@ def attach_request_context(app, current_user_id_fn) -> None:
     @app.before_request
     def _gg_attach_request_id():
         g.request_id = new_request_id()
+        # trip_id starts unset — route handlers call bind_trip_context()
+        # once they've resolved the trip from URL or payload. The
+        # after_request hook reads g.trip_id if set.
+        g.trip_id = None
         if _have_sentry:
             scope = sentry_sdk.get_current_scope()
             scope.set_tag("request_id", g.request_id)
@@ -204,6 +323,7 @@ def attach_request_context(app, current_user_id_fn) -> None:
             extra=log_extra(
                 request_id=getattr(g, "request_id", None),
                 user_id=uid if uid != "-" else None,
+                trip_id=getattr(g, "trip_id", None),
                 status=response.status_code,
             ),
         )

@@ -13,6 +13,7 @@ from flask import Blueprint, jsonify, request
 from auth import current_user_id, require_auth
 from database import get_db, retry_on_lock
 from helpers import can_edit_trip
+from observability import bind_trip_context
 
 
 bp = Blueprint("days", __name__)
@@ -28,6 +29,7 @@ def upsert_day():
     d = data.get("day")
     if not d:
         return jsonify({"error": "Missing data"}), 400
+    bind_trip_context(d.get("tripId"))
     with get_db() as conn:
         cursor = conn.cursor()
         if not can_edit_trip(cursor, d.get("tripId"), user_id):
@@ -71,6 +73,7 @@ def delete_day(day_id):
         row = cursor.fetchone()
         if not row:
             return jsonify({"status": "deleted"})  # idempotent
+        bind_trip_context(row["trip_id"])
         if not can_edit_trip(cursor, row["trip_id"], user_id):
             return jsonify({"error": "Forbidden"}), 403
         if int(row["day_number"] or 0) == 0:

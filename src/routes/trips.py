@@ -24,6 +24,7 @@ from helpers import (
     is_trip_owner,
     trip_member_role,
 )
+from observability import bind_trip_context
 
 
 bp = Blueprint("trips", __name__)
@@ -41,6 +42,7 @@ def upsert_trip():
     t = data.get("trip")
     if not t:
         return jsonify({"error": "Missing data"}), 400
+    bind_trip_context(t.get("id"))
     with get_db() as conn:
         cursor = conn.cursor()
         # Existing trip? Gate on planner role (owner counts as planner).
@@ -104,6 +106,7 @@ def delete_trip(trip_id):
     """Delete a trip and all its expenses. Owner-only; non-owners can
     only leave the trip via the members/remove flow (they don't get
     to nuke everyone's data)."""
+    bind_trip_context(trip_id)
     user_id = current_user_id()
     with get_db() as conn:
         cursor = conn.cursor()
@@ -123,6 +126,7 @@ def archive_trip(trip_id):
     """Per-user archive toggle — flips THIS caller's
     `trip_members.is_archived` only. Other members keep their own
     state. Any role (incl. relaxer) can archive their own copy."""
+    bind_trip_context(trip_id)
     user_id = current_user_id()
     with get_db() as conn:
         cursor = conn.cursor()
@@ -159,6 +163,7 @@ def silence_trip_actions(trip_id):
     Request: { hidden: bool }  (omitted = treated as True for safety)
     Response: { status: 'ok', hidden: bool }
     """
+    bind_trip_context(trip_id)
     user_id = current_user_id()
     payload = request.json or {}
     hidden = bool(payload.get("hidden", True))
@@ -182,6 +187,7 @@ def unarchive_trip(trip_id):
     `trip_members.is_archived` back to 0 so the trip returns to their
     active list on next /api/data pull. Mirrors `trips.is_archived`
     when the actor is the owner."""
+    bind_trip_context(trip_id)
     user_id = current_user_id()
     with get_db() as conn:
         cursor = conn.cursor()
@@ -223,6 +229,7 @@ def invite_trip_member():
         return jsonify({"error": "Unknown role"}), 400
     if not trip_id or not target:
         return jsonify({"error": "Missing data"}), 400
+    bind_trip_context(trip_id)
     if inviter == target:
         return jsonify({"error": "Cannot invite yourself"}), 400
 
@@ -284,6 +291,7 @@ def respond_trip_invite():
     accept = bool(data.get("accept"))
     if not trip_id:
         return jsonify({"error": "Missing data"}), 400
+    bind_trip_context(trip_id)
 
     with get_db() as conn:
         cursor = conn.cursor()
@@ -344,6 +352,7 @@ def remove_trip_member():
     target = data.get("target_user_id")
     if not trip_id or not target:
         return jsonify({"error": "Missing data"}), 400
+    bind_trip_context(trip_id)
 
     with get_db() as conn:
         cursor = conn.cursor()
@@ -403,6 +412,7 @@ def create_share_link(trip_id):
     Photos, documents, expense line items, and member identities
     are never exposed regardless of toggle state.
     """
+    bind_trip_context(trip_id)
     user_id = current_user_id()
     payload = request.json or {}
     show_cost = bool(payload.get("showCost", False))
@@ -439,6 +449,7 @@ def revoke_share_link(trip_id):
     working. View count is preserved — re-sharing later starts a new
     token but keeps the historical visitor count visible to the owner.
     """
+    bind_trip_context(trip_id)
     user_id = current_user_id()
     with get_db() as conn:
         cursor = conn.cursor()
@@ -622,6 +633,7 @@ def clone_trip(source_id):
     caller. Visibility gate matches /api/public-trip — anything else
     would let the caller exfiltrate private trips by id-guessing.
     """
+    bind_trip_context(source_id)
     user_id = current_user_id()
     with get_db() as conn:
         cursor = conn.cursor()

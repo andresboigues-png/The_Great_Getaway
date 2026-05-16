@@ -38,7 +38,7 @@ from auth import current_user_id, require_auth
 from database import get_db, retry_on_lock
 from extensions import limiter
 from helpers import trip_member_role
-from observability import get_logger, log_extra
+from observability import bind_trip_context, get_logger, log_extra
 
 
 bp = Blueprint("settlements", __name__)
@@ -121,6 +121,7 @@ def create_settlement():
     # ── Validation ────────────────────────────────────────────────
     if not trip_id or not from_user_id or not to_user_id:
         return jsonify({"error": "tripId, fromUserId, toUserId are required"}), 400
+    bind_trip_context(trip_id)
     if from_user_id == to_user_id:
         return jsonify({"error": "fromUserId and toUserId must differ"}), 400
     try:
@@ -222,6 +223,7 @@ def create_settlement():
 def list_settlements_for_trip(trip_id):
     """Return all settlements for the trip. Members only (matches
     /api/data's trip visibility rule)."""
+    bind_trip_context(trip_id)
     user_id = current_user_id()
     with get_db() as conn:
         cursor = conn.cursor()
@@ -259,6 +261,7 @@ def delete_settlement(settlement_id):
         row = cursor.fetchone()
         if not row:
             return jsonify({"error": "Not found"}), 404
+        bind_trip_context(row["trip_id"])
 
         owner_id = _trip_owner_id(cursor, row["trip_id"])
         if user_id != owner_id and user_id != row["from_user_id"]:
