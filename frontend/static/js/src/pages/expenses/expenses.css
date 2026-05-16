@@ -1,0 +1,107 @@
+/* Per-page CSS for the Expenses page (Upload / History / Insights tabs).
+ *
+ * Third slice of FIXING_ROADMAP §3.1. Holds Expenses-only classes that
+ * AREN'T showcased on the components preview page — moving them here
+ * means users who never visit /expenses don't pay for these styles in
+ * the initial CSS payload.
+ *
+ * Stays in index.css (preview-shown, design-system tier):
+ *   .expense-row + every BEM child (__icon, __title, __meta, __meta-dot,
+ *      __amount, __currency, __converted)
+ *   .splitter-row, .splitter-row__pct
+ *   .split-input
+ *   .upload-dropzone
+ *
+ * In this file (Expenses page only, not on preview):
+ *   .expenses-tabnav + .expenses-tabnav__tab + .is-active state
+ *      (the page's "Upload / History / Insights" sub-tab row — used
+ *      nowhere else)
+ *   .expense-history-filters grid (search + 3-col filter row, History
+ *      tab only)
+ *   @media (max-width:720px) overrides that stack the filter grid +
+ *      flip the expense-row to column on mobile
+ */
+
+/* ── Expense sub-tab bar (Upload / Insights / History) ────────────
+   Title + thin accent-blue baseline + tab row. Active tab sits on
+   the baseline via a 2px bottom border that overlaps the parent's
+   1px border (`margin-bottom: -1px`). */
+.expenses-tabnav {
+    display: flex;
+    gap: 36px;
+    border-bottom: 1px solid rgba(0, 113, 227, 0.25);
+    margin: 0 0 32px;
+    padding: 0 4px;
+}
+.expenses-tabnav__tab {
+    background: none;
+    border: 0;
+    padding: 14px 0 12px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: color 0.2s, border-color 0.2s;
+    letter-spacing: -0.01em;
+}
+.expenses-tabnav__tab:hover,
+.expenses-tabnav__tab:active,
+.expenses-tabnav__tab:focus-visible {
+    color: var(--accent-blue);
+}
+.expenses-tabnav__tab.is-active {
+    /* D3 contrast: var(--accent-blue) (#0071e3) on the page bg
+       (#f5f5f7) is 4.31:1 — just under AA's 4.5 floor. Darker
+       variant hits 5.7:1 and is still recognizably the same brand
+       blue. */
+    color: #005bb8;
+    border-bottom-color: var(--accent-blue);
+    font-weight: 800;
+}
+
+/* ── Expense History filter grid ──────────────────────────────────
+   3-column grid on desktop (Search row spans all; Category / Payer /
+   Sort row + From / To / Value row each take one column). Stacks to
+   a single column on mobile so 375px-wide selects don't crush to
+   <100px and become unreadable. */
+.expense-history-filters {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: var(--space-3);
+}
+
+@media (max-width: 720px) {
+    .expense-history-filters {
+        grid-template-columns: 1fr;
+    }
+
+    /* ── Expense History row: column layout on mobile ──────────
+       Desktop has [icon + title + meta]  ←→  [receipt + amount +
+       actions] in a single row. At 375px that crushes the meta
+       text and pushes the amount tight against the actions. On
+       mobile we flip to column: top row is icon + title-stack
+       (already its own flex unit via the inline left-block),
+       bottom row right-aligns the receipt / amount / edit / delete
+       cluster so the amount stays the eye-catcher.
+
+       `> div:nth-child(2)` is the right-side block (the inline
+       structure has exactly two children). Forcing
+       `justify-content: flex-end` makes the receipt + amount +
+       actions cluster on the right edge of the card. */
+    .expense-row {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 12px;
+    }
+    .expense-row > div:nth-child(2) {
+        justify-content: flex-end !important;
+    }
+    /* Allow long expense titles to wrap rather than truncate (the
+       desktop layout never truncates either, but at 375px with no
+       extra horizontal room this matters). */
+    .expense-row__title {
+        word-break: break-word;
+    }
+}

@@ -741,61 +741,11 @@ h1 {
     margin-top: 20px;
 }
 
-.bg-image {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-size: cover;
-    background-position: center;
-    opacity: 0;
-    transform: scale(1.1);
-    transition: opacity 2s ease, transform 5s ease-out;
-}
-
-.bg-image.active {
-    opacity: 0.5;
-    transform: scale(1);
-}
-
-.floating-quote {
-    position: absolute;
-    padding: 30px;
-    background: rgba(0, 0, 0, 0.4);
-    backdrop-filter: blur(15px) saturate(150%);
-    -webkit-backdrop-filter: blur(15px) saturate(150%);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 20px;
-    color: white;
-    text-align: center;
-    max-width: 80%;
-    opacity: 0;
-    animation: fadeInOut 5s ease-in-out forwards;
-    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
-}
-
-@keyframes fadeInOut {
-    0% {
-        opacity: 0;
-        transform: translateY(20px);
-    }
-
-    15% {
-        opacity: 1;
-        transform: translateY(0);
-    }
-
-    85% {
-        opacity: 1;
-        transform: translateY(0);
-    }
-
-    100% {
-        opacity: 0;
-        transform: translateY(-10px);
-    }
-}
+/* (.bg-image + .bg-image.active and .floating-quote with its
+   @keyframes fadeInOut animation REMOVED 2026-05-16 — zero refs in
+   src/ + templates/. They were part of the original Phase-A welcome
+   page's Ken-Burns slideshow + floating quote overlay; the new home
+   slideshow uses inline styles + the .cover-card chrome. -55 lines.) */
 
 /* ================================================
    HAMBURGER BUTTON
@@ -1493,63 +1443,12 @@ body.is-signed-out .trip-controls-popover {
     }
 }
 
-/* --- Confirmation Modal (Square) --- */
-.confirm-modal-square {
-    width: 420px;
-    min-height: 420px;
-    padding: 48px;
-    border-radius: 44px;
-    background: rgba(255, 255, 255, 0.08);
-    backdrop-filter: blur(30px) saturate(180%);
-    -webkit-backdrop-filter: blur(30px) saturate(180%);
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    gap: 24px;
-    box-shadow: 0 40px 100px rgba(0, 0, 0, 0.6);
-}
-
-.confirm-title {
-    font-size: 2rem;
-    font-weight: 800;
-    letter-spacing: -0.05em;
-    margin: 0;
-    background: linear-gradient(135deg, #ffffff, #a2a2a2);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-}
-
-.confirm-msg {
-    color: rgba(255, 255, 255, 0.7);
-    font-size: 1rem;
-    line-height: 1.6;
-    margin: 0;
-}
-
-.confirm-input {
-    width: 100%;
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 18px;
-    padding: 16px;
-    color: white;
-    text-align: center;
-    font-weight: 700;
-    letter-spacing: 0.1em;
-    font-size: 1.1rem;
-    text-transform: uppercase;
-    outline: none;
-    transition: all 0.3s;
-}
-
-.confirm-input:focus {
-    border-color: rgba(255, 59, 48, 0.5);
-    background: rgba(255, 59, 48, 0.05);
-}
-
+/* (.confirm-modal-square + .confirm-title + .confirm-msg + .confirm-input
+   REMOVED 2026-05-16 — zero refs in src/ + templates/. They were part of
+   an earlier "type the trip name to confirm delete" modal that got
+   replaced by the showConfirmModal helper (.card-glass-confirm) below.
+   Only .btn-confirm-danger survives — it's still used by Settings'
+   delete-account flow. -55 lines.) */
 .btn-confirm-danger {
     background: #ff3b30;
     color: white;
@@ -1731,9 +1630,9 @@ body.is-signed-out .trip-controls-popover {
 .btn-ghost:active { transform: scale(0.98); }
 .btn-ghost:focus-visible { outline: 2px solid rgba(255,255,255,0.5); outline-offset: 2px; }
 
-/* Pill-shaped variants — for nav-style or chip buttons (existing .btn is
-   already pill-shaped via 980px). Provided here against the radius token. */
-.btn-pill { border-radius: var(--radius-pill); }
+/* (.btn-pill REMOVED 2026-05-16 — zero refs. Pill-shaped buttons in
+   the codebase all use the existing `.btn-primary-pill` family, not
+   the generic `.btn-pill` utility this was.) */
 
 /* Glass card — frosted panel used for modal bodies. */
 .card-glass-modal {
@@ -1845,51 +1744,10 @@ body.is-signed-out .trip-controls-popover {
     color: var(--text-secondary);
 }
 
-/* Day-card actions panel — slides in from the right when the day card
-   is expanded. Sits AFTER the card in the DOM so the flex row reads
-   card → panel left-to-right. Width *and* max-height collapse to 0
-   when closed (just width isn't enough — flex column children still
-   stack to their natural height, which would inflate the row and
-   leave a vertical gap). The `.is-open` modifier is set by JS in
-   lockstep with the parent day-card's open state. */
-.day-actions-panel {
-    width: 0;
-    min-width: 0;
-    max-height: 0;
-    opacity: 0;
-    transform: translateX(20px);
-    pointer-events: none;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-    padding-top: 0;
-    transition: width 0.4s var(--easing-smooth),
-                min-width 0.4s var(--easing-smooth),
-                max-height 0.4s var(--easing-smooth),
-                opacity 0.4s var(--easing-smooth),
-                transform 0.4s var(--easing-smooth);
-}
-.day-actions-panel.is-open {
-    width: 200px;
-    min-width: 200px;
-    max-height: 500px;
-    opacity: 1;
-    transform: translateX(0);
-    pointer-events: auto;
-    padding-top: var(--space-1);
-}
-
-/* Section label inside the day-card actions panel ("Actions"). */
-.day-actions-label {
-    font-size: var(--font-2xs);
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: var(--accent-blue);
-    margin-bottom: var(--space-1);
-    padding-left: var(--space-3);
-}
+/* (.day-actions-panel + .is-open modifier + .day-actions-label REMOVED
+   2026-05-16 — zero refs in src/ + templates/. The Path-tab day cards
+   no longer slide an actions panel out to the side; per-day actions
+   moved into the day-detail modal that opens on tap. -40 lines.) */
 
 /* Day timeline row — outer container that lays out the actions panel +
    main day card side-by-side. The gap collapses to 0 when the actions
@@ -2164,48 +2022,11 @@ body.is-signed-out .trip-controls-popover {
     outline-offset: 2px;
 }
 
-/* Settings → General preference rows. One row per POI category with a
-   checkbox + emoji + name + tooltip-style hint, stacked vertically. */
-.general-pref-list {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-}
-.general-pref-row {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    padding: var(--space-3) var(--space-4);
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: var(--radius-md);
-    cursor: pointer;
-    transition: background-color 0.2s ease, border-color 0.2s ease;
-}
-.general-pref-row:hover , .general-pref-row:active , .general-pref-row:focus-visible {
-    background: rgba(0, 113, 227, 0.06);
-    border-color: rgba(0, 113, 227, 0.2);
-}
-.general-pref-row input[type="checkbox"] {
-    width: 18px;
-    height: 18px;
-    accent-color: var(--accent-blue);
-    cursor: pointer;
-}
-.general-pref-row__icon {
-    font-size: 1.2rem;
-    flex-shrink: 0;
-}
-.general-pref-row__label {
-    font-weight: 700;
-    color: var(--text-primary);
-}
-.general-pref-row__hint {
-    flex: 1;
-    color: var(--text-secondary);
-    font-size: 0.82rem;
-    text-align: right;
-}
+/* (.general-pref-list + .general-pref-row + nested input + every
+   __icon / __label / __hint child REMOVED 2026-05-16 — zero refs.
+   Settings → General's POI preference list is now rendered as the
+   `.poi-filter-row` family further up in this file, with inline
+   styles for the per-row layout. -40 lines.) */
 .cover-card__content {
     position: absolute;
     /* Per-user feedback the quote was sitting too high on the map
@@ -2482,15 +2303,9 @@ body.is-signed-out .trip-controls-popover {
     font-weight: 700;
     margin-top: 1px;
 }
-.expense-row__empty {
-    padding: 50px;
-    text-align: center;
-    border-radius: 32px;
-    border: 1px solid rgba(255,255,255,0.1);
-    background: rgba(255,255,255,0.03);
-    backdrop-filter: blur(25px);
-    -webkit-backdrop-filter: blur(25px);
-}
+/* (.expense-row__empty REMOVED 2026-05-16 — zero refs. The History
+   tab's empty state is now an <EmptyState> component with its own
+   styles.) */
 
 /* Notification dropdown items — clickable rows on a translucent glass
    panel (matches `.btn-ghost` aesthetic per the design ask). Title is
@@ -3682,38 +3497,13 @@ body.is-signed-out .trip-controls-popover {
    strong accent-blue border across the board so the active card still
    reads as selected. */
 
-/* Anchor — the trip's location anchor. Gold to mirror the gold
-   star avatar on the same card. (Recoloured from green to fit the
-   "central hub / premium anchor" identity Anchor carries.) */
-.day-card--anchor {
-    border-color: rgba(212, 160, 23, 0.55) !important;
-}
-.day-card--anchor.is-open {
-    border-color: var(--accent-blue) !important;
-}
-
-/* Pinned — numbered day with a place set. Thin blue echoes the
-   day-number badge and "📍 Location Set" tag in the row. */
-.day-card--pinned {
-    border-color: rgba(0, 113, 227, 0.45) !important;
-}
-.day-card--pinned.is-open {
-    border-color: var(--accent-blue) !important;
-}
-
-/* Unpinned — numbered day without a place. Amber dashed so it stands
-   out enough to notice without being a red alert. Companion message
-   ".day-card__pin-hint" prints "📌 Pin this day" in the date row. */
-.day-card--unpinned {
-    border-style: dashed !important;
-    border-color: rgba(255, 159, 10, 0.55) !important;
-}
-.day-card--unpinned.is-open {
-    border-color: var(--accent-blue) !important;
-}
-.day-card:not(.is-open).day-card--unpinned:hover , .day-card:not(.is-open).day-card--unpinned:active , .day-card:not(.is-open).day-card--unpinned:focus-visible {
-    border-color: rgba(255, 159, 10, 0.85) !important;
-}
+/* (.day-card--anchor / .day-card--pinned / .day-card--unpinned + their
+   .is-open and :hover variants REMOVED 2026-05-16 — zero refs in src/
+   + templates/. The Path-tab day cards have moved to inline styles for
+   their gold/blue/amber accent borders (Anchor / pinned / needs-pin),
+   keyed off the day's pin state at render time instead of these
+   CSS modifier classes. .day-card__pin-hint below stays — still
+   used by the unpinned-state label. -30 lines.) */
 .day-card__pin-hint {
     color: #b06b00;
     font-weight: 700;
@@ -3971,40 +3761,9 @@ body.is-signed-out .trip-controls-popover {
     box-shadow: 0 20px 50px rgba(0,0,0,0.2);
 }
 
-/* Expenses page sub-tab bar — title + thin accent-blue baseline + tab row.
-   Active tab sits on the baseline via a 2px bottom border that overlaps
-   the parent's 1px border (`margin-bottom: -1px`). */
-.expenses-tabnav {
-    display: flex;
-    gap: 36px;
-    border-bottom: 1px solid rgba(0, 113, 227, 0.25);
-    margin: 0 0 32px;
-    padding: 0 4px;
-}
-.expenses-tabnav__tab {
-    background: none;
-    border: 0;
-    padding: 14px 0 12px;
-    font-size: 0.95rem;
-    font-weight: 600;
-    color: var(--text-secondary);
-    cursor: pointer;
-    border-bottom: 2px solid transparent;
-    margin-bottom: -1px;
-    transition: color 0.2s, border-color 0.2s;
-    letter-spacing: -0.01em;
-}
-.expenses-tabnav__tab:hover , .expenses-tabnav__tab:active , .expenses-tabnav__tab:focus-visible {
-    color: var(--accent-blue);
-}
-.expenses-tabnav__tab.is-active {
-    /* D3 contrast: var(--accent-blue) (#0071e3) on the page bg
-       (#f5f5f7) is 4.31:1 — just under AA's 4.5 floor. Darker variant
-       hits 5.7:1 and is still recognizably the same brand blue. */
-    color: #005bb8;
-    border-bottom-color: var(--accent-blue);
-    font-weight: 800;
-}
+/* (.expenses-tabnav + .expenses-tabnav__tab moved to pages/expenses/
+   expenses.css 2026-05-16 — FIXING_ROADMAP §3.1 slice 3. Used only
+   on /expenses, not showcased in the components preview.) */
 
 /* Small clear-filters chip — already-red pill that darkens on hover. */
 .btn-chip-danger {
@@ -4180,7 +3939,7 @@ body.is-signed-out .trip-controls-popover {
     width: 100%;
     max-width: 440px;
 }
-.form-row--snug { margin-bottom: var(--space-5); }
+/* (.form-row--snug REMOVED 2026-05-16 — zero refs.) */
 
 /* Themed block button — accent-color-driven. Each call site provides one
    `--accent: R,G,B` custom property (raw triple, not `rgb()`); the rules
@@ -4296,12 +4055,9 @@ body.is-signed-out .trip-controls-popover {
     border-color: rgba(52,199,89,0.2);
 }
 .companion-row.is-locked:hover , .companion-row.is-locked:active , .companion-row.is-locked:focus-visible { background: rgba(52,199,89,0.06); border-color: rgba(52,199,89,0.2); }
-.companion-row__cb {
-    width: 18px;
-    height: 18px;
-    accent-color: var(--accent-blue);
-    cursor: inherit;
-}
+/* (.companion-row__cb REMOVED 2026-05-16 — zero refs. The picker
+   modal now renders its checkboxes via inline styles on bare <input
+   type="checkbox">.) */
 .companion-row__name {
     flex: 1;
     font-weight: 600;
@@ -4453,11 +4209,9 @@ body.is-signed-out .trip-controls-popover {
     color: #157a36;
     border: 1px solid rgba(52, 199, 89, 0.3);
 }
-.companion-link-pill--self {
-    background: rgba(0, 113, 227, 0.12);
-    color: var(--accent-blue);
-    border: 1px solid rgba(0, 113, 227, 0.28);
-}
+/* (.companion-link-pill--self REMOVED 2026-05-16 — zero refs. The
+   "you" self-link case is now rendered with inline styles in the
+   picker modal.) */
 
 /* Tiny row-inline action button — used for "Link to friend", "Cancel",
    "Unlink". Sits next to the existing `.btn-x-bare` delete button. */
@@ -4751,14 +4505,10 @@ body.is-signed-out .trip-controls-popover {
     line-height: 1;
     flex-shrink: 0;
 }
-.day-plan-tab__label {
-    font-weight: 800;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    /* The label can shrink (and ellipsis-truncate) when the row is
-       cramped — keeps the icon + count chip visible on every tab. */
-    min-width: 0;
-}
+/* (.day-plan-tab__label REMOVED 2026-05-16 — zero refs. The day-
+   detail modal's morning/afternoon/evening tabs now use the icon-only
+   variant defined just below, which doesn't need a separate label
+   class.) */
 
 /* Phase G v3 — icon-only tab variant. Used by the day-detail modal's
    morning / afternoon / evening tabs after the user reported the
@@ -6784,21 +6534,15 @@ main#app-container.nav-anim-backward {
    card and its BEM children, plus the matching :root[data-theme="dark"]
    overrides. Total: -110 lines from index.css.) */
 
-/* ── Expense History filter grid ─────────────────────────────────
-   3-column grid on desktop (Search row spans all; Category /
-   Payer / Sort row + From / To / Value row each take one column).
-   Stacks to a single column on mobile so 375px-wide selects don't
-   crush to <100px and become unreadable. */
-.expense-history-filters {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: var(--space-3);
-}
+/* (.expense-history-filters grid + its mobile @media overrides moved
+   to pages/expenses/expenses.css 2026-05-16 — FIXING_ROADMAP §3.1
+   slice 3. The .form-row-split mobile-stack rule stays here as it's
+   used by trip-modal forms (not the Expenses page).
+   The .expense-row / .expense-row__title mobile overrides also moved
+   — they only fire on the Expenses page where the expense-row card
+   is rendered, and shipping them as part of the Expenses chunk
+   keeps the cascade order correct. */
 @media (max-width: 720px) {
-    .expense-history-filters {
-        grid-template-columns: 1fr;
-    }
-
     /* `.form-row-split` is the opt-in marker for "this row should
        stack vertically on mobile." Used by the New Trip + Edit Trip
        modals' Start/End date pairs, which read as cramped half-
@@ -6809,34 +6553,6 @@ main#app-container.nav-anim-backward {
     .form-row-split {
         flex-direction: column !important;
         align-items: stretch !important;
-    }
-
-    /* ── Expense History row: column layout on mobile ──────────
-       Desktop has [icon + title + meta]  ←→  [receipt + amount +
-       actions] in a single row. At 375px that crushes the meta
-       text and pushes the amount tight against the actions. On
-       mobile we flip to column: top row is icon + title-stack
-       (already its own flex unit via the inline left-block), bottom
-       row right-aligns the receipt / amount / edit / delete cluster
-       so the amount stays the eye-catcher.
-
-       `> div:nth-child(2)` is the right-side block (the inline
-       structure has exactly two children). Forcing
-       `justify-content: flex-end` makes the receipt + amount +
-       actions cluster on the right edge of the card. */
-    .expense-row {
-        flex-direction: column !important;
-        align-items: stretch !important;
-        gap: 12px;
-    }
-    .expense-row > div:nth-child(2) {
-        justify-content: flex-end !important;
-    }
-    /* Allow long expense titles to wrap rather than truncate (the
-       desktop layout never truncates either, but at 375px with no
-       extra horizontal room this matters). */
-    .expense-row__title {
-        word-break: break-word;
     }
 }
 

@@ -38,6 +38,11 @@ import {
 import { UploadTab } from './UploadTab.js';
 import { HistoryTab } from './HistoryTab.js';
 import { Insights } from '../insights/Insights.js';
+// Page-scoped CSS — sub-tab nav + history filter grid + mobile
+// overrides. FIXING_ROADMAP §3.1 third slice. Vite chunks this
+// alongside the Expenses JS bundle so users who never visit
+// /expenses don't pay for it in the initial CSS payload.
+import './expenses.css';
 
 
 /** useSyncExternalStore hook over the module-level tab state. The
