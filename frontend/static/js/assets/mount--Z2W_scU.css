@@ -200,3 +200,22 @@
         grid-template-columns: 1fr !important;
     }
 }
+.premium-glass-card {
+    transition:
+        transform 0.3s var(--easing-smooth),
+        box-shadow 0.3s var(--easing-smooth);
+}
+.premium-glass-card:hover,
+.premium-glass-card:active,
+.premium-glass-card:focus-visible,
+.premium-glass-card.is-hovered {
+    transform: translateY(-5px);
+    box-shadow:
+        0 40px 80px #00000026,
+        0 15px 30px #0071e326;
+}
+:root[data-theme='dark'] .premium-glass-card {
+    color: var(--text-primary) !important;
+    background: #1c1c1ec7 !important;
+    border-color: #ffffff1f !important;
+}

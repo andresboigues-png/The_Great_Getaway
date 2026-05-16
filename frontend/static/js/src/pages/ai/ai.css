@@ -295,3 +295,30 @@
         grid-template-columns: 1fr !important;
     }
 }
+
+/* ── Premium glass card — AI empty-trip hero ─────────────────────
+   Lifts on hover with a stronger shadow. The base class sets a
+   white translucent background inline (via JSX style attr); the
+   light-mode rule here just adds the lift/shadow animation. Dark
+   mode flips the inline white background to a dark surface using
+   `!important` because inline styles win specificity-wise. The
+   `.is-hovered` variant is the components-preview hover simulator
+   — kept alongside the live rule even though there's no JS that
+   adds the class today, to match the convention from
+   .guide-step-card etc. FIXING_ROADMAP §3.1 slice 14. */
+.premium-glass-card {
+    transition: transform 0.3s var(--easing-smooth), box-shadow 0.3s var(--easing-smooth);
+}
+.premium-glass-card:hover , .premium-glass-card:active , .premium-glass-card:focus-visible {
+    transform: translateY(-5px);
+    box-shadow: 0 40px 80px rgba(0,0,0,0.15), 0 15px 30px rgba(0,113,227,0.15);
+}
+.premium-glass-card.is-hovered {
+    transform: translateY(-5px);
+    box-shadow: 0 40px 80px rgba(0,0,0,0.15), 0 15px 30px rgba(0,113,227,0.15);
+}
+:root[data-theme="dark"] .premium-glass-card {
+    background: rgba(28, 28, 30, 0.78) !important;
+    border-color: rgba(255, 255, 255, 0.12) !important;
+    color: var(--text-primary) !important;
+}

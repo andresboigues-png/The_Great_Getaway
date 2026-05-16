@@ -1323,53 +1323,11 @@ body.is-signed-out .trip-controls-popover {
     margin-top: 24px;
 }
 
-.management-card {
-    position: relative;
-    padding: 32px;
-    border-radius: 28px;
-    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-    overflow: hidden;
-}
-
-.management-card:hover , .management-card:active , .management-card:focus-visible {
-    transform: translateY(-5px);
-}
-
-.danger-card {
-    border: 1px solid rgba(255, 59, 48, 0.2);
-    background: linear-gradient(135deg, rgba(255, 59, 48, 0.05), transparent);
-}
-
-.danger-card:hover , .danger-card:active , .danger-card:focus-visible {
-    border-color: rgba(255, 59, 48, 0.4);
-    box-shadow: 0 10px 40px rgba(255, 59, 48, 0.15);
-}
-
-.danger-glow {
-    position: absolute;
-    top: -20px;
-    right: -20px;
-    width: 100px;
-    height: 100px;
-    background: radial-gradient(circle, rgba(255, 59, 48, 0.15) 0%, transparent 70%);
-    filter: blur(20px);
-}
-
-.pulse-red {
-    animation: pulseRed 3s infinite ease-in-out;
-}
-
-@keyframes pulseRed {
-
-    0%,
-    100% {
-        opacity: 0.3;
-    }
-
-    50% {
-        opacity: 0.6;
-    }
-}
+/* (.management-card (+ :hover/.is-active), .danger-card (+ :hover),
+   .danger-glow, .pulse-red + @keyframes pulseRed — all moved to
+   pages/settings/settings.css 2026-05-16 — FIXING_ROADMAP §3.1
+   slice 14. Used exclusively by Settings.tsx on the "delete
+   account" management surface. */
 
 /* (.confirm-modal-square + .confirm-title + .confirm-msg + .confirm-input
    REMOVED 2026-05-16 — zero refs in src/ + templates/. They were part of
@@ -1483,10 +1441,9 @@ body.is-signed-out .trip-controls-popover {
    .guide-step-card base rule that already moved with the rest of
    the home-only classes. */
 
-.premium-glass-card.is-hovered {
-    transform: translateY(-5px);
-    box-shadow: 0 40px 80px rgba(0,0,0,0.15), 0 15px 30px rgba(0,113,227,0.15);
-}
+/* (.premium-glass-card.is-hovered moved to pages/ai/ai.css 2026-05-16
+   — FIXING_ROADMAP §3.1 slice 14. Lives next to the .premium-glass-
+   card base + dark-mode rules. */
 
 /* (.zoom-badge.is-hovered REMOVED 2026-05-16 — zero refs. The
    matching #aiZoomBadge.is-hovered selector also dropped since the
@@ -2125,36 +2082,10 @@ body.is-signed-out .trip-controls-popover {
    family (+__name/__icon/__actions/__btn[--edit/--delete]) moved
    to pages/settings/settings.css 2026-05-16 — slice 9. ~165 lines. */
 
-/* Settings → Manage Categories — card-style list (replaces the
-   plain table). Each row carries a coloured left-edge stripe in
-   the category's own color so the list reads visually rather
-   than as a wall of text. Edit / delete actions live in chip
-   buttons on the right; hover lifts the row by 1px so the
-   tappable surface is obvious. */
-.cat-count-chip {
-    background: rgba(0, 113, 227, 0.10);
-    color: var(--accent-blue);
-    font-size: 0.7rem;
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    padding: 4px 10px;
-    border-radius: 999px;
-}
-.cat-list {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-.cat-list__empty {
-    padding: 24px 12px;
-    text-align: center;
-    color: var(--text-secondary);
-    font-size: 0.88rem;
-    border: 1.5px dashed rgba(0, 113, 227, 0.25);
-    border-radius: 14px;
-    background: rgba(0, 113, 227, 0.03);
-}
+/* (.cat-count-chip + .cat-list + .cat-list__empty moved to
+   pages/settings/settings.css 2026-05-16 — FIXING_ROADMAP §3.1
+   slice 14. Emitted by Personalization.tsx for the Manage
+   Categories card-list. */
 /* (.cat-row + every BEM child (__stripe, __icon, __name, __swatch,
    __actions, __btn + --edit/--delete variants + :hover states) moved
    to pages/settings/settings.css 2026-05-16 — FIXING_ROADMAP §3.1
@@ -2822,15 +2753,9 @@ body.is-signed-out .trip-controls-popover {
 }
 #aiZoomBadge:hover , #aiZoomBadge:active , #aiZoomBadge:focus-visible { background: rgba(255,255,255,0.2); }
 
-/* Premium glass card — empty-state hero card on the AI page. Lifts on
-   hover with a stronger shadow. */
-.premium-glass-card {
-    transition: transform 0.3s var(--easing-smooth), box-shadow 0.3s var(--easing-smooth);
-}
-.premium-glass-card:hover , .premium-glass-card:active , .premium-glass-card:focus-visible {
-    transform: translateY(-5px);
-    box-shadow: 0 40px 80px rgba(0,0,0,0.15), 0 15px 30px rgba(0,113,227,0.15);
-}
+/* (.premium-glass-card + :hover/:active/:focus-visible moved to
+   pages/ai/ai.css 2026-05-16 — FIXING_ROADMAP §3.1 slice 14. Only
+   live consumer is AI.tsx for the empty-trip hero card. */
 
 /* Logout-style button — neutral resting state, danger-tinted hover.
    Used by the profile-page logout. Same color path as `.pill-btn-warn-hover`
@@ -4498,16 +4423,10 @@ main#app-container.nav-anim-backward {
     box-shadow: 0 40px 80px rgba(0, 0, 0, 0.6);
 }
 
-/* premium-glass-card is used by the AI empty-trip overlay + the
-   home-page glass surfaces. Inline style sets background to
-   rgba(255,255,255,0.6); override here for dark theme. The
-   class selector beats the inline style ONLY when we use
-   !important — necessary because inline wins specificity-wise. */
-:root[data-theme="dark"] .premium-glass-card {
-    background: rgba(28, 28, 30, 0.78) !important;
-    border-color: rgba(255, 255, 255, 0.12) !important;
-    color: var(--text-primary) !important;
-}
+/* (:root[data-theme="dark"] .premium-glass-card moved to pages/ai/
+   ai.css 2026-05-16 alongside the light-mode rule — FIXING_ROADMAP
+   §3.1 slice 14. The previous comment claimed dual-use (AI + home)
+   but a code audit shows AI.tsx is the only live consumer today. */
 
 /* (.poi-anchor-mode + .poi-filter-rating dark-mode override moved
    to pages/settings/settings.css 2026-05-16 — slice 9.) */
