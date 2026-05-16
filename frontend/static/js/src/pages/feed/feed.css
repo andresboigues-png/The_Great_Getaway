@@ -174,3 +174,32 @@
     border-bottom: 0;
     font-weight: 800;
 }
+
+/* ── Action-button pop animation (Feed like/bookmark/repost/comment)
+   D4 motion: momentary scale-up reaction. Triggered by adding
+   `.tap-pop` to a button (typically a feed like / bookmark /
+   repost / comment icon-btn-circle) right after the user toggles its
+   state. The keyframe overshoots scale(1.0) to 1.18 then settles back,
+   layered on top of any existing `transform` (the .icon-btn-circle
+   hover does scale(1.05); the keyframe replaces that for ~280ms then
+   the underlying state takes over).
+
+   Implementation note (feed/state.ts triggerTapPop): on like / bookmark
+   / repost / comment submission, the page replaces the icon HTML and
+   toggles dataset attributes; immediately after that, it adds
+   `.tap-pop` and removes it on `animationend`. CSS-only animation —
+   no setTimeout needed because the keyframe duration matches the
+   design.
+
+   Reduced-motion guard in index.css (@media prefers-reduced-motion)
+   flattens the keyframe to ~0ms automatically, so users who've opted
+   out of motion still see the icon flip but without the scale arc.
+   FIXING_ROADMAP §3.1 slice 15. */
+@keyframes actionPop {
+    0% { transform: scale(1); }
+    35% { transform: scale(1.18); }
+    100% { transform: scale(1); }
+}
+.tap-pop {
+    animation: actionPop 0.28s var(--easing-bounce);
+}

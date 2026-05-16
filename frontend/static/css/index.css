@@ -638,45 +638,12 @@ h1 {
     margin-bottom: 24px;
 }
 
-/* Liquid Table Styles */
-.liquid-table {
-    width: 100%;
-    border-collapse: separate;
-    border-spacing: 0;
-    margin: 20px 0;
-    background: rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(30px) saturate(200%);
-    -webkit-backdrop-filter: blur(30px) saturate(200%);
-    border: 1px solid var(--glass-border);
-    border-radius: 16px;
-    overflow: hidden;
-}
-
-.liquid-table th,
-.liquid-table td {
-    padding: 16px;
-    text-align: center;
-    vertical-align: middle;
-    border-bottom: 1px solid var(--glass-border);
-}
-
-.liquid-table th {
-    background: rgba(255, 255, 255, 0.2);
-    font-weight: 600;
-    color: var(--text-primary);
-    text-transform: uppercase;
-    font-size: 0.85rem;
-    letter-spacing: 0.5px;
-}
-
-.liquid-table tr:last-child td {
-    border-bottom: none;
-}
-
-.liquid-table tr:hover td , .liquid-table tr:active td , .liquid-table tr:focus-visible td {
-    background: rgba(255, 255, 255, 0.15);
-    transition: background 0.3s ease;
-}
+/* (.liquid-table + th/td + .liquid-table th + tr:last-child td +
+   tr:hover/active/focus moved to pages/expenses/expenses.css
+   2026-05-16 — FIXING_ROADMAP §3.1 slice 15. Used by pages/upload.ts
+   (loaded via the Expenses page's Upload tab). .liquid-alert (the
+   toast variant) stays in index.css because it IS in components
+   preview. */
 
 /* Dashboard Quotes & Image Animation */
 #dashboard-container {
@@ -1241,31 +1208,11 @@ body.is-signed-out .trip-controls-popover {
     animation: pageEnter 0.3s var(--easing-spring) backwards;
 }
 
-/* D4: action-button pop — momentary scale-up reaction. Triggered by
-   adding `.tap-pop` to a button (typically a feed like / bookmark /
-   repost / comment icon-btn-circle) right after the user toggles its
-   state. The keyframe overshoots scale(1.0) to 1.18 then settles back,
-   layered on top of any existing `transform` (the .icon-btn-circle
-   hover does scale(1.05); the keyframe replaces that for ~280ms then
-   the underlying state takes over).
-
-   Implementation note (feed.ts): on like / bookmark / repost / comment
-   submission, the page replaces the icon HTML and toggles dataset
-   attributes; immediately after that, it adds `.tap-pop` and
-   removes it on `animationend`. CSS-only animation — no setTimeout
-   needed because the keyframe duration matches the design.
-
-   Reduced-motion guard at the bottom of this file flattens the
-   keyframe to ~0ms automatically, so users who've opted out of motion
-   still see the icon flip but without the scale arc. */
-@keyframes actionPop {
-    0% { transform: scale(1); }
-    35% { transform: scale(1.18); }
-    100% { transform: scale(1); }
-}
-.tap-pop {
-    animation: actionPop 0.28s var(--easing-bounce);
-}
+/* (@keyframes actionPop + .tap-pop moved to pages/feed/feed.css
+   2026-05-16 — FIXING_ROADMAP §3.1 slice 15. The class is added/
+   removed by pages/feed/state.ts triggerTapPop. The reduced-motion
+   guard at the bottom of this file still flattens all animations
+   automatically, so it covers the moved keyframe by name. */
 
 /* Modals & Overlays */
 .modal-overlay {
@@ -4449,21 +4396,10 @@ main#app-container.nav-anim-backward {
     color: var(--text-primary);
 }
 
-/* Mark-all-for-AI pill on the to-do explainer card. Lives in CSS
-   instead of inline mouse handlers so the hover state can use the
-   theme-aware accent-purple variables (the inline handlers used
-   hardcoded rgba(155,89,182,…) which we replaced with tokens). */
-.todo-mark-all-btn:hover,
-.todo-mark-all-btn:focus-visible {
-    background: var(--accent-purple-bg-soft);
-    /* Slightly stronger border on hover for affordance. */
-    border-color: var(--accent-purple) !important;
-    filter: brightness(1.08);
-}
-.todo-mark-all-btn:focus-visible {
-    outline: 2px solid var(--accent-purple);
-    outline-offset: 2px;
-}
+/* (.todo-mark-all-btn:hover + :focus-visible moved to pages/todo/
+   todo.css 2026-05-16 — FIXING_ROADMAP §3.1 slice 15. New file
+   alongside Todo.tsx, imported as a side-effect from the mount
+   module so Vite chunks it with the Todo page bundle. */
 
 /* Sidebar surfaces — both the always-visible icon rail
    (.sidebar-rail) on desktop and the slide-in burger drawer

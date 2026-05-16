@@ -1,0 +1,25 @@
+/* pages/todo/todo.css — Todo page lazy-loaded CSS chunk.
+   FIXING_ROADMAP §3.1 slice 15.
+
+   Imported as a side-effect from pages/todo/Todo.tsx so Vite emits
+   a separate CSS chunk that lazy-loads when the Todo page mounts.
+   Currently houses just the mark-all-for-AI pill hover/focus styles
+   — the rest of the Todo page chrome is composed inline + via
+   shared utilities. As more Todo-only classes accrue they should
+   land here. */
+
+/* Mark-all-for-AI pill on the to-do explainer card. Lives in CSS
+   instead of inline mouse handlers so the hover state can use the
+   theme-aware accent-purple variables (the inline handlers used
+   hardcoded rgba(155,89,182,…) which we replaced with tokens). */
+.todo-mark-all-btn:hover,
+.todo-mark-all-btn:focus-visible {
+    background: var(--accent-purple-bg-soft);
+    /* Slightly stronger border on hover for affordance. */
+    border-color: var(--accent-purple) !important;
+    filter: brightness(1.08);
+}
+.todo-mark-all-btn:focus-visible {
+    outline: 2px solid var(--accent-purple);
+    outline-offset: 2px;
+}

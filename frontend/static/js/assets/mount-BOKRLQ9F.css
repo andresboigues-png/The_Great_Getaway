@@ -101,3 +101,17 @@
     border-bottom: 0;
     font-weight: 800;
 }
+@keyframes actionPop {
+    0% {
+        transform: scale(1);
+    }
+    35% {
+        transform: scale(1.18);
+    }
+    to {
+        transform: scale(1);
+    }
+}
+.tap-pop {
+    animation: actionPop 0.28s var(--easing-bounce);
+}

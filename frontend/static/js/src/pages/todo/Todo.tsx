@@ -43,6 +43,11 @@ import { openNewTripModal } from '../../modals.js';
 import { showConfirmModal, showLiquidAlert } from '../../utils.js';
 import { EmptyState } from '../../react/components/EmptyState.js';
 import { t, tn } from '../../i18n.js';
+// Page-scoped CSS — only the .todo-mark-all-btn hover/focus styles
+// for now; Vite chunks it alongside the Todo mount module so the
+// rules ship on Todo page navigations only. FIXING_ROADMAP §3.1
+// slice 15.
+import './todo.css';
 
 interface TodoMarkedPlace {
     placeId: string;
