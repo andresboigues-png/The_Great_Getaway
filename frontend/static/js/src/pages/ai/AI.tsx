@@ -66,6 +66,12 @@ import {
 } from './slots.js';
 import { t, tn } from '../../i18n.js';
 import type { Trip } from '../../types';
+// Page-scoped CSS — AI plan blocks, place cards, generate button,
+// + mobile day-card stacking. FIXING_ROADMAP §3.1 second slice (after
+// settings.css): same pattern, Vite emits this as a CSS chunk alongside
+// the AI JS bundle so users who never visit /ai don't pay for these
+// ~250 lines.
+import './ai.css';
 
 
 // ── Top-level ──────────────────────────────────────────────────
