@@ -1185,3 +1185,157 @@
     outline: 2px solid var(--accent-blue);
     outline-offset: 2px;
 }
+.path-cards-row {
+    align-items: flex-start;
+    gap: 16px;
+    display: flex;
+}
+.path-column {
+    flex-direction: column;
+    gap: 10px;
+    min-width: 0;
+    display: flex;
+}
+.path-column--anchor {
+    flex: 0 0 32%;
+}
+.path-column--selected {
+    flex: auto;
+}
+@media (width<=720px) {
+    .path-cards-row {
+        flex-direction: column;
+    }
+    .path-column,
+    .path-column--anchor,
+    .path-column--selected {
+        flex: 100%;
+        width: 100%;
+    }
+}
+.path-card {
+    cursor: pointer;
+    background: #fff;
+    border: 1.5px solid #0000000d;
+    border-radius: 24px;
+    flex-direction: column;
+    gap: 10px;
+    padding: 18px 20px;
+    transition:
+        border-color 0.18s,
+        box-shadow 0.18s;
+    display: flex;
+    box-shadow: 0 4px 14px #002d5b0d;
+}
+.path-card--anchor {
+    background: linear-gradient(#d4a0170d, #fff);
+    border-color: #d4a01752;
+}
+.path-card--anchor.is-selected {
+    border-color: #8b6e0c;
+    box-shadow: 0 8px 22px #d4a01738;
+}
+.path-card--selected {
+    background: linear-gradient(#0071e308, #fff);
+    border-color: #0071e338;
+    box-shadow: 0 8px 22px #0071e31a;
+}
+.path-card-collapse-btn {
+    width: 30px;
+    height: 30px;
+    color: var(--accent-blue);
+    cursor: pointer;
+    transition:
+        background 0.18s ease,
+        transform 0.3s var(--easing-spring);
+    background: #0071e30f;
+    border: none;
+    border-radius: 50%;
+    flex-shrink: 0;
+    justify-content: center;
+    align-items: center;
+    padding: 0;
+    display: inline-flex;
+}
+.path-card-collapse-btn:hover,
+.path-card-collapse-btn:focus-visible {
+    background: #0071e324;
+}
+.path-card-collapse-btn:focus-visible {
+    outline: 2px solid var(--accent-blue);
+    outline-offset: 2px;
+}
+.path-column.is-collapsed .path-card-collapse-btn {
+    transform: rotate(-180deg);
+}
+.path-options-stack {
+    opacity: 1;
+    max-height: 600px;
+    transition:
+        max-height 0.32s var(--easing-spring),
+        opacity 0.2s var(--easing-smooth),
+        margin-top 0.32s var(--easing-spring);
+    overflow: hidden;
+}
+.path-column.is-collapsed .path-options-stack {
+    opacity: 0;
+    pointer-events: none;
+    max-height: 0;
+    margin-top: 0;
+}
+.path-options-stack {
+    flex-direction: column;
+    gap: 6px;
+    display: flex;
+}
+.path-options-stack .day-action-btn {
+    justify-content: center;
+    width: 100%;
+}
+.path-options-stack .path-primary-btn {
+    background: linear-gradient(135deg, var(--accent-blue), #9b59b6);
+    color: #fff;
+    cursor: pointer;
+    border: 0;
+    border-radius: 12px;
+    width: 100%;
+    padding: 10px 16px;
+    font-size: 0.85rem;
+    font-weight: 800;
+    transition:
+        transform 0.15s,
+        box-shadow 0.15s;
+    box-shadow: 0 6px 14px #0071e338;
+}
+.path-options-stack .path-primary-btn:hover,
+.path-options-stack .path-primary-btn:active,
+.path-options-stack .path-primary-btn:focus-visible {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 18px #0071e34d;
+}
+.path-options-stack .path-primary-btn--anchor {
+    background: linear-gradient(135deg, #e8b923, #8b6e0c);
+    box-shadow: 0 6px 14px #d4a01747;
+}
+.path-options-stack .path-primary-btn--anchor:hover,
+.path-options-stack .path-primary-btn--anchor:active,
+.path-options-stack .path-primary-btn--anchor:focus-visible {
+    box-shadow: 0 8px 18px #d4a0175c;
+}
+:root[data-theme='dark'] .path-card {
+    background: var(--card-bg);
+    border-color: #ffffff14;
+}
+:root[data-theme='dark'] .path-card--anchor {
+    background: linear-gradient(180deg, #d4a01726, var(--card-bg));
+    border-color: #d4a0176b;
+}
+:root[data-theme='dark'] .path-card--anchor.is-selected {
+    border-color: #e8b923;
+    box-shadow: 0 8px 22px #d4a01752;
+}
+:root[data-theme='dark'] .path-card--selected {
+    background: linear-gradient(180deg, #0a84ff1f, var(--card-bg));
+    border-color: #0a84ff6b;
+    box-shadow: 0 8px 22px #0a84ff2e;
+}

@@ -3305,158 +3305,16 @@ body.is-signed-out .trip-controls-popover {
    prev/next chevrons + .path-summary label moved to pages/home-mount/
    home.css 2026-05-16 — FIXING_ROADMAP §3.1 slice 7. ~165 lines.) */
 
-/* Cards row: each "column" is a card + its OWN vertically-stacked
-   options below. Anchor owns the left column with its own slim
-   set; the selected day owns the right column with the full set.
-   No more shared-options-row ambiguity (each option clearly belongs
-   to the card directly above it). */
-.path-cards-row {
-    display: flex;
-    gap: 16px;
-    align-items: flex-start;
-}
-.path-column {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    min-width: 0;
-}
-.path-column--anchor { flex: 0 0 32%; }
-.path-column--selected { flex: 1 1 auto; }
-@media (max-width: 720px) {
-    .path-cards-row { flex-direction: column; }
-    /* Both columns stretch full-width on mobile so the Anchor card
-       and the day cards are the same width when stacked vertically.
-       Per-user request: previously `flex: 0 0 auto` made the Anchor
-       column shrink to its content width, which read as a narrow
-       awkward chip above the wider day cards. */
-    .path-column,
-    .path-column--anchor,
-    .path-column--selected {
-        flex: 1 1 100%;
-        width: 100%;
-    }
-}
-
-.path-card {
-    border-radius: 24px;
-    padding: 18px 20px;
-    background: white;
-    border: 1.5px solid rgba(0, 0, 0, 0.05);
-    box-shadow: 0 4px 14px rgba(0, 45, 91, 0.05);
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    cursor: pointer;
-    transition: border-color 0.18s ease, box-shadow 0.18s ease;
-}
-.path-card--anchor {
-    border-color: rgba(212, 160, 23, 0.32);
-    background: linear-gradient(180deg, rgba(212, 160, 23, 0.05), white);
-}
-.path-card--anchor.is-selected {
-    border-color: #8b6e0c;
-    box-shadow: 0 8px 22px rgba(212, 160, 23, 0.22);
-}
-.path-card--selected {
-    border-color: rgba(0, 113, 227, 0.22);
-    background: linear-gradient(180deg, rgba(0, 113, 227, 0.03), white);
-    box-shadow: 0 8px 22px rgba(0, 113, 227, 0.1);
-}
-
-/* Phase G v3 — collapse chevron on each day card header. Tinted
-   accent-blue on hover. Rotates 180° when the parent column has
-   `.is-collapsed` so the icon visually matches the state. */
-.path-card-collapse-btn {
-    flex-shrink: 0;
-    width: 30px;
-    height: 30px;
-    padding: 0;
-    border: none;
-    border-radius: 50%;
-    background: rgba(0, 113, 227, 0.06);
-    color: var(--accent-blue);
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    transition: background 0.18s ease, transform 0.3s var(--easing-spring);
-}
-.path-card-collapse-btn:hover,
-.path-card-collapse-btn:focus-visible {
-    background: rgba(0, 113, 227, 0.14);
-}
-.path-card-collapse-btn:focus-visible {
-    outline: 2px solid var(--accent-blue);
-    outline-offset: 2px;
-}
-.path-column.is-collapsed .path-card-collapse-btn {
-    transform: rotate(-180deg);
-}
-
-/* Smooth slide-up of the options stack on collapse. Animating
-   max-height instead of height so the stack content's intrinsic
-   height drives the expanded size — no magic-number tracking when
-   the button list changes between Anchor / numbered / pin-edit. */
-.path-options-stack {
-    overflow: hidden;
-    /* Generous max-height when expanded (covers any practical button
-       list). The transition collapses to 0 fast enough to feel
-       responsive but slow enough to register as a single motion. */
-    max-height: 600px;
-    opacity: 1;
-    transition: max-height 0.32s var(--easing-spring),
-                opacity 0.2s var(--easing-smooth),
-                margin-top 0.32s var(--easing-spring);
-}
-.path-column.is-collapsed .path-options-stack {
-    max-height: 0;
-    opacity: 0;
-    margin-top: 0;
-    pointer-events: none;
-}
-
-/* Per-card vertical options stack — buttons stretch the column width
-   and sit one above the other. Same `.day-action-btn` style the old
-   right-side panel used, so the visual language carries over. */
-.path-options-stack {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-.path-options-stack .day-action-btn {
-    width: 100%;
-    justify-content: center;
-}
-.path-options-stack .path-primary-btn {
-    width: 100%;
-    padding: 10px 16px;
-    border-radius: 12px;
-    /* Gradient matches the day-number badge on the path card
-       (linear-gradient(135deg, var(--accent-blue), #9b59b6)) so the
-       "Open Full Plan" button reads as the action belonging to the
-       same day card sitting above it. Anchor variant overrides this
-       below with the gold gradient that matches its star badge. */
-    background: linear-gradient(135deg, var(--accent-blue), #9b59b6);
-    color: white;
-    font-weight: 800;
-    font-size: 0.85rem;
-    border: 0;
-    cursor: pointer;
-    box-shadow: 0 6px 14px rgba(0, 113, 227, 0.22);
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
-}
-.path-options-stack .path-primary-btn:hover , .path-options-stack .path-primary-btn:active , .path-options-stack .path-primary-btn:focus-visible {
-    transform: translateY(-1px);
-    box-shadow: 0 8px 18px rgba(0, 113, 227, 0.3);
-}
-.path-options-stack .path-primary-btn--anchor {
-    background: linear-gradient(135deg, #e8b923, #8b6e0c);
-    box-shadow: 0 6px 14px rgba(212, 160, 23, 0.28);
-}
-.path-options-stack .path-primary-btn--anchor:hover , .path-options-stack .path-primary-btn--anchor:active , .path-options-stack .path-primary-btn--anchor:focus-visible {
-    box-shadow: 0 8px 18px rgba(212, 160, 23, 0.36);
-}
+/* (.path-cards-row / .path-column (+ --anchor/--selected) +
+   mobile @media stack, .path-card (+ --anchor / --selected /
+   --anchor.is-selected), .path-card-collapse-btn + states +
+   .is-collapsed rotate, .path-options-stack (collapse animation
+   + flex stack) + nested .day-action-btn / .path-primary-btn
+   (+ --anchor + states), and the dark-mode .path-card* overrides
+   (Anchor gold + Selected blue gradients tuned for dark canvas)
+   — all moved to pages/home-mount/home.css 2026-05-16 —
+   FIXING_ROADMAP §3.1 slice 12. ~190 lines. Emitted by
+   pages/home/pathTab.ts + pages/home-mount/TripBody.tsx. */
 
 /* `home-tabnav--centered` modifier — used by the Feed page so the
    Posts/Actions pair sits in the middle instead of left-anchored,
@@ -4702,26 +4560,11 @@ main#app-container.nav-anim-backward {
    themes without needing to touch the underlying components.
    Borders, gradients, and shadows are tuned per-card to keep
    visual hierarchy on the darker canvas. */
-:root[data-theme="dark"] .path-card {
-    background: var(--card-bg);
-    border-color: rgba(255, 255, 255, 0.08);
-}
-:root[data-theme="dark"] .path-card--anchor {
-    /* Gold-tinted top edge fading into the dark card surface — same
-       visual idea as the light-mode gradient, swapped to a darker
-       base. */
-    background: linear-gradient(180deg, rgba(212, 160, 23, 0.15), var(--card-bg));
-    border-color: rgba(212, 160, 23, 0.42);
-}
-:root[data-theme="dark"] .path-card--anchor.is-selected {
-    border-color: #e8b923;
-    box-shadow: 0 8px 22px rgba(212, 160, 23, 0.32);
-}
-:root[data-theme="dark"] .path-card--selected {
-    background: linear-gradient(180deg, rgba(10, 132, 255, 0.12), var(--card-bg));
-    border-color: rgba(10, 132, 255, 0.42);
-    box-shadow: 0 8px 22px rgba(10, 132, 255, 0.18);
-}
+/* (Dark-mode .path-card / --anchor (+ .is-selected) / --selected
+   overrides moved alongside the light-mode rules in pages/home-
+   mount/home.css 2026-05-16 — FIXING_ROADMAP §3.1 slice 12. Kept
+   adjacent to the path-card rules so dark + light variants live
+   together. */
 
 :root[data-theme="dark"] .day-block {
     background: var(--card-bg);
