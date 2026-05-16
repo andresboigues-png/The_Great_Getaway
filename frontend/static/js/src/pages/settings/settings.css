@@ -257,3 +257,373 @@
        on the dark row. Lift to a soft white. */
     background: rgba(255, 255, 255, 0.06);
 }
+
+
+/* ── Settings → General sub-tabs ──────────────────────────────────
+   Slice 9 (2026-05-16): General settings used to dump its options
+   directly when the user opened "General Settings"; now there's a
+   tab nav at top so the structure can grow as more general settings
+   land. Style mirrors .trip-tabnav (capsule with active pill
+   carrying the blue→purple gradient) for consistency. */
+.general-subtabs {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px;
+    background: rgba(255, 255, 255, 0.72);
+    backdrop-filter: blur(14px) saturate(160%);
+    -webkit-backdrop-filter: blur(14px) saturate(160%);
+    border: 1px solid rgba(0, 45, 91, 0.08);
+    border-radius: 999px;
+    box-shadow: 0 4px 14px rgba(0, 45, 91, 0.06);
+    margin-bottom: 22px;
+}
+.general-subtab {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 22px;
+    border: 0;
+    background: transparent;
+    border-radius: 999px;
+    font-size: 0.84rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    cursor: pointer;
+    letter-spacing: -0.01em;
+    transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+}
+.general-subtab:hover:not(.is-active):not(.is-coming-soon),
+.general-subtab:active:not(.is-active):not(.is-coming-soon),
+.general-subtab:focus-visible:not(.is-active):not(.is-coming-soon) {
+    color: var(--accent-blue);
+    background: rgba(0, 113, 227, 0.06);
+}
+.general-subtab.is-active {
+    color: white;
+    background: linear-gradient(135deg, var(--accent-blue), #5856d6);
+    box-shadow: 0 4px 12px rgba(0, 113, 227, 0.28);
+    font-weight: 800;
+}
+.general-subtab.is-coming-soon {
+    opacity: 0.45;
+    cursor: not-allowed;
+    font-style: italic;
+}
+.general-subtab__icon {
+    font-size: 0.95rem;
+    line-height: 1;
+}
+
+/* ── Settings → General → POI filter rows ─────────────────────────
+   Slice 9: one row per Places-API pill with icon, label/hint, anchor
+   select, rating select, reset affordance + visibility switch. The
+   grid template hardcodes the column widths so every row aligns
+   regardless of label length. */
+.poi-filter-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+.poi-filter-row {
+    display: grid;
+    /* icon | label/hint | anchor select | rating select | reset | switch */
+    grid-template-columns: 32px 1fr auto auto auto auto;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    background: rgba(0, 113, 227, 0.04);
+    border: 1px solid rgba(0, 113, 227, 0.1);
+    border-radius: var(--radius-lg);
+    transition: opacity 0.2s ease;
+}
+/* Hidden pill: dim everything except the switch (and keep its
+   tooltip readable) so the user sees the row's other controls
+   don't apply while the pill itself is off. The switch stays at
+   full opacity so it's clearly the way to bring it back. */
+.poi-filter-row--hidden > :not(.poi-visibility-switch) {
+    opacity: 0.4;
+}
+.poi-visibility-switch {
+    /* Reuse the existing .switch component's geometry; just shrink
+       slightly to fit the row gracefully. */
+    transform: scale(0.85);
+    margin-left: var(--space-2);
+}
+.poi-anchor-mode {
+    background: white;
+    border: 1px solid rgba(0, 113, 227, 0.2);
+    border-radius: var(--radius-md);
+    padding: 6px 10px;
+    color: var(--text-primary);
+    font-weight: 700;
+    font-size: 0.85rem;
+    cursor: pointer;
+    min-width: 132px;
+}
+.poi-anchor-mode:focus-visible {
+    outline: 2px solid var(--accent-blue);
+    outline-offset: 2px;
+}
+.poi-filter-row__icon {
+    font-size: 1.4rem;
+    line-height: 1;
+}
+.poi-filter-row__label {
+    font-weight: 700;
+    color: var(--text-primary);
+    font-size: 1rem;
+}
+.poi-filter-row__hint {
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+    margin-top: 2px;
+}
+.poi-filter-rating {
+    background: white;
+    border: 1px solid rgba(0, 113, 227, 0.2);
+    border-radius: var(--radius-md);
+    padding: 6px 10px;
+    color: var(--text-primary);
+    font-weight: 700;
+    font-size: 0.85rem;
+    cursor: pointer;
+    min-width: 110px;
+}
+.poi-filter-rating:focus-visible {
+    outline: 2px solid var(--accent-blue);
+    outline-offset: 2px;
+}
+.poi-filter-row__default {
+    min-width: 64px;
+    text-align: right;
+    font-size: 0.78rem;
+}
+.poi-filter-row__default .muted {
+    color: rgba(0, 0, 0, 0.35);
+    font-weight: 600;
+}
+.poi-filter-reset {
+    background: transparent;
+    border: 1px solid rgba(0, 113, 227, 0.3);
+    color: var(--accent-blue);
+    border-radius: var(--radius-pill);
+    padding: 4px 12px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+.poi-filter-reset:hover,
+.poi-filter-reset:active,
+.poi-filter-reset:focus-visible {
+    background: rgba(0, 113, 227, 0.08);
+}
+.poi-filter-reset:focus-visible {
+    outline: 2px solid var(--accent-blue);
+    outline-offset: 2px;
+}
+
+/* ── Settings → Format mapping list ───────────────────────────────
+   Slice 9: card list (replaces the plain mapping-table). Each row
+   shows "VARIABLE → COLUMN" with the column rendered as a tinted
+   letter chip. Mandatory variables (★) get a gold star badge and a
+   gold left stripe so they read as required at a glance. */
+.format-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.format-list__empty {
+    padding: 22px 14px;
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    border: 1.5px dashed rgba(0, 113, 227, 0.25);
+    border-radius: 14px;
+    background: rgba(0, 113, 227, 0.03);
+}
+.format-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    background: white;
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    border-radius: 14px;
+    box-shadow: 0 2px 8px rgba(0, 45, 91, 0.04);
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+.format-row:hover,
+.format-row:active,
+.format-row:focus-visible {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(0, 45, 91, 0.10);
+}
+.format-row.is-mandatory::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 5px;
+    background: linear-gradient(135deg, #e8b923, #c89a18);
+}
+.format-row.is-mandatory {
+    padding-left: 18px;
+}
+.format-row__star {
+    font-size: 0.95rem;
+    color: #c89a18;
+    width: 18px;
+    text-align: center;
+    flex-shrink: 0;
+}
+.format-row__variable {
+    flex: 1;
+    min-width: 0;
+    font-weight: 800;
+    color: #002d5b;
+    font-size: 0.9rem;
+    letter-spacing: -0.01em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.format-row__arrow {
+    color: rgba(0, 113, 227, 0.45);
+    display: inline-flex;
+    flex-shrink: 0;
+}
+.format-row__col {
+    background: linear-gradient(135deg, var(--accent-blue), #5856d6);
+    color: white;
+    font-weight: 800;
+    font-size: 0.85rem;
+    letter-spacing: 0.05em;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    box-shadow: 0 2px 6px rgba(0, 113, 227, 0.32);
+    text-transform: uppercase;
+}
+.format-row__remove {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 59, 48, 0.22);
+    background: rgba(255, 59, 48, 0.06);
+    color: #ff3b30;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+.format-row__remove:hover,
+.format-row__remove:active,
+.format-row__remove:focus-visible {
+    background: rgba(255, 59, 48, 0.14);
+    border-color: rgba(255, 59, 48, 0.4);
+}
+
+/* ── Settings → Saved Format cards (one per saved Excel template) ─ */
+.saved-format-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 18px;
+    background: linear-gradient(135deg, rgba(0, 113, 227, 0.04), rgba(88, 86, 214, 0.04));
+    border: 1px solid rgba(0, 113, 227, 0.15);
+    border-radius: 14px;
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+.saved-format-card:hover,
+.saved-format-card:active,
+.saved-format-card:focus-visible {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 20px rgba(0, 113, 227, 0.12);
+}
+.saved-format-card__name {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 800;
+    color: #002d5b;
+    font-size: 0.95rem;
+    min-width: 0;
+}
+.saved-format-card__icon {
+    font-size: 1.1rem;
+    line-height: 1;
+}
+.saved-format-card__actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+}
+.saved-format-card__btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 12px;
+    border-radius: 8px;
+    border: 1px solid;
+    font-weight: 700;
+    font-size: 0.78rem;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.15s ease;
+}
+.saved-format-card__btn--edit {
+    background: rgba(0, 113, 227, 0.08);
+    border-color: rgba(0, 113, 227, 0.28);
+    color: var(--accent-blue);
+}
+.saved-format-card__btn--edit:hover,
+.saved-format-card__btn--edit:active,
+.saved-format-card__btn--edit:focus-visible {
+    background: rgba(0, 113, 227, 0.16);
+    transform: translateY(-1px);
+}
+.saved-format-card__btn--delete {
+    background: rgba(255, 59, 48, 0.06);
+    border-color: rgba(255, 59, 48, 0.25);
+    color: #ff3b30;
+}
+.saved-format-card__btn--delete:hover,
+.saved-format-card__btn--delete:active,
+.saved-format-card__btn--delete:focus-visible {
+    background: rgba(255, 59, 48, 0.14);
+    transform: translateY(-1px);
+}
+
+/* ── Dark-mode overrides for Settings (slice 9) ───────────────────
+   Moved from the D2 cluster at the bottom of index.css. */
+:root[data-theme="dark"] .general-subtabs {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.10);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+}
+:root[data-theme="dark"] .general-subtab:not(.is-active):not(.is-coming-soon) {
+    color: var(--accent-blue);
+}
+:root[data-theme="dark"] .general-subtab:hover:not(.is-active):not(.is-coming-soon),
+:root[data-theme="dark"] .general-subtab:active:not(.is-active):not(.is-coming-soon),
+:root[data-theme="dark"] .general-subtab:focus-visible:not(.is-active):not(.is-coming-soon) {
+    background: rgba(10, 132, 255, 0.14);
+}
+:root[data-theme="dark"] .poi-filter-rating {
+    background: var(--card-bg-elevated);
+    border-color: rgba(10, 132, 255, 0.32);
+    color: var(--text-primary);
+}
