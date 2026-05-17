@@ -4720,3 +4720,220 @@ main#app-container.nav-anim-backward {
         border-radius: var(--radius-xl);
     }
 }
+
+/* ── §4.9 — photo lightbox ──────────────────────────────────────
+ * Extracted from lightbox.ts's inline-style template literals
+ * (FIXING_ROADMAP §0.4 follow-up demonstration, 2026-05-17).
+ *
+ * Pre-extraction: every element in `openPhotoLightbox()`'s rendered
+ * modal carried a long `style="..."` attribute written into the
+ * template-literal HTML string. CSP-wise this contributed to the
+ * style-src `'unsafe-inline'` requirement. UX-wise it made the
+ * lightbox styles invisible to anyone not reading lightbox.ts.
+ *
+ * Post-extraction: lightbox.ts references these classes by name,
+ * and the dynamic display:none/flex toggles for prev/next chevrons
+ * go through `classList.toggle('lb-nav-btn--hidden', cond)` instead
+ * of `el.style.display = '...'` — same visual outcome, zero inline-
+ * style writes.
+ *
+ * Co-located in index.css (rather than a chunk-imported file)
+ * because lightbox.ts is part of the entry bundle and Vite's
+ * auto-link CSS mechanism only fires for dynamically-imported
+ * chunks. Index.css is `<link>`-loaded from the Flask template
+ * directly, so the rules land before any modal opens. */
+
+/* Lightbox card chrome — replaces lightbox.ts's `cardStyle`
+ * parameter to showModal(). The card is intentionally transparent
+ * (the dimmed backdrop comes from .modal-overlay underneath) so
+ * the photo + chrome elements float over the page. */
+.lightbox-card {
+    background: transparent;
+    border: 0;
+    padding: 0;
+    max-width: 92vw;
+    max-height: 92vh;
+    position: relative;
+}
+
+/* Hero image — fills the card, contains itself within the viewport.
+ * `touch-action: pan-y` lets vertical scroll bypass the lightbox
+ * if triggered accidentally on a long page; the horizontal-swipe
+ * handler in lightbox.ts still gets clean events for prev/next. */
+.lb-img {
+    display: block;
+    max-width: 92vw;
+    max-height: 92vh;
+    border-radius: 18px;
+    object-fit: contain;
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.4);
+    touch-action: pan-y;
+    user-select: none;
+    -webkit-user-drag: none;
+}
+
+/* Counter chip — pill at the top, e.g. "3 / 12". pointer-events:none
+ * so a stray tap on it doesn't intercept the backdrop-dismiss path. */
+.lb-counter {
+    position: absolute;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.6);
+    color: #fff;
+    padding: 5px 12px;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    pointer-events: none;
+}
+
+/* Shared base for prev / next / close — three circular glass buttons. */
+.lb-nav-btn {
+    position: absolute;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.55);
+    color: #fff;
+    border: 0;
+    cursor: pointer;
+    line-height: 1;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    pointer-events: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Prev/next size — 46px circles vertically centred on the image's
+ * mid-line. `transform: translateY(-50%)` keeps the visual centre
+ * tied to the actual mid-line regardless of image height. */
+.lb-nav-btn--prev,
+.lb-nav-btn--next {
+    top: 50%;
+    transform: translateY(-50%);
+    width: 46px;
+    height: 46px;
+    font-size: 1.3rem;
+}
+
+.lb-nav-btn--prev { left: 14px; }
+.lb-nav-btn--next { right: 14px; }
+
+/* Close — 36px (slightly smaller than nav chevrons so it reads
+ * as secondary chrome). Pinned to the top-right. */
+.lb-nav-btn--close {
+    top: 14px;
+    right: 14px;
+    width: 36px;
+    height: 36px;
+    font-size: 0.95rem;
+}
+
+/* Edge-state hide for chevrons — toggled from JS via
+ * `classList.toggle('lb-nav-btn--hidden', cond)` instead of writing
+ * `style.display = ...`, so the impl stops relying on the inline-
+ * style attribute path. */
+.lb-nav-btn--hidden {
+    display: none;
+}
+
+/* ── §4.9 — PDF preview modal ──────────────────────────────────
+ * Extracted from lightbox.ts's openPdfPreview() inline-style
+ * template literals (FIXING_ROADMAP §0.4 follow-up, 2026-05-17).
+ * Same rationale as the lightbox block above. */
+
+/* Card chrome — fixed width/height vs the lightbox-card's
+ * viewport-relative sizing. White background (vs the lightbox's
+ * transparent) because PDFs render onto a white page and we want
+ * a clean edge around them. */
+.pdf-preview-card {
+    width: min(1100px, 96vw);
+    height: min(880px, 92vh);
+    padding: 0;
+    background: white;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 18px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Header bar — sticks to the top, flex row with name + open-link
+ * + close. backdrop-filter gives it a frosted look against the
+ * iframe content beneath. */
+.pdf-preview-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px 10px 18px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+    background: rgba(245, 247, 250, 0.95);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    flex-shrink: 0;
+}
+
+.pdf-preview-header__icon {
+    font-size: 1.1rem;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+/* Filename — flex:1 to take the remaining width; ellipsis-truncated
+ * because booking confirmations often have long auto-generated names. */
+.pdf-preview-header__title {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: #002d5b;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* "Open in new tab" pill — guaranteed fallback for cross-origin
+ * PDFs that block iframing. Light-blue glass look. */
+.pdf-preview-header__open-link {
+    background: rgba(0, 113, 227, 0.08);
+    color: #005bb8;
+    border: 1px solid rgba(0, 113, 227, 0.18);
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 800;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* Close ✕ — small circular button, neutral tint so it doesn't
+ * compete visually with the open-link CTA. */
+.pdf-preview-header__close-btn {
+    background: rgba(0, 0, 0, 0.04);
+    border: 0;
+    color: rgba(0, 0, 0, 0.55);
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 0.95rem;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+/* iframe body — fills the remaining card height. min-height:0
+ * is the canonical "let flex:1 actually shrink the iframe" fix
+ * for nested flex containers. */
+.pdf-preview-iframe {
+    flex: 1;
+    border: 0;
+    display: block;
+    background: #f5f7fa;
+    min-height: 0;
+}

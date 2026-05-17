@@ -83,6 +83,10 @@ The CSP `connect-src` allowlist + the cookie HttpOnly flag together neuter the m
 
 **Decision: defer indefinitely.** Re-evaluate if (a) a CSS-injection vulnerability surfaces in practice, (b) the §3.1 inline-style cleanup makes meaningful organic progress (it's already chipping at the count as components migrate to React + per-page CSS chunks), or (c) we adopt a stricter security stance for an external compliance reason. The remaining `'unsafe-inline'` on style-src is documented technical debt — not an unknown gap.
 
+**Demonstration extraction (2026-05-17):** `lightbox.ts` chunked 16 inline-style sites to zero — both `openPhotoLightbox` (11 sites) and `openPdfPreview` (5 sites). Classes live in `index.css` under `/* §4.9 — photo lightbox */` and `/* §4.9 — PDF preview modal */` blocks (co-located, not chunk-imported — Vite's auto-CSS-link mechanism only fires for dynamically-imported chunks, and lightbox.ts is in the entry bundle so a chunk-side file would fail to link). The dynamic `el.style.display = 'flex' / 'none'` writes for prev/next chevron edge-states became `classList.toggle('lb-nav-btn--hidden', cond)` — same visual outcome, zero inline-style writes. All 9 photo e2e tests pass post-extraction. Bundle dropped from 211.91KB → 209.51KB (the inline strings were larger than the class references). 16/1,422 sites = 1.1% of the total surface; the pattern is now established for whoever picks this up next.
+
+**§4.9 drag-reorder e2e shipped (2026-05-17):** `tests/e2e/photo-drag-reorder.spec.js` — 2 cases pin the drag-to-reorder contract via explicit `dispatchEvent(new PointerEvent(...))` inside `page.evaluate` (Playwright's `page.mouse` API doesn't reliably translate to pointer events that the impl's listeners pick up). Case 1: drag photo A onto photo C → array becomes `[B, C, A]` (verified both via DOM order immediately AND via localStorage after the 250ms saveState debounce). Case 2: drag <6px → tap, no reorder. This closes the final §4.9 coverage gap noted in `photo-lightbox.spec.js`.
+
 ### 0.5 `/api/sync` rewrites _any_ expense by guessed ID
 
 🔴 **S** · `src/routes/data.py:168-180`

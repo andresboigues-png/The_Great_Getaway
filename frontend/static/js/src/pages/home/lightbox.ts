@@ -20,6 +20,18 @@
 import { showModal } from '../../components/Modal.js';
 import { esc, q } from '../../utils.js';
 
+// §0.4 follow-up — the visual rules for this widget live in
+// `frontend/static/css/index.css` under the `/* §4.9 — photo
+// lightbox */` block. Co-locating in index.css (rather than a
+// chunk-imported lightbox.css) is intentional: lightbox.ts gets
+// bundled into the entry chunk (app.bundle.js), and Vite's
+// chunk-CSS auto-link mechanism only fires for DYNAMICALLY-imported
+// chunks. Index.css is `<link>`-loaded directly from the Flask
+// template, so the rules land before any modal opens. This is the
+// demonstration target for the inline-style → CSS-class extraction
+// pattern documented in FIXING_ROADMAP §0.4's follow-up sub-section
+// — 11 inline-style sites in this file go to zero post-extraction.
+
 
 /** §4.9 swipe threshold — a horizontal drag this many pixels triggers
  *  prev/next navigation. Anything less is treated as a tap (the
@@ -58,34 +70,40 @@ export function openPhotoLightbox(arg: string | string[], startIndex: number = 0
     let current = Math.max(0, Math.min(startIndex, photos.length - 1));
     const isGallery = photos.length > 1;
 
+    // §0.4 follow-up: every `style="..."` attribute here used to be an
+    // inline blob duplicated across the gallery / single-photo paths.
+    // Now: class names only. Edge-state visibility (prev hidden at
+    // index 0, next hidden at last index) is class-toggled below via
+    // `lb-nav-btn--hidden` so the impl never writes to `style.display`.
+    // The .lightbox-card class on the modal's cardClass list replaces
+    // the deleted cardStyle parameter.
+    const prevHiddenClass = current === 0 ? ' lb-nav-btn--hidden' : '';
+    const nextHiddenClass = current === photos.length - 1 ? ' lb-nav-btn--hidden' : '';
     const { root, close } = showModal({
-        cardClass: 'card glass',
-        cardStyle: 'background: transparent; border: 0; padding: 0; max-width: 92vw; max-height: 92vh; position: relative;',
+        cardClass: 'card glass lightbox-card',
         innerHTML: `
-            <img id="lbImg" src="${esc(photos[current]!)}" alt="Trip photo"
-                style="display:block; max-width: 92vw; max-height: 92vh; border-radius: 18px; object-fit: contain; box-shadow: 0 30px 80px rgba(0,0,0,0.4); touch-action: pan-y; user-select: none; -webkit-user-drag: none;">
+            <img id="lbImg" src="${esc(photos[current]!)}" alt="Trip photo" class="lb-img">
             ${isGallery ? `
                 <!-- Counter chip: top center. Lets the user know
                      where they are in the gallery at a glance. -->
-                <div id="lbCounter" aria-live="polite"
-                    style="position:absolute; top:14px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.6); color:white; padding:5px 12px; border-radius:999px; font-size:0.78rem; font-weight:700; backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); pointer-events:none;">
+                <div id="lbCounter" class="lb-counter" aria-live="polite">
                     ${current + 1} / ${photos.length}
                 </div>
-                <!-- Prev / next chevrons. Pointer-events:auto on the
-                     buttons so clicks reach them despite the modal-
-                     overlay click handler below. Hidden via the
-                     :first/:last logic when at an edge. -->
+                <!-- Prev / next chevrons. Pointer-events:auto (via the
+                     base .lb-nav-btn class) so clicks reach them
+                     despite the modal-overlay click handler below.
+                     Hidden via lb-nav-btn--hidden when at an edge. -->
                 <button id="lbPrev" type="button" aria-label="Previous photo"
-                    style="position:absolute; top:50%; left:14px; transform:translateY(-50%); width:46px; height:46px; border-radius:50%; background:rgba(0,0,0,0.55); color:white; border:0; cursor:pointer; font-size:1.3rem; line-height:1; backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); pointer-events:auto; display:${current === 0 ? 'none' : 'flex'}; align-items:center; justify-content:center;">‹</button>
+                    class="lb-nav-btn lb-nav-btn--prev${prevHiddenClass}">‹</button>
                 <button id="lbNext" type="button" aria-label="Next photo"
-                    style="position:absolute; top:50%; right:14px; transform:translateY(-50%); width:46px; height:46px; border-radius:50%; background:rgba(0,0,0,0.55); color:white; border:0; cursor:pointer; font-size:1.3rem; line-height:1; backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); pointer-events:auto; display:${current === photos.length - 1 ? 'none' : 'flex'}; align-items:center; justify-content:center;">›</button>
+                    class="lb-nav-btn lb-nav-btn--next${nextHiddenClass}">›</button>
             ` : ''}
             <!-- Close button — always present so the user has a
                  reliable dismiss affordance even when the click-the-
                  backdrop heuristic gets confused by an in-flight
                  swipe. -->
             <button id="lbClose" type="button" aria-label="Close"
-                style="position:absolute; top:14px; right:14px; width:36px; height:36px; border-radius:50%; background:rgba(0,0,0,0.55); color:white; border:0; cursor:pointer; font-size:0.95rem; line-height:1; backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); pointer-events:auto; display:flex; align-items:center; justify-content:center;">✕</button>
+                class="lb-nav-btn lb-nav-btn--close">✕</button>
         `,
     });
 
@@ -95,14 +113,16 @@ export function openPhotoLightbox(arg: string | string[], startIndex: number = 0
     const nextBtn = isGallery ? (root.querySelector('#lbNext') as HTMLButtonElement | null) : null;
 
     /** Repaint the image + counter + chevron visibility for the
-     *  current index. Cheap — just toggles `display:none` rather than
-     *  attaching/detaching listeners. */
+     *  current index. Cheap — just toggles the `lb-nav-btn--hidden`
+     *  class rather than attaching/detaching listeners. Class toggle
+     *  replaces the legacy `el.style.display = ...` writes (§0.4
+     *  follow-up: zero inline-style writes from the lightbox path). */
     const repaint = (idx: number) => {
         current = (idx + photos.length) % photos.length;  // wrap defensively
         img.src = photos[current]!;
         if (counter) counter.textContent = `${current + 1} / ${photos.length}`;
-        if (prevBtn) prevBtn.style.display = current === 0 ? 'none' : 'flex';
-        if (nextBtn) nextBtn.style.display = current === photos.length - 1 ? 'none' : 'flex';
+        if (prevBtn) prevBtn.classList.toggle('lb-nav-btn--hidden', current === 0);
+        if (nextBtn) nextBtn.classList.toggle('lb-nav-btn--hidden', current === photos.length - 1);
     };
 
     const next = () => { if (current < photos.length - 1) repaint(current + 1); };
@@ -201,29 +221,31 @@ export const openPdfPreview = (url: string, name?: string): void => {
     if (!url) return;
     const safeUrl = esc(url);
     const safeName = esc(name || 'Document');
+    // §0.4 follow-up — every inline style here is gone. Classes
+    // live in index.css under the `/* §4.9 — PDF preview modal */`
+    // block.
     const { root, close } = showModal({
-        cardClass: 'card glass',
-        cardStyle: 'width: min(1100px, 96vw); height: min(880px, 92vh); padding: 0; background: white; border: 1px solid rgba(0,0,0,0.08); border-radius: 18px; overflow: hidden; display: flex; flex-direction: column;',
+        cardClass: 'card glass pdf-preview-card',
         innerHTML: `
             <!-- Header bar — name + actions. Sticks to the top of
                  the modal card; iframe takes the rest. -->
-            <div style="display:flex; align-items:center; gap:12px; padding: 10px 14px 10px 18px; border-bottom: 1px solid rgba(0,0,0,0.07); background: rgba(245,247,250,0.95); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); flex-shrink:0;">
-                <span style="font-size:1.1rem; line-height:1; flex-shrink:0;">📎</span>
-                <h3 style="flex:1; min-width:0; margin:0; font-size:0.95rem; font-weight:800; color:#002d5b; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${safeName}</h3>
+            <div class="pdf-preview-header">
+                <span class="pdf-preview-header__icon">📎</span>
+                <h3 class="pdf-preview-header__title">${safeName}</h3>
                 <a href="${safeUrl}" target="_blank" rel="noreferrer"
-                    style="background:rgba(0,113,227,0.08); color:#005bb8; border:1px solid rgba(0,113,227,0.18); padding:6px 12px; border-radius:999px; font-size:0.75rem; font-weight:800; text-decoration:none; display:inline-flex; align-items:center; gap:6px;"
+                    class="pdf-preview-header__open-link"
                     title="Open this PDF in a new browser tab">
                     Open in new tab ↗
                 </a>
                 <button id="closePdfPreviewBtn" type="button" aria-label="Close"
-                    style="background:rgba(0,0,0,0.04); border:0; color:rgba(0,0,0,0.55); width:30px; height:30px; border-radius:50%; cursor:pointer; font-size:0.95rem; line-height:1; flex-shrink:0;">✕</button>
+                    class="pdf-preview-header__close-btn">✕</button>
             </div>
             <!-- Body — iframe fills the rest. The #toolbar=0
                  fragment hint asks Chrome to hide its built-in
                  toolbar (cleaner inline view); ignored by
                  Safari/Firefox without harm. -->
             <iframe src="${safeUrl}#toolbar=1&navpanes=0" title="${safeName}"
-                style="flex:1; border:0; display:block; background:#f5f7fa; min-height:0;"
+                class="pdf-preview-iframe"
                 referrerpolicy="no-referrer"></iframe>
         `,
     });
