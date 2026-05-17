@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 import path from 'path';
 
 // Phase C1 wires up @vitejs/plugin-react so the bundle can consume
@@ -56,6 +57,15 @@ export default defineConfig({
             // expectation + tsconfig "jsx": "react-jsx".
             jsxRuntime: 'automatic',
         }),
+        // §0.4 follow-up Tailwind adoption (2026-05-17): @tailwindcss/vite
+        // scans every TSX/TS/HTML/CSS file in the build graph for class
+        // names and emits ONLY the rules that are actually used. The
+        // generated CSS gets injected into the file that contains
+        // `@import "tailwindcss";` — for this project, that's
+        // frontend/static/css/index.css, which is `<link>`-loaded
+        // directly from the Flask template. Zero runtime cost; pure
+        // build-time extraction.
+        tailwindcss(),
         visualizerPlugin,
     ].filter(Boolean),
     // D5 (perf): code-split chunks live at /static/js/chunks/...
@@ -98,6 +108,30 @@ export default defineConfig({
                 // version helper that the template uses.
                 format: 'es',
                 chunkFileNames: 'chunks/[name]-[hash].js',
+                // §0.4 follow-up Tailwind adoption: side-effect CSS
+                // imports from the entry bundle (notably src/tailwind.css)
+                // get emitted as assets/<name>-<hash>.css with content-
+                // hashing by default. Hashed names rule out a stable
+                // <link> in the Flask template (we don't run Vite's HTML
+                // transform), so emit the entry CSS at a STABLE name:
+                // `assets/main.css`. Cache-bust via Flask's
+                // `_asset_version` (mtime → ?v=...) same way we do for
+                // app.bundle.js. Chunked page CSS (mount-*.css) keeps
+                // its hashed names because those load lazily via Vite's
+                // chunk-CSS-link auto-injection, which DOES work for
+                // dynamic imports.
+                assetFileNames: (info) => {
+                    // Vite/Rollup names the entry bundle's CSS asset
+                    // after the entry chunk ('main' from main.ts), so
+                    // the side-effect CSS from `import './tailwind.css'`
+                    // arrives here as name === 'main.css'. Pin it to
+                    // a stable filename so the Flask template can
+                    // <link> it without a manifest indirection.
+                    if (info.name === 'main.css' || info.names?.includes('main.css')) {
+                        return 'assets/main.css';
+                    }
+                    return 'assets/[name]-[hash][extname]';
+                },
                 // Vendor manual-chunk: pull React + ReactDOM into a
                 // long-lived chunk so app code changes don't bust the
                 // React cache (and vice-versa).

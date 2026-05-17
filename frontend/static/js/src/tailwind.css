@@ -1,0 +1,78 @@
+/* Tailwind v4 entry — FIXING_ROADMAP §0.4 follow-up (2026-05-17).
+ *
+ * This file is imported by main.ts as a side effect so Vite (with the
+ * @tailwindcss/vite plugin loaded in vite.config.js) sees it during
+ * the build. The plugin then:
+ *   1. Scans every TSX/TS/JSX/HTML file in the build graph for class
+ *      names like `flex-1`, `p-4`, `bg-card`, etc.
+ *   2. Emits ONLY the rules that are actually used in source.
+ *   3. Combines them with the @theme directive below to apply our
+ *      design tokens.
+ *
+ * Why a separate file (not index.css):
+ *   index.css is loaded directly by the Flask template (<link rel=
+ *   "stylesheet" href="...index.css">), bypassing Vite entirely.
+ *   Vite never sees it, so Tailwind's @import directive in index.css
+ *   would do nothing. This file lives under js/src so it's reachable
+ *   from main.ts; Vite emits its compiled output as a CSS chunk
+ *   under js/assets/, and the chunk is auto-linked when main.ts
+ *   loads (the entry bundle's CSS-chunk-loader injects <link> tags
+ *   for any side-effect CSS imports it sees at module-init time).
+ *
+ * Adoption posture: Tailwind utilities are ADDITIVE. Every existing
+ * class in index.css (the hand-rolled `.stl-*` / `.mdl-*` etc.
+ * extracted last session) keeps working. Files migrate to Tailwind
+ * incrementally — see Feed.tsx for the first one. */
+
+@import "tailwindcss";
+
+@theme {
+    /* ── Color tokens ────────────────────────────────────────────
+     * Map our existing CSS custom properties (defined on :root in
+     * index.css) into Tailwind's `--color-*` namespace. Now writing
+     * `text-secondary` in a className resolves to
+     * `color: var(--text-secondary)`, picking up the same value the
+     * legacy `.text-secondary` rules use AND the dark-mode override
+     * at `:root[data-theme="dark"]`. Zero design-system drift. */
+    --color-primary: var(--text-primary);
+    --color-secondary: var(--text-secondary);
+    --color-brand-navy: var(--text-brand-navy);
+    --color-accent-blue: var(--accent-blue);
+    --color-accent-blue-hover: var(--accent-blue-hover);
+    --color-accent-blue-deep: var(--accent-blue-deep);
+    --color-accent-purple: var(--accent-purple);
+    --color-accent-purple-deep: var(--accent-purple-deep);
+    --color-card: var(--card-bg);
+    --color-card-elevated: var(--card-bg-elevated);
+    --color-bg: var(--bg-color);
+    --color-glass: var(--glass-bg);
+    --color-border-subtle: var(--border-subtle);
+    --color-glass-border: var(--glass-border);
+
+    /* ── Spacing scale (4px base) ────────────────────────────────
+     * Tailwind v4 treats `--spacing` as the multiplier base, but
+     * we map each step individually so `p-3` resolves to 12px
+     * (our --space-3 value) NOT `calc(3 * --spacing)`. Keeps the
+     * existing per-token design system intact. */
+    --spacing-1: var(--space-1);
+    --spacing-2: var(--space-2);
+    --spacing-3: var(--space-3);
+    --spacing-4: var(--space-4);
+    --spacing-5: var(--space-5);
+    --spacing-6: var(--space-6);
+    --spacing-8: var(--space-8);
+    --spacing-10: var(--space-10);
+    --spacing-12: var(--space-12);
+
+    /* ── Border radius ──────────────────────────────────────────
+     * Extends the legacy --radius-* tokens into the Tailwind
+     * rounded-* namespace. The 24/28px upper sizes match the
+     * "big card" and "modal card" radii seen across the codebase. */
+    --radius-xs: 6px;
+    --radius-sm: 8px;
+    --radius-md: var(--radius-md);
+    --radius-lg: var(--radius-lg);
+    --radius-xl: 24px;
+    --radius-2xl: 28px;
+    --radius-pill: 999px;
+}

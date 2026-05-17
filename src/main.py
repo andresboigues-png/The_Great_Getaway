@@ -403,7 +403,12 @@ def home():
                            google_maps_api_key=os.getenv("GOOGLE_MAPS_API_KEY"),
                            dev_mode=dev_mode,
                            bundle_version=_asset_version("js/app.bundle.js"),
-                           css_version=_asset_version("css/index.css"))
+                           css_version=_asset_version("css/index.css"),
+                           # §0.4 follow-up: Tailwind v4 bundled CSS lives
+                           # at /static/js/assets/main.css (stable name
+                           # via vite.config's assetFileNames). Same
+                           # mtime-based cache-buster pattern.
+                           tailwind_css_version=_asset_version("js/assets/main.css"))
 
 
 # ── FIXING_ROADMAP §4.1 — public share page ──────────────────────────

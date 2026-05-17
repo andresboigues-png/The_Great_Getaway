@@ -7,6 +7,10 @@
     <title>The Great Getaway</title>
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/index.css') }}?v={{ css_version }}">
+    <!-- §0.4 follow-up: Tailwind v4 utility layer. Emitted by Vite
+         (config in vite.config.js → assetFileNames) at a stable
+         path; cache-busted via mtime same as the JS bundle. -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='js/assets/main.css') }}?v={{ tailwind_css_version }}">
 
     <!-- PWA: installable on iOS/Android, standalone display, themed nav.
          Icon raster set lives in /static/icons/ (generated from

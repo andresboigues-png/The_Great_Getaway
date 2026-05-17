@@ -14,6 +14,16 @@
 // Anything beyond ~120 lines should not live here — split into a focused
 // bootstrap module instead.
 
+// Tailwind v4 utility layer — FIXING_ROADMAP §0.4 follow-up. Side-
+// effect import; Vite (with @tailwindcss/vite plugin loaded in
+// vite.config.js) processes tailwind.css, inlines the utility rules
+// our source files actually reference, and emits the result as a
+// CSS chunk. The Vite chunk loader injects a <link> for it when
+// the entry bundle initializes, so the utilities are available
+// before any page renders. See tailwind.css for the @theme bridge
+// mapping our existing CSS custom properties to utility names.
+import './tailwind.css';
+
 import { STATE, loadState, subscribe } from './state.js';
 import { initThemeManager } from './theme.js';
 import { loadLocale, getLocale } from './i18n.js';

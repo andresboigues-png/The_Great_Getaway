@@ -5278,20 +5278,12 @@ main#app-container.nav-anim-backward {
  */
 
 /* ── Feed ────────────────────────────────────────────────────── */
-
-/* Centered empty-state card with major padding + rounded corners. */
-.fd-empty-card {
-    padding: 32px;
-    border-radius: 24px;
-    text-align: center;
-}
-
-/* Flex-grow item with truncation guard — used by feed row content
- * columns that need to ellipsis a long title. */
-.fd-flex-grow-truncate {
-    flex: 1;
-    min-width: 0;
-}
+/* (fd-* classes retired 2026-05-17 — migrated to Tailwind utilities:
+ *   .fd-empty-card       → p-8 rounded-xl text-center
+ *   .fd-flex-grow-truncate → flex-1 min-w-0
+ * See Feed.tsx for usage. This block is intentionally left as a
+ * pointer for grep-discoverability; future cleanup can delete it
+ * entirely once the migration history is well-known.) */
 
 /* ── Insights ────────────────────────────────────────────────── */
 
