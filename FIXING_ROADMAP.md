@@ -533,13 +533,14 @@ Ordered by leverage on the VISION's three killer features (social, expenses, pla
 
 **Why this ships first:** delivers all three killer features in one launch (shareable artifact + cost-as-content + viral surface). Every later feature is more useful once this exists.
 
-### 4.2 Explore tab on feed (cold-start fix)
+### 4.2 Explore tab on feed (cold-start fix) — ✅ Shipped 2026-05-17
 
 **M** · `src/routes/feed.py`, `frontend/static/js/src/pages/feed/`
 
-- [ ] New endpoint `GET /api/feed/explore` — public trips ranked by recency × engagement × country-relevance to viewer (demote already-visited countries, promote new ones).
-- [ ] Country filter chip strip.
-- [ ] Card click → `/share/<token>` (or auth'd detail if owned).
+- [x] `GET /api/feed/explore` — public trips (those with `share_token IS NOT NULL`) ranked by `recency × country × engagement`. Recency = linear 60-day decay. Country factor = 1.5× when the trip's country isn't in the viewer's visited set, 1.0× when it is (encourages discovery without hiding repeats). Engagement bonus = `1 + log1p(share_views) × 0.3`. Excludes the viewer's own + member-of trips. Limit 24. (Backend shipped earlier in the §4.1 / §4.2 wave; verified live.)
+- [x] **Country filter chip strip** — shipped 2026-05-17. Derived from the loaded `explore` items, ordered by frequency (most-common destination first). Each chip shows flag emoji + country name + result count. "All" chip resets. Renders only when ≥2 distinct countries are present (a single-country chip is redundant). Selected state lifts to brand-blue; un-selected uses theme-aware tokens so dark mode works without overrides. Horizontally scrollable on narrow viewports. Filtered-empty state surfaces a clear "no matches" card + a "Show all countries" reset button.
+- [x] Card click → `/share/<token>` — implemented in `ExploreCard.tsx` as an `<a href>`, so middle-click / cmd-click opens in a new tab naturally.
+- [x] Flag emoji helper added to `src/utils/place-names.ts` (`countryCodeToFlag`) — converts 2-letter ISO code to the regional-indicator pair the OS renders as a flag. Defensive for missing / malformed inputs.
 
 **Why:** today a new user with no friends sees an empty feed. VISION's user flow opens with "browsing other people's trips" — this fixes it.
 

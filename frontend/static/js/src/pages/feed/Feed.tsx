@@ -52,6 +52,7 @@ import {
     type ExploreFeedItem,
 } from '../../api.js';
 import { showLiquidAlert, showConfirmModal, buildEmptyCardHtml } from '../../utils.js';
+import { countryCodeToFlag } from '../../utils/place-names.js';
 import { navigate } from '../../router.js';
 import { t } from '../../i18n.js';
 import { viewArchivedDetails } from '../collections.js';
@@ -106,6 +107,11 @@ export function Feed() {
     const [activeTab, setActiveTabState] = useState<FeedTab>(() => getActiveFeedTab());
     const [bookmarkedOnly, setBookmarkedOnlyState] = useState<boolean>(() => getBookmarkedOnly());
     const [initialFetchDone, setInitialFetchDone] = useState(false);
+    // §4.2 Explore country filter — null = show all countries; a
+    // 2-letter ISO code = filter to just that country's cards. Lives
+    // in React state (not state.ts cache) because the filter is a
+    // per-session UI affordance, not a persistent preference.
+    const [exploreCountry, setExploreCountry] = useState<string | null>(null);
 
     // Bundle expand state lives in module-scope (state.ts) so it
     // survives tab/filter toggles. We use a tick counter here to
@@ -453,6 +459,8 @@ export function Feed() {
                         bookmarkedOnly={bookmarkedOnly}
                         initialFetchDone={initialFetchDone}
                         explore={explore}
+                        exploreCountry={exploreCountry}
+                        onPickExploreCountry={setExploreCountry}
                         renderedItems={renderedItems}
                         openThreadIds={openThreadIds}
                         threads={threads}
@@ -484,6 +492,10 @@ interface FeedListBodyProps {
     bookmarkedOnly: boolean;
     initialFetchDone: boolean;
     explore: ExploreFeedItem[] | null;
+    /** §4.2 country chip filter — null = no filter, 2-letter ISO
+     *  code = restrict to that country. */
+    exploreCountry: string | null;
+    onPickExploreCountry: (code: string | null) => void;
     renderedItems: Array<FeedEvent | { bundled: true; id: string; type: string; actor: any; when: string | null; members: FeedEvent[] }>;
     openThreadIds: Set<string>;
     threads: Record<string, FeedComment[]>;
@@ -507,6 +519,8 @@ function FeedListBody(props: FeedListBodyProps) {
         bookmarkedOnly,
         initialFetchDone,
         explore,
+        exploreCountry,
+        onPickExploreCountry,
         renderedItems,
         openThreadIds,
         threads,
@@ -569,17 +583,130 @@ function FeedListBody(props: FeedListBodyProps) {
                 />
             );
         }
+        // §4.2 — derive country chips from the loaded explore items
+        // and apply the active filter. Chips: one per distinct
+        // countryCode, ordered by frequency (most-common first) so
+        // popular destinations land where the eye looks first.
+        // "All" chip resets the filter. Filter shows only items
+        // whose countryCode matches.
+        const countryCounts = new Map<string, { code: string; name: string; count: number }>();
+        for (const item of explore) {
+            const code = (item.countryCode || '').toUpperCase();
+            if (!code) continue;
+            const existing = countryCounts.get(code);
+            if (existing) {
+                existing.count += 1;
+            } else {
+                countryCounts.set(code, {
+                    code,
+                    name: item.country || code,
+                    count: 1,
+                });
+            }
+        }
+        const chips = Array.from(countryCounts.values()).sort(
+            (a, b) => b.count - a.count || a.name.localeCompare(b.name),
+        );
+        const filteredExplore = exploreCountry
+            ? explore.filter((it) => (it.countryCode || '').toUpperCase() === exploreCountry)
+            : explore;
+
         return (
-            <div
-                style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
-                    gap: 14,
-                }}
-            >
-                {explore.map((item) => (
-                    <ExploreCard key={item.shareToken} item={item} />
-                ))}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {/* Country filter strip — shown only when we have ≥2
+                    distinct countries (with 1 country a filter is
+                    redundant). Horizontally scrollable on narrow
+                    viewports. */}
+                {chips.length >= 2 && (
+                    <div
+                        className="explore-country-chips"
+                        role="tablist"
+                        aria-label="Filter Explore by country"
+                        style={{
+                            display: 'flex',
+                            gap: 8,
+                            overflowX: 'auto',
+                            paddingBottom: 4,
+                            scrollbarWidth: 'thin',
+                        }}
+                    >
+                        <ExploreCountryChip
+                            label="All"
+                            count={explore.length}
+                            isSelected={exploreCountry === null}
+                            onClick={() => onPickExploreCountry(null)}
+                        />
+                        {chips.map((c) => (
+                            <ExploreCountryChip
+                                key={c.code}
+                                flag={countryCodeToFlag(c.code)}
+                                label={c.name}
+                                count={c.count}
+                                isSelected={exploreCountry === c.code}
+                                onClick={() => onPickExploreCountry(c.code)}
+                            />
+                        ))}
+                    </div>
+                )}
+
+                {/* Filtered-empty state: chip filter picked a country
+                    that — between cache + a poll — now has zero items.
+                    Edge case; surfacing a clear "no matches" + a Clear
+                    button beats showing a silent empty grid. */}
+                {filteredExplore.length === 0 ? (
+                    <div
+                        className="card glass"
+                        style={{ padding: 24, borderRadius: 24, textAlign: 'center' }}
+                    >
+                        <div style={{ fontSize: '1.6rem', marginBottom: 6 }}>🔎</div>
+                        <div
+                            style={{
+                                fontWeight: 800,
+                                color: 'var(--text-primary)',
+                                marginBottom: 4,
+                            }}
+                        >
+                            No trips here yet
+                        </div>
+                        <div
+                            style={{
+                                fontSize: '0.85rem',
+                                color: 'var(--text-secondary)',
+                                marginBottom: 12,
+                            }}
+                        >
+                            No public trips in this country right now — try another or browse all.
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => onPickExploreCountry(null)}
+                            style={{
+                                padding: '8px 18px',
+                                borderRadius: 999,
+                                background: 'var(--accent-blue)',
+                                color: 'white',
+                                fontWeight: 700,
+                                fontSize: '0.85rem',
+                                border: 'none',
+                                cursor: 'pointer',
+                            }}
+                        >
+                            Show all countries
+                        </button>
+                    </div>
+                ) : (
+                    <div
+                        style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+                            gap: 14,
+                        }}
+                    >
+                        {filteredExplore.map((item) => (
+                            <ExploreCard key={item.shareToken} item={item} />
+                        ))}
+                    </div>
+                )}
             </div>
         );
     }
@@ -1171,5 +1298,73 @@ function ActionButton({
                 </span>
             ) : null}
         </span>
+    );
+}
+
+
+// §4.2 — one country chip on the Explore tab's filter strip. Renders
+// flag emoji + country name + item count. Selected state lifts the
+// background to brand-blue. Inline styles match the existing tab/pill
+// idiom used elsewhere in the Feed page — no new CSS class needed.
+function ExploreCountryChip({
+    flag,
+    label,
+    count,
+    isSelected,
+    onClick,
+}: {
+    flag?: string;
+    label: string;
+    count: number;
+    isSelected: boolean;
+    onClick: () => void;
+}) {
+    const styleBase: React.CSSProperties = {
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
+        flexShrink: 0,
+        padding: '6px 12px',
+        borderRadius: 999,
+        fontSize: '0.82rem',
+        fontWeight: 700,
+        cursor: 'pointer',
+        border: '1px solid',
+        whiteSpace: 'nowrap',
+        transition: 'background 0.15s ease, border-color 0.15s ease',
+    };
+    const styleSelected: React.CSSProperties = {
+        background: 'var(--accent-blue)',
+        color: 'white',
+        borderColor: 'var(--accent-blue)',
+    };
+    const styleUnselected: React.CSSProperties = {
+        background: 'var(--card-bg)',
+        color: 'var(--text-primary)',
+        borderColor: 'var(--border-subtle)',
+    };
+    return (
+        <button
+            type="button"
+            role="tab"
+            aria-selected={isSelected}
+            onClick={onClick}
+            style={{ ...styleBase, ...(isSelected ? styleSelected : styleUnselected) }}
+        >
+            {flag && (
+                <span aria-hidden="true" style={{ fontSize: '1rem' }}>{flag}</span>
+            )}
+            <span>{label}</span>
+            <span
+                style={{
+                    fontSize: '0.7rem',
+                    fontWeight: 800,
+                    opacity: 0.7,
+                    fontVariantNumeric: 'tabular-nums',
+                }}
+            >
+                {count}
+            </span>
+        </button>
     );
 }

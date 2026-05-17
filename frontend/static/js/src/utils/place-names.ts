@@ -212,3 +212,33 @@ export function getMediaForTrip(
         facts: entries.map(e => e.f),
     };
 }
+
+
+/** Convert a 2-letter ISO-3166 country code into the flag emoji.
+ *
+ *  Returns an empty string for missing / malformed inputs (anything
+ *  that isn't a 2-character A-Z string after upper-casing). Doesn't
+ *  bother validating against the ISO list — every two-letter code
+ *  maps to *something*; the OS just renders unsupported pairs as
+ *  the standard "missing glyph" tofu, which is fine for our case
+ *  (we only feed it server-supplied codes that came from Google
+ *  Places, so they're valid ISO codes in practice).
+ *
+ *  Implementation note: flag emojis are encoded as a pair of
+ *  Regional Indicator Symbol code points (U+1F1E6 + 'A' through
+ *  U+1F1FF + 'Z'); the OS' emoji renderer recognises the pair and
+ *  substitutes the flag glyph. Each indicator is U+1F1E6 + (letter
+ *  - 'A').
+ */
+export function countryCodeToFlag(code: string | null | undefined): string {
+    if (!code || typeof code !== 'string') return '';
+    const upper = code.trim().toUpperCase();
+    if (upper.length !== 2) return '';
+    const A = 'A'.charCodeAt(0);
+    const Z = 'Z'.charCodeAt(0);
+    const a = upper.charCodeAt(0);
+    const b = upper.charCodeAt(1);
+    if (a < A || a > Z || b < A || b > Z) return '';
+    const BASE = 0x1f1e6;  // 🇦
+    return String.fromCodePoint(BASE + (a - A)) + String.fromCodePoint(BASE + (b - A));
+}
