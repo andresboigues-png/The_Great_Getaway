@@ -72,55 +72,11 @@ interface TodoMarkedPlace {
     source?: 'ai' | 'manual';
 }
 
-/** Map the per-place `icon` (which mirrors POI_CATEGORIES emoji) to a
- *  human-readable, locale-aware section heading. Falls through to
- *  "Other places" for icons not in the table — covers the 📋 default
- *  that `addOrUpdatePlaceFromVerified` stamps on AI-only items + the
- *  📍 default that the home InfoWindow uses when no category was
- *  active. Pre-G items keyed by their POI emoji always hit a known
- *  label.
- *
- *  Function (not const map) so each call resolves via t() against
- *  the active locale. Previous iteration was a module-level
- *  Record<string, string> baked at load time — fine in English but
- *  silently leaked English strings into pt/es/fr.
- *
- *  Note: 📋 is intentionally absent — `groupingIcon()` normalises
- *  AI-sourced items (which carry icon='📋' on their data) into 📍
- *  "Other places" for filter + grouping purposes. They keep their
- *  raw icon on the row data (so the `+ AI` chip + edit-modal can
- *  read it), but visually merge into the "Other places" bucket
- *  instead of getting a dedicated section. */
-function iconToLabel(icon: string): string {
-    switch (icon) {
-        case '🍽️': return t('poi.restaurants');
-        case '🛒': return t('poi.supermarkets');
-        case '🛏️': return t('poi.hotels');
-        case '🏖️': return t('poi.sights');
-        case '🌳': return t('poi.parks');
-        case '⛪': return t('poi.worship');
-        case '🏥': return t('poi.medical');
-        case '💊': return t('poi.pharmacies');
-        case '🩺': return t('poi.doctors');
-        case '🦷': return t('poi.dentists');
-        case '🐾': return t('poi.pets');
-        case '🐶': return t('poi.petStores');
-        case '🎓': return t('poi.schools');
-        case '🏟️': return t('poi.sports');
-        case '🚉': return t('poi.transit');
-        case '🛣️': return t('poi.roadsTraffic');
-        case '📍': return t('poi.otherPlaces');
-        default: return t('poi.other');
-    }
-}
-
-/** Resolve the icon used for filtering + grouping. Treats the
- *  AI-generic 📋 the same as 📍 — see the iconToLabel comment.
- *  Anything else passes through. */
-function groupingIcon(raw: string | undefined): string {
-    const i = raw || '📍';
-    return i === '📋' ? '📍' : i;
-}
+// Category helpers — extracted to `../../todoCategories.js` so the
+// AI plan page can reuse the same sort/filter primitives without a
+// copy-paste drift hazard. (Phase G v3 follow-up — Todo and AI now
+// share the dropdown UX for picking which marked places to view.)
+import { iconToLabel, groupingIcon, CATEGORY_ORDER } from '../../todoCategories.js';
 
 const titleH1Style = {
     margin: '0 0 6px',
@@ -377,49 +333,9 @@ function TodoRow({ place: p, isTicked, tripIsEditable, onTickToggle, onRemove }:
     );
 }
 
-/** Filter dropdown — `[Label]: [option ▾]` pair. Replaces the
- *  previous FilterPill row layout (one click to toggle each pill)
- *  with a more compact <select>-based UI. Uses the same pill-style
- *  rounded outline as the sort dropdown so the three filter
- *  controls read as a coherent set. */
-interface FilterSelectProps {
-    label: string;
-    value: string;
-    onChange: (value: string) => void;
-    options: ReadonlyArray<{ value: string; label: string }>;
-    style?: React.CSSProperties;
-}
-function FilterSelect({ label, value, onChange, options, style }: FilterSelectProps) {
-    return (
-        <label
-            style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                fontSize: '0.78rem',
-                color: 'var(--text-secondary)',
-                ...style,
-            }}
-        >
-            <span
-                className="text-[0.72rem] font-bold uppercase tracking-wider"
-            >
-                {label}
-            </span>
-            <select
-                value={value}
-                onChange={(e) => onChange(e.target.value)}
-                className="py-1.5 px-2.5 rounded-full border-[1.5px] border-[var(--border-subtle)] bg-card text-brand-navy text-[0.8rem] font-bold cursor-pointer"
-            >
-                {options.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                    </option>
-                ))}
-            </select>
-        </label>
-    );
-}
+// Filter dropdown (`[Label]: [option ▾]`) — shared by Todo and AI
+// pages. See `react/components/FilterSelect.tsx`.
+import { FilterSelect } from '../../react/components/FilterSelect.js';
 
 
 /** Display modes for the to-do list. `category` (the default) keeps
@@ -614,29 +530,35 @@ export function Todo() {
         });
     }
 
-    // Group filtered items by icon — only when sort=category AND the
-    // user has picked a specific type. The "All types" case (filterIcon
-    // === '') flattens regardless of sort: the user is looking at
-    // everything, so the per-type section headers are visual noise
-    // and the flat list lets the user scan in one continuous view.
-    // The moment they pick a type from the dropdown, grouping kicks
-    // back in — though with a single-select filter that always means
-    // exactly one section header. We keep the grouping branch alive
-    // for the "single type + sort=category" case because the section
-    // header still reinforces what the user is viewing.
+    // Group filtered items by icon when sort=category — regardless of
+    // whether a single-type filter is also applied. Sort-by-category
+    // means "render the list with category headers"; without grouping
+    // the dropdown choice has no visible effect. The "All types" +
+    // sort=category case is the meaningful one — it gives the user a
+    // glance at how the to-do is distributed across categories.
     //
     // Other sort modes always flatten — sort-by-name with category
     // headers would split alphabetical runs awkwardly.
     //
-    // Map preserves insertion order, so groups stay stable across
-    // re-renders. The '*' key flags the flat-list branch (can't
-    // collide with a real emoji).
+    // We build the Map in CATEGORY_ORDER first (so the section sequence
+    // is canonical, not insertion-dependent), then bucket the items
+    // into each pre-created slot. Empty slots get dropped at the end
+    // so we don't render headers for categories with zero items.
+    // The '*' key flags the flat-list branch (can't collide with an
+    // emoji), used for every non-category sort mode.
     const groups = new Map<string, TodoMarkedPlace[]>();
-    if (sortMode === 'category' && filterIcon !== '') {
+    if (sortMode === 'category') {
+        // Seed in canonical order so the iteration order matches.
+        for (const cat of CATEGORY_ORDER) groups.set(cat, []);
         for (const p of filteredItems) {
             const key = groupingIcon(p.icon);
             if (!groups.has(key)) groups.set(key, []);
             groups.get(key)!.push(p);
+        }
+        // Strip out empty buckets so we don't render headers for
+        // categories that have no items.
+        for (const [key, items] of groups) {
+            if (items.length === 0) groups.delete(key);
         }
     } else if (filteredItems.length > 0) {
         groups.set('*', filteredItems);
@@ -818,10 +740,9 @@ export function Todo() {
                     value={sortMode}
                     onChange={(v) => setSortMode(v as SortMode)}
                     // Sort dropdown sits last so its width is whatever's
-                    // left on the row; on wide screens the marginLeft:auto
-                    // also pushes it to the right edge so it visually
-                    // anchors the row's terminator.
-                    style={{ marginLeft: 'auto' }}
+                    // left on the row; ml-auto pushes it to the right
+                    // edge so it visually anchors the row's terminator.
+                    className="ml-auto"
                     options={[
                         { value: 'category', label: t('todo.sortCategory') },
                         { value: 'ai-first', label: t('todo.sortAiFirst') },

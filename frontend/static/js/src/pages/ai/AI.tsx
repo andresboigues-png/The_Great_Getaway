@@ -67,6 +67,15 @@ import {
 } from './slots.js';
 import { t, tn } from '../../i18n.js';
 import type { Trip } from '../../types';
+// Shared category helpers — same source-of-truth as Todo.tsx so the
+// AI plan's marked-place list groups + filters by the canonical
+// category order. See `todoCategories.ts`.
+import {
+    iconToLabel,
+    groupingIcon,
+    groupByCategory,
+} from '../../todoCategories.js';
+import { FilterSelect } from '../../react/components/FilterSelect.js';
 // Page-scoped CSS — AI plan blocks, place cards, generate button,
 // + mobile day-card stacking. FIXING_ROADMAP §3.1 second slice (after
 // settings.css): same pattern, Vite emits this as a CSS chunk alongside
@@ -1487,9 +1496,24 @@ interface TodoListPanelProps {
     datesSet: boolean;
 }
 
+/** Sort modes for the AI plan's marked-place panel. Mirrors the
+ *  Todo page's SortMode but with one fewer option — `ai-first` is
+ *  redundant here because EVERYTHING in this panel is already
+ *  AI-ticked (forAI === true). */
+type AiPanelSort = 'category' | 'name-asc' | 'name-desc' | 'recent';
+
 function TodoListPanel({ activeTrip, datesSet }: TodoListPanelProps) {
     // useStore subscription so add/remove/tick from elsewhere repaints.
     useStore((s) => s.trips);
+
+    /** Category filter — empty string = "All types" (no filter); any
+     *  non-empty emoji shows only items whose normalised icon matches.
+     *  Symmetric with the Todo page's filterIcon. */
+    const [filterIcon, setFilterIcon] = useState<string>('');
+    /** Sort mode for the visible cards. Defaults to `category` so the
+     *  panel reads as "your AI-marked places, grouped by what they
+     *  are" — same mental model as the Todo page. */
+    const [sortMode, setSortMode] = useState<AiPanelSort>('category');
 
     const allTodo = getMarkedPlaces(activeTrip).filter((p) => p.forManual);
     const tickedItems = allTodo.filter((p) => p.forAI);
@@ -1497,6 +1521,52 @@ function TodoListPanel({ activeTrip, datesSet }: TodoListPanelProps) {
     const tripDays = (STATE.tripDays || [])
         .filter((d) => d.tripId === activeTrip.id && d.dayNumber > 0)
         .sort((a, b) => a.dayNumber - b.dayNumber);
+
+    // Build the count-per-category map BEFORE filtering so the dropdown
+    // labels can show "(N)" for each category as a glance-able hint.
+    const iconCounts = new Map<string, number>();
+    for (const p of tickedItems) {
+        const k = groupingIcon(p.icon);
+        iconCounts.set(k, (iconCounts.get(k) || 0) + 1);
+    }
+    /** Distinct category icons present in the ticked set, in
+     *  insertion-into-iconCounts order. This drives the filter dropdown
+     *  so we don't show categories with zero items. */
+    const presentIcons = [...iconCounts.keys()];
+
+    // Apply category filter, then sort.
+    let visibleItems = tickedItems;
+    if (filterIcon !== '') {
+        visibleItems = visibleItems.filter(
+            (p) => groupingIcon(p.icon) === filterIcon,
+        );
+    }
+    if (sortMode === 'name-asc') {
+        visibleItems = visibleItems
+            .slice()
+            .sort((a, b) => a.name.localeCompare(b.name));
+    } else if (sortMode === 'name-desc') {
+        visibleItems = visibleItems
+            .slice()
+            .sort((a, b) => b.name.localeCompare(a.name));
+    } else if (sortMode === 'recent') {
+        // markedPlaces is append-order — reversing gives newest-first.
+        visibleItems = visibleItems.slice().reverse();
+    }
+    // sortMode === 'category' is the default and is handled by the
+    // groupByCategory() call below (which orders sections by the
+    // canonical CATEGORY_ORDER, not insertion order).
+
+    // Build the grouped Map for the category sort mode. Empty buckets
+    // are stripped inside groupByCategory; '*' key flags the flat
+    // branch used by every other sort mode.
+    const groups = new Map<string, typeof visibleItems>();
+    if (sortMode === 'category') {
+        const built = groupByCategory(visibleItems);
+        for (const [k, v] of built) groups.set(k, v);
+    } else if (visibleItems.length > 0) {
+        groups.set('*', visibleItems);
+    }
 
     // Empty: no to-do items at all.
     if (allTodo.length === 0) {
@@ -1566,7 +1636,7 @@ function TodoListPanel({ activeTrip, datesSet }: TodoListPanelProps) {
         );
     }
 
-    // Ticked items — full card list.
+    // Ticked items — full card list with sort + filter controls.
     return (
         <div className="ai-mb-32">
             <div
@@ -1601,19 +1671,95 @@ function TodoListPanel({ activeTrip, datesSet }: TodoListPanelProps) {
                         ? t('ai.todoPanelHintWithDates')
                         : t('ai.todoPanelHintNoDates')}
                 </p>
-                <div
-                    className="grid grid-cols-[repeat(auto-fill,_minmax(260px,_1fr))] gap-3"
-                >
-                    {tickedItems.map((p) => (
-                        <MarkedCard
-                            key={p.placeId}
-                            place={p}
-                            tripDays={tripDays}
-                            datesSet={datesSet}
-                            activeTrip={activeTrip}
+
+                {/* Sort + filter dropdowns — only render when there are
+                    enough items to be worth filtering (more than one
+                    category present, or 5+ items overall). For a small
+                    panel with a single category the controls would be
+                    visual noise without adding utility. */}
+                {(presentIcons.length > 1 || tickedItems.length >= 5) && (
+                    <div className="flex items-center gap-3 flex-wrap mb-3">
+                        <FilterSelect
+                            label={t('todo.categoryFilterLabel')}
+                            value={filterIcon}
+                            onChange={setFilterIcon}
+                            options={[
+                                { value: '', label: t('todo.categoryAll') },
+                                ...presentIcons.map((icon) => ({
+                                    value: icon,
+                                    label: `${icon} ${iconToLabel(icon)} (${iconCounts.get(icon) || 0})`,
+                                })),
+                            ]}
                         />
-                    ))}
-                </div>
+                        <FilterSelect
+                            label={t('todo.sortLabel')}
+                            value={sortMode}
+                            onChange={(v) => setSortMode(v as AiPanelSort)}
+                            className="ml-auto"
+                            options={[
+                                { value: 'category', label: t('todo.sortCategory') },
+                                { value: 'name-asc', label: t('todo.sortNameAsc') },
+                                { value: 'name-desc', label: t('todo.sortNameDesc') },
+                                { value: 'recent', label: t('todo.sortRecent') },
+                            ]}
+                        />
+                    </div>
+                )}
+
+                {/* Empty-filter hint — when filterIcon wipes out every
+                    visible item. Reset clears the filter. */}
+                {groups.size === 0 && filterIcon !== '' && (
+                    <div
+                        className="text-center text-secondary text-[0.85rem] py-3"
+                    >
+                        {t('todo.noFilterMatch')}{' '}
+                        <button
+                            type="button"
+                            onClick={() => setFilterIcon('')}
+                            className="bg-transparent border-0 text-accent-blue font-bold cursor-pointer p-0"
+                        >
+                            {t('todo.noFilterMatchReset')}
+                        </button>
+                    </div>
+                )}
+
+                {/* Render groups — section header per category in the
+                    `category` sort mode; flat (no header) for every
+                    other sort mode. */}
+                {[...groups.entries()].map(([icon, items]) => (
+                    <div key={icon} className="mb-4">
+                        {icon !== '*' && (
+                            <div
+                                className="flex items-center gap-2.5 pt-0 px-1 pb-2 border-b border-[rgba(155,89,182,0.18)] mb-2.5"
+                            >
+                                <span className="text-[1.1rem] leading-none">{icon}</span>
+                                <span
+                                    className="font-extrabold text-accent-purple-deep text-[0.78rem] tracking-[0.04em] uppercase"
+                                >
+                                    {iconToLabel(icon)}
+                                </span>
+                                <span
+                                    className="text-[0.7rem] font-bold text-secondary bg-[rgba(155,89,182,0.08)] py-0.5 px-2 rounded-full"
+                                >
+                                    {items.length}
+                                </span>
+                            </div>
+                        )}
+                        <div
+                            className="grid grid-cols-[repeat(auto-fill,_minmax(260px,_1fr))] gap-3"
+                        >
+                            {items.map((p) => (
+                                <MarkedCard
+                                    key={p.placeId}
+                                    place={p}
+                                    tripDays={tripDays}
+                                    datesSet={datesSet}
+                                    activeTrip={activeTrip}
+                                />
+                            ))}
+                        </div>
+                    </div>
+                ))}
             </div>
         </div>
     );

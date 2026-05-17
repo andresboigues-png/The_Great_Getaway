@@ -896,9 +896,12 @@ def _enclosing_tag_name(src, style_pos):
 # regression surfaces; the converter will leave inline styles alone
 # inside these tags. (PascalCase heuristic also kicks in, but listing
 # them explicitly documents intent.)
-NO_CLASSNAME_COMPONENTS = {
-    'FilterSelect',
-}
+#
+# Empty for now — `FilterSelect` was added 2026-05-17 then removed
+# the same day after the component gained explicit `className` +
+# `style` props. Leave the set in place so future regressions have
+# a documented home.
+NO_CLASSNAME_COMPONENTS: set[str] = set()
 
 CSS_FN_RE = re.compile(
     r'(?:var|rgba?|hsla?|calc|min|max|clamp|url|'
