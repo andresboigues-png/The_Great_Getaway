@@ -356,6 +356,8 @@ export const es: Translations = {
         categoryBreakdown: 'Desglose por categoría',
         unknownCategory: 'Desconocido',
         transactionsAbbrev: 'trans.',
+        byCountryTitle: 'Gasto por país',
+        byCountrySubtitle: 'A dónde fue el dinero en cada tramo',
         timelineTitle: 'Cronología de gastos',
         timelineSubtitle: 'Flujo cronológico de tus gastos',
         unknownDate: 'Desconocido',

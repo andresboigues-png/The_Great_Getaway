@@ -410,6 +410,12 @@ export const en = {
         categoryBreakdown: 'Category Breakdown',
         unknownCategory: 'Unknown',
         transactionsAbbrev: 'trans.',
+        // §4.3 — Per-country breakdown card. Rendered only when the
+        // trip's expenses span ≥2 distinct countries (single-country
+        // trips would just show "PT 100%", redundant with the
+        // category & top-spender cards).
+        byCountryTitle: 'Spent per Country',
+        byCountrySubtitle: 'Where the money went on each leg',
         // Timeline.
         timelineTitle: 'Spending Timeline',
         timelineSubtitle: 'Chronological flow of your expenses',

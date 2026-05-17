@@ -38,6 +38,13 @@ interface ConvertedExpense {
     categoryId: string;
     label: string;
     date: string;
+    /** §4.3: user's country pick on the manual-entry form (full name
+     *  like "Portugal" / "Spain", NOT ISO code — stored as-is from
+     *  the COUNTRIES dropdown). Optional because legacy / batch-
+     *  uploaded expenses may have it empty, in which case the per-
+     *  country aggregation skips them rather than bucketing under a
+     *  fake "Unknown" key that would inflate the breakdown. */
+    country?: string;
     currency: string;
     value: number;
     euroValue?: number;
@@ -114,6 +121,7 @@ export function Insights() {
         sortedCats,
         catTotals,
         dateTotals,
+        sortedCountries,
     } = useMemo(() => {
         const convertedExps: ConvertedExpense[] = tripExps.map((e: Expense) => {
             // Step 1: Get value in EUR
@@ -155,11 +163,29 @@ export function Insights() {
         const spenderTotals: Record<string, number> = {};
         const catTotals: Record<string, number> = {};
         const dateTotals: Record<string, number> = {};
+        // §4.3: per-country expense aggregation. Each expense already
+        // carries a `country` field (set by the user on the manual-
+        // entry form's country picker). We DON'T derive country from
+        // the trip's `countries` array — the array tells us WHICH
+        // countries the trip touched, not WHICH country each expense
+        // belongs to. Using e.country directly preserves "I spent X
+        // on this side-trip to Spain" semantics rather than smearing
+        // by trip-level country mix.
+        const countryTotals: Record<string, number> = {};
         convertedExps.forEach((e) => {
             catTotals[e.categoryId] = (catTotals[e.categoryId] || 0) + e.displayValue;
             spenderTotals[e.who] = (spenderTotals[e.who] || 0) + e.displayValue;
             const d = e.date || t('insights.unknownDate');
             dateTotals[d] = (dateTotals[d] || 0) + e.displayValue;
+            // Expenses without a `country` (legacy data, batch upload
+            // without country tagging) bucket under a sentinel key so
+            // they're visible in the breakdown but distinguishable
+            // from real geographies. Falsy-checked rather than empty-
+            // string to also catch null/undefined from legacy rows.
+            const countryKey = e.country || '';
+            if (countryKey) {
+                countryTotals[countryKey] = (countryTotals[countryKey] || 0) + e.displayValue;
+            }
         });
 
         const sortedSpenders = Object.entries(spenderTotals)
@@ -175,6 +201,14 @@ export function Insights() {
             .sort((a, b) => b[1] - a[1])
             .slice(0, 10);
 
+        // §4.3: sorted-by-spend so the biggest country leads. Slice
+        // limit matches the spender/category lists for visual rhythm —
+        // a trip with 11+ distinct countries is extraordinary, but the
+        // cap means even an outlier doesn't blow out the card height.
+        const sortedCountries = Object.entries(countryTotals)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 10);
+
         return {
             totalDisplay,
             totalCount,
@@ -183,6 +217,7 @@ export function Insights() {
             sortedCats,
             catTotals,
             dateTotals,
+            sortedCountries,
         };
     }, [tripExps, mode, targetCurr, rateCache]);
 
@@ -558,6 +593,118 @@ export function Insights() {
                     </div>
                 </div>
             </div>
+
+            {/* §4.3 — Per-country breakdown. Conditional render: a
+                single-country trip would just show "{country}: 100%",
+                redundant with the existing Category card. ≥2 distinct
+                countries unlocks this card. Each row: country name +
+                amount + a percentage bar so the visual rhythm matches
+                the legend-style ranking-row pattern used elsewhere on
+                the page. */}
+            {sortedCountries.length >= 2 && (
+                <div className="card glass" style={{ marginBottom: 32, padding: '28px' }}>
+                    <div
+                        style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            marginBottom: '16px',
+                        }}
+                    >
+                        <h2 className="card-title" style={{ margin: 0 }}>
+                            {t('insights.byCountryTitle')}
+                        </h2>
+                        <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                            {t('insights.byCountrySubtitle')}
+                        </div>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        {sortedCountries.map(([country, amount]) => {
+                            const pct = totalDisplay > 0 ? (amount / totalDisplay) * 100 : 0;
+                            return (
+                                <div
+                                    key={country}
+                                    style={{
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        gap: 4,
+                                    }}
+                                >
+                                    <div
+                                        style={{
+                                            display: 'flex',
+                                            justifyContent: 'space-between',
+                                            alignItems: 'baseline',
+                                            gap: 12,
+                                        }}
+                                    >
+                                        <span
+                                            style={{
+                                                fontWeight: 700,
+                                                fontSize: '0.95rem',
+                                                color: 'var(--text-primary)',
+                                                overflowWrap: 'anywhere',
+                                                minWidth: 0,
+                                            }}
+                                        >
+                                            {country}
+                                        </span>
+                                        <span
+                                            style={{
+                                                fontWeight: 800,
+                                                color: 'var(--accent-blue)',
+                                                fontVariantNumeric: 'tabular-nums',
+                                                whiteSpace: 'nowrap',
+                                            }}
+                                        >
+                                            {targetSym}
+                                            {amount.toFixed(2)}
+                                            <span
+                                                style={{
+                                                    marginLeft: 8,
+                                                    color: 'var(--text-secondary)',
+                                                    fontWeight: 600,
+                                                    fontSize: '0.8rem',
+                                                }}
+                                            >
+                                                {pct.toFixed(0)}%
+                                            </span>
+                                        </span>
+                                    </div>
+                                    {/* Percentage bar — bg track + filled
+                                        portion. inline styles to keep the
+                                        whole card self-contained (no new
+                                        CSS file for one bar pattern). */}
+                                    <div
+                                        style={{
+                                            position: 'relative',
+                                            height: 6,
+                                            borderRadius: 999,
+                                            background: 'rgba(0,113,227,0.08)',
+                                            overflow: 'hidden',
+                                        }}
+                                        aria-hidden="true"
+                                    >
+                                        <div
+                                            style={{
+                                                position: 'absolute',
+                                                top: 0,
+                                                left: 0,
+                                                bottom: 0,
+                                                width: `${Math.min(100, Math.max(0, pct))}%`,
+                                                background:
+                                                    'linear-gradient(90deg, #0071e3, #5856d6)',
+                                                borderRadius: 999,
+                                                transition: 'width 0.3s ease',
+                                            }}
+                                        />
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
 
             {/* Timeline Section (Full Width) */}
             <div className="card glass" style={{ marginBottom: 0, padding: '32px' }}>
