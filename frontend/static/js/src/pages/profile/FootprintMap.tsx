@@ -322,7 +322,7 @@ export function FootprintMap({ trips, uniqueCountries, uniqueCountryCodes }: Foo
                 border: '1px solid var(--glass-border)',
             }}
         >
-            <div ref={containerRef} id="legaciesMap" style={{ width: '100%', height: 450 }} />
+            <div ref={containerRef} id="legaciesMap" className="w-full h-[450px]" />
         </div>
     );
 }

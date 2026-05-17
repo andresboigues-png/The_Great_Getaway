@@ -742,7 +742,7 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
         <div style={{ fontFamily: sf }}>
             {/* Header */}
             <div style={{ padding: '32px 0 24px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
+                <div className="flex items-center gap-3 mb-[6px]">
                     <h1
                         style={{
                             margin: 0,
@@ -784,7 +784,7 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                 {/* Left: Controls */}
                 <div
                     id="aiControlsPanel"
-                    style={{ display: 'flex', flexDirection: 'column', gap: 16, minHeight: 700 }}
+                    className="flex flex-col gap-4 min-h-[700px]"
                 >
                     {/* AI usage — shared host-key pool + BYO escape hatch */}
                     <AIUsageCard
@@ -800,7 +800,7 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                     />
 
                     {/* Dates */}
-                    <div className="card glass" style={{ padding: 20, flex: '0 0 auto' }}>
+                    <div className="card glass p-5 flex-none">
                         <h2
                             className="card-title"
                             style={{
@@ -813,7 +813,7 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                         >
                             {t('ai.sectionTravelDates')}
                         </h2>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        <div className="flex flex-col gap-3">
                             <div>
                                 <label
                                     htmlFor="aiDateFrom"
@@ -882,15 +882,7 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                         prefs, and the sights list is built off the
                         sightseeing prefs separately. */}
                     <div
-                        className="card glass"
-                        style={{
-                            padding: 20,
-                            flex: '1 1 auto',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            minHeight: 0,
-                            gap: 14,
-                        }}
+                        className="card glass p-5 flex-auto flex flex-col min-h-0 gap-[14px]"
                     >
                         <h2
                             className="card-title"
@@ -983,16 +975,9 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                 </div>
 
                 {/* Right: Google Map (sticky) */}
-                <div style={{ position: 'sticky', top: 80, height: 700 }}>
+                <div className="sticky top-20 h-[700px]">
                     <div
-                        className="card glass"
-                        style={{
-                            padding: 0,
-                            overflow: 'hidden',
-                            height: '100%',
-                            borderRadius: 18,
-                            position: 'relative',
-                        }}
+                        className="card glass p-0 overflow-hidden h-full rounded-lg relative"
                     >
                         <div
                             ref={mapContainerRef}
@@ -1002,7 +987,7 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                         <div
                             id="aiZoomBadge"
                             onClick={onResetZoom}
-                            style={{ position: 'absolute', bottom: 14, left: 14, zIndex: 1000 }}
+                            className="absolute bottom-[14px] left-[14px] z-[1000]"
                         >
                             <span>📍</span> <span>{tripCountry}</span>
                         </div>
@@ -1014,9 +999,9 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
             <TodoListPanel activeTrip={activeTrip} datesSet={!!(dateFrom && dateTo)} />
 
             {/* Itinerary output */}
-            <div style={{ marginBottom: 60 }}>
+            <div className="mb-[60px]">
                 {generating ? (
-                    <div style={{ textAlign: 'center', padding: 60 }}>
+                    <div className="text-center p-[60px]">
                         <div
                             className="spinner-ring"
                             style={{
@@ -1179,12 +1164,7 @@ function AIUsageCard({
             style={{ padding: 18, borderColor: 'rgba(155,89,182,0.3)', flex: '0 0 auto' }}
         >
             <div
-                style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    marginBottom: 8,
-                }}
+                className="flex items-center justify-between mb-2"
             >
                 <h2
                     className="card-title"
@@ -1299,7 +1279,7 @@ function AIUsageCard({
                     gap: 6,
                 }}
             >
-                <span style={{ fontSize: '0.7rem' }}>{showByoCard ? '▾' : '▸'}</span>
+                <span className="text-[0.7rem]">{showByoCard ? '▾' : '▸'}</span>
                 {t('ai.usageUseMyKeyBtn')}
             </button>
 
@@ -1314,12 +1294,7 @@ function AIUsageCard({
                     }}
                 >
                     <div
-                        style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            marginBottom: 6,
-                        }}
+                        className="flex items-center justify-between mb-[6px]"
                     >
                         <span
                             style={{
@@ -1369,7 +1344,7 @@ function AIUsageCard({
                     >
                         {t('ai.keyCardSubtitle')}
                     </p>
-                    <div style={{ position: 'relative' }}>
+                    <div className="relative">
                         <input
                             type={showKey ? 'text' : 'password'}
                             placeholder={t('ai.keyInputPlaceholder')}
@@ -1468,7 +1443,7 @@ function GenerationErrorCard({
 }) {
     return (
         <div className="card glass" style={{ textAlign: 'center', padding: '32px 28px' }}>
-            <div style={{ fontSize: '2.4rem', marginBottom: 8 }}>😬</div>
+            <div className="text-[2.4rem] mb-2">😬</div>
             <h2 style={{ color: '#a82424', margin: '0 0 6px', fontSize: '1.2rem' }}>
                 {error.msg}
             </h2>
@@ -1570,12 +1545,7 @@ function ItineraryOutput({
     return (
         <>
             <div
-                style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    marginBottom: 24,
-                }}
+                className="flex justify-between items-center mb-6"
             >
                 <div>
                     <h2
@@ -1616,7 +1586,7 @@ function ItineraryOutput({
                     {t('ai.resultBadge')}
                 </div>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div className="flex flex-col gap-4">
                 {itinerary.map((day: any, i: number) => (
                     <div
                         key={i}
@@ -1631,7 +1601,7 @@ function ItineraryOutput({
                             fontFamily: sf,
                         }}
                     >
-                        <div className="ai-day-row" style={{ display: 'flex', alignItems: 'stretch' }}>
+                        <div className="ai-day-row flex items-stretch">
                             <div className="ai-day-chip">
                                 <span
                                     style={{
@@ -1645,12 +1615,7 @@ function ItineraryOutput({
                                     Day
                                 </span>
                                 <span
-                                    style={{
-                                        color: 'white',
-                                        fontSize: '2rem',
-                                        fontWeight: 800,
-                                        lineHeight: 1,
-                                    }}
+                                    className="text-white text-[2rem] font-extrabold leading-none"
                                 >
                                     {day.day}
                                 </span>
@@ -1739,7 +1704,7 @@ function ItineraryOutput({
                 ))}
             </div>
             {tripIsEditable ? (
-                <div style={{ display: 'flex', gap: 12, marginTop: 24 }}>
+                <div className="flex gap-3 mt-6">
                     <button
                         type="button"
                         className="btn"
@@ -1963,13 +1928,7 @@ function TodoListPanel({ activeTrip, datesSet }: TodoListPanelProps) {
                 }}
             >
                 <div
-                    style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 10,
-                        marginBottom: 14,
-                        flexWrap: 'wrap',
-                    }}
+                    className="flex items-center gap-[10px] mb-[14px] flex-wrap"
                 >
                     <span className="ai-fs-12">📋</span>
                     <h3
@@ -2086,9 +2045,9 @@ function MarkedCard({
                 minHeight: 0,
             }}
         >
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                <span style={{ fontSize: '1.4rem', lineHeight: 1 }}>{place.icon}</span>
-                <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="flex items-start gap-[10px]">
+                <span className="text-[1.4rem] leading-none">{place.icon}</span>
+                <div className="flex-1 min-w-0">
                     <div
                         style={{
                             fontWeight: 800,
@@ -2113,7 +2072,7 @@ function MarkedCard({
                 </div>
             </div>
             {datesSet ? (
-                <div style={{ display: 'flex', gap: 8, minWidth: 0 }}>
+                <div className="flex gap-2 min-w-0">
                     <select
                         className="marked-day-select"
                         value={place.dayId || ''}

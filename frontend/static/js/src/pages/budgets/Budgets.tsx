@@ -70,13 +70,7 @@ export function Budgets() {
 
             {/* Action row: Create + (optional) trip filter chips */}
             <div
-                style={{
-                    marginTop: '20px',
-                    display: 'flex',
-                    flexWrap: 'wrap',
-                    gap: '10px',
-                    alignItems: 'center',
-                }}
+                className="mt-5 flex flex-wrap gap-[10px] items-center"
             >
                 <button
                     type="button"
@@ -173,15 +167,9 @@ export function Budgets() {
                     }}
                 >
                     <div
-                        style={{
-                            display: 'flex',
-                            flexWrap: 'wrap',
-                            gap: '24px',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                        }}
+                        className="flex flex-wrap gap-6 items-center justify-between"
                     >
-                        <div style={{ minWidth: 0 }}>
+                        <div className="min-w-0">
                             <div
                                 style={{
                                     fontSize: '0.7rem',
@@ -195,12 +183,7 @@ export function Budgets() {
                                 {filterTrip ? t('budgets.overallTrip') : t('budgets.overallAll')}
                             </div>
                             <div
-                                style={{
-                                    display: 'flex',
-                                    alignItems: 'baseline',
-                                    gap: '14px',
-                                    flexWrap: 'wrap',
-                                }}
+                                className="flex items-baseline gap-[14px] flex-wrap"
                             >
                                 <div>
                                     <div
@@ -252,7 +235,7 @@ export function Budgets() {
                                 </div>
                             </div>
                         </div>
-                        <div style={{ textAlign: 'right' }}>
+                        <div className="text-right">
                             <div
                                 style={{
                                     fontSize: '0.66rem',
@@ -360,12 +343,7 @@ export function Budgets() {
                                 }}
                             >
                                 <div
-                                    style={{
-                                        display: 'flex',
-                                        alignItems: 'flex-start',
-                                        gap: '12px',
-                                        minHeight: '56px',
-                                    }}
+                                    className="flex items-start gap-3 min-h-14"
                                 >
                                     <div
                                         style={{
@@ -383,7 +361,7 @@ export function Budgets() {
                                     >
                                         {icon}
                                     </div>
-                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div className="flex-1 min-w-0">
                                         <div
                                             style={{
                                                 fontWeight: 800,
@@ -431,15 +409,9 @@ export function Budgets() {
                                         {status.label}
                                     </span>
                                 </div>
-                                <div style={{ marginTop: 'auto' }}>
+                                <div className="mt-auto">
                                     <div
-                                        style={{
-                                            display: 'flex',
-                                            alignItems: 'baseline',
-                                            gap: '6px',
-                                            marginBottom: '8px',
-                                            flexWrap: 'wrap',
-                                        }}
+                                        className="flex items-baseline gap-[6px] mb-2 flex-wrap"
                                     >
                                         <span
                                             style={{

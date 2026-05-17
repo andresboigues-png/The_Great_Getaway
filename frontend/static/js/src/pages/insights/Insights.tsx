@@ -400,13 +400,7 @@ export function Insights() {
                     </p>
                 </div>
                 <div
-                    className="insights-header__controls"
-                    style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '12px',
-                        flexWrap: 'wrap',
-                    }}
+                    className="insights-header__controls flex items-center gap-3 flex-wrap"
                 >
                     <div
                         className="glass"
@@ -505,7 +499,7 @@ export function Insights() {
                 {highestExpense && (
                     <div className="card glass">
                         <h2 className="card-title metric-label">{t('insights.singlePeak')}</h2>
-                        <h1 className="metric-value" style={{ color: '#ff3b30' }}>
+                        <h1 className="metric-value text-[#ff3b30]">
                             {targetSym}
                             {highestExpense.displayValue.toFixed(2)}
                         </h1>
@@ -520,10 +514,10 @@ export function Insights() {
             </div>
 
             {/* Rankings Grid */}
-            <div className="grid-2" style={{ marginBottom: '32px' }}>
+            <div className="grid-2 mb-8">
                 <div className="card glass in-card-pad-28">
                     <h2 className="card-title">{t('insights.topSpenders')}</h2>
-                    <div style={{ marginBottom: '20px' }}>
+                    <div className="mb-5">
                         <h1 style={{ margin: 0, fontSize: '2rem', color: 'var(--text-primary)' }}>
                             {topSpender}
                         </h1>
@@ -538,12 +532,7 @@ export function Insights() {
                         </span>
                     </div>
                     <div
-                        style={{
-                            marginTop: '20px',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '4px',
-                        }}
+                        className="mt-5 flex flex-col gap-1"
                     >
                         {sortedSpenders.slice(1).map(([who, amount], index) => (
                             <div className="ranking-row" key={who}>
@@ -562,22 +551,12 @@ export function Insights() {
                 <div className="card glass in-card-pad-28">
                     <h2 className="card-title">{t('insights.categoryBreakdown')}</h2>
                     <div
-                        style={{
-                            position: 'relative',
-                            height: '200px',
-                            width: '100%',
-                            marginBottom: '20px',
-                        }}
+                        className="relative h-[200px] w-full mb-5"
                     >
                         <canvas id="categoryChart" ref={pieCanvasRef}></canvas>
                     </div>
                     <div
-                        style={{
-                            marginTop: '20px',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '4px',
-                        }}
+                        className="mt-5 flex flex-col gap-1"
                     >
                         {sortedCats.slice(1).map(([catId, count], index) => {
                             const cat = categories.find((c: Category) => c.id === catId);
@@ -602,14 +581,9 @@ export function Insights() {
                 the legend-style ranking-row pattern used elsewhere on
                 the page. */}
             {sortedCountries.length >= 2 && (
-                <div className="card glass" style={{ marginBottom: 32, padding: '28px' }}>
+                <div className="card glass mb-8 p-7">
                     <div
-                        style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            marginBottom: '16px',
-                        }}
+                        className="flex justify-between items-center mb-4"
                     >
                         <h2 className="card-title m-0">
                             {t('insights.byCountryTitle')}
@@ -618,25 +592,16 @@ export function Insights() {
                             {t('insights.byCountrySubtitle')}
                         </div>
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <div className="flex flex-col gap-[10px]">
                         {sortedCountries.map(([country, amount]) => {
                             const pct = totalDisplay > 0 ? (amount / totalDisplay) * 100 : 0;
                             return (
                                 <div
                                     key={country}
-                                    style={{
-                                        display: 'flex',
-                                        flexDirection: 'column',
-                                        gap: 4,
-                                    }}
+                                    className="flex flex-col gap-1"
                                 >
                                     <div
-                                        style={{
-                                            display: 'flex',
-                                            justifyContent: 'space-between',
-                                            alignItems: 'baseline',
-                                            gap: 12,
-                                        }}
+                                        className="flex justify-between items-baseline gap-3"
                                     >
                                         <span
                                             style={{
@@ -707,14 +672,9 @@ export function Insights() {
             )}
 
             {/* Timeline Section (Full Width) */}
-            <div className="card glass" style={{ marginBottom: 0, padding: '32px' }}>
+            <div className="card glass mb-0 p-8">
                 <div
-                    style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        marginBottom: '24px',
-                    }}
+                    className="flex justify-between items-center mb-6"
                 >
                     <h2 className="card-title m-0">
                         {t('insights.timelineTitle')}
@@ -723,7 +683,7 @@ export function Insights() {
                         {t('insights.timelineSubtitle')}
                     </div>
                 </div>
-                <div style={{ position: 'relative', height: '350px', width: '100%' }}>
+                <div className="relative h-[350px] w-full">
                     <canvas id="timelineChart" ref={timeCanvasRef}></canvas>
                 </div>
             </div>

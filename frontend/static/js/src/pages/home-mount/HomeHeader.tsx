@@ -106,7 +106,7 @@ export function HomeHeader({ activeTrip, poiPillsVisible, onTogglePoiPills }: Ho
 
     return (
         <>
-            <div className="ai-page-header" style={{ textAlign: 'center' }}>
+            <div className="ai-page-header text-center">
                 <h1
                     style={{
                         display: 'inline-block',

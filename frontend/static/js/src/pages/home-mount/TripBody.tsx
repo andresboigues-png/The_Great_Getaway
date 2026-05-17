@@ -409,9 +409,9 @@ export function TripBody({ activeTrip }: TripBodyProps) {
     const tripTitle = activeTrip.name || 'Your Journey';
 
     return (
-        <div ref={daysContainerRef} style={{ marginTop: 40 }}>
-            <div style={{ display: 'flex', flexDirection: 'column', marginBottom: 24 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div ref={daysContainerRef} className="mt-10">
+            <div className="flex flex-col mb-6">
+                <div className="flex items-center gap-3">
                     <button
                         id="resetMapViewBtn"
                         title="Reset the map view to show the whole trip"
@@ -545,8 +545,7 @@ export function TripBody({ activeTrip }: TripBodyProps) {
                     </span>
                     <span
                         id="homeTripLocalTimeChip"
-                        className="trip-local-time-chip"
-                        style={{ display: 'none' }}
+                        className="trip-local-time-chip hidden"
                     ></span>
                 </p>
             </div>
@@ -610,9 +609,8 @@ export function TripBody({ activeTrip }: TripBodyProps) {
             />
 
             <div
-                className={`home-tab-content${activeTab === 'days' ? ' is-active' : ''}`}
+                className={`home-tab-content${activeTab === 'days' ? ' is-active' : ''} flex flex-col gap-1`}
                 data-home-tab="days"
-                style={{ display: 'flex', flexDirection: 'column', gap: 4 }}
             >
                 <div ref={pathTabInnerRef} id="pathTabInner" />
             </div>

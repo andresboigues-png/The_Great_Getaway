@@ -315,7 +315,7 @@ function ForeignProfileView({ targetUserId }: { targetUserId: string }) {
     }
     if (!data) {
         return (
-            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 300 }}>
+            <div className="flex justify-center items-center h-[300px]">
                 <p
                     style={{
                         fontWeight: 700,
@@ -435,7 +435,7 @@ function ProfileContent({
             </div>
 
             {/* Footprint label */}
-            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 24 }}>
+            <div className="flex justify-center mb-6">
                 <div
                     style={{
                         display: 'flex',
@@ -475,12 +475,7 @@ function ProfileContent({
                     }}
                 >
                     <div
-                        style={{
-                            display: 'flex',
-                            alignItems: 'baseline',
-                            justifyContent: 'space-between',
-                            marginBottom: 14,
-                        }}
+                        className="flex items-baseline justify-between mb-[14px]"
                     >
                         <h3
                             style={{
@@ -516,7 +511,7 @@ function ProfileContent({
             ) : null}
 
             {/* Footprint section */}
-            <div style={{ marginTop: 20 }}>
+            <div className="mt-5">
                 <p
                     style={{
                         color: 'var(--text-secondary)',
@@ -726,7 +721,7 @@ function ProfilePicSection({
                         ref={fileInputRef}
                         type="file"
                         accept="image/*"
-                        style={{ display: 'none' }}
+                        className="hidden"
                         onChange={onFileChange}
                     />
                 </>
@@ -765,16 +760,9 @@ function ProfileInfoSection({
     useEffect(() => setFollowers(followSnap.followers), [followSnap.followers]);
 
     return (
-        <div className="profile-info" style={{ flex: 1, paddingTop: 10, minWidth: 0 }}>
+        <div className="profile-info flex-1 pt-[10px] min-w-0">
             <div
-                className="profile-name-row"
-                style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    marginBottom: 24,
-                    gap: 12,
-                }}
+                className="profile-name-row flex items-center justify-between mb-6 gap-3"
             >
                 <h2
                     style={{
@@ -815,8 +803,7 @@ function ProfileInfoSection({
                 button (interactive); the other three are read-only
                 spans but adopt the same visual rhythm. */}
             <div
-                className="profile-stats"
-                style={{ display: 'flex', gap: 32, marginBottom: 24, flexWrap: 'wrap' }}
+                className="profile-stats flex gap-8 mb-6 flex-wrap"
             >
                 <ProfileStat
                     count={trips.length}
@@ -844,7 +831,7 @@ function ProfileInfoSection({
 // the same inner span styles.
 function ProfileStat({ count, label }: { count: number; label: string }) {
     return (
-        <div style={{ textAlign: 'left', display: 'inline-flex', alignItems: 'baseline', gap: 4 }}>
+        <div className="text-left inline-flex items-baseline gap-1">
             <span className="pf-heading-name">
                 {count}
             </span>
@@ -1015,7 +1002,7 @@ function BioBlock({
                 {user.email}
             </div>
 
-            <div style={{ position: 'relative', display: 'inline-block', marginBottom: 8 }}>
+            <div className="relative inline-block mb-2">
                 {isOwnProfile ? (
                     <>
                         <select
@@ -1035,7 +1022,7 @@ function BioBlock({
                             <option value="Resting at home base">🏠 Resting at home base</option>
                             <option value="Hunting for flight deals">✈️ Hunting for flight deals</option>
                         </select>
-                        <div className="brand-select-chevron" style={{ right: 8 }}>
+                        <div className="brand-select-chevron right-2">
                             ▼
                         </div>
                     </>
@@ -1134,7 +1121,7 @@ function BioBlock({
                         </div>
                     </div>
 
-                    <div style={{ marginTop: 8 }}>
+                    <div className="mt-2">
                         <button
                             type="button"
                             className="btn btn-small"

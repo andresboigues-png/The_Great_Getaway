@@ -103,7 +103,7 @@ function UserCard({ user, variant = 'neutral', onClick, rightSide, rowClass = ''
             }}
         >
             <Avatar user={user} />
-            <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="flex-1 min-w-0">
                 <div
                     style={{
                         fontWeight: 800,
@@ -290,7 +290,7 @@ export function Friends() {
             {/* Stat chips — three buckets, all visible. Mutuals
                 (the friends label) gets the brand-blue accent; the
                 one-way buckets get neutral chip styling. */}
-            <div style={{ marginTop: '16px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            <div className="mt-4 flex gap-[10px] flex-wrap">
                 <span
                     style={{
                         display: 'inline-flex',
@@ -347,12 +347,7 @@ export function Friends() {
                 style={{ marginTop: '22px', padding: '22px 24px', borderRadius: '28px' }}
             >
                 <div
-                    style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        marginBottom: '14px',
-                    }}
+                    className="flex items-center justify-between mb-[14px]"
                 >
                     <h3
                         style={{
@@ -377,8 +372,8 @@ export function Friends() {
                         {t('friends.searchByEmailLabel')}
                     </span>
                 </div>
-                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                    <div style={{ position: 'relative', flex: 1, minWidth: '240px' }}>
+                <div className="flex gap-[10px] flex-wrap">
+                    <div className="relative flex-1 min-w-[240px]">
                         <svg
                             width="14"
                             height="14"
@@ -441,7 +436,7 @@ export function Friends() {
                         Search
                     </button>
                 </div>
-                <div style={{ marginTop: '14px' }}>
+                <div className="mt-[14px]">
                     {searchStatus.kind === 'loading' && (
                         <p
                             style={{
@@ -503,12 +498,7 @@ export function Friends() {
                     )}
                     {searchStatus.kind === 'error' && (
                         <p
-                            style={{
-                                color: '#ff3b30',
-                                padding: '14px',
-                                textAlign: 'center',
-                                fontWeight: 700,
-                            }}
+                            className="text-[#ff3b30] p-[14px] text-center font-bold"
                         >
                             Search failed — try again.
                         </p>
@@ -658,13 +648,7 @@ function NetworkSection({
             style={{ marginTop: '18px', padding: '22px 24px', borderRadius: '28px' }}
         >
             <div
-                style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    marginBottom: '14px',
-                    gap: '12px',
-                }}
+                className="flex items-center justify-between mb-[14px] gap-3"
             >
                 <h3
                     style={{
@@ -708,12 +692,7 @@ function NetworkSection({
                             onClick={() => onRowClick(u)}
                             rightSide={
                                 <div
-                                    style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '8px',
-                                        flexShrink: 0,
-                                    }}
+                                    className="flex items-center gap-2 shrink-0"
                                 >
                                     {renderRowAction(u)}
                                     <svg

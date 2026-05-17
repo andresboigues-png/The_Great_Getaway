@@ -68,7 +68,7 @@ export function AchievementsStrip({ achievements }: { achievements: ProfileAchie
     }, [openId]);
 
     return (
-        <div ref={stripRef} className="achievements-strip" style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+        <div ref={stripRef} className="achievements-strip flex flex-wrap gap-[10px]">
             {achievements.map((a) => {
                 const earnedLabel = formatEarnedDate(a.earnedAt);
                 const isOpen = openId === a.badgeId;
@@ -97,20 +97,14 @@ export function AchievementsStrip({ achievements }: { achievements: ProfileAchie
                         }}
                         onClick={() => setOpenId((cur) => (cur === a.badgeId ? null : a.badgeId))}
                     >
-                        <span style={{ fontSize: '1.1rem', lineHeight: 1 }}>{a.emoji || '🏅'}</span>
+                        <span className="text-[1.1rem] leading-none">{a.emoji || '🏅'}</span>
                         <span>{label}</span>
                         <span className="achievement-tooltip" role="tooltip">
-                            <strong style={{ display: 'block', marginBottom: 4 }}>{label}</strong>
+                            <strong className="block mb-1">{label}</strong>
                             {a.description || ''}
                             {earnedLabel ? (
                                 <span
-                                    style={{
-                                        display: 'block',
-                                        marginTop: 6,
-                                        opacity: 0.7,
-                                        fontSize: '0.72rem',
-                                        fontWeight: 500,
-                                    }}
+                                    className="block mt-[6px] opacity-70 text-[0.72rem] font-medium"
                                 >
                                     Earned {earnedLabel}
                                 </span>

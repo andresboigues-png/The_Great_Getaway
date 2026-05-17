@@ -276,13 +276,13 @@ function MenuView() {
                 className="card-button-reset card glass management-card"
                 onClick={() => setSettingsTab('format')}
             >
-                <h2 className="card-title" style={{ color: '#a85d00', margin: 0 }}>
+                <h2 className="card-title text-[#a85d00] m-0">
                     {t('settings.cardFormatTitle')}
                 </h2>
                 <p className="st-help-text">
                     {t('settings.cardFormatBody')}
                 </p>
-                <div style={{ marginTop: 20, color: '#a85d00', fontWeight: 700, fontSize: '0.85rem' }}>
+                <div className="mt-5 text-[#a85d00] font-bold text-[0.85rem]">
                     {t('settings.cardConfigureCta')}
                 </div>
             </button>
@@ -297,13 +297,13 @@ function MenuView() {
                 className="card-button-reset card glass management-card"
                 onClick={() => setSettingsTab('personalization')}
             >
-                <h2 className="card-title" style={{ color: '#34c759', margin: 0 }}>
+                <h2 className="card-title text-[#34c759] m-0">
                     {t('settings.cardPersonalizationTitle')}
                 </h2>
                 <p className="st-help-text">
                     {t('settings.cardPersonalizationBody')}
                 </p>
-                <div style={{ marginTop: 20, color: '#34c759', fontWeight: 700, fontSize: '0.85rem' }}>
+                <div className="mt-5 text-[#34c759] font-bold text-[0.85rem]">
                     {t('settings.cardConfigureCta')}
                 </div>
             </button>
@@ -339,13 +339,13 @@ function MenuView() {
                 onClick={() => setSettingsTab('reset')}
             >
                 <div className="danger-glow pulse-red"></div>
-                <h2 className="card-title" style={{ color: '#ff3b30', margin: 0 }}>
+                <h2 className="card-title text-[#ff3b30] m-0">
                     {t('settings.cardDataMgmtTitle')}
                 </h2>
                 <p className="st-help-text">
                     {t('settings.cardDataMgmtBody')}
                 </p>
-                <div style={{ marginTop: 20, color: '#ff3b30', fontWeight: 700, fontSize: '0.85rem' }}>
+                <div className="mt-5 text-[#ff3b30] font-bold text-[0.85rem]">
                     {t('settings.cardDataMgmtCta')}
                 </div>
             </button>
@@ -694,7 +694,7 @@ function ResetView() {
                 className="card glass danger-card"
                 style={{ padding: 'var(--space-6)', borderColor: 'rgba(255, 59, 48, 0.3)' }}
             >
-                <h3 style={{ color: '#ff3b30', marginTop: 0 }}>{t('settings.resetFactoryTitle')}</h3>
+                <h3 className="text-[#ff3b30] mt-0">{t('settings.resetFactoryTitle')}</h3>
                 <p className="muted-meta">{t('settings.resetFactoryBody')}</p>
                 <button
                     type="button"
@@ -885,7 +885,7 @@ function FormatView() {
                         marginBottom: 'var(--space-8)',
                     }}
                 >
-                    <div style={{ flex: 1, minWidth: 150 }}>
+                    <div className="flex-1 min-w-[150px]">
                         <label
                             className="compact-form-label"
                             style={{
@@ -910,7 +910,7 @@ function FormatView() {
                             ))}
                         </select>
                     </div>
-                    <div style={{ flex: 1, minWidth: 120 }}>
+                    <div className="flex-1 min-w-[120px]">
                         <label
                             className="compact-form-label"
                             style={{
@@ -947,7 +947,7 @@ function FormatView() {
                 {/* Saved formats list + save-name form. The save form
                     is hidden once 5 formats are stored. */}
                 <div style={{ borderTop: '1px solid var(--glass-border)', paddingTop: 'var(--space-8)' }}>
-                    <h3 style={{ marginTop: 0 }}>
+                    <h3 className="mt-0">
                         {t('settings.formatSavedHeading', { count: savedFormats.length })}
                     </h3>
                     <div style={{ display: 'grid', gap: 'var(--space-3)' }}>
@@ -1005,9 +1005,8 @@ function FormatView() {
                             <div style={{ display: 'flex', gap: 'var(--space-3)', marginTop: 'var(--space-3)' }}>
                                 <input
                                     type="text"
-                                    className="glass-input"
                                     placeholder={t('settings.formatSavedNamePlaceholder')}
-                                    style={{ flex: 1 }}
+                                    className="flex-1"
                                     value={formatName}
                                     onChange={(e) => setFormatName(e.target.value)}
                                 />

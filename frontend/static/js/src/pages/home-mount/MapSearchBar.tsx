@@ -44,7 +44,7 @@ export function MapSearchBar() {
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     aria-hidden="true"
-                    style={{ flexShrink: 0 }}
+                    className="shrink-0"
                 >
                     <circle cx="11" cy="11" r="7"></circle>
                     <path d="M21 21l-4.35-4.35"></path>

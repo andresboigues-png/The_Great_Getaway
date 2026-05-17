@@ -838,8 +838,8 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
                 id="homeHeroMap"
                 style={{ width: '100%', height: '100%', position: 'absolute', inset: 0, zIndex: 0 }}
             />
-            <div className="cover-card__gradient" style={{ pointerEvents: 'none', zIndex: 1 }} />
-            <div className="cover-card__content" style={{ pointerEvents: 'none', zIndex: 2 }}>
+            <div className="cover-card__gradient pointer-events-none z-[1]" />
+            <div className="cover-card__content pointer-events-none z-[2]">
                 <p id="homeQuote" className="cover-card__quote">
                     {initialQuote}
                 </p>
@@ -897,14 +897,7 @@ function PinEditToolbar({ label, canSave, onSave, onCancel }: PinEditToolbarProp
             }}
         >
             <span
-                style={{
-                    fontSize: '0.82rem',
-                    fontWeight: 700,
-                    color: '#002d5b',
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                }}
+                className="text-[0.82rem] font-bold text-brand-navy whitespace-nowrap overflow-hidden overflow-ellipsis"
             >
                 {canSave ? `📍 ${label}` : '👆 Tap the map to place the pin'}
             </span>

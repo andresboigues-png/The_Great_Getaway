@@ -406,12 +406,7 @@ export function ManualTab() {
                 </h2>
                 <form
                     onSubmit={onSubmit}
-                    style={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        width: '100%',
-                    }}
+                    className="flex flex-col items-center w-full"
                 >
                     {/* Who paid */}
                     <div className="form-row">
@@ -451,7 +446,7 @@ export function ManualTab() {
                                 onClick={() => navigate('home')}
                             >
                                 <span>➕</span>{' '}
-                                <span style={{ textDecoration: 'underline' }}>
+                                <span className="underline">
                                     Add companions to this trip from Home
                                 </span>
                             </div>
@@ -513,7 +508,7 @@ export function ManualTab() {
                     </div>
 
                     {/* Country combobox */}
-                    <div className="form-row" style={{ position: 'relative' }}>
+                    <div className="form-row relative">
                         <label className="form-label-light" htmlFor="expCountry">
                             Country
                         </label>
@@ -598,8 +593,7 @@ export function ManualTab() {
                             ref={valueRef}
                             type="number"
                             step="0.01"
-                            className="glass-input-light"
-                            style={{ fontWeight: 700 }}
+                            className="glass-input-light font-bold"
                             required
                             defaultValue={
                                 STATE.draftExpense?.value !== undefined &&
@@ -649,7 +643,7 @@ export function ManualTab() {
                             ref={receiptInputRef}
                             type="file"
                             accept="image/*"
-                            style={{ display: 'none' }}
+                            className="hidden"
                             onChange={onReceiptChange}
                         />
                         <div
@@ -760,7 +754,7 @@ export function ManualTab() {
                         >
                             {t('expenses.splitBetween')}
                         </label>
-                        <div className="add-split-row" style={{ display: 'flex', gap: 14, marginBottom: 20 }}>
+                        <div className="add-split-row flex gap-[14px] mb-5">
                             <select
                                 className="glass-input"
                                 aria-label="Add a person to split the expense between"
@@ -805,7 +799,7 @@ export function ManualTab() {
                                 + Add
                             </button>
                         </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        <div className="flex flex-col gap-3">
                             {splitters.length === 0 ? (
                                 <p
                                     style={{
@@ -830,7 +824,7 @@ export function ManualTab() {
                                     // all inputs). Manual edits live until the
                                     // next add/remove — same tradeoff.
                                     <div key={`${p}_${splitters.length}`} className="splitter-row">
-                                        <span style={{ fontWeight: 500 }}>{p}</span>
+                                        <span className="font-medium">{p}</span>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
                                             <input
                                                 type="number"

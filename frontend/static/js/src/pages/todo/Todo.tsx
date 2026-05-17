@@ -178,15 +178,10 @@ function TodoRow({ place: p, isTicked, tripIsEditable, onTickToggle, onRemove }:
                 transition: 'opacity 0.15s, border-color 0.15s, box-shadow 0.18s',
             }}
         >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div className="flex items-center gap-[10px]">
                 {tripIsEditable && (
                     <label
-                        style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            cursor: 'pointer',
-                            flexShrink: 0,
-                        }}
+                        className="flex items-center cursor-pointer shrink-0"
                         title={
                             isTicked
                                 ? t('todo.tickedAriaTrue')
@@ -232,16 +227,7 @@ function TodoRow({ place: p, isTicked, tripIsEditable, onTickToggle, onRemove }:
                         />
                     ) : (
                         <span
-                            style={{
-                                fontSize: '1.3rem',
-                                lineHeight: 1,
-                                width: '36px',
-                                height: '36px',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                flexShrink: 0,
-                            }}
+                            className="text-[1.3rem] leading-none w-9 h-9 inline-flex items-center justify-center shrink-0"
                         >
                             {p.icon || '📍'}
                         </span>
@@ -272,14 +258,9 @@ function TodoRow({ place: p, isTicked, tripIsEditable, onTickToggle, onRemove }:
                     — per-user request). Tapping outside the name (the chip
                     or the empty area to the right) still toggles the
                     expand-details panel below. */}
-                <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+                <div className="flex-1 min-w-0 flex flex-col">
                     <div
-                        style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            flexWrap: 'wrap',
-                        }}
+                        className="flex items-center gap-[6px] flex-wrap"
                     >
                         {mapsUrl ? (
                             <a
@@ -420,7 +401,7 @@ function TodoRow({ place: p, isTicked, tripIsEditable, onTickToggle, onRemove }:
                 bottom is an explicit affordance for users who didn't
                 spot the in-row name link with the ↗ glyph. */}
             {expanded && (hasDetails || mapsUrl) && (
-                <div style={{ marginTop: '10px', paddingLeft: '46px' }}>
+                <div className="mt-[10px] pl-[46px]">
                     {p.address && (
                         <div
                             style={{
@@ -514,12 +495,7 @@ function FilterSelect({ label, value, onChange, options, style }: FilterSelectPr
             }}
         >
             <span
-                style={{
-                    fontSize: '0.72rem',
-                    fontWeight: 700,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.05em',
-                }}
+                className="text-[0.72rem] font-bold uppercase tracking-wider"
             >
                 {label}
             </span>
@@ -815,15 +791,9 @@ export function Todo() {
                 }}
             >
                 <div
-                    style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '10px',
-                        flex: 1,
-                        minWidth: 0,
-                    }}
+                    className="flex items-center gap-[10px] flex-1 min-w-0"
                 >
-                    <span style={{ fontSize: '1.2rem' }}>📋</span>
+                    <span className="text-[1.2rem]">📋</span>
                     <div>
                         <div
                             style={{
@@ -847,12 +817,7 @@ export function Todo() {
                     </div>
                 </div>
                 <div
-                    style={{
-                        display: 'flex',
-                        gap: '8px',
-                        alignItems: 'center',
-                        flexWrap: 'wrap',
-                    }}
+                    className="flex gap-2 items-center flex-wrap"
                 >
                     {tripIsEditable && (
                         <button
@@ -920,7 +885,7 @@ export function Todo() {
                     dangerouslySetInnerHTML={{ __html: t('todo.explainer') }}
                 />
                 {tripIsEditable && filteredItems.length > 0 && (
-                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <div className="flex justify-end">
                         {/* The button applies to the CURRENTLY VISIBLE
                             list (filteredItems), not the whole to-do.
                             Label + tooltip flip based on whether every
@@ -977,13 +942,7 @@ export function Todo() {
                 glance. Flex-wrap so the row stacks gracefully on
                 narrow screens. */}
             <div
-                style={{
-                    display: 'flex',
-                    flexWrap: 'wrap',
-                    gap: '10px',
-                    alignItems: 'center',
-                    marginBottom: '18px',
-                }}
+                className="flex flex-wrap gap-[10px] items-center mb-[18px]"
             >
                 <FilterSelect
                     label={t('todo.filterStatusLabel')}
@@ -1067,7 +1026,7 @@ export function Todo() {
             )}
 
             {[...groups.entries()].map(([icon, items]) => (
-                <div key={icon} style={{ marginBottom: '22px' }}>
+                <div key={icon} className="mb-[22px]">
                     {/* Section header only renders for the category-
                         grouped view. Flat sort modes ('*' key) skip
                         the header so the rows themselves are the
@@ -1083,7 +1042,7 @@ export function Todo() {
                                 marginBottom: '10px',
                             }}
                         >
-                            <span style={{ fontSize: '1.3rem', lineHeight: 1 }}>{icon}</span>
+                            <span className="text-[1.3rem] leading-none">{icon}</span>
                             <span
                                 style={{
                                     fontWeight: 800,
@@ -1110,11 +1069,7 @@ export function Todo() {
                         </div>
                     )}
                     <div
-                        style={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '6px',
-                        }}
+                        className="flex flex-col gap-[6px]"
                     >
                         {items.map((p) => (
                             <TodoRow

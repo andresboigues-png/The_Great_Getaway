@@ -179,9 +179,9 @@ export function Collections() {
                         alignItems: 'flex-start',
                     }}
                 >
-                    <span style={{ fontSize: '1.4rem', lineHeight: 1 }}>💡</span>
+                    <span className="text-[1.4rem] leading-none">💡</span>
                     <div className="flex-1 min-w-0">
-                        <div style={{ fontWeight: 800, color: '#002d5b', marginBottom: '4px' }}>
+                        <div className="font-extrabold text-brand-navy mb-1">
                             {t('collections.hintTitle')}
                         </div>
                         <div
@@ -374,7 +374,7 @@ export function Collections() {
             )}
 
             <div className="col-tab-content">
-                <div className="grid-2" style={{ marginTop: '16px' }}>
+                <div className="grid-2 mt-4">
                     {archived.length === 0 ? (
                         <div
                             className="card glass"
@@ -384,7 +384,7 @@ export function Collections() {
                                 padding: '60px',
                             }}
                         >
-                            <div style={{ fontSize: '4rem', marginBottom: '20px' }}>📚</div>
+                            <div className="text-[4rem] mb-5">📚</div>
                             <h2>{t('collections.emptyNoTripsTitle')}</h2>
                             <p className="text-muted">{t('collections.emptyNoTripsBody')}</p>
                         </div>
@@ -397,7 +397,7 @@ export function Collections() {
                                 padding: '48px 32px',
                             }}
                         >
-                            <div style={{ fontSize: '3rem', marginBottom: '12px' }}>🔍</div>
+                            <div className="text-[3rem] mb-3">🔍</div>
                             <h2 style={{ margin: '0 0 6px' }}>
                                 {t('collections.emptyNoMatchesTitle')}
                             </h2>
@@ -439,31 +439,15 @@ function ArchivedCard({ trip }: { trip: Trip }) {
 
     return (
         <div
-            className="card glass card-glow-blue collections-row"
-            style={{
-                display: 'flex',
-                flexDirection: 'row',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '20px',
-                gap: '16px',
-            }}
+            className="card glass card-glow-blue collections-row flex flex-row items-center justify-between p-5 gap-4"
         >
             <div
-                className="archived-trip-card collections-row__main"
+                className="archived-trip-card collections-row__main cursor-pointer flex-1 min-w-0 flex items-center gap-4"
                 data-trip-id={trip.id}
                 role="button"
                 tabIndex={0}
                 aria-label={`Open ${trip.name} details`}
                 onClick={() => viewArchivedDetails(trip.id)}
-                style={{
-                    cursor: 'pointer',
-                    flex: 1,
-                    minWidth: 0,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '16px',
-                }}
             >
                 {trip.coverUrl && (
                     <img
@@ -484,12 +468,7 @@ function ArchivedCard({ trip }: { trip: Trip }) {
                 )}
                 <div className="flex-1 min-w-0">
                     <div
-                        style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '10px',
-                            flexWrap: 'wrap',
-                        }}
+                        className="flex items-center gap-[10px] flex-wrap"
                     >
                         <h3 className="m-0">{trip.name}</h3>
                         {dest && dest !== trip.name && (
@@ -538,7 +517,7 @@ function ArchivedCard({ trip }: { trip: Trip }) {
                         {trip.shareToken && (trip.shareViews ?? 0) > 0 && (
                             <span
                                 title="Public-link views"
-                                style={{ color: '#0071e3', fontWeight: 700 }}
+                                className="text-[#0071e3] font-bold"
                             >
                                 👁 {trip.shareViews}{' '}
                                 {trip.shareViews === 1 ? 'view' : 'views'}
@@ -569,8 +548,7 @@ function ArchivedCard({ trip }: { trip: Trip }) {
             </div>
 
             <div
-                className="collections-row__actions"
-                style={{ display: 'flex', alignItems: 'center', gap: '20px' }}
+                className="collections-row__actions flex items-center gap-5"
             >
                 <PrivacySelect trip={trip} />
                 <div

@@ -134,12 +134,7 @@ export function HistoryTab() {
                     }}
                 >
                     <div
-                        style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            marginBottom: 24,
-                        }}
+                        className="flex items-center justify-between mb-6"
                     >
                         <h2
                             style={{
@@ -151,7 +146,7 @@ export function HistoryTab() {
                         >
                             {t('expenses.historyTitle')}
                         </h2>
-                        <div style={{ display: 'flex', gap: 8 }}>
+                        <div className="flex gap-2">
                             {canUndoBatch && lastImportBatch ? (
                                 <button
                                     type="button"
@@ -296,7 +291,7 @@ export function HistoryTab() {
             </div>
 
             {/* Expense list */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <div className="flex flex-col gap-5">
                 {filtered.length === 0 ? (
                     <EmptyState
                         accent="orange"
@@ -371,7 +366,7 @@ export function HistoryTab() {
                                             </svg>
                                         </button>
                                     ) : null}
-                                    <div style={{ textAlign: 'right' }}>
+                                    <div className="text-right">
                                         <div className="expense-row__amount">
                                             {e.value.toLocaleString(undefined, {
                                                 minimumFractionDigits: 2,

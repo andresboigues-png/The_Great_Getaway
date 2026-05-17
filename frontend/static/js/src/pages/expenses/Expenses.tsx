@@ -169,7 +169,7 @@ function ReadOnlyNotice({ tabLabel, verb }: { tabLabel: string; verb: string }) 
                 background: 'rgba(255,255,255,0.6)',
             }}
         >
-            <div style={{ fontSize: '2.4rem', marginBottom: 12 }}>👁</div>
+            <div className="text-[2.4rem] mb-3">👁</div>
             <h2
                 style={{
                     margin: '0 0 12px',

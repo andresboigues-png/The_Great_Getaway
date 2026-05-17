@@ -452,7 +452,7 @@ export function Feed() {
 
                 <div
                     id="feedList"
-                    style={{ display: 'flex', flexDirection: 'column', gap: 12 }}
+                    className="flex flex-col gap-3"
                 >
                     <FeedListBody
                         activeTab={activeTab}
@@ -611,7 +611,7 @@ function FeedListBody(props: FeedListBodyProps) {
             : explore;
 
         return (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div className="flex flex-col gap-[14px]">
                 {/* Country filter strip — shown only when we have ≥2
                     distinct countries (with 1 country a filter is
                     redundant). Horizontally scrollable on narrow
@@ -654,10 +654,9 @@ function FeedListBody(props: FeedListBodyProps) {
                     button beats showing a silent empty grid. */}
                 {filteredExplore.length === 0 ? (
                     <div
-                        className="card glass"
-                        style={{ padding: 24, borderRadius: 24, textAlign: 'center' }}
+                        className="card glass p-6 rounded-xl text-center"
                     >
-                        <div style={{ fontSize: '1.6rem', marginBottom: 6 }}>🔎</div>
+                        <div className="text-[1.6rem] mb-[6px]">🔎</div>
                         <div
                             style={{
                                 fontWeight: 800,
@@ -901,7 +900,7 @@ function EventCard(props: EventCardProps) {
                 gap: 0,
             }}
         >
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+            <div className="flex items-start gap-[14px]">
                 {/* Avatar — clickable via .feed-avatar-btn delegation. */}
                 <span dangerouslySetInnerHTML={{ __html: avatar(ev.actor) }} />
                 <div className="flex-1 min-w-0">
@@ -912,7 +911,7 @@ function EventCard(props: EventCardProps) {
                             color: 'var(--text-secondary)',
                         }}
                     >
-                        <span style={{ marginRight: 6 }}>{accent.icon}</span>
+                        <span className="mr-[6px]">{accent.icon}</span>
                         <span dangerouslySetInnerHTML={{ __html: eventLine(ev) }} />
                     </div>
                     {time ? (
@@ -997,7 +996,7 @@ function EventCard(props: EventCardProps) {
                         transition: 'transform 0.15s ease, box-shadow 0.15s ease',
                     }}
                 >
-                    <span style={{ fontSize: '1.6rem', lineHeight: 1, flexShrink: 0 }}>🗺️</span>
+                    <span className="text-[1.6rem] leading-none shrink-0">🗺️</span>
                     <div className="flex-1 min-w-0">
                         <div
                             style={{
@@ -1037,7 +1036,7 @@ function EventCard(props: EventCardProps) {
                         strokeWidth="2.4"
                         strokeLinecap="round"
                         strokeLinejoin="round"
-                        style={{ color: '#5856d6', flexShrink: 0 }}
+                        className="text-[#5856d6] shrink-0"
                     >
                         <polyline points="9 18 15 12 9 6"></polyline>
                     </svg>
@@ -1184,10 +1183,9 @@ function CommentThread({ eventId, comments, onDelete, onSubmit }: CommentThreadP
                 }}
             />
             <form
-                className="feed-comment-form"
                 data-event-id={eventId}
                 onSubmit={handleSubmit}
-                style={{ display: 'flex', gap: 8, marginTop: 10 }}
+                className="flex gap-2 mt-[10px]"
             >
                 <input
                     ref={inputRef}
@@ -1350,7 +1348,7 @@ function ExploreCountryChip({
             style={{ ...styleBase, ...(isSelected ? styleSelected : styleUnselected) }}
         >
             {flag && (
-                <span aria-hidden="true" style={{ fontSize: '1rem' }}>{flag}</span>
+                <span aria-hidden="true" className="text-base">{flag}</span>
             )}
             <span>{label}</span>
             <span
