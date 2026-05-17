@@ -257,7 +257,11 @@ def add_security_headers(response):
                 "https://cdn.jsdelivr.net "
                 "https://*.sentry-cdn.com"
             ),
-            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+            # accounts.google.com — Google Identity Services injects a
+            # stylesheet (gsi/style) for the sign-in button. Without
+            # this entry the console fills with CSP violations and the
+            # button renders unstyled. See FIXING_ROADMAP §0.4 follow-up.
+            "style-src 'self' 'unsafe-inline' https://accounts.google.com https://fonts.googleapis.com",
             "img-src 'self' data: blob: https:",
             "font-src 'self' data: https://fonts.gstatic.com",
             (

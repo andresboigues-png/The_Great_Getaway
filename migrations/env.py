@@ -1,3 +1,4 @@
+import os
 from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config
@@ -8,6 +9,28 @@ from alembic import context
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
+
+# ── GG_DB_PATH override (2026-05-17) ─────────────────────────────────
+# The alembic.ini ships with `sqlalchemy.url = sqlite:///travel_planner.db`
+# — a relative path. Pre-fix, that meant every `alembic upgrade head`
+# resolved against the CURRENT WORKING DIRECTORY:
+#   - `cd ~/gg && alembic ...`     → ~/gg/travel_planner.db   ← right
+#   - `cd ~/gg/src && alembic ...` → ~/gg/src/travel_planner.db ← wrong
+# The deploy on 2026-05-17 hit exactly this trap: alembic ran in
+# `~/gg/src/`, created a fresh empty DB there, advanced its alembic
+# state to head, while the real prod DB at `~/gg/travel_planner.db`
+# stayed unmigrated. WSGI then 500'd on the schema check.
+#
+# Fix: if GG_DB_PATH is set (it is in production via .env), use it as
+# the absolute DB path regardless of where alembic is invoked from.
+# Falls through to the alembic.ini value when unset (dev/tests).
+# Matches the same env-var contract the Flask app reads at runtime
+# (see src/database.py:_db_path).
+_db_override = os.getenv("GG_DB_PATH")
+if _db_override:
+    # Allow alembic.ini's logging-section parsing to fire BEFORE we
+    # rewrite the url — fileConfig below depends on the config object.
+    config.set_main_option("sqlalchemy.url", f"sqlite:///{_db_override}")
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
