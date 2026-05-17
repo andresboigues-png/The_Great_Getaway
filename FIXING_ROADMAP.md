@@ -555,15 +555,23 @@ Ordered by leverage on the VISION's three killer features (social, expenses, pla
 
 **Why:** VISION names this as a missing feature. Real trips chain destinations; the schema is the only blocker.
 
-### 4.4 Achievements / Badges with feed broadcast
+### 4.4 Achievements / Badges with feed broadcast — ✅ Shipped 2026-05-17 (badge variety extended)
 
-**M** · New tables + `routes/achievements.py`
+**M** · `src/achievements.py`, `migrations/versions/f9a3b7e1c842_catchup_post_baseline.py`
 
-- [ ] `user_achievements` table (user_id, badge_id, earned_at).
-- [ ] Derive triggers on `state:changed` events (server-side mirror in `routes/data.py`).
-- [ ] Badge types: countries (10/25/50), single-trip (longest, priciest, most companions), intra-country (3 trips in Portugal), streaks.
-- [ ] Earning a badge fires a `feed_event_type=achievement_unlocked` event.
-- [ ] Profile gets a horizontal badge strip.
+- [x] `user_achievements` table (user_id, badge_id, earned_at, context_json). Created in the catchup migration with UNIQUE(user_id, badge_id) for idempotent insert.
+- [x] Detection runs on every /api/data poll — cheap (each rule is a single SQL count/aggregate) + naturally batched with the existing sync flow. `check_user_achievements()` returns newly-earned badges so the route can notify + surface them on the next response in one pass.
+- [x] **Badge variety (2026-05-17):** 15 badges shipped end-to-end —
+    - Country tiers: `globe_trotter_3` / `_10` / `_25` / **`_50`** (4 tiers).
+    - Single-trip: **`longest_trip`** (≥14 days), **`priciest_trip`** (≥€1000 recorded spend), **`most_companions`** (≥5 companions on the roster).
+    - Intra-country: `repeat_country` (≥2 trips) + **`intra_country_3`** (≥3 trips in same country).
+    - Streaks: **`back_to_back`** (2 consecutive calendar months with a trip; year-boundary aware).
+    - Other: `first_trip`, `archivist`, `social_butterfly` (≥3 mutual follows), `first_share`, `first_settle_up`.
+      Each badge carries a `context_json` payload (countryCount / tripId / days / spendEur / count / firstMonth / etc.) so the frontend renderer can show meaningful tooltips.
+- [x] Earning a badge fires a `feed_event_type=achievement_unlocked` event via `_build_achievement_unlocked` in `src/feed_events.py` (the §3.6 registry). Friends-of-actor + actor themselves see it; engagement (like/comment) allowed.
+- [x] Profile renders the horizontal badge strip via `pages/profile/AchievementsStrip.tsx` (tap-to-pin tooltips).
+- [x] Notification fires per unlock via `notify_achievements()` in achievements.py, so the user sees the unlock in their bell dropdown on the next poll.
+- [x] **Tests:** 7 new tests in `tests/test_api.py` cover the badge-variety expansion — positive (badge fires at threshold + correct context), negative (just-under-threshold doesn't fire), and edge cases (year-boundary streak, malformed JSON shapes). All 336 backend tests passing.
 
 **Why:** today the feed is quiet for weeks between trips. Achievements generate organic activity AND reward internal/domestic tourism (VISION call-out).
 

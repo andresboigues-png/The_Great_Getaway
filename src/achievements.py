@@ -159,6 +159,180 @@ def _check_first_settle_up(cursor, user_id):
     return {} if cursor.fetchone() else None
 
 
+# ── §4.4 badge-variety expansion (2026-05-17) ─────────────────────────
+#
+# Adds 6 badge types per the roadmap call-out:
+#   - globe_trotter_50: countries tier extension (matches 3/10/25)
+#   - longest_trip / priciest_trip / most_companions: single-trip
+#     achievements with conservative thresholds (14 days / €1000 /
+#     5 companions). Each picks the user's max-by-metric trip so the
+#     context_json carries the winning trip identity.
+#   - intra_country_3: extends repeat_country (≥2 → ≥3) for users
+#     who really commit to a destination.
+#   - back_to_back: 2 consecutive calendar months with a trip —
+#     entry-level streak award. Future tiers can add 3/6/12-month
+#     streaks following the same pattern.
+#
+# Thresholds are calibrated for "achievable but not trivial":
+# entry-stage users (1-2 trips) don't earn these immediately; users
+# with 10+ trips earn a meaningful subset.
+
+
+# Spend threshold for the priciest-trip badge, in EUR. Reasonable
+# real-world floor — a weekend city break easily clears it; a day
+# trip doesn't.
+_PRICIEST_TRIP_EUR = 1000.0
+
+# Day count for the longest-trip badge. A 2-week trip stands out
+# against the typical 3-5 day pattern.
+_LONGEST_TRIP_DAYS = 14
+
+# Companion count for the most-companions badge. Owner-not-counted
+# (companions array is "other people", roster shape).
+_MOST_COMPANIONS = 5
+
+
+def _check_longest_trip(cursor, user_id):
+    """Owned a trip with ≥14 days. Counts trip_days rows per trip;
+    picks the user's longest. The day count includes Day 0 (anchor)
+    since that's how the planner presents the trip length to the
+    user — "12 days of adventure" includes the anchor."""
+    cursor.execute(
+        "SELECT t.id, t.name, COUNT(td.id) AS days "
+        "FROM trips t "
+        "LEFT JOIN trip_days td ON td.trip_id = t.id "
+        "WHERE t.user_id = ? "
+        "GROUP BY t.id "
+        "HAVING days >= ? "
+        "ORDER BY days DESC LIMIT 1",
+        (user_id, _LONGEST_TRIP_DAYS),
+    )
+    row = cursor.fetchone()
+    if not row:
+        return None
+    return {
+        "tripId": row["id"],
+        "tripName": row["name"] or "",
+        "days": row["days"],
+    }
+
+
+def _check_priciest_trip(cursor, user_id):
+    """Owned a trip with total recorded spend ≥ €1000. Sums
+    expenses.euro_value (cross-currency normalised) per trip. Note:
+    settlement rows that pre-date the §4.5 dual-write retirement
+    can still appear in `expenses` with a "Settlement:" label and
+    would inflate the sum slightly; the threshold is high enough
+    that this isn't worth filtering for. New settlements (post-§4.5)
+    live in the settlements table and naturally don't double-count
+    here."""
+    cursor.execute(
+        "SELECT t.id, t.name, COALESCE(SUM(e.euro_value), 0) AS spend "
+        "FROM trips t "
+        "LEFT JOIN expenses e ON e.trip_id = t.id "
+        "WHERE t.user_id = ? "
+        "GROUP BY t.id "
+        "HAVING spend >= ? "
+        "ORDER BY spend DESC LIMIT 1",
+        (user_id, _PRICIEST_TRIP_EUR),
+    )
+    row = cursor.fetchone()
+    if not row:
+        return None
+    return {
+        "tripId": row["id"],
+        "tripName": row["name"] or "",
+        # Round to whole euros for display — the badge tooltip doesn't
+        # need 1234.5678 precision.
+        "spendEur": round(row["spend"]),
+    }
+
+
+def _check_most_companions(cursor, user_id):
+    """Owned a trip with ≥5 companions in its roster (companions_json).
+    Counts the JSON array length defensively — malformed / null rows
+    are skipped rather than raising. Uses Python parsing (vs SQLite's
+    json_array_length) because some older trip rows have non-array
+    values from earlier schema iterations."""
+    cursor.execute(
+        "SELECT id, name, companions_json FROM trips WHERE user_id = ?",
+        (user_id,),
+    )
+    best = None
+    for row in cursor.fetchall():
+        raw = row["companions_json"]
+        if not raw:
+            continue
+        try:
+            companions = json.loads(raw)
+        except (json.JSONDecodeError, TypeError, ValueError):
+            continue
+        if not isinstance(companions, list):
+            continue
+        n = len(companions)
+        if n < _MOST_COMPANIONS:
+            continue
+        if best is None or n > best["count"]:
+            best = {
+                "tripId": row["id"],
+                "tripName": row["name"] or "",
+                "count": n,
+            }
+    return best
+
+
+def _check_intra_country_3(cursor, user_id):
+    """Visited the same country on 3+ trips. Extends repeat_country
+    (≥2). Promotes deep-dive travel patterns (regulars, locals,
+    domestic). Same key-normalisation as repeat_country."""
+    cursor.execute(
+        "SELECT COALESCE(NULLIF(country_code, ''), LOWER(country)) AS key, COUNT(*) AS c "
+        "FROM trips "
+        "WHERE user_id = ? AND COALESCE(country, '') != '' "
+        "GROUP BY key "
+        "HAVING c >= 3 "
+        "ORDER BY c DESC LIMIT 1",
+        (user_id,),
+    )
+    row = cursor.fetchone()
+    if not row:
+        return None
+    return {"countryKey": row["key"], "tripCount": row["c"]}
+
+
+def _check_back_to_back(cursor, user_id):
+    """Trips in 2 consecutive calendar months. Uses trips.created_at
+    grouped by YYYY-MM and walks the sorted list looking for an
+    adjacent pair. Crosses year boundaries correctly (Dec/Jan).
+
+    First streak found wins — the badge fires once, even if the user
+    has multiple streaks across their history. Future tiers (3-month,
+    year-long) can extend this with longer-streak rules using the
+    same DISTINCT-month scaffold."""
+    cursor.execute(
+        "SELECT DISTINCT strftime('%Y-%m', created_at) AS ym "
+        "FROM trips "
+        "WHERE user_id = ? AND created_at IS NOT NULL "
+        "ORDER BY ym",
+        (user_id,),
+    )
+    months = [r["ym"] for r in cursor.fetchall() if r["ym"]]
+    for i in range(len(months) - 1):
+        try:
+            y1, m1 = (int(p) for p in months[i].split("-"))
+            y2, m2 = (int(p) for p in months[i + 1].split("-"))
+        except (ValueError, AttributeError):
+            # Malformed YYYY-MM from a corrupted created_at — skip
+            # the pair rather than raise.
+            continue
+        adjacent = (y1 == y2 and m1 + 1 == m2) or (
+            y1 + 1 == y2 and m1 == 12 and m2 == 1
+        )
+        if adjacent:
+            return {"firstMonth": months[i], "secondMonth": months[i + 1]}
+    return None
+
+
 # ── Registry ─────────────────────────────────────────────────────────
 #
 # Order is the display order on the profile badge strip. Newer badges
@@ -229,6 +403,52 @@ BADGES: list[BadgeDef] = [
         label="Square Deal",
         description="Closed the loop on a settle-up.",
         check=_check_first_settle_up,
+    ),
+    # ── §4.4 badge-variety expansion (2026-05-17) ─────────────────
+    # Appended to the registry tail so profile badge strips re-render
+    # without reshuffling existing rows — earned badges keep their
+    # display position.
+    BadgeDef(
+        id="globe_trotter_50",
+        emoji="🪐",
+        label="Globe Trotter — 50 countries",
+        description="Visited 50 distinct countries.",
+        check=_make_globe_trotter_check(50),
+    ),
+    BadgeDef(
+        id="intra_country_3",
+        emoji="🏡",
+        label="Homebody Explorer",
+        description="Visited the same country 3+ times — you really know the place.",
+        check=_check_intra_country_3,
+    ),
+    BadgeDef(
+        id="longest_trip",
+        emoji="🛤️",
+        label="Long Hauler",
+        description=f"Owned a trip ≥{_LONGEST_TRIP_DAYS} days long.",
+        check=_check_longest_trip,
+    ),
+    BadgeDef(
+        id="priciest_trip",
+        emoji="💎",
+        label="Big Spender",
+        description=f"Owned a trip with €{int(_PRICIEST_TRIP_EUR):,}+ recorded spend.",
+        check=_check_priciest_trip,
+    ),
+    BadgeDef(
+        id="most_companions",
+        emoji="👥",
+        label="Squad Leader",
+        description=f"Owned a trip with {_MOST_COMPANIONS}+ companions on the roster.",
+        check=_check_most_companions,
+    ),
+    BadgeDef(
+        id="back_to_back",
+        emoji="🔁",
+        label="Back to Back",
+        description="Took trips in two consecutive calendar months.",
+        check=_check_back_to_back,
     ),
 ]
 

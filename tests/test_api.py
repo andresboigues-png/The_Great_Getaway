@@ -3996,6 +3996,297 @@ def test_achievements_first_settle_up_uses_45_table(
     assert "first_settle_up" in ids
 
 
+# ── §4.4 badge-variety expansion ─────────────────────────────────────
+
+
+def test_achievements_globe_trotter_50_only_at_threshold(client, seed_user, auth_headers):
+    """The 50-country tier only fires at ≥50 distinct countries. 49 →
+    no globe_trotter_50; 50 → fires + context carries countryCount."""
+    from database import get_db
+    with get_db() as conn:
+        c = conn.cursor()
+        # Insert 49 distinct-country trips. globe_trotter_50 should NOT
+        # appear; globe_trotter_25 should.
+        for i in range(49):
+            # Synthetic 2-letter country codes (AA..BV) — far past any
+            # real-world ISO list but the rule is `COUNT(DISTINCT
+            # country_code)` so synthetic codes work.
+            code = f"X{i:02d}"
+            c.execute(
+                "INSERT INTO trips (id, user_id, name, country, country_code) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (f"trip-gt50-{i}", seed_user, f"Trip {i}", f"Country {i}", code),
+            )
+        conn.commit()
+
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    ids = {a["badgeId"] for a in data["achievements"]}
+    assert "globe_trotter_25" in ids, "25-tier should be unlocked at 49 countries"
+    assert "globe_trotter_50" not in ids, "50-tier shouldn't fire at 49"
+
+    # One more — crosses the threshold.
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO trips (id, user_id, name, country, country_code) "
+            "VALUES ('trip-gt50-final', ?, 'Trip 50', 'Country 50', 'XFF')",
+            (seed_user,),
+        )
+        conn.commit()
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    ids = {a["badgeId"] for a in data["achievements"]}
+    assert "globe_trotter_50" in ids
+    gt50 = next(a for a in data["achievements"] if a["badgeId"] == "globe_trotter_50")
+    assert gt50["context"].get("countryCount") == 50
+
+
+def test_achievements_longest_trip_threshold(client, seed_user, auth_headers):
+    """longest_trip fires when ANY owned trip has ≥14 trip_days rows.
+    Below the threshold: no badge. At threshold: badge + context
+    carries (tripId, tripName, days)."""
+    from database import get_db
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-long-1", name="Long Haul")
+
+    with get_db() as conn:
+        c = conn.cursor()
+        # 13 days — below threshold.
+        for i in range(13):
+            c.execute(
+                "INSERT INTO trip_days (id, trip_id, day_number, name) VALUES (?, ?, ?, ?)",
+                (f"day-{i}", trip_id, i, f"Day {i}"),
+            )
+        conn.commit()
+
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    ids = {a["badgeId"] for a in data["achievements"]}
+    assert "longest_trip" not in ids, "13 days < 14 threshold"
+
+    # Add the 14th day — crosses the threshold.
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO trip_days (id, trip_id, day_number, name) VALUES (?, ?, ?, ?)",
+            ("day-13", trip_id, 13, "Day 13"),
+        )
+        conn.commit()
+
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    ids = {a["badgeId"] for a in data["achievements"]}
+    assert "longest_trip" in ids
+    longest = next(a for a in data["achievements"] if a["badgeId"] == "longest_trip")
+    ctx = longest["context"]
+    assert ctx.get("tripId") == trip_id
+    assert ctx.get("days") == 14
+    assert ctx.get("tripName") == "Long Haul"
+
+
+def test_achievements_priciest_trip_threshold(client, seed_user, auth_headers):
+    """priciest_trip fires at total recorded spend ≥ €1000 on any owned
+    trip. The threshold uses sum(expenses.euro_value) — cross-currency
+    sums survive."""
+    from database import get_db
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-spend-1", name="Splurge Trip")
+
+    # €999 across two expenses — just under the threshold.
+    with get_db() as conn:
+        c = conn.cursor()
+        c.execute(
+            "INSERT INTO expenses (id, trip_id, who, value, currency, euro_value) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            ("e1", trip_id, seed_user, 500, "EUR", 500.0),
+        )
+        c.execute(
+            "INSERT INTO expenses (id, trip_id, who, value, currency, euro_value) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            ("e2", trip_id, seed_user, 499, "EUR", 499.0),
+        )
+        conn.commit()
+
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    ids = {a["badgeId"] for a in data["achievements"]}
+    assert "priciest_trip" not in ids, "€999 < €1000 threshold"
+
+    # Bump to €1000 — exactly the threshold.
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO expenses (id, trip_id, who, value, currency, euro_value) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            ("e3", trip_id, seed_user, 1, "EUR", 1.0),
+        )
+        conn.commit()
+
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    ids = {a["badgeId"] for a in data["achievements"]}
+    assert "priciest_trip" in ids
+    pricy = next(a for a in data["achievements"] if a["badgeId"] == "priciest_trip")
+    ctx = pricy["context"]
+    assert ctx.get("tripId") == trip_id
+    assert ctx.get("spendEur") == 1000
+    assert ctx.get("tripName") == "Splurge Trip"
+
+
+def test_achievements_most_companions(client, seed_user, auth_headers):
+    """most_companions reads `trips.companions_json` (the per-trip
+    roster array). Defensively skips malformed JSON / non-array
+    values rather than raising."""
+    import json
+    from database import get_db
+
+    # Trip with 4 companions — under threshold.
+    with get_db() as conn:
+        c = conn.cursor()
+        c.execute(
+            "INSERT INTO trips (id, user_id, name, country, companions_json) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (
+                "trip-c-4",
+                seed_user,
+                "Small group",
+                "PT",
+                json.dumps([{"name": f"Friend {i}"} for i in range(4)]),
+            ),
+        )
+        # A second trip with valid JSON that's NOT an array — older
+        # schema iterations stored an object instead of a list. The
+        # badge check must skip these gracefully rather than measuring
+        # the wrong shape; this also tests the `isinstance(..., list)`
+        # branch. (Truly-malformed JSON can't reach this code path in
+        # production because all writers go through json.dumps; trip
+        # serialization crashes earlier on it.)
+        c.execute(
+            "INSERT INTO trips (id, user_id, name, country, companions_json) "
+            "VALUES (?, ?, ?, ?, ?)",
+            ("trip-c-bad", seed_user, "Non-array JSON trip", "PT", '{"legacy": true}'),
+        )
+        conn.commit()
+
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    ids = {a["badgeId"] for a in data["achievements"]}
+    assert "most_companions" not in ids, "4 companions < 5 threshold"
+
+    # Bump one trip to 5 companions.
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE trips SET companions_json = ? WHERE id = 'trip-c-4'",
+            (json.dumps([{"name": f"Friend {i}"} for i in range(5)]),),
+        )
+        conn.commit()
+
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    ids = {a["badgeId"] for a in data["achievements"]}
+    assert "most_companions" in ids
+    mc = next(a for a in data["achievements"] if a["badgeId"] == "most_companions")
+    ctx = mc["context"]
+    assert ctx.get("count") == 5
+    assert ctx.get("tripId") == "trip-c-4"
+
+
+def test_achievements_intra_country_3(client, seed_user, auth_headers):
+    """intra_country_3 fires when the user has 3+ trips in the same
+    country (by country_code). Strictly stronger than repeat_country
+    (≥2)."""
+    from database import get_db
+    with get_db() as conn:
+        c = conn.cursor()
+        # 2 Portugal trips — below threshold, but repeat_country fires.
+        for i in range(2):
+            c.execute(
+                "INSERT INTO trips (id, user_id, name, country, country_code) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (f"trip-ic-{i}", seed_user, f"Lisbon {i}", "Portugal", "PT"),
+            )
+        conn.commit()
+
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    ids = {a["badgeId"] for a in data["achievements"]}
+    assert "repeat_country" in ids, "2 PT trips should fire repeat_country"
+    assert "intra_country_3" not in ids, "2 PT trips < 3 threshold"
+
+    # Add the 3rd Portugal trip.
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO trips (id, user_id, name, country, country_code) "
+            "VALUES ('trip-ic-final', ?, 'Lisbon 3', 'Portugal', 'PT')",
+            (seed_user,),
+        )
+        conn.commit()
+
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    ids = {a["badgeId"] for a in data["achievements"]}
+    assert "intra_country_3" in ids
+    ic = next(a for a in data["achievements"] if a["badgeId"] == "intra_country_3")
+    assert ic["context"].get("tripCount") == 3
+    assert ic["context"].get("countryKey") == "PT"
+
+
+def test_achievements_back_to_back_consecutive_months(client, seed_user, auth_headers):
+    """back_to_back fires when ≥2 trips exist in consecutive calendar
+    months. Non-adjacent months → no badge. Year boundary (Dec/Jan)
+    handled correctly."""
+    from database import get_db
+
+    # Two trips in months that ARE NOT adjacent (Jan + Mar) — no badge.
+    with get_db() as conn:
+        c = conn.cursor()
+        c.execute(
+            "INSERT INTO trips (id, user_id, name, country, created_at) "
+            "VALUES (?, ?, ?, ?, ?)",
+            ("trip-bb-jan", seed_user, "January trip", "X", "2025-01-15 10:00:00"),
+        )
+        c.execute(
+            "INSERT INTO trips (id, user_id, name, country, created_at) "
+            "VALUES (?, ?, ?, ?, ?)",
+            ("trip-bb-mar", seed_user, "March trip", "X", "2025-03-15 10:00:00"),
+        )
+        conn.commit()
+
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    ids = {a["badgeId"] for a in data["achievements"]}
+    assert "back_to_back" not in ids, "Jan + Mar are not consecutive"
+
+    # Add a February trip — now Jan/Feb are adjacent.
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO trips (id, user_id, name, country, created_at) "
+            "VALUES (?, ?, ?, ?, ?)",
+            ("trip-bb-feb", seed_user, "February trip", "X", "2025-02-15 10:00:00"),
+        )
+        conn.commit()
+
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    ids = {a["badgeId"] for a in data["achievements"]}
+    assert "back_to_back" in ids
+    bb = next(a for a in data["achievements"] if a["badgeId"] == "back_to_back")
+    ctx = bb["context"]
+    assert ctx.get("firstMonth") == "2025-01"
+    assert ctx.get("secondMonth") == "2025-02"
+
+
+def test_achievements_back_to_back_crosses_year_boundary(client, seed_user, auth_headers):
+    """The Dec/Jan transition counts as consecutive. Pinned because
+    the obvious "y2 == y1 + 0 AND m2 == m1 + 1" check would miss it
+    without the explicit year-rollover branch."""
+    from database import get_db
+    with get_db() as conn:
+        c = conn.cursor()
+        c.execute(
+            "INSERT INTO trips (id, user_id, name, country, created_at) "
+            "VALUES (?, ?, ?, ?, ?)",
+            ("trip-bb-dec", seed_user, "December trip", "X", "2024-12-15 10:00:00"),
+        )
+        c.execute(
+            "INSERT INTO trips (id, user_id, name, country, created_at) "
+            "VALUES (?, ?, ?, ?, ?)",
+            ("trip-bb-jan-next", seed_user, "January trip", "X", "2025-01-15 10:00:00"),
+        )
+        conn.commit()
+
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    ids = {a["badgeId"] for a in data["achievements"]}
+    assert "back_to_back" in ids
+    bb = next(a for a in data["achievements"] if a["badgeId"] == "back_to_back")
+    assert bb["context"].get("firstMonth") == "2024-12"
+    assert bb["context"].get("secondMonth") == "2025-01"
+
+
 def test_achievements_notification_on_unlock(client, seed_user, auth_headers):
     """Each newly earned badge drops an `achievement_unlocked` notification
     so the bell badge ticks up. Re-poll after a no-change tick must NOT
