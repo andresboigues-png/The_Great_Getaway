@@ -678,11 +678,20 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
             }
         }
 
-        // ── Slideshow country detection ────────────────────────
+        // ── Slideshow country detection + §4.3 persistence ─────
         // Reverse-geocode each day pin once + pull country code;
         // feed addDiscoveredCountry so the slideshow roster widens
         // on next render. Cached in sessionStorage so trip
         // navigations don't re-bill the Geocoder quota.
+        //
+        // After the loop completes, if the discovered set is wider
+        // than what's persisted on `activeTrip.countries`, upsert
+        // the trip so the server-side `trip_countries_json` column
+        // catches up. The set is built in discovery order with the
+        // primary `countryCode` always at position 0 — matches the
+        // shape `serialize_trip_row` reads. Future loads start
+        // already-populated; the slideshow + chip-strip don't have
+        // to wait for the geocoder to repopulate sessionStorage.
         if (currentTripDays.some((d) => typeof d.lat === 'number')) {
             const DAY_CACHE_PREFIX = 'tggDayCountry:';
             const cachedCountryFor = async (lat: number, lng: number) => {
@@ -717,12 +726,52 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
                 return '';
             };
             (async () => {
+                // Build the discovered-set fresh each pass. Seed with the
+                // primary country (always position 0 in the persisted
+                // array) + any previously-persisted codes so we DON'T
+                // accidentally remove a code that was discovered on a
+                // prior session if its day-pin happens to be missing
+                // this render.
+                const discovered: string[] = [];
+                const seen = new Set<string>();
+                const pushCode = (c: string | null | undefined) => {
+                    const up = (c || '').toUpperCase();
+                    if (up && !seen.has(up)) {
+                        seen.add(up);
+                        discovered.push(up);
+                    }
+                };
+                pushCode(activeTrip.countryCode);
+                for (const c of activeTrip.countries || []) pushCode(c);
                 for (const day of currentTripDays) {
                     const pinLat = day.lat;
                     const pinLng = day.lon || day.lng;
                     if (typeof pinLat !== 'number' || typeof pinLng !== 'number') continue;
                     const code = await cachedCountryFor(pinLat, pinLng);
-                    if (code) slideshow.addDiscoveredCountry(code);
+                    if (code) {
+                        slideshow.addDiscoveredCountry(code);
+                        pushCode(code);
+                    }
+                }
+                // Persist only when the set actually changed. Compare as
+                // ordered arrays — two different orderings should NOT
+                // trigger an upsert (the primary country is always
+                // first, the order beyond that is discovery-order which
+                // is stable across renders).
+                const persisted = activeTrip.countries || [];
+                const sameLength = persisted.length === discovered.length;
+                const sameOrder = sameLength
+                    && persisted.every((c, i) => (c || '').toUpperCase() === discovered[i]);
+                // ≥2 codes is the only case where the new array adds
+                // information beyond the primary `countryCode`. For a
+                // single-country trip the array is redundant — we still
+                // persist it (so the server has a definitive answer for
+                // "this trip is single-country" vs "we haven't checked
+                // yet") but only when the discovery loop has actually
+                // run, i.e. there were day pins to geocode.
+                if (!sameOrder && discovered.length > 0) {
+                    activeTrip.countries = discovered;
+                    upsertTrip(activeTrip);
                 }
             })();
         }

@@ -20,7 +20,30 @@ import { openShareChooserModal } from '../../modals.js';
 import { openShareToFeedModal } from '../home/shareModal.js';
 import { pickGreeting } from '../home/welcomeCard.js';
 import { t } from '../../i18n.js';
+import { countryCodeToFlag } from '../../utils/place-names.js';
 import type { Trip } from '../../types';
+
+
+/** §4.3 multi-country: full list of unique country codes for the
+ *  trip, in display order (primary first). Falls back to the single
+ *  primary `countryCode` when the discovery loop hasn't run yet
+ *  (legacy trip with no day-pin reverse-geocode data). Returns an
+ *  empty array for trips with no country info at all — the caller
+ *  then skips the chip-strip render entirely. */
+function tripCountryCodes(trip: Trip): string[] {
+    const out: string[] = [];
+    const seen = new Set<string>();
+    const push = (c: string | null | undefined) => {
+        const up = (c || '').trim().toUpperCase();
+        if (up.length === 2 && !seen.has(up)) {
+            seen.add(up);
+            out.push(up);
+        }
+    };
+    push(trip.countryCode);
+    for (const c of trip.countries || []) push(c);
+    return out;
+}
 
 
 export interface HomeHeaderProps {
@@ -72,6 +95,15 @@ export function HomeHeader({ activeTrip, poiPillsVisible, onTogglePoiPills }: Ho
         });
     };
 
+    // §4.3 multi-country: render a flag-emoji strip below the greeting
+    // when the trip touches 2+ countries. Single-country trips suppress
+    // the strip (one flag is redundant — the country name is already in
+    // the H1 / "expenses for {name}" line). The strip is read-only at
+    // this surface; the underlying array is populated by the home map's
+    // reverse-geocode loop.
+    const flagCodes = tripCountryCodes(activeTrip);
+    const showFlagStrip = flagCodes.length >= 2;
+
     return (
         <>
             <div className="ai-page-header" style={{ textAlign: 'center' }}>
@@ -86,6 +118,59 @@ export function HomeHeader({ activeTrip, poiPillsVisible, onTogglePoiPills }: Ho
                 >
                     {greeting}
                 </h1>
+                {showFlagStrip ? (
+                    <div
+                        className="trip-flag-strip"
+                        // aria-label makes the strip readable for screen
+                        // readers — they otherwise read flag emojis as
+                        // raw regional-indicator pairs. The label
+                        // resolves countries via Intl.DisplayNames so
+                        // it's locale-aware (an English-locale user
+                        // hears "Trip in Portugal, Spain"; a French
+                        // user hears "Voyage au Portugal, Espagne").
+                        aria-label={(() => {
+                            try {
+                                // @ts-ignore — DisplayNames is in lib.es2020+.
+                                const dn = new Intl.DisplayNames([navigator.language || 'en'], { type: 'region' });
+                                return flagCodes.map((c) => dn.of(c) || c).join(', ');
+                            } catch (_) {
+                                return flagCodes.join(', ');
+                            }
+                        })()}
+                        style={{
+                            display: 'flex',
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            gap: 6,
+                            margin: '4px auto 0',
+                            fontSize: '1.4rem',
+                            lineHeight: 1,
+                            // Emoji color rendering on macOS/iOS varies
+                            // by font; the system stack here keeps
+                            // Apple Color Emoji as the first choice.
+                            fontFamily: '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif',
+                        }}
+                    >
+                        {flagCodes.map((code) => {
+                            const flag = countryCodeToFlag(code);
+                            // Defensive: countryCodeToFlag returns empty
+                            // for invalid 2-letter input. Skip rendering
+                            // an empty span rather than emit "" nodes.
+                            if (!flag) return null;
+                            return (
+                                <span
+                                    key={code}
+                                    role="img"
+                                    aria-hidden="true"
+                                    title={code}
+                                    style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.08))' }}
+                                >
+                                    {flag}
+                                </span>
+                            );
+                        })}
+                    </div>
+                ) : null}
                 <p>
                     You have <strong>{tripExpenses.length}</strong> expenses recorded for {activeTrip.name}.
                 </p>

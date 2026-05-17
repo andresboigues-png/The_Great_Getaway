@@ -3477,6 +3477,153 @@ def test_auth_cookie_wins_when_both_cookie_and_bearer_present(client, monkeypatc
         f"expected cookie to win, got identity={body['user']['id']!r}"
 
 
+def test_upsert_trip_persists_countries_array(client, seed_user, auth_headers):
+    """§4.3: /api/trips upsert accepts a `countries` array of 2-letter
+    ISO codes and persists it as trip_countries_json. /api/data should
+    then echo `countries: ["PT", "ES"]` back on the next read.
+    """
+    payload = {
+        "trip": {
+            "id": "trip-multi-country-1",
+            "name": "Iberia tour",
+            "country": "Portugal",
+            "countryCode": "PT",
+            "countries": ["PT", "ES"],
+        },
+    }
+    res = client.post("/api/trips", json=payload, headers=auth_headers)
+    assert res.status_code == 200
+
+    # Read back via /api/data and confirm the field round-trips.
+    data = client.get("/api/data", headers=auth_headers)
+    assert data.status_code == 200
+    body = data.get_json()
+    trip = next((t for t in body["trips"] if t["id"] == "trip-multi-country-1"), None)
+    assert trip is not None, "trip not in /api/data response"
+    assert trip["countries"] == ["PT", "ES"], \
+        f"countries did not round-trip: {trip.get('countries')!r}"
+
+
+def test_upsert_trip_normalizes_and_dedupes_country_codes(client, seed_user, auth_headers):
+    """§4.3: server normalizes the incoming codes — upper-cases, strips,
+    drops anything that isn't a 2-letter string, AND dedupes while
+    preserving order so the primary country stays at position 0. The
+    normalization runs server-side so a careless caller (E2E harness,
+    future mobile shell) can't corrupt the stored array.
+    """
+    payload = {
+        "trip": {
+            "id": "trip-normalize-1",
+            "name": "Cleanup",
+            "country": "Portugal",
+            "countryCode": "pt",  # lowercase — server should upper-case
+            "countries": [
+                "pt",          # lowercase
+                "  ES  ",     # whitespace
+                "FR",
+                "fr",          # duplicate of FR after upper
+                "INVALID",    # not 2 chars → dropped
+                "",            # empty → dropped
+                123,            # non-string → dropped
+                "PT",          # duplicate of primary → dropped (dedupe)
+            ],
+        },
+    }
+    res = client.post("/api/trips", json=payload, headers=auth_headers)
+    assert res.status_code == 200
+
+    data = client.get("/api/data", headers=auth_headers)
+    trip = next(t for t in data.get_json()["trips"] if t["id"] == "trip-normalize-1")
+    # Expected: ["PT", "ES", "FR"] — upper-cased, deduped, order preserved.
+    assert trip["countries"] == ["PT", "ES", "FR"], \
+        f"normalization wrong: {trip.get('countries')!r}"
+
+
+def test_upsert_trip_no_countries_field_yields_empty_array(client, seed_user, auth_headers):
+    """§4.3 legacy compat: trips upserted without a `countries` field
+    (the pre-§4.3 client, or any older serializer) should read back
+    with `countries: []`. The frontend then falls back to the primary
+    `countryCode` for slideshow / chip-strip purposes. Pin the empty-
+    array contract — a `null` here would surface as undefined in TS
+    and force every consumer to add a defensive `|| []`.
+    """
+    payload = {
+        "trip": {
+            "id": "trip-no-countries-1",
+            "name": "Legacy",
+            "country": "France",
+            "countryCode": "FR",
+        },
+    }
+    res = client.post("/api/trips", json=payload, headers=auth_headers)
+    assert res.status_code == 200
+
+    data = client.get("/api/data", headers=auth_headers)
+    trip = next(t for t in data.get_json()["trips"] if t["id"] == "trip-no-countries-1")
+    assert trip["countries"] == [], \
+        f"missing countries should serialize to []; got {trip.get('countries')!r}"
+
+
+def test_upsert_trip_empty_countries_array_clears_column(client, seed_user, auth_headers):
+    """§4.3: passing `countries: []` explicitly should NULL the column
+    (the read path treats null and empty array identically). Pin so a
+    future change to the upsert doesn't accidentally persist `'[]'` as
+    a string — wasted bytes + a confusing read-back shape.
+    """
+    # First write some codes.
+    client.post("/api/trips", json={
+        "trip": {
+            "id": "trip-clear-1", "name": "Pre", "country": "PT",
+            "countryCode": "PT", "countries": ["PT", "ES"],
+        },
+    }, headers=auth_headers)
+    # Now clear them.
+    res = client.post("/api/trips", json={
+        "trip": {
+            "id": "trip-clear-1", "name": "Pre", "country": "PT",
+            "countryCode": "PT", "countries": [],
+        },
+    }, headers=auth_headers)
+    assert res.status_code == 200
+
+    data = client.get("/api/data", headers=auth_headers)
+    trip = next(t for t in data.get_json()["trips"] if t["id"] == "trip-clear-1")
+    assert trip["countries"] == []
+
+
+def test_serialize_trip_row_drops_malformed_countries_json(client, seed_user, auth_headers, temp_db):
+    """§4.3 defence: if the trip_countries_json column ever contains
+    bytes the upsert never writes (corrupt DB, manual SQL surgery, a
+    future bad migration), the read path must NOT crash /api/data.
+    Pin that the read defensively returns `[]` for malformed shapes.
+    """
+    # Insert a trip via SQL with a deliberately-bad JSON payload.
+    import sqlite3
+    conn = sqlite3.connect(temp_db)
+    conn.row_factory = sqlite3.Row
+    conn.execute(
+        "INSERT INTO trips (id, user_id, name, country, country_code, "
+        "is_archived, is_public, trip_countries_json) "
+        "VALUES (?, ?, ?, ?, ?, 0, 0, ?)",
+        ("trip-malformed-1", seed_user, "Bad", "PT", "PT", "not-valid-json{"),
+    )
+    # Also insert a trip_members row so /api/data's visibility query picks it up.
+    conn.execute(
+        "INSERT INTO trip_members (trip_id, user_id, role, invitation_status) "
+        "VALUES (?, ?, 'planner', 'accepted')",
+        ("trip-malformed-1", seed_user),
+    )
+    conn.commit()
+    conn.close()
+
+    data = client.get("/api/data", headers=auth_headers)
+    assert data.status_code == 200, \
+        f"/api/data crashed on malformed trip_countries_json: {data.get_data(as_text=True)}"
+    trip = next(t for t in data.get_json()["trips"] if t["id"] == "trip-malformed-1")
+    assert trip["countries"] == [], \
+        f"malformed JSON should defensively become []; got {trip.get('countries')!r}"
+
+
 def test_main_csp_uses_script_nonce_not_unsafe_inline(client):
     """§0.4 v2: script-src dropped 'unsafe-inline' and switched to a
     per-request nonce. Pin both invariants — a regression that re-adds

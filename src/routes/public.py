@@ -62,6 +62,7 @@ def get_public_trip(trip_id):
             "       viewport_json, place_types, "
             "       companions_json, marked_places_json, "
             "       documents_json, photos_json, checklist_json, "
+            "       trip_countries_json, "
             "       cover_url, actions_hidden "
             "FROM trips WHERE id = ?",
             (trip_id,),

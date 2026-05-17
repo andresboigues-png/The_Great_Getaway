@@ -126,6 +126,14 @@ export interface Trip {
      *  on pick. Used by getMediaForTrip to map back to the English-keyed
      *  destination dataset regardless of the user's browser language. */
     countryCode?: string | null;
+    /** §4.3 multi-country — full set of countries this trip touches, in
+     *  discovery order (primary `countryCode` first). Populated by the
+     *  reverse-geocode loop on the home map (`HeroMap.tsx`) and persisted
+     *  server-side via `trips.trip_countries_json`. Empty / undefined on
+     *  legacy trips that haven't yet had their pins reverse-geocoded;
+     *  consumers fall back to `[countryCode]` in that case. ISO codes
+     *  are upper-cased on the server normalize step. */
+    countries?: string[];
     /** Companions participating in *this* trip. Source of truth for the
      *  expense form, splits picker, settlement balance math, and upload's
      *  auto-split fallback. New trips start with `[]`; users add entries

@@ -53,13 +53,35 @@ def upsert_trip():
 
         owner_id = existing["user_id"] if existing else user_id
 
+        # §4.3 multi-country: normalize the incoming `countries` array to
+        # upper-case 2-letter ISO codes before persisting. The frontend
+        # sends them already-uppercased post-discovery, but be defensive
+        # in case any non-browser caller (E2E harness, future mobile
+        # shell) sends lowercase. `None` and empty array both serialize
+        # to NULL so legacy rows stay null rather than carrying `[]`
+        # (the read path treats both identically).
+        countries_input = t.get('countries')
+        if isinstance(countries_input, list):
+            normalized = [
+                c.strip().upper() for c in countries_input
+                if isinstance(c, str) and len(c.strip()) == 2
+            ]
+            # Dedupe while preserving order — first occurrence wins, so
+            # the primary country (which the client puts first) stays
+            # at position 0. dict.fromkeys preserves insertion order.
+            normalized = list(dict.fromkeys(normalized))
+            countries_payload = json.dumps(normalized) if normalized else None
+        else:
+            countries_payload = None
+
         cursor.execute('''
             INSERT INTO trips (id, user_id, name, country, is_archived, is_public,
                                public_show_expenses,
                                place_id, lat, lng, viewport_json, place_types, country_code,
                                companions_json, marked_places_json,
-                               documents_json, photos_json, checklist_json, cover_url)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                               documents_json, photos_json, checklist_json,
+                               trip_countries_json, cover_url)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 name=excluded.name,
                 country=excluded.country,
@@ -77,6 +99,7 @@ def upsert_trip():
                 documents_json=excluded.documents_json,
                 photos_json=excluded.photos_json,
                 checklist_json=excluded.checklist_json,
+                trip_countries_json=excluded.trip_countries_json,
                 cover_url=excluded.cover_url
         ''', (t['id'], owner_id, t['name'], t.get('country', ''),
               1 if t.get('isArchived') else 0,
@@ -93,6 +116,7 @@ def upsert_trip():
               json.dumps(t['documents']) if isinstance(t.get('documents'), list) else None,
               json.dumps(t['photos']) if isinstance(t.get('photos'), list) else None,
               json.dumps(t['checklist']) if isinstance(t.get('checklist'), list) else None,
+              countries_payload,
               t.get('coverUrl')))
         ensure_owner_member_row(cursor, t['id'], owner_id)
         conn.commit()
@@ -513,7 +537,7 @@ def _clone_trip_record(cursor, source_trip_id, new_owner_id):
     cursor.execute(
         "SELECT id, name, country, country_code, place_id, lat, lng, "
         "       viewport_json, place_types, "
-        "       marked_places_json, cover_url "
+        "       marked_places_json, trip_countries_json, cover_url "
         "FROM trips WHERE id = ?",
         (source_trip_id,),
     )
@@ -534,8 +558,8 @@ def _clone_trip_record(cursor, source_trip_id, new_owner_id):
             place_id, lat, lng, viewport_json, place_types,
             companions_json, marked_places_json,
             documents_json, photos_json, checklist_json,
-            actions_hidden, cover_url
-        ) VALUES (?, ?, ?, ?, ?, 0, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
+            trip_countries_json, actions_hidden, cover_url
+        ) VALUES (?, ?, ?, ?, ?, 0, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
     ''', (
         new_trip_id,
         new_owner_id,
@@ -557,6 +581,10 @@ def _clone_trip_record(cursor, source_trip_id, new_owner_id):
         None,
         None,
         None,
+        # §4.3 multi-country: copy the discovered country array. The
+        # clone visits the same places, so the country set is the
+        # same — no reason to force re-discovery on the clone.
+        src['trip_countries_json'],
         src['cover_url'],
     ))
 

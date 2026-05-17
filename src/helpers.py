@@ -156,6 +156,28 @@ def serialize_trip_row(row):
     t['photos'] = json.loads(photos_raw) if photos_raw else []
     checklist_raw = t.pop('checklist_json', None)
     t['checklist'] = json.loads(checklist_raw) if checklist_raw else []
+    # §4.3 multi-country: discovered ISO codes the trip touches. Stored
+    # as a JSON array of upper-case 2-letter codes (e.g. ["PT", "ES"]).
+    # Defensively coerce non-list shapes (legacy bad data) to an empty
+    # array so the frontend never sees a non-iterable. Order is preserved
+    # from the write side — primary country first, additional discovery
+    # codes in the order they were added.
+    countries_raw = t.pop('trip_countries_json', None)
+    parsed_countries = []
+    if countries_raw:
+        try:
+            decoded = json.loads(countries_raw)
+            if isinstance(decoded, list):
+                parsed_countries = [
+                    c.upper() for c in decoded
+                    if isinstance(c, str) and len(c.strip()) == 2
+                ]
+        except (ValueError, AttributeError):
+            # Malformed JSON or unexpected shape — fall back to empty.
+            # The frontend will fall back to `countryCode` (primary)
+            # alone when this is empty, which matches pre-§4.3 behaviour.
+            parsed_countries = []
+    t['countries'] = parsed_countries
     t['coverUrl'] = t.pop('cover_url', None)
     # Public-trip granularity opt-in. SAFE to include in the common
     # shape because the value is a privacy CHOICE (off by default);

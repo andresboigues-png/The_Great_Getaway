@@ -555,15 +555,15 @@ Ordered by leverage on the VISION's three killer features (social, expenses, pla
 
 **Why:** today a new user with no friends sees an empty feed. VISION's user flow opens with "browsing other people's trips" — this fixes it.
 
-### 4.3 Multi-country trip support
+### 4.3 Multi-country trip support — 🟡 First slice shipped 2026-05-17 (foundation + chip strip)
 
-**L** · Schema migration
+**L** · `migrations/versions/a2c5e8d1f7b3_add_trip_countries_json.py`, `src/helpers.py`, `src/routes/trips.py`, `src/routes/public.py`, `src/routes/data.py`, `frontend/static/js/src/pages/home-mount/HeroMap.tsx`, `frontend/static/js/src/pages/home-mount/HomeHeader.tsx`
 
-- [ ] Derive trip countries from `trip_days.country_code` (already implicit via per-day pins).
-- [ ] Cache as `trip_countries_json` for fast reads.
-- [ ] Profile country-color map keys off the new array (instead of scalar `trips.country`).
-- [ ] Trip header shows `🇵🇹 🇯🇵` chip strip instead of one country.
-- [ ] Insights rolls expenses up by country leg automatically.
+- [x] Derive trip countries from day pins. (Shipped 2026-05-17 — the reverse-geocode loop in `HeroMap.tsx` builds the discovered set from each day's lat/lng via Google's Geocoder. `trip_days` doesn't have its own `country_code` column; the lat/lng is the canonical signal and country falls out of the existing geocode-on-render path. Cached in sessionStorage so re-renders don't re-bill the quota.)
+- [x] Cache as `trip_countries_json` for fast reads. (Shipped 2026-05-17 — new alembic migration adds the TEXT column to `trips`. `serialize_trip_row` reads it into a `countries: ["PT", "ES"]` array (upper-cased, deduped). `/api/trips` upsert accepts a `countries` array, normalizes (upper-case, strip, 2-char only), and dedupes preserving insertion order so the primary country stays at position 0. Public-trip read + clone path also pull/copy the column. 5 pytest cases pin the contract: round-trip, normalization edge cases, missing field → `[]`, empty-array → NULL the column, malformed JSON → defensive `[]`.)
+- [x] Trip header shows `🇵🇹 🇯🇵` chip strip instead of one country. (Shipped 2026-05-17 — `HomeHeader.tsx` renders a centered flag-emoji row below the H1 greeting via `countryCodeToFlag` (the helper added in §4.2). Only renders when ≥2 countries are known (single-country trip would just duplicate the H1 country name). `aria-label` resolves the codes to localized country names via `Intl.DisplayNames` so screen readers say "Trip in Portugal, Spain" rather than raw regional-indicator pairs.)
+- [ ] Profile country-color map keys off the new array (instead of scalar `trips.country`). (Queued — touches `Profile.tsx`'s country-stats roll-up. The data is now available via `trip.countries`; the UI surface migration is a follow-up slice.)
+- [ ] Insights rolls expenses up by country leg automatically. (Queued — needs a "country-leg" derivation (which days fall under which country, based on day-pin lat/lng → reverse-geocode). The data flows in but the Insights aggregator still groups by `trip.country` scalar. Follow-up slice.)
 
 **Why:** VISION names this as a missing feature. Real trips chain destinations; the schema is the only blocker.
 

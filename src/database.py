@@ -231,6 +231,13 @@ def init_db():
                 documents_json TEXT,
                 photos_json TEXT,
                 checklist_json TEXT,
+                -- §4.3: JSON array of ISO 3166-1 alpha-2 codes the trip
+                -- touches (e.g. '["PT", "ES"]'). Primary country first,
+                -- additional codes from client-side reverse-geocode in
+                -- discovery order. Null on legacy rows + on trips with
+                -- only a single country (frontend falls back to
+                -- country_code in that case).
+                trip_countries_json TEXT,
                 cover_url TEXT,
                 actions_hidden INTEGER DEFAULT 0,
                 share_token TEXT,
@@ -641,8 +648,8 @@ _EXPECTED_COLUMNS = {
         "is_archived", "is_public", "public_show_expenses",
         "place_id", "lat", "lng", "viewport_json", "place_types",
         "companions_json", "marked_places_json", "documents_json",
-        "photos_json", "checklist_json", "cover_url",
-        "actions_hidden", "share_token", "share_views",
+        "photos_json", "checklist_json", "trip_countries_json",
+        "cover_url", "actions_hidden", "share_token", "share_views",
         "share_show_cost", "share_show_plans", "created_at",
     ],
     "expenses": [
