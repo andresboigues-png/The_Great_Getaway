@@ -534,7 +534,7 @@ Ordered by leverage on the VISION's three killer features (social, expenses, pla
 - [x] **Server-side rendered OG meta tags** (`og:title`, `og:description`, `og:image`, Twitter Card) so chat-app link previews show the cover photo + headline. (Shipped 2026-05-13)
 - [x] Views counter deduped by anonymous 24h httponly cookie. Chip shows on the public page itself + on the owner's Collections card. (Shipped 2026-05-13)
 - [x] Pytest coverage for 10 share-flow paths (token rotation, owner-only gate, anonymous read, privacy posture, view-count dedupe, OG meta, 404 friendliness). (Shipped 2026-05-13)
-- [ ] E2E test for the no-auth path. (Deferred — Playwright pass queued for the next E2E sweep.)
+- [x] E2E test for the no-auth path. (Shipped 2026-05-17 — `tests/e2e/share-public.spec.js`, 3 tests: artifact-renders-with-no-auth-state, view-counter-dedupes-then-increments, revoked-token-shows-friendly-404. Uses `browser.newContext()` for the visitor side so each test starts with a fully cold cookie jar — exactly mirrors a chat-app link click from a stranger's phone. Asserts that no JWT / STATE lands in localStorage on the visitor's side, that the page renders as static HTML (not the SPA shell), that OG meta tags arrive in the first byte, and that the cost banner only renders when the privacy toggle was on.)
 
 **Deviation from the original spec:** the public page is a Flask-rendered `share.html` template, NOT a React leaf under `pages/share/`. Reasons:
 
