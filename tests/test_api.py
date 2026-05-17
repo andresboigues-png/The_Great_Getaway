@@ -960,6 +960,72 @@ def test_sync_writes_trips_and_expenses(client, seed_user, auth_headers):
     assert any(e["id"] == "exp-sync-1" for e in body["expenses"])
 
 
+def test_sync_rejects_trip_in_both_active_and_archived_lists(
+    client, seed_user, auth_headers,
+):
+    """§2.6: pre-fix, a client that sent the same trip in BOTH
+    `trips` AND `archived_trips` had its archive flag silently
+    flipped to 1 (the archived loop always ran last + hardcoded 1).
+    Now we reject the whole sync with 400 BEFORE writing anything,
+    so the client can fix its state on the next 15s poll.
+    """
+    res = client.post(
+        "/api/sync",
+        headers=auth_headers,
+        json={
+            "trips": [
+                {"id": "trip-dup-26", "name": "Paris", "country": "France"},
+            ],
+            "archived_trips": [
+                {"id": "trip-dup-26", "name": "Paris", "country": "France"},
+            ],
+        },
+    )
+    assert res.status_code == 400, \
+        f"expected 400 on duplicate trip across lists, got {res.status_code}"
+    body = res.get_json()
+    assert "trip-dup-26" in body.get("error", ""), \
+        f"error message should name the offending trip: {body!r}"
+
+    # Critical: the rejection happens BEFORE any DB write, so the trip
+    # row should NOT exist after this failed sync. Pull and confirm.
+    pull = client.get("/api/data", headers=auth_headers).get_json()
+    assert not any(t["id"] == "trip-dup-26" for t in pull["trips"]), \
+        "rejected sync should not have created a trip row"
+
+
+def test_sync_migrating_trip_from_active_to_archived_still_works(
+    client, seed_user, auth_headers,
+):
+    """§2.6 contract: the rejection is for SAME-SYNC duplicates only.
+    A trip cleanly moving from active→archived across TWO separate
+    syncs (the normal archive flow) must still work — that's what the
+    /api/sync contract is for, and the §2.6 fix shouldn't have broken
+    it.
+    """
+    # Sync 1: trip is active.
+    res1 = client.post(
+        "/api/sync",
+        headers=auth_headers,
+        json={"trips": [{"id": "trip-mig-26", "name": "Lisbon", "country": "Portugal"}]},
+    )
+    assert res1.status_code == 200
+
+    # Sync 2: trip moved to archived list, NOT in active list.
+    res2 = client.post(
+        "/api/sync",
+        headers=auth_headers,
+        json={
+            "trips": [],
+            "archived_trips": [
+                {"id": "trip-mig-26", "name": "Lisbon", "country": "Portugal"},
+            ],
+        },
+    )
+    assert res2.status_code == 200, \
+        f"clean migration sync should succeed, got {res2.status_code}: {res2.get_data(as_text=True)}"
+
+
 def test_sync_does_not_let_caller_take_over_someone_elses_trip(
     client, seed_user, seed_other_user, auth_headers, other_auth_headers,
 ):

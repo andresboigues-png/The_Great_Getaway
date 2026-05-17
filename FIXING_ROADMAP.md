@@ -27,7 +27,7 @@ Things an attacker could exploit against the live site today.
 
 - [x] Wrap `user.bio`, `user.name`, `user.status`, `user.email` in `esc()` at every interpolation site. (Shipped 2026-05-13)
 - [x] Server-side in `routes/settings.py`: enforce `len(bio) <= 500`, strip C0 control chars, constrain `status` to the dropdown allowlist. (Shipped 2026-05-13)
-- [ ] Add a strict `Content-Security-Policy` header via `@app.after_request` in `main.py` (defense in depth — see 0.4).
+- [x] Add a strict `Content-Security-Policy` header via `@app.after_request` in `main.py` (defense in depth — see 0.4). (Shipped 2026-05-13 + tightened to nonces 2026-05-17 in §0.4.)
 
 ### 0.2 ✓ Privilege escalation — any user can read any trip
 
@@ -171,7 +171,7 @@ Things an attacker could exploit against the live site today.
 
 - [x] Replace per-trip lookups with one `WHERE trip_id IN (?, ?, ?)` query; group in Python. (Shipped 2026-05-13 — `/api/data` now batches the two per-trip queries into one each.)
 - [ ] Materialize a `feed_events` table on write so reads become one SELECT. (Deferred — bigger refactor, queued for when the feed actually has user load.)
-- [ ] Add the missing indexes (see 2.1).
+- [x] Add the missing indexes (see 2.1). (Shipped 2026-05-13 — §2.1 added the per-table indexes; this sub-bullet was a back-reference that should have flipped at the same time.)
 
 ### 1.8 No `AbortController` on any `apiFetch` → polls fight active navigation
 
@@ -290,13 +290,13 @@ The equator/prime meridian (lng/lat = 0.0) is falsy.
 
 - [x] `(row or {}).get("name", "Someone")` — applied to both `accept_friend` AND `add_friend` (same fetchone-without-null-check pattern). (Shipped 2026-05-13)
 
-### 2.6 `is_archived` flip race in /api/sync
+### 2.6 `is_archived` flip race in /api/sync — ✅ Shipped 2026-05-17
 
-🟡 **M** · `src/routes/data.py:113-145`
+🟡 **M** · `src/routes/data.py`
 
 The active-trips loop and archived-trips loop both upsert the same row depending on which array the client put it in; toggle on/off in two trips and re-sync flips back and forth.
 
-- [ ] Document the single canonical record convention; reject duplicates server-side.
+- [x] Document the single canonical record convention; reject duplicates server-side. (Shipped 2026-05-17 — `/api/sync` computes the intersection of trip ids across `data["trips"]` and `data["archived_trips"]` BEFORE writing anything. If the sets overlap, returns 400 naming the offending trip; the frontend re-sends full state on the next 15s tick, so one rejection doesn't lose data — the server just refuses to act on ambiguous input. Defensive against malformed entries (non-dict items, missing `id`). Two pytest cases pin: (1) duplicate id in both lists → 400 with a clear error, no rows written; (2) same trip cleanly migrating from active→archived across two syncs still works.)
 
 ### 2.7 Profile picture URL allows another user's upload
 
@@ -680,13 +680,13 @@ Without users, affiliate revenue is zero. The earlier features build the audienc
 
 Per VISION's open question, target tourism companies (Abreu Viagens, etc.) as B2B customers: TGG becomes the platform they use to store + share trip data with their clients. They get a polished app without building one; you get users + recurring revenue. Easier to close pre-critical-mass than impression-based ads. **Worth a discovery call with 2-3 tour operators in Q3 2026.**
 
-### 4.9 Trip media polish
+### 4.9 Trip media polish — ✅ Shipped (truth-check 2026-05-17, all three sub-items already live)
 
-**M** · `frontend/static/js/src/tripMedia.ts`
+**M** · `frontend/static/js/src/pages/home/lightbox.ts`, `frontend/static/js/src/pages/home/tripMediaModals.ts`, `frontend/static/js/src/exif.ts`
 
-- [ ] Drag-to-reorder photos in trip detail (already requested).
-- [ ] EXIF date → auto-assign photo to a trip day.
-- [ ] Photo lightbox with swipe (mobile-first, reuses the swipe handler).
+- [x] Drag-to-reorder photos in trip detail. (Shipped — `tripMediaModals.ts` renders a `⠿` drag handle on each `trip-source` photo card. Pointer events on the modal root drive the gesture; `_targetPhotoIdAtPointer` picks the hit-target from `clientX/Y`. Reorder splices `trip.photos`, emits `state:changed`, and `upsertTrip`s. Day-source photos are not drag-handled — they live inside `day.photos` arrays and would need a separate persist path; out of scope for v1, by design comment.)
+- [x] EXIF date → auto-assign photo to a trip day. (Shipped — `src/exif.ts` dynamic-imports `exifr` (~27KB gz, only fetched on first photo-upload). `readPhotoDate(file)` reads `DateTimeOriginal` / `CreateDate` / `DateTime` in that fallback order, renders the LOCAL-time YYYY-MM-DD so timezone-shifted captures bucket intuitively. `resolveDayIdForFile(file, trip)` matches against `STATE.tripDays`. Upload loop in `tripMediaModals.ts:411` chains it: `dayId = (await resolveDayIdForFile(file, trip)) ?? anchorDayId`. Success toast surfaces the auto-tag count when ≥1 photo got matched.)
+- [x] Photo lightbox with swipe (mobile-first, reuses the swipe handler). (Shipped — `pages/home/lightbox.ts` `openPhotoLightbox(srcs, startIndex)` renders a navigable carousel with prev/next chevrons, pointer-events swipe (works for touch + mouse + pen), keyboard arrows, and a `3 / 12` counter chip. 50px swipe threshold filters finger jitter; horizontal-dominant ratio gate rejects mostly-vertical drags so scroll attempts don't accidentally page-flip. Image-tap is a deliberate no-op (a stray touch during navigation shouldn't kill the modal); explicit ✕ button + backdrop tap are the dismiss affordances.)
 
 ### 4.10 PWA install + offline trip detail — ✅ Shipped 2026-05-17
 

@@ -59,6 +59,39 @@ def sync_data():
     user_id = current_user_id()
     trips = data.get("trips", [])
     expenses = data.get("expenses", [])
+    archived_trips_preview = data.get("archived_trips", [])
+
+    # FIXING_ROADMAP §2.6: reject duplicates across `trips` and
+    # `archived_trips` BEFORE writing anything. Pre-fix, a confused
+    # client that sent the same trip in BOTH arrays would have its
+    # archive flag flip-flop: the active-trips loop wrote whatever the
+    # `is_archived` field on the trips entry said (usually 0), then
+    # the archived-trips loop hard-coded `is_archived=1` and ran last.
+    # Two parallel sync polls in this state would chase the archived
+    # state around. The canonical convention is "one trip belongs to
+    # exactly ONE list" — enforce it server-side rather than rely on
+    # the client to stay honest.
+    #
+    # Defensive against missing/empty `id` fields too (the loops below
+    # would crash on KeyError otherwise). Bail with 400 on duplicate;
+    # the frontend re-sends the full state on the next 15s tick, so
+    # one rejected sync doesn't lose data — it just refuses to act on
+    # ambiguous input.
+    if isinstance(trips, list) and isinstance(archived_trips_preview, list):
+        active_ids = {t["id"] for t in trips if isinstance(t, dict) and t.get("id")}
+        archived_ids = {t["id"] for t in archived_trips_preview if isinstance(t, dict) and t.get("id")}
+        overlap = active_ids & archived_ids
+        if overlap:
+            offending = sorted(overlap)[0]
+            return jsonify({
+                "error": (
+                    f"Trip {offending!r} appears in both 'trips' and "
+                    "'archived_trips'. Each trip must belong to exactly "
+                    "one list. Pre-§2.6 the server silently flipped the "
+                    "archive flag in this case; now we reject so the "
+                    "client can fix its state."
+                ),
+            }), 400
 
     with get_db() as conn:
         cursor = conn.cursor()
