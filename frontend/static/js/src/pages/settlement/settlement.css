@@ -1,0 +1,132 @@
+/* Settlement page styles — extracted from legacyRender.ts's
+ * inline-style template literals (FIXING_ROADMAP §0.4 follow-up,
+ * 2026-05-17).
+ *
+ * Scope of THIS file: the patterns that repeat 2+ times across the
+ * file. Each class below collapses N occurrences into a single rule.
+ * One-shot styles (~80 sites that appear exactly once) stay inline
+ * for now — relocating them into one-use classes is mechanical noise
+ * without maintainability gain.
+ *
+ * Class naming: `.stl-<purpose>` prefix so it's obvious in DevTools
+ * that these are settlement-scoped and unrelated to the `.set-*` /
+ * `.settle-*` ad-hoc classes that exist elsewhere. Avoids stomping.
+ *
+ * Loaded as a side-effect import from legacyRender.ts → Vite picks
+ * up the dependency, emits it as a chunked CSS file alongside the
+ * settlement mount chunk so it lazy-loads with the page.
+ */
+
+/* ── Card chrome ─────────────────────────────────────────────────
+ * Two card sizes used throughout the page. Major cards are the
+ * top-level section containers (Trip-Settle hero, leaderboard,
+ * empty states). Minor cards are the inner row tiles (per-balance
+ * rows, history items). */
+
+/* Major card — used 4× as the top-level container. */
+.stl-card-major {
+    padding: 22px 24px;
+    border-radius: 28px;
+}
+
+/* Minor card — used 4× as inner row tiles. */
+.stl-card-minor {
+    padding: var(--space-3);
+    border-radius: 12px;
+}
+
+/* Minor card with explicit theme background — used 5×. Pulled
+ * out from the plain `.stl-card-minor` form so the bg-less variant
+ * is composable with surfaces that already carry a background. */
+.stl-card-minor-bg {
+    padding: var(--space-3);
+    border-radius: 12px;
+    background: var(--card-bg);
+}
+
+/* ── Typography ───────────────────────────────────────────────── */
+
+/* Heading variant 1 — main row titles. Used 5×. */
+.stl-heading-1 {
+    margin: 0;
+    font-size: 1.05rem;
+    color: var(--text-brand-navy);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+}
+
+/* Heading variant 2 — section sub-titles with top spacing. Used 3×. */
+.stl-heading-2 {
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: var(--text-brand-navy);
+    margin-top: 4px;
+}
+
+/* Heading variant 3 — inline label heading. Used 4×. */
+.stl-heading-3 {
+    font-weight: 800;
+    color: var(--text-brand-navy);
+    font-size: 0.95rem;
+}
+
+/* Section label — small uppercase eyebrow text. Used 3× without
+ * flex-shrink, 2× with. Two variants below. */
+.stl-section-label {
+    font-size: 0.7rem;
+    font-weight: 800;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+/* Same as above, plus flex-shrink:0 for use inside flex rows
+ * where the label must not collapse. Used 2×. */
+.stl-section-label--shrink-0 {
+    font-size: 0.7rem;
+    font-weight: 800;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    flex-shrink: 0;
+}
+
+/* ── Flex layout primitives ──────────────────────────────────── */
+
+/* Column flex with 8px gap — used 3×. */
+.stl-flex-col-8 {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* Row flex with 6px gap + wrap — used 3×. */
+.stl-flex-row-wrap-6 {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+/* Flex grow with truncation guard. The `min-width:0` is the
+ * canonical flex-item-can-shrink-below-content fix. Used 3×. */
+.stl-flex-grow-truncate {
+    flex: 1;
+    min-width: 0;
+}
+
+/* ── Micro-utilities ─────────────────────────────────────────── */
+
+/* 6px top margin — used 7× across various small spacers. The
+ * "utility" feel is real but the alternative is 7 identical
+ * inline styles; not worth the purity argument. */
+.stl-mt-6 {
+    margin-top: 6px;
+}
+
+/* Centered + 120px min-width — for compact center-aligned cells.
+ * Used 3×. */
+.stl-center-min-120 {
+    text-align: center;
+    min-width: 120px;
+}

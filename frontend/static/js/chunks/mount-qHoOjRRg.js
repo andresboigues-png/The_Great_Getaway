@@ -53,23 +53,23 @@ import{r as e,t}from"./vendor-react-CAxw18f3.js";import{$t as n,C as r,Ct as i,D
                     <div style="font-size:2rem; font-weight:800; color: var(--text-brand-navy); letter-spacing:-0.02em;">${p(a,`EUR`)}</div>
                 </div>
                 ${o?`
-                    <div style="text-align:center; min-width:120px;">
+                    <div class="stl-center-min-120">
                         <div style="font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.12em; color:#34c759;">${b(`settlement.topPayer`)}</div>
-                        <div style="font-size:1.1rem; font-weight:800; color: var(--text-brand-navy); margin-top:4px;">${h(o.name)}</div>
+                        <div class="stl-heading-2">${h(o.name)}</div>
                         <div style="font-size:0.78rem; font-weight:700; color:var(--text-secondary);">${p(o.paid,`EUR`)}</div>
                     </div>
                 `:``}
                 ${c&&c.net>.01?`
-                    <div style="text-align:center; min-width:120px;">
+                    <div class="stl-center-min-120">
                         <div style="font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.12em; color:#34c759;">${b(`settlement.topOwed`)}</div>
-                        <div style="font-size:1.1rem; font-weight:800; color: var(--text-brand-navy); margin-top:4px;">${h(c.name)}</div>
+                        <div class="stl-heading-2">${h(c.name)}</div>
                         <div style="font-size:0.78rem; font-weight:700; color:#1a6b3c;">+${p(c.net,`EUR`)}</div>
                     </div>
                 `:``}
                 ${s&&s.net<-.01?`
-                    <div style="text-align:center; min-width:120px;">
+                    <div class="stl-center-min-120">
                         <div style="font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.12em; color:#ff3b30;">${b(`settlement.topOwes`)}</div>
-                        <div style="font-size:1.1rem; font-weight:800; color: var(--text-brand-navy); margin-top:4px;">${h(s.name)}</div>
+                        <div class="stl-heading-2">${h(s.name)}</div>
                         <div style="font-size:0.78rem; font-weight:700; color:#a30000;">${p(s.net,`EUR`)}</div>
                     </div>
                 `:``}
@@ -87,11 +87,11 @@ import{r as e,t}from"./vendor-react-CAxw18f3.js";import{$t as n,C as r,Ct as i,D
             </div>
         `}).join(``)||`<p class="text-muted" style="padding: 20px; text-align:center;">${b(`settlement.emptyNoCompanions`)}</p>`,f=r.length===0?`<div style="text-align:center; padding: 40px 20px;"><div style="font-size:2.2rem; margin-bottom:8px;">🥂</div><p style="margin:0; font-weight:800; color:#1a6b3c;">${b(`settlement.allSettledTitle`)}</p><p style="margin:6px 0 0; color:var(--text-secondary); font-size:0.85rem;">${b(`settlement.allSettledBody`)}</p></div>`:r.map(n=>`
             <div style="display:flex; align-items:center; gap:14px; padding:14px 16px; background: var(--card-bg); border:1px solid var(--border-subtle); border-radius:16px;">
-                <div style="flex:1; min-width:0;">
-                    <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                <div class="stl-flex-grow-truncate">
+                    <div class="stl-flex-row-wrap-6">
                         <span style="font-weight:700; color:var(--text-secondary); font-size:0.78rem;">${h(n.from)}</span>
                         <span style="color:rgba(0,0,0,0.3);">→</span>
-                        <span style="font-weight:800; color: var(--text-brand-navy); font-size:0.95rem;">${h(n.to)}</span>
+                        <span class="stl-heading-3">${h(n.to)}</span>
                     </div>
                     <div style="font-size:1.3rem; font-weight:800; color: var(--text-brand-navy); letter-spacing:-0.01em; margin-top:2px;">${p(n.amount,`EUR`)}</div>
                 </div>
@@ -103,22 +103,22 @@ import{r as e,t}from"./vendor-react-CAxw18f3.js";import{$t as n,C as r,Ct as i,D
         `).join(``);return`
         ${u}
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:18px; margin-bottom:24px;">
-            <div class="card glass" style="padding: 22px 24px; border-radius: 28px;">
+            <div class="card glass stl-card-major">
                 <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
-                    <h3 style="margin:0; font-size:1.05rem; color: var(--text-brand-navy); font-weight:800; letter-spacing:-0.02em;">${b(`settlement.tripBalancesTitle`)} · ${l}</h3>
-                    <span style="font-size:0.7rem; font-weight:800; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.1em;">${x(`settlement.peopleCount`,Object.keys(n).length)}</span>
+                    <h3 class="stl-heading-1">${b(`settlement.tripBalancesTitle`)} · ${l}</h3>
+                    <span class="stl-section-label">${x(`settlement.peopleCount`,Object.keys(n).length)}</span>
                 </div>
-                <div style="display:flex; flex-direction:column; gap:8px;">
+                <div class="stl-flex-col-8">
                     ${d}
                 </div>
             </div>
-            <div class="card glass" style="padding: 22px 24px; border-radius: 28px;">
+            <div class="card glass stl-card-major">
                 <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:14px;">
                     <div style="min-width:0;">
-                        <h3 style="margin:0; font-size:1.05rem; color: var(--text-brand-navy); font-weight:800; letter-spacing:-0.02em;">${b(`settlement.suggestedPaymentsTitle`)} · ${l}</h3>
+                        <h3 class="stl-heading-1">${b(`settlement.suggestedPaymentsTitle`)} · ${l}</h3>
                         <div style="font-size:0.7rem; font-weight:700; color:var(--text-secondary); margin-top:3px;">${b(`settlement.suggestedPaymentsSubtitle`)}</div>
                     </div>
-                    <span style="font-size:0.7rem; font-weight:800; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.1em; flex-shrink:0;">${x(`settlement.paymentsCount`,r.length)}</span>
+                    <span class="stl-section-label--shrink-0">${x(`settlement.paymentsCount`,r.length)}</span>
                 </div>
                 <div style="display:flex; flex-direction:column; gap:10px;">
                     ${f}
@@ -140,10 +140,10 @@ import{r as e,t}from"./vendor-react-CAxw18f3.js";import{$t as n,C as r,Ct as i,D
                 <p class="text-muted" style="margin:0;">${b(`settlement.historyEmptyBody`)}</p>
             </div>
         `;let r={};for(let e of n){let t=e.date||`undated`;r[t]||(r[t]=[]),r[t].push(e)}let i=new Date().toISOString().slice(0,10),a=new Date;a.setDate(a.getDate()-1);let o=a.toISOString().slice(0,10),s=e=>{if(e===`undated`)return b(`settlement.historyDateNoDate`);if(e===i)return b(`settlement.historyDateToday`);if(e===o)return b(`settlement.historyDateYesterday`);let t=new Date(e);return isNaN(t.getTime())?e:t.toLocaleDateString(void 0,{weekday:`short`,month:`short`,day:`numeric`,year:`numeric`})},c=Object.keys(r).sort((e,t)=>e===`undated`?1:t===`undated`?-1:t.localeCompare(e));return`
-        <div class="card glass" style="padding: 22px 24px; border-radius: 28px;">
+        <div class="card glass stl-card-major">
             <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
-                <h3 style="margin:0; font-size:1.05rem; color: var(--text-brand-navy); font-weight:800; letter-spacing:-0.02em;">${b(`settlement.historyTitle`)}</h3>
-                <span style="font-size:0.7rem; font-weight:800; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.1em;">${b(`settlement.historyRecorded`,{count:n.length})}</span>
+                <h3 class="stl-heading-1">${b(`settlement.historyTitle`)}</h3>
+                <span class="stl-section-label">${b(`settlement.historyRecorded`,{count:n.length})}</span>
             </div>
             <div style="display:flex; flex-direction:column; gap:18px;">
                 ${c.map(n=>{let i=r[n],a=i.reduce((e,t)=>e+(t.euroValue||0),0);return`
@@ -152,17 +152,17 @@ import{r as e,t}from"./vendor-react-CAxw18f3.js";import{$t as n,C as r,Ct as i,D
                                 <h4 style="margin:0; font-size:0.7rem; font-weight:800; text-transform:uppercase; letter-spacing:0.12em; color:var(--text-secondary);">${h(s(n))}</h4>
                                 <span style="font-size:0.72rem; font-weight:700; color:var(--text-secondary);">${x(`settlement.historyDayTotalPlural`,i.length,{amount:p(a,`EUR`)})}</span>
                             </div>
-                            <div style="display:flex; flex-direction:column; gap:8px;">
+                            <div class="stl-flex-col-8">
                                 ${i.map(n=>{let r=(n.who||`?`).charAt(0).toUpperCase(),i=n.method&&n.source===`settlement`?`<span style="display:inline-flex; align-items:center; gap:3px; background:rgba(0,113,227,0.08); color:var(--accent-blue-deep); padding:1px 8px; border-radius:999px; font-size:0.62rem; font-weight:700; text-transform:uppercase; letter-spacing:0.05em;">${h(n.method.replace(/_/g,` `))}</span>`:``,a=n.note&&n.source===`settlement`?`<div style="font-size:0.78rem; color:var(--text-secondary); margin-top:4px; font-style:italic;">"${h(n.note)}"</div>`:``,o=t&&n.source===`expense`?`<button class="edit-settlement-btn" data-settlement-id="${h(n.id)}" type="button"
                                                 style="background:rgba(0,113,227,0.08); border:1px solid rgba(0,113,227,0.22); color: var(--accent-blue-deep); padding:5px 12px; border-radius:999px; font-size:0.72rem; font-weight:800; cursor:pointer;">${b(`settlement.historyEditBtn`)}</button>`:``,s=t?`<button class="unsettle-settlement-btn" data-settlement-id="${h(n.id)}" data-source="${h(n.source)}" data-trip-id="${h(e.id)}" type="button"
                                                 style="background:rgba(255,59,48,0.08); border:1px solid rgba(255,59,48,0.22); color:#ff3b30; padding:5px 12px; border-radius:999px; font-size:0.72rem; font-weight:800; cursor:pointer;">${b(`settlement.historyUnsettleBtn`)}</button>`:``;return`
                                         <div style="display:flex; align-items:center; gap:14px; padding:12px 14px; background: var(--card-bg); border:1px solid var(--border-subtle); border-radius:14px;">
                                             <div style="width:34px; height:34px; border-radius:50%; background:rgba(52,199,89,0.12); color:#1a6b3c; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:0.95rem; flex-shrink:0;">${h(r)}</div>
-                                            <div style="flex:1; min-width:0;">
-                                                <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
-                                                    <span style="font-weight:800; color: var(--text-brand-navy); font-size:0.95rem;">${h(n.who)}</span>
+                                            <div class="stl-flex-grow-truncate">
+                                                <div class="stl-flex-row-wrap-6">
+                                                    <span class="stl-heading-3">${h(n.who)}</span>
                                                     <span style="color:rgba(0,0,0,0.3); font-weight:600;">→</span>
-                                                    <span style="font-weight:800; color: var(--text-brand-navy); font-size:0.95rem;">${h(n.to)}</span>
+                                                    <span class="stl-heading-3">${h(n.to)}</span>
                                                     <span style="display:inline-flex; align-items:center; gap:3px; background:rgba(52,199,89,0.12); color:#1a6b3c; padding:1px 8px; border-radius:999px; font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">${b(`settlement.historyChipSettled`)}</span>
                                                     ${i}
                                                 </div>
@@ -184,12 +184,12 @@ import{r as e,t}from"./vendor-react-CAxw18f3.js";import{$t as n,C as r,Ct as i,D
                 <p class="text-muted" style="margin:0;">${b(`settlement.crossTripEmptyBody`)}</p>
             </div>
         `;let i=D(e);return`
-        <div class="card glass" style="padding: 22px 24px; border-radius: 28px;">
+        <div class="card glass stl-card-major">
             <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
-                <h3 style="margin:0; font-size:1.05rem; color: var(--text-brand-navy); font-weight:800; letter-spacing:-0.02em;">${b(`settlement.crossTripTitle`)}</h3>
-                <span style="font-size:0.7rem; font-weight:800; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.1em;">${b(`settlement.crossTripSubtitle`)}</span>
+                <h3 class="stl-heading-1">${b(`settlement.crossTripTitle`)}</h3>
+                <span class="stl-section-label">${b(`settlement.crossTripSubtitle`)}</span>
             </div>
-            <div style="display:flex; flex-direction:column; gap:8px;">
+            <div class="stl-flex-col-8">
                 ${t.map(([e,t])=>{let i=r?Math.min(Math.abs(t)/n*100,100):0,a=t>.01,o=t<-.01,s=a?`#1a6b3c`:o?`#a30000`:`var(--text-secondary)`;return`
                         <div style="display:flex; flex-direction:column; gap:10px; padding:12px 14px; background: var(--card-bg); border:1px solid var(--border-subtle); border-radius:14px;">
                             <div style="display:flex; align-items:center; gap:14px;">
@@ -216,19 +216,19 @@ import{r as e,t}from"./vendor-react-CAxw18f3.js";import{$t as n,C as r,Ct as i,D
             <div class="card glass" style="margin-top:18px; padding: 22px 24px; border-radius: 28px;">
                 <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:14px;">
                     <div style="min-width:0;">
-                        <h3 style="margin:0; font-size:1.05rem; color: var(--text-brand-navy); font-weight:800; letter-spacing:-0.02em;">Suggested cross-trip payments</h3>
+                        <h3 class="stl-heading-1">Suggested cross-trip payments</h3>
                         <div style="font-size:0.7rem; font-weight:700; color:var(--text-secondary); margin-top:3px;">Fewest payments to clear everyone across every trip you share. Record the actual settlement on whichever trip's tab fits.</div>
                     </div>
-                    <span style="font-size:0.7rem; font-weight:800; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.1em; flex-shrink:0;">${i.length} ${i.length===1?`payment`:`payments`}</span>
+                    <span class="stl-section-label--shrink-0">${i.length} ${i.length===1?`payment`:`payments`}</span>
                 </div>
                 <div style="display:flex; flex-direction:column; gap:10px;">
                     ${i.map(e=>`
                         <div style="display:flex; align-items:center; gap:14px; padding:14px 16px; background: var(--card-bg); border:1px solid var(--border-subtle); border-radius:16px;">
-                            <div style="flex:1; min-width:0;">
-                                <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                            <div class="stl-flex-grow-truncate">
+                                <div class="stl-flex-row-wrap-6">
                                     <span style="font-weight:700; color:var(--text-secondary); font-size:0.78rem;">${h(e.from)}</span>
                                     <span style="color:rgba(0,0,0,0.3);">→</span>
-                                    <span style="font-weight:800; color: var(--text-brand-navy); font-size:0.95rem;">${h(e.to)}</span>
+                                    <span class="stl-heading-3">${h(e.to)}</span>
                                 </div>
                                 <div style="font-size:1.3rem; font-weight:800; color: var(--text-brand-navy); letter-spacing:-0.01em; margin-top:2px;">${p(e.amount,`EUR`)}</div>
                             </div>
@@ -242,15 +242,15 @@ import{r as e,t}from"./vendor-react-CAxw18f3.js";import{$t as n,C as r,Ct as i,D
             <p class="text-subtitle">${b(`settlement.manualSubtitle`)}</p>
             <form id="manualSettleForm" style="display:flex; flex-direction:column; gap: var(--space-3); margin-top: var(--space-4);">
                 <label class="form-label">From</label>
-                <select id="manualSettleFrom" class="glass-input" style="padding: var(--space-3); border-radius: 12px; background: var(--card-bg);">${t}</select>
-                <label class="form-label" style="margin-top:6px;">To</label>
-                <select id="manualSettleTo" class="glass-input" style="padding: var(--space-3); border-radius: 12px; background: var(--card-bg);">${t}</select>
-                <label class="form-label" style="margin-top:6px;">Amount (${h(r)})</label>
-                <input type="number" step="0.01" min="0.01" id="manualSettleAmount" class="glass-input" placeholder="0.00" required style="padding: var(--space-3); border-radius: 12px;">
-                <label class="form-label" style="margin-top:6px;">Method</label>
-                <select id="manualSettleMethod" class="glass-input" style="padding: var(--space-3); border-radius: 12px; background: var(--card-bg);">${n}</select>
-                <label class="form-label" style="margin-top:6px;">Note <span class="text-subtitle" style="font-weight:500;">(optional)</span></label>
-                <input type="text" id="manualSettleNote" class="glass-input" maxlength="240" placeholder="e.g. Cash at the airport" style="padding: var(--space-3); border-radius: 12px;">
+                <select id="manualSettleFrom" class="glass-input stl-card-minor-bg">${t}</select>
+                <label class="form-label stl-mt-6">To</label>
+                <select id="manualSettleTo" class="glass-input stl-card-minor-bg">${t}</select>
+                <label class="form-label stl-mt-6">Amount (${h(r)})</label>
+                <input type="number" step="0.01" min="0.01" id="manualSettleAmount" class="glass-input" placeholder="0.00" required class="stl-card-minor">
+                <label class="form-label stl-mt-6">Method</label>
+                <select id="manualSettleMethod" class="glass-input stl-card-minor-bg">${n}</select>
+                <label class="form-label stl-mt-6">Note <span class="text-subtitle" style="font-weight:500;">(optional)</span></label>
+                <input type="text" id="manualSettleNote" class="glass-input" maxlength="240" placeholder="e.g. Cash at the airport" class="stl-card-minor">
                 <div style="display:flex; gap: var(--space-3); margin-top: var(--space-4);">
                     <button type="button" id="cancelManualSettleBtn" class="btn-neutral" style="flex:1; border-radius: var(--radius-lg);">Cancel</button>
                     <button type="submit" class="btn-primary" style="flex:2; border-radius: var(--radius-lg);">Record payment</button>
@@ -260,17 +260,17 @@ import{r as e,t}from"./vendor-react-CAxw18f3.js";import{$t as n,C as r,Ct as i,D
             <h2 class="h2-display">${b(`settlement.editTitle`)}</h2>
             <form id="editSettlementForm" style="display:flex; flex-direction:column; gap: var(--space-3); margin-top: var(--space-4);">
                 <label class="form-label">From</label>
-                <select id="editSettleFrom" class="glass-input" style="padding: var(--space-3); border-radius: 12px; background: var(--card-bg);">${a}</select>
-                <label class="form-label" style="margin-top:6px;">To</label>
-                <select id="editSettleTo" class="glass-input" style="padding: var(--space-3); border-radius: 12px; background: var(--card-bg);">${d}</select>
-                <label class="form-label" style="margin-top:6px;">Amount (${h(p)})</label>
-                <input type="number" step="0.01" min="0.01" id="editSettleAmount" value="${u(t.euroValue||0,`EUR`,p).toFixed(2)}" class="glass-input" required style="padding: var(--space-3); border-radius: 12px;">
-                <label class="form-label" style="margin-top:6px;">Date</label>
-                <input type="date" id="editSettleDate" value="${h(t.date||``)}" class="glass-input" required style="padding: var(--space-3); border-radius: 12px;">
+                <select id="editSettleFrom" class="glass-input stl-card-minor-bg">${a}</select>
+                <label class="form-label stl-mt-6">To</label>
+                <select id="editSettleTo" class="glass-input stl-card-minor-bg">${d}</select>
+                <label class="form-label stl-mt-6">Amount (${h(p)})</label>
+                <input type="number" step="0.01" min="0.01" id="editSettleAmount" value="${u(t.euroValue||0,`EUR`,p).toFixed(2)}" class="glass-input" required class="stl-card-minor">
+                <label class="form-label stl-mt-6">Date</label>
+                <input type="date" id="editSettleDate" value="${h(t.date||``)}" class="glass-input" required class="stl-card-minor">
                 <div style="display:flex; gap: var(--space-3); margin-top: var(--space-4);">
                     <button type="button" id="cancelEditSettleBtn" class="btn-neutral" style="flex:1; border-radius: var(--radius-lg);">Cancel</button>
                     <button type="submit" class="btn-primary" style="flex:2; border-radius: var(--radius-lg);">Update</button>
                 </div>
             </form>
         `});f(m,`#cancelEditSettleBtn`).onclick=()=>v(),f(m,`#editSettlementForm`).onsubmit=e=>{e.preventDefault();let r=f(m,`#editSettleFrom`).value,i=f(m,`#editSettleTo`).value,a=parseFloat(f(m,`#editSettleAmount`).value),o=f(m,`#editSettleDate`).value;if(r===i){_(b(`settlement.toastSenderEqualsReceiver`));return}t.who=r,t.splits={[i]:100},t.value=a,t.currency=p,t.euroValue=u(a,p,`EUR`),t.date=o,t.label=`Settlement: ${r} → ${i}`,g(n.STATE_CHANGED),v()}}var U=t();function W(){let e=S(e=>e.trips),t=S(e=>e.activeTripId),r=S(e=>e.expenses),[i,a]=(0,w.useState)(`trip`),[o,c]=(0,w.useState)(()=>t||(e.length>0?e[0].id:null));(0,w.useEffect)(()=>{t&&t!==o&&c(t)},[t,o]),(0,w.useEffect)(()=>{if(o&&!e.find(e=>e.id===o)){let t=e.length>0?e[0].id:null;c(t),t&&(s.activeTripId=t,g(n.STATE_CHANGED))}},[e,o]);let l=e=>{c(e),s.activeTripId=e,g(n.STATE_CHANGED),i===`global`&&a(`trip`)},{trip:u,canEditExpenses:d}=C(o),f=(0,w.useMemo)(()=>j(u,d,i,o),[u,d,i,o,r]),p=(0,w.useRef)(null),m=e=>{let t=e.target;if(!t)return;let n=t.closest(`.settlement-trip-pill`);if(n?.dataset.tripId){l(n.dataset.tripId);return}let r=t.closest(`.settle-tab`);if(r?.dataset.tab){a(r.dataset.tab);return}let i=t.closest(`.settle-debt-btn`);if(i?.dataset.tripId&&i.dataset.from&&i.dataset.to&&i.dataset.amount&&!i.disabled){i.disabled=!0,i.textContent=b(`settlement.recordingBtn`),R(i.dataset.tripId,i.dataset.from,i.dataset.to,parseFloat(i.dataset.amount),`EUR`);return}let o=t.closest(`.open-manual-settle-btn`);if(o?.dataset.tripId){V(o.dataset.tripId);return}let s=t.closest(`.edit-settlement-btn`);if(s?.dataset.settlementId){H(s.dataset.settlementId);return}let c=t.closest(`.unsettle-settlement-btn`);if(c?.dataset.settlementId){let e=c.dataset.source===`settlement`?`settlement`:`expense`;z(c.dataset.settlementId,e);return}},h=(0,w.useRef)(l);return h.current=l,(0,w.useEffect)(()=>{let e=p.current;if(!e)return;let t=e=>{let t=e.target;if(t?.id===`settlementTripSelect`){let e=t;e.value&&h.current(e.value)}};return e.addEventListener(`change`,t),()=>e.removeEventListener(`change`,t)},[]),(0,U.jsx)(`div`,{ref:p,onClick:m,dangerouslySetInnerHTML:{__html:f}})}function G(e){y(e,(0,w.createElement)(W))}export{G as mountSettlement};
-//# sourceMappingURL=mount-C9jGJJFl.js.map
+//# sourceMappingURL=mount-qHoOjRRg.js.map

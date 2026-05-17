@@ -38,6 +38,11 @@ import {
 } from './balances.js';
 import { t, tn } from '../../i18n.js';
 
+// §0.4 follow-up: settlement-page shared styles, extracted
+// from the inline-style template literals below. Side-effect
+// import; Vite chunks alongside the settlement mount.
+import './settlement.css';
+
 export type SettlementTab = 'trip' | 'history' | 'global';
 
 
@@ -207,9 +212,9 @@ function renderTripTab(trip: any, tripIsEditable: boolean): string {
                 ${
                     topPaid
                         ? `
-                    <div style="text-align:center; min-width:120px;">
+                    <div class="stl-center-min-120">
                         <div style="font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.12em; color:#34c759;">${t('settlement.topPayer')}</div>
-                        <div style="font-size:1.1rem; font-weight:800; color: var(--text-brand-navy); margin-top:4px;">${esc(topPaid.name)}</div>
+                        <div class="stl-heading-2">${esc(topPaid.name)}</div>
                         <div style="font-size:0.78rem; font-weight:700; color:var(--text-secondary);">${formatHome(topPaid.paid, 'EUR')}</div>
                     </div>
                 `
@@ -218,9 +223,9 @@ function renderTripTab(trip: any, tripIsEditable: boolean): string {
                 ${
                     topOwed && topOwed.net > 0.01
                         ? `
-                    <div style="text-align:center; min-width:120px;">
+                    <div class="stl-center-min-120">
                         <div style="font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.12em; color:#34c759;">${t('settlement.topOwed')}</div>
-                        <div style="font-size:1.1rem; font-weight:800; color: var(--text-brand-navy); margin-top:4px;">${esc(topOwed.name)}</div>
+                        <div class="stl-heading-2">${esc(topOwed.name)}</div>
                         <div style="font-size:0.78rem; font-weight:700; color:#1a6b3c;">+${formatHome(topOwed.net, 'EUR')}</div>
                     </div>
                 `
@@ -229,9 +234,9 @@ function renderTripTab(trip: any, tripIsEditable: boolean): string {
                 ${
                     topOwes && topOwes.net < -0.01
                         ? `
-                    <div style="text-align:center; min-width:120px;">
+                    <div class="stl-center-min-120">
                         <div style="font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.12em; color:#ff3b30;">${t('settlement.topOwes')}</div>
-                        <div style="font-size:1.1rem; font-weight:800; color: var(--text-brand-navy); margin-top:4px;">${esc(topOwes.name)}</div>
+                        <div class="stl-heading-2">${esc(topOwes.name)}</div>
                         <div style="font-size:0.78rem; font-weight:700; color:#a30000;">${formatHome(topOwes.net, 'EUR')}</div>
                     </div>
                 `
@@ -269,11 +274,11 @@ function renderTripTab(trip: any, tripIsEditable: boolean): string {
                   .map(
                       (d) => `
             <div style="display:flex; align-items:center; gap:14px; padding:14px 16px; background: var(--card-bg); border:1px solid var(--border-subtle); border-radius:16px;">
-                <div style="flex:1; min-width:0;">
-                    <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                <div class="stl-flex-grow-truncate">
+                    <div class="stl-flex-row-wrap-6">
                         <span style="font-weight:700; color:var(--text-secondary); font-size:0.78rem;">${esc(d.from)}</span>
                         <span style="color:rgba(0,0,0,0.3);">→</span>
-                        <span style="font-weight:800; color: var(--text-brand-navy); font-size:0.95rem;">${esc(d.to)}</span>
+                        <span class="stl-heading-3">${esc(d.to)}</span>
                     </div>
                     <div style="font-size:1.3rem; font-weight:800; color: var(--text-brand-navy); letter-spacing:-0.01em; margin-top:2px;">${formatHome(d.amount, 'EUR')}</div>
                 </div>
@@ -293,22 +298,22 @@ function renderTripTab(trip: any, tripIsEditable: boolean): string {
     return `
         ${leaderboardCard}
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:18px; margin-bottom:24px;">
-            <div class="card glass" style="padding: 22px 24px; border-radius: 28px;">
+            <div class="card glass stl-card-major">
                 <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
-                    <h3 style="margin:0; font-size:1.05rem; color: var(--text-brand-navy); font-weight:800; letter-spacing:-0.02em;">${t('settlement.tripBalancesTitle')} · ${tripNameLabel}</h3>
-                    <span style="font-size:0.7rem; font-weight:800; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.1em;">${tn('settlement.peopleCount', Object.keys(balances).length)}</span>
+                    <h3 class="stl-heading-1">${t('settlement.tripBalancesTitle')} · ${tripNameLabel}</h3>
+                    <span class="stl-section-label">${tn('settlement.peopleCount', Object.keys(balances).length)}</span>
                 </div>
-                <div style="display:flex; flex-direction:column; gap:8px;">
+                <div class="stl-flex-col-8">
                     ${personRows}
                 </div>
             </div>
-            <div class="card glass" style="padding: 22px 24px; border-radius: 28px;">
+            <div class="card glass stl-card-major">
                 <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:14px;">
                     <div style="min-width:0;">
-                        <h3 style="margin:0; font-size:1.05rem; color: var(--text-brand-navy); font-weight:800; letter-spacing:-0.02em;">${t('settlement.suggestedPaymentsTitle')} · ${tripNameLabel}</h3>
+                        <h3 class="stl-heading-1">${t('settlement.suggestedPaymentsTitle')} · ${tripNameLabel}</h3>
                         <div style="font-size:0.7rem; font-weight:700; color:var(--text-secondary); margin-top:3px;">${t('settlement.suggestedPaymentsSubtitle')}</div>
                     </div>
-                    <span style="font-size:0.7rem; font-weight:800; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.1em; flex-shrink:0;">${tn('settlement.paymentsCount', debts.length)}</span>
+                    <span class="stl-section-label--shrink-0">${tn('settlement.paymentsCount', debts.length)}</span>
                 </div>
                 <div style="display:flex; flex-direction:column; gap:10px;">
                     ${debtsHtml}
@@ -449,10 +454,10 @@ function renderHistoryTab(trip: any, tripIsEditable: boolean): string {
     });
 
     return `
-        <div class="card glass" style="padding: 22px 24px; border-radius: 28px;">
+        <div class="card glass stl-card-major">
             <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
-                <h3 style="margin:0; font-size:1.05rem; color: var(--text-brand-navy); font-weight:800; letter-spacing:-0.02em;">${t('settlement.historyTitle')}</h3>
-                <span style="font-size:0.7rem; font-weight:800; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.1em;">${t('settlement.historyRecorded', { count: past.length })}</span>
+                <h3 class="stl-heading-1">${t('settlement.historyTitle')}</h3>
+                <span class="stl-section-label">${t('settlement.historyRecorded', { count: past.length })}</span>
             </div>
             <div style="display:flex; flex-direction:column; gap:18px;">
                 ${sortedKeys
@@ -467,7 +472,7 @@ function renderHistoryTab(trip: any, tripIsEditable: boolean): string {
                                 <h4 style="margin:0; font-size:0.7rem; font-weight:800; text-transform:uppercase; letter-spacing:0.12em; color:var(--text-secondary);">${esc(formatGroupHeader(key))}</h4>
                                 <span style="font-size:0.72rem; font-weight:700; color:var(--text-secondary);">${tn('settlement.historyDayTotalPlural', items.length, { amount: formatHome(totalForDay, 'EUR') })}</span>
                             </div>
-                            <div style="display:flex; flex-direction:column; gap:8px;">
+                            <div class="stl-flex-col-8">
                                 ${items
                                     .map((s) => {
                                         const fromInitial = (s.who || '?').charAt(0).toUpperCase();
@@ -498,11 +503,11 @@ function renderHistoryTab(trip: any, tripIsEditable: boolean): string {
                                         return `
                                         <div style="display:flex; align-items:center; gap:14px; padding:12px 14px; background: var(--card-bg); border:1px solid var(--border-subtle); border-radius:14px;">
                                             <div style="width:34px; height:34px; border-radius:50%; background:rgba(52,199,89,0.12); color:#1a6b3c; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:0.95rem; flex-shrink:0;">${esc(fromInitial)}</div>
-                                            <div style="flex:1; min-width:0;">
-                                                <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
-                                                    <span style="font-weight:800; color: var(--text-brand-navy); font-size:0.95rem;">${esc(s.who)}</span>
+                                            <div class="stl-flex-grow-truncate">
+                                                <div class="stl-flex-row-wrap-6">
+                                                    <span class="stl-heading-3">${esc(s.who)}</span>
                                                     <span style="color:rgba(0,0,0,0.3); font-weight:600;">→</span>
-                                                    <span style="font-weight:800; color: var(--text-brand-navy); font-size:0.95rem;">${esc(s.to)}</span>
+                                                    <span class="stl-heading-3">${esc(s.to)}</span>
                                                     <span style="display:inline-flex; align-items:center; gap:3px; background:rgba(52,199,89,0.12); color:#1a6b3c; padding:1px 8px; border-radius:999px; font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">${t('settlement.historyChipSettled')}</span>
                                                     ${methodChip}
                                                 </div>
@@ -547,12 +552,12 @@ function renderGlobalTab(): string {
     const globalDebts = simplifyDebts(globalBalances);
 
     return `
-        <div class="card glass" style="padding: 22px 24px; border-radius: 28px;">
+        <div class="card glass stl-card-major">
             <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
-                <h3 style="margin:0; font-size:1.05rem; color: var(--text-brand-navy); font-weight:800; letter-spacing:-0.02em;">${t('settlement.crossTripTitle')}</h3>
-                <span style="font-size:0.7rem; font-weight:800; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.1em;">${t('settlement.crossTripSubtitle')}</span>
+                <h3 class="stl-heading-1">${t('settlement.crossTripTitle')}</h3>
+                <span class="stl-section-label">${t('settlement.crossTripSubtitle')}</span>
             </div>
-            <div style="display:flex; flex-direction:column; gap:8px;">
+            <div class="stl-flex-col-8">
                 ${sorted
                     .map(([person, bal]) => {
                         const pct = hasBalances ? Math.min((Math.abs(bal) / maxAbs) * 100, 100) : 0;
@@ -607,21 +612,21 @@ function renderGlobalTab(): string {
             <div class="card glass" style="margin-top:18px; padding: 22px 24px; border-radius: 28px;">
                 <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:14px;">
                     <div style="min-width:0;">
-                        <h3 style="margin:0; font-size:1.05rem; color: var(--text-brand-navy); font-weight:800; letter-spacing:-0.02em;">Suggested cross-trip payments</h3>
+                        <h3 class="stl-heading-1">Suggested cross-trip payments</h3>
                         <div style="font-size:0.7rem; font-weight:700; color:var(--text-secondary); margin-top:3px;">Fewest payments to clear everyone across every trip you share. Record the actual settlement on whichever trip's tab fits.</div>
                     </div>
-                    <span style="font-size:0.7rem; font-weight:800; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.1em; flex-shrink:0;">${globalDebts.length} ${globalDebts.length === 1 ? 'payment' : 'payments'}</span>
+                    <span class="stl-section-label--shrink-0">${globalDebts.length} ${globalDebts.length === 1 ? 'payment' : 'payments'}</span>
                 </div>
                 <div style="display:flex; flex-direction:column; gap:10px;">
                     ${globalDebts
                         .map(
                             (d) => `
                         <div style="display:flex; align-items:center; gap:14px; padding:14px 16px; background: var(--card-bg); border:1px solid var(--border-subtle); border-radius:16px;">
-                            <div style="flex:1; min-width:0;">
-                                <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                            <div class="stl-flex-grow-truncate">
+                                <div class="stl-flex-row-wrap-6">
                                     <span style="font-weight:700; color:var(--text-secondary); font-size:0.78rem;">${esc(d.from)}</span>
                                     <span style="color:rgba(0,0,0,0.3);">→</span>
-                                    <span style="font-weight:800; color: var(--text-brand-navy); font-size:0.95rem;">${esc(d.to)}</span>
+                                    <span class="stl-heading-3">${esc(d.to)}</span>
                                 </div>
                                 <div style="font-size:1.3rem; font-weight:800; color: var(--text-brand-navy); letter-spacing:-0.01em; margin-top:2px;">${formatHome(d.amount, 'EUR')}</div>
                             </div>
@@ -831,15 +836,15 @@ export function openManualSettleModal(tripId: string): void {
             <p class="text-subtitle">${t('settlement.manualSubtitle')}</p>
             <form id="manualSettleForm" style="display:flex; flex-direction:column; gap: var(--space-3); margin-top: var(--space-4);">
                 <label class="form-label">From</label>
-                <select id="manualSettleFrom" class="glass-input" style="padding: var(--space-3); border-radius: 12px; background: var(--card-bg);">${peopleOptions}</select>
-                <label class="form-label" style="margin-top:6px;">To</label>
-                <select id="manualSettleTo" class="glass-input" style="padding: var(--space-3); border-radius: 12px; background: var(--card-bg);">${peopleOptions}</select>
-                <label class="form-label" style="margin-top:6px;">Amount (${esc(home)})</label>
-                <input type="number" step="0.01" min="0.01" id="manualSettleAmount" class="glass-input" placeholder="0.00" required style="padding: var(--space-3); border-radius: 12px;">
-                <label class="form-label" style="margin-top:6px;">Method</label>
-                <select id="manualSettleMethod" class="glass-input" style="padding: var(--space-3); border-radius: 12px; background: var(--card-bg);">${methodOptions}</select>
-                <label class="form-label" style="margin-top:6px;">Note <span class="text-subtitle" style="font-weight:500;">(optional)</span></label>
-                <input type="text" id="manualSettleNote" class="glass-input" maxlength="240" placeholder="e.g. Cash at the airport" style="padding: var(--space-3); border-radius: 12px;">
+                <select id="manualSettleFrom" class="glass-input stl-card-minor-bg">${peopleOptions}</select>
+                <label class="form-label stl-mt-6">To</label>
+                <select id="manualSettleTo" class="glass-input stl-card-minor-bg">${peopleOptions}</select>
+                <label class="form-label stl-mt-6">Amount (${esc(home)})</label>
+                <input type="number" step="0.01" min="0.01" id="manualSettleAmount" class="glass-input" placeholder="0.00" required class="stl-card-minor">
+                <label class="form-label stl-mt-6">Method</label>
+                <select id="manualSettleMethod" class="glass-input stl-card-minor-bg">${methodOptions}</select>
+                <label class="form-label stl-mt-6">Note <span class="text-subtitle" style="font-weight:500;">(optional)</span></label>
+                <input type="text" id="manualSettleNote" class="glass-input" maxlength="240" placeholder="e.g. Cash at the airport" class="stl-card-minor">
                 <div style="display:flex; gap: var(--space-3); margin-top: var(--space-4);">
                     <button type="button" id="cancelManualSettleBtn" class="btn-neutral" style="flex:1; border-radius: var(--radius-lg);">Cancel</button>
                     <button type="submit" class="btn-primary" style="flex:2; border-radius: var(--radius-lg);">Record payment</button>
@@ -889,13 +894,13 @@ export function openEditSettlementModal(id: string): void {
             <h2 class="h2-display">${t('settlement.editTitle')}</h2>
             <form id="editSettlementForm" style="display:flex; flex-direction:column; gap: var(--space-3); margin-top: var(--space-4);">
                 <label class="form-label">From</label>
-                <select id="editSettleFrom" class="glass-input" style="padding: var(--space-3); border-radius: 12px; background: var(--card-bg);">${fromOpts}</select>
-                <label class="form-label" style="margin-top:6px;">To</label>
-                <select id="editSettleTo" class="glass-input" style="padding: var(--space-3); border-radius: 12px; background: var(--card-bg);">${toOpts}</select>
-                <label class="form-label" style="margin-top:6px;">Amount (${esc(home)})</label>
-                <input type="number" step="0.01" min="0.01" id="editSettleAmount" value="${convertCurrency(s.euroValue || 0, 'EUR', home).toFixed(2)}" class="glass-input" required style="padding: var(--space-3); border-radius: 12px;">
-                <label class="form-label" style="margin-top:6px;">Date</label>
-                <input type="date" id="editSettleDate" value="${esc(s.date || '')}" class="glass-input" required style="padding: var(--space-3); border-radius: 12px;">
+                <select id="editSettleFrom" class="glass-input stl-card-minor-bg">${fromOpts}</select>
+                <label class="form-label stl-mt-6">To</label>
+                <select id="editSettleTo" class="glass-input stl-card-minor-bg">${toOpts}</select>
+                <label class="form-label stl-mt-6">Amount (${esc(home)})</label>
+                <input type="number" step="0.01" min="0.01" id="editSettleAmount" value="${convertCurrency(s.euroValue || 0, 'EUR', home).toFixed(2)}" class="glass-input" required class="stl-card-minor">
+                <label class="form-label stl-mt-6">Date</label>
+                <input type="date" id="editSettleDate" value="${esc(s.date || '')}" class="glass-input" required class="stl-card-minor">
                 <div style="display:flex; gap: var(--space-3); margin-top: var(--space-4);">
                     <button type="button" id="cancelEditSettleBtn" class="btn-neutral" style="flex:1; border-radius: var(--radius-lg);">Cancel</button>
                     <button type="submit" class="btn-primary" style="flex:2; border-radius: var(--radius-lg);">Update</button>
