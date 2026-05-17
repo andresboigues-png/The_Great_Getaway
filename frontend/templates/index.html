@@ -9,14 +9,17 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/index.css') }}?v={{ css_version }}">
 
     <!-- PWA: installable on iOS/Android, standalone display, themed nav.
-         Real PNG icons + splash screens come in Phase L. -->
+         Icon raster set lives in /static/icons/ (generated from
+         scripts/generate_icons.py — re-run if the brand mark changes). -->
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#0071e3">
-    <!-- iOS Safari needs its own meta tags; manifest.json alone is ignored. -->
+    <!-- iOS Safari needs its own meta tags; manifest.json alone is ignored.
+         180×180 is the canonical apple-touch-icon size; iOS scales down for
+         older devices. -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="The GG">
-    <link rel="apple-touch-icon" href="{{ url_for('static', filename='favicon.svg') }}">
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/icon-180.png') }}">
 
     <!-- Sentry — error tracking. Loader is async and lazy-loads the full
          SDK on first error. Placed early so it can capture errors from

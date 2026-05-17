@@ -164,9 +164,10 @@ if (document.readyState === 'loading') {
 }
 
 // PWA: register the service worker after the page has loaded so it doesn't
-// race with first paint. Phase A stub — real caching strategies come in
-// Phase L. Only runs in browsers that support SW (essentially all modern
-// ones; the feature-check just keeps non-supporting environments quiet).
+// race with first paint. The caching strategies (network-first for shell +
+// API, cache-first for /static/uploads) live in frontend/static/sw.js.
+// Only runs in browsers that support SW (essentially all modern ones; the
+// feature-check just keeps non-supporting environments quiet).
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch((err) => {

@@ -406,13 +406,16 @@ Adding an internal column ships it to the client unintentionally.
 - [ ] Show toast on rate-fetch failure. (Deferred — chose silent fallback to last-known rate; a toast for every transient Frankfurter blip would be noisy.)
 - [x] Bound `rateCache` size at 5000 entries (~1 trip-year of dated currencies). (Shipped 2026-05-13)
 
-### 2.20 Service worker registered with root scope, no caching strategy
+### 2.20 Service worker registered with root scope, no caching strategy — ✅ Shipped 2026-05-17
 
-🟢 **S** · `frontend/static/js/src/main.ts:699-705`, `frontend/static/sw.js`
+🟢 **S** · `frontend/static/js/src/main.ts`, `frontend/static/sw.js`
 
-No offline benefit, but adds an attack surface.
-
-- [ ] Decide: implement a real Workbox runtime cache OR unregister the SW until you're ready.
+- [x] `sw.js` rewritten with explicit per-resource strategies (no Workbox dep — hand-rolled is 270 lines and avoids dragging a 70KB runtime into every page load): network-first for the app shell + GET `/api/*` (always fresh when online, cache fallback when offline), cache-first for `/static/uploads/*` (stable URLs, big offline win for trip photos), pass-through for cross-origin (Maps tiles / Sentry / Google APIs) and all non-GET writes.
+- [x] Per-user cache key on the API cache: `_userKeyFor()` hashes the Authorization header with SHA-256 (truncated to 16 hex chars) and appends it to the cache URL so a shared device where Alice logs out + Bob logs in doesn't leak Alice's data to Bob. `CLEAR_API_CACHE` postMessage from `api.ts` wipes the cache on explicit logout for belt-and-suspenders.
+- [x] Versioned caches (`gg-shell-v1`, `gg-api-v1`, `gg-uploads-v1`) — activate handler prunes any cache from a previous `SW_VERSION` so storage stays bounded.
+- [x] Boot-time precache of the minimum shell (`/`, manifest, favicon, app.bundle.js) via `Promise.allSettled` so a single 404 doesn't abort install.
+- [x] Navigate-mode fallback: cold-load while offline still serves the cached `/` shell rather than the browser's default error page.
+- [x] Stub comment in `main.ts` updated — no longer claims "real caching comes in Phase L."
 
 ### 2.21 `applyNavAnimation` rapid-swipe edge case
 
@@ -685,13 +688,16 @@ Per VISION's open question, target tourism companies (Abreu Viagens, etc.) as B2
 - [ ] EXIF date → auto-assign photo to a trip day.
 - [ ] Photo lightbox with swipe (mobile-first, reuses the swipe handler).
 
-### 4.10 PWA install + offline trip detail
+### 4.10 PWA install + offline trip detail — ✅ Shipped 2026-05-17
 
-**M** · `frontend/static/sw.js`, manifest
+**M** · `frontend/static/sw.js`, `frontend/static/manifest.json`, `frontend/static/icons/`, `frontend/static/js/src/bootstrap/install-prompt.ts`
 
-- [ ] Real Workbox runtime cache for `/api/data` + `/static/uploads/` (stale-while-revalidate).
-- [ ] Offline shell so a user mid-trip without signal can still view their itinerary.
-- [ ] Install prompt only after second visit (don't annoy first-time visitors).
+- [x] Service worker hand-rolled (sw.js, ~270 lines) — see §2.20 for the strategy breakdown. Caching is now real: app shell + GET `/api/*` network-first with cache fallback, `/static/uploads/*` cache-first, mutations pass through. A user mid-trip on flaky signal sees their itinerary either fresh (network) or from the last successful response (cache); user-uploaded photos render even fully offline.
+- [x] Icon raster set generated from the brand mark (`scripts/generate_icons.py`, Pillow-based). Outputs land in `frontend/static/icons/`: `icon-{16,32,180,192,512}.png` (purpose='any') + `icon-{192,512}-maskable.png` (purpose='maskable', 12% padding for Android adaptive masks). Re-runnable / idempotent so the brand mark can change once a year without ceremony.
+- [x] `manifest.json` updated — was favicon-only, now declares the full PNG set including both 192/512 'any' purpose icons (Android install minimum) and 192/512 maskable variants (Android adaptive icons). Kept the SVG favicon entry for browsers that prefer vector.
+- [x] `index.html` apple-touch-icon switched from `favicon.svg` to `icon-180.png` (the canonical apple-touch-icon size; iOS scales down for older devices). Removed the stale "Real PNG icons come in Phase L" comment.
+- [x] Install-prompt gate (`install-prompt.ts`, 271 lines): three code paths — Chrome/Edge/Android consumes `beforeinstallprompt`, iOS Safari shows an instructional "Tap Share → Add to Home Screen" banner, already-installed (standalone display-mode) shows nothing. localStorage-backed visit counter gates the banner on the SECOND visit per user (`visits < 2 return`), and a sticky dismiss flag means one ✕ click = silent forever. `appinstalled` listener clears any lingering banner.
+- [x] Tests (`tests/test_api.py`): `/sw.js` route serves with `Service-Worker-Allowed: /` + `Cache-Control: no-cache`, `/manifest.json` serves with `application/manifest+json`, manifest declares the required 192/512 'any' + at-least-one maskable icons, and every icon URL the manifest references actually serves with an `image/*` content type (so a missing-file slip in the build breaks CI instead of silently breaking installability).
 
 ---
 

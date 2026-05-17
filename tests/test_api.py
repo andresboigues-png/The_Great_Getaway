@@ -3290,6 +3290,45 @@ def test_main_manifest_route_serves_manifest_json(client):
     assert "manifest" in res.headers.get("Content-Type", "").lower()
 
 
+def test_main_manifest_declares_required_pwa_icons(client):
+    """§4.10: Android's "Install" prompt requires a 192px AND a 512px icon
+    listed in the manifest, AND at least one with purpose='maskable' for
+    the adaptive-icon spec. Pin all three so a future manifest edit that
+    drops one breaks the installability test in CI rather than silently
+    on user devices (where the prompt just stops appearing).
+    """
+    import json as _json
+    res = client.get("/manifest.json")
+    assert res.status_code == 200
+    body = _json.loads(res.get_data(as_text=True))
+    icons = body.get("icons") or []
+    # Collapse to (sizes, purpose) tuples for easy assertions.
+    presented = {(i.get("sizes"), i.get("purpose")) for i in icons}
+    assert ("192x192", "any") in presented, "Android needs a 192px 'any' icon"
+    assert ("512x512", "any") in presented, "Android needs a 512px 'any' icon"
+    assert any(p == "maskable" for (_, p) in presented), \
+        "Need at least one maskable icon for adaptive-icon spec"
+
+
+def test_main_pwa_icons_are_actually_served(client):
+    """§4.10: A manifest can list any icon URL it wants — but if the
+    URL 404s the install prompt silently won't appear. Pin that the
+    icon files themselves are reachable so a missing-file slip in the
+    build doesn't break installability.
+    """
+    for path in (
+        "/static/icons/icon-192.png",
+        "/static/icons/icon-512.png",
+        "/static/icons/icon-192-maskable.png",
+        "/static/icons/icon-512-maskable.png",
+        "/static/icons/icon-180.png",
+    ):
+        res = client.get(path)
+        assert res.status_code == 200, f"icon {path} not served"
+        assert res.headers.get("Content-Type", "").startswith("image/"), \
+            f"icon {path} not delivered with image content-type"
+
+
 def test_main_cleanup_feed_orphans_runs_without_crashing(client):
     """The background cleanup function runs once on boot + every 24h.
     Pin that it doesn't crash on an empty DB — no rows to delete is the
