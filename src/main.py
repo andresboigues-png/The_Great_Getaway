@@ -1,8 +1,9 @@
 import os
 import json
+import secrets
 import sqlite3
 import requests
-from flask import Flask, render_template, request, jsonify, send_from_directory, url_for
+from flask import Flask, g, render_template, request, jsonify, send_from_directory, url_for
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 from google.oauth2 import id_token
@@ -133,22 +134,34 @@ attach_request_context(app, current_user_id)
 # case shrinks from "full account takeover" to "in-page DOM mischief
 # that can't talk to the network."
 #
-# This is a PERMISSIVE first-pass CSP: it keeps 'unsafe-inline' for
-# script and style because the codebase has ~5 inline <script> blocks
-# in index.html (Sentry init, early-theme paint, Maps key bootstrap)
-# AND hundreds of inline style="..." attributes. Tightening to nonces
-# for scripts is tracked as a follow-up — every <script> tag in
-# index.html would gain `nonce="{{ csp_nonce }}"` and the policy
-# would say `'nonce-{{ csp_nonce }}'` instead of `'unsafe-inline'`.
-# Inline-style elimination is a separate, bigger refactor that pairs
-# with the CSS-modules split in §3.1.
+# Tightened to NONCES on 2026-05-17 (§0.4 v2). The first-pass CSP
+# kept `'unsafe-inline'` for scripts because index.html has three
+# inline `<script>` blocks (Sentry init, early-theme paint, Google
+# globals); the nonce strategy now lets those three blocks through
+# while still blocking attacker-injected `<script>` elements. The
+# nonce regenerates per request via `_attach_csp_nonce` below, and
+# the templates pick it up via the `csp_nonce` Jinja variable.
+#
+# Style-src STILL keeps `'unsafe-inline'`: the codebase has hundreds
+# of inline `style="..."` attributes (mostly in index.html's sidebar
+# / modal scaffolds), and tightening would require either (a) hashing
+# every distinct inline style — brittle and exhausting — or (b) the
+# bigger refactor of extracting them into the per-page CSS chunks
+# from §3.1. Queued as its own slice.
 #
 # Allowlist rationale, by directive:
 #   script-src + script-src-elem
+#     - 'nonce-<csp_nonce>': inline scripts in index.html (3 blocks).
+#       Browsers IGNORE 'unsafe-inline' when a nonce is also listed,
+#       so inline scripts NOT carrying the nonce are blocked. This is
+#       the whole point of the upgrade.
 #     - accounts.google.com: Google Identity Services (gsi/client)
 #     - maps.googleapis.com:  Maps JS SDK
 #     - cdn.jsdelivr.net:     chart.js + xlsx CDN bundles
 #     - *.sentry-cdn.com:     Sentry loader script
+#       External scripts loaded by `src=` match the URL allowlist
+#       without needing a nonce, so we DON'T have to thread the nonce
+#       into every <script src="..."> tag — only the inline blocks.
 #   img-src
 #     - data:, blob:: SVG icons inlined as data URIs, blob URLs for
 #       camera-roll uploads before they reach the server
@@ -184,21 +197,61 @@ attach_request_context(app, current_user_id)
 #   Referrer-Policy: strict-origin-when-cross-origin
 #       — outbound link clicks don't leak the full URL (which may
 #         contain trip / user identifiers) to third parties
+
+@app.before_request
+def _attach_csp_nonce():
+    """Generate a fresh, cryptographically-random nonce for every
+    request and stash it on `flask.g`. Both the after_request CSP
+    builder and the template context processor read it from there,
+    so the same value lands in (a) the response's CSP header and (b)
+    every `<script nonce="...">` attribute rendered into the page.
+
+    16 url-safe bytes → 22 base64 chars: well above the 128-bit
+    entropy threshold the CSP spec recommends, and short enough that
+    the extra header bytes are imperceptible.
+    """
+    g.csp_nonce = secrets.token_urlsafe(16)
+
+
+@app.context_processor
+def _inject_csp_nonce():
+    """Expose `csp_nonce` to every Jinja template so `<script
+    nonce="{{ csp_nonce }}">` resolves to the same value that the
+    after_request hook embeds in the CSP header.
+
+    The `getattr` fallback returns '' on edge paths that bypass
+    before_request (e.g. template render during test setup outside
+    a request context). With no nonce on those scripts AND no
+    `'unsafe-inline'` in the policy, they'd be blocked — but those
+    paths don't render `<script>` tags, so the empty string is fine.
+    """
+    return {"csp_nonce": getattr(g, "csp_nonce", "")}
+
+
 @app.after_request
 def add_security_headers(response):
+    nonce = getattr(g, "csp_nonce", "")
+    # Defensive: every request goes through before_request first, so
+    # `g.csp_nonce` should always be set by the time we reach here.
+    # The fallback covers edge cases (e.g. an error handler that fires
+    # before before_request runs) without leaving CSP in a broken state.
+    if not nonce:
+        nonce = secrets.token_urlsafe(16)
+    nonce_src = f"'nonce-{nonce}'"
+
     response.headers.setdefault(
         "Content-Security-Policy",
         "; ".join([
             "default-src 'self'",
             (
-                "script-src 'self' 'unsafe-inline' "
+                f"script-src 'self' {nonce_src} "
                 "https://accounts.google.com "
                 "https://maps.googleapis.com "
                 "https://cdn.jsdelivr.net "
                 "https://*.sentry-cdn.com"
             ),
             (
-                "script-src-elem 'self' 'unsafe-inline' "
+                f"script-src-elem 'self' {nonce_src} "
                 "https://accounts.google.com "
                 "https://maps.googleapis.com "
                 "https://cdn.jsdelivr.net "

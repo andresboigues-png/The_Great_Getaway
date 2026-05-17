@@ -28,7 +28,7 @@
     <script
         src="https://js-de.sentry-cdn.com/4807f5072827f760461e06af2dbb446c.min.js"
         crossorigin="anonymous"></script>
-    <script>
+    <script nonce="{{ csp_nonce }}">
         // Tag every event with environment so dev/prod are separable in
         // the Sentry dashboard. The loader auto-initializes with its
         // dashboard defaults; sentryOnLoad lets us re-init with overrides.
@@ -57,7 +57,7 @@
          very first frame already uses the right theme. Mirrors the
          resolveTheme + setHtmlTheme logic in theme.ts; if STATE
          turns out to disagree later the bundle will overwrite. -->
-    <script>
+    <script nonce="{{ csp_nonce }}">
         (function () {
             try {
                 var stored = localStorage.getItem('theGreatEscapeState');
@@ -76,7 +76,7 @@
 
     <!-- Google Maps API -->
     <script src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&libraries=places&loading=async"></script>
-    <script>
+    <script nonce="{{ csp_nonce }}">
         window.globalGoogleClientId = "{{ google_client_id }}";
         window.googleMapsApiKey = "{{ google_maps_api_key }}";
     </script>

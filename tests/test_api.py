@@ -3310,6 +3310,92 @@ def test_main_manifest_declares_required_pwa_icons(client):
         "Need at least one maskable icon for adaptive-icon spec"
 
 
+def test_main_csp_uses_script_nonce_not_unsafe_inline(client):
+    """§0.4 v2: script-src dropped 'unsafe-inline' and switched to a
+    per-request nonce. Pin both invariants — a regression that re-adds
+    'unsafe-inline' would re-open the XSS-amplification surface that
+    the whole nonce migration was meant to close.
+    """
+    res = client.get("/")
+    assert res.status_code == 200
+    csp = res.headers.get("Content-Security-Policy", "")
+    assert csp, "Content-Security-Policy header missing"
+
+    # Pull the script-src directive specifically. Splitting on '; ' is
+    # safe because the policy is built with that separator.
+    parts = [p.strip() for p in csp.split(";") if p.strip()]
+    script_src = next((p for p in parts if p.startswith("script-src ")), "")
+    script_src_elem = next(
+        (p for p in parts if p.startswith("script-src-elem ")), "",
+    )
+    assert script_src, "script-src directive missing"
+    assert script_src_elem, "script-src-elem directive missing"
+
+    # The whole point of the upgrade: NO 'unsafe-inline' on script.
+    assert "'unsafe-inline'" not in script_src, \
+        f"script-src still allows 'unsafe-inline' — XSS hardening regressed: {script_src!r}"
+    assert "'unsafe-inline'" not in script_src_elem, \
+        f"script-src-elem still allows 'unsafe-inline': {script_src_elem!r}"
+
+    # And it MUST have a nonce-token in its place, otherwise every
+    # inline script in index.html would die silently in the browser.
+    assert "'nonce-" in script_src, \
+        f"script-src missing 'nonce-...' replacement: {script_src!r}"
+    assert "'nonce-" in script_src_elem, \
+        f"script-src-elem missing 'nonce-...' replacement: {script_src_elem!r}"
+
+
+def test_main_csp_nonce_matches_inline_script_tags(client):
+    """§0.4 v2: the same nonce value must appear in BOTH the CSP header
+    AND every inline `<script>` tag in the rendered HTML — otherwise the
+    browser blocks the scripts as 'nonce mismatch'. Pin the round-trip:
+    extract the nonce from the CSP, then assert each `<script nonce=...>`
+    in the body matches it. If templating ever drops the `csp_nonce`
+    variable, this test breaks loudly.
+    """
+    import re as _re
+    res = client.get("/")
+    assert res.status_code == 200
+
+    csp = res.headers.get("Content-Security-Policy", "")
+    # Nonces are base64 url-safe; the regex matches the shape Flask
+    # emits via `secrets.token_urlsafe(16)`.
+    nonce_match = _re.search(r"'nonce-([A-Za-z0-9_-]+)'", csp)
+    assert nonce_match, f"No 'nonce-...' token in CSP: {csp!r}"
+    csp_nonce = nonce_match.group(1)
+    assert len(csp_nonce) >= 16, "Nonce too short for the spec's 128-bit floor"
+
+    body = res.get_data(as_text=True)
+    # Every `<script>` block in index.html that is NOT a `src="..."`
+    # external load must carry a `nonce=<csp_nonce>` attribute, or it'll
+    # be blocked when the page loads in a real browser.
+    inline_script_tags = _re.findall(
+        r"<script(?![^>]*\bsrc=)[^>]*>", body,
+    )
+    assert inline_script_tags, "No inline scripts found — template change?"
+    for tag in inline_script_tags:
+        assert f'nonce="{csp_nonce}"' in tag, \
+            f"Inline <script> missing matching nonce attribute: {tag!r}"
+
+
+def test_main_csp_nonce_rotates_per_request(client):
+    """A nonce that never changes is just a weaker form of allowlist —
+    the spec mandates "should be regenerated for every response". Pin
+    that two consecutive requests get two different nonces. If a
+    regression caches the nonce module-level, this test catches it.
+    """
+    import re as _re
+    res1 = client.get("/")
+    res2 = client.get("/")
+    csp1 = res1.headers.get("Content-Security-Policy", "")
+    csp2 = res2.headers.get("Content-Security-Policy", "")
+    n1 = _re.search(r"'nonce-([A-Za-z0-9_-]+)'", csp1)
+    n2 = _re.search(r"'nonce-([A-Za-z0-9_-]+)'", csp2)
+    assert n1 and n2
+    assert n1.group(1) != n2.group(1), \
+        f"Nonce did not rotate between requests: {n1.group(1)!r} == {n2.group(1)!r}"
+
+
 def test_main_pwa_icons_are_actually_served(client):
     """§4.10: A manifest can list any icon URL it wants — but if the
     URL 404s the install prompt silently won't appear. Pin that the

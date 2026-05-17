@@ -60,7 +60,7 @@ Things an attacker could exploit against the live site today.
 
 - [x] Add a strict CSP via `@app.after_request` in `main.py`. (Shipped 2026-05-13 — permissive first-pass: keeps `'unsafe-inline'` for script + style because of the inline `<script>` blocks in index.html and the hundreds of `style="..."` attributes; tightening to nonces is queued.)
 - [x] Bonus: also ship `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, and `Referrer-Policy: strict-origin-when-cross-origin` in the same `@app.after_request` handler. (Shipped 2026-05-13)
-- [ ] Tighten CSP script-src to nonces (drop `'unsafe-inline'`). Requires per-render nonce in `index.html`.
+- [x] Tighten CSP script-src to nonces (drop `'unsafe-inline'`). (Shipped 2026-05-17 — per-request nonce generated via `before_request` (`secrets.token_urlsafe(16)`), exposed to templates as `csp_nonce` Jinja variable, stamped onto the 3 inline `<script>` blocks in `index.html` (Sentry init, early-theme paint, Google globals). External scripts loaded by `src=` continue to match the URL allowlist without nonces. Tests pin three invariants: no `'unsafe-inline'` on script-src, every inline `<script>` tag carries a nonce matching the CSP header, and nonces rotate per-request. Inline `style="..."` cleanup still queued — separate bigger refactor paired with §3.1.)
 - [ ] Plan migration of JWT into an `HttpOnly; Secure; SameSite=Lax` cookie (defers to a quieter week — touches every `apiFetch` call).
 
 ### 0.5 `/api/sync` rewrites _any_ expense by guessed ID
