@@ -4937,3 +4937,268 @@ main#app-container.nav-anim-backward {
     background: #f5f7fa;
     min-height: 0;
 }
+
+/* ── §0.4 follow-up — shared modal styles (extracted from modals.ts) ──
+ *
+ * The modals.ts helper module is dynamically imported from multiple
+ * page chunks, so co-locating these rules in index.css (always loaded
+ * via the entry <link>) avoids chunk-CSS timing races when a modal
+ * opens. Classes prefixed `mdl-` so they're obviously modal-scoped
+ * and don't stomp on the broader app's class space.
+ *
+ * Collapses ~52 repeated inline-style sites in modals.ts into 18
+ * class definitions. One-shot styles (each appearing once) stay
+ * inline. Pattern matches the settlement.css extraction in scope. */
+
+/* Flex grow utilities — used by modal form rows. */
+.mdl-flex-1 { flex: 1; }
+.mdl-flex-2 { flex: 2; }
+
+/* Flex grow + truncate (the "let this column shrink below content
+ * to allow ellipsis on the parent text node" idiom). */
+.mdl-flex-1-truncate {
+    flex: 1;
+    min-width: 0;
+}
+
+/* Standard form-field block: full-width input row with bottom margin. */
+.mdl-form-field {
+    margin-bottom: var(--space-4);
+    width: 100%;
+}
+
+/* Variant of the above with a relative anchor (used for absolutely-
+ * positioned validation hints). */
+.mdl-form-field--relative {
+    margin-bottom: var(--space-4);
+    width: 100%;
+    position: relative;
+}
+
+/* Margin-bottom-only field block (when width is set elsewhere). */
+.mdl-form-field-mb { margin-bottom: var(--space-4); }
+
+/* Muted/disabled-looking helper text. */
+.mdl-text-muted-medium {
+    opacity: 0.5;
+    font-weight: 500;
+}
+
+/* Hero modal title — large centered white heading. */
+.mdl-title-hero {
+    font-size: var(--font-3xl);
+    margin-bottom: var(--space-6);
+    color: #ffffff;
+    letter-spacing: -0.06em;
+    font-weight: 800;
+    text-align: center;
+}
+
+/* Hero modal subtitle — small centered translucent white. */
+.mdl-subtitle-hero {
+    text-align: center;
+    color: rgba(255, 255, 255, 0.78);
+    font-size: 0.85rem;
+    margin-bottom: var(--space-5);
+}
+
+/* Modal button-row: bottom-of-modal action buttons. */
+.mdl-btn-row {
+    display: flex;
+    gap: var(--space-3);
+    width: 100%;
+    margin-top: var(--space-4);
+}
+
+/* Modal field-row: a horizontal field group. */
+.mdl-field-row {
+    display: flex;
+    gap: var(--space-3);
+    width: 100%;
+    margin-bottom: var(--space-2);
+}
+
+/* Block-display field label, primary weight. */
+.mdl-field-label-block {
+    display: block;
+    font-weight: 800;
+    font-size: 1rem;
+}
+
+/* Block-display field sub-label (helper text under the main label). */
+.mdl-field-sublabel {
+    display: block;
+    font-size: 0.78rem;
+    color: rgba(255, 255, 255, 0.72);
+    margin-top: 2px;
+}
+
+/* Small dark-text inline label (used inside white-card modals). */
+.mdl-text-label-dark {
+    font-weight: 700;
+    font-size: 0.92rem;
+    color: #ffffff;
+}
+
+/* Icon / emoji sizing inside modal field rows. */
+.mdl-icon-1-6 {
+    font-size: 1.6rem;
+    line-height: 1;
+}
+
+/* Fade-tone secondary text under a modal field. */
+.mdl-sub-text-fade {
+    font-size: 0.78rem;
+    color: rgba(255, 255, 255, 0.7);
+    margin-top: 2px;
+}
+
+/* 50%-opaque-black text (used for placeholder/disabled labels on
+ * light-modal backgrounds). */
+.mdl-text-fade-50 {
+    color: rgba(0, 0, 0, 0.5);
+}
+
+/* Dark-on-light modal button variant — used when the modal card is
+ * already on a dark background and a button needs the inverse tone. */
+.mdl-btn-dark {
+    color: #000;
+    background: rgba(0, 0, 0, 0.03);
+    border-color: rgba(0, 0, 0, 0.1);
+}
+
+/* Centered column flex (modal hero stacks). */
+.mdl-col-center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+}
+
+/* 18px green-accent checkbox/radio (the consent / "yes I confirm" toggles). */
+.mdl-checkbox-accent {
+    width: 18px;
+    height: 18px;
+    accent-color: #34c759;
+}
+
+/* ── §0.4 follow-up — trip media modals (extracted from tripMediaModals.ts) ──
+ *
+ * The trip Documents + Photos modal flows. Co-located in index.css for the
+ * same reason as the `.mdl-*` block above — these modals can fire from
+ * multiple page chunks (home / collections / share) and we want zero
+ * timing risk on first open. Prefix `tmm-` so it's obviously trip-media-
+ * modal scoped. */
+
+/* Section labels — the all-caps eyebrow text above each form group.
+ * Two variants because some include a top margin (when stacked below
+ * a previous group) and some don't (first label in a card). */
+.tmm-section-label {
+    font-size: 0.72rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--text-secondary);
+}
+
+.tmm-section-label--mt-8 {
+    font-size: 0.72rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--text-secondary);
+    margin-top: 8px;
+}
+
+/* Inner card tiles — the rounded chips holding documents / photos. */
+.tmm-card-minor {
+    padding: var(--space-3);
+    border-radius: 12px;
+}
+
+.tmm-card-minor-bg-white {
+    padding: var(--space-3);
+    border-radius: 12px;
+    background: white;
+}
+
+/* Form button row — Cancel/Save pair at bottom of the modal. */
+.tmm-btn-primary {
+    flex: 2;
+    border-radius: var(--radius-lg);
+}
+
+.tmm-btn-secondary {
+    flex: 1;
+    border-radius: var(--radius-lg);
+}
+
+/* Horizontal field group with standard gap. */
+.tmm-field-row {
+    display: flex;
+    gap: var(--space-3);
+}
+
+/* Vertical form column with top/bottom margins. */
+.tmm-form-col {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    margin: var(--space-4) 0 var(--space-6);
+}
+
+/* Upload pill button. */
+.tmm-upload-pill {
+    padding: var(--space-3) var(--space-4);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* Modal hero title — the "📎 Documents" / "📸 Photos" line. */
+.tmm-modal-title {
+    margin: 0;
+    font-size: 1.4rem;
+    color: #002d5b;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* Modal sub-text — secondary body copy. */
+.tmm-modal-subtext {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+/* Right-anchored small count label ("12 photos") that pushes itself
+ * to the right end of a flex row via margin-left:auto. */
+.tmm-count-right {
+    margin-left: auto;
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    font-weight: 600;
+}
+
+/* Large emoji icon (e.g. 2rem with bottom margin for empty-state cards). */
+.tmm-icon-large {
+    font-size: 2rem;
+    margin-bottom: 8px;
+}
+
+/* Medium emoji icon (matches the .tmm-modal-title icon size). */
+.tmm-icon-medium {
+    font-size: 1.4rem;
+}
+
+/* Status / hint text under a field (e.g. "⌛ Uploading…"). */
+.tmm-status-hint {
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+    min-height: 1em;
+    font-weight: 600;
+}

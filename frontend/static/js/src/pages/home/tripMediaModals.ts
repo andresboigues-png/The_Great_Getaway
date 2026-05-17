@@ -118,16 +118,16 @@ export const openTripDocumentsModal = (trip: any): void => {
                     style="background:white; color:#002d5b; border:1px solid rgba(0,0,0,0.1); padding:9px 16px; border-radius:999px; font-weight:800; font-size:0.82rem; cursor:pointer;">
                     📧 Search Gmail for bookings
                 </button>
-                <span style="margin-left:auto; font-size:0.78rem; color:var(--text-secondary); font-weight:600;">${docs.length} ${docs.length === 1 ? 'document' : 'documents'}</span>
+                <span class="tmm-count-right">${docs.length} ${docs.length === 1 ? 'document' : 'documents'}</span>
             </div>
         `;
         if (docs.length === 0) {
             return `
                 ${headerRow}
                 <div class="card glass" style="padding: 28px; border-radius: 18px; border: 1.5px dashed rgba(88,86,214,0.32); background: rgba(88,86,214,0.04); text-align:center;">
-                    <div style="font-size:2rem; margin-bottom:8px;">📎</div>
+                    <div class="tmm-icon-large">📎</div>
                     <h3 style="margin:0 0 6px; color:#5856d6; font-weight:800;">No documents yet</h3>
-                    <p style="margin:0; color:var(--text-secondary); font-size:0.9rem;">Click <strong>📧 Search Gmail for bookings</strong> to find your confirmation emails, then drop the PDFs / links in via <strong>➕ Add document</strong>. Trip-wide docs (passport, multi-day hotel) live on <strong>⚓ Trip Anchor</strong>; day-specific ones (museum ticket) tag to a numbered day.</p>
+                    <p class="tmm-modal-subtext">Click <strong>📧 Search Gmail for bookings</strong> to find your confirmation emails, then drop the PDFs / links in via <strong>➕ Add document</strong>. Trip-wide docs (passport, multi-day hotel) live on <strong>⚓ Trip Anchor</strong>; day-specific ones (museum ticket) tag to a numbered day.</p>
                 </div>
             `;
         }
@@ -182,8 +182,8 @@ export const openTripDocumentsModal = (trip: any): void => {
         cardStyle: 'width: min(880px, 92vw); max-height: 88vh; overflow-y: auto; padding: 28px; border-radius: 28px; background: white;',
         innerHTML: `
             <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 18px;">
-                <h2 style="margin:0; font-size:1.4rem; color:#002d5b; font-weight:800; letter-spacing:-0.02em; display:inline-flex; align-items:center; gap:10px;">
-                    <span style="font-size:1.4rem;">📎</span> Documents
+                <h2 class="tmm-modal-title">
+                    <span class="tmm-icon-medium">📎</span> Documents
                 </h2>
                 <button id="closeDocsModalBtn" class="close-x-btn" aria-label="Close">✕</button>
             </div>
@@ -306,16 +306,16 @@ export const openTripPhotosModal = (trip: any): void => {
                         🔗 Add by link
                     </button>
                 ` : ''}
-                <span style="margin-left:auto; font-size:0.78rem; color:var(--text-secondary); font-weight:600;">${photos.length} ${photos.length === 1 ? 'photo' : 'photos'}</span>
+                <span class="tmm-count-right">${photos.length} ${photos.length === 1 ? 'photo' : 'photos'}</span>
             </div>
         `;
         if (photos.length === 0) {
             return `
                 ${headerRow}
                 <div class="card glass" style="padding: 28px; border-radius: 18px; border: 1.5px dashed rgba(52,199,89,0.32); background: rgba(52,199,89,0.04); text-align:center;">
-                    <div style="font-size:2rem; margin-bottom:8px;">📸</div>
+                    <div class="tmm-icon-large">📸</div>
                     <h3 style="margin:0 0 6px; color:#1a6b3c; font-weight:800;">No photos yet</h3>
-                    <p style="margin:0; color:var(--text-secondary); font-size:0.9rem;">Use <strong>📤 Upload photos</strong> for files on your device, or <strong>🔗 Add by link</strong> for a Drive / Dropbox / iCloud share. New photos go to <strong>⚓ Trip Anchor</strong> (the trip-wide bucket); you can re-tag any of them to a specific day from the dropdown on each card.</p>
+                    <p class="tmm-modal-subtext">Use <strong>📤 Upload photos</strong> for files on your device, or <strong>🔗 Add by link</strong> for a Drive / Dropbox / iCloud share. New photos go to <strong>⚓ Trip Anchor</strong> (the trip-wide bucket); you can re-tag any of them to a specific day from the dropdown on each card.</p>
                 </div>
             `;
         }
@@ -383,8 +383,8 @@ export const openTripPhotosModal = (trip: any): void => {
         cardStyle: 'width: min(880px, 92vw); max-height: 88vh; overflow-y: auto; padding: 28px; border-radius: 28px; background: white;',
         innerHTML: `
             <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 18px;">
-                <h2 style="margin:0; font-size:1.4rem; color:#002d5b; font-weight:800; letter-spacing:-0.02em; display:inline-flex; align-items:center; gap:10px;">
-                    <span style="font-size:1.4rem;">📸</span> Photos
+                <h2 class="tmm-modal-title">
+                    <span class="tmm-icon-medium">📸</span> Photos
                 </h2>
                 <button id="closePhotosModalBtn" class="close-x-btn" aria-label="Close">✕</button>
             </div>
@@ -706,18 +706,18 @@ export const openAddTripDocumentModal = (trip: any): void => {
         innerHTML: `
             <h2 class="h2-display">Add document</h2>
             <p class="text-subtitle">Booking confirmation, hotel voucher, ticket — link or upload.</p>
-            <div style="display: flex; flex-direction: column; gap: var(--space-3); margin: var(--space-4) 0 var(--space-6);">
-                <label style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-secondary);">Name</label>
-                <input type="text" id="newDocName" class="glass-input" placeholder="e.g. Flight to Lisbon — Confirmation 7AB22Q" style="padding: var(--space-3); border-radius: 12px;">
-                <label style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-secondary); margin-top:8px;">Link or URL</label>
+            <div class="tmm-form-col">
+                <label class="tmm-section-label">Name</label>
+                <input type="text" id="newDocName" class="glass-input" placeholder="e.g. Flight to Lisbon — Confirmation 7AB22Q" class="tmm-card-minor">
+                <label class="tmm-section-label--mt-8">Link or URL</label>
                 <div style="display: flex; gap: var(--space-2);">
                     <input type="text" id="newDocUrl" class="glass-input" placeholder="https://..." style="flex: 1; padding: var(--space-3); border-radius: 12px;">
-                    <label class="btn-primary" style="padding: var(--space-3) var(--space-4); cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
+                    <label class="btn-primary tmm-upload-pill">
                         📤 Upload
                         <input type="file" id="newDocUpload" style="display: none;">
                     </label>
                 </div>
-                <div id="newDocStatus" style="font-size:0.72rem; color:var(--text-secondary); min-height:1em; font-weight:600;"></div>
+                <div id="newDocStatus" class="tmm-status-hint"></div>
                 <!-- Path A user-guidance: many booking emails (Airbnb,
                      forwarded itineraries, restaurant confirmations)
                      don't carry an attachment — the booking info is
@@ -731,15 +731,15 @@ export const openAddTripDocumentModal = (trip: any): void => {
                     <strong style="color: #005bb8;">📧 Booking email without an attachment?</strong><br>
                     Open the email in Gmail, hit <strong>Cmd&nbsp;+&nbsp;P</strong> (or Ctrl + P on Windows), pick <strong>Save as PDF</strong> as the destination, then come back here and click <strong>📤 Upload</strong> with that file. Captures the layout exactly — QR codes, dates, prices, all of it.
                 </div>
-                <label style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-secondary); margin-top:8px;">Where does it belong?</label>
-                <select id="newDocDay" class="glass-input" style="padding: var(--space-3); border-radius: 12px; background:white;">
+                <label class="tmm-section-label--mt-8">Where does it belong?</label>
+                <select id="newDocDay" class="glass-input tmm-card-minor-bg-white">
                     ${anchorDay ? `<option value="${esc(anchorDay.id)}" selected>⚓ Trip Anchor (passport, multi-day hotel, return flight…)</option>` : ''}
                     ${numberedDays.map(d => `<option value="${esc(d.id)}">Day ${d.dayNumber}${d.date ? ` — ${formatDayDate(d.date) || d.date}` : ''}</option>`).join('')}
                 </select>
             </div>
-            <div style="display:flex; gap: var(--space-3);">
-                <button id="newDocCancelBtn" class="btn-neutral" style="flex:1; border-radius: var(--radius-lg);">Cancel</button>
-                <button id="newDocSaveBtn" class="btn-primary" style="flex:2; border-radius: var(--radius-lg);">Add</button>
+            <div class="tmm-field-row">
+                <button id="newDocCancelBtn" class="btn-neutral tmm-btn-secondary">Cancel</button>
+                <button id="newDocSaveBtn" class="btn-primary tmm-btn-primary">Add</button>
             </div>
         `,
     });
@@ -811,29 +811,29 @@ export const openEditTripDocumentModal = (trip: any, docId: string): void => {
         innerHTML: `
             <h2 class="h2-display">Edit document</h2>
             <p class="text-subtitle">${isTripLevel ? 'Rename it, swap the link, or move it to a different day.' : 'Rename it or swap the link. (Legacy per-day entries can\'t be moved between days; delete + re-add to do that.)'}</p>
-            <div style="display: flex; flex-direction: column; gap: var(--space-3); margin: var(--space-4) 0 var(--space-6);">
-                <label style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-secondary);">Name</label>
-                <input type="text" id="editDocName" class="glass-input" value="${esc(doc.name || '')}" style="padding: var(--space-3); border-radius: 12px;">
-                <label style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-secondary); margin-top:8px;">Link or URL</label>
+            <div class="tmm-form-col">
+                <label class="tmm-section-label">Name</label>
+                <input type="text" id="editDocName" class="glass-input" value="${esc(doc.name || '')}" class="tmm-card-minor">
+                <label class="tmm-section-label--mt-8">Link or URL</label>
                 <div style="display: flex; gap: var(--space-2);">
                     <input type="text" id="editDocUrl" class="glass-input" value="${esc(doc.url || '')}" style="flex: 1; padding: var(--space-3); border-radius: 12px;">
-                    <label class="btn-primary" style="padding: var(--space-3) var(--space-4); cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
+                    <label class="btn-primary tmm-upload-pill">
                         📤 Replace
                         <input type="file" id="editDocUpload" style="display: none;">
                     </label>
                 </div>
-                <div id="editDocStatus" style="font-size:0.72rem; color:var(--text-secondary); min-height:1em; font-weight:600;"></div>
+                <div id="editDocStatus" class="tmm-status-hint"></div>
                 ${isTripLevel ? `
-                    <label style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-secondary); margin-top:8px;">Where does it belong?</label>
-                    <select id="editDocDay" class="glass-input" style="padding: var(--space-3); border-radius: 12px; background:white;">
+                    <label class="tmm-section-label--mt-8">Where does it belong?</label>
+                    <select id="editDocDay" class="glass-input tmm-card-minor-bg-white">
                         ${anchorDay ? `<option value="${esc(anchorDay.id)}" ${doc.dayId === anchorDay.id ? 'selected' : ''}>⚓ Trip Anchor (trip-wide)</option>` : ''}
                         ${numberedDays.map(d => `<option value="${esc(d.id)}" ${doc.dayId === d.id ? 'selected' : ''}>Day ${d.dayNumber}${d.date ? ` — ${formatDayDate(d.date) || d.date}` : ''}</option>`).join('')}
                     </select>
                 ` : ''}
             </div>
-            <div style="display:flex; gap: var(--space-3);">
-                <button id="editDocCancelBtn" class="btn-neutral" style="flex:1; border-radius: var(--radius-lg);">Cancel</button>
-                <button id="editDocSaveBtn" class="btn-primary" style="flex:2; border-radius: var(--radius-lg);">Save changes</button>
+            <div class="tmm-field-row">
+                <button id="editDocCancelBtn" class="btn-neutral tmm-btn-secondary">Cancel</button>
+                <button id="editDocSaveBtn" class="btn-primary tmm-btn-primary">Save changes</button>
             </div>
         `,
     });
@@ -920,21 +920,21 @@ export const openAddTripPhotoUrlModal = (trip: any): void => {
         innerHTML: `
             <h2 class="h2-display">Add photo by link</h2>
             <p class="text-subtitle">Paste a link to a hosted image, a Google Drive / Dropbox share, or a photo album page.</p>
-            <div style="display: flex; flex-direction: column; gap: var(--space-3); margin: var(--space-4) 0 var(--space-6);">
-                <label style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-secondary);">Image / album URL</label>
-                <input type="text" id="newPhotoUrl" class="glass-input" placeholder="https://..." style="padding: var(--space-3); border-radius: 12px;">
+            <div class="tmm-form-col">
+                <label class="tmm-section-label">Image / album URL</label>
+                <input type="text" id="newPhotoUrl" class="glass-input" placeholder="https://..." class="tmm-card-minor">
                 <div style="font-size:0.72rem; color:var(--text-secondary); line-height:1.45;">
                     <strong>Tip:</strong> for Drive / Dropbox albums, paste the share link — the link will open the album when clicked. Direct image URLs (ending in .jpg / .png / .heic) will render as a thumbnail in the grid.
                 </div>
-                <label style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.07em; color:var(--text-secondary); margin-top:8px;">Where does it belong?</label>
-                <select id="newPhotoDay" class="glass-input" style="padding: var(--space-3); border-radius: 12px; background:white;">
+                <label class="tmm-section-label--mt-8">Where does it belong?</label>
+                <select id="newPhotoDay" class="glass-input tmm-card-minor-bg-white">
                     ${anchorDay ? `<option value="${esc(anchorDay.id)}" selected>⚓ Trip Anchor</option>` : ''}
                     ${numberedDays.map(d => `<option value="${esc(d.id)}">Day ${d.dayNumber}${d.date ? ` — ${formatDayDate(d.date) || d.date}` : ''}</option>`).join('')}
                 </select>
             </div>
-            <div style="display:flex; gap: var(--space-3);">
-                <button id="newPhotoCancelBtn" class="btn-neutral" style="flex:1; border-radius: var(--radius-lg);">Cancel</button>
-                <button id="newPhotoSaveBtn" class="btn-primary" style="flex:2; border-radius: var(--radius-lg);">Add</button>
+            <div class="tmm-field-row">
+                <button id="newPhotoCancelBtn" class="btn-neutral tmm-btn-secondary">Cancel</button>
+                <button id="newPhotoSaveBtn" class="btn-primary tmm-btn-primary">Add</button>
             </div>
         `,
     });

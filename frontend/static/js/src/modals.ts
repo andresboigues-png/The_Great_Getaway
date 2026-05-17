@@ -250,31 +250,31 @@ export const openNewTripModal = () => {
         variant: 'glass',
         cardStyle: 'width: 420px;',
         innerHTML: `
-            <h2 class="card-title" style="font-size: var(--font-3xl); margin-bottom: var(--space-6); color: #ffffff; letter-spacing: -0.06em; font-weight: 800; text-align: center;">New Trip</h2>
-            <form id="newTripForm" style="display: flex; flex-direction: column; align-items: center; width: 100%;">
-                <div style="margin-bottom: var(--space-4); width: 100%;">
+            <h2 class="card-title mdl-title-hero">New Trip</h2>
+            <form id="newTripForm" class="mdl-col-center">
+                <div class="mdl-form-field">
                     <label class="form-label">Adventure Name</label>
                     <input type="text" id="tripName" class="glass-input-modal" placeholder="e.g. Summer in Tuscany" required>
                 </div>
-                <div style="margin-bottom: var(--space-4); width: 100%; position: relative;">
+                <div class="mdl-form-field--relative">
                     <label class="form-label">Destination</label>
                     <input type="text" id="tripPlaceInput" class="glass-input-modal" placeholder="Search a country, city, or address..." autocomplete="off">
                     <p id="tripPlaceHint" class="form-hint">Pick a suggestion to confirm the location.</p>
                 </div>
-                <div class="form-row-split" style="display: flex; gap: var(--space-3); width: 100%; margin-bottom: var(--space-2);">
-                    <div style="flex: 1;">
-                        <label class="form-label">Start date <span style="opacity: 0.5; font-weight: 500;">(optional)</span></label>
+                <div class="form-row-split mdl-field-row">
+                    <div class="mdl-flex-1">
+                        <label class="form-label">Start date <span class="mdl-text-muted-medium">(optional)</span></label>
                         <input type="date" id="tripStartDate" class="glass-input-modal">
                     </div>
-                    <div style="flex: 1;">
-                        <label class="form-label">End date <span style="opacity: 0.5; font-weight: 500;">(optional)</span></label>
+                    <div class="mdl-flex-1">
+                        <label class="form-label">End date <span class="mdl-text-muted-medium">(optional)</span></label>
                         <input type="date" id="tripEndDate" class="glass-input-modal">
                     </div>
                 </div>
-                <p class="form-hint" id="tripDateHint" style="margin-bottom: var(--space-4); width: 100%;">If you fill these in, we'll create one empty Path day per date — you can pin places later.</p>
-                <div style="display: flex; gap: var(--space-3); width: 100%; margin-top: var(--space-4);">
-                    <button type="submit" id="newTripSubmitBtn" class="btn-primary" style="flex: 2;" disabled>Create Trip</button>
-                    <button type="button" id="cancelTripBtn" class="btn-ghost" style="flex: 1;">Cancel</button>
+                <p class="form-hint" id="tripDateHint" class="mdl-form-field">If you fill these in, we'll create one empty Path day per date — you can pin places later.</p>
+                <div class="mdl-btn-row">
+                    <button type="submit" id="newTripSubmitBtn" class="btn-primary mdl-flex-2" disabled>Create Trip</button>
+                    <button type="button" id="cancelTripBtn" class="btn-ghost mdl-flex-1">Cancel</button>
                 </div>
             </form>
         `,
@@ -401,36 +401,36 @@ export const openEditTripModal = (trip: any) => {
         variant: 'glass',
         cardStyle: 'width: 420px;',
         innerHTML: `
-            <h2 class="card-title" style="font-size: var(--font-3xl); margin-bottom: var(--space-6); color: #ffffff; letter-spacing: -0.06em; font-weight: 800; text-align: center;">Edit Trip</h2>
-            <form id="editTripForm" style="display: flex; flex-direction: column; align-items: center; width: 100%;">
-                <div style="margin-bottom: var(--space-4); width: 100%;">
+            <h2 class="card-title mdl-title-hero">Edit Trip</h2>
+            <form id="editTripForm" class="mdl-col-center">
+                <div class="mdl-form-field">
                     <label class="form-label">Adventure Name</label>
                     <input type="text" id="editTripName" class="glass-input-modal" required>
                 </div>
-                <div style="margin-bottom: var(--space-4); width: 100%; position: relative;">
+                <div class="mdl-form-field--relative">
                     <label class="form-label">Destination</label>
                     <input type="text" id="editTripPlaceInput" class="glass-input-modal" placeholder="Search a country, city, or address..." autocomplete="off">
                     <p id="editTripPlaceHint" class="form-hint">Pick a new suggestion to change the location, or just rename.</p>
                 </div>
-                <div class="form-row-split" style="display: flex; gap: var(--space-3); width: 100%; margin-bottom: var(--space-2);">
-                    <div style="flex: 1;">
-                        <label class="form-label">Start date <span style="opacity: 0.5; font-weight: 500;">(optional)</span></label>
+                <div class="form-row-split mdl-field-row">
+                    <div class="mdl-flex-1">
+                        <label class="form-label">Start date <span class="mdl-text-muted-medium">(optional)</span></label>
                         <input type="date" id="editTripStartDate" class="glass-input-modal">
                     </div>
-                    <div style="flex: 1;">
-                        <label class="form-label">End date <span style="opacity: 0.5; font-weight: 500;">(optional)</span></label>
+                    <div class="mdl-flex-1">
+                        <label class="form-label">End date <span class="mdl-text-muted-medium">(optional)</span></label>
                         <input type="date" id="editTripEndDate" class="glass-input-modal">
                     </div>
                 </div>
-                <p id="editTripDateHint" class="form-hint" style="margin-bottom: var(--space-4); width: 100%;"></p>
+                <p id="editTripDateHint" class="form-hint mdl-form-field"></p>
 
                 <!-- Cover photo picker (post-Phase-C feature). Hidden
                      <input type="file"> driven by a styled button so we
                      keep the rest of the modal's glass aesthetic.
                      Preview thumbnail appears below once a photo is set,
                      with a "Remove" link to clear it. -->
-                <div style="margin-bottom: var(--space-4); width: 100%;">
-                    <label class="form-label">Cover photo <span style="opacity: 0.5; font-weight: 500;">(optional)</span></label>
+                <div class="mdl-form-field">
+                    <label class="form-label">Cover photo <span class="mdl-text-muted-medium">(optional)</span></label>
                     <input type="file" id="editTripCoverInput" accept="image/*" style="display: none;">
                     <div style="display: flex; gap: var(--space-3); align-items: center;">
                         <button type="button" id="editTripCoverPickBtn" class="btn-ghost" style="flex: 0 0 auto; padding: 10px 18px; font-size: 0.85rem; font-weight: 700;">
@@ -450,9 +450,9 @@ export const openEditTripModal = (trip: any) => {
                      is now purely about renaming / re-pinning /
                      cover photo — share is its own surface. -->
 
-                <div style="display: flex; gap: var(--space-3); width: 100%; margin-top: var(--space-4);">
-                    <button type="submit" id="editTripSubmitBtn" class="btn-primary" style="flex: 2;">Save Changes</button>
-                    <button type="button" id="cancelEditTripBtn" class="btn-ghost" style="flex: 1;">Cancel</button>
+                <div class="mdl-btn-row">
+                    <button type="submit" id="editTripSubmitBtn" class="btn-primary mdl-flex-2">Save Changes</button>
+                    <button type="button" id="cancelEditTripBtn" class="btn-ghost mdl-flex-1">Cancel</button>
                 </div>
             </form>
         `,
@@ -705,16 +705,16 @@ export const openAddDayModal = () => {
                 <h2 class="card-title" style="font-size: var(--font-3xl); margin: 0; color: #000000; letter-spacing: -0.06em; font-weight: 800; text-align: center;">Add Day</h2>
             </div>
             <form id="addDayForm" style="display: flex; flex-direction: column; width: 100%;">
-                <div style="margin-bottom: var(--space-4);">
-                    <label class="form-label" style="color: rgba(0,0,0,0.5);">Where are you going?</label>
-                    <input type="text" id="dayName" class="glass-input-modal" style="color: #000; background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.1);" value="Day ${nextDayNumber}" placeholder="e.g. Exploring Rome" required autofocus>
+                <div class="mdl-form-field-mb">
+                    <label class="form-label mdl-text-fade-50">Where are you going?</label>
+                    <input type="text" id="dayName" class="glass-input-modal mdl-btn-dark" value="Day ${nextDayNumber}" placeholder="e.g. Exploring Rome" required autofocus>
                 </div>
                 <div style="margin-bottom: var(--space-6);">
-                    <label class="form-label" style="color: rgba(0,0,0,0.5);">Date ${suggestedDate ? '(Auto)' : ''}</label>
-                    <input type="date" id="dayDate" class="glass-input-modal" style="color: #000; background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.1);" value="${suggestedDate}" required>
+                    <label class="form-label mdl-text-fade-50">Date ${suggestedDate ? '(Auto)' : ''}</label>
+                    <input type="date" id="dayDate" class="glass-input-modal mdl-btn-dark" value="${suggestedDate}" required>
                 </div>
                 <div style="display: flex; gap: var(--space-2); width: 100%;">
-                    <button type="submit" class="btn-primary" style="flex: 2;">Confirm</button>
+                    <button type="submit" class="btn-primary mdl-flex-2">Confirm</button>
                     <button type="button" id="cancelDayBtn" class="btn-ghost" style="flex: 1; background: rgba(0,0,0,0.05); color: #000; border: none;">Cancel</button>
                 </div>
             </form>
@@ -865,7 +865,7 @@ export const openShareTripModal = (trip: any) => {
         innerHTML: `
             ${closeXBtnHtml}
             <h2 class="card-title" style="font-size: var(--font-2xl); margin-bottom: var(--space-2); color: #ffffff; letter-spacing: -0.04em; font-weight: 800; text-align: center; padding-left: 32px; padding-right: 32px;">${esc(t('share.linkTitle'))}</h2>
-            <p style="text-align: center; color: rgba(255,255,255,0.78); font-size: 0.85rem; margin-bottom: var(--space-5);">
+            <p class="mdl-subtitle-hero">
                 ${esc(t('share.linkSubtitle'))}
             </p>
 
@@ -874,29 +874,29 @@ export const openShareTripModal = (trip: any) => {
                  ALWAYS shows the trip's name, cover photo, and the
                  day-by-day Path; these toggles add layers on top. -->
             <label id="shareCostToggleRow" style="display: flex; align-items: center; gap: var(--space-3); width: 100%; padding: var(--space-3) var(--space-4); background: rgba(255,255,255,0.08); border-radius: 14px; margin-bottom: 10px; cursor: pointer;">
-                <input type="checkbox" id="shareCostToggle" ${initialShowCost ? 'checked' : ''} style="width: 18px; height: 18px; accent-color: #34c759;">
-                <div style="flex: 1; min-width: 0;">
-                    <div style="font-weight: 700; font-size: 0.92rem; color: #ffffff;">${esc(t('share.toggleCostTitle'))}</div>
-                    <div style="font-size: 0.78rem; color: rgba(255,255,255,0.7); margin-top: 2px;">${esc(t('share.toggleCostBody'))}</div>
+                <input type="checkbox" id="shareCostToggle" ${initialShowCost ? 'checked' : ''} class="mdl-checkbox-accent">
+                <div class="mdl-flex-1-truncate">
+                    <div class="mdl-text-label-dark">${esc(t('share.toggleCostTitle'))}</div>
+                    <div class="mdl-sub-text-fade">${esc(t('share.toggleCostBody'))}</div>
                 </div>
             </label>
             <label id="sharePlansToggleRow" style="display: flex; align-items: center; gap: var(--space-3); width: 100%; padding: var(--space-3) var(--space-4); background: rgba(255,255,255,0.08); border-radius: 14px; margin-bottom: var(--space-4); cursor: pointer;">
-                <input type="checkbox" id="sharePlansToggle" ${initialShowPlans ? 'checked' : ''} style="width: 18px; height: 18px; accent-color: #34c759;">
-                <div style="flex: 1; min-width: 0;">
-                    <div style="font-weight: 700; font-size: 0.92rem; color: #ffffff;">${esc(t('share.togglePlansTitle'))}</div>
-                    <div style="font-size: 0.78rem; color: rgba(255,255,255,0.7); margin-top: 2px;">${esc(t('share.togglePlansBody'))}</div>
+                <input type="checkbox" id="sharePlansToggle" ${initialShowPlans ? 'checked' : ''} class="mdl-checkbox-accent">
+                <div class="mdl-flex-1-truncate">
+                    <div class="mdl-text-label-dark">${esc(t('share.togglePlansTitle'))}</div>
+                    <div class="mdl-sub-text-fade">${esc(t('share.togglePlansBody'))}</div>
                 </div>
             </label>
 
             <!-- Status / URL block — swapped based on whether a token
                  already exists. -->
-            <div id="shareStateBlock" style="margin-bottom: var(--space-4);"></div>
+            <div id="shareStateBlock" class="mdl-form-field-mb"></div>
 
             <!-- Primary CTA: generate (when no token), copy (when token).
                  The secondary button is Unshare (token only) or Close. -->
             <div style="display: flex; gap: var(--space-3); width: 100%;">
-                <button type="button" id="shareGenerateBtn" class="btn-primary" style="flex: 2;"></button>
-                <button type="button" id="shareSecondaryBtn" class="btn-ghost" style="flex: 1;"></button>
+                <button type="button" id="shareGenerateBtn" class="btn-primary mdl-flex-2"></button>
+                <button type="button" id="shareSecondaryBtn" class="btn-ghost mdl-flex-1"></button>
             </div>
         `,
     });
@@ -1145,25 +1145,25 @@ export function openShareChooserModal(opts: ShareChooserOpts) {
         innerHTML: `
             ${closeXBtnHtml}
             <h2 class="card-title" style="font-size: var(--font-2xl); margin-bottom: var(--space-2); color: #ffffff; letter-spacing: -0.04em; font-weight: 800; text-align: center; padding-right: 32px; padding-left: 32px;">${esc(t('share.chooserTitle', { name: trip.name || 'this trip' }))}</h2>
-            <p style="text-align: center; color: rgba(255,255,255,0.78); font-size: 0.85rem; margin-bottom: var(--space-5);">
+            <p class="mdl-subtitle-hero">
                 ${esc(t('share.chooserSubtitle'))}
             </p>
 
             ${showFeedOption ? `
                 <button type="button" id="shareChooserFeedBtn" style="display:flex; align-items:center; gap:14px; width:100%; padding:16px 18px; margin-bottom:12px; background:rgba(255,255,255,0.10); border:1px solid rgba(255,255,255,0.22); border-radius:14px; color:#ffffff; cursor:pointer; text-align:left;">
-                    <span style="font-size:1.6rem; line-height:1;">📢</span>
-                    <span style="flex:1; min-width:0;">
-                        <span style="display:block; font-weight:800; font-size:1rem;">${esc(t('share.chooserFeedTitle'))}</span>
-                        <span style="display:block; font-size:0.78rem; color:rgba(255,255,255,0.72); margin-top:2px;">${esc(t('share.chooserFeedBody'))}</span>
+                    <span class="mdl-icon-1-6">📢</span>
+                    <span class="mdl-flex-1-truncate">
+                        <span class="mdl-field-label-block">${esc(t('share.chooserFeedTitle'))}</span>
+                        <span class="mdl-field-sublabel">${esc(t('share.chooserFeedBody'))}</span>
                     </span>
                 </button>
             ` : ''}
 
             <button type="button" id="shareChooserLinkBtn" style="display:flex; align-items:center; gap:14px; width:100%; padding:16px 18px; background:rgba(255,255,255,0.10); border:1px solid rgba(255,255,255,0.22); border-radius:14px; color:#ffffff; cursor:pointer; text-align:left;">
-                <span style="font-size:1.6rem; line-height:1;">🔗</span>
-                <span style="flex:1; min-width:0;">
-                    <span style="display:block; font-weight:800; font-size:1rem;">${esc(t('share.chooserLinkTitle'))}</span>
-                    <span style="display:block; font-size:0.78rem; color:rgba(255,255,255,0.72); margin-top:2px;">${esc(t('share.chooserLinkBody'))}</span>
+                <span class="mdl-icon-1-6">🔗</span>
+                <span class="mdl-flex-1-truncate">
+                    <span class="mdl-field-label-block">${esc(t('share.chooserLinkTitle'))}</span>
+                    <span class="mdl-field-sublabel">${esc(t('share.chooserLinkBody'))}</span>
                 </span>
             </button>
 
