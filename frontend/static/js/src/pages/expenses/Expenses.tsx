@@ -79,13 +79,7 @@ export function Expenses() {
         return (
             <div>
                 <h1
-                    style={{
-                        display: 'inline-block',
-                        background: 'var(--gradient-title)',
-                        WebkitBackgroundClip: 'text',
-                        WebkitTextFillColor: 'transparent',
-                        backgroundClip: 'text',
-                    }}
+                    className="inline-block bg-[var(--gradient-title)] [-webkit-background-clip:text] [-webkit-text-fill-color:transparent] bg-clip-text"
                 >
                     {t('expenses.title')}
                 </h1>
@@ -113,14 +107,7 @@ export function Expenses() {
     return (
         <div>
             <h1
-                style={{
-                    display: 'inline-block',
-                    background: 'var(--gradient-title)',
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                    backgroundClip: 'text',
-                    marginBottom: 12,
-                }}
+                className="inline-block bg-[var(--gradient-title)] [-webkit-background-clip:text] [-webkit-text-fill-color:transparent] bg-clip-text mb-3"
             >
                 {t('expenses.title')}
             </h1>
@@ -163,18 +150,12 @@ function ReadOnlyNotice({ tabLabel, verb }: { tabLabel: string; verb: string }) 
         >
             <div className="text-[2.4rem] mb-3">👁</div>
             <h2
-                style={{
-                    margin: '0 0 12px',
-                    fontSize: '1.4rem',
-                    fontWeight: 800,
-                    color: 'var(--text-brand-navy)',
-                    letterSpacing: '-0.02em',
-                }}
+                className="mt-0 mx-0 mb-3 text-[1.4rem] font-extrabold text-brand-navy tracking-[-0.02em]"
             >
                 {t('expenses.readOnlyTitle')}
             </h2>
             <p
-                style={{ margin: 0, color: 'rgba(0,0,0,0.55)', lineHeight: 1.5 }}
+                className="m-0 text-[rgba(0,0,0,0.55)] leading-[1.5]"
                 dangerouslySetInnerHTML={{
                     __html: t('expenses.readOnlyBody', { verb, tab: tabLabel }),
                 }}

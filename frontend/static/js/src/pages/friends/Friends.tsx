@@ -105,15 +105,7 @@ function UserCard({ user, variant = 'neutral', onClick, rightSide, rowClass = ''
             <Avatar user={user} />
             <div className="flex-1 min-w-0">
                 <div
-                    style={{
-                        fontWeight: 800,
-                        color: 'var(--text-brand-navy)',
-                        fontSize: '0.95rem',
-                        lineHeight: 1.2,
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                    }}
+                    className="font-extrabold text-brand-navy text-[0.95rem] leading-[1.2] overflow-hidden overflow-ellipsis whitespace-nowrap"
                 >
                     {user.name || t('friends.cardFallbackName')}
                 </div>
@@ -284,19 +276,19 @@ export function Friends() {
                 one-way buckets get neutral chip styling. */}
             <div className="mt-4 flex gap-[10px] flex-wrap">
                 <span
-                    className="inline-flex items-center gap-2 bg-[rgba(0,113,227,0.08)] text-accent-blue-deep py-1.5 px-3.5 rounded-[999px] text-[0.82rem] font-extrabold"
+                    className="inline-flex items-center gap-2 bg-[rgba(0,113,227,0.08)] text-accent-blue-deep py-1.5 px-3.5 rounded-full text-[0.82rem] font-extrabold"
                 >
                     <span className="fr-icon-glyph">👥</span>
                     {mutuals.length} {tn('profile.friendsLabel', mutuals.length)}
                 </span>
                 <span
-                    className="inline-flex items-center gap-2 bg-[rgba(0,0,0,0.04)] text-brand-navy py-1.5 px-3.5 rounded-[999px] text-[0.82rem] font-extrabold"
+                    className="inline-flex items-center gap-2 bg-[rgba(0,0,0,0.04)] text-brand-navy py-1.5 px-3.5 rounded-full text-[0.82rem] font-extrabold"
                 >
                     <span className="fr-icon-glyph">👋</span>
                     {followers.length + mutuals.length} followers
                 </span>
                 <span
-                    className="inline-flex items-center gap-2 bg-[rgba(0,0,0,0.04)] text-brand-navy py-1.5 px-3.5 rounded-[999px] text-[0.82rem] font-extrabold"
+                    className="inline-flex items-center gap-2 bg-[rgba(0,0,0,0.04)] text-brand-navy py-1.5 px-3.5 rounded-full text-[0.82rem] font-extrabold"
                 >
                     <span className="fr-icon-glyph">🧭</span>
                     {following.length + mutuals.length} following
@@ -311,13 +303,7 @@ export function Friends() {
                     className="flex items-center justify-between mb-[14px]"
                 >
                     <h3
-                        style={{
-                            margin: 0,
-                            fontSize: '1.05rem',
-                            color: 'var(--text-brand-navy)',
-                            fontWeight: 800,
-                            letterSpacing: '-0.02em',
-                        }}
+                        className="m-0 text-[1.05rem] text-brand-navy font-extrabold tracking-[-0.02em]"
                     >
                         {t('friends.findFriendsTitle')}
                     </h3>
@@ -338,13 +324,7 @@ export function Friends() {
                             strokeWidth="2.4"
                             strokeLinecap="round"
                             strokeLinejoin="round"
-                            style={{
-                                position: 'absolute',
-                                left: '12px',
-                                top: '50%',
-                                transform: 'translateY(-50%)',
-                                pointerEvents: 'none',
-                            }}
+                            className="absolute left-3 top-[50%] translate-y-[-50%] pointer-events-none"
                         >
                             <circle cx="11" cy="11" r="7"></circle>
                             <path d="M21 21l-4.35-4.35"></path>
@@ -359,34 +339,13 @@ export function Friends() {
                                 if (e.key === 'Enter') searchForUsers();
                             }}
                             placeholder="Email of the friend you want to add…"
-                            style={{
-                                width: '100%',
-                                boxSizing: 'border-box',
-                                padding: '10px 12px 10px 36px',
-                                border: '1px solid var(--border-subtle)',
-                                borderRadius: '999px',
-                                fontSize: '0.9rem',
-                                background: 'var(--card-bg)',
-                                fontWeight: 600,
-                                color: 'var(--text-brand-navy)',
-                                outline: 0,
-                            }}
+                            className="w-full box-border pt-2.5 pr-3 pb-2.5 pl-9 border border-[var(--border-subtle)] rounded-full text-[0.9rem] bg-card font-semibold text-brand-navy outline-0"
                         />
                     </div>
                     <button
                         type="button"
                         onClick={searchForUsers}
-                        style={{
-                            background: 'var(--accent-blue)',
-                            color: 'white',
-                            border: 0,
-                            padding: '10px 22px',
-                            borderRadius: '999px',
-                            fontWeight: 800,
-                            fontSize: '0.85rem',
-                            cursor: 'pointer',
-                            boxShadow: '0 4px 12px rgba(0,113,227,0.22)',
-                        }}
+                        className="bg-accent-blue text-white border-0 py-2.5 px-[22px] rounded-full font-extrabold text-[0.85rem] cursor-pointer shadow-[0_4px_12px_rgba(0,113,227,0.22)]"
                     >
                         Search
                     </button>
@@ -416,31 +375,14 @@ export function Friends() {
                     )}
                     {searchStatus.kind === 'all_known' && (
                         <div
-                            style={{
-                                textAlign: 'center',
-                                padding: '18px',
-                                fontSize: '0.85rem',
-                                color: 'var(--text-secondary)',
-                                background: 'rgba(52,199,89,0.04)',
-                                borderRadius: '14px',
-                                border: '1px solid rgba(52,199,89,0.18)',
-                            }}
+                            className="text-center p-[18px] text-[0.85rem] text-secondary bg-[rgba(52,199,89,0.04)] rounded-[14px] border border-[rgba(52,199,89,0.18)]"
                         >
                             ✓ Already connected with everyone matching that search.
                         </div>
                     )}
                     {searchStatus.kind === 'sent' && (
                         <div
-                            style={{
-                                textAlign: 'center',
-                                padding: '14px',
-                                fontSize: '0.85rem',
-                                color: '#1a6b3c',
-                                fontWeight: 800,
-                                background: 'rgba(52,199,89,0.08)',
-                                borderRadius: '14px',
-                                border: '1px solid rgba(52,199,89,0.22)',
-                            }}
+                            className="text-center p-3.5 text-[0.85rem] text-[#1a6b3c] font-extrabold bg-[rgba(52,199,89,0.08)] rounded-[14px] border border-[rgba(52,199,89,0.22)]"
                         >
                             ✓ Now following.
                         </div>
@@ -463,18 +405,7 @@ export function Friends() {
                                         <button
                                             type="button"
                                             onClick={() => followUser(u.id)}
-                                            style={{
-                                                background: 'var(--accent-blue)',
-                                                color: 'white',
-                                                border: 0,
-                                                padding: '8px 16px',
-                                                borderRadius: '999px',
-                                                fontWeight: 800,
-                                                fontSize: '0.78rem',
-                                                cursor: 'pointer',
-                                                flexShrink: 0,
-                                                boxShadow: '0 4px 12px rgba(0,113,227,0.22)',
-                                            }}
+                                            className="bg-accent-blue text-white border-0 py-2 px-4 rounded-full font-extrabold text-[0.78rem] cursor-pointer shrink-0 shadow-[0_4px_12px_rgba(0,113,227,0.22)]"
                                         >
                                             {t('friends.sendRequestBtn')}
                                         </button>
@@ -507,18 +438,7 @@ export function Friends() {
                             e.stopPropagation();
                             followUser(u.id);
                         }}
-                        style={{
-                            background: 'var(--accent-blue)',
-                            color: 'white',
-                            border: 0,
-                            padding: '7px 14px',
-                            borderRadius: '999px',
-                            fontWeight: 800,
-                            fontSize: '0.76rem',
-                            cursor: 'pointer',
-                            flexShrink: 0,
-                            boxShadow: '0 4px 12px rgba(0,113,227,0.22)',
-                        }}
+                        className="bg-accent-blue text-white border-0 py-[7px] px-3.5 rounded-full font-extrabold text-[0.76rem] cursor-pointer shrink-0 shadow-[0_4px_12px_rgba(0,113,227,0.22)]"
                     >
                         {t('friends.followBackBtn')}
                     </button>
@@ -599,13 +519,7 @@ function NetworkSection({
                 className="flex items-center justify-between mb-[14px] gap-3"
             >
                 <h3
-                    style={{
-                        margin: 0,
-                        fontSize: '1.05rem',
-                        color: 'var(--text-brand-navy)',
-                        fontWeight: 800,
-                        letterSpacing: '-0.02em',
-                    }}
+                    className="m-0 text-[1.05rem] text-brand-navy font-extrabold tracking-[-0.02em]"
                 >
                     {title}
                 </h3>
@@ -666,27 +580,12 @@ function NetworkSection({
 function UnfollowButton({ onClick }: { onClick: () => void }) {
     return (
         <button
-            className="remove-friend-btn"
+            className="remove-friend-btn bg-[rgba(255,59,48,0.08)] border border-[rgba(255,59,48,0.22)] text-[#ff3b30] w-7 h-7 rounded-full cursor-pointer text-[0.78rem] font-extrabold inline-flex items-center justify-center p-0"
             type="button"
             title={t('friends.removeFriendTooltip')}
             onClick={(e) => {
                 e.stopPropagation();
                 onClick();
-            }}
-            style={{
-                background: 'rgba(255,59,48,0.08)',
-                border: '1px solid rgba(255,59,48,0.22)',
-                color: '#ff3b30',
-                width: '28px',
-                height: '28px',
-                borderRadius: '50%',
-                cursor: 'pointer',
-                fontSize: '0.78rem',
-                fontWeight: 800,
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: 0,
             }}
         >
             ✕

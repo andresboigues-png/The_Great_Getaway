@@ -22,49 +22,19 @@ export function ExploreCard({ item }: { item: ExploreFeedItem }) {
 
     return (
         <a
-            className="card glass feed-explore-card"
+            className="card glass feed-explore-card block no-underline text-inherit p-0 rounded-lg overflow-hidden shadow-[0_4px_14px_rgba(0,45,91,0.06)] border border-[rgba(0,199,190,0.18)]"
             href={`/share/${item.shareToken}`}
-            style={{
-                display: 'block',
-                textDecoration: 'none',
-                color: 'inherit',
-                padding: 0,
-                borderRadius: 18,
-                overflow: 'hidden',
-                boxShadow: '0 4px 14px rgba(0,45,91,0.06)',
-                border: '1px solid rgba(0,199,190,0.18)',
-            }}
         >
             <div style={{ ...coverStyle, height: 160, position: 'relative' }}>
                 <div
-                    style={{
-                        position: 'absolute',
-                        right: 10,
-                        top: 10,
-                        background: 'rgba(0,0,0,0.55)',
-                        color: 'white',
-                        padding: '4px 10px',
-                        borderRadius: 999,
-                        fontSize: '0.72rem',
-                        fontWeight: 700,
-                        backdropFilter: 'blur(8px)',
-                    }}
+                    className="absolute right-2.5 top-2.5 bg-[rgba(0,0,0,0.55)] text-white py-1 px-2.5 rounded-full text-[0.72rem] font-bold backdrop-blur"
                 >
                     👁 {item.shareViews}
                 </div>
             </div>
             <div className="py-3.5 px-4">
                 <div
-                    style={{
-                        fontSize: '1.05rem',
-                        fontWeight: 800,
-                        color: 'var(--text-primary)',
-                        letterSpacing: '-0.02em',
-                        marginBottom: 4,
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                    }}
+                    className="text-[1.05rem] font-extrabold text-primary tracking-[-0.02em] mb-1 overflow-hidden overflow-ellipsis whitespace-nowrap"
                 >
                     {item.name}
                 </div>

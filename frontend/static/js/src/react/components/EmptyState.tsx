@@ -92,7 +92,7 @@ export function EmptyState({
             >
                 <div className="text-[5rem] mb-5 opacity-50">{emoji}</div>
                 <h2 className="text-primary mb-2.5">{title}</h2>
-                <p style={{ maxWidth: '400px', lineHeight: 1.5 }}>{body}</p>
+                <p className="max-w-[400px] leading-[1.5]">{body}</p>
                 {ctaLabel && onCta && (
                     <button className="btn mt-6" onClick={onCta}>
                         {ctaLabel}
@@ -126,18 +126,13 @@ export function EmptyState({
                 {title}
             </h3>
             <p
-                style={{
-                    margin: 0,
-                    color: 'var(--text-secondary)',
-                    fontSize: '0.9rem',
-                    lineHeight: 1.5,
-                }}
+                className="m-0 text-secondary text-[0.9rem] leading-[1.5]"
             >
                 {body}
             </p>
             {ctaLabel && onCta && (
                 <button
-                    className="btn-primary mt-4 py-2.5 px-[22px] rounded-[999px]"
+                    className="btn-primary mt-4 py-2.5 px-[22px] rounded-full"
                     onClick={onCta}
                 >
                     {ctaLabel}

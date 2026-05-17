@@ -378,29 +378,10 @@ export function ManualTab() {
     return (
         <div>
             <div
-                className="card glass manual-expense-card"
-                style={{
-                    maxWidth: 600,
-                    margin: '0 auto',
-                    width: '100%',
-                    borderRadius: 44,
-                    border: '1px solid var(--glass-border)',
-                    background: 'var(--glass-bg)',
-                    backdropFilter: 'blur(25px)',
-                    padding: 48,
-                    boxShadow: '0 40px 100px rgba(0,0,0,0.25)',
-                }}
+                className="card glass manual-expense-card max-w-[600px] my-0 mx-auto w-full rounded-[44px] border border-[var(--glass-border)] bg-[var(--glass-bg)] backdrop-blur-[25px] p-12 shadow-[0_40px_100px_rgba(0,0,0,0.25)]"
             >
                 <h2
-                    className="card-title"
-                    style={{
-                        fontSize: '2.2rem',
-                        marginBottom: 32,
-                        color: 'var(--text-primary)',
-                        letterSpacing: '-0.06em',
-                        fontWeight: 800,
-                        textAlign: 'center',
-                    }}
+                    className="card-title text-[2.2rem] mb-8 text-primary tracking-[-0.06em] font-extrabold text-center"
                 >
                     {t('expenses.addExpenseTitle')}
                 </h2>
@@ -433,16 +414,7 @@ export function ManualTab() {
                         </select>
                         {!hasTripCompanions ? (
                             <div
-                                style={{
-                                    marginTop: 'var(--space-3)',
-                                    fontSize: 'var(--font-sm)',
-                                    color: '#005bb8',
-                                    fontWeight: 600,
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 6,
-                                }}
+                                className="mt-3 text-[length:var(--font-sm)] text-[#005bb8] font-semibold cursor-pointer flex items-center gap-1.5"
                                 onClick={() => navigate('home')}
                             >
                                 <span>➕</span>{' '}
@@ -651,17 +623,8 @@ export function ManualTab() {
                         >
                             <button
                                 type="button"
-                                className="btn-ghost"
+                                className="btn-ghost flex-none py-2.5 px-4 text-[0.85rem] font-bold text-brand-navy bg-[rgba(0,0,0,0.04)] border border-[rgba(0,0,0,0.08)]"
                                 disabled={receiptUploading}
-                                style={{
-                                    flex: '0 0 auto',
-                                    padding: '10px 16px',
-                                    fontSize: '0.85rem',
-                                    fontWeight: 700,
-                                    color: 'var(--text-brand-navy)',
-                                    background: 'rgba(0,0,0,0.04)',
-                                    border: '1px solid rgba(0,0,0,0.08)',
-                                }}
                                 onClick={onPickReceipt}
                             >
                                 📎 Attach receipt
@@ -673,15 +636,7 @@ export function ManualTab() {
                                     <img
                                         src={receiptUrl}
                                         alt="Receipt preview"
-                                        style={{
-                                            width: 48,
-                                            height: 48,
-                                            borderRadius: 10,
-                                            objectFit: 'cover',
-                                            border: '1px solid rgba(0,0,0,0.08)',
-                                            boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-                                            cursor: 'pointer',
-                                        }}
+                                        className="w-12 h-12 rounded-[10px] object-cover border border-[rgba(0,0,0,0.08)] shadow-[0_4px_12px_rgba(0,0,0,0.08)] cursor-pointer"
                                         title="Click to view full size"
                                         onClick={onViewReceipt}
                                     />
@@ -715,46 +670,20 @@ export function ManualTab() {
 
                     {/* Split editor */}
                     <div
-                        style={{
-                            marginBottom: 40,
-                            background: 'rgba(0,0,0,0.03)',
-                            padding: 32,
-                            borderRadius: 32,
-                            border: '1px solid rgba(0,0,0,0.05)',
-                            width: '100%',
-                            maxWidth: 440,
-                            boxSizing: 'border-box',
-                        }}
+                        className="mb-10 bg-[rgba(0,0,0,0.03)] p-8 rounded-3xl border border-[rgba(0,0,0,0.05)] w-full max-w-[440px] box-border"
                     >
                         <label
-                            style={{
-                                display: 'block',
-                                marginBottom: 16,
-                                fontSize: '0.9rem',
-                                fontWeight: 800,
-                                color: 'var(--text-primary)',
-                                letterSpacing: '-0.02em',
-                            }}
+                            className="block mb-4 text-[0.9rem] font-extrabold text-primary tracking-[-0.02em]"
                         >
                             {t('expenses.splitBetween')}
                         </label>
                         <div className="add-split-row flex gap-[14px] mb-5">
                             <select
-                                className="glass-input"
+                                className="glass-input flex-1 p-3.5 rounded-[16px] bg-[rgba(255,255,255,0.4)] text-primary font-semibold border border-[rgba(0,0,0,0.05)] box-border"
                                 aria-label="Add a person to split the expense between"
                                 disabled={!hasTripCompanions}
                                 value={addSplitChoice}
                                 onChange={(e) => setAddSplitChoice(e.target.value)}
-                                style={{
-                                    flex: 1,
-                                    padding: 14,
-                                    borderRadius: 16,
-                                    background: 'rgba(255,255,255,0.4)',
-                                    color: 'var(--text-primary)',
-                                    fontWeight: 600,
-                                    border: '1px solid rgba(0,0,0,0.05)',
-                                    boxSizing: 'border-box',
-                                }}
                             >
                                 <option value="">
                                     {hasTripCompanions
@@ -811,10 +740,7 @@ export function ManualTab() {
                                                 required
                                             />
                                             <span
-                                                style={{
-                                                    color: 'var(--text-secondary)',
-                                                    fontSize: 'var(--font-base)',
-                                                }}
+                                                className="text-secondary text-[length:var(--font-base)]"
                                             >
                                                 %
                                             </span>

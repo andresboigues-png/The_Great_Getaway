@@ -379,20 +379,8 @@ function ProfileContent({
             {!isOwnProfile ? (
                 <button
                     type="button"
-                    className="btn btn-small"
+                    className="btn btn-small mb-5 bg-[rgba(0,0,0,0.05)] text-primary border border-[var(--glass-border)] py-2 px-4 rounded-md font-bold flex items-center gap-2"
                     onClick={() => navigate('friends')}
-                    style={{
-                        marginBottom: 20,
-                        background: 'rgba(0,0,0,0.05)',
-                        color: 'var(--text-primary)',
-                        border: '1px solid var(--glass-border)',
-                        padding: '8px 16px',
-                        borderRadius: 12,
-                        fontWeight: 700,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 8,
-                    }}
                 >
                     <svg
                         width="16"
@@ -412,15 +400,7 @@ function ProfileContent({
 
             {/* Profile Header */}
             <div
-                className="profile-header"
-                style={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: 40,
-                    padding: '30px 20px',
-                    borderBottom: '1px solid var(--glass-border)',
-                    marginBottom: 30,
-                }}
+                className="profile-header flex items-start gap-10 py-[30px] px-5 border-b border-[var(--glass-border)] mb-[30px]"
             >
                 <ProfilePicSection isOwnProfile={isOwnProfile} user={user} />
                 <ProfileInfoSection
@@ -457,25 +437,13 @@ function ProfileContent({
                 friend's profile when there's nothing earned. */}
             {(achievements.length > 0 || isOwnProfile) ? (
                 <div
-                    style={{
-                        marginTop: 30,
-                        padding: 20,
-                        borderRadius: 16,
-                        background: 'rgba(0,113,227,0.04)',
-                        border: '1px solid var(--glass-border)',
-                    }}
+                    className="mt-[30px] p-5 rounded-[16px] bg-[rgba(0,113,227,0.04)] border border-[var(--glass-border)]"
                 >
                     <div
                         className="flex items-baseline justify-between mb-[14px]"
                     >
                         <h3
-                            style={{
-                                margin: 0,
-                                fontSize: '1rem',
-                                fontWeight: 800,
-                                letterSpacing: '-0.02em',
-                                color: 'var(--text-primary)',
-                            }}
+                            className="m-0 text-base font-extrabold tracking-[-0.02em] text-primary"
                         >
                             🏅 Achievements
                         </h3>
@@ -744,15 +712,7 @@ function ProfileInfoSection({
                 className="profile-name-row flex items-center justify-between mb-6 gap-3"
             >
                 <h2
-                    style={{
-                        margin: 0,
-                        fontSize: '1.6rem',
-                        fontWeight: 700,
-                        color: 'var(--text-primary)',
-                        letterSpacing: '-0.02em',
-                        minWidth: 0,
-                        overflowWrap: 'anywhere',
-                    }}
+                    className="m-0 text-[1.6rem] font-bold text-primary tracking-[-0.02em] min-w-0 wrap-anywhere"
                 >
                     {user.name}
                 </h2>
@@ -975,11 +935,10 @@ function BioBlock({
                     <>
                         <select
                             ref={statusRef}
-                            className="brand-select"
+                            className="brand-select pt-0.5 pr-6 pb-0.5 pl-2.5 text-[length:var(--font-base)]"
                             aria-label="Set your travel status"
                             defaultValue={user.status || ''}
                             onChange={() => setDirty(true)}
-                            style={{ padding: '2px 24px 2px 10px', fontSize: 'var(--font-base)' }}
                         >
                             <option value="" disabled>
                                 Set status...
@@ -996,15 +955,7 @@ function BioBlock({
                     </>
                 ) : (
                     <div
-                        style={{
-                            background: 'rgba(0, 113, 227, 0.05)',
-                            color: '#005bb8',
-                            borderRadius: 'var(--radius-md)',
-                            padding: 'var(--space-1) var(--space-3)',
-                            fontSize: 'var(--font-base)',
-                            fontWeight: 700,
-                            display: 'inline-block',
-                        }}
+                        className="bg-[rgba(0,_113,_227,_0.05)] text-[#005bb8] rounded-[var(--radius-md)] py-1 px-3 text-[length:var(--font-base)] font-bold inline-block"
                     >
                         {user.status || 'Active Traveler'}
                     </div>
@@ -1023,14 +974,7 @@ function BioBlock({
 
                     <div className="pf-section-container">
                         <label
-                            style={{
-                                display: 'block',
-                                fontSize: '0.75rem',
-                                fontWeight: 700,
-                                color: 'var(--text-secondary)',
-                                marginBottom: 6,
-                                letterSpacing: '0.04em',
-                            }}
+                            className="block text-xs font-bold text-secondary mb-1.5 tracking-[0.04em]"
                         >
                             Home country — where you call "home base"
                         </label>
@@ -1059,14 +1003,7 @@ function BioBlock({
 
                     <div className="pf-section-container">
                         <label
-                            style={{
-                                display: 'block',
-                                fontSize: '0.75rem',
-                                fontWeight: 700,
-                                color: 'var(--text-secondary)',
-                                marginBottom: 6,
-                                letterSpacing: '0.04em',
-                            }}
+                            className="block text-xs font-bold text-secondary mb-1.5 tracking-[0.04em]"
                         >
                             Home currency — what you'll see totals and insights in
                         </label>
@@ -1116,12 +1053,7 @@ function BioBlock({
                 </>
             ) : (
                 <p
-                    style={{
-                        fontSize: '0.95rem',
-                        color: 'var(--text-primary)',
-                        lineHeight: 1.5,
-                        margin: '4px 0',
-                    }}
+                    className="text-[0.95rem] text-primary leading-[1.5] my-1 mx-0"
                 >
                     {user.bio || 'No bio yet.'}
                 </p>

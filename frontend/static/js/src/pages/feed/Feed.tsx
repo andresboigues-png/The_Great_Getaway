@@ -372,16 +372,7 @@ export function Feed() {
             <div className="max-w-[760px] my-0 mx-auto">
                 <div className="pt-8 px-0 pb-6 text-center">
                     <h1
-                        style={{
-                            margin: '0 0 6px',
-                            fontSize: '2.8rem',
-                            fontWeight: 800,
-                            letterSpacing: '-0.04em',
-                            background: 'var(--gradient-title)',
-                            WebkitBackgroundClip: 'text',
-                            WebkitTextFillColor: 'transparent',
-                            backgroundClip: 'text',
-                        }}
+                        className="mt-0 mx-0 mb-1.5 text-[2.8rem] font-extrabold tracking-[-0.04em] bg-[var(--gradient-title)] [-webkit-background-clip:text] [-webkit-text-fill-color:transparent] bg-clip-text"
                     >
                         {t('feed.title')}
                     </h1>
@@ -663,16 +654,7 @@ function FeedListBody(props: FeedListBodyProps) {
                         <button
                             type="button"
                             onClick={() => onPickExploreCountry(null)}
-                            style={{
-                                padding: '8px 18px',
-                                borderRadius: 999,
-                                background: 'var(--accent-blue)',
-                                color: 'white',
-                                fontWeight: 700,
-                                fontSize: '0.85rem',
-                                border: 'none',
-                                cursor: 'pointer',
-                            }}
+                            className="py-2 px-[18px] rounded-full bg-accent-blue text-white font-bold text-[0.85rem] border-0 cursor-pointer"
                         >
                             Show all countries
                         </button>
@@ -882,25 +864,14 @@ function EventCard(props: EventCardProps) {
                 <span dangerouslySetInnerHTML={{ __html: avatar(ev.actor) }} />
                 <div className="flex-1 min-w-0">
                     <div
-                        style={{
-                            fontSize: '0.95rem',
-                            lineHeight: 1.4,
-                            color: 'var(--text-secondary)',
-                        }}
+                        className="text-[0.95rem] leading-[1.4] text-secondary"
                     >
                         <span className="mr-[6px]">{accent.icon}</span>
                         <span dangerouslySetInnerHTML={{ __html: eventLine(ev) }} />
                     </div>
                     {time ? (
                         <div
-                            style={{
-                                fontSize: '0.72rem',
-                                color: 'var(--text-secondary)',
-                                marginTop: 4,
-                                fontWeight: 600,
-                                textTransform: 'uppercase',
-                                letterSpacing: '0.06em',
-                            }}
+                            className="text-[0.72rem] text-secondary mt-1 font-semibold uppercase tracking-[0.06em]"
                         >
                             {time}
                         </div>
@@ -909,21 +880,10 @@ function EventCard(props: EventCardProps) {
                 {isMyOriginalShare && ev.post_id ? (
                     <button
                         type="button"
-                        className="feed-unshare-btn"
+                        className="feed-unshare-btn bg-transparent border-0 text-[rgba(255,59,48,0.55)] cursor-pointer py-0.5 px-1.5 text-[0.85rem] font-extrabold shrink-0 leading-none"
                         title="Unshare — removes from your friends' feeds"
                         aria-label="Unshare"
                         onClick={() => onUnshare(ev.post_id!)}
-                        style={{
-                            background: 'transparent',
-                            border: 0,
-                            color: 'rgba(255,59,48,0.55)',
-                            cursor: 'pointer',
-                            padding: '2px 6px',
-                            fontSize: '0.85rem',
-                            fontWeight: 800,
-                            flexShrink: 0,
-                            lineHeight: 1,
-                        }}
                     >
                         ✕
                     </button>
@@ -953,38 +913,14 @@ function EventCard(props: EventCardProps) {
             {isShareLike && ev.trip?.id ? (
                 <button
                     type="button"
-                    className="feed-trip-card"
+                    className="feed-trip-card mt-2.5 w-full text-left bg-white border border-[rgba(88,86,214,0.22)] border-l-4 border-[#5856d6] rounded-[14px] py-3 px-3.5 cursor-pointer flex items-center gap-3 shadow-[0_2px_8px_rgba(0,45,91,0.04)] transition-[transform_0.15s_ease,_box-shadow_0.15s_ease]"
                     data-trip-id={ev.trip.id}
                     onClick={() => viewArchivedDetails(ev.trip!.id)}
-                    style={{
-                        marginTop: 10,
-                        width: '100%',
-                        textAlign: 'left',
-                        background: 'white',
-                        border: '1px solid rgba(88,86,214,0.22)',
-                        borderLeft: '4px solid #5856d6',
-                        borderRadius: 14,
-                        padding: '12px 14px',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 12,
-                        boxShadow: '0 2px 8px rgba(0,45,91,0.04)',
-                        transition: 'transform 0.15s ease, box-shadow 0.15s ease',
-                    }}
                 >
                     <span className="text-[1.6rem] leading-none shrink-0">🗺️</span>
                     <div className="flex-1 min-w-0">
                         <div
-                            style={{
-                                fontWeight: 800,
-                                color: '#002d5b',
-                                fontSize: '0.98rem',
-                                lineHeight: 1.25,
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap',
-                            }}
+                            className="font-extrabold text-brand-navy text-[0.98rem] leading-[1.25] overflow-hidden overflow-ellipsis whitespace-nowrap"
                         >
                             {ev.trip.name || t('feed.tripFallback')}
                         </div>
@@ -1014,15 +950,7 @@ function EventCard(props: EventCardProps) {
 
             {/* Action row. */}
             <div
-                className="feed-actions"
-                style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    marginTop: 10,
-                    paddingTop: 10,
-                    borderTop: '1px solid rgba(0,45,91,0.06)',
-                }}
+                className="feed-actions flex items-center gap-2.5 mt-2.5 pt-2.5 border-t border-[rgba(0,45,91,0.06)]"
             >
                 {isPost ? (
                     <>
@@ -1063,14 +991,8 @@ function EventCard(props: EventCardProps) {
             {/* Comment thread — only rendered when threadOpen. */}
             {isPost && threadOpen ? (
                 <div
-                    className="feed-thread"
+                    className="feed-thread block mt-2.5 pt-2.5 border-t border-[rgba(0,45,91,0.06)]"
                     data-event-id={ev.id}
-                    style={{
-                        display: 'block',
-                        marginTop: 10,
-                        paddingTop: 10,
-                        borderTop: '1px solid rgba(0,45,91,0.06)',
-                    }}
                 >
                     {threadLoading ? (
                         <div
@@ -1159,33 +1081,13 @@ function CommentThread({ eventId, comments, onDelete, onSubmit }: CommentThreadP
                     placeholder="Add a comment…"
                     maxLength={500}
                     autoComplete="off"
-                    style={{
-                        flex: 1,
-                        minWidth: 0,
-                        padding: '8px 12px',
-                        border: '1px solid rgba(0,45,91,0.12)',
-                        borderRadius: 999,
-                        fontSize: '0.85rem',
-                        background: 'rgba(0,113,227,0.04)',
-                        color: '#002d5b',
-                        fontFamily: 'inherit',
-                    }}
+                    className="flex-1 min-w-0 py-2 px-3 border border-[rgba(0,45,91,0.12)] rounded-full text-[0.85rem] bg-[rgba(0,113,227,0.04)] text-brand-navy font-[inherit]"
                 />
                 <button
                     type="submit"
-                    className="feed-comment-submit"
+                    className="feed-comment-submit bg-accent-blue text-white border-0 py-2 px-4 rounded-full text-[0.82rem] font-extrabold cursor-pointer"
                     title="Post comment"
                     aria-label="Post comment"
-                    style={{
-                        background: 'var(--accent-blue)',
-                        color: 'white',
-                        border: 0,
-                        padding: '8px 16px',
-                        borderRadius: 999,
-                        fontSize: '0.82rem',
-                        fontWeight: 800,
-                        cursor: 'pointer',
-                    }}
                 >
                     {t('feed.commentSubmit')}
                 </button>
@@ -1316,12 +1218,7 @@ function ExploreCountryChip({
             )}
             <span>{label}</span>
             <span
-                style={{
-                    fontSize: '0.7rem',
-                    fontWeight: 800,
-                    opacity: 0.7,
-                    fontVariantNumeric: 'tabular-nums',
-                }}
+                className="text-[0.7rem] font-extrabold opacity-70 tabular-nums"
             >
                 {count}
             </span>

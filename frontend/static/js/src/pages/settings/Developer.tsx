@@ -106,14 +106,7 @@ export function Developer() {
 
             {error ? (
                 <div
-                    style={{
-                        padding: 'var(--space-4)',
-                        background: 'rgba(255, 59, 48, 0.08)',
-                        border: '1px solid rgba(255, 59, 48, 0.28)',
-                        borderRadius: 12,
-                        color: '#ff3b30',
-                        fontSize: '0.9rem',
-                    }}
+                    className="p-4 bg-[rgba(255,_59,_48,_0.08)] border border-[rgba(255,_59,_48,_0.28)] rounded-md text-[#ff3b30] text-[0.9rem]"
                 >
                     {error}
                 </div>
@@ -152,22 +145,10 @@ function StatsGrid({ stats }: { stats: AdminStats }) {
             {cells.map((c) => (
                 <div
                     key={c.label}
-                    style={{
-                        padding: '14px 16px',
-                        background: 'var(--card-bg-elevated)',
-                        border: '1px solid var(--border-subtle)',
-                        borderRadius: 14,
-                    }}
+                    className="py-3.5 px-4 bg-card-elevated border border-[var(--border-subtle)] rounded-[14px]"
                 >
                     <div
-                        style={{
-                            fontSize: '0.7rem',
-                            fontWeight: 700,
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.06em',
-                            color: 'var(--text-secondary)',
-                            marginBottom: 6,
-                        }}
+                        className="text-[0.7rem] font-bold uppercase tracking-[0.06em] text-secondary mb-1.5"
                     >
                         {c.label}
                     </div>
@@ -188,17 +169,7 @@ function ProcessInfo({ stats }: { stats: AdminStats }) {
     const pool = p.geminiHostKeys;
     return (
         <div
-            style={{
-                padding: 'var(--space-3) var(--space-4)',
-                background: 'var(--accent-purple-bg-soft)',
-                border: '1px solid var(--accent-purple-border-soft)',
-                borderRadius: 12,
-                marginBottom: 'var(--space-5)',
-                fontSize: '0.85rem',
-                color: 'var(--text-primary)',
-                fontFamily: "'SF Mono', monospace",
-                lineHeight: 1.6,
-            }}
+            className="py-3 px-4 bg-[var(--accent-purple-bg-soft)] border border-[var(--accent-purple-border-soft)] rounded-md mb-5 text-[0.85rem] text-primary font-mono leading-[1.6]"
         >
             <div>
                 <strong>{t('settings.devServerTime')}:</strong> {p.serverTime}
@@ -223,24 +194,12 @@ function UsersTable({ users }: { users: AdminUser[] }) {
     return (
         <div>
             <h3
-                style={{
-                    fontSize: '0.85rem',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.08em',
-                    color: 'var(--text-secondary)',
-                    fontWeight: 800,
-                    marginBottom: 'var(--space-3)',
-                }}
+                className="text-[0.85rem] uppercase tracking-[0.08em] text-secondary font-extrabold mb-3"
             >
                 {t('settings.devUserRoster')} ({users.length})
             </h3>
             <div
-                style={{
-                    overflowX: 'auto',
-                    border: '1px solid var(--border-subtle)',
-                    borderRadius: 12,
-                    background: 'var(--card-bg-elevated)',
-                }}
+                className="overflow-x-auto border border-[var(--border-subtle)] rounded-md bg-card-elevated"
             >
                 <table
                     style={{
@@ -277,29 +236,11 @@ function UsersTable({ users }: { users: AdminUser[] }) {
                                                 src={u.picture}
                                                 alt=""
                                                 referrerPolicy="no-referrer"
-                                                style={{
-                                                    width: 28,
-                                                    height: 28,
-                                                    borderRadius: '50%',
-                                                    objectFit: 'cover',
-                                                    flexShrink: 0,
-                                                }}
+                                                className="w-7 h-7 rounded-full object-cover shrink-0"
                                             />
                                         ) : (
                                             <span
-                                                style={{
-                                                    width: 28,
-                                                    height: 28,
-                                                    borderRadius: '50%',
-                                                    background: 'var(--accent-purple-bg-soft)',
-                                                    color: 'var(--accent-purple)',
-                                                    display: 'inline-flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center',
-                                                    fontWeight: 800,
-                                                    fontSize: '0.78rem',
-                                                    flexShrink: 0,
-                                                }}
+                                                className="w-7 h-7 rounded-full bg-[var(--accent-purple-bg-soft)] text-accent-purple inline-flex items-center justify-center font-extrabold text-[0.78rem] shrink-0"
                                             >
                                                 {(u.name || u.email || '?')[0]?.toUpperCase()}
                                             </span>
@@ -311,17 +252,7 @@ function UsersTable({ users }: { users: AdminUser[] }) {
                                         </span>
                                         {u.isAdmin && (
                                             <span
-                                                style={{
-                                                    fontSize: '0.6rem',
-                                                    fontWeight: 800,
-                                                    padding: '2px 6px',
-                                                    borderRadius: 999,
-                                                    background: 'var(--accent-purple)',
-                                                    color: 'white',
-                                                    textTransform: 'uppercase',
-                                                    letterSpacing: '0.06em',
-                                                    flexShrink: 0,
-                                                }}
+                                                className="text-[0.6rem] font-extrabold py-0.5 px-1.5 rounded-full bg-accent-purple text-white uppercase tracking-[0.06em] shrink-0"
                                             >
                                                 ADMIN
                                             </span>

@@ -257,20 +257,7 @@ function TodoRow({ place: p, isTicked, tripIsEditable, onTickToggle, onRemove }:
                                 rel="noopener noreferrer"
                                 title={`Open ${p.name} on Google Maps`}
                                 onClick={(e) => e.stopPropagation()}
-                                style={{
-                                    fontWeight: 700,
-                                    color: 'var(--text-brand-navy)',
-                                    fontSize: '0.92rem',
-                                    lineHeight: 1.25,
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis',
-                                    whiteSpace: 'nowrap',
-                                    maxWidth: '100%',
-                                    textDecoration: 'none',
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '4px',
-                                }}
+                                className="font-bold text-brand-navy text-[0.92rem] leading-[1.25] overflow-hidden overflow-ellipsis whitespace-nowrap max-w-full no-underline inline-flex items-center gap-1"
                             >
                                 {p.name}
                                 <span
@@ -282,16 +269,7 @@ function TodoRow({ place: p, isTicked, tripIsEditable, onTickToggle, onRemove }:
                             </a>
                         ) : (
                             <span
-                                style={{
-                                    fontWeight: 700,
-                                    color: 'var(--text-brand-navy)',
-                                    fontSize: '0.92rem',
-                                    lineHeight: 1.25,
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis',
-                                    whiteSpace: 'nowrap',
-                                    maxWidth: '100%',
-                                }}
+                                className="font-bold text-brand-navy text-[0.92rem] leading-[1.25] overflow-hidden overflow-ellipsis whitespace-nowrap max-w-full"
                             >
                                 {p.name}
                             </span>
@@ -299,20 +277,7 @@ function TodoRow({ place: p, isTicked, tripIsEditable, onTickToggle, onRemove }:
                         {p.source === 'ai' && (
                             <span
                                 title={t('todo.addedByAi')}
-                                style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    padding: '1px 6px',
-                                    borderRadius: '999px',
-                                    background: 'rgba(155, 89, 182, 0.12)',
-                                    color: '#7d3c98',
-                                    border: '1px solid rgba(155, 89, 182, 0.32)',
-                                    fontSize: '0.58rem',
-                                    fontWeight: 800,
-                                    letterSpacing: '0.06em',
-                                    textTransform: 'uppercase',
-                                    flexShrink: 0,
-                                }}
+                                className="inline-flex items-center py-px px-1.5 rounded-full bg-[rgba(155,_89,_182,_0.12)] text-[#7d3c98] border border-[rgba(155,_89,_182,_0.32)] text-[0.58rem] font-extrabold tracking-[0.06em] uppercase shrink-0"
                             >
                                 ✦ AI
                             </span>
@@ -358,22 +323,11 @@ function TodoRow({ place: p, isTicked, tripIsEditable, onTickToggle, onRemove }:
                 {tripIsEditable && (
                     <button
                         type="button"
-                        className="todo-remove-btn"
+                        className="todo-remove-btn bg-[rgba(255,59,48,0.08)] border border-[rgba(255,59,48,0.25)] text-[#ff3b30] rounded-[8px] py-1 px-2 text-[0.7rem] font-extrabold cursor-pointer shrink-0"
                         data-place-id={p.placeId}
                         title={t('todo.removeBtnTooltip')}
                         aria-label={`Remove ${p.name}`}
                         onClick={() => onRemove(p.placeId)}
-                        style={{
-                            background: 'rgba(255,59,48,0.08)',
-                            border: '1px solid rgba(255,59,48,0.25)',
-                            color: '#ff3b30',
-                            borderRadius: '8px',
-                            padding: '4px 8px',
-                            fontSize: '0.7rem',
-                            fontWeight: 800,
-                            cursor: 'pointer',
-                            flexShrink: 0,
-                        }}
                     >
                         ✕
                     </button>
@@ -388,11 +342,7 @@ function TodoRow({ place: p, isTicked, tripIsEditable, onTickToggle, onRemove }:
                 <div className="mt-[10px] pl-[46px]">
                     {p.address && (
                         <div
-                            style={{
-                                fontSize: '0.74rem',
-                                color: 'var(--text-secondary)',
-                                lineHeight: 1.4,
-                            }}
+                            className="text-[0.74rem] text-secondary leading-[1.4]"
                         >
                             {p.address}
                         </div>
@@ -412,13 +362,7 @@ function TodoRow({ place: p, isTicked, tripIsEditable, onTickToggle, onRemove }:
                     )}
                     {p.fact && (
                         <div
-                            style={{
-                                fontSize: '0.72rem',
-                                color: 'var(--text-secondary)',
-                                marginTop: '4px',
-                                lineHeight: 1.4,
-                                fontStyle: 'italic',
-                            }}
+                            className="text-[0.72rem] text-secondary mt-1 leading-[1.4] italic"
                         >
                             ✨ {p.fact}
                         </div>
@@ -429,21 +373,7 @@ function TodoRow({ place: p, isTicked, tripIsEditable, onTickToggle, onRemove }:
                             target="_blank"
                             rel="noopener noreferrer"
                             onClick={(e) => e.stopPropagation()}
-                            style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                marginTop: '10px',
-                                padding: '6px 12px',
-                                borderRadius: '999px',
-                                background:
-                                    'linear-gradient(135deg, #9b59b6 0%, #5856d6 100%)',
-                                color: 'white',
-                                textDecoration: 'none',
-                                fontSize: '0.74rem',
-                                fontWeight: 700,
-                                boxShadow: '0 3px 10px rgba(155, 89, 182, 0.22)',
-                            }}
+                            className="inline-flex items-center gap-1 mt-2.5 py-1.5 px-3 rounded-full bg-[linear-gradient(135deg,_#9b59b6_0%,_#5856d6_100%)] text-white no-underline text-[0.74rem] font-bold shadow-[0_3px_10px_rgba(155,_89,_182,_0.22)]"
                         >
                             View on Google Maps →
                         </a>
@@ -486,16 +416,7 @@ function FilterSelect({ label, value, onChange, options, style }: FilterSelectPr
             <select
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
-                style={{
-                    padding: '6px 10px',
-                    borderRadius: '999px',
-                    border: '1.5px solid var(--border-subtle)',
-                    background: 'var(--card-bg)',
-                    color: 'var(--text-brand-navy)',
-                    fontSize: '0.8rem',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                }}
+                className="py-1.5 px-2.5 rounded-full border-[1.5px] border-[var(--border-subtle)] bg-card text-brand-navy text-[0.8rem] font-bold cursor-pointer"
             >
                 {options.map((opt) => (
                     <option key={opt.value} value={opt.value}>
@@ -762,17 +683,7 @@ export function Todo() {
             </div>
 
             <div
-                className="card glass"
-                style={{
-                    padding: '16px 20px',
-                    borderRadius: '18px',
-                    marginBottom: '20px',
-                    border: '1.5px solid rgba(155, 89, 182, 0.25)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    flexWrap: 'wrap',
-                    gap: '14px',
-                }}
+                className="card glass py-4 px-5 rounded-[18px] mb-5 border-[1.5px] border-[rgba(155,_89,_182,_0.25)] flex items-center flex-wrap gap-3.5"
             >
                 <div
                     className="flex items-center gap-[10px] flex-1 min-w-0"
@@ -780,12 +691,7 @@ export function Todo() {
                     <span className="text-[1.2rem]">📋</span>
                     <div>
                         <div
-                            style={{
-                                fontWeight: 800,
-                                color: 'var(--text-brand-navy)',
-                                fontSize: '1rem',
-                                lineHeight: 1.2,
-                            }}
+                            className="font-extrabold text-brand-navy text-base leading-[1.2]"
                         >
                             {tn('todo.itemCount', todoItems.length)}
                         </div>
@@ -804,17 +710,7 @@ export function Todo() {
                             type="button"
                             onClick={handleClearAll}
                             title={t('todo.clearAllTooltip')}
-                            style={{
-                                padding: '9px 14px',
-                                borderRadius: '999px',
-                                fontSize: '0.78rem',
-                                fontWeight: 700,
-                                background: 'rgba(255, 59, 48, 0.08)',
-                                color: '#c73128',
-                                border: '1px solid rgba(255, 59, 48, 0.28)',
-                                cursor: 'pointer',
-                                transition: 'background 0.18s ease, border-color 0.18s ease',
-                            }}
+                            className="py-[9px] px-3.5 rounded-full text-[0.78rem] font-bold bg-[rgba(255,_59,_48,_0.08)] text-[#c73128] border border-[rgba(255,_59,_48,_0.28)] cursor-pointer transition-[background_0.18s_ease,_border-color_0.18s_ease]"
                             onMouseEnter={(e) => {
                                 e.currentTarget.style.background = 'rgba(255, 59, 48, 0.14)';
                                 e.currentTarget.style.borderColor = 'rgba(255, 59, 48, 0.45)';
@@ -828,7 +724,7 @@ export function Todo() {
                         </button>
                     )}
                     <button
-                        className="btn-primary py-2.5 px-[18px] rounded-[999px] text-[0.85rem]"
+                        className="btn-primary py-2.5 px-[18px] rounded-full text-[0.85rem]"
                         onClick={() => navigate('ai')}
                     >
                         Plan with AI ✦
@@ -846,19 +742,7 @@ export function Todo() {
                 out into the stats toolbar (earlier iteration) put
                 visual distance between explanation and action. */}
             <div
-                style={{
-                    background: 'var(--accent-purple-bg-soft)',
-                    border: '1px solid var(--accent-purple-border-soft)',
-                    borderRadius: '12px',
-                    padding: '12px 14px',
-                    fontSize: '0.84rem',
-                    color: 'var(--text-primary)',
-                    lineHeight: 1.5,
-                    marginBottom: '16px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '10px',
-                }}
+                className="bg-[var(--accent-purple-bg-soft)] border border-[var(--accent-purple-border-soft)] rounded-md py-3 px-3.5 text-[0.84rem] text-primary leading-[1.5] mb-4 flex flex-col gap-2.5"
             >
                 <span
                     dangerouslySetInnerHTML={{ __html: t('todo.explainer') }}
@@ -887,18 +771,7 @@ export function Todo() {
                             // on soft purple bg; dark mode: bright purple
                             // text on the same translucent bg with the
                             // dark fallback handling contrast.
-                            className="todo-mark-all-btn"
-                            style={{
-                                padding: '7px 14px',
-                                borderRadius: '999px',
-                                fontSize: '0.78rem',
-                                fontWeight: 700,
-                                background: 'var(--accent-purple-bg-soft)',
-                                color: 'var(--accent-purple)',
-                                border: '1px solid var(--accent-purple-border-soft)',
-                                cursor: 'pointer',
-                                transition: 'background 0.18s ease, border-color 0.18s ease',
-                            }}
+                            className="todo-mark-all-btn py-[7px] px-3.5 rounded-full text-[0.78rem] font-bold bg-[var(--accent-purple-bg-soft)] text-accent-purple border border-[var(--accent-purple-border-soft)] cursor-pointer transition-[background_0.18s_ease,_border-color_0.18s_ease]"
                         >
                             {allVisibleTicked
                                 ? t('todo.unselectAllForAiBtn')
@@ -990,14 +863,7 @@ export function Todo() {
                             setFilterIcon('');
                             setStatusFilter('all');
                         }}
-                        style={{
-                            background: 'transparent',
-                            border: 'none',
-                            color: 'var(--accent-blue)',
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                            padding: 0,
-                        }}
+                        className="bg-transparent border-0 text-accent-blue font-bold cursor-pointer p-0"
                     >
                         {t('todo.noFilterMatchReset')}
                     </button>
@@ -1012,29 +878,16 @@ export function Todo() {
                         focus. */}
                     {icon !== '*' && (
                         <div
-                            style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '10px',
-                                padding: '0 4px 8px',
-                                borderBottom: '1px solid rgba(0, 45, 91, 0.08)',
-                                marginBottom: '10px',
-                            }}
+                            className="flex items-center gap-2.5 pt-0 px-1 pb-2 border-b border-[rgba(0,_45,_91,_0.08)] mb-2.5"
                         >
                             <span className="text-[1.3rem] leading-none">{icon}</span>
                             <span
-                                style={{
-                                    fontWeight: 800,
-                                    color: 'var(--text-brand-navy)',
-                                    fontSize: '0.82rem',
-                                    letterSpacing: '0.04em',
-                                    textTransform: 'uppercase',
-                                }}
+                                className="font-extrabold text-brand-navy text-[0.82rem] tracking-[0.04em] uppercase"
                             >
                                 {iconToLabel(icon)}
                             </span>
                             <span
-                                className="text-[0.7rem] font-bold text-secondary bg-[rgba(0,_45,_91,_0.06)] py-0.5 px-2 rounded-[999px]"
+                                className="text-[0.7rem] font-bold text-secondary bg-[rgba(0,_45,_91,_0.06)] py-0.5 px-2 rounded-full"
                             >
                                 {items.length}
                             </span>

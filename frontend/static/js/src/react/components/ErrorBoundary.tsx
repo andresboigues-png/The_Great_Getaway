@@ -97,40 +97,18 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
         return (
             <div
                 role="alert"
-                style={{
-                    maxWidth: '520px',
-                    margin: '64px auto',
-                    padding: '32px 28px',
-                    background: 'white',
-                    border: '1px solid rgba(0, 45, 91, 0.12)',
-                    borderRadius: '24px',
-                    boxShadow: '0 12px 36px rgba(0, 45, 91, 0.08)',
-                    textAlign: 'center',
-                    fontFamily:
-                        '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif',
-                }}
+                className="max-w-[520px] my-16 mx-auto py-8 px-7 bg-white border border-[rgba(0,_45,_91,_0.12)] rounded-[24px] shadow-[0_12px_36px_rgba(0,_45,_91,_0.08)] text-center font-sans"
             >
                 <div className="text-[3rem] mb-3" aria-hidden="true">
                     🛟
                 </div>
                 <h2
-                    style={{
-                        margin: '0 0 8px',
-                        fontSize: '1.4rem',
-                        fontWeight: 800,
-                        color: '#002d5b',
-                        letterSpacing: '-0.02em',
-                    }}
+                    className="mt-0 mx-0 mb-2 text-[1.4rem] font-extrabold text-brand-navy tracking-[-0.02em]"
                 >
                     Something broke on this page
                 </h2>
                 <p
-                    style={{
-                        margin: '0 0 4px',
-                        color: 'var(--text-secondary)',
-                        fontSize: '0.92rem',
-                        lineHeight: 1.5,
-                    }}
+                    className="mt-0 mx-0 mb-1 text-secondary text-[0.92rem] leading-[1.5]"
                 >
                     Don&rsquo;t worry — your trips are safe. The app hit an error it couldn&rsquo;t
                     recover from.
@@ -157,32 +135,14 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
                     <button
                         type="button"
                         onClick={this.handleReload}
-                        style={{
-                            padding: '10px 20px',
-                            borderRadius: '999px',
-                            border: 'none',
-                            background: 'var(--accent-blue)',
-                            color: 'white',
-                            fontWeight: 700,
-                            fontSize: '0.88rem',
-                            cursor: 'pointer',
-                        }}
+                        className="py-2.5 px-5 rounded-full border-0 bg-accent-blue text-white font-bold text-[0.88rem] cursor-pointer"
                     >
                         Reload page
                     </button>
                     <button
                         type="button"
                         onClick={this.handleHome}
-                        style={{
-                            padding: '10px 20px',
-                            borderRadius: '999px',
-                            border: '1.5px solid rgba(0, 45, 91, 0.16)',
-                            background: 'white',
-                            color: '#002d5b',
-                            fontWeight: 700,
-                            fontSize: '0.88rem',
-                            cursor: 'pointer',
-                        }}
+                        className="py-2.5 px-5 rounded-full border-[1.5px] border-[rgba(0,_45,_91,_0.16)] bg-white text-brand-navy font-bold text-[0.88rem] cursor-pointer"
                     >
                         Back to Home
                     </button>

@@ -312,15 +312,7 @@ export function FootprintMap({ trips, uniqueCountries, uniqueCountryCodes }: Foo
 
     return (
         <div
-            className="card glass"
-            style={{
-                padding: 0,
-                overflow: 'hidden',
-                borderRadius: 20,
-                position: 'relative',
-                zIndex: 1,
-                border: '1px solid var(--glass-border)',
-            }}
+            className="card glass p-0 overflow-hidden rounded-[20px] relative z-[1] border border-[var(--glass-border)]"
         >
             <div ref={containerRef} id="legaciesMap" className="w-full h-[450px]" />
         </div>

@@ -418,13 +418,7 @@ export function TripBody({ activeTrip }: TripBodyProps) {
                         onClick={onResetMapView}
                     >
                         <h2
-                            style={{
-                                fontSize: 'var(--font-3xl)',
-                                letterSpacing: '-0.03em',
-                                margin: 0,
-                                fontWeight: 800,
-                                color: 'var(--text-brand-navy)',
-                            }}
+                            className="text-[length:var(--font-3xl)] tracking-[-0.03em] m-0 font-extrabold text-brand-navy"
                         >
                             {tripTitle}
                         </h2>

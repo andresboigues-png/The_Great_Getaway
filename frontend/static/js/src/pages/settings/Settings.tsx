@@ -696,8 +696,7 @@ function ResetView() {
                 <p className="muted-meta">{t('settings.resetFactoryBody')}</p>
                 <button
                     type="button"
-                    className="btn-confirm-danger"
-                    style={{ fontSize: 'var(--font-sm)', padding: 'var(--space-3)' }}
+                    className="btn-confirm-danger text-[length:var(--font-sm)] p-3"
                     onClick={confirmResetApp}
                 >
                     {t('settings.resetFactoryBtn')}
@@ -874,12 +873,7 @@ function FormatView() {
                 >
                     <div className="flex-1 min-w-[150px]">
                         <label
-                            className="compact-form-label"
-                            style={{
-                                fontSize: 'var(--font-xs)',
-                                fontWeight: 800,
-                                color: 'var(--text-secondary)',
-                            }}
+                            className="compact-form-label text-[length:var(--font-xs)] font-extrabold text-secondary"
                         >
                             {t('settings.formatVariableLabel')}
                         </label>
@@ -899,12 +893,7 @@ function FormatView() {
                     </div>
                     <div className="flex-1 min-w-[120px]">
                         <label
-                            className="compact-form-label"
-                            style={{
-                                fontSize: 'var(--font-xs)',
-                                fontWeight: 800,
-                                color: 'var(--text-secondary)',
-                            }}
+                            className="compact-form-label text-[length:var(--font-xs)] font-extrabold text-secondary"
                         >
                             {t('settings.formatColumnLabel')}
                         </label>
@@ -932,7 +921,7 @@ function FormatView() {
 
                 {/* Saved formats list + save-name form. The save form
                     is hidden once 5 formats are stored. */}
-                <div style={{ borderTop: '1px solid var(--glass-border)', paddingTop: 'var(--space-8)' }}>
+                <div className="border-t border-[var(--glass-border)] pt-8">
                     <h3 className="mt-0">
                         {t('settings.formatSavedHeading', { count: savedFormats.length })}
                     </h3>

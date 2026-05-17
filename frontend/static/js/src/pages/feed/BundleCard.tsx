@@ -66,25 +66,14 @@ export function BundleCard({ bundle, isExpanded, onToggleExpand, onBookmark }: B
                 <span dangerouslySetInnerHTML={{ __html: avatar(bundle.actor) }} />
                 <div className="flex-1 min-w-0">
                     <div
-                        style={{
-                            fontSize: '0.95rem',
-                            lineHeight: 1.4,
-                            color: 'var(--text-secondary)',
-                        }}
+                        className="text-[0.95rem] leading-[1.4] text-secondary"
                     >
                         <span className="mr-1.5">{accent.icon}</span>
                         <span dangerouslySetInnerHTML={{ __html: bundleLine(bundle) }} />
                     </div>
                     {time ? (
                         <div
-                            style={{
-                                fontSize: '0.72rem',
-                                color: 'var(--text-secondary)',
-                                marginTop: 4,
-                                fontWeight: 600,
-                                textTransform: 'uppercase',
-                                letterSpacing: '0.06em',
-                            }}
+                            className="text-[0.72rem] text-secondary mt-1 font-semibold uppercase tracking-[0.06em]"
                         >
                             {time}
                         </div>
@@ -92,18 +81,8 @@ export function BundleCard({ bundle, isExpanded, onToggleExpand, onBookmark }: B
                 </div>
                 <button
                     type="button"
-                    className="feed-bundle-toggle"
+                    className="feed-bundle-toggle bg-transparent border-0 text-[#005bb8] cursor-pointer py-1 px-2.5 text-[0.78rem] font-extrabold shrink-0"
                     onClick={() => onToggleExpand(bundle.id)}
-                    style={{
-                        background: 'transparent',
-                        border: 0,
-                        color: '#005bb8',
-                        cursor: 'pointer',
-                        padding: '4px 10px',
-                        fontSize: '0.78rem',
-                        fontWeight: 800,
-                        flexShrink: 0,
-                    }}
                 >
                     {isExpanded ? t('feed.bundleCollapse') : t('feed.bundleViewAll')}
                 </button>
@@ -133,13 +112,7 @@ export function BundleCard({ bundle, isExpanded, onToggleExpand, onBookmark }: B
                             }}
                         >
                             <div
-                                style={{
-                                    flex: 1,
-                                    minWidth: 0,
-                                    fontSize: '0.88rem',
-                                    color: 'var(--text-secondary)',
-                                    lineHeight: 1.4,
-                                }}
+                                className="flex-1 min-w-0 text-[0.88rem] text-secondary leading-[1.4]"
                                 dangerouslySetInnerHTML={{ __html: eventLine(m) }}
                             />
                             <button

@@ -108,13 +108,7 @@ export function HomeHeader({ activeTrip, poiPillsVisible, onTogglePoiPills }: Ho
         <>
             <div className="ai-page-header text-center">
                 <h1
-                    style={{
-                        display: 'inline-block',
-                        background: 'var(--gradient-title)',
-                        WebkitBackgroundClip: 'text',
-                        WebkitTextFillColor: 'transparent',
-                        backgroundClip: 'text',
-                    }}
+                    className="inline-block bg-[var(--gradient-title)] [-webkit-background-clip:text] [-webkit-text-fill-color:transparent] bg-clip-text"
                 >
                     {greeting}
                 </h1>
@@ -231,21 +225,7 @@ export function HomeHeader({ activeTrip, poiPillsVisible, onTogglePoiPills }: Ho
                         id="homeOpenMapsBtn"
                         title={t('home.mapsBtnTitle')}
                         aria-label={t('home.mapsBtnTitle')}
-                        style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 8,
-                            padding: '8px 14px',
-                            borderRadius: 999,
-                            background: 'var(--card-bg)',
-                            border: '1px solid var(--border-subtle)',
-                            boxShadow: '0 4px 12px rgba(0,45,91,0.10)',
-                            textDecoration: 'none',
-                            color: 'var(--text-primary)',
-                            fontWeight: 700,
-                            fontSize: '0.85rem',
-                            lineHeight: 1,
-                        }}
+                        className="inline-flex items-center gap-2 py-2 px-3.5 rounded-full bg-card border border-[var(--border-subtle)] shadow-[0_4px_12px_rgba(0,45,91,0.10)] no-underline text-primary font-bold text-[0.85rem] leading-none"
                     >
                         <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
                             <path
@@ -264,21 +244,7 @@ export function HomeHeader({ activeTrip, poiPillsVisible, onTogglePoiPills }: Ho
                     title={t('home.shareBtnTitle')}
                     aria-label={t('home.shareBtnTitle')}
                     onClick={onShareClick}
-                    style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        padding: '8px 14px',
-                        borderRadius: 999,
-                        background: '#0071e3',
-                        border: 0,
-                        color: '#ffffff',
-                        cursor: 'pointer',
-                        fontWeight: 700,
-                        fontSize: '0.85rem',
-                        lineHeight: 1,
-                        boxShadow: '0 4px 12px rgba(0,113,227,0.30)',
-                    }}
+                    className="inline-flex items-center gap-2 py-2 px-3.5 rounded-full bg-[#0071e3] border-0 text-white cursor-pointer font-bold text-[0.85rem] leading-none shadow-[0_4px_12px_rgba(0,113,227,0.30)]"
                 >
                     <svg
                         width="14"

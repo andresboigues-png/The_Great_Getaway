@@ -75,17 +75,7 @@ export function Budgets() {
                 <button
                     type="button"
                     onClick={() => openCreateBudgetModal()}
-                    style={{
-                        background: 'linear-gradient(135deg, #ffd60a, #ff9f0a)',
-                        color: '#5e3c00',
-                        border: 0,
-                        padding: '10px 18px',
-                        borderRadius: '999px',
-                        fontWeight: 800,
-                        fontSize: '0.88rem',
-                        cursor: 'pointer',
-                        boxShadow: '0 8px 24px rgba(255,159,10,0.32)',
-                    }}
+                    className="bg-[linear-gradient(135deg,_#ffd60a,_#ff9f0a)] text-[#5e3c00] border-0 py-2.5 px-[18px] rounded-full font-extrabold text-[0.88rem] cursor-pointer shadow-[0_8px_24px_rgba(255,159,10,0.32)]"
                 >
                     {t('budgets.newBudgetBtn')}
                 </button>
@@ -166,14 +156,7 @@ export function Budgets() {
                     >
                         <div className="min-w-0">
                             <div
-                                style={{
-                                    fontSize: '0.7rem',
-                                    fontWeight: 800,
-                                    textTransform: 'uppercase',
-                                    letterSpacing: '0.12em',
-                                    color: 'var(--text-secondary)',
-                                    marginBottom: '6px',
-                                }}
+                                className="text-[0.7rem] font-extrabold uppercase tracking-[0.12em] text-secondary mb-1.5"
                             >
                                 {filterTrip ? t('budgets.overallTrip') : t('budgets.overallAll')}
                             </div>
@@ -187,12 +170,7 @@ export function Budgets() {
                                         {t('budgets.overallSpent')}
                                     </div>
                                     <div
-                                        style={{
-                                            fontSize: '1.8rem',
-                                            fontWeight: 800,
-                                            color: 'var(--text-brand-navy)',
-                                            letterSpacing: '-0.02em',
-                                        }}
+                                        className="text-[1.8rem] font-extrabold text-brand-navy tracking-[-0.02em]"
                                     >
                                         {formatHome(totalSpent, 'EUR')}
                                     </div>
@@ -205,13 +183,7 @@ export function Budgets() {
                                         {t('budgets.overallAllocated')}
                                     </div>
                                     <div
-                                        style={{
-                                            fontSize: '1.8rem',
-                                            fontWeight: 800,
-                                            color: 'var(--text-brand-navy)',
-                                            opacity: 0.55,
-                                            letterSpacing: '-0.02em',
-                                        }}
+                                        className="text-[1.8rem] font-extrabold text-brand-navy opacity-55 tracking-[-0.02em]"
                                     >
                                         {formatHome(totalAllocated, 'EUR')}
                                     </div>
@@ -253,13 +225,7 @@ export function Budgets() {
                         </div>
                     </div>
                     <div
-                        style={{
-                            height: '8px',
-                            background: 'var(--surface-subtle)',
-                            borderRadius: '999px',
-                            overflow: 'hidden',
-                            marginTop: '16px',
-                        }}
+                        className="h-2 bg-[var(--surface-subtle)] rounded-full overflow-hidden mt-4"
                     >
                         <div
                             style={{
@@ -340,14 +306,7 @@ export function Budgets() {
                                             {budgetTitle(b)}
                                         </div>
                                         <div
-                                            style={{
-                                                fontSize: '0.7rem',
-                                                color: 'var(--text-secondary)',
-                                                fontWeight: 700,
-                                                textTransform: 'uppercase',
-                                                letterSpacing: '0.08em',
-                                                marginTop: '2px',
-                                            }}
+                                            className="text-[0.7rem] text-secondary font-bold uppercase tracking-[0.08em] mt-0.5"
                                         >
                                             {t('budgets.cardTarget', { amount: formatHome(b.amount, 'EUR') })}
                                             {b.originalCurrency && b.originalCurrency !== 'EUR'
@@ -377,12 +336,7 @@ export function Budgets() {
                                         className="flex items-baseline gap-[6px] mb-2 flex-wrap"
                                     >
                                         <span
-                                            style={{
-                                                fontSize: '1.5rem',
-                                                fontWeight: 800,
-                                                color: 'var(--text-brand-navy)',
-                                                letterSpacing: '-0.02em',
-                                            }}
+                                            className="text-2xl font-extrabold text-brand-navy tracking-[-0.02em]"
                                         >
                                             {formatHome(status.spent, 'EUR')}
                                         </span>
@@ -393,12 +347,7 @@ export function Budgets() {
                                         </span>
                                     </div>
                                     <div
-                                        style={{
-                                            height: '8px',
-                                            background: 'var(--surface-subtle)',
-                                            borderRadius: '999px',
-                                            overflow: 'hidden',
-                                        }}
+                                        className="h-2 bg-[var(--surface-subtle)] rounded-full overflow-hidden"
                                     >
                                         <div
                                             style={{

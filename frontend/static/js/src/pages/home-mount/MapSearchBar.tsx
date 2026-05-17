@@ -21,18 +21,7 @@ export function MapSearchBar() {
             className="relative max-w-[720px] mt-1 mx-auto mb-3 z-[5]"
         >
             <div
-                style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    background: 'var(--glass-bg)',
-                    backdropFilter: 'blur(20px) saturate(160%)',
-                    WebkitBackdropFilter: 'blur(20px) saturate(160%)',
-                    border: '1px solid var(--glass-border)',
-                    borderRadius: 999,
-                    padding: '10px 16px',
-                    boxShadow: '0 8px 24px rgba(0,45,91,0.10)',
-                }}
+                className="flex items-center gap-2.5 bg-[var(--glass-bg)] backdrop-filter-[blur(20px)_saturate(160%)] [-webkit-backdrop-filter:blur(20px)_saturate(160%)] border border-[var(--glass-border)] rounded-full py-2.5 px-4 shadow-[0_8px_24px_rgba(0,45,91,0.10)]"
             >
                 <svg
                     width="18"
@@ -54,36 +43,14 @@ export function MapSearchBar() {
                     type="search"
                     autoComplete="off"
                     placeholder="Search any place on the map…"
-                    style={{
-                        flex: 1,
-                        minWidth: 0,
-                        border: 0,
-                        outline: 0,
-                        background: 'transparent',
-                        padding: '6px 0',
-                        fontSize: '0.95rem',
-                        color: 'var(--text-brand-navy)',
-                        fontWeight: 600,
-                    }}
+                    className="flex-1 min-w-0 border-0 outline-0 bg-transparent py-1.5 px-0 text-[0.95rem] text-brand-navy font-semibold"
                 />
                 <button
                     id="homeMapSearchClear"
                     type="button"
                     title="Clear"
                     aria-label="Clear search"
-                    style={{
-                        display: 'none',
-                        background: 'rgba(0,0,0,0.05)',
-                        border: 0,
-                        color: 'rgba(0,0,0,0.5)',
-                        width: 24,
-                        height: 24,
-                        borderRadius: 999,
-                        cursor: 'pointer',
-                        fontSize: '0.8rem',
-                        lineHeight: 1,
-                        flexShrink: 0,
-                    }}
+                    className="hidden bg-[rgba(0,0,0,0.05)] border-0 text-[rgba(0,0,0,0.5)] w-6 h-6 rounded-full cursor-pointer text-[0.8rem] leading-none shrink-0"
                 >
                     ✕
                 </button>

@@ -138,16 +138,7 @@ export function Avatar({
             onClick={() => onClick(userId)}
             aria-label={label}
             title={label}
-            style={{
-                background: 'transparent',
-                border: 0,
-                padding: 0,
-                margin: 0,
-                cursor: 'pointer',
-                lineHeight: 0,
-                flexShrink: 0,
-                borderRadius: '50%',
-            }}
+            className="bg-transparent border-0 p-0 m-0 cursor-pointer leading-[0] shrink-0 rounded-full"
         >
             {inner}
         </button>

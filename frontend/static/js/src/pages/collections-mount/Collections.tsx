@@ -168,16 +168,7 @@ export function Collections() {
                 move one over, lists the user's active trips. */}
             {activeTrips.length > 0 && (
                 <div
-                    style={{
-                        marginTop: '16px',
-                        background: 'rgba(0,113,227,0.06)',
-                        border: '1px solid rgba(0,113,227,0.18)',
-                        borderRadius: '16px',
-                        padding: '14px 18px',
-                        display: 'flex',
-                        gap: '12px',
-                        alignItems: 'flex-start',
-                    }}
+                    className="mt-4 bg-[rgba(0,113,227,0.06)] border border-[rgba(0,113,227,0.18)] rounded-[16px] py-3.5 px-[18px] flex gap-3 items-start"
                 >
                     <span className="text-[1.4rem] leading-none">💡</span>
                     <div className="flex-1 min-w-0">
@@ -185,11 +176,7 @@ export function Collections() {
                             {t('collections.hintTitle')}
                         </div>
                         <div
-                            style={{
-                                fontSize: '0.82rem',
-                                color: 'var(--text-secondary)',
-                                lineHeight: 1.45,
-                            }}
+                            className="text-[0.82rem] text-secondary leading-[1.45]"
                         >
                             {activeTrips.length === 1
                                 ? t('collections.hintBodyOne')
@@ -199,17 +186,7 @@ export function Collections() {
                                     key={trip.id}
                                     type="button"
                                     onClick={() => onGotoActiveTrip(trip.id)}
-                                    style={{
-                                        background: 'rgba(0,113,227,0.08)',
-                                        border: '1px solid rgba(0,113,227,0.2)',
-                                        color: '#005bb8',
-                                        padding: '2px 10px',
-                                        borderRadius: '999px',
-                                        fontSize: '0.75rem',
-                                        fontWeight: 700,
-                                        margin: '0 4px 4px 0',
-                                        cursor: 'pointer',
-                                    }}
+                                    className="bg-[rgba(0,113,227,0.08)] border border-[rgba(0,113,227,0.2)] text-[#005bb8] py-0.5 px-2.5 rounded-full text-xs font-bold mt-0 mr-1 mb-1 ml-0 cursor-pointer"
                                 >
                                     {trip.name}
                                 </button>
@@ -226,21 +203,7 @@ export function Collections() {
                 filter zero items. */}
             {archived.length > 0 && (
                 <div
-                    className="collections-controls"
-                    style={{
-                        marginTop: '20px',
-                        background: 'rgba(255,255,255,0.7)',
-                        backdropFilter: 'blur(20px) saturate(160%)',
-                        WebkitBackdropFilter: 'blur(20px) saturate(160%)',
-                        border: '1px solid rgba(0,0,0,0.06)',
-                        borderRadius: '18px',
-                        padding: '12px 14px',
-                        boxShadow: '0 6px 18px rgba(0,45,91,0.06)',
-                        display: 'flex',
-                        flexWrap: 'wrap',
-                        gap: '10px',
-                        alignItems: 'center',
-                    }}
+                    className="collections-controls mt-5 bg-[rgba(255,255,255,0.7)] backdrop-filter-[blur(20px)_saturate(160%)] [-webkit-backdrop-filter:blur(20px)_saturate(160%)] border border-[rgba(0,0,0,0.06)] rounded-lg py-3 px-3.5 shadow-[0_6px_18px_rgba(0,45,91,0.06)] flex flex-wrap gap-2.5 items-center"
                 >
                     {/* Search input — name + country full-text. */}
                     <div className="relative flex-[1_1_220px] min-w-[200px]">
@@ -253,13 +216,7 @@ export function Collections() {
                             strokeWidth="2.4"
                             strokeLinecap="round"
                             strokeLinejoin="round"
-                            style={{
-                                position: 'absolute',
-                                left: '12px',
-                                top: '50%',
-                                transform: 'translateY(-50%)',
-                                pointerEvents: 'none',
-                            }}
+                            className="absolute left-3 top-[50%] translate-y-[-50%] pointer-events-none"
                         >
                             <circle cx="11" cy="11" r="7"></circle>
                             <path d="M21 21l-4.35-4.35"></path>
@@ -270,18 +227,7 @@ export function Collections() {
                             placeholder={t('collections.searchPlaceholder')}
                             value={searchInputValue}
                             onChange={(e) => setSearchInputValue(e.target.value)}
-                            style={{
-                                width: '100%',
-                                boxSizing: 'border-box',
-                                padding: '8px 12px 8px 34px',
-                                border: '1px solid rgba(0,0,0,0.08)',
-                                borderRadius: '999px',
-                                fontSize: '0.85rem',
-                                background: 'white',
-                                fontWeight: 600,
-                                color: '#002d5b',
-                                outline: 0,
-                            }}
+                            className="w-full box-border pt-2 pr-3 pb-2 pl-[34px] border border-[rgba(0,0,0,0.08)] rounded-full text-[0.85rem] bg-white font-semibold text-brand-navy outline-0"
                         />
                     </div>
 
@@ -342,16 +288,7 @@ export function Collections() {
                             type="button"
                             title={t('collections.clearFilters')}
                             onClick={onClearFilters}
-                            style={{
-                                background: 'rgba(255,59,48,0.08)',
-                                border: '1px solid rgba(255,59,48,0.22)',
-                                color: '#ff3b30',
-                                padding: '7px 14px',
-                                borderRadius: '999px',
-                                fontSize: '0.78rem',
-                                fontWeight: 800,
-                                cursor: 'pointer',
-                            }}
+                            className="bg-[rgba(255,59,48,0.08)] border border-[rgba(255,59,48,0.22)] text-[#ff3b30] py-[7px] px-3.5 rounded-full text-[0.78rem] font-extrabold cursor-pointer"
                         >
                             {t('collections.clearFilters')}
                         </button>
@@ -439,16 +376,7 @@ function ArchivedCard({ trip }: { trip: Trip }) {
                         src={trip.coverUrl}
                         alt=""
                         data-cover-thumb
-                        className="archived-card-cover"
-                        style={{
-                            width: '60px',
-                            height: '60px',
-                            borderRadius: '12px',
-                            objectFit: 'cover',
-                            flexShrink: 0,
-                            boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-                            border: '1px solid rgba(0,0,0,0.06)',
-                        }}
+                        className="archived-card-cover w-[60px] h-[60px] rounded-[12px] object-cover shrink-0 shadow-[0_4px_12px_rgba(0,0,0,0.08)] border border-[rgba(0,0,0,0.06)]"
                     />
                 )}
                 <div className="flex-1 min-w-0">
@@ -458,16 +386,7 @@ function ArchivedCard({ trip }: { trip: Trip }) {
                         <h3 className="m-0">{trip.name}</h3>
                         {dest && dest !== trip.name && (
                             <span
-                                style={{
-                                    background: 'rgba(0,113,227,0.08)',
-                                    color: '#005bb8',
-                                    padding: '2px 10px',
-                                    borderRadius: '999px',
-                                    fontSize: '0.7rem',
-                                    fontWeight: 800,
-                                    textTransform: 'uppercase',
-                                    letterSpacing: '0.06em',
-                                }}
+                                className="bg-[rgba(0,113,227,0.08)] text-[#005bb8] py-0.5 px-2.5 rounded-full text-[0.7rem] font-extrabold uppercase tracking-[0.06em]"
                             >
                                 📍 {dest}
                             </span>
@@ -520,15 +439,13 @@ function ArchivedCard({ trip }: { trip: Trip }) {
             >
                 <PrivacySelect trip={trip} />
                 <div
-                    className="collections-row__divider"
-                    style={{ width: '1px', height: '30px', background: 'var(--glass-border)' }}
+                    className="collections-row__divider w-px h-[30px] bg-[var(--glass-border)]"
                 />
                 <div className="flex gap-2">
                     <button
-                        className="btn-primary restore-trip-btn"
+                        className="btn-primary restore-trip-btn py-2 px-4 text-[length:var(--font-sm)]"
                         data-trip-id={trip.id}
                         onClick={() => restoreTrip(trip.id)}
-                        style={{ padding: 'var(--space-2) var(--space-4)', fontSize: 'var(--font-sm)' }}
                     >
                         {t('collections.restoreBtn')}
                     </button>
@@ -577,17 +494,7 @@ function PrivacySelect({ trip }: { trip: Trip }) {
           : 'public-plan';
     return (
         <div
-            className="collections-row__public-toggle"
-            style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-                background: 'rgba(0,0,0,0.03)',
-                padding: '6px 14px',
-                borderRadius: '980px',
-                border: '1px solid rgba(0,0,0,0.08)',
-                boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.02), 0 4px 12px rgba(0,0,0,0.03)',
-            }}
+            className="collections-row__public-toggle flex items-center gap-3 bg-[rgba(0,0,0,0.03)] py-1.5 px-3.5 rounded-[980px] border border-[rgba(0,0,0,0.08)] shadow-[inset_0_1px_2px_rgba(0,0,0,0.02),_0_4px_12px_rgba(0,0,0,0.03)]"
         >
             <select
                 className="trip-privacy-select"

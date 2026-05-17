@@ -122,16 +122,7 @@ function EmptyTripView() {
         <div>
             <div style={{ padding: '32px 0 24px', fontFamily: sf }}>
                 <h1
-                    style={{
-                        margin: '0 0 6px',
-                        fontSize: '2.8rem',
-                        fontWeight: 800,
-                        letterSpacing: '-0.04em',
-                        background: 'var(--gradient-title)',
-                        WebkitBackgroundClip: 'text',
-                        WebkitTextFillColor: 'transparent',
-                        backgroundClip: 'text',
-                    }}
+                    className="mt-0 mx-0 mb-1.5 text-[2.8rem] font-extrabold tracking-[-0.04em] bg-[var(--gradient-title)] [-webkit-background-clip:text] [-webkit-text-fill-color:transparent] bg-clip-text"
                 >
                     {t('ai.title')}
                 </h1>
@@ -152,32 +143,10 @@ function EmptyTripView() {
             >
                 <div ref={mapRef} id="emptyMap" className="w-full h-full" />
                 <div
-                    style={{
-                        position: 'absolute',
-                        inset: 0,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        background: 'rgba(255,255,255,0.05)',
-                        backdropFilter: 'blur(25px) saturate(180%)',
-                        WebkitBackdropFilter: 'blur(25px) saturate(180%)',
-                        zIndex: 1000,
-                    }}
+                    className="absolute inset-0 flex flex-col items-center justify-center bg-[rgba(255,255,255,0.05)] backdrop-filter-[blur(25px)_saturate(180%)] [-webkit-backdrop-filter:blur(25px)_saturate(180%)] z-[1000]"
                 >
                     <div
-                        className="premium-glass-card"
-                        style={{
-                            textAlign: 'center',
-                            color: 'var(--text-brand-navy)',
-                            padding: 48,
-                            maxWidth: 500,
-                            background: 'rgba(255,255,255,0.6)',
-                            borderRadius: 36,
-                            border: '1px solid rgba(255,255,255,0.8)',
-                            boxShadow:
-                                '0 30px 60px rgba(0,0,0,0.1), 0 10px 20px rgba(0,0,0,0.05)',
-                        }}
+                        className="premium-glass-card text-center text-brand-navy p-12 max-w-[500px] bg-[rgba(255,255,255,0.6)] rounded-[36px] border border-[rgba(255,255,255,0.8)] shadow-[0_30px_60px_rgba(0,0,0,0.1),_0_10px_20px_rgba(0,0,0,0.05)]"
                     >
                         <div
                             style={{
@@ -189,24 +158,12 @@ function EmptyTripView() {
                             🧭
                         </div>
                         <h2
-                            style={{
-                                fontSize: '2rem',
-                                fontWeight: 800,
-                                marginBottom: 16,
-                                letterSpacing: '-0.03em',
-                            }}
+                            className="text-[2rem] font-extrabold mb-4 tracking-[-0.03em]"
                         >
                             {t('ai.noTripTitle')}
                         </h2>
                         <p
-                            style={{
-                                fontSize: '1.15rem',
-                                opacity: 0.85,
-                                lineHeight: 1.6,
-                                fontFamily:
-                                    "-apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif",
-                                marginBottom: 32,
-                            }}
+                            className="text-[1.15rem] opacity-85 leading-[1.6] font-sans mb-8"
                         >
                             {t('ai.noTripBody')}
                         </p>
@@ -738,16 +695,7 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
             <div className="pt-8 px-0 pb-6">
                 <div className="flex items-center gap-3 mb-[6px]">
                     <h1
-                        style={{
-                            margin: 0,
-                            fontSize: '2.8rem',
-                            fontWeight: 800,
-                            letterSpacing: '-0.04em',
-                            background: 'var(--gradient-title)',
-                            WebkitBackgroundClip: 'text',
-                            WebkitTextFillColor: 'transparent',
-                            backgroundClip: 'text',
-                        }}
+                        className="m-0 text-[2.8rem] font-extrabold tracking-[-0.04em] bg-[var(--gradient-title)] [-webkit-background-clip:text] [-webkit-text-fill-color:transparent] bg-clip-text"
                     >
                         {t('ai.title')}
                     </h1>
@@ -790,14 +738,7 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                     {/* Dates */}
                     <div className="card glass p-5 flex-none">
                         <h2
-                            className="card-title"
-                            style={{
-                                fontSize: '0.85rem',
-                                textTransform: 'uppercase',
-                                letterSpacing: '0.07em',
-                                color: 'var(--accent-blue-deep)',
-                                marginBottom: 14,
-                            }}
+                            className="card-title text-[0.85rem] uppercase tracking-[0.07em] text-accent-blue-deep mb-3.5"
                         >
                             {t('ai.sectionTravelDates')}
                         </h2>
@@ -805,15 +746,7 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                             <div>
                                 <label
                                     htmlFor="aiDateFrom"
-                                    style={{
-                                        display: 'block',
-                                        fontSize: '0.75rem',
-                                        fontWeight: 600,
-                                        color: 'var(--text-secondary)',
-                                        textTransform: 'uppercase',
-                                        letterSpacing: '0.06em',
-                                        marginBottom: 5,
-                                    }}
+                                    className="block text-xs font-semibold text-secondary uppercase tracking-[0.06em] mb-[5px]"
                                 >
                                     {t('ai.dateFromLabel')}
                                 </label>
@@ -828,15 +761,7 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                             <div>
                                 <label
                                     htmlFor="aiDateTo"
-                                    style={{
-                                        display: 'block',
-                                        fontSize: '0.75rem',
-                                        fontWeight: 600,
-                                        color: 'var(--text-secondary)',
-                                        textTransform: 'uppercase',
-                                        letterSpacing: '0.06em',
-                                        marginBottom: 5,
-                                    }}
+                                    className="block text-xs font-semibold text-secondary uppercase tracking-[0.06em] mb-[5px]"
                                 >
                                     {t('ai.dateToLabel')}
                                 </label>
@@ -880,13 +805,7 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                         <div className="ai-col-gap-6">
                             <label
                                 htmlFor="aiFoodContext"
-                                style={{
-                                    fontSize: '0.72rem',
-                                    fontWeight: 800,
-                                    textTransform: 'uppercase',
-                                    letterSpacing: '0.08em',
-                                    color: 'var(--text-secondary)',
-                                }}
+                                className="text-[0.72rem] font-extrabold uppercase tracking-[0.08em] text-secondary"
                             >
                                 🍽️ {t('ai.foodReqLabel')}
                             </label>
@@ -908,13 +827,7 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                         <div className="ai-col-gap-6">
                             <label
                                 htmlFor="aiSightseeingContext"
-                                style={{
-                                    fontSize: '0.72rem',
-                                    fontWeight: 800,
-                                    textTransform: 'uppercase',
-                                    letterSpacing: '0.08em',
-                                    color: 'var(--text-secondary)',
-                                }}
+                                className="text-[0.72rem] font-extrabold uppercase tracking-[0.08em] text-secondary"
                             >
                                 🏛️ {t('ai.sightsReqLabel')}
                             </label>
@@ -1138,14 +1051,7 @@ function AIUsageCard({
                 className="flex items-center justify-between mb-2"
             >
                 <h2
-                    className="card-title"
-                    style={{
-                        fontSize: '0.85rem',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.07em',
-                        color: 'var(--accent-purple-deep)',
-                        margin: 0,
-                    }}
+                    className="card-title text-[0.85rem] uppercase tracking-[0.07em] text-accent-purple-deep m-0"
                 >
                     {t('ai.usageCardTitle')}
                 </h2>
@@ -1179,15 +1085,7 @@ function AIUsageCard({
                         aria-valuemin={0}
                         aria-valuemax={100}
                         aria-label="AI usage today"
-                        style={{
-                            position: 'relative',
-                            height: 10,
-                            borderRadius: 999,
-                            background: 'rgba(155,89,182,0.10)',
-                            border: '1px solid rgba(155,89,182,0.18)',
-                            overflow: 'hidden',
-                            marginTop: 2,
-                        }}
+                        className="relative h-2.5 rounded-full bg-[rgba(155,89,182,0.10)] border border-[rgba(155,89,182,0.18)] overflow-hidden mt-0.5"
                     >
                         <div
                             style={{
@@ -1218,12 +1116,7 @@ function AIUsageCard({
                 </>
             ) : (
                 <p
-                    style={{
-                        margin: 0,
-                        fontSize: '0.78rem',
-                        color: 'var(--text-secondary)',
-                        lineHeight: 1.45,
-                    }}
+                    className="m-0 text-[0.78rem] text-secondary leading-[1.45]"
                 >
                     {t('ai.usageNoPool')}
                 </p>
@@ -1256,25 +1149,13 @@ function AIUsageCard({
 
             {showByoCard ? (
                 <div
-                    style={{
-                        marginTop: 12,
-                        background: 'rgba(155,89,182,0.04)',
-                        border: '1px solid rgba(155,89,182,0.18)',
-                        borderRadius: 12,
-                        padding: 12,
-                    }}
+                    className="mt-3 bg-[rgba(155,89,182,0.04)] border border-[rgba(155,89,182,0.18)] rounded-md p-3"
                 >
                     <div
                         className="flex items-center justify-between mb-[6px]"
                     >
                         <span
-                            style={{
-                                fontSize: '0.72rem',
-                                fontWeight: 700,
-                                textTransform: 'uppercase',
-                                letterSpacing: '0.06em',
-                                color: 'var(--accent-purple-deep)',
-                            }}
+                            className="text-[0.72rem] font-bold uppercase tracking-[0.06em] text-accent-purple-deep"
                         >
                             {t('ai.usageByoSectionTitle')}
                         </span>
@@ -1284,34 +1165,13 @@ function AIUsageCard({
                             title={t('ai.keyHelpBtnTitle')}
                             aria-label={t('ai.keyHelpBtnTitle')}
                             onClick={onShowKeyHelp}
-                            style={{
-                                background: 'rgba(155,89,182,0.12)',
-                                border: '1px solid rgba(155,89,182,0.35)',
-                                color: 'var(--accent-purple-deep)',
-                                width: 22,
-                                height: 22,
-                                borderRadius: '50%',
-                                cursor: 'pointer',
-                                fontWeight: 800,
-                                fontSize: '0.72rem',
-                                lineHeight: 1,
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                fontFamily: 'Georgia, serif',
-                                fontStyle: 'italic',
-                            }}
+                            className="bg-[rgba(155,89,182,0.12)] border border-[rgba(155,89,182,0.35)] text-accent-purple-deep w-[22px] h-[22px] rounded-full cursor-pointer font-extrabold text-[0.72rem] leading-none inline-flex items-center justify-center font-serif italic"
                         >
                             i
                         </button>
                     </div>
                     <p
-                        style={{
-                            color: 'var(--text-secondary)',
-                            fontSize: '0.76rem',
-                            margin: '0 0 8px',
-                            lineHeight: 1.5,
-                        }}
+                        className="text-secondary text-[0.76rem] mt-0 mx-0 mb-2 leading-[1.5]"
                     >
                         {t('ai.keyCardSubtitle')}
                     </p>
@@ -1323,36 +1183,14 @@ function AIUsageCard({
                             spellCheck={false}
                             value={geminiKey}
                             onChange={onKeyChange}
-                            style={{
-                                width: '100%',
-                                boxSizing: 'border-box',
-                                padding: '9px 40px 9px 11px',
-                                border: '1px solid rgba(0,0,0,0.12)',
-                                borderRadius: 10,
-                                fontSize: '0.85rem',
-                                fontFamily: "'SF Mono', monospace",
-                                background: 'var(--card-bg)',
-                                color: 'var(--text-brand-navy)',
-                            }}
+                            className="w-full box-border pt-[9px] pr-10 pb-[9px] pl-[11px] border border-[rgba(0,0,0,0.12)] rounded-[10px] text-[0.85rem] font-mono bg-card text-brand-navy"
                         />
                         <button
                             type="button"
                             title={showKey ? t('ai.keyToggleHide') : t('ai.keyToggleShow')}
                             aria-label={t('ai.keyToggleAriaLabel')}
                             onClick={onToggleShowKey}
-                            style={{
-                                position: 'absolute',
-                                right: 6,
-                                top: '50%',
-                                transform: 'translateY(-50%)',
-                                background: 'transparent',
-                                border: 0,
-                                cursor: 'pointer',
-                                padding: '4px 8px',
-                                color: 'rgba(0,0,0,0.5)',
-                                fontSize: '0.95rem',
-                                lineHeight: 1,
-                            }}
+                            className="absolute right-1.5 top-[50%] translate-y-[-50%] bg-transparent border-0 cursor-pointer py-1 px-2 text-[rgba(0,0,0,0.5)] text-[0.95rem] leading-none"
                         >
                             {showKey ? '🙈' : '👁'}
                         </button>
@@ -1412,25 +1250,13 @@ function GenerationErrorCard({
             </h2>
             {error.hint ? (
                 <p
-                    style={{
-                        margin: '0 0 18px',
-                        color: 'var(--text-secondary)',
-                        fontSize: '0.9rem',
-                        lineHeight: 1.5,
-                    }}
+                    className="mt-0 mx-0 mb-[18px] text-secondary text-[0.9rem] leading-[1.5]"
                 >
                     {error.hint}
                 </p>
             ) : null}
             <details
-                style={{
-                    margin: '0 0 18px',
-                    textAlign: 'left',
-                    background: 'rgba(255,59,48,0.04)',
-                    border: '1px solid rgba(255,59,48,0.16)',
-                    borderRadius: 10,
-                    padding: '8px 12px',
-                }}
+                className="mt-0 mx-0 mb-[18px] text-left bg-[rgba(255,59,48,0.04)] border border-[rgba(255,59,48,0.16)] rounded-[10px] py-2 px-3"
             >
                 <summary
                     className="cursor-pointer text-[0.78rem] font-bold text-accent-purple-deep"
@@ -1453,17 +1279,7 @@ function GenerationErrorCard({
             <button
                 type="button"
                 onClick={onRetry}
-                style={{
-                    padding: '10px 22px',
-                    borderRadius: 999,
-                    border: 0,
-                    background: 'var(--accent-blue)',
-                    color: 'white',
-                    fontSize: '0.92rem',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    boxShadow: '0 4px 12px rgba(0,113,227,0.28)',
-                }}
+                className="py-2.5 px-[22px] rounded-full border-0 bg-accent-blue text-white text-[0.92rem] font-bold cursor-pointer shadow-[0_4px_12px_rgba(0,113,227,0.28)]"
             >
                 {t('ai.errorRetryBtn')}
             </button>
@@ -1528,14 +1344,7 @@ function ItineraryOutput({
                     </p>
                 </div>
                 <div
-                    style={{
-                        fontSize: '0.78rem',
-                        color: 'var(--text-secondary)',
-                        background: 'var(--glass-bg)',
-                        border: '1px solid var(--glass-border)',
-                        padding: '5px 14px',
-                        borderRadius: 980,
-                    }}
+                    className="text-[0.78rem] text-secondary bg-[var(--glass-bg)] border border-[var(--glass-border)] py-[5px] px-3.5 rounded-[980px]"
                 >
                     {t('ai.resultBadge')}
                 </div>
@@ -1573,21 +1382,12 @@ function ItineraryOutput({
                             >
                                 <div className="mb-5">
                                     <h3
-                                        style={{
-                                            margin: '0 0 var(--space-1)',
-                                            fontSize: '1.2rem',
-                                            fontWeight: 700,
-                                            letterSpacing: '-0.02em',
-                                            color: 'var(--text-primary)',
-                                        }}
+                                        className="mt-0 mx-0 mb-1 text-[1.2rem] font-bold tracking-[-0.02em] text-primary"
                                     >
                                         {day.title || 'Day ' + day.day}
                                     </h3>
                                     <span
-                                        style={{
-                                            fontSize: 'var(--font-base)',
-                                            color: 'var(--text-secondary)',
-                                        }}
+                                        className="text-[length:var(--font-base)] text-secondary"
                                     >
                                         {day.date || ''}
                                     </span>
@@ -1764,12 +1564,7 @@ function TodoListPanel({ activeTrip, datesSet }: TodoListPanelProps) {
                     >
                         <span className="ai-fs-12">📋</span>
                         <h3
-                            style={{
-                                margin: 0,
-                                color: 'var(--accent-purple-deep)',
-                                fontWeight: 800,
-                                letterSpacing: '-0.01em',
-                            }}
+                            className="m-0 text-accent-purple-deep font-extrabold tracking-[-0.01em]"
                         >
                             {t('ai.todoPanelEmptyTitle')}
                         </h3>
@@ -1809,12 +1604,7 @@ function TodoListPanel({ activeTrip, datesSet }: TodoListPanelProps) {
                     >
                         <span className="ai-fs-12">📋</span>
                         <h3
-                            style={{
-                                margin: 0,
-                                color: 'var(--accent-purple-deep)',
-                                fontWeight: 800,
-                                letterSpacing: '-0.01em',
-                            }}
+                            className="m-0 text-accent-purple-deep font-extrabold tracking-[-0.01em]"
                         >
                             {tn('ai.todoPanelNoneTickedTitle', allTodo.length)}
                         </h3>
@@ -1840,24 +1630,14 @@ function TodoListPanel({ activeTrip, datesSet }: TodoListPanelProps) {
     return (
         <div className="ai-mb-32">
             <div
-                className="card glass"
-                style={{
-                    padding: 20,
-                    borderRadius: 18,
-                    border: '1.5px solid rgba(155, 89, 182, 0.25)',
-                }}
+                className="card glass p-5 rounded-lg border-[1.5px] border-[rgba(155,_89,_182,_0.25)]"
             >
                 <div
                     className="flex items-center gap-[10px] mb-[14px] flex-wrap"
                 >
                     <span className="ai-fs-12">📋</span>
                     <h3
-                        style={{
-                            margin: 0,
-                            color: 'var(--accent-purple-deep)',
-                            fontWeight: 800,
-                            letterSpacing: '-0.01em',
-                        }}
+                        className="m-0 text-accent-purple-deep font-extrabold tracking-[-0.01em]"
                     >
                         {t('ai.todoPanelTickedTitle')}{' '}
                         <span
@@ -1869,27 +1649,13 @@ function TodoListPanel({ activeTrip, datesSet }: TodoListPanelProps) {
                     <button
                         type="button"
                         onClick={() => navigate('todo')}
-                        style={{
-                            marginLeft: 'auto',
-                            background: 'transparent',
-                            border: 0,
-                            color: 'var(--accent-blue-deep)',
-                            fontWeight: 700,
-                            fontSize: '0.82rem',
-                            cursor: 'pointer',
-                            padding: 0,
-                        }}
+                        className="ml-auto bg-transparent border-0 text-accent-blue-deep font-bold text-[0.82rem] cursor-pointer p-0"
                     >
                         {t('ai.todoPanelManageBtn')}
                     </button>
                 </div>
                 <p
-                    style={{
-                        fontSize: '0.82rem',
-                        color: 'var(--text-secondary)',
-                        margin: '0 0 12px',
-                        lineHeight: 1.5,
-                    }}
+                    className="text-[0.82rem] text-secondary mt-0 mx-0 mb-3 leading-[1.5]"
                 >
                     {datesSet
                         ? t('ai.todoPanelHintWithDates')
@@ -1958,12 +1724,7 @@ function MarkedCard({
                 <span className="text-[1.4rem] leading-none">{place.icon}</span>
                 <div className="flex-1 min-w-0">
                     <div
-                        style={{
-                            fontWeight: 800,
-                            color: 'var(--text-brand-navy)',
-                            fontSize: '0.95rem',
-                            lineHeight: 1.25,
-                        }}
+                        className="font-extrabold text-brand-navy text-[0.95rem] leading-[1.25]"
                     >
                         {place.name}
                     </div>
@@ -1979,19 +1740,9 @@ function MarkedCard({
             {datesSet ? (
                 <div className="flex gap-2 min-w-0">
                     <select
-                        className="marked-day-select"
+                        className="marked-day-select flex-1 min-w-0 max-w-full py-1.5 px-2 rounded-lg border border-[rgba(0,0,0,0.1)] text-[0.78rem] bg-card"
                         value={place.dayId || ''}
                         onChange={onDayChange}
-                        style={{
-                            flex: '1 1 0',
-                            minWidth: 0,
-                            maxWidth: '100%',
-                            padding: '6px 8px',
-                            borderRadius: 8,
-                            border: '1px solid rgba(0,0,0,0.1)',
-                            fontSize: '0.78rem',
-                            background: 'var(--card-bg)',
-                        }}
                     >
                         <option value="">{t('ai.dayOptionAny')}</option>
                         {tripDays.map((d) => (
@@ -2002,19 +1753,9 @@ function MarkedCard({
                         ))}
                     </select>
                     <select
-                        className="marked-time-select"
+                        className="marked-time-select flex-1 min-w-0 max-w-full py-1.5 px-2 rounded-lg border border-[rgba(0,0,0,0.1)] text-[0.78rem] bg-card"
                         value={place.timeOfDay || ''}
                         onChange={onTimeChange}
-                        style={{
-                            flex: '1 1 0',
-                            minWidth: 0,
-                            maxWidth: '100%',
-                            padding: '6px 8px',
-                            borderRadius: 8,
-                            border: '1px solid rgba(0,0,0,0.1)',
-                            fontSize: '0.78rem',
-                            background: 'var(--card-bg)',
-                        }}
                     >
                         <option value="">{t('ai.timeOptionAny')}</option>
                         <option value="morning">{t('ai.timeOptionMorning')}</option>

@@ -77,24 +77,8 @@ export function AchievementsStrip({ achievements }: { achievements: ProfileAchie
                     <button
                         key={a.badgeId}
                         type="button"
-                        className={`achievement-pill${isOpen ? ' is-open' : ''}`}
+                        className={`achievement-pill${isOpen ? ' is-open' : ''} relative inline-flex items-center gap-1.5 py-1.5 px-3 rounded-full bg-white border border-[rgba(0,113,227,0.18)] text-[0.85rem] font-semibold text-primary shadow-[0_1px_2px_rgba(0,0,0,0.04)] cursor-pointer font-[inherit]`}
                         aria-label={a.description ? `${label} — ${a.description}` : label}
-                        style={{
-                            position: 'relative',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 6,
-                            padding: '6px 12px',
-                            borderRadius: 999,
-                            background: 'white',
-                            border: '1px solid rgba(0,113,227,0.18)',
-                            fontSize: '0.85rem',
-                            fontWeight: 600,
-                            color: 'var(--text-primary)',
-                            boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
-                            cursor: 'pointer',
-                            fontFamily: 'inherit',
-                        }}
                         onClick={() => setOpenId((cur) => (cur === a.badgeId ? null : a.badgeId))}
                     >
                         <span className="text-[1.1rem] leading-none">{a.emoji || '🏅'}</span>

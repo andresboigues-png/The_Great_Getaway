@@ -91,12 +91,13 @@ def radius_token(value):
     if isinstance(value, int):
         return RADIUS_PX_TO_TW.get(value)
     if isinstance(value, str):
-        m = re.match(r'(\d+)px$', value)
+        m = re.match(r"^['\"]?(\d+)px['\"]?$", value)
         if m:
             return RADIUS_PX_TO_TW.get(int(m.group(1)))
-        if value.isdigit():
-            return RADIUS_PX_TO_TW.get(int(value))
-        if value.endswith('%'):
+        m = re.match(r"^['\"]?(\d+)['\"]?$", value)
+        if m:
+            return RADIUS_PX_TO_TW.get(int(m.group(1)))
+        if value.endswith('%') or value.endswith("%'") or value.endswith('%"'):
             return 'full'
     return None
 
@@ -134,6 +135,10 @@ def color_token(value):
         return COLOR_VALUE_MAP[value]
     if value == "'transparent'" or value == '"transparent"':
         return 'transparent'
+    if value == "'currentColor'" or value == '"currentColor"':
+        return 'current'
+    if value == "'inherit'" or value == '"inherit"':
+        return 'inherit'
     # Raw hex colors → arbitrary bracket form. Tailwind v4 accepts these
     # without any config: `text-[#ff3b30]`.
     m = re.match(r"^['\"](#[0-9a-fA-F]{3,8})['\"]$", value)
@@ -143,6 +148,16 @@ def color_token(value):
     m = re.match(r"^['\"](rgba?\([^)]+\))['\"]$", value)
     if m:
         # Tailwind v4 needs spaces escaped inside brackets — replace ' ' with '_'
+        return f'[{m.group(1).replace(" ", "_")}]'
+    # Generic CSS custom-property fallback — anything matching var(--*)
+    # we don't have a named bridge for. Tailwind v4 passes it through
+    # untouched: `bg-[var(--gradient-title)]`.
+    m = re.match(r"^['\"]?(var\(--[A-Za-z0-9_-]+\))['\"]?$", value)
+    if m:
+        return f'[{m.group(1)}]'
+    # linear-gradient / radial-gradient / conic-gradient — arbitrary bracket
+    m = re.match(r"^['\"]((?:linear|radial|conic)-gradient\([^)]+\))['\"]$", value)
+    if m:
         return f'[{m.group(1).replace(" ", "_")}]'
     return None
 
@@ -392,16 +407,20 @@ def convert_pair(key, value):
     if key == 'flexGrow':
         if v == '0' or v == "'0'": return 'grow-0'
         if v == '1' or v == "'1'": return 'grow'
-    # Line height
+    # Line height — named map first, arbitrary fallback further down
     if key == 'lineHeight':
-        return {'1': 'leading-none', "'1'": 'leading-none',
-                "'1.25'": 'leading-tight', "'1.5'": 'leading-normal',
-                "'1.75'": 'leading-relaxed', "'2'": 'leading-loose'}.get(v)
-    # Letter spacing
+        lh_map = {'1': 'leading-none', "'1'": 'leading-none',
+                  "'1.25'": 'leading-tight', "'1.5'": 'leading-normal',
+                  "'1.75'": 'leading-relaxed', "'2'": 'leading-loose'}
+        if v in lh_map:
+            return lh_map[v]
+    # Letter spacing — named map first, arbitrary fallback further down
     if key == 'letterSpacing':
-        return {"'-0.05em'": 'tracking-tighter', "'-0.025em'": 'tracking-tight',
-                "'0'": 'tracking-normal', "'0.025em'": 'tracking-wide',
-                "'0.05em'": 'tracking-wider', "'0.1em'": 'tracking-widest'}.get(v)
+        ls_map = {"'-0.05em'": 'tracking-tighter', "'-0.025em'": 'tracking-tight',
+                  "'0'": 'tracking-normal', "'0.025em'": 'tracking-wide',
+                  "'0.05em'": 'tracking-wider', "'0.1em'": 'tracking-widest'}
+        if v in ls_map:
+            return ls_map[v]
 
     # Font family — common keywords
     if key == 'fontFamily':
@@ -463,9 +482,209 @@ def convert_pair(key, value):
         tok = color_token(v)
         if tok is not None:
             return f'border-{tok}'
+    if key == 'borderWidth':
+        if v == '0' or v == "'0'":
+            return 'border-0'
+        m = re.match(r"^['\"]?(\d+)px['\"]?$", v)
+        if m:
+            n = int(m.group(1))
+            if n in (1, 2, 4, 8):
+                return f'border-{n}' if n != 1 else 'border'
+            return f'border-[{n}px]'
 
-    # Single-side borders we can't shorthand are skipped (would split into
-    # border-width + border-color + border-style — too risky mechanically).
+    # Border shorthand — handle the common '<Wpx> solid <color>' form by
+    # splitting into a width utility + a color utility. Tailwind's `border`
+    # utility is `border-width: 1px; border-style: solid;` so 1px + solid
+    # is implicit — no separate `border-solid` needed when width=1px.
+    if key == 'border':
+        if v == '0' or v == "'0'" or v == "'none'" or v == '"none"':
+            return 'border-0'
+        m = re.match(
+            r"^['\"](\d+(?:\.\d+)?)px solid (.+)['\"]$",
+            v,
+        )
+        if m:
+            width_raw, color_raw = m.group(1), m.group(2)
+            # Resolve color via color_token (re-wrap with quotes so the
+            # existing matchers fire).
+            color_tok = color_token(f"'{color_raw}'")
+            if color_tok is not None:
+                # Decide width prefix
+                w = float(width_raw)
+                if w == 1.0:
+                    width_util = 'border'
+                elif w in (2.0, 4.0, 8.0):
+                    width_util = f'border-{int(w)}'
+                else:
+                    # arbitrary width
+                    width_util = f'border-[{width_raw}px]'
+                return f'{width_util} border-{color_tok}'
+
+    # Single-side borders (borderTop / borderBottom / borderLeft / borderRight)
+    # We split into width + color (style defaults to solid). Tailwind has
+    # `border-t`, `border-b`, etc. for 1px width on a single side.
+    side_map = {
+        'borderTop': ('t', 'border-t'),
+        'borderBottom': ('b', 'border-b'),
+        'borderLeft': ('l', 'border-l'),
+        'borderRight': ('r', 'border-r'),
+    }
+    if key in side_map:
+        side, side_util = side_map[key]
+        if v == '0' or v == "'0'" or v == "'none'" or v == '"none"':
+            return f'border-{side}-0'
+        m = re.match(
+            r"^['\"](\d+(?:\.\d+)?)px solid (.+)['\"]$",
+            v,
+        )
+        if m:
+            width_raw, color_raw = m.group(1), m.group(2)
+            color_tok = color_token(f"'{color_raw}'")
+            if color_tok is not None:
+                w = float(width_raw)
+                if w == 1.0:
+                    width_util = side_util
+                elif w in (2.0, 4.0, 8.0):
+                    width_util = f'{side_util}-{int(w)}'
+                else:
+                    width_util = f'{side_util}-[{width_raw}px]'
+                return f'{width_util} border-{color_tok}'
+
+    # Box-shadow — var(--shadow-*) passes through as arbitrary, simple
+    # static shadow strings get bracketed (Tailwind v4 accepts the full
+    # CSS value inside brackets as long as spaces are escaped).
+    if key == 'boxShadow':
+        if v == "'none'" or v == '"none"':
+            return 'shadow-none'
+        m = re.match(r"^['\"]?(var\(--shadow-[A-Za-z0-9_-]+\))['\"]?$", v)
+        if m:
+            return f'shadow-[{m.group(1)}]'
+        # Static shadow with rgba color — strip outer quotes, escape spaces
+        m = re.match(r"^['\"](.+)['\"]$", v)
+        if m:
+            inner = m.group(1).strip()
+            # Skip if any dynamic substitution would have been caught
+            # earlier; here we just need to escape outer spaces.
+            return f'shadow-[{inner.replace(" ", "_")}]'
+
+    # Transition — pass through as arbitrary
+    if key == 'transition':
+        m = re.match(r"^['\"](.+)['\"]$", v)
+        if m:
+            return f'transition-[{m.group(1).replace(" ", "_")}]'
+
+    # Letter spacing — arbitrary fallback for any em/px value not in the
+    # named map above.
+    if key == 'letterSpacing':
+        m = re.match(r"^['\"]?(-?[\d.]+(?:em|px|rem))['\"]?$", v)
+        if m:
+            return f'tracking-[{m.group(1)}]'
+
+    # Line height — arbitrary fallback (numeric only)
+    if key == 'lineHeight':
+        if v.lstrip('-').replace('.', '').isdigit():
+            return f'leading-[{v}]'
+        m = re.match(r"^['\"]?(-?[\d.]+(?:em|px|rem|%)?)['\"]?$", v)
+        if m:
+            return f'leading-[{m.group(1)}]'
+
+    # Gradient-text shorthand — common pair WebkitBackgroundClip:'text' +
+    # WebkitTextFillColor:'transparent'. Map them individually; the
+    # combination produces gradient-text behaviour.
+    if key == 'WebkitBackgroundClip':
+        if v == "'text'" or v == '"text"':
+            return '[-webkit-background-clip:text]'
+    if key == 'backgroundClip':
+        if v == "'text'" or v == '"text"':
+            return 'bg-clip-text'
+    if key == 'WebkitTextFillColor':
+        if v == "'transparent'" or v == '"transparent"':
+            return '[-webkit-text-fill-color:transparent]'
+
+    # Backdrop filter — pass through as arbitrary (most uses are blurs)
+    if key == 'backdropFilter' or key == 'WebkitBackdropFilter':
+        m = re.match(r"^['\"]blur\((\d+)px\)['\"]$", v)
+        if m:
+            n = int(m.group(1))
+            named = {0: '0', 4: 'sm', 8: '', 12: 'md', 16: 'lg', 24: 'xl',
+                     40: '2xl', 64: '3xl'}
+            if n in named:
+                return 'backdrop-blur' + (f'-{named[n]}' if named[n] else '')
+            return f'backdrop-blur-[{n}px]'
+        # Any other backdrop-filter expression (blur + saturate, etc.) →
+        # arbitrary bracket — Tailwind v4 accepts the CSS verbatim.
+        m = re.match(r"^['\"](.+)['\"]$", v)
+        if m:
+            inner = m.group(1).replace(' ', '_')
+            prefix = 'backdrop-filter' if key == 'backdropFilter' else '[-webkit-backdrop-filter]'
+            return f'{prefix}-[{inner}]' if key == 'backdropFilter' else f'[-webkit-backdrop-filter:{m.group(1).replace(" ", "_")}]'
+
+    # CSS transform — single translate/scale/rotate or arbitrary
+    if key == 'transform':
+        m = re.match(r"^['\"](.+)['\"]$", v)
+        if m:
+            inner = m.group(1).strip()
+            # Named primitives Tailwind ships
+            mt = re.match(r'^translateY\((-?[\d.]+)(px|%|rem|em)\)$', inner)
+            if mt:
+                num, unit = mt.group(1), mt.group(2)
+                return f'translate-y-[{num}{unit}]'
+            mt = re.match(r'^translateX\((-?[\d.]+)(px|%|rem|em)\)$', inner)
+            if mt:
+                num, unit = mt.group(1), mt.group(2)
+                return f'translate-x-[{num}{unit}]'
+            mt = re.match(r'^scale\((-?[\d.]+)\)$', inner)
+            if mt:
+                # scale-N where N is the percentage * 100
+                try:
+                    pct = int(round(float(mt.group(1)) * 100))
+                    return f'scale-{pct}' if pct in {0, 50, 75, 90, 95, 100, 105, 110, 125, 150} else f'scale-[{mt.group(1)}]'
+                except ValueError:
+                    pass
+            mt = re.match(r'^rotate\((-?[\d.]+)deg\)$', inner)
+            if mt:
+                num = mt.group(1)
+                return f'rotate-[{num}deg]'
+            # Fallback — arbitrary transform
+            return f'transform-[{inner.replace(" ", "_")}]'
+
+    # Overflow X / Y axis
+    if key == 'overflowX':
+        return {"'hidden'": 'overflow-x-hidden', "'visible'": 'overflow-x-visible',
+                "'scroll'": 'overflow-x-scroll', "'auto'": 'overflow-x-auto'}.get(v)
+    if key == 'overflowY':
+        return {"'hidden'": 'overflow-y-hidden', "'visible'": 'overflow-y-visible',
+                "'scroll'": 'overflow-y-scroll', "'auto'": 'overflow-y-auto'}.get(v)
+
+    # Outline — only the 'reset' shortcut is common
+    if key == 'outline':
+        if v == '0' or v == "'0'" or v == "'none'" or v == '"none"':
+            return 'outline-0'
+
+    # font-variant-numeric — Tailwind has the same set
+    if key == 'fontVariantNumeric':
+        return {"'tabular-nums'": 'tabular-nums',
+                "'proportional-nums'": 'proportional-nums',
+                "'normal'": 'normal-nums',
+                "'lining-nums'": 'lining-nums',
+                "'oldstyle-nums'": 'oldstyle-nums'}.get(v)
+
+    # fontSize via var(--font-*) — generic arbitrary fallback. Tailwind
+    # v4 needs the `length:` hint when interpolating a CSS variable
+    # because it can't infer the type at compile time.
+    if key == 'fontSize':
+        m = re.match(r"^['\"]?(var\(--[A-Za-z0-9_-]+\))['\"]?$", v)
+        if m:
+            return f'text-[length:{m.group(1)}]'
+
+    # fontFamily — `inherit`, `serif`, `sans-serif` were handled above;
+    # accept the bare `sf` style identifier we occasionally see by
+    # passing through as arbitrary.
+    if key == 'fontFamily':
+        m = re.match(r"^['\"](.+)['\"]$", v)
+        if m:
+            inner = m.group(1).replace(' ', '_').replace('"', "'")
+            return f'font-[{inner}]'
 
     return None
 
@@ -563,6 +782,43 @@ def _split_outer(s):
 # body; allows multi-line. We constrain the body to be balanced
 # w.r.t. {} for nested objects (rare in styles but possible).
 STYLE_RE = re.compile(r'style=\{\{(.*?)\}\}', re.DOTALL)
+
+
+def _enclosing_tag_name(src, style_pos):
+    """Walk backwards from `style_pos` to find the JSX opening-tag name
+    that this style attribute belongs to. Returns None if we can't
+    locate it (corrupt input). Useful for deciding whether the host is
+    a custom component (PascalCase) or a plain HTML tag."""
+    i = style_pos - 1
+    # Skip back to the `<` that opens the current tag, respecting brace
+    # depth so we don't return a nested `<` inside a {...} attribute.
+    depth = 0
+    while i >= 0:
+        c = src[i]
+        if c == '}':
+            depth += 1
+        elif c == '{':
+            depth -= 1
+        elif c == '<' and depth == 0:
+            # Read tag name
+            j = i + 1
+            if j < len(src) and (src[j].isalpha() or src[j] == '_'):
+                k = j
+                while k < len(src) and (src[k].isalnum() or src[k] in '._-'):
+                    k += 1
+                return src[j:k]
+            return None
+        i -= 1
+    return None
+
+
+# Components that we know do NOT accept className. Add here when a
+# regression surfaces; the converter will leave inline styles alone
+# inside these tags. (PascalCase heuristic also kicks in, but listing
+# them explicitly documents intent.)
+NO_CLASSNAME_COMPONENTS = {
+    'FilterSelect',
+}
 
 CSS_FN_RE = re.compile(
     r'(?:var|rgba?|hsla?|calc|min|max|clamp|url|'
@@ -722,15 +978,89 @@ def _find_opening_tag_end(src, tag_start):
     return -1
 
 
+def _find_classname_attrs(tag):
+    """Find every className attribute (static "..." or dynamic {...}) in
+    `tag`. Returns list of (start, end, kind, value_text) where kind is
+    'static' or 'dynamic'. value_text is the inner content (without
+    surrounding quotes/braces). For dynamic, value_text is the raw
+    expression source. Uses brace-tracking for {} values."""
+    out = []
+    i = 0
+    n = len(tag)
+    name_pat = re.compile(r'\bclassName')
+    while i < n:
+        m = name_pat.search(tag, i)
+        if not m:
+            break
+        attr_start = m.start()
+        j = m.end()
+        # Optional whitespace then '='
+        while j < n and tag[j] in ' \t\n':
+            j += 1
+        if j >= n or tag[j] != '=':
+            i = m.end(); continue
+        j += 1
+        while j < n and tag[j] in ' \t\n':
+            j += 1
+        if j >= n:
+            break
+        if tag[j] == '"':
+            # Static
+            k = j + 1
+            while k < n and tag[k] != '"':
+                k += 1
+            if k >= n:
+                break
+            out.append((attr_start, k + 1, 'static', tag[j+1:k]))
+            i = k + 1
+        elif tag[j] == '{':
+            # Dynamic — track brace depth, but also respect strings
+            depth = 1
+            k = j + 1
+            in_single = in_double = in_back = False
+            while k < n and depth > 0:
+                c = tag[k]
+                if in_single:
+                    if c == "'" and tag[k-1] != '\\': in_single = False
+                elif in_double:
+                    if c == '"' and tag[k-1] != '\\': in_double = False
+                elif in_back:
+                    if c == '`' and tag[k-1] != '\\': in_back = False
+                elif c == "'": in_single = True
+                elif c == '"': in_double = True
+                elif c == '`': in_back = True
+                elif c == '{': depth += 1
+                elif c == '}': depth -= 1
+                k += 1
+            if depth != 0:
+                break
+            out.append((attr_start, k, 'dynamic', tag[j+1:k-1]))
+            i = k
+        else:
+            i = m.end()
+    return out
+
+
 def merge_classname_in_tags(src):
-    """Walk every JSX opening tag and merge multiple static className=""
-    attrs within a single tag (handles multi-line tags). Returns
-    (new_src, merge_count)."""
+    """Walk every JSX opening tag and consolidate multiple `className`
+    attrs within a single tag.
+
+    Handles three cases:
+      - Two or more static `className="A"` `className="B"` → `className="A B"`
+        (deduped, order preserved).
+      - One dynamic + one or more static → append the static classes
+        onto the dynamic expression as ` <static-classes>` at the end of
+        the template literal / string concat, falling back to wrapping
+        as `${expr} <classes>` template form if the dynamic value is a
+        plain expression.
+      - All dynamic → leave alone (the script never produces a second
+        dynamic className, so this is rare and we play it safe).
+
+    Returns (new_src, merge_count)."""
     out = []
     i = 0
     n = len(src)
     merges = 0
-    cn_pat = re.compile(r'\bclassName="([^"]*)"')
     while i < n:
         ch = src[i]
         if ch == '<' and i + 1 < n and (src[i+1].isalpha() or src[i+1] == '_'):
@@ -738,33 +1068,66 @@ def merge_classname_in_tags(src):
             if end < 0:
                 out.append(ch); i += 1; continue
             tag = src[i:end+1]
-            matches = list(cn_pat.finditer(tag))
-            if len(matches) > 1:
-                # Merge unique tokens preserving order
-                tokens, seen = [], set()
-                for m in matches:
-                    for tok in m.group(1).split():
+            attrs = _find_classname_attrs(tag)
+            if len(attrs) > 1:
+                statics = [(s, e, t, v) for (s, e, t, v) in attrs if t == 'static']
+                dynamics = [(s, e, t, v) for (s, e, t, v) in attrs if t == 'dynamic']
+                # Collect static tokens (order preserved, deduped)
+                static_tokens, seen = [], set()
+                for (_, _, _, v) in statics:
+                    for tok in v.split():
                         if tok and tok not in seen:
-                            seen.add(tok); tokens.append(tok)
-                merged_attr = f'className="{" ".join(tokens)}"'
-                # Rebuild tag: replace FIRST match with merged, drop the
-                # rest (along with their preceding indent/space so we
-                # don't leave dangling blank lines).
-                pieces = [tag[:matches[0].start()], merged_attr]
-                cursor = matches[0].end()
-                for m in matches[1:]:
-                    # Eat preceding whitespace (incl. newline)
-                    drop_start = m.start()
-                    while drop_start > cursor and tag[drop_start-1] in ' \t':
-                        drop_start -= 1
-                    if drop_start > cursor and tag[drop_start-1] == '\n':
-                        drop_start -= 1
-                    pieces.append(tag[cursor:drop_start])
-                    cursor = m.end()
+                            seen.add(tok); static_tokens.append(tok)
+                static_str = ' '.join(static_tokens)
+                # Plan a rewrite
+                if len(dynamics) == 0:
+                    # Case A: all static — merge into the first
+                    new_attr = f'className="{static_str}"'
+                    keep_start, keep_end = statics[0][0], statics[0][1]
+                    drop_ranges = [(s, e) for (s, e, _, _) in statics[1:]]
+                elif len(dynamics) == 1 and static_str:
+                    # Case B: append static to the dynamic expression
+                    dyn_s, dyn_e, _, dyn_expr = dynamics[0]
+                    # Prefer template-literal form: ${expr} <static>
+                    dyn_expr_stripped = dyn_expr.strip()
+                    if dyn_expr_stripped.startswith('`') and dyn_expr_stripped.endswith('`'):
+                        # already a template literal — splice classes
+                        # before the closing backtick.
+                        body = dyn_expr_stripped[1:-1]
+                        new_dyn = f'`{body} {static_str}`'
+                    else:
+                        new_dyn = f'`${{{dyn_expr_stripped}}} {static_str}`'
+                    new_attr = f'className={{{new_dyn}}}'
+                    keep_start, keep_end = dyn_s, dyn_e
+                    drop_ranges = [(s, e) for (s, e, _, _) in statics]
+                else:
+                    # Case C: multiple dynamics or no static — leave alone
+                    out.append(tag); i = end + 1; continue
+                # Build the new tag: place new_attr at keep range, drop
+                # the other ranges (with leading whitespace if needed).
+                replacements = [(keep_start, keep_end, new_attr)] + \
+                               [(s, e, None) for (s, e) in drop_ranges]
+                replacements.sort(key=lambda r: r[0])
+                pieces = []
+                cursor = 0
+                for (s, e, replacement) in replacements:
+                    if replacement is None:
+                        # Drop — eat preceding indent + newline if the
+                        # attribute occupies its own line.
+                        drop_start = s
+                        while drop_start > cursor and tag[drop_start-1] in ' \t':
+                            drop_start -= 1
+                        if drop_start > cursor and tag[drop_start-1] == '\n':
+                            drop_start -= 1
+                        pieces.append(tag[cursor:drop_start])
+                    else:
+                        pieces.append(tag[cursor:s])
+                        pieces.append(replacement)
+                    cursor = e
                 pieces.append(tag[cursor:])
                 new_tag = ''.join(pieces)
                 out.append(new_tag)
-                merges += len(matches) - 1
+                merges += len(attrs) - 1
             else:
                 out.append(tag)
             i = end + 1
@@ -782,6 +1145,13 @@ def main(target_path):
     def replace_style(match):
         nonlocal converted, skipped
         body = match.group(1)
+        # Bail out if the host JSX tag is a custom component we KNOW
+        # doesn't accept className. Conservative — leave the inline
+        # style intact so we don't break typecheck.
+        tag_name = _enclosing_tag_name(src, match.start())
+        if tag_name in NO_CLASSNAME_COMPONENTS:
+            skipped += 1
+            return match.group(0)
         result = convert_one(body)
         if result is None:
             skipped += 1

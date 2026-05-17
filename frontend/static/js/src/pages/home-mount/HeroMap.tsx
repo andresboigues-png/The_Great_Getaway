@@ -944,21 +944,7 @@ function PinEditToolbar({ label, canSave, onSave, onCancel }: PinEditToolbarProp
                 onClick={onCancel}
                 title="Cancel — revert to the previous location"
                 aria-label="Cancel pin edit"
-                style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: 34,
-                    height: 34,
-                    borderRadius: '50%',
-                    border: 0,
-                    background: '#ff3b30',
-                    color: 'white',
-                    cursor: 'pointer',
-                    boxShadow: '0 4px 12px rgba(255,59,48,0.4)',
-                    transition: 'background 0.15s ease, box-shadow 0.15s ease',
-                    flexShrink: 0,
-                }}
+                className="inline-flex items-center justify-center w-[34px] h-[34px] rounded-full border-0 bg-[#ff3b30] text-white cursor-pointer shadow-[0_4px_12px_rgba(255,59,48,0.4)] transition-[background_0.15s_ease,_box-shadow_0.15s_ease] shrink-0"
             >
                 <svg
                     width="16"

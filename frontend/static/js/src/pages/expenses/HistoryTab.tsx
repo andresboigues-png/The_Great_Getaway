@@ -137,12 +137,7 @@ export function HistoryTab() {
                         className="flex items-center justify-between mb-6"
                     >
                         <h2
-                            style={{
-                                fontSize: '1.8rem',
-                                fontWeight: 800,
-                                letterSpacing: '-0.04em',
-                                margin: 0,
-                            }}
+                            className="text-[1.8rem] font-extrabold tracking-[-0.04em] m-0"
                         >
                             {t('expenses.historyTitle')}
                         </h2>
@@ -302,18 +297,7 @@ export function HistoryTab() {
                         return (
                             <div
                                 key={e.id}
-                                className="card glass expense-row"
-                                style={{
-                                    padding: '14px 22px',
-                                    borderRadius: 24,
-                                    border: '1px solid rgba(255,255,255,0.4)',
-                                    background: 'rgba(255,255,255,0.15)',
-                                    backdropFilter: 'blur(25px)',
-                                    display: 'flex',
-                                    justifyContent: 'space-between',
-                                    alignItems: 'center',
-                                    boxShadow: '0 10px 30px rgba(0,0,0,0.1)',
-                                }}
+                                className="card glass expense-row py-3.5 px-[22px] rounded-xl border border-[rgba(255,255,255,0.4)] bg-[rgba(255,255,255,0.15)] backdrop-blur-[25px] flex justify-between items-center shadow-[0_10px_30px_rgba(0,0,0,0.1)]"
                             >
                                 <div className="flex items-center gap-4">
                                     <div className="expense-row__icon">{cat ? cat.icon : '💰'}</div>

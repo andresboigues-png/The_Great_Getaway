@@ -198,10 +198,7 @@ export function Personalization() {
                             the new row. */}
                         <div className="section-divider">
                             <h3
-                                style={{
-                                    marginBottom: 'var(--space-3)',
-                                    fontSize: 'var(--font-lg)',
-                                }}
+                                className="mb-3 text-[length:var(--font-lg)]"
                             >
                                 {t('settings.categoryAddNewHeading')}
                             </h3>

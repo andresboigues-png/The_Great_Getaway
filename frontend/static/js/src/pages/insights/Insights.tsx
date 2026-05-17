@@ -71,13 +71,7 @@ export function Insights() {
         return (
             <div>
                 <h1
-                    style={{
-                        display: 'inline-block',
-                        background: 'var(--gradient-title)',
-                        WebkitBackgroundClip: 'text',
-                        WebkitTextFillColor: 'transparent',
-                        backgroundClip: 'text',
-                    }}
+                    className="inline-block bg-[var(--gradient-title)] [-webkit-background-clip:text] [-webkit-text-fill-color:transparent] bg-clip-text"
                 >
                     {t('insights.title')}
                 </h1>
@@ -226,13 +220,7 @@ export function Insights() {
         return (
             <div>
                 <h1
-                    style={{
-                        display: 'inline-block',
-                        background: 'var(--gradient-title)',
-                        WebkitBackgroundClip: 'text',
-                        WebkitTextFillColor: 'transparent',
-                        backgroundClip: 'text',
-                    }}
+                    className="inline-block bg-[var(--gradient-title)] [-webkit-background-clip:text] [-webkit-text-fill-color:transparent] bg-clip-text"
                 >
                     {t('insights.title')}
                 </h1>
@@ -364,28 +352,11 @@ export function Insights() {
                 <520px so the currency selector doesn't push beyond the
                 right edge. */}
             <div
-                className="insights-header"
-                style={{
-                    display: 'flex',
-                    flexWrap: 'wrap',
-                    justifyContent: 'space-between',
-                    alignItems: 'flex-end',
-                    gap: '20px',
-                    marginBottom: '40px',
-                    paddingBottom: '20px',
-                    borderBottom: '1px solid var(--glass-border)',
-                }}
+                className="insights-header flex flex-wrap justify-between items-end gap-5 mb-10 pb-5 border-b border-[var(--glass-border)]"
             >
                 <div className="min-w-0 flex-[1_1_240px]">
                     <h1
-                        style={{
-                            display: 'inline-block',
-                            background: 'var(--gradient-title)',
-                            WebkitBackgroundClip: 'text',
-                            WebkitTextFillColor: 'transparent',
-                            backgroundClip: 'text',
-                            marginBottom: 12,
-                        }}
+                        className="inline-block bg-[var(--gradient-title)] [-webkit-background-clip:text] [-webkit-text-fill-color:transparent] bg-clip-text mb-3"
                     >
                         {t('insights.title')}
                     </h1>
@@ -399,14 +370,7 @@ export function Insights() {
                     className="insights-header__controls flex items-center gap-3 flex-wrap"
                 >
                     <div
-                        className="glass"
-                        style={{
-                            display: 'flex',
-                            padding: '4px',
-                            borderRadius: '14px',
-                            border: '1px solid var(--glass-border)',
-                            boxShadow: 'var(--shadow-sm)',
-                        }}
+                        className="glass flex p-1 rounded-[14px] border border-[var(--glass-border)] shadow-[var(--shadow-sm)]"
                     >
                         <button
                             className={`toggle-btn rate-mode-btn ${mode === 'at_trip' ? 'active' : ''}`}
@@ -424,17 +388,10 @@ export function Insights() {
 
                     <select
                         id="insightCurrencySelector"
-                        className="glass-input"
+                        className="glass-input w-[110px] py-2 px-3 font-medium text-[0.9rem] bg-[var(--glass-bg)]"
                         aria-label={t('insights.currencySelectorAriaLabel')}
                         value={targetCurr}
                         onChange={(e) => setCurrency(e.target.value)}
-                        style={{
-                            width: '110px',
-                            padding: '8px 12px',
-                            fontWeight: 500,
-                            fontSize: '0.9rem',
-                            background: 'var(--glass-bg)',
-                        }}
                     >
                         {Object.keys(CONVERSION_RATES).map((c) => (
                             <option key={c} value={c}>
@@ -480,12 +437,7 @@ export function Insights() {
                         {targetSym}
                         {(totalDisplay / (Object.keys(dateTotals).length || 1)).toFixed(2)}
                         <small
-                            style={{
-                                fontSize: 'var(--font-lg)',
-                                fontWeight: 400,
-                                color: 'var(--text-secondary)',
-                                marginLeft: 'var(--space-2)',
-                            }}
+                            className="text-[length:var(--font-lg)] font-normal text-secondary ml-2"
                         >
                             {t('insights.avgDailySuffix')}
                         </small>
@@ -599,12 +551,7 @@ export function Insights() {
                                             {country}
                                         </span>
                                         <span
-                                            style={{
-                                                fontWeight: 800,
-                                                color: 'var(--accent-blue)',
-                                                fontVariantNumeric: 'tabular-nums',
-                                                whiteSpace: 'nowrap',
-                                            }}
+                                            className="font-extrabold text-accent-blue tabular-nums whitespace-nowrap"
                                         >
                                             {targetSym}
                                             {amount.toFixed(2)}
