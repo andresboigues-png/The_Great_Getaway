@@ -119,9 +119,9 @@ export function HistoryTab() {
     return (
         <div
             id="expensesContainer"
-            style={{ maxWidth: 1000, margin: '0 auto', width: '100%', marginBottom: 60 }}
+            className="max-w-[1000px] my-0 mx-auto w-full mb-[60px]"
         >
-            <div style={{ marginBottom: 40, padding: '0 10px' }}>
+            <div className="mb-10 py-0 px-2.5">
                 <div
                     className="card glass"
                     style={{
@@ -161,15 +161,7 @@ export function HistoryTab() {
                                 Clear Filters
                             </button>
                             <span
-                                style={{
-                                    fontSize: '0.75rem',
-                                    fontWeight: 700,
-                                    color: '#005bb8',
-                                    background: 'rgba(0,113,227,0.1)',
-                                    padding: '6px 14px',
-                                    borderRadius: 100,
-                                    textTransform: 'uppercase',
-                                }}
+                                className="text-xs font-bold text-[#005bb8] bg-[rgba(0,113,227,0.1)] py-1.5 px-3.5 rounded-[100px] uppercase"
                             >
                                 {t('expenses.smartFiltersBadge')}
                             </span>
@@ -178,7 +170,7 @@ export function HistoryTab() {
 
                     <div className="expense-history-filters">
                         {/* Row 1: Search (full width) */}
-                        <div style={{ gridColumn: '1 / -1' }}>
+                        <div className="col-span-full">
                             <label className="filter-label">Search</label>
                             <input
                                 type="text"
@@ -258,26 +250,24 @@ export function HistoryTab() {
                         </div>
                         <div>
                             <label className="filter-label">Value Range (€)</label>
-                            <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
+                            <div className="flex gap-2 items-center">
                                 <input
                                     type="number"
-                                    className="filter-input"
+                                    className="filter-input flex-1 p-3"
                                     placeholder="Min"
-                                    style={{ flex: 1, padding: 'var(--space-3)' }}
                                     value={filters.minVal === 0 ? '' : String(filters.minVal)}
                                     onChange={(e) => {
                                         const v = parseFloat(e.target.value);
                                         patch('minVal', Number.isFinite(v) ? v : 0);
                                     }}
                                 />
-                                <span style={{ color: 'rgba(0,0,0,0.3)', fontWeight: 700, flexShrink: 0 }}>
+                                <span className="text-[rgba(0,0,0,0.3)] font-bold shrink-0">
                                     –
                                 </span>
                                 <input
                                     type="number"
-                                    className="filter-input"
+                                    className="filter-input flex-1 p-3"
                                     placeholder="Max"
-                                    style={{ flex: 1, padding: 'var(--space-3)' }}
                                     value={filters.maxVal === Infinity ? '' : String(filters.maxVal)}
                                     onChange={(e) => {
                                         const v = parseFloat(e.target.value);
@@ -325,7 +315,7 @@ export function HistoryTab() {
                                     boxShadow: '0 10px 30px rgba(0,0,0,0.1)',
                                 }}
                             >
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
+                                <div className="flex items-center gap-4">
                                     <div className="expense-row__icon">{cat ? cat.icon : '💰'}</div>
                                     <div>
                                         <strong className="expense-row__title">{e.label}</strong>
@@ -339,7 +329,7 @@ export function HistoryTab() {
                                     </div>
                                 </div>
 
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+                                <div className="flex items-center gap-3">
                                     {e.receiptUrl ? (
                                         <button
                                             type="button"
@@ -380,7 +370,7 @@ export function HistoryTab() {
                                     </div>
 
                                     {showRowActions ? (
-                                        <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+                                        <div className="flex gap-2">
                                             <button
                                                 type="button"
                                                 className="icon-action-btn"

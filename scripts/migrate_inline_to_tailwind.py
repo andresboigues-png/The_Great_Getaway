@@ -28,10 +28,10 @@ from pathlib import Path
 # Off-scale numbers fall through to `[arbitrary]` syntax.
 
 SPACING_PX_TO_TW = {
-    0: '0', 1: 'px',
-    4: '1', 8: '2', 12: '3', 16: '4', 20: '5',
-    24: '6', 28: '7', 32: '8', 36: '9', 40: '10',
-    44: '11', 48: '12', 56: '14', 64: '16', 80: '20',
+    0: '0', 1: 'px', 2: '0.5',
+    4: '1', 6: '1.5', 8: '2', 10: '2.5', 12: '3', 14: '3.5',
+    16: '4', 20: '5', 24: '6', 28: '7', 32: '8', 36: '9',
+    40: '10', 44: '11', 48: '12', 56: '14', 64: '16', 80: '20',
     96: '24', 128: '32',
 }
 
@@ -55,8 +55,9 @@ def spacing_token(value):
             return token if value >= 0 else f'-{token}'
         return f'[{abs(value)}px]' if value >= 0 else f'-[{abs(value)}px]'
     if isinstance(value, str):
-        # var(--space-N) → N (matches our theme bridge)
-        m = re.match(r'var\(--space-(\d+)\)', value)
+        # var(--space-N) → N (matches our theme bridge) — allow optional
+        # surrounding quotes so callers don't have to pre-strip.
+        m = re.match(r"^['\"]?var\(--space-(\d+)\)['\"]?$", value)
         if m:
             return m.group(1)
         # 'Xpx' / "-Xpx"
@@ -187,10 +188,15 @@ def convert_pair(key, value):
 
     # Spacing — padding / margin / gap
     if key in ('padding', 'margin'):
-        # Try unified value (p-4 / m-4)
+        prefix = 'p' if key == 'padding' else 'm'
+        # Try unified single value (p-4 / m-4)
         tok = spacing_token(_parse_number_or_string(v))
         if tok is not None:
-            return f'{"p" if key == "padding" else "m"}-{tok}'
+            return f'{prefix}-{tok}'
+        # Try shorthand 2/3/4-value form: 'A B', 'A B C', 'A B C D'
+        shorthand = _shorthand_to_utilities(prefix, v)
+        if shorthand is not None:
+            return shorthand
     if key in ('paddingTop', 'paddingBottom', 'paddingLeft', 'paddingRight',
                 'marginTop', 'marginBottom', 'marginLeft', 'marginRight'):
         prefix_map = {
@@ -264,13 +270,25 @@ def convert_pair(key, value):
 
     # Border radius
     if key == 'borderRadius':
-        tok = radius_token(_parse_number_or_string(v))
+        parsed = _parse_number_or_string(v)
+        tok = radius_token(parsed)
         if tok == 'none':
             return 'rounded-none'
         if tok == 'full':
             return 'rounded-full'
-        if tok in {'sm', 'md', 'lg', 'xl', '2xl', '3xl'}:
+        if tok in {'sm', 'md', 'lg', 'xl', '2xl', '3xl', 'xs'}:
             return f'rounded-{tok}'
+        # Off-scale integer or quoted 'Npx' — fall back to arbitrary.
+        if isinstance(parsed, int):
+            return f'rounded-[{parsed}px]'
+        if isinstance(parsed, str):
+            m = re.match(r"^['\"]?(\d+)px['\"]?$", parsed)
+            if m:
+                return f'rounded-[{m.group(1)}px]'
+        # var(--radius-N) bridge — pass through as arbitrary
+        m = re.match(r"^['\"]?(var\(--radius-[^)]+\))['\"]?$", v)
+        if m:
+            return f'rounded-[{m.group(1)}]'
 
     # Colors
     if key == 'color':
@@ -317,8 +335,11 @@ def convert_pair(key, value):
     if key == 'pointerEvents':
         return {"'none'": 'pointer-events-none', "'auto'": 'pointer-events-auto'}.get(v)
     if key == 'opacity':
+        # Accept both bare `0.5` and quoted `'0.5'` forms
+        raw = v[1:-1] if (v.startswith("'") and v.endswith("'")) or \
+                         (v.startswith('"') and v.endswith('"')) else v
         try:
-            f = float(v)
+            f = float(raw)
             return f'opacity-{int(round(f * 100))}'
         except ValueError:
             pass
@@ -359,9 +380,12 @@ def convert_pair(key, value):
                 "'text'": 'select-text', "'all'": 'select-all'}.get(v)
     # Flex shorthand (flex: 1 / flex: 2)
     if key == 'flex':
-        return {'1': 'flex-1', "'1'": 'flex-1', '2': 'flex-[2]', "'2'": 'flex-[2]',
-                "'1 1 0'": 'flex-1', "'0 0 auto'": 'flex-none',
-                "'1 1 auto'": 'flex-auto'}.get(str(v))
+        flex_map = {'1': 'flex-1', "'1'": 'flex-1', '2': 'flex-[2]', "'2'": 'flex-[2]',
+                    "'1 1 0'": 'flex-1', "'0 0 auto'": 'flex-none',
+                    "'1 1 auto'": 'flex-auto'}
+        if str(v) in flex_map:
+            return flex_map[str(v)]
+        # fall through — the arbitrary-value handler below catches 3-part flex
     if key == 'flexShrink':
         if v == '0' or v == "'0'": return 'shrink-0'
         if v == '1' or v == "'1'": return 'shrink'
@@ -379,6 +403,70 @@ def convert_pair(key, value):
                 "'0'": 'tracking-normal', "'0.025em'": 'tracking-wide',
                 "'0.05em'": 'tracking-wider', "'0.1em'": 'tracking-widest'}.get(v)
 
+    # Font family — common keywords
+    if key == 'fontFamily':
+        # Monospace family (any quoted string containing 'monospace')
+        if 'monospace' in v.lower():
+            return 'font-mono'
+        if "'sans-serif'" in v.lower() or '"sans-serif"' in v.lower() or v.endswith("sans-serif'") or v.endswith('sans-serif"'):
+            return 'font-sans'
+        if v == "'serif'" or v == '"serif"' or v.endswith("serif'") or v.endswith('serif"'):
+            return 'font-serif'
+        if v == "'inherit'" or v == '"inherit"':
+            return 'font-[inherit]'
+
+    # Grid template columns — simple repeat-N forms
+    if key == 'gridTemplateColumns':
+        m = re.match(r"^['\"]((?:1fr ?)+1fr)['\"]$", v)
+        if m:
+            n = len(_split_outer(m.group(1)))
+            return f'grid-cols-{n}'
+        if v == "'1fr'" or v == '"1fr"':
+            return 'grid-cols-1'
+        # Arbitrary form — escape spaces with _
+        m = re.match(r"^['\"](.+?)['\"]$", v)
+        if m:
+            inner = m.group(1).replace(' ', '_')
+            return f'grid-cols-[{inner}]'
+
+    # Grid column / row spans
+    if key == 'gridColumn':
+        if v in ("'1 / -1'", '"1 / -1"', "'span 1 / -1'"):
+            return 'col-span-full'
+        m = re.match(r"^['\"]span (\d+)['\"]$", v)
+        if m:
+            return f'col-span-{m.group(1)}'
+    if key == 'gridRow':
+        if v in ("'1 / -1'", '"1 / -1"'):
+            return 'row-span-full'
+        m = re.match(r"^['\"]span (\d+)['\"]$", v)
+        if m:
+            return f'row-span-{m.group(1)}'
+
+    # `flex` — arbitrary three-part value
+    if key == 'flex':
+        m = re.match(r"^['\"]([\d.]+) ([\d.]+) (.+)['\"]$", v)
+        if m:
+            a, b, c = m.group(1), m.group(2), m.group(3).replace(' ', '_')
+            return f'flex-[{a}_{b}_{c}]'
+
+    # Inset shorthand
+    if key == 'inset':
+        if v == '0' or v == "'0'":
+            return 'inset-0'
+        tok = spacing_token(_parse_number_or_string(v))
+        if tok is not None:
+            return f'inset-{tok}'
+
+    # Border color — accept any color value that color_token can resolve
+    if key == 'borderColor':
+        tok = color_token(v)
+        if tok is not None:
+            return f'border-{tok}'
+
+    # Single-side borders we can't shorthand are skipped (would split into
+    # border-width + border-color + border-style — too risky mechanically).
+
     return None
 
 
@@ -390,12 +478,97 @@ def _parse_number_or_string(v):
     return v
 
 
+def _shorthand_to_utilities(prefix, raw):
+    """Convert a 2/3/4-value `padding`/`margin` shorthand string to a
+    space-separated Tailwind utility list.
+
+      padding: '8px 12px'                       → 'py-2 px-3'
+      margin: '0 auto'                          → 'my-0 mx-auto'
+      padding: 'var(--space-3) var(--space-5)'  → 'py-3 px-5'
+      margin: '24px 0 0'                        → 'mt-6 mx-0 mb-0'
+      padding: '1px 2px 3px 4px'                → 'pt-px pr-[2px] pb-[3px] pl-1'
+
+    `prefix` is 'p' or 'm'. Returns None on any unhandled token (so the
+    caller falls back to leaving the inline style intact)."""
+    v = raw.strip()
+    # Strip exactly one layer of surrounding quotes
+    if (v.startswith("'") and v.endswith("'")) or \
+       (v.startswith('"') and v.endswith('"')):
+        v = v[1:-1]
+    # Split into space-separated tokens. var(--space-N) doesn't contain
+    # an outer space (just inside parens) so naive split is fine for our
+    # corpus. If the value has a parenthesised expression with internal
+    # spaces (e.g. rgba(0, 0, 0)) it'd break — but we only call this for
+    # padding/margin, which don't use rgba.
+    parts = _split_outer(v)
+    if not parts:
+        return None
+    # Convert each unquoted part via spacing_token.
+    components = []
+    for part in parts:
+        if part == 'auto':
+            components.append('auto')
+            continue
+        if part.lstrip('-').isdigit():
+            token = spacing_token(int(part))
+        else:
+            token = spacing_token(part)
+        if token is None:
+            return None
+        components.append(token)
+    n = len(components)
+    if n == 1:
+        return f'{prefix}-{components[0]}'
+    if n == 2:
+        top_bot, left_right = components
+        # Special-case '0 auto' / 'auto 0' so we use mx-auto cleanly
+        return f'{prefix}y-{top_bot} {prefix}x-{left_right}'
+    if n == 3:
+        top, left_right, bot = components
+        return f'{prefix}t-{top} {prefix}x-{left_right} {prefix}b-{bot}'
+    if n == 4:
+        top, right, bot, left = components
+        return (f'{prefix}t-{top} {prefix}r-{right} '
+                f'{prefix}b-{bot} {prefix}l-{left}')
+    return None
+
+
+def _split_outer(s):
+    """Split `s` on spaces that are NOT inside parentheses. Returns the
+    list of tokens (or [] if input is empty after strip)."""
+    out = []
+    buf = ''
+    depth = 0
+    for ch in s.strip():
+        if ch == '(':
+            depth += 1
+            buf += ch
+        elif ch == ')':
+            depth -= 1
+            buf += ch
+        elif ch == ' ' and depth == 0:
+            if buf:
+                out.append(buf)
+                buf = ''
+        else:
+            buf += ch
+    if buf:
+        out.append(buf)
+    return out
+
+
 # ── Main extraction loop ─────────────────────────────────────────
 
 # Match a `style={{ ... }}` JSX expression. Non-greedy on the inner
 # body; allows multi-line. We constrain the body to be balanced
 # w.r.t. {} for nested objects (rare in styles but possible).
 STYLE_RE = re.compile(r'style=\{\{(.*?)\}\}', re.DOTALL)
+
+CSS_FN_RE = re.compile(
+    r'(?:var|rgba?|hsla?|calc|min|max|clamp|url|'
+    r'linear-gradient|radial-gradient|conic-gradient)\([^()]*\)'
+)
+
 
 def is_dynamic(body):
     """Return True if any token in `body` is dynamic (template literal,
@@ -404,21 +577,64 @@ def is_dynamic(body):
     # Template strings ${...}
     if '${' in body or '`' in body:
         return True
-    # Arrow / function calls
-    if '=>' in body or '(' in body:
+    # Strip safe CSS functions (var, rgba, calc, gradients, ...) so they
+    # don't trip the `(` heuristic below.
+    no_css_fns = CSS_FN_RE.sub('', body)
+    # Strip string literals — they can contain anything legally.
+    no_strings = re.sub(r"'[^']*'|\"[^\"]*\"", '', no_css_fns)
+    # Anything that remains with `(` or `=>` is a JS function/arrow.
+    if '=>' in no_strings or '(' in no_strings:
         return True
-    # Conditional (ternary) — only fire if the `?` isn't inside a string
-    # Crude check: any `?` outside quotes
-    no_strings = re.sub(r"'[^']*'|\"[^\"]*\"", '', body)
     if '?' in no_strings:
         return True
-    # Spread operator
     if '...' in no_strings:
         return True
-    # Computed key `[...]`
     if '[' in no_strings:
         return True
     return False
+
+
+def _split_top_level_commas(body):
+    """Split `body` on commas that are NOT inside (), '', or "". Returns
+    list of stripped non-empty segments."""
+    parts = []
+    buf = ''
+    depth = 0
+    in_single = in_double = False
+    for ch in body:
+        if in_single:
+            buf += ch
+            if ch == "'":
+                in_single = False
+            continue
+        if in_double:
+            buf += ch
+            if ch == '"':
+                in_double = False
+            continue
+        if ch == "'":
+            in_single = True
+            buf += ch
+        elif ch == '"':
+            in_double = True
+            buf += ch
+        elif ch == '(':
+            depth += 1
+            buf += ch
+        elif ch == ')':
+            depth -= 1
+            buf += ch
+        elif ch == ',' and depth == 0:
+            seg = buf.strip()
+            if seg:
+                parts.append(seg)
+            buf = ''
+        else:
+            buf += ch
+    seg = buf.strip()
+    if seg:
+        parts.append(seg)
+    return parts
 
 
 def parse_object_body(body):
@@ -426,9 +642,7 @@ def parse_object_body(body):
     Returns None on any failure (caller falls through to "skip"). The
     body is `key: value, key: value, ...` (no enclosing braces)."""
     pairs = []
-    # Split on commas at top level. Style bodies are flat (no nested
-    # braces in practice; if any, is_dynamic() already excluded them).
-    parts = [p.strip().rstrip(',').strip() for p in body.split(',') if p.strip()]
+    parts = _split_top_level_commas(body)
     for p in parts:
         if ':' not in p:
             return None
@@ -468,6 +682,97 @@ def convert_one(style_body):
     return ' '.join(utilities)
 
 
+def _find_opening_tag_end(src, tag_start):
+    """Given that src[tag_start] == '<' and a valid identifier follows,
+    return the index of the closing `>` (which closes the OPENING JSX
+    tag — i.e. the matching `>` or `/>`). Respects single/double quotes
+    and brace depth so that `>` inside `{() => x}` doesn't terminate.
+    Returns -1 if no terminator found."""
+    n = len(src)
+    k = tag_start + 1
+    # Skip the tag name (letters, digits, ., -, _)
+    if k >= n or not (src[k].isalpha() or src[k] == '_'):
+        return -1
+    while k < n and (src[k].isalnum() or src[k] in '._-'):
+        k += 1
+    # Walk attributes
+    in_single = in_double = False
+    brace_depth = 0
+    while k < n:
+        c = src[k]
+        if in_single:
+            if c == "'" and src[k-1] != '\\':
+                in_single = False
+            k += 1; continue
+        if in_double:
+            if c == '"' and src[k-1] != '\\':
+                in_double = False
+            k += 1; continue
+        if c == "'":
+            in_single = True; k += 1; continue
+        if c == '"':
+            in_double = True; k += 1; continue
+        if c == '{':
+            brace_depth += 1; k += 1; continue
+        if c == '}':
+            brace_depth -= 1; k += 1; continue
+        if c == '>' and brace_depth == 0:
+            return k
+        k += 1
+    return -1
+
+
+def merge_classname_in_tags(src):
+    """Walk every JSX opening tag and merge multiple static className=""
+    attrs within a single tag (handles multi-line tags). Returns
+    (new_src, merge_count)."""
+    out = []
+    i = 0
+    n = len(src)
+    merges = 0
+    cn_pat = re.compile(r'\bclassName="([^"]*)"')
+    while i < n:
+        ch = src[i]
+        if ch == '<' and i + 1 < n and (src[i+1].isalpha() or src[i+1] == '_'):
+            end = _find_opening_tag_end(src, i)
+            if end < 0:
+                out.append(ch); i += 1; continue
+            tag = src[i:end+1]
+            matches = list(cn_pat.finditer(tag))
+            if len(matches) > 1:
+                # Merge unique tokens preserving order
+                tokens, seen = [], set()
+                for m in matches:
+                    for tok in m.group(1).split():
+                        if tok and tok not in seen:
+                            seen.add(tok); tokens.append(tok)
+                merged_attr = f'className="{" ".join(tokens)}"'
+                # Rebuild tag: replace FIRST match with merged, drop the
+                # rest (along with their preceding indent/space so we
+                # don't leave dangling blank lines).
+                pieces = [tag[:matches[0].start()], merged_attr]
+                cursor = matches[0].end()
+                for m in matches[1:]:
+                    # Eat preceding whitespace (incl. newline)
+                    drop_start = m.start()
+                    while drop_start > cursor and tag[drop_start-1] in ' \t':
+                        drop_start -= 1
+                    if drop_start > cursor and tag[drop_start-1] == '\n':
+                        drop_start -= 1
+                    pieces.append(tag[cursor:drop_start])
+                    cursor = m.end()
+                pieces.append(tag[cursor:])
+                new_tag = ''.join(pieces)
+                out.append(new_tag)
+                merges += len(matches) - 1
+            else:
+                out.append(tag)
+            i = end + 1
+            continue
+        out.append(ch); i += 1
+    return ''.join(out), merges
+
+
 def main(target_path):
     p = Path(target_path)
     src = p.read_text()
@@ -486,22 +791,14 @@ def main(target_path):
 
     new_src = STYLE_RE.sub(replace_style, src)
 
-    # Merge double-className attributes from same-line conflicts
-    pat = re.compile(r'className="([^"]*)"\s+className="([^"]*)"')
-    def merge(m):
-        a = m.group(1).strip().split()
-        b = m.group(2).strip().split()
-        seen, out = set(), []
-        for c in a + b:
-            if c and c not in seen:
-                seen.add(c); out.append(c)
-        return f'className="{" ".join(out)}"'
-    new_src, dm = pat.subn(merge, new_src)
+    # Merge double-className attributes across the entire tag (handles
+    # multi-line JSX where attributes span multiple lines).
+    new_src, dm = merge_classname_in_tags(new_src)
 
     p.write_text(new_src)
     print(f"  {target_path}")
     print(f"  converted: {converted}, skipped (dynamic / unmappable): {skipped}")
-    print(f"  same-line className merges: {dm}")
+    print(f"  className merges: {dm}")
     return converted, skipped
 
 

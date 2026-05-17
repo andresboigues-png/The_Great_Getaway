@@ -18,7 +18,7 @@ export function MapSearchBar() {
     return (
         <div
             id="homeMapSearchWrap"
-            style={{ position: 'relative', maxWidth: 720, margin: '4px auto 12px', zIndex: 5 }}
+            className="relative max-w-[720px] mt-1 mx-auto mb-3 z-[5]"
         >
             <div
                 style={{

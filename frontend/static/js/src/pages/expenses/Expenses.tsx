@@ -159,15 +159,7 @@ export function Expenses() {
 function ReadOnlyNotice({ tabLabel, verb }: { tabLabel: string; verb: string }) {
     return (
         <div
-            className="card glass"
-            style={{
-                maxWidth: 520,
-                margin: '32px auto',
-                padding: 36,
-                borderRadius: 28,
-                textAlign: 'center',
-                background: 'rgba(255,255,255,0.6)',
-            }}
+            className="card glass max-w-[520px] my-8 mx-auto p-9 rounded-2xl text-center bg-[rgba(255,255,255,0.6)]"
         >
             <div className="text-[2.4rem] mb-3">👁</div>
             <h2

@@ -243,7 +243,7 @@ export function Collections() {
                     }}
                 >
                     {/* Search input — name + country full-text. */}
-                    <div style={{ position: 'relative', flex: '1 1 220px', minWidth: '200px' }}>
+                    <div className="relative flex-[1_1_220px] min-w-[200px]">
                         <svg
                             width="14"
                             height="14"
@@ -358,12 +358,7 @@ export function Collections() {
                     )}
 
                     <span
-                        style={{
-                            marginLeft: 'auto',
-                            fontSize: '0.78rem',
-                            color: 'var(--text-secondary)',
-                            fontWeight: 700,
-                        }}
+                        className="ml-auto text-[0.78rem] text-secondary font-bold"
                     >
                         {t('collections.countOf', {
                             shown: filteredTrips.length,
@@ -377,12 +372,7 @@ export function Collections() {
                 <div className="grid-2 mt-4">
                     {archived.length === 0 ? (
                         <div
-                            className="card glass"
-                            style={{
-                                gridColumn: '1 / -1',
-                                textAlign: 'center',
-                                padding: '60px',
-                            }}
+                            className="card glass col-span-full text-center p-[60px]"
                         >
                             <div className="text-[4rem] mb-5">📚</div>
                             <h2>{t('collections.emptyNoTripsTitle')}</h2>
@@ -390,15 +380,10 @@ export function Collections() {
                         </div>
                     ) : filteredTrips.length === 0 ? (
                         <div
-                            className="card glass"
-                            style={{
-                                gridColumn: '1 / -1',
-                                textAlign: 'center',
-                                padding: '48px 32px',
-                            }}
+                            className="card glass col-span-full text-center py-12 px-8"
                         >
                             <div className="text-[3rem] mb-3">🔍</div>
-                            <h2 style={{ margin: '0 0 6px' }}>
+                            <h2 className="mt-0 mx-0 mb-1.5">
                                 {t('collections.emptyNoMatchesTitle')}
                             </h2>
                             <p className="text-muted m-0">
@@ -489,14 +474,7 @@ function ArchivedCard({ trip }: { trip: Trip }) {
                         )}
                     </div>
                     <div
-                        style={{
-                            display: 'flex',
-                            gap: '14px',
-                            flexWrap: 'wrap',
-                            marginTop: '6px',
-                            fontSize: '0.8rem',
-                            color: 'var(--text-secondary)',
-                        }}
+                        className="flex gap-3.5 flex-wrap mt-1.5 text-[0.8rem] text-secondary"
                     >
                         {startStr ? (
                             <span>
@@ -525,21 +503,11 @@ function ArchivedCard({ trip }: { trip: Trip }) {
                         )}
                     </div>
                     <p
-                        style={{
-                            color: '#005bb8',
-                            margin: '8px 0 0 0',
-                            fontSize: '0.95rem',
-                            fontWeight: 800,
-                        }}
+                        className="text-[#005bb8] mt-2 mr-0 mb-0 ml-0 text-[0.95rem] font-extrabold"
                     >
                         {formatHome(tripTotalSpent(trip), 'EUR')}
                         <span
-                            style={{
-                                color: 'var(--text-secondary)',
-                                fontWeight: 600,
-                                fontSize: '0.78rem',
-                                marginLeft: '6px',
-                            }}
+                            className="text-secondary font-semibold text-[0.78rem] ml-1.5"
                         >
                             {t('collections.cardTotal')}
                         </span>
@@ -555,7 +523,7 @@ function ArchivedCard({ trip }: { trip: Trip }) {
                     className="collections-row__divider"
                     style={{ width: '1px', height: '30px', background: 'var(--glass-border)' }}
                 />
-                <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+                <div className="flex gap-2">
                     <button
                         className="btn-primary restore-trip-btn"
                         data-trip-id={trip.id}

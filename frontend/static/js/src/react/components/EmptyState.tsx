@@ -88,21 +88,13 @@ export function EmptyState({
     if (variant === 'tall') {
         return (
             <div
-                style={{
-                    height: '60vh',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    textAlign: 'center',
-                    color: 'var(--text-secondary)',
-                }}
+                className="h-[60vh] flex flex-col items-center justify-center text-center text-secondary"
             >
-                <div style={{ fontSize: '5rem', marginBottom: '20px', opacity: 0.5 }}>{emoji}</div>
-                <h2 style={{ color: 'var(--text-primary)', marginBottom: '10px' }}>{title}</h2>
+                <div className="text-[5rem] mb-5 opacity-50">{emoji}</div>
+                <h2 className="text-primary mb-2.5">{title}</h2>
                 <p style={{ maxWidth: '400px', lineHeight: 1.5 }}>{body}</p>
                 {ctaLabel && onCta && (
-                    <button className="btn" style={{ marginTop: '24px' }} onClick={onCta}>
+                    <button className="btn mt-6" onClick={onCta}>
                         {ctaLabel}
                     </button>
                 )}
@@ -122,7 +114,7 @@ export function EmptyState({
                 gridColumn,
             }}
         >
-            <div style={{ fontSize: '2.4rem', marginBottom: '10px' }}>{emoji}</div>
+            <div className="text-[2.4rem] mb-2.5">{emoji}</div>
             <h3
                 style={{
                     margin: '0 0 8px',
@@ -145,12 +137,7 @@ export function EmptyState({
             </p>
             {ctaLabel && onCta && (
                 <button
-                    className="btn-primary"
-                    style={{
-                        marginTop: '16px',
-                        padding: '10px 22px',
-                        borderRadius: '999px',
-                    }}
+                    className="btn-primary mt-4 py-2.5 px-[22px] rounded-[999px]"
                     onClick={onCta}
                 >
                     {ctaLabel}

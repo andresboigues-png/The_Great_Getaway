@@ -631,10 +631,10 @@ export function ManualTab() {
                     </div>
 
                     {/* Receipt picker */}
-                    <div className="form-row" style={{ marginBottom: 'var(--space-8)' }}>
+                    <div className="form-row mb-8">
                         <label className="form-label-light" htmlFor="expReceiptInput">
                             Receipt{' '}
-                            <span style={{ fontWeight: 500, color: 'rgba(0,0,0,0.55)' }}>
+                            <span className="font-medium text-[rgba(0,0,0,0.55)]">
                                 (optional)
                             </span>
                         </label>
@@ -647,14 +647,7 @@ export function ManualTab() {
                             onChange={onReceiptChange}
                         />
                         <div
-                            style={{
-                                display: 'flex',
-                                gap: 'var(--space-3)',
-                                alignItems: 'center',
-                                width: '100%',
-                                maxWidth: 440,
-                                boxSizing: 'border-box',
-                            }}
+                            className="flex gap-3 items-center w-full max-w-[440px] box-border"
                         >
                             <button
                                 type="button"
@@ -675,11 +668,7 @@ export function ManualTab() {
                             </button>
                             {receiptUrl ? (
                                 <div
-                                    style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: 'var(--space-3)',
-                                    }}
+                                    className="flex items-center gap-3"
                                 >
                                     <img
                                         src={receiptUrl}
@@ -717,12 +706,7 @@ export function ManualTab() {
                                 </div>
                             ) : null}
                             <span
-                                style={{
-                                    flex: 1,
-                                    fontSize: '0.75rem',
-                                    color: 'rgba(0,0,0,0.5)',
-                                    fontWeight: 600,
-                                }}
+                                className="flex-1 text-xs text-[rgba(0,0,0,0.5)] font-semibold"
                             >
                                 {receiptStatus}
                             </span>
@@ -785,16 +769,8 @@ export function ManualTab() {
                             </select>
                             <button
                                 type="button"
-                                className="btn btn-small"
+                                className="btn btn-small py-0 px-6 h-[50px] rounded-[16px] bg-[#0071e3] text-white font-bold"
                                 onClick={onAddSplit}
-                                style={{
-                                    padding: '0 24px',
-                                    height: 50,
-                                    borderRadius: 16,
-                                    background: '#0071e3',
-                                    color: '#ffffff',
-                                    fontWeight: 700,
-                                }}
                             >
                                 + Add
                             </button>
@@ -825,7 +801,7 @@ export function ManualTab() {
                                     // next add/remove — same tradeoff.
                                     <div key={`${p}_${splitters.length}`} className="splitter-row">
                                         <span className="font-medium">{p}</span>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                                        <div className="flex items-center gap-2">
                                             <input
                                                 type="number"
                                                 className="glass-input split-input splitter-row__pct"
@@ -844,9 +820,8 @@ export function ManualTab() {
                                             </span>
                                             <button
                                                 type="button"
-                                                className="btn-x-bare"
+                                                className="btn-x-bare font-bold ml-2"
                                                 aria-label={`Remove ${p}`}
-                                                style={{ fontWeight: 700, marginLeft: 'var(--space-2)' }}
                                                 onClick={() => onRemoveSplit(p)}
                                             >
                                                 ×

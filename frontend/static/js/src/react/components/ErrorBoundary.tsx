@@ -110,7 +110,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
                         '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif',
                 }}
             >
-                <div style={{ fontSize: '3rem', marginBottom: '12px' }} aria-hidden="true">
+                <div className="text-[3rem] mb-3" aria-hidden="true">
                     🛟
                 </div>
                 <h2
@@ -152,13 +152,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
                     <strong>{errName}:</strong> {errMsg}
                 </p>
                 <div
-                    style={{
-                        marginTop: '24px',
-                        display: 'flex',
-                        gap: '10px',
-                        justifyContent: 'center',
-                        flexWrap: 'wrap',
-                    }}
+                    className="mt-6 flex gap-2.5 justify-center flex-wrap"
                 >
                     <button
                         type="button"

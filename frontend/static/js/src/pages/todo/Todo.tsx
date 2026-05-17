@@ -215,15 +215,7 @@ function TodoRow({ place: p, isTicked, tripIsEditable, onTickToggle, onRemove }:
                             alt=""
                             referrerPolicy="no-referrer"
                             loading="lazy"
-                            style={{
-                                width: '36px',
-                                height: '36px',
-                                borderRadius: '8px',
-                                objectFit: 'cover',
-                                flexShrink: 0,
-                                background: 'rgba(0, 0, 0, 0.05)',
-                                display: 'block',
-                            }}
+                            className="w-9 h-9 rounded-[8px] object-cover shrink-0 bg-[rgba(0,_0,_0,_0.05)] block"
                         />
                     ) : (
                         <span
@@ -241,11 +233,7 @@ function TodoRow({ place: p, isTicked, tripIsEditable, onTickToggle, onRemove }:
                                 title={`Open ${p.name} on Google Maps`}
                                 aria-label={`Open ${p.name} on Google Maps`}
                                 onClick={(e) => e.stopPropagation()}
-                                style={{
-                                    flexShrink: 0,
-                                    display: 'inline-flex',
-                                    borderRadius: '8px',
-                                }}
+                                className="shrink-0 inline-flex rounded-[8px]"
                             >
                                 {photoEl}
                             </a>
@@ -287,11 +275,7 @@ function TodoRow({ place: p, isTicked, tripIsEditable, onTickToggle, onRemove }:
                                 {p.name}
                                 <span
                                     aria-hidden="true"
-                                    style={{
-                                        fontSize: '0.7rem',
-                                        color: 'var(--accent-blue)',
-                                        opacity: 0.7,
-                                    }}
+                                    className="text-[0.7rem] text-accent-blue opacity-70"
                                 >
                                     ↗
                                 </span>
@@ -806,11 +790,7 @@ export function Todo() {
                             {tn('todo.itemCount', todoItems.length)}
                         </div>
                         <div
-                            style={{
-                                fontSize: '0.78rem',
-                                color: 'var(--text-secondary)',
-                                marginTop: '2px',
-                            }}
+                            className="text-[0.78rem] text-secondary mt-0.5"
                         >
                             {t('todo.tickedSummary', { ticked: tickedCount, total: todoItems.length })}
                         </div>
@@ -848,8 +828,7 @@ export function Todo() {
                         </button>
                     )}
                     <button
-                        className="btn-primary"
-                        style={{ padding: '10px 18px', borderRadius: '999px', fontSize: '0.85rem' }}
+                        className="btn-primary py-2.5 px-[18px] rounded-[999px] text-[0.85rem]"
                         onClick={() => navigate('ai')}
                     >
                         Plan with AI ✦
@@ -1055,14 +1034,7 @@ export function Todo() {
                                 {iconToLabel(icon)}
                             </span>
                             <span
-                                style={{
-                                    fontSize: '0.7rem',
-                                    fontWeight: 700,
-                                    color: 'var(--text-secondary)',
-                                    background: 'rgba(0, 45, 91, 0.06)',
-                                    padding: '2px 8px',
-                                    borderRadius: '999px',
-                                }}
+                                className="text-[0.7rem] font-bold text-secondary bg-[rgba(0,_45,_91,_0.06)] py-0.5 px-2 rounded-[999px]"
                             >
                                 {items.length}
                             </span>

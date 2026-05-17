@@ -87,27 +87,18 @@ export function Developer() {
     return (
         <div className="card glass settings-section">
             <div
-                style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    marginBottom: 'var(--space-4)',
-                    gap: 'var(--space-3)',
-                    flexWrap: 'wrap',
-                }}
+                className="flex items-center justify-between mb-4 gap-3 flex-wrap"
             >
                 <h2
-                    className="card-title"
-                    style={{ color: 'var(--accent-purple-deep)', margin: 0 }}
+                    className="card-title text-accent-purple-deep m-0"
                 >
                     {t('settings.devTitle')}
                 </h2>
                 <button
                     type="button"
-                    className="btn btn-small btn-liquid-glass"
+                    className="btn btn-small btn-liquid-glass py-2 px-3.5 rounded-md"
                     onClick={fetchStats}
                     disabled={loading}
-                    style={{ padding: '8px 14px', borderRadius: 12 }}
                 >
                     {loading ? t('settings.devRefreshing') : t('settings.devRefresh')}
                 </button>
@@ -127,7 +118,7 @@ export function Developer() {
                     {error}
                 </div>
             ) : !stats ? (
-                <p style={{ color: 'var(--text-secondary)' }}>
+                <p className="text-secondary">
                     {t('settings.devLoading')}
                 </p>
             ) : (
@@ -156,12 +147,7 @@ function StatsGrid({ stats }: { stats: AdminStats }) {
 
     return (
         <div
-            style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
-                gap: 'var(--space-3)',
-                marginBottom: 'var(--space-5)',
-            }}
+            className="grid grid-cols-[repeat(auto-fill,_minmax(140px,_1fr))] gap-3 mb-5"
         >
             {cells.map((c) => (
                 <div
@@ -186,12 +172,7 @@ function StatsGrid({ stats }: { stats: AdminStats }) {
                         {c.label}
                     </div>
                     <div
-                        style={{
-                            fontSize: '1.6rem',
-                            fontWeight: 800,
-                            color: 'var(--text-primary)',
-                            lineHeight: 1,
-                        }}
+                        className="text-[1.6rem] font-extrabold text-primary leading-none"
                     >
                         {c.value}
                     </div>
@@ -270,10 +251,7 @@ function UsersTable({ users }: { users: AdminUser[] }) {
                 >
                     <thead>
                         <tr
-                            style={{
-                                background: 'rgba(155, 89, 182, 0.06)',
-                                textAlign: 'left',
-                            }}
+                            className="bg-[rgba(155,_89,_182,_0.06)] text-left"
                         >
                             <Th>{t('settings.devUser')}</Th>
                             <Th>{t('settings.devEmail')}</Th>
@@ -292,12 +270,7 @@ function UsersTable({ users }: { users: AdminUser[] }) {
                             >
                                 <Td>
                                     <div
-                                        style={{
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: 8,
-                                            minWidth: 0,
-                                        }}
+                                        className="flex items-center gap-2 min-w-0"
                                     >
                                         {u.picture ? (
                                             <img
@@ -332,13 +305,7 @@ function UsersTable({ users }: { users: AdminUser[] }) {
                                             </span>
                                         )}
                                         <span
-                                            style={{
-                                                fontWeight: 700,
-                                                color: 'var(--text-primary)',
-                                                overflow: 'hidden',
-                                                textOverflow: 'ellipsis',
-                                                whiteSpace: 'nowrap',
-                                            }}
+                                            className="font-bold text-primary overflow-hidden overflow-ellipsis whitespace-nowrap"
                                         >
                                             {u.name || '(no name)'}
                                         </span>
@@ -362,7 +329,7 @@ function UsersTable({ users }: { users: AdminUser[] }) {
                                     </div>
                                 </Td>
                                 <Td>
-                                    <span style={{ fontFamily: "'SF Mono', monospace", fontSize: '0.78rem' }}>
+                                    <span className="font-mono text-[0.78rem]">
                                         {u.email || '—'}
                                     </span>
                                 </Td>

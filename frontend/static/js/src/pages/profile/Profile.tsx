@@ -375,7 +375,7 @@ function ProfileContent({
     const countryCountForChip = Math.max(uniqueCountryCodes.length, uniqueCountries.length);
 
     return (
-        <div className="profile-page" style={{ maxWidth: 800, margin: '0 auto', paddingBottom: 60 }}>
+        <div className="profile-page max-w-[800px] my-0 mx-auto pb-[60px]">
             {!isOwnProfile ? (
                 <button
                     type="button"
@@ -437,16 +437,7 @@ function ProfileContent({
             {/* Footprint label */}
             <div className="flex justify-center mb-6">
                 <div
-                    style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        fontWeight: 700,
-                        fontSize: '0.9rem',
-                        letterSpacing: '0.05em',
-                        textTransform: 'uppercase',
-                        color: 'var(--accent-blue)',
-                    }}
+                    className="flex items-center gap-2 font-bold text-[0.9rem] tracking-wider uppercase text-accent-blue"
                 >
                     {/* Literal footprint glyph (sole + 5 toes). */}
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -488,19 +479,13 @@ function ProfileContent({
                         >
                             🏅 Achievements
                         </h3>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                        <span className="text-[0.8rem] text-secondary font-semibold">
                             {achievements.length} earned
                         </span>
                     </div>
                     {achievements.length === 0 ? (
                         <p
-                            style={{
-                                margin: 0,
-                                color: 'var(--text-secondary)',
-                                fontSize: '0.85rem',
-                                textAlign: 'center',
-                                padding: '12px 0',
-                            }}
+                            className="m-0 text-secondary text-[0.85rem] text-center py-3 px-0"
                         >
                             Earn your first badge by creating a trip, completing one, or settling up with a friend.
                         </p>
@@ -513,13 +498,7 @@ function ProfileContent({
             {/* Footprint section */}
             <div className="mt-5">
                 <p
-                    style={{
-                        color: 'var(--text-secondary)',
-                        textAlign: 'center',
-                        marginTop: 0,
-                        marginBottom: 24,
-                        fontSize: '0.9rem',
-                    }}
+                    className="text-secondary text-center mt-0 mb-6 text-[0.9rem]"
                 >
                     {isOwnProfile
                         ? "Every country you've been to, lit up."
@@ -836,11 +815,7 @@ function ProfileStat({ count, label }: { count: number; label: string }) {
                 {count}
             </span>
             <span
-                style={{
-                    fontSize: '1.1rem',
-                    color: 'var(--accent-blue-deep)',
-                    fontWeight: 600,
-                }}
+                className="text-[1.1rem] text-accent-blue-deep font-semibold"
             >
                 {label}
             </span>
@@ -990,14 +965,7 @@ function BioBlock({
     return (
         <div className="profile-bio-block">
             <div
-                className="profile-email"
-                style={{
-                    fontSize: '0.95rem',
-                    fontWeight: 700,
-                    color: 'var(--text-primary)',
-                    marginBottom: 4,
-                    overflowWrap: 'anywhere',
-                }}
+                className="profile-email text-[0.95rem] font-bold text-primary mb-1 wrap-anywhere"
             >
                 {user.email}
             </div>

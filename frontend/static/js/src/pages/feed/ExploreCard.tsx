@@ -53,7 +53,7 @@ export function ExploreCard({ item }: { item: ExploreFeedItem }) {
                     👁 {item.shareViews}
                 </div>
             </div>
-            <div style={{ padding: '14px 16px' }}>
+            <div className="py-3.5 px-4">
                 <div
                     style={{
                         fontSize: '1.05rem',
@@ -69,29 +69,17 @@ export function ExploreCard({ item }: { item: ExploreFeedItem }) {
                     {item.name}
                 </div>
                 <div
-                    style={{
-                        fontSize: '0.82rem',
-                        color: 'var(--text-secondary)',
-                        fontWeight: 600,
-                        marginBottom: 10,
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                    }}
+                    className="text-[0.82rem] text-secondary font-semibold mb-2.5 overflow-hidden overflow-ellipsis whitespace-nowrap"
                 >
                     {item.country}
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div className="flex items-center gap-2">
                     <Avatar
                         user={{ name: item.owner.firstName, picture: item.owner.picture }}
                         size={24}
                     />
                     <span
-                        style={{
-                            fontSize: '0.8rem',
-                            color: 'var(--text-secondary)',
-                            fontWeight: 600,
-                        }}
+                        className="text-[0.8rem] text-secondary font-semibold"
                     >
                         by {item.owner.firstName || 'Traveller'}
                     </span>

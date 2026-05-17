@@ -141,12 +141,7 @@ export function Budgets() {
                     </>
                 )}
                 <span
-                    style={{
-                        marginLeft: 'auto',
-                        fontSize: '0.78rem',
-                        color: 'var(--text-secondary)',
-                        fontWeight: 700,
-                    }}
+                    className="ml-auto text-[0.78rem] text-secondary font-bold"
                 >
                     {tn('budgets.countLabel', visibleBudgets.length)}
                 </span>
@@ -187,13 +182,7 @@ export function Budgets() {
                             >
                                 <div>
                                     <div
-                                        style={{
-                                            fontSize: '0.66rem',
-                                            fontWeight: 800,
-                                            textTransform: 'uppercase',
-                                            letterSpacing: '0.1em',
-                                            color: 'var(--text-secondary)',
-                                        }}
+                                        className="text-[0.66rem] font-extrabold uppercase tracking-widest text-secondary"
                                     >
                                         {t('budgets.overallSpent')}
                                     </div>
@@ -208,16 +197,10 @@ export function Budgets() {
                                         {formatHome(totalSpent, 'EUR')}
                                     </div>
                                 </div>
-                                <span style={{ color: 'var(--text-secondary)', opacity: 0.45, fontSize: '1.5rem' }}>/</span>
+                                <span className="text-secondary opacity-45 text-2xl">/</span>
                                 <div>
                                     <div
-                                        style={{
-                                            fontSize: '0.66rem',
-                                            fontWeight: 800,
-                                            textTransform: 'uppercase',
-                                            letterSpacing: '0.1em',
-                                            color: 'var(--text-secondary)',
-                                        }}
+                                        className="text-[0.66rem] font-extrabold uppercase tracking-widest text-secondary"
                                     >
                                         {t('budgets.overallAllocated')}
                                     </div>
@@ -237,13 +220,7 @@ export function Budgets() {
                         </div>
                         <div className="text-right">
                             <div
-                                style={{
-                                    fontSize: '0.66rem',
-                                    fontWeight: 800,
-                                    textTransform: 'uppercase',
-                                    letterSpacing: '0.1em',
-                                    color: 'var(--text-secondary)',
-                                }}
+                                className="text-[0.66rem] font-extrabold uppercase tracking-widest text-secondary"
                             >
                                 {totalRemaining >= 0 ? t('budgets.overallRemaining') : t('budgets.overallOverBy')}
                             </div>
@@ -300,12 +277,7 @@ export function Budgets() {
 
             {/* Budget cards grid */}
             <div
-                style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
-                    gap: '14px',
-                    marginTop: '18px',
-                }}
+                className="grid grid-cols-[repeat(auto-fill,_minmax(320px,_1fr))] gap-3.5 mt-[18px]"
             >
                 {visibleBudgets.length === 0 ? (
                     <EmptyState
@@ -331,16 +303,7 @@ export function Budgets() {
                         return (
                             <div
                                 key={b.id}
-                                className="card glass card-glow-blue"
-                                style={{
-                                    padding: '18px 20px',
-                                    borderRadius: '24px',
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    gap: '14px',
-                                    height: '100%',
-                                    boxSizing: 'border-box',
-                                }}
+                                className="card glass card-glow-blue py-[18px] px-5 rounded-[24px] flex flex-col gap-3.5 h-full box-border"
                             >
                                 <div
                                     className="flex items-start gap-3 min-h-14"
@@ -424,11 +387,7 @@ export function Budgets() {
                                             {formatHome(status.spent, 'EUR')}
                                         </span>
                                         <span
-                                            style={{
-                                                fontSize: '0.85rem',
-                                                color: 'var(--text-secondary)',
-                                                fontWeight: 600,
-                                            }}
+                                            className="text-[0.85rem] text-secondary font-semibold"
                                         >
                                             {t('budgets.cardSpentVariance', { variance })}
                                         </span>
@@ -453,14 +412,7 @@ export function Budgets() {
                                         />
                                     </div>
                                     <div
-                                        style={{
-                                            display: 'flex',
-                                            justifyContent: 'space-between',
-                                            marginTop: '6px',
-                                            fontSize: '0.7rem',
-                                            color: 'var(--text-secondary)',
-                                            fontWeight: 700,
-                                        }}
+                                        className="flex justify-between mt-1.5 text-[0.7rem] text-secondary font-bold"
                                     >
                                         <span>{t('budgets.cardPctUsed', { pct: Math.round(status.pct) })}</span>
                                         <button

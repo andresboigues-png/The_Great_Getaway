@@ -182,15 +182,7 @@ export function HomeHeader({ activeTrip, poiPillsVisible, onTogglePoiPills }: Ho
                 map." */}
             <div
                 id="homeMapActionsRow"
-                style={{
-                    display: 'flex',
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                    gap: 10,
-                    margin: '12px auto 8px',
-                    maxWidth: 720,
-                    flexWrap: 'wrap',
-                }}
+                className="flex justify-center items-center gap-2.5 mt-3 mx-auto mb-2 max-w-[720px] flex-wrap"
             >
                 <button
                     type="button"

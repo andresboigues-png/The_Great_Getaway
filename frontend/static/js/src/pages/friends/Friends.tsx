@@ -118,15 +118,7 @@ function UserCard({ user, variant = 'neutral', onClick, rightSide, rowClass = ''
                     {user.name || t('friends.cardFallbackName')}
                 </div>
                 <div
-                    style={{
-                        fontSize: '0.78rem',
-                        color: 'var(--text-secondary)',
-                        fontWeight: 600,
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                        marginTop: '2px',
-                    }}
+                    className="text-[0.78rem] text-secondary font-semibold overflow-hidden overflow-ellipsis whitespace-nowrap mt-0.5"
                 >
                     {user.email || ''}
                 </div>
@@ -292,49 +284,19 @@ export function Friends() {
                 one-way buckets get neutral chip styling. */}
             <div className="mt-4 flex gap-[10px] flex-wrap">
                 <span
-                    style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        background: 'rgba(0,113,227,0.08)',
-                        color: 'var(--accent-blue-deep)',
-                        padding: '6px 14px',
-                        borderRadius: '999px',
-                        fontSize: '0.82rem',
-                        fontWeight: 800,
-                    }}
+                    className="inline-flex items-center gap-2 bg-[rgba(0,113,227,0.08)] text-accent-blue-deep py-1.5 px-3.5 rounded-[999px] text-[0.82rem] font-extrabold"
                 >
                     <span className="fr-icon-glyph">👥</span>
                     {mutuals.length} {tn('profile.friendsLabel', mutuals.length)}
                 </span>
                 <span
-                    style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        background: 'rgba(0,0,0,0.04)',
-                        color: 'var(--text-brand-navy)',
-                        padding: '6px 14px',
-                        borderRadius: '999px',
-                        fontSize: '0.82rem',
-                        fontWeight: 800,
-                    }}
+                    className="inline-flex items-center gap-2 bg-[rgba(0,0,0,0.04)] text-brand-navy py-1.5 px-3.5 rounded-[999px] text-[0.82rem] font-extrabold"
                 >
                     <span className="fr-icon-glyph">👋</span>
                     {followers.length + mutuals.length} followers
                 </span>
                 <span
-                    style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        background: 'rgba(0,0,0,0.04)',
-                        color: 'var(--text-brand-navy)',
-                        padding: '6px 14px',
-                        borderRadius: '999px',
-                        fontSize: '0.82rem',
-                        fontWeight: 800,
-                    }}
+                    className="inline-flex items-center gap-2 bg-[rgba(0,0,0,0.04)] text-brand-navy py-1.5 px-3.5 rounded-[999px] text-[0.82rem] font-extrabold"
                 >
                     <span className="fr-icon-glyph">🧭</span>
                     {following.length + mutuals.length} following
@@ -343,8 +305,7 @@ export function Friends() {
 
             {/* Search section */}
             <div
-                className="card glass"
-                style={{ marginTop: '22px', padding: '22px 24px', borderRadius: '28px' }}
+                className="card glass mt-[22px] py-[22px] px-6 rounded-[28px]"
             >
                 <div
                     className="flex items-center justify-between mb-[14px]"
@@ -361,13 +322,7 @@ export function Friends() {
                         {t('friends.findFriendsTitle')}
                     </h3>
                     <span
-                        style={{
-                            fontSize: '0.7rem',
-                            fontWeight: 800,
-                            color: 'var(--text-secondary)',
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.1em',
-                        }}
+                        className="text-[0.7rem] font-extrabold text-secondary uppercase tracking-widest"
                     >
                         {t('friends.searchByEmailLabel')}
                     </span>
@@ -439,13 +394,7 @@ export function Friends() {
                 <div className="mt-[14px]">
                     {searchStatus.kind === 'loading' && (
                         <p
-                            style={{
-                                textAlign: 'center',
-                                padding: '14px',
-                                fontSize: '0.85rem',
-                                color: 'var(--text-secondary)',
-                                fontWeight: 600,
-                            }}
+                            className="text-center p-3.5 text-[0.85rem] text-secondary font-semibold"
                         >
                             Searching…
                         </p>
@@ -644,8 +593,7 @@ function NetworkSection({
 }: NetworkSectionProps) {
     return (
         <div
-            className="card glass"
-            style={{ marginTop: '18px', padding: '22px 24px', borderRadius: '28px' }}
+            className="card glass mt-[18px] py-[22px] px-6 rounded-[28px]"
         >
             <div
                 className="flex items-center justify-between mb-[14px] gap-3"
@@ -662,14 +610,7 @@ function NetworkSection({
                     {title}
                 </h3>
                 <span
-                    style={{
-                        fontSize: '0.7rem',
-                        fontWeight: 800,
-                        color: 'var(--text-secondary)',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.1em',
-                        textAlign: 'right',
-                    }}
+                    className="text-[0.7rem] font-extrabold text-secondary uppercase tracking-widest text-right"
                 >
                     {rows.length} · {hint}
                 </span>

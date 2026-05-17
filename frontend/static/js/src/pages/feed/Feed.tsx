@@ -367,13 +367,10 @@ export function Feed() {
     return (
         <div
             ref={rootRef}
-            style={{
-                fontFamily:
-                    "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', sans-serif",
-            }}
+            className="font-sans"
         >
-            <div style={{ maxWidth: 760, margin: '0 auto' }}>
-                <div style={{ padding: '32px 0 24px', textAlign: 'center' }}>
+            <div className="max-w-[760px] my-0 mx-auto">
+                <div className="pt-8 px-0 pb-6 text-center">
                     <h1
                         style={{
                             margin: '0 0 6px',
@@ -388,7 +385,7 @@ export function Feed() {
                     >
                         {t('feed.title')}
                     </h1>
-                    <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '1rem' }}>
+                    <p className="m-0 text-secondary text-base">
                         {t('feed.subtitle')}
                     </p>
                 </div>
@@ -557,11 +554,7 @@ function FeedListBody(props: FeedListBodyProps) {
                         }}
                     />
                     <div
-                        style={{
-                            color: 'var(--text-secondary)',
-                            fontSize: '0.88rem',
-                            fontWeight: 600,
-                        }}
+                        className="text-secondary text-[0.88rem] font-semibold"
                     >
                         Finding trips to discover…
                     </div>
@@ -658,20 +651,12 @@ function FeedListBody(props: FeedListBodyProps) {
                     >
                         <div className="text-[1.6rem] mb-[6px]">🔎</div>
                         <div
-                            style={{
-                                fontWeight: 800,
-                                color: 'var(--text-primary)',
-                                marginBottom: 4,
-                            }}
+                            className="font-extrabold text-primary mb-1"
                         >
                             No trips here yet
                         </div>
                         <div
-                            style={{
-                                fontSize: '0.85rem',
-                                color: 'var(--text-secondary)',
-                                marginBottom: 12,
-                            }}
+                            className="text-[0.85rem] text-secondary mb-3"
                         >
                             No public trips in this country right now — try another or browse all.
                         </div>
@@ -694,11 +679,7 @@ function FeedListBody(props: FeedListBodyProps) {
                     </div>
                 ) : (
                     <div
-                        style={{
-                            display: 'grid',
-                            gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
-                            gap: 14,
-                        }}
+                        className="grid grid-cols-[repeat(auto-fill,_minmax(260px,_1fr))] gap-3.5"
                     >
                         {filteredExplore.map((item) => (
                             <ExploreCard key={item.shareToken} item={item} />
@@ -728,11 +709,7 @@ function FeedListBody(props: FeedListBodyProps) {
                     }}
                 />
                 <div
-                    style={{
-                        color: 'var(--text-secondary)',
-                        fontSize: '0.88rem',
-                        fontWeight: 600,
-                    }}
+                    className="text-secondary text-[0.88rem] font-semibold"
                 >
                     {t('feed.loading')}
                 </div>
@@ -1013,15 +990,7 @@ function EventCard(props: EventCardProps) {
                         </div>
                         {ev.trip.country ? (
                             <div
-                                style={{
-                                    fontSize: '0.78rem',
-                                    color: 'var(--text-secondary)',
-                                    fontWeight: 600,
-                                    marginTop: 2,
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis',
-                                    whiteSpace: 'nowrap',
-                                }}
+                                className="text-[0.78rem] text-secondary font-semibold mt-0.5 overflow-hidden overflow-ellipsis whitespace-nowrap"
                             >
                                 📍 {ev.trip.country}
                             </div>
@@ -1105,11 +1074,7 @@ function EventCard(props: EventCardProps) {
                 >
                     {threadLoading ? (
                         <div
-                            style={{
-                                fontSize: '0.82rem',
-                                color: 'var(--text-secondary)',
-                                padding: '6px 0',
-                            }}
+                            className="text-[0.82rem] text-secondary py-1.5 px-0"
                         >
                             {t('feed.commentsLoading')}
                         </div>
@@ -1287,8 +1252,7 @@ function ActionButton({
             />
             {countLabel ? (
                 <span
-                    className="feed-action-count"
-                    style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)' }}
+                    className="feed-action-count text-[0.78rem] font-bold text-secondary"
                 >
                     {countLabel}
                 </span>

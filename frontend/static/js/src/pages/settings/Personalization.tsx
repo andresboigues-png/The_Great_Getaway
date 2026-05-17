@@ -102,21 +102,14 @@ export function Personalization() {
                 wise these are empty wrappers; their `display: contents`
                 style passes the children through to the parent's
                 layout context. */}
-            <div id="persMenu" style={{ display: 'none' }} />
+            <div id="persMenu" className="hidden" />
             <div id="persContent" style={{ display: 'contents' }}>
                 <div id="persCategories" style={{ display: 'contents' }}>
                     <div className="card glass settings-section card-glow-blue">
                         <div
-                            style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                gap: '12px',
-                                marginBottom: 'var(--space-4)',
-                                flexWrap: 'wrap',
-                            }}
+                            className="flex items-center justify-between gap-3 mb-4 flex-wrap"
                         >
-                            <h2 className="card-title" style={{ color: '#005bb8', margin: 0 }}>
+                            <h2 className="card-title text-[#005bb8] m-0">
                                 {t('settings.categoriesTitle')}
                             </h2>
                             <span className="cat-count-chip">{categories.length}</span>
@@ -126,7 +119,7 @@ export function Personalization() {
                             card with icon + name + swatch + edit/delete
                             chips. Empty state shows the localised
                             "no categories" prompt. */}
-                        <div className="cat-list" style={{ marginBottom: 'var(--space-5)' }}>
+                        <div className="cat-list mb-5">
                             {categories.length === 0 ? (
                                 <div className="cat-list__empty">
                                     {t('settings.categoriesEmpty')}
@@ -213,17 +206,12 @@ export function Personalization() {
                                 {t('settings.categoryAddNewHeading')}
                             </h3>
                             <div
-                                style={{
-                                    display: 'flex',
-                                    gap: 'var(--space-3)',
-                                    flexWrap: 'wrap',
-                                }}
+                                className="flex gap-3 flex-wrap"
                             >
                                 <select
                                     ref={iconRef}
                                     id="catIcon"
-                                    className="glass-input"
-                                    style={{ width: '80px' }}
+                                    className="glass-input w-20"
                                     defaultValue={ADD_FORM_ICONS[0]}
                                 >
                                     {ADD_FORM_ICONS.map((i) => (
@@ -236,9 +224,8 @@ export function Personalization() {
                                     ref={nameRef}
                                     type="text"
                                     id="catName"
-                                    className="glass-input"
+                                    className="glass-input flex-1 min-w-[150px]"
                                     placeholder={t('settings.categoryNamePlaceholder')}
-                                    style={{ flex: 1, minWidth: '150px' }}
                                     onKeyDown={(e) => {
                                         if (e.key === 'Enter') {
                                             e.preventDefault();
@@ -250,16 +237,14 @@ export function Personalization() {
                                     ref={colorRef}
                                     type="color"
                                     id="catColor"
-                                    className="glass-input"
+                                    className="glass-input w-[50px] p-0.5"
                                     defaultValue="#ff3b30"
-                                    style={{ width: '50px', padding: '2px' }}
                                 />
                                 <button
                                     id="addCatBtn"
-                                    className="btn-primary"
+                                    className="btn-primary py-3 px-5"
                                     onClick={onAddCategory}
                                     disabled={adding}
-                                    style={{ padding: 'var(--space-3) var(--space-5)' }}
                                 >
                                     {t('settings.categoryAddBtn')}
                                 </button>

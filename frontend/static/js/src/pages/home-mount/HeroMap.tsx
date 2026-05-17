@@ -836,7 +836,7 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
             <div
                 ref={mapContainerRef}
                 id="homeHeroMap"
-                style={{ width: '100%', height: '100%', position: 'absolute', inset: 0, zIndex: 0 }}
+                className="w-full h-full absolute inset-0 z-0"
             />
             <div className="cover-card__gradient pointer-events-none z-[1]" />
             <div className="cover-card__content pointer-events-none z-[2]">

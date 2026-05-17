@@ -59,12 +59,12 @@ export function BundleCard({ bundle, isExpanded, onToggleExpand, onBookmark }: B
                 gap: 0,
             }}
         >
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+            <div className="flex items-start gap-3.5">
                 {/* Avatar — kept as imperative HTML emitter from render.ts
                     (the click is caught by .feed-avatar-btn delegation on
                     the parent Feed component). */}
                 <span dangerouslySetInnerHTML={{ __html: avatar(bundle.actor) }} />
-                <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="flex-1 min-w-0">
                     <div
                         style={{
                             fontSize: '0.95rem',
@@ -72,7 +72,7 @@ export function BundleCard({ bundle, isExpanded, onToggleExpand, onBookmark }: B
                             color: 'var(--text-secondary)',
                         }}
                     >
-                        <span style={{ marginRight: 6 }}>{accent.icon}</span>
+                        <span className="mr-1.5">{accent.icon}</span>
                         <span dangerouslySetInnerHTML={{ __html: bundleLine(bundle) }} />
                     </div>
                     {time ? (

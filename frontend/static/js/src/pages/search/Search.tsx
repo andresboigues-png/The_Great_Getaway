@@ -290,10 +290,10 @@ export function Search() {
     // ── Render ──────────────────────────────────────────────────────
 
     return (
-        <div style={{ maxWidth: '760px', margin: '0 auto', padding: '0 16px' }}>
-            <div style={{ padding: '32px 0 18px', textAlign: 'center' }}>
+        <div className="max-w-[760px] my-0 mx-auto py-0 px-4">
+            <div className="pt-8 px-0 pb-[18px] text-center">
                 <h1 style={titleH1Style}>{t('search.title')}</h1>
-                <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '1rem' }}>
+                <p className="m-0 text-secondary text-base">
                     {t('search.subtitle')}
                 </p>
             </div>
@@ -314,21 +314,17 @@ export function Search() {
                 haven't asked for anything. */}
             {!hasQuery && (
                 <div
-                    style={{
-                        textAlign: 'center',
-                        padding: '60px 20px',
-                        color: 'var(--text-secondary)',
-                    }}
+                    className="text-center py-[60px] px-5 text-secondary"
                 >
-                    <div style={{ fontSize: '3rem', marginBottom: '12px' }}>🔎</div>
-                    <p style={{ margin: 0, fontWeight: 600, fontSize: '1.05rem' }}>
+                    <div className="text-[3rem] mb-3">🔎</div>
+                    <p className="m-0 font-semibold text-[1.05rem]">
                         {t('search.emptyPrompt')}
                     </p>
                     {/* D3 contrast: was opacity: 0.7 — that drove the
                         subtitle to ~#89898c on the page bg, 3.2:1 (fails
                         AA). Drop opacity and let --text-secondary
                         (#5a5a5e, 6.6:1) carry the muted tone. */}
-                    <p style={{ margin: '8px 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                    <p className="mt-2 mx-0 mb-0 text-[0.85rem] text-secondary">
                         {t('search.emptyPromptHint')}
                     </p>
                 </div>
@@ -356,12 +352,7 @@ export function Search() {
                 <>
                     {/* Total count headline so the user sees scale at a glance. */}
                     <div
-                        style={{
-                            margin: '20px 4px 0',
-                            fontSize: '0.85rem',
-                            color: 'var(--text-secondary)',
-                            fontWeight: 600,
-                        }}
+                        className="mt-5 mx-1 mb-0 text-[0.85rem] text-secondary font-semibold"
                     >
                         {tn('search.resultCount', totalHits, { query })}
                     </div>
@@ -459,7 +450,7 @@ export function Search() {
 
             {/* Footer breathing room so the last row doesn't kiss the
                 bottom of the viewport on mobile. */}
-            <div style={{ height: '60px' }} aria-hidden="true" />
+            <div className="h-[60px]" aria-hidden="true" />
         </div>
     );
 }
@@ -482,11 +473,11 @@ function ResultGroupSection({
     children: React.ReactNode;
 }) {
     return (
-        <div data-search-group={group} style={{ marginTop: '8px' }}>
+        <div data-search-group={group} className="mt-2">
             <div style={sectionLabelStyle}>
                 {label} · {count}
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>{children}</div>
+            <div className="flex flex-col gap-2">{children}</div>
             {visible < count && (
                 <button
                     type="button"
@@ -525,31 +516,17 @@ function ResultRow({
 }) {
     return (
         <button type="button" onClick={onClick} style={rowStyle} className="search-result-row">
-            <span style={{ fontSize: '1.4rem', flexShrink: 0 }} aria-hidden="true">
+            <span className="text-[1.4rem] shrink-0" aria-hidden="true">
                 {emoji}
             </span>
-            <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="flex-1 min-w-0">
                 <div
-                    style={{
-                        fontWeight: 800,
-                        fontSize: '0.98rem',
-                        color: 'var(--text-brand-navy)',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                    }}
+                    className="font-extrabold text-[0.98rem] text-brand-navy whitespace-nowrap overflow-hidden overflow-ellipsis"
                 >
                     {title}
                 </div>
                 <div
-                    style={{
-                        fontSize: '0.8rem',
-                        color: 'var(--text-secondary)',
-                        marginTop: '2px',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                    }}
+                    className="text-[0.8rem] text-secondary mt-0.5 whitespace-nowrap overflow-hidden overflow-ellipsis"
                 >
                     {subtitle}
                 </div>

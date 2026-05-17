@@ -233,9 +233,8 @@ export function Settings() {
                 <>
                     <button
                         type="button"
-                        className="btn btn-small btn-liquid-glass"
+                        className="btn btn-small btn-liquid-glass mb-6 py-2.5 px-5 rounded-[14px]"
                         onClick={() => setSettingsTab('menu')}
-                        style={{ marginBottom: 24, padding: '10px 20px', borderRadius: 14 }}
                     >
                         {t('settings.backToControlCenter')}
                     </button>
@@ -260,13 +259,13 @@ function MenuView() {
                 className="card-button-reset card glass management-card"
                 onClick={() => setSettingsTab('general')}
             >
-                <h2 className="card-title" style={{ color: 'var(--accent-blue-deep)', margin: 0 }}>
+                <h2 className="card-title text-accent-blue-deep m-0">
                     {t('settings.cardGeneralTitle')}
                 </h2>
                 <p className="st-help-text">
                     {t('settings.cardGeneralBody')}
                 </p>
-                <div style={{ marginTop: 20, color: 'var(--accent-blue-deep)', fontWeight: 700, fontSize: '0.85rem' }}>
+                <div className="mt-5 text-accent-blue-deep font-bold text-[0.85rem]">
                     {t('settings.cardConfigureCta')}
                 </div>
             </button>
@@ -321,13 +320,13 @@ function MenuView() {
                     className="card-button-reset card glass management-card"
                     onClick={() => setSettingsTab('developer')}
                 >
-                    <h2 className="card-title" style={{ color: 'var(--accent-purple-deep)', margin: 0 }}>
+                    <h2 className="card-title text-accent-purple-deep m-0">
                         {t('settings.cardDeveloperTitle')}
                     </h2>
                     <p className="st-help-text">
                         {t('settings.cardDeveloperBody')}
                     </p>
-                    <div style={{ marginTop: 20, color: 'var(--accent-purple-deep)', fontWeight: 700, fontSize: '0.85rem' }}>
+                    <div className="mt-5 text-accent-purple-deep font-bold text-[0.85rem]">
                         {t('settings.cardConfigureCta')}
                     </div>
                 </button>
@@ -457,7 +456,7 @@ function GeneralPillsSection() {
         // !important elsewhere). See "Settings → General → POI
         // filters: responsive layout" in index.css.
         <div className="card glass settings-section">
-            <h2 style={{ color: 'var(--accent-blue-deep)', marginTop: 0 }}>{t('settings.poiTitle')}</h2>
+            <h2 className="text-accent-blue-deep mt-0">{t('settings.poiTitle')}</h2>
             <p className="st-paragraph-mb-16">
                 {t('settings.poiIntroVisibility')}
             </p>
@@ -560,7 +559,7 @@ function GeneralPillsSection() {
                     );
                 })}
             </div>
-            <p style={{ color: 'var(--text-secondary)', margin: '24px 0 0', fontSize: '0.85rem' }}>
+            <p className="text-secondary mt-6 mx-0 mb-0 text-[0.85rem]">
                 {t('settings.poiOutroNote')}
             </p>
         </div>
@@ -691,8 +690,7 @@ function ResetView() {
                 </button>
             </div>
             <div
-                className="card glass danger-card"
-                style={{ padding: 'var(--space-6)', borderColor: 'rgba(255, 59, 48, 0.3)' }}
+                className="card glass danger-card p-6 border-[rgba(255,_59,_48,_0.3)]"
             >
                 <h3 className="text-[#ff3b30] mt-0">{t('settings.resetFactoryTitle')}</h3>
                 <p className="muted-meta">{t('settings.resetFactoryBody')}</p>
@@ -796,12 +794,7 @@ function FormatView() {
                 {/* Status chips — one per MANDATORY variable, showing
                     DONE if it's already in customFormat. */}
                 <div
-                    style={{
-                        display: 'flex',
-                        flexWrap: 'wrap',
-                        gap: 'var(--space-2)',
-                        marginBottom: 'var(--space-6)',
-                    }}
+                    className="flex flex-wrap gap-2 mb-6"
                 >
                     {MANDATORY_VARS.map((v) => {
                         const done = used.has(v);
@@ -817,7 +810,7 @@ function FormatView() {
                     card list with each mapping rendered as a row
                     showing the variable name, an arrow connecting
                     to the Excel column letter, and a delete chip. */}
-                <div className="format-list" style={{ marginBottom: 'var(--space-6)' }}>
+                <div className="format-list mb-6">
                     {customFormat.length === 0 ? (
                         <div className="format-list__empty">{t('settings.formatEmpty')}</div>
                     ) : (
@@ -877,13 +870,7 @@ function FormatView() {
                 {/* Add-mapping form — variable select + column select +
                     map button. Both fields reset after a successful add. */}
                 <div
-                    style={{
-                        display: 'flex',
-                        gap: 'var(--space-4)',
-                        alignItems: 'flex-end',
-                        flexWrap: 'wrap',
-                        marginBottom: 'var(--space-8)',
-                    }}
+                    className="flex gap-4 items-end flex-wrap mb-8"
                 >
                     <div className="flex-1 min-w-[150px]">
                         <label
@@ -936,8 +923,7 @@ function FormatView() {
                     </div>
                     <button
                         type="button"
-                        className="btn btn-liquid-glass"
-                        style={{ padding: 'var(--space-3) var(--space-6)' }}
+                        className="btn btn-liquid-glass py-3 px-6"
                         onClick={onAddMapping}
                     >
                         {t('settings.formatMapBtn')}
@@ -950,7 +936,7 @@ function FormatView() {
                     <h3 className="mt-0">
                         {t('settings.formatSavedHeading', { count: savedFormats.length })}
                     </h3>
-                    <div style={{ display: 'grid', gap: 'var(--space-3)' }}>
+                    <div className="grid gap-3">
                         {savedFormats.map((f) => (
                             <div key={f.id} className="saved-format-card">
                                 <div className="saved-format-card__name">
@@ -1002,7 +988,7 @@ function FormatView() {
                             </div>
                         ))}
                         {savedFormats.length < 5 ? (
-                            <div style={{ display: 'flex', gap: 'var(--space-3)', marginTop: 'var(--space-3)' }}>
+                            <div className="flex gap-3 mt-3">
                                 <input
                                     type="text"
                                     placeholder={t('settings.formatSavedNamePlaceholder')}

@@ -212,14 +212,8 @@ function EmptyTripView() {
                         </p>
                         <button
                             type="button"
-                            className="btn-primary btn-primary--lg"
+                            className="btn-primary btn-primary--lg max-w-none w-auto py-4 px-9 text-[1.15rem]"
                             onClick={() => openNewTripModal()}
-                            style={{
-                                maxWidth: 'none',
-                                width: 'auto',
-                                padding: '16px 36px',
-                                fontSize: '1.15rem',
-                            }}
                         >
                             {t('ai.noTripCta')}
                         </button>
@@ -741,7 +735,7 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
     return (
         <div style={{ fontFamily: sf }}>
             {/* Header */}
-            <div style={{ padding: '32px 0 24px' }}>
+            <div className="pt-8 px-0 pb-6">
                 <div className="flex items-center gap-3 mb-[6px]">
                     <h1
                         style={{
@@ -773,13 +767,7 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
             </div>
 
             <div
-                className="ai-page-2col"
-                style={{
-                    display: 'grid',
-                    gridTemplateColumns: '380px 1fr',
-                    gap: 24,
-                    marginBottom: 32,
-                }}
+                className="ai-page-2col grid grid-cols-[380px_1fr] gap-6 mb-8"
             >
                 {/* Left: Controls */}
                 <div
@@ -885,14 +873,7 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                         className="card glass p-5 flex-auto flex flex-col min-h-0 gap-[14px]"
                     >
                         <h2
-                            className="card-title"
-                            style={{
-                                fontSize: '0.85rem',
-                                textTransform: 'uppercase',
-                                color: 'var(--accent-blue-deep)',
-                                marginBottom: 0,
-                                letterSpacing: '0.05em',
-                            }}
+                            className="card-title text-[0.85rem] uppercase text-accent-blue-deep mb-0 tracking-wider"
                         >
                             {t('ai.sectionRequirements')}
                         </h2>
@@ -958,14 +939,9 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                     {tripIsEditable ? (
                         <button
                             type="button"
-                            className="ai-generate-btn"
+                            className="ai-generate-btn w-full rounded-[var(--radius-lg)] flex-none"
                             onClick={runGenerate}
                             disabled={generating}
-                            style={{
-                                width: '100%',
-                                borderRadius: 'var(--radius-lg)',
-                                flex: '0 0 auto',
-                            }}
                         >
                             {generating ? t('ai.generatingBtn') : t('ai.generateBtn')}
                         </button>
@@ -1014,15 +990,11 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                                 margin: '0 auto 20px',
                             }}
                         />
-                        <div style={{ color: 'var(--text-primary)', fontWeight: 600 }}>
+                        <div className="text-primary font-semibold">
                             {t('ai.loadingTitle')}
                         </div>
                         <div
-                            style={{
-                                color: 'var(--text-secondary)',
-                                fontSize: '0.82rem',
-                                marginTop: 6,
-                            }}
+                            className="text-secondary text-[0.82rem] mt-1.5"
                         >
                             {t('ai.loadingBody')}
                         </div>
@@ -1160,8 +1132,7 @@ function AIUsageCard({
 
     return (
         <div
-            className="card glass"
-            style={{ padding: 18, borderColor: 'rgba(155,89,182,0.3)', flex: '0 0 auto' }}
+            className="card glass p-[18px] border-[rgba(155,89,182,0.3)] flex-none"
         >
             <div
                 className="flex items-center justify-between mb-2"
@@ -1417,15 +1388,7 @@ function RoleNotice({ activeTrip }: { activeTrip: Trip }) {
         role === ROLE_BUDGETEER ? t('ai.roleNoteBudgeteer') : t('ai.roleNoteOther');
     return (
         <div
-            className="card glass"
-            style={{
-                padding: 16,
-                borderRadius: 'var(--radius-lg)',
-                textAlign: 'center',
-                color: 'var(--text-secondary)',
-                fontSize: '0.85rem',
-                flex: '0 0 auto',
-            }}
+            className="card glass p-4 rounded-[var(--radius-lg)] text-center text-secondary text-[0.85rem] flex-none"
         >
             {t('ai.roleNotice', { role: roleLabel, note })}
         </div>
@@ -1442,9 +1405,9 @@ function GenerationErrorCard({
     onRetry: () => void;
 }) {
     return (
-        <div className="card glass" style={{ textAlign: 'center', padding: '32px 28px' }}>
+        <div className="card glass text-center py-8 px-7">
             <div className="text-[2.4rem] mb-2">😬</div>
-            <h2 style={{ color: '#a82424', margin: '0 0 6px', fontSize: '1.2rem' }}>
+            <h2 className="text-[#a82424] mt-0 mx-0 mb-1.5 text-[1.2rem]">
                 {error.msg}
             </h2>
             {error.hint ? (
@@ -1470,12 +1433,7 @@ function GenerationErrorCard({
                 }}
             >
                 <summary
-                    style={{
-                        cursor: 'pointer',
-                        fontSize: '0.78rem',
-                        fontWeight: 700,
-                        color: 'var(--accent-purple-deep)',
-                    }}
+                    className="cursor-pointer text-[0.78rem] font-bold text-accent-purple-deep"
                 >
                     {t('ai.errorTechnicalDetails')}
                 </summary>
@@ -1564,11 +1522,7 @@ function ItineraryOutput({
                         {t('ai.resultHeading', { numDays, country })}
                     </h2>
                     <p
-                        style={{
-                            color: 'var(--text-secondary)',
-                            margin: '6px 0 0',
-                            fontSize: '0.9rem',
-                        }}
+                        className="text-secondary mt-1.5 mx-0 mb-0 text-[0.9rem]"
                     >
                         {t('ai.resultGeneratedBy')}
                     </p>
@@ -1604,13 +1558,7 @@ function ItineraryOutput({
                         <div className="ai-day-row flex items-stretch">
                             <div className="ai-day-chip">
                                 <span
-                                    style={{
-                                        color: 'rgba(255,255,255,0.7)',
-                                        fontSize: '0.65rem',
-                                        fontWeight: 700,
-                                        textTransform: 'uppercase',
-                                        letterSpacing: '0.1em',
-                                    }}
+                                    className="text-[rgba(255,255,255,0.7)] text-[0.65rem] font-bold uppercase tracking-widest"
                                 >
                                     Day
                                 </span>
@@ -1621,10 +1569,9 @@ function ItineraryOutput({
                                 </span>
                             </div>
                             <div
-                                className="ai-day-body"
-                                style={{ flex: 1, padding: 'var(--space-6) 28px' }}
+                                className="ai-day-body flex-1 py-6 px-7"
                             >
-                                <div style={{ marginBottom: 'var(--space-5)' }}>
+                                <div className="mb-5">
                                     <h3
                                         style={{
                                             margin: '0 0 var(--space-1)',
@@ -1654,13 +1601,7 @@ function ItineraryOutput({
                                             user's request; sightseeing is a
                                             separate cluster underneath. */}
                                         <div
-                                            className="ai-day-slots"
-                                            style={{
-                                                display: 'grid',
-                                                gridTemplateColumns: '1fr 1fr 1fr',
-                                                gap: 'var(--space-4)',
-                                                marginBottom: 'var(--space-4)',
-                                            }}
+                                            className="ai-day-slots grid grid-cols-3 gap-4 mb-4"
                                         >
                                             <MealBlock
                                                 title="🥐 Breakfast"
@@ -1682,12 +1623,7 @@ function ItineraryOutput({
                                     </>
                                 ) : (
                                     <div
-                                        className="ai-day-slots"
-                                        style={{
-                                            display: 'grid',
-                                            gridTemplateColumns: '1fr 1fr 1fr',
-                                            gap: 'var(--space-4)',
-                                        }}
+                                        className="ai-day-slots grid grid-cols-3 gap-4"
                                     >
                                         <SlotBlock title="🌅 Morning" accent="0,113,227" slot={day.morning} />
                                         <SlotBlock
@@ -1762,11 +1698,7 @@ function MealBlock({ title, accent, place }: { title: string; accent: string; pl
                 <div dangerouslySetInnerHTML={{ __html: renderRestaurantCard(place) }} />
             ) : (
                 <div
-                    style={{
-                        color: 'var(--text-secondary)',
-                        fontSize: '0.82rem',
-                        padding: '6px 2px',
-                    }}
+                    className="text-secondary text-[0.82rem] py-1.5 px-0.5"
                 >
                     {/* Defensive: an LLM glitch could omit a meal.
                         Render a small dash so the column doesn't
@@ -1787,11 +1719,7 @@ function SightsBlock({ sights }: { sights: any }) {
                 <div dangerouslySetInnerHTML={{ __html: renderSightsList(list) }} />
             ) : (
                 <div
-                    style={{
-                        color: 'var(--text-secondary)',
-                        fontSize: '0.82rem',
-                        padding: '6px 2px',
-                    }}
+                    className="text-secondary text-[0.82rem] py-1.5 px-0.5"
                 >
                     No sightseeing suggested for this day.
                 </div>
@@ -1847,11 +1775,7 @@ function TodoListPanel({ activeTrip, datesSet }: TodoListPanelProps) {
                         </h3>
                     </div>
                     <p
-                        style={{
-                            margin: '0 0 12px',
-                            color: 'var(--text-secondary)',
-                            fontSize: '0.9rem',
-                        }}
+                        className="mt-0 mx-0 mb-3 text-secondary text-[0.9rem]"
                     >
                         {t('ai.todoPanelEmptyBody')}
                     </p>
@@ -1896,11 +1820,7 @@ function TodoListPanel({ activeTrip, datesSet }: TodoListPanelProps) {
                         </h3>
                     </div>
                     <p
-                        style={{
-                            margin: '0 0 12px',
-                            color: 'var(--text-secondary)',
-                            fontSize: '0.9rem',
-                        }}
+                        className="mt-0 mx-0 mb-3 text-secondary text-[0.9rem]"
                     >
                         {t('ai.todoPanelNoneTickedBody')}
                     </p>
@@ -1941,14 +1861,7 @@ function TodoListPanel({ activeTrip, datesSet }: TodoListPanelProps) {
                     >
                         {t('ai.todoPanelTickedTitle')}{' '}
                         <span
-                            style={{
-                                background: 'rgba(155,89,182,0.12)',
-                                color: 'var(--accent-purple-deep)',
-                                fontSize: '0.7rem',
-                                padding: '2px 8px',
-                                borderRadius: 999,
-                                marginLeft: 6,
-                            }}
+                            className="bg-[rgba(155,89,182,0.12)] text-accent-purple-deep text-[0.7rem] py-0.5 px-2 rounded-full ml-1.5"
                         >
                             {tn('ai.todoPanelTickedCount', tickedItems.length)}
                         </span>
@@ -1983,11 +1896,7 @@ function TodoListPanel({ activeTrip, datesSet }: TodoListPanelProps) {
                         : t('ai.todoPanelHintNoDates')}
                 </p>
                 <div
-                    style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
-                        gap: 12,
-                    }}
+                    className="grid grid-cols-[repeat(auto-fill,_minmax(260px,_1fr))] gap-3"
                 >
                     {tickedItems.map((p) => (
                         <MarkedCard
@@ -2060,11 +1969,7 @@ function MarkedCard({
                     </div>
                     {place.address ? (
                         <div
-                            style={{
-                                fontSize: '0.75rem',
-                                color: 'var(--text-secondary)',
-                                marginTop: 2,
-                            }}
+                            className="text-xs text-secondary mt-0.5"
                         >
                             {place.address}
                         </div>
@@ -2119,11 +2024,7 @@ function MarkedCard({
                 </div>
             ) : (
                 <div
-                    style={{
-                        fontSize: '0.75rem',
-                        color: 'var(--text-secondary)',
-                        fontStyle: 'italic',
-                    }}
+                    className="text-xs text-secondary italic"
                 >
                     {t('ai.todoPanelCardNoDates')}
                 </div>

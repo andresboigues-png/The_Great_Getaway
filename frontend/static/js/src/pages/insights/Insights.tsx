@@ -376,7 +376,7 @@ export function Insights() {
                     borderBottom: '1px solid var(--glass-border)',
                 }}
             >
-                <div style={{ minWidth: 0, flex: '1 1 240px' }}>
+                <div className="min-w-0 flex-[1_1_240px]">
                     <h1
                         style={{
                             display: 'inline-block',
@@ -390,11 +390,7 @@ export function Insights() {
                         {t('insights.title')}
                     </h1>
                     <p
-                        style={{
-                            color: 'var(--text-secondary)',
-                            margin: '0',
-                            fontSize: '1rem',
-                        }}
+                        className="text-secondary m-0 text-base"
                     >
                         {t('insights.subtitle')}
                     </p>
@@ -450,10 +446,10 @@ export function Insights() {
             </div>
 
             {/* Hero Row: Totals */}
-            <div style={{ marginBottom: 'var(--space-8)' }}>
+            <div className="mb-8">
                 <div className="card glass hero-stat-card">
                     <h2 className="card-title hero-stat-card__title">{t('insights.heroTitle')}</h2>
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--space-3)' }}>
+                    <div className="flex items-baseline gap-3">
                         <h1 className="hero-stat-card__value">
                             {targetSym}
                             {totalDisplay.toFixed(2)}
@@ -476,8 +472,7 @@ export function Insights() {
 
             {/* Summary Grid */}
             <div
-                className="grid-2"
-                style={{ gridTemplateColumns: '1fr 1fr', marginBottom: 'var(--space-8)' }}
+                className="grid-2 grid-cols-2 mb-8"
             >
                 <div className="card glass">
                     <h2 className="card-title metric-label">{t('insights.avgDaily')}</h2>
@@ -504,8 +499,7 @@ export function Insights() {
                             {highestExpense.displayValue.toFixed(2)}
                         </h1>
                         <p
-                            className="metric-label"
-                            style={{ margin: 'var(--space-1) 0 0 0' }}
+                            className="metric-label mt-1 mr-0 mb-0 ml-0"
                         >
                             {highestExpense.label} • {highestExpense.who}
                         </p>
@@ -518,15 +512,11 @@ export function Insights() {
                 <div className="card glass in-card-pad-28">
                     <h2 className="card-title">{t('insights.topSpenders')}</h2>
                     <div className="mb-5">
-                        <h1 style={{ margin: 0, fontSize: '2rem', color: 'var(--text-primary)' }}>
+                        <h1 className="m-0 text-[2rem] text-primary">
                             {topSpender}
                         </h1>
                         <span
-                            style={{
-                                color: 'var(--accent-blue)',
-                                fontWeight: 700,
-                                fontSize: '1.1rem',
-                            }}
+                            className="text-accent-blue font-bold text-[1.1rem]"
                         >
                             {totalDisplay > 0 ? targetSym + topSpenderAmount.toFixed(2) : '0'}
                         </span>
@@ -588,7 +578,7 @@ export function Insights() {
                         <h2 className="card-title m-0">
                             {t('insights.byCountryTitle')}
                         </h2>
-                        <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                        <div className="text-secondary text-[0.85rem]">
                             {t('insights.byCountrySubtitle')}
                         </div>
                     </div>
@@ -604,13 +594,7 @@ export function Insights() {
                                         className="flex justify-between items-baseline gap-3"
                                     >
                                         <span
-                                            style={{
-                                                fontWeight: 700,
-                                                fontSize: '0.95rem',
-                                                color: 'var(--text-primary)',
-                                                overflowWrap: 'anywhere',
-                                                minWidth: 0,
-                                            }}
+                                            className="font-bold text-[0.95rem] text-primary wrap-anywhere min-w-0"
                                         >
                                             {country}
                                         </span>
@@ -625,12 +609,7 @@ export function Insights() {
                                             {targetSym}
                                             {amount.toFixed(2)}
                                             <span
-                                                style={{
-                                                    marginLeft: 8,
-                                                    color: 'var(--text-secondary)',
-                                                    fontWeight: 600,
-                                                    fontSize: '0.8rem',
-                                                }}
+                                                className="ml-2 text-secondary font-semibold text-[0.8rem]"
                                             >
                                                 {pct.toFixed(0)}%
                                             </span>
@@ -641,13 +620,7 @@ export function Insights() {
                                         whole card self-contained (no new
                                         CSS file for one bar pattern). */}
                                     <div
-                                        style={{
-                                            position: 'relative',
-                                            height: 6,
-                                            borderRadius: 999,
-                                            background: 'rgba(0,113,227,0.08)',
-                                            overflow: 'hidden',
-                                        }}
+                                        className="relative h-1.5 rounded-full bg-[rgba(0,113,227,0.08)] overflow-hidden"
                                         aria-hidden="true"
                                     >
                                         <div
@@ -679,7 +652,7 @@ export function Insights() {
                     <h2 className="card-title m-0">
                         {t('insights.timelineTitle')}
                     </h2>
-                    <div style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                    <div className="text-secondary text-[0.9rem]">
                         {t('insights.timelineSubtitle')}
                     </div>
                 </div>

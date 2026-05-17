@@ -529,16 +529,7 @@ export function TripBody({ activeTrip }: TripBodyProps) {
                     ) : null}
                 </div>
                 <p
-                    style={{
-                        fontSize: '0.95rem',
-                        color: 'var(--text-secondary)',
-                        margin: '6px 0 0',
-                        fontWeight: 500,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 10,
-                        flexWrap: 'wrap',
-                    }}
+                    className="text-[0.95rem] text-secondary mt-1.5 mx-0 mb-0 font-medium flex items-center gap-2.5 flex-wrap"
                 >
                     <span>
                         {tripDays.length} Day{tripDays.length !== 1 ? 's' : ''} of adventure
