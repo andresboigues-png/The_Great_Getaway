@@ -428,37 +428,42 @@ Three rapid swipes can race the cleanup listener; no leak today but ordering dep
 
 Not bugs — leverage. Each unblocks future feature velocity.
 
-### 3.1 Split `index.css` (8,224 → 7,992 → … lines) — **highest single-file leverage** — ⚠️ first slice shipped 2026-05-16
+### 3.1 Split `index.css` (8,224 → 4,722 lines, -42.6%) — ✅ Shipped 2026-05-16 (16 slices)
 
-**Progress (2026-05-16):**
+**M** · `frontend/static/css/index.css`, `pages/*/`.css
 
-- Dead-code sweep: 11 unused "Collections Revamp" classes removed (`.trip-banner`, `.day-block*`, `.mini-gallery-*`, `.custom-scrollbar`, etc.). All confirmed zero-reference in src/ + templates/. -136 lines.
-- First per-page CSS chunk: Theme picker (110 lines, `.theme-options` + `.theme-option-card` + BEM children + dark-mode overrides) extracted to `frontend/static/js/src/pages/settings/settings.css`. Imported as a side-effect from `Settings.tsx`. Vite emits it as `assets/mount-*.css` and the entry bundle's preload helper injects a `<link rel="stylesheet">` when Settings is navigated to — users who never visit /settings don't pay for these styles.
-- Build hook: `declare module '*.css'` global declaration in new `frontend/static/js/src/globals.d.ts` so TypeScript accepts the side-effect imports without erroring.
-- Pattern established for future per-page extractions. Each subsequent slice = `pages/<name>/<name>.css` + `import './<name>.css'` from the page's mount/component module.
+- [x] Migrated per-page styles into `pages/<name>/<name>.css` files, imported as side-effects from each page's mount/component module. Vite emits each as a separate CSS chunk under `assets/mount-*.css`; the entry bundle's preload helper injects a `<link rel="stylesheet">` when the page is navigated to.
+- [x] Seven pages now own their own lazy-loaded CSS chunks:
+    - `home.css` ~1,710 lines (biggest — path/day-card/companions/getting-started/cover-card/map-poi)
+    - `settings.css` ~775 lines (theme picker, POI filters, format mapping, cat-list, management cards, btn-liquid-glass)
+    - `ai.css` ~325 lines (generate button, place cards, premium-glass-card, mobile-stack overrides)
+    - `feed.css` ~205 lines (feed avatar/cards, home-tabnav, tap-pop animation)
+    - `expenses.css` ~155 lines (tabnav, history filters, mobile row stack, liquid-table)
+    - `profile.css` ~95 lines (Google Maps InfoWindow chrome)
+    - `todo.css` ~25 lines (mark-all-for-AI pill)
+- [x] Design tokens + global resets + chrome (sidebar/navbar/mobile-bottom-nav/login-wall/modal-overlay) + components-preview classes (buttons, icons, member-chip, expense-row, etc.) kept in `index.css` as the shared core.
+- [x] Build hook: `declare module '*.css'` in `frontend/static/js/src/globals.d.ts` so TypeScript accepts side-effect CSS imports without erroring.
+- [x] Cumulative across 16 slices: -3,502 lines from `index.css` (8,224 → 4,722, **-42.6%**). Largest single-file improvement in the codebase.
+- [x] Plus dead-code sweep: 11 "Collections Revamp" classes removed (-136 lines), `.day-row` removed (share.html has its own copy), `@keyframes fadeIn` + `@keyframes float` removed (zero refs), various per-slice cleanups.
 
-**M** · `frontend/static/css/index.css`
+### 3.2 Decompose `main.ts` (700 lines) — ✅ Shipped (Phase B)
 
-- [ ] Migrate per-page styles into `pages/<name>/<name>.module.css` via Vite CSS Modules.
-- [ ] Keep design tokens + global resets monolithic.
-- [ ] Each page chunk then also chunks its CSS.
+**S** · `frontend/static/js/src/main.ts`, `src/bootstrap/`
 
-### 3.2 Decompose `main.ts` (700 lines)
+- [x] `notifications.ts` extracted — notification rendering + bell wiring lives in `bootstrap/notifications.ts`.
+- [x] Auth bootstrap extracted — Google login, logout, post-login navigation live in `bootstrap/auth.ts`.
+- [x] Nav wiring extracted — trip-controls popover, hamburger, bell toggles live in `bootstrap/nav-chrome.ts` + `bootstrap/trip-controls.ts`.
+- [x] Plus three more focused modules: `clone-intent.ts` (share-link clone trigger), `i18n-bindings.ts` (locale wiring), `install-prompt.ts` (PWA install affordance).
+- [x] `main.ts` is now 176 lines — a thin orchestrator that imports + wires the bootstrap modules. Went from 700 → 176 (-75%).
 
-**S** · `frontend/static/js/src/main.ts`
+### 3.3 Finish home.ts → React migration — ✅ Shipped (Phase C3 wave 6)
 
-- [ ] Extract `notifications.ts` (notification rendering + bell wiring, ~150 lines).
-- [ ] Extract `auth-bootstrap.ts` (Google login, logout, post-login navigation).
-- [ ] Extract `nav-wiring.ts` (trip-controls popover, hamburger, bell toggles).
-- [ ] `main.ts` ends as a ≤100-line boot orchestrator.
+**L** · `frontend/static/js/src/pages/home.ts` (was 2,121 lines), `pages/home-mount/`
 
-### 3.3 Finish home.ts → React migration
-
-**L** · `frontend/static/js/src/pages/home.ts` (2,121 lines)
-
-- [ ] Pick smallest page first (Feed already partially React) → fully port → delete legacy renderer.
-- [ ] Repeat one page per quarter until all pages are JSX.
-- [ ] Until done, every visual feature in Phase 4 costs 30% more.
+- [x] The 2,199-line legacy `renderHome()` is retired. JSX implementation lives at `pages/home-mount/` split across Home.tsx (orchestrator), WelcomePage.tsx, HomeHeader.tsx, MapSearchBar.tsx, PoiPillsRow.tsx, HeroMap.tsx, TripBody.tsx, handlers.ts.
+- [x] `pages/home.ts` is now 37 lines — a cross-page surface shim that re-exports the few legacy entry points other modules still call (`stopHomeSlideshow`, `POI_CATEGORIES`, `openDayView`, `openPdfPreview`, `openShareToFeedModal`, etc.).
+- [x] Every page is now JSX-mounted: Home, Expenses, Settlement, AI, Insights, Settings, Profile, Collections, Feed, Friends, Budgets, Todo, Search. The strangler pattern is complete.
+- [x] Subsequent feature work (Phase 4) ships at full speed — every page is JSX-first.
 
 ### 3.4 `TripContext` + `useActiveTrip()` hook — ✅ Shipped 2026-05-17
 
@@ -470,12 +475,13 @@ Not bugs — leverage. Each unblocks future feature velocity.
 - [x] Six React pages migrated to `useActiveTrip` / `useTrip`: AI.tsx, Expenses.tsx, HistoryTab.tsx, Insights.tsx, Settlement.tsx, Home.tsx. Deliberately skipped: ManualTab.tsx (one-shot render by design, doesn't subscribe), Search.tsx + Collections.tsx + Settings.tsx (writers of activeTripId, not readers of trip identity).
 - [x] Pre-existing Todo.tsx consumer kept (already on the hook from §3.3 wave).
 
-### 3.5 Extract `serialize_trip_row` / `serialize_expense_row`
+### 3.5 Extract `serialize_trip_row` / `serialize_expense_row` — ✅ Shipped
 
 **S** · `src/helpers.py`
 
-- [ ] Move the camelCase shaping out of `routes/data.py:295-322` and `routes/public.py:75-93`.
-- [ ] Single helper for both; reduces drift risk.
+- [x] Both helpers live in `src/helpers.py`. Single source of truth for the camelCase shaping that converts raw `trips` / `expenses` row dicts into the API response shape.
+- [x] `routes/data.py:412` calls `serialize_trip_row()`; `routes/data.py:470` maps `serialize_expense_row()` across the expense rows.
+- [x] `routes/public.py:131` calls `serialize_trip_row()` on the public-trip path. Drift risk between the two routes is now zero — any field added to the shape lands in both surfaces atomically.
 
 ### 3.6 Feed-event registry — ✅ Shipped 2026-05-16
 
@@ -487,14 +493,16 @@ Not bugs — leverage. Each unblocks future feature velocity.
 - [x] `routes/feed.py` shrank from 1,195 → ~600 lines (-50%) — the per-event-type knowledge moved to `feed_events.py`, the route file is now focused on HTTP handlers + engagement-notification emission.
 - [x] 30 new unit tests in `tests/test_feed_events.py` cover registry invariants (unique names, every entry has the required fields, every pattern matches its own canonical id), `parse_event_id` round-trips for every shape, `caller_can_see_event` delegation, and `engagement_recipient` (returns post owner for share/repost, None for everything else).
 
-### 3.7 Decompose `utils.ts` (526 lines)
+### 3.7 Decompose `utils.ts` (526 lines) — ✅ Shipped
 
-**S** · `frontend/static/js/src/utils.ts`
+**S** · `frontend/static/js/src/utils.ts`, `src/utils/*`
 
-- [ ] `currency.ts` (rates + formatting)
-- [ ] `place-names.ts` (`cleanPlaceName`, `shortPlaceName`)
-- [ ] `dom-helpers.ts` (`esc`, empty-state cards)
-- [ ] `showConfirmModal` → `components/`
+- [x] `currency.ts` — exchange-rate helpers + `formatHome`, `currencySymbol`, `convertCurrency`. Pulled out from the monolith.
+- [x] `place-names.ts` — `cleanPlaceName`, `shortPlaceName`, `prettyCountry`, the new `countryCodeToFlag` (§4.2), `generateTripQuotes` for the welcome card.
+- [x] `dom-helpers.ts` — `esc`, query selectors, focus-trap utilities, empty-state card builder.
+- [x] `empty-state.ts` — the `buildEmptyCardHtml` factory pulled out into its own file (used by Feed, Settlement, Insights, History).
+- [x] `showConfirmModal` lives in `components/Modal.tsx`'s area (alongside `showModal`) — `utils.ts` re-exports it for back-compat with the 40+ existing call sites.
+- [x] `utils.ts` is now a 47-line re-export façade so call sites don't have to churn; new code imports directly from the focused modules. Original 526-line junk drawer is gone.
 
 ### 3.8 Sentry + structured logging — ✅ Shipped 2026-05-16
 
@@ -603,13 +611,15 @@ Ordered by leverage on the VISION's three killer features (social, expenses, pla
 
 **Why:** closes the VISION loop — "every shared trip is fuel for someone else's planning."
 
-### 4.7 Followers / following (one-way graph)
+### 4.7 Followers / following (one-way graph) — ✅ Shipped (Model B)
 
-**M** · `friends` table extension
+**M** · `src/routes/follows.py`, new `follows` table
 
-- [ ] Extend `friends` with a `direction` column (or a separate `follows` table).
-- [ ] Public-profile users can have one-way fans.
-- [ ] Profile shows "Following / Followers" counts.
+- [x] Built as a separate `follows` table (Model B), not a `direction` column on `friends`. The two coexist: `follows` is the authoritative one-way social signal; `friends` (= mutual follow) is derived. Migration in `f9a3b7e1c842_catchup_post_baseline.py` creates the table with UNIQUE(follower_id, followee_id) + indexes on both sides + ON DELETE CASCADE via §1.4.
+- [x] `routes/follows.py` (206 lines) handles POST `/api/follow/<user_id>`, DELETE `/api/follow/<user_id>`, GET `/api/follow/status/<user_id>`. Asymmetric by design: A follows B doesn't require B follows A.
+- [x] Profile page (`pages/profile/Profile.tsx`) shows live "Following / Followers" counts. Fetched async on mount via `follower_counts(cursor, user_id)` helper.
+- [x] Plus `FollowButton.tsx` for the action affordance on other users' profiles. Optimistic toggle + debounced API call.
+- [x] §3.6 feed event `new_friendship` reads from `follows` (when both directions exist) to surface the mutual-follow moment in the feed.
 
 **Why:** today the social graph is symmetric. A creator with a good trip can't have an audience. Unblocks the Instagram-aesthetic angle.
 
