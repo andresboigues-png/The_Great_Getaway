@@ -61,22 +61,7 @@ export function MapSearchBar() {
                 mapSearch.ts toggles display + populates innerHTML. */}
             <div
                 id="homeMapSearchResults"
-                style={{
-                    display: 'none',
-                    position: 'absolute',
-                    top: 'calc(100% + 6px)',
-                    left: 0,
-                    right: 0,
-                    background: 'var(--surface-glass-light)',
-                    backdropFilter: 'blur(22px) saturate(160%)',
-                    WebkitBackdropFilter: 'blur(22px) saturate(160%)',
-                    border: '1px solid rgba(0,0,0,0.08)',
-                    borderRadius: 18,
-                    boxShadow: '0 18px 44px rgba(0,45,91,0.18)',
-                    overflow: 'hidden',
-                    maxHeight: 320,
-                    overflowY: 'auto',
-                }}
+                className="hidden absolute top-[calc(100%_+_6px)] left-0 right-0 bg-[var(--surface-glass-light)] backdrop-filter-[blur(22px)_saturate(160%)] [-webkit-backdrop-filter:blur(22px)_saturate(160%)] border border-[rgba(0,0,0,0.08)] rounded-lg shadow-[0_18px_44px_rgba(0,45,91,0.18)] overflow-hidden max-h-[320px] overflow-y-auto"
             ></div>
         </div>
     );

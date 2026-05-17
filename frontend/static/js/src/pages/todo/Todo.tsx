@@ -190,17 +190,10 @@ function TodoRow({ place: p, isTicked, tripIsEditable, onTickToggle, onRemove }:
                     >
                         <input
                             type="checkbox"
-                            className="todo-ai-tick"
+                            className="todo-ai-tick w-5 h-5 accent-[#9b59b6] cursor-pointer m-0"
                             data-place-id={p.placeId}
                             checked={isTicked}
                             onChange={() => onTickToggle(p.placeId)}
-                            style={{
-                                width: '20px',
-                                height: '20px',
-                                accentColor: '#9b59b6',
-                                cursor: 'pointer',
-                                margin: 0,
-                            }}
                         />
                     </label>
                 )}
@@ -846,15 +839,7 @@ export function Todo() {
                 user got stuck. */}
             {groups.size === 0 && (filterIcon !== '' || statusFilter !== 'all') && (
                 <div
-                    style={{
-                        padding: '24px 16px',
-                        textAlign: 'center',
-                        color: 'var(--text-secondary)',
-                        fontSize: '0.86rem',
-                        background: 'rgba(0, 45, 91, 0.03)',
-                        borderRadius: '12px',
-                        border: '1.5px dashed var(--border-subtle)',
-                    }}
+                    className="py-6 px-4 text-center text-secondary text-[0.86rem] bg-[rgba(0,_45,_91,_0.03)] rounded-md border-[1.5px] border-dashed border-[var(--border-subtle)]"
                 >
                     {t('todo.noFilterMatch')}{' '}
                     <button

@@ -114,18 +114,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
                     recover from.
                 </p>
                 <p
-                    style={{
-                        margin: '12px 0 0',
-                        padding: '10px 14px',
-                        background: 'rgba(255, 59, 48, 0.06)',
-                        borderRadius: '10px',
-                        fontSize: '0.78rem',
-                        color: '#a82424',
-                        fontFamily:
-                            '"SF Mono", Menlo, Consolas, monospace',
-                        textAlign: 'left',
-                        wordBreak: 'break-word',
-                    }}
+                    className="mt-3 mx-0 mb-0 py-2.5 px-3.5 bg-[rgba(255,_59,_48,_0.06)] rounded-[10px] text-[0.78rem] text-[#a82424] font-mono text-left break-word"
                 >
                     <strong>{errName}:</strong> {errMsg}
                 </p>

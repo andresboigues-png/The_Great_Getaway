@@ -103,8 +103,8 @@ export function Personalization() {
                 style passes the children through to the parent's
                 layout context. */}
             <div id="persMenu" className="hidden" />
-            <div id="persContent" style={{ display: 'contents' }}>
-                <div id="persCategories" style={{ display: 'contents' }}>
+            <div id="persContent" className="contents">
+                <div id="persCategories" className="contents">
                     <div className="card glass settings-section card-glow-blue">
                         <div
                             className="flex items-center justify-between gap-3 mb-4 flex-wrap"

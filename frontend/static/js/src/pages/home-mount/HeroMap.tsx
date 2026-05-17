@@ -877,24 +877,7 @@ function PinEditToolbar({ label, canSave, onSave, onCancel }: PinEditToolbarProp
         <div
             role="toolbar"
             aria-label="Pin edit controls"
-            style={{
-                position: 'absolute',
-                top: 12,
-                left: '50%',
-                transform: 'translateX(-50%)',
-                zIndex: 1000,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                padding: '6px 6px 6px 14px',
-                background: 'rgba(255,255,255,0.96)',
-                backdropFilter: 'blur(20px) saturate(160%)',
-                WebkitBackdropFilter: 'blur(20px) saturate(160%)',
-                border: '1px solid rgba(0,45,91,0.10)',
-                borderRadius: 999,
-                boxShadow: '0 12px 32px rgba(0,45,91,0.18)',
-                maxWidth: 'calc(100% - 24px)',
-            }}
+            className="absolute top-3 left-[50%] translate-x-[-50%] z-[1000] flex items-center gap-2 pt-1.5 pr-1.5 pb-1.5 pl-3.5 bg-[rgba(255,255,255,0.96)] backdrop-filter-[blur(20px)_saturate(160%)] [-webkit-backdrop-filter:blur(20px)_saturate(160%)] border border-[rgba(0,45,91,0.10)] rounded-full shadow-[0_12px_32px_rgba(0,45,91,0.18)] max-w-[calc(100%_-_24px)]"
         >
             <span
                 className="text-[0.82rem] font-bold text-brand-navy whitespace-nowrap overflow-hidden overflow-ellipsis"

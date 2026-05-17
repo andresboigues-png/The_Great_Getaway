@@ -60,16 +60,7 @@ function UploadModeSwitch({ mode, onChange }: UploadModeSwitchProps) {
         <div
             role="radiogroup"
             aria-label="Upload mode"
-            style={{
-                display: 'flex',
-                background: 'rgba(0,113,227,0.06)',
-                border: '1px solid rgba(0,113,227,0.18)',
-                borderRadius: 999,
-                padding: 4,
-                gap: 4,
-                margin: '0 auto 24px',
-                width: 'fit-content',
-            }}
+            className="flex bg-[rgba(0,113,227,0.06)] border border-[rgba(0,113,227,0.18)] rounded-full p-1 gap-1 mt-0 mx-auto mb-6 w-fit"
         >
             <SwitchButton
                 active={mode === 'manual'}

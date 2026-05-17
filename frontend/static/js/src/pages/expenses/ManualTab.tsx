@@ -642,18 +642,7 @@ export function ManualTab() {
                                     />
                                     <button
                                         type="button"
-                                        className="btn-ghost"
-                                        style={{
-                                            padding: '10px 16px',
-                                            minHeight: 'var(--tap-min)',
-                                            fontSize: '0.78rem',
-                                            fontWeight: 700,
-                                            color: '#ff3b30',
-                                            background: 'rgba(255,59,48,0.08)',
-                                            border: '1px solid rgba(255,59,48,0.2)',
-                                            borderRadius: 8,
-                                            cursor: 'pointer',
-                                        }}
+                                        className="btn-ghost py-2.5 px-4 min-h-[var(--tap-min)] text-[0.78rem] font-bold text-[#ff3b30] bg-[rgba(255,59,48,0.08)] border border-[rgba(255,59,48,0.2)] rounded-lg cursor-pointer"
                                         onClick={onRemoveReceipt}
                                     >
                                         Remove
@@ -707,14 +696,7 @@ export function ManualTab() {
                         <div className="flex flex-col gap-3">
                             {splitters.length === 0 ? (
                                 <p
-                                    style={{
-                                        color: 'var(--text-secondary)',
-                                        fontSize: '0.85rem',
-                                        padding: 10,
-                                        border: '1px dashed var(--glass-border)',
-                                        borderRadius: 8,
-                                        textAlign: 'center',
-                                    }}
+                                    className="text-secondary text-[0.85rem] p-2.5 border border-dashed border-[var(--glass-border)] rounded-lg text-center"
                                 >
                                     100% will be attributed to the payer.
                                 </p>

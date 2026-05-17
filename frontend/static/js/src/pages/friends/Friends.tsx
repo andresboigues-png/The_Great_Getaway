@@ -360,15 +360,7 @@ export function Friends() {
                     )}
                     {searchStatus.kind === 'empty' && (
                         <div
-                            style={{
-                                textAlign: 'center',
-                                padding: '18px',
-                                fontSize: '0.85rem',
-                                color: 'var(--text-secondary)',
-                                background: 'rgba(0,0,0,0.02)',
-                                borderRadius: '14px',
-                                border: '1px dashed rgba(0,0,0,0.08)',
-                            }}
+                            className="text-center p-[18px] text-[0.85rem] text-secondary bg-[rgba(0,0,0,0.02)] rounded-[14px] border border-dashed border-[rgba(0,0,0,0.08)]"
                         >
                             No user found. Ask them to log in to GG first!
                         </div>

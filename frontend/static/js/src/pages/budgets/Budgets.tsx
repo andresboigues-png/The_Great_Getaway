@@ -367,17 +367,7 @@ export function Budgets() {
                                         <button
                                             type="button"
                                             onClick={() => deleteBudget(b.id)}
-                                            style={{
-                                                background: 'none',
-                                                border: 0,
-                                                color: '#ff3b30',
-                                                fontSize: '0.72rem',
-                                                fontWeight: 800,
-                                                cursor: 'pointer',
-                                                padding: 0,
-                                                textTransform: 'uppercase',
-                                                letterSpacing: '0.06em',
-                                            }}
+                                            className="bg-none border-0 text-[#ff3b30] text-[0.72rem] font-extrabold cursor-pointer p-0 uppercase tracking-[0.06em]"
                                         >
                                             {t('budgets.cardDelete')}
                                         </button>

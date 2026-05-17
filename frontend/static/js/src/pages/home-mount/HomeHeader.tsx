@@ -157,7 +157,7 @@ export function HomeHeader({ activeTrip, poiPillsVisible, onTogglePoiPills }: Ho
                                     role="img"
                                     aria-hidden="true"
                                     title={code}
-                                    style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.08))' }}
+                                    className="[filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.08))]"
                                 >
                                     {flag}
                                 </span>

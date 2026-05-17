@@ -131,15 +131,7 @@ function EmptyTripView() {
                 </p>
             </div>
             <div
-                style={{
-                    position: 'relative',
-                    width: '100%',
-                    height: 'calc(100vh - 200px)',
-                    minHeight: 480,
-                    borderRadius: 20,
-                    overflow: 'hidden',
-                    boxShadow: '0 40px 100px rgba(0,0,0,0.15)',
-                }}
+                className="relative w-full h-[calc(100vh_-_200px)] min-h-[480px] rounded-[20px] overflow-hidden shadow-[0_40px_100px_rgba(0,0,0,0.15)]"
             >
                 <div ref={mapRef} id="emptyMap" className="w-full h-full" />
                 <div
@@ -149,11 +141,7 @@ function EmptyTripView() {
                         className="premium-glass-card text-center text-brand-navy p-12 max-w-[500px] bg-[rgba(255,255,255,0.6)] rounded-[36px] border border-[rgba(255,255,255,0.8)] shadow-[0_30px_60px_rgba(0,0,0,0.1),_0_10px_20px_rgba(0,0,0,0.05)]"
                     >
                         <div
-                            style={{
-                                fontSize: '4.5rem',
-                                marginBottom: 24,
-                                filter: 'drop-shadow(0 10px 15px rgba(0,0,0,0.1))',
-                            }}
+                            className="text-[4.5rem] mb-6 [filter:drop-shadow(0_10px_15px_rgba(0,0,0,0.1))]"
                         >
                             🧭
                         </div>
@@ -811,17 +799,10 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                             </label>
                             <textarea
                                 id="aiFoodContext"
-                                className="glass-input"
+                                className="glass-input w-full resize-none text-[0.9rem] box-border min-h-[72px]"
                                 value={foodContext}
                                 onChange={onFoodContextChange}
                                 placeholder={t('ai.foodReqPlaceholder')}
-                                style={{
-                                    width: '100%',
-                                    resize: 'none',
-                                    fontSize: '0.9rem',
-                                    boxSizing: 'border-box',
-                                    minHeight: 72,
-                                }}
                             />
                         </div>
                         <div className="ai-col-gap-6">
@@ -833,17 +814,10 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                             </label>
                             <textarea
                                 id="aiSightseeingContext"
-                                className="glass-input"
+                                className="glass-input w-full resize-none text-[0.9rem] box-border min-h-[72px]"
                                 value={sightseeingContext}
                                 onChange={onSightseeingContextChange}
                                 placeholder={t('ai.sightsReqPlaceholder')}
-                                style={{
-                                    width: '100%',
-                                    resize: 'none',
-                                    fontSize: '0.9rem',
-                                    boxSizing: 'border-box',
-                                    minHeight: 72,
-                                }}
                             />
                         </div>
                     </div>
@@ -1126,22 +1100,7 @@ function AIUsageCard({
                 type="button"
                 onClick={onToggleByo}
                 aria-expanded={showByoCard}
-                style={{
-                    marginTop: 12,
-                    width: '100%',
-                    background: 'transparent',
-                    border: '1px dashed rgba(155,89,182,0.35)',
-                    color: 'var(--accent-purple-deep)',
-                    fontWeight: 700,
-                    fontSize: '0.82rem',
-                    padding: '8px 12px',
-                    borderRadius: 10,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 6,
-                }}
+                className="mt-3 w-full bg-transparent border border-dashed border-[rgba(155,89,182,0.35)] text-accent-purple-deep font-bold text-[0.82rem] py-2 px-3 rounded-[10px] cursor-pointer flex items-center justify-center gap-1.5"
             >
                 <span className="text-[0.7rem]">{showByoCard ? '▾' : '▸'}</span>
                 {t('ai.usageUseMyKeyBtn')}
@@ -1264,14 +1223,7 @@ function GenerationErrorCard({
                     {t('ai.errorTechnicalDetails')}
                 </summary>
                 <pre
-                    style={{
-                        margin: '8px 0 0',
-                        fontSize: '0.72rem',
-                        color: '#666',
-                        fontFamily: 'monospace',
-                        whiteSpace: 'pre-wrap',
-                        wordBreak: 'break-word',
-                    }}
+                    className="mt-2 mx-0 mb-0 text-[0.72rem] text-[#666] font-mono whitespace-pre-wrap break-word"
                 >
                     {error.raw}
                 </pre>
@@ -1551,13 +1503,7 @@ function TodoListPanel({ activeTrip, datesSet }: TodoListPanelProps) {
         return (
             <div className="ai-mb-32">
                 <div
-                    className="card glass"
-                    style={{
-                        padding: 20,
-                        borderRadius: 18,
-                        border: '1.5px dashed rgba(155, 89, 182, 0.35)',
-                        background: 'rgba(155, 89, 182, 0.04)',
-                    }}
+                    className="card glass p-5 rounded-lg border-[1.5px] border-dashed border-[rgba(155,_89,_182,_0.35)] bg-[rgba(155,_89,_182,_0.04)]"
                 >
                     <div
                         className="ai-row-icon-label"
@@ -1591,13 +1537,7 @@ function TodoListPanel({ activeTrip, datesSet }: TodoListPanelProps) {
         return (
             <div className="ai-mb-32">
                 <div
-                    className="card glass"
-                    style={{
-                        padding: 20,
-                        borderRadius: 18,
-                        border: '1.5px dashed rgba(155, 89, 182, 0.35)',
-                        background: 'rgba(155, 89, 182, 0.04)',
-                    }}
+                    className="card glass p-5 rounded-lg border-[1.5px] border-dashed border-[rgba(155,_89,_182,_0.35)] bg-[rgba(155,_89,_182,_0.04)]"
                 >
                     <div
                         className="ai-row-icon-label"

@@ -171,10 +171,13 @@ def convert_pair(key, value):
 
     # Layout primitives
     if key == 'display':
-        return {"'flex'": 'flex', "'inline-flex'": 'inline-flex',
-                "'block'": 'block', "'inline-block'": 'inline-block',
-                "'grid'": 'grid', "'none'": 'hidden',
-                "'inline'": 'inline'}.get(v)
+        d_map = {"'flex'": 'flex', "'inline-flex'": 'inline-flex',
+                 "'block'": 'block', "'inline-block'": 'inline-block',
+                 "'grid'": 'grid', "'none'": 'hidden',
+                 "'inline'": 'inline'}
+        if v in d_map:
+            return d_map[v]
+        # fall through — wave-5 handler catches 'contents', 'list-item', etc.
     if key == 'flexDirection':
         return {"'row'": 'flex-row', "'column'": 'flex-col',
                 "'row-reverse'": 'flex-row-reverse',
@@ -370,8 +373,11 @@ def convert_pair(key, value):
         return {"'none'": 'no-underline', "'underline'": 'underline',
                 "'line-through'": 'line-through'}.get(v)
     if key == 'wordBreak':
-        return {"'break-all'": 'break-all', "'normal'": 'break-normal',
-                "'keep-all'": 'break-keep'}.get(v)
+        wb = {"'break-all'": 'break-all', "'normal'": 'break-normal',
+              "'keep-all'": 'break-keep'}
+        if v in wb:
+            return wb[v]
+        # fall through — wave-5 handler below catches 'break-word'
     if key == 'overflowWrap':
         return {"'break-word'": 'wrap-break-word', "'anywhere'": 'wrap-anywhere'}.get(v)
     if key == 'textOverflow':
@@ -492,33 +498,30 @@ def convert_pair(key, value):
                 return f'border-{n}' if n != 1 else 'border'
             return f'border-[{n}px]'
 
-    # Border shorthand — handle the common '<Wpx> solid <color>' form by
-    # splitting into a width utility + a color utility. Tailwind's `border`
-    # utility is `border-width: 1px; border-style: solid;` so 1px + solid
-    # is implicit — no separate `border-solid` needed when width=1px.
+    # Border shorthand — handle the common '<Wpx> <style> <color>' form by
+    # splitting into width + style + color utilities. Tailwind's `border`
+    # is implicitly 1px solid, so for the typical 1px-solid case we skip
+    # the explicit `border-solid` utility.
     if key == 'border':
         if v == '0' or v == "'0'" or v == "'none'" or v == '"none"':
             return 'border-0'
         m = re.match(
-            r"^['\"](\d+(?:\.\d+)?)px solid (.+)['\"]$",
+            r"^['\"](\d+(?:\.\d+)?)px (solid|dashed|dotted|double) (.+)['\"]$",
             v,
         )
         if m:
-            width_raw, color_raw = m.group(1), m.group(2)
-            # Resolve color via color_token (re-wrap with quotes so the
-            # existing matchers fire).
+            width_raw, style_raw, color_raw = m.group(1), m.group(2), m.group(3)
             color_tok = color_token(f"'{color_raw}'")
             if color_tok is not None:
-                # Decide width prefix
                 w = float(width_raw)
                 if w == 1.0:
                     width_util = 'border'
                 elif w in (2.0, 4.0, 8.0):
                     width_util = f'border-{int(w)}'
                 else:
-                    # arbitrary width
                     width_util = f'border-[{width_raw}px]'
-                return f'{width_util} border-{color_tok}'
+                style_util = '' if style_raw == 'solid' else f' border-{style_raw}'
+                return f'{width_util}{style_util} border-{color_tok}'
 
     # Single-side borders (borderTop / borderBottom / borderLeft / borderRight)
     # We split into width + color (style defaults to solid). Tailwind has
@@ -685,6 +688,83 @@ def convert_pair(key, value):
         if m:
             inner = m.group(1).replace(' ', '_').replace('"', "'")
             return f'font-[{inner}]'
+
+    # background: 'none' — remove the background image
+    if key == 'background' and (v == "'none'" or v == '"none"'):
+        return 'bg-none'
+
+    # resize / wordBreak / borderCollapse / verticalAlign — Tailwind has
+    # all of these.
+    if key == 'resize':
+        return {"'none'": 'resize-none', "'both'": 'resize',
+                "'horizontal'": 'resize-x', "'vertical'": 'resize-y'}.get(v)
+    if key == 'wordBreak':
+        # Already handled above for the standard set; this is the v4
+        # `break-word` keyword we don't catch up there.
+        if v == "'break-word'" or v == '"break-word"':
+            return 'break-word'
+    if key == 'borderCollapse':
+        return {"'collapse'": 'border-collapse',
+                "'separate'": 'border-separate'}.get(v)
+    if key == 'verticalAlign':
+        return {"'top'": 'align-top', "'middle'": 'align-middle',
+                "'bottom'": 'align-bottom', "'baseline'": 'align-baseline',
+                "'sub'": 'align-sub', "'super'": 'align-super',
+                "'text-top'": 'align-text-top',
+                "'text-bottom'": 'align-text-bottom'}.get(v)
+
+    # accent-color (form controls)
+    if key == 'accentColor':
+        tok = color_token(v)
+        if tok is not None:
+            return f'accent-{tok}'
+
+    # display: 'contents' / 'list-item' — Tailwind ships these as
+    # explicit utilities; the existing display handler covers flex/grid
+    # but not these less-common values.
+    if key == 'display':
+        extra = {"'contents'": 'contents', "'list-item'": 'list-item',
+                 "'table'": 'table', "'inline-grid'": 'inline-grid',
+                 "'flow-root'": 'flow-root'}
+        if v in extra:
+            return extra[v]
+
+    # Filter — drop-shadow and friends as arbitrary
+    if key == 'filter':
+        if v == "'none'" or v == '"none"':
+            return 'filter-none'
+        m = re.match(r"^['\"](.+)['\"]$", v)
+        if m:
+            return f'[filter:{m.group(1).replace(" ", "_")}]'
+
+    # Width / height / minHeight / maxHeight / minWidth / maxWidth — pass
+    # `var(--*)`, `calc(...)`, `fit-content` and similar through as
+    # arbitrary so blocks containing them aren't entirely skipped.
+    size_axis_prefix = {
+        'width': 'w', 'height': 'h', 'minWidth': 'min-w', 'maxWidth': 'max-w',
+        'minHeight': 'min-h', 'maxHeight': 'max-h',
+    }
+    if key in size_axis_prefix:
+        prefix = size_axis_prefix[key]
+        if v == "'fit-content'" or v == '"fit-content"':
+            return f'{prefix}-fit'
+        if v == "'max-content'" or v == '"max-content"':
+            return f'{prefix}-max'
+        if v == "'min-content'" or v == '"min-content"':
+            return f'{prefix}-min'
+        # var(--*) or calc(...) — arbitrary
+        m = re.match(r"^['\"]?(var\(--[A-Za-z0-9_-]+\))['\"]?$", v)
+        if m:
+            return f'{prefix}-[{m.group(1)}]'
+        m = re.match(r"^['\"](calc\([^)]+\))['\"]$", v)
+        if m:
+            return f'{prefix}-[{m.group(1).replace(" ", "_")}]'
+
+    # Positional offset (top/right/bottom/left) — calc() fallback
+    if key in ('top', 'right', 'bottom', 'left'):
+        m = re.match(r"^['\"](calc\([^)]+\))['\"]$", v)
+        if m:
+            return f'{key}-[{m.group(1).replace(" ", "_")}]'
 
     return None
 

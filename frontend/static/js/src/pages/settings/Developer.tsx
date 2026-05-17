@@ -202,11 +202,7 @@ function UsersTable({ users }: { users: AdminUser[] }) {
                 className="overflow-x-auto border border-[var(--border-subtle)] rounded-md bg-card-elevated"
             >
                 <table
-                    style={{
-                        width: '100%',
-                        borderCollapse: 'collapse',
-                        fontSize: '0.85rem',
-                    }}
+                    className="w-full border-collapse text-[0.85rem]"
                 >
                     <thead>
                         <tr

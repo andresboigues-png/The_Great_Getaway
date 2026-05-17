@@ -823,17 +823,7 @@ function FriendsStat() {
         <button
             type="button"
             onClick={onClick}
-            style={{
-                background: 'none',
-                border: 0,
-                padding: 0,
-                cursor: 'pointer',
-                textAlign: 'left',
-                display: 'inline-flex',
-                alignItems: 'baseline',
-                gap: 4,
-                fontFamily: 'inherit',
-            }}
+            className="bg-none border-0 p-0 cursor-pointer text-left inline-flex items-baseline gap-1 font-[inherit]"
         >
             <span className="pf-heading-name">
                 {count === null ? '—' : String(count)}
