@@ -118,3 +118,43 @@
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(0, 113, 227, 0.42);
 }
+
+/* ── §0.4 follow-up — Profile.tsx repeated style={{ ... }} blocks ──
+ * Each class collapses 2 React JSX inline-style occurrences. Prefix
+ * `pf-` so the namespace is profile-scoped. */
+
+/* Empty-state container — centered with generous padding. */
+.pf-empty-state {
+    text-align: center;
+    padding: 50px;
+}
+
+/* Trailing icon offset within a relative-positioned wrapper. */
+.pf-right-10 { right: 10px; }
+
+/* Inline-block wrapper for the language picker / similar dropdowns
+ * that need a relative anchor for an absolute icon overlay. */
+.pf-inline-anchor {
+    position: relative;
+    display: inline-block;
+}
+
+/* Compact dropdown / pill button — chevron-friendly padding. */
+.pf-pill-sm {
+    padding: 6px 28px 6px 12px;
+    font-size: var(--font-sm);
+}
+
+/* Sub-section container with top margin and content width cap. */
+.pf-section-container {
+    margin-top: 14px;
+    max-width: 500px;
+}
+
+/* Mid-weight heading — used for member names and friend names in
+ * the friends list and similar contexts. */
+.pf-heading-name {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}

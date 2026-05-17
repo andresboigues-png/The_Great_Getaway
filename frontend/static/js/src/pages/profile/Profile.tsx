@@ -308,10 +308,10 @@ function ForeignProfileView({ targetUserId }: { targetUserId: string }) {
     }, [targetUserId]);
 
     if (error === 'not-found') {
-        return <p style={{ textAlign: 'center', padding: 50 }}>User not found.</p>;
+        return <p className="pf-empty-state">User not found.</p>;
     }
     if (error === 'network') {
-        return <p style={{ textAlign: 'center', padding: 50 }}>Error loading profile.</p>;
+        return <p className="pf-empty-state">Error loading profile.</p>;
     }
     if (!data) {
         return (
@@ -845,7 +845,7 @@ function ProfileInfoSection({
 function ProfileStat({ count, label }: { count: number; label: string }) {
     return (
         <div style={{ textAlign: 'left', display: 'inline-flex', alignItems: 'baseline', gap: 4 }}>
-            <span style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+            <span className="pf-heading-name">
                 {count}
             </span>
             <span
@@ -913,7 +913,7 @@ function FriendsStat() {
                 fontFamily: 'inherit',
             }}
         >
-            <span style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+            <span className="pf-heading-name">
                 {count === null ? '—' : String(count)}
             </span>
             <span
@@ -1066,7 +1066,7 @@ function BioBlock({
                         onInput={() => setDirty(true)}
                     />
 
-                    <div style={{ marginTop: 14, maxWidth: 500 }}>
+                    <div className="pf-section-container">
                         <label
                             style={{
                                 display: 'block',
@@ -1079,13 +1079,12 @@ function BioBlock({
                         >
                             Home country — where you call "home base"
                         </label>
-                        <div style={{ position: 'relative', display: 'inline-block' }}>
+                        <div className="pf-inline-anchor">
                             <select
                                 ref={homeCountryRef}
-                                className="brand-select"
+                                className="brand-select pf-pill-sm"
                                 defaultValue={user.homeCountry || ''}
                                 onChange={() => setDirty(true)}
-                                style={{ padding: '6px 28px 6px 12px', fontSize: 'var(--font-sm)' }}
                             >
                                 {/* Empty option = "not set" sentinel.
                                     Picking it clears the home country
@@ -1097,13 +1096,13 @@ function BioBlock({
                                     </option>
                                 ))}
                             </select>
-                            <div className="brand-select-chevron" style={{ right: 10 }}>
+                            <div className="brand-select-chevron pf-right-10">
                                 ▼
                             </div>
                         </div>
                     </div>
 
-                    <div style={{ marginTop: 14, maxWidth: 500 }}>
+                    <div className="pf-section-container">
                         <label
                             style={{
                                 display: 'block',
@@ -1116,13 +1115,12 @@ function BioBlock({
                         >
                             Home currency — what you'll see totals and insights in
                         </label>
-                        <div style={{ position: 'relative', display: 'inline-block' }}>
+                        <div className="pf-inline-anchor">
                             <select
                                 ref={homeCurrencyRef}
-                                className="brand-select"
+                                className="brand-select pf-pill-sm"
                                 defaultValue={getHomeCurrency()}
                                 onChange={() => setDirty(true)}
-                                style={{ padding: '6px 28px 6px 12px', fontSize: 'var(--font-sm)' }}
                             >
                                 {Object.keys(CONVERSION_RATES).map((code) => (
                                     <option key={code} value={code}>
@@ -1130,7 +1128,7 @@ function BioBlock({
                                     </option>
                                 ))}
                             </select>
-                            <div className="brand-select-chevron" style={{ right: 10 }}>
+                            <div className="brand-select-chevron pf-right-10">
                                 ▼
                             </div>
                         </div>

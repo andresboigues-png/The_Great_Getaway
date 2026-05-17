@@ -5202,3 +5202,64 @@ main#app-container.nav-anim-backward {
     min-height: 1em;
     font-weight: 600;
 }
+
+/* ── §0.4 follow-up — archived trip detail (extracted from
+ * pages/collections/archivedDetail.ts). Co-located in index.css
+ * because this page renders on demand from the collections route
+ * and we want zero CSS load risk on first open. Prefix `ad-`
+ * (archived detail) so the namespace is obvious. */
+
+/* Page-level hero h1 — used 3× as the trip name title. */
+.ad-hero-title {
+    margin: 0;
+    font-size: 1.4rem;
+    color: #002d5b;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+}
+
+/* Standalone brand-navy color helper — 3× sites just need this one
+ * color override on a span/div. */
+.ad-color-navy { color: #002d5b; }
+
+/* Muted secondary body text — sub-heading, helper text. Used 3×. */
+.ad-text-muted-sm {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+/* Simple horizontal row with 8px gap — used 2×. */
+.ad-row-gap-8 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Baseline-aligned row with 12px gap and section spacing — used 2×
+ * (typically wraps a section header + count badge). */
+.ad-section-header-row {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin: 32px 4px 14px;
+}
+
+/* Glass-pill action button — the "Back" / share-link kind of CTA
+ * on the hero. Used 2×. Frosted glass background, white text,
+ * rounded-pill shape. */
+.ad-pill-glass {
+    background: rgba(255, 255, 255, 0.16);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: #ffffff;
+    padding: 10px 18px;
+    border-radius: 999px;
+    font-weight: 800;
+    font-size: 0.85rem;
+    cursor: pointer;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}

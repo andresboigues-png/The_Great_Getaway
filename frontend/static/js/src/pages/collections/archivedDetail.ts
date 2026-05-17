@@ -130,7 +130,7 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
                      feed-share path needs the public toggle flipped
                      first. -->
                 <button id="shareTripBtn" type="button" data-trip-id="${esc(trip.id)}" title="Share this trip" aria-label="Share this trip"
-                    style="background:rgba(255,255,255,0.16); border:1px solid rgba(255,255,255,0.3); color:#ffffff; padding:10px 18px; border-radius:999px; font-weight:800; font-size:0.85rem; cursor:pointer; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); display:inline-flex; align-items:center; gap:6px;">
+                    class="ad-pill-glass">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                         <circle cx="18" cy="5" r="3"></circle>
                         <circle cx="6" cy="12" r="3"></circle>
@@ -147,7 +147,7 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
                      expenses / photos / companions are NOT carried
                      over (clone is a template, not a copy). -->
                 <button id="cloneTripBtn" type="button" data-trip-id="${esc(trip.id)}" title="Start a new trip based on this one" aria-label="Clone this trip"
-                    style="background:rgba(255,255,255,0.16); border:1px solid rgba(255,255,255,0.3); color:#ffffff; padding:10px 18px; border-radius:999px; font-weight:800; font-size:0.85rem; cursor:pointer; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); display:inline-flex; align-items:center; gap:6px;">
+                    class="ad-pill-glass">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                         <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
                         <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
@@ -185,9 +185,9 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
                         data-trip-id="${esc(trip.id)}"
                         aria-label="Trip visibility"
                         style="background:transparent; border:0; color:${heroTextColor}; font-size:0.7rem; font-weight:800; text-transform:uppercase; letter-spacing:0.08em; padding: 2px 18px 2px 4px; appearance:none; -webkit-appearance:none; cursor:pointer; outline:none; background-image: url('data:image/svg+xml;utf8,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;10&quot; height=&quot;10&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;white&quot; stroke-width=&quot;3&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;><polyline points=&quot;6 9 12 15 18 9&quot;/></svg>'); background-repeat:no-repeat; background-position: right 4px center; background-size: 8px;">
-                        <option value="private" ${!trip.isPublic ? 'selected' : ''} style="color:#002d5b;">🔒 Private</option>
-                        <option value="public-plan" ${trip.isPublic && !trip.publicShowExpenses ? 'selected' : ''} style="color:#002d5b;">🌍 Public — plan only</option>
-                        <option value="public-full" ${trip.isPublic && trip.publicShowExpenses ? 'selected' : ''} style="color:#002d5b;">🌍 Public — incl. expenses</option>
+                        <option value="private" ${!trip.isPublic ? 'selected' : ''} class="ad-color-navy">🔒 Private</option>
+                        <option value="public-plan" ${trip.isPublic && !trip.publicShowExpenses ? 'selected' : ''} class="ad-color-navy">🌍 Public — plan only</option>
+                        <option value="public-full" ${trip.isPublic && trip.publicShowExpenses ? 'selected' : ''} class="ad-color-navy">🌍 Public — incl. expenses</option>
                     </select>
                 </div>
             </div>
@@ -196,8 +196,8 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
         <!-- Day grid. Each card is keyboard-accessible (role=button)
              and opens the read-only openDayView modal on click. -->
         <div style="display:flex; align-items:baseline; gap:12px; margin: 8px 4px 14px;">
-            <h2 style="margin:0; font-size:1.4rem; color:#002d5b; font-weight:800; letter-spacing:-0.02em;">The journey</h2>
-            <span style="color: var(--text-secondary); font-size:0.85rem; font-weight:600;">Tap a day to relive what was planned.</span>
+            <h2 class="ad-hero-title">The journey</h2>
+            <span class="ad-text-muted-sm">Tap a day to relive what was planned.</span>
         </div>
         <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:18px;">
             ${tripDays.sort((a: any, b: any) => a.dayNumber - b.dayNumber).map((day: any) => {
@@ -230,7 +230,7 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
                         onmouseover="this.style.transform='translateY(-6px)';this.style.boxShadow='0 24px 50px rgba(0,0,0,0.16)';"
                         onmouseout="this.style.transform='';this.style.boxShadow='0 10px 30px rgba(0,0,0,0.06)';">
                         <!-- Top: badge -->
-                        <div style="display:flex; align-items:center; gap:8px;">
+                        <div class="ad-row-gap-8">
                             <span style="background: ${isStartingPoint ? 'rgba(52,199,89,0.95)' : 'rgba(0,113,227,0.95)'}; color:white; padding: 4px 12px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.1em;">${isStartingPoint ? '⚓ Anchor' : `Day ${day.dayNumber}`}</span>
                         </div>
                         <!-- Bottom: name + count chips -->
@@ -328,16 +328,16 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
                 || /\.(jpe?g|png|gif|webp|avif|heic|heif|bmp|tiff?|svg)(\?.*)?$/i.test(src || '');
 
             const docsSection = allDocs.length === 0 ? '' : `
-                <div style="display:flex; align-items:baseline; gap:12px; margin: 32px 4px 14px;">
-                    <h2 style="margin:0; font-size:1.4rem; color:#002d5b; font-weight:800; letter-spacing:-0.02em;">Documents</h2>
-                    <span style="color: var(--text-secondary); font-size:0.85rem; font-weight:600;">${allDocs.length} saved · click any to open</span>
+                <div class="ad-section-header-row">
+                    <h2 class="ad-hero-title">Documents</h2>
+                    <span class="ad-text-muted-sm">${allDocs.length} saved · click any to open</span>
                 </div>
                 <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:8px;">
                     ${allDocs.map(d => `
                         <a href="${esc(d.url || '#')}" target="_blank" rel="noreferrer" style="display:flex; align-items:center; gap:12px; background:white; border:1px solid rgba(0,0,0,0.07); border-radius:14px; padding:12px 14px; box-shadow: 0 2px 8px rgba(0,45,91,0.04); text-decoration:none; color:#002d5b;">
                             <span style="font-size:1.3rem; line-height:1; flex-shrink:0;">📎</span>
                             <div style="flex:1; min-width:0;">
-                                <div style="display:flex; align-items:center; gap:8px;">
+                                <div class="ad-row-gap-8">
                                     <span style="font-weight:800; font-size:0.92rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(d.name)}</span>
                                     ${dayChip(d.dayId)}
                                 </div>
@@ -350,9 +350,9 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
             `;
 
             const photosSection = allPhotos.length === 0 ? '' : `
-                <div style="display:flex; align-items:baseline; gap:12px; margin: 32px 4px 14px;">
-                    <h2 style="margin:0; font-size:1.4rem; color:#002d5b; font-weight:800; letter-spacing:-0.02em;">All photos</h2>
-                    <span style="color: var(--text-secondary); font-size:0.85rem; font-weight:600;">${allPhotos.length} saved</span>
+                <div class="ad-section-header-row">
+                    <h2 class="ad-hero-title">All photos</h2>
+                    <span class="ad-text-muted-sm">${allPhotos.length} saved</span>
                 </div>
                 <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:10px; margin-bottom:24px;">
                     ${allPhotos.map(p => {

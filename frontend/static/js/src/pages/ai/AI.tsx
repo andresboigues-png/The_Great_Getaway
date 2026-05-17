@@ -135,7 +135,7 @@ function EmptyTripView() {
                 >
                     {t('ai.title')}
                 </h1>
-                <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '1rem' }}>
+                <p className="ai-subtitle">
                     Your AI-powered travel planner
                 </p>
             </div>
@@ -150,7 +150,7 @@ function EmptyTripView() {
                     boxShadow: '0 40px 100px rgba(0,0,0,0.15)',
                 }}
             >
-                <div ref={mapRef} id="emptyMap" style={{ width: '100%', height: '100%' }} />
+                <div ref={mapRef} id="emptyMap" className="ai-full-box" />
                 <div
                     style={{
                         position: 'absolute',
@@ -759,7 +759,7 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                     </h1>
                 </div>
                 <p
-                    style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '1rem' }}
+                    className="ai-subtitle"
                     // The translation string contains <strong>{country}</strong> so
                     // the country name renders bold. Passing it through React's
                     // text path escaped the tags — set them as innerHTML instead.
@@ -832,10 +832,9 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                                 <input
                                     id="aiDateFrom"
                                     type="date"
-                                    className="glass-input"
+                                    className="glass-input ai-full-width-bb"
                                     value={dateFrom}
                                     onChange={(e) => setDateFrom(e.target.value)}
-                                    style={{ width: '100%', boxSizing: 'border-box' }}
                                 />
                             </div>
                             <div>
@@ -856,11 +855,10 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                                 <input
                                     id="aiDateTo"
                                     type="date"
-                                    className="glass-input"
+                                    className="glass-input ai-full-width-bb"
                                     value={dateTo}
                                     onChange={(e) => setDateTo(e.target.value)}
                                     min={dateFrom}
-                                    style={{ width: '100%', boxSizing: 'border-box' }}
                                 />
                             </div>
                             <p
@@ -906,7 +904,7 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                         >
                             {t('ai.sectionRequirements')}
                         </h2>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <div className="ai-col-gap-6">
                             <label
                                 htmlFor="aiFoodContext"
                                 style={{
@@ -934,7 +932,7 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                                 }}
                             />
                         </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <div className="ai-col-gap-6">
                             <label
                                 htmlFor="aiSightseeingContext"
                                 style={{
@@ -999,7 +997,7 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                         <div
                             ref={mapContainerRef}
                             id="aiGoogleMap"
-                            style={{ width: '100%', height: '100%' }}
+                            className="ai-full-box"
                         />
                         <div
                             id="aiZoomBadge"
@@ -1858,7 +1856,7 @@ function TodoListPanel({ activeTrip, datesSet }: TodoListPanelProps) {
     // Empty: no to-do items at all.
     if (allTodo.length === 0) {
         return (
-            <div style={{ marginBottom: 32 }}>
+            <div className="ai-mb-32">
                 <div
                     className="card glass"
                     style={{
@@ -1869,9 +1867,9 @@ function TodoListPanel({ activeTrip, datesSet }: TodoListPanelProps) {
                     }}
                 >
                     <div
-                        style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}
+                        className="ai-row-icon-label"
                     >
-                        <span style={{ fontSize: '1.2rem' }}>📋</span>
+                        <span className="ai-fs-12">📋</span>
                         <h3
                             style={{
                                 margin: 0,
@@ -1894,9 +1892,8 @@ function TodoListPanel({ activeTrip, datesSet }: TodoListPanelProps) {
                     </p>
                     <button
                         type="button"
-                        className="btn-primary"
+                        className="btn-primary ai-pill-btn"
                         onClick={() => navigate('todo')}
-                        style={{ padding: '10px 18px', borderRadius: 999, fontSize: '0.85rem' }}
                     >
                         {t('ai.todoPanelEmptyCta')}
                     </button>
@@ -1908,7 +1905,7 @@ function TodoListPanel({ activeTrip, datesSet }: TodoListPanelProps) {
     // Items exist but none ticked.
     if (tickedItems.length === 0) {
         return (
-            <div style={{ marginBottom: 32 }}>
+            <div className="ai-mb-32">
                 <div
                     className="card glass"
                     style={{
@@ -1919,9 +1916,9 @@ function TodoListPanel({ activeTrip, datesSet }: TodoListPanelProps) {
                     }}
                 >
                     <div
-                        style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}
+                        className="ai-row-icon-label"
                     >
-                        <span style={{ fontSize: '1.2rem' }}>📋</span>
+                        <span className="ai-fs-12">📋</span>
                         <h3
                             style={{
                                 margin: 0,
@@ -1944,9 +1941,8 @@ function TodoListPanel({ activeTrip, datesSet }: TodoListPanelProps) {
                     </p>
                     <button
                         type="button"
-                        className="btn-primary"
+                        className="btn-primary ai-pill-btn"
                         onClick={() => navigate('todo')}
-                        style={{ padding: '10px 18px', borderRadius: 999, fontSize: '0.85rem' }}
                     >
                         {t('ai.todoPanelNoneTickedCta')}
                     </button>
@@ -1957,7 +1953,7 @@ function TodoListPanel({ activeTrip, datesSet }: TodoListPanelProps) {
 
     // Ticked items — full card list.
     return (
-        <div style={{ marginBottom: 32 }}>
+        <div className="ai-mb-32">
             <div
                 className="card glass"
                 style={{
@@ -1975,7 +1971,7 @@ function TodoListPanel({ activeTrip, datesSet }: TodoListPanelProps) {
                         flexWrap: 'wrap',
                     }}
                 >
-                    <span style={{ fontSize: '1.2rem' }}>📋</span>
+                    <span className="ai-fs-12">📋</span>
                     <h3
                         style={{
                             margin: 0,
