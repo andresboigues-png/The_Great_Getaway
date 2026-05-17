@@ -708,7 +708,7 @@ export const openAddTripDocumentModal = (trip: any): void => {
             <p class="text-subtitle">Booking confirmation, hotel voucher, ticket — link or upload.</p>
             <div class="tmm-form-col">
                 <label class="tmm-section-label">Name</label>
-                <input type="text" id="newDocName" class="glass-input" placeholder="e.g. Flight to Lisbon — Confirmation 7AB22Q" class="tmm-card-minor">
+                <input type="text" id="newDocName" class="glass-input" placeholder="e.g. Flight to Lisbon — Confirmation 7AB22Q" class="p-3 rounded-md">
                 <label class="tmm-section-label--mt-8">Link or URL</label>
                 <div style="display: flex; gap: var(--space-2);">
                     <input type="text" id="newDocUrl" class="glass-input" placeholder="https://..." style="flex: 1; padding: var(--space-3); border-radius: 12px;">
@@ -732,14 +732,14 @@ export const openAddTripDocumentModal = (trip: any): void => {
                     Open the email in Gmail, hit <strong>Cmd&nbsp;+&nbsp;P</strong> (or Ctrl + P on Windows), pick <strong>Save as PDF</strong> as the destination, then come back here and click <strong>📤 Upload</strong> with that file. Captures the layout exactly — QR codes, dates, prices, all of it.
                 </div>
                 <label class="tmm-section-label--mt-8">Where does it belong?</label>
-                <select id="newDocDay" class="glass-input tmm-card-minor-bg-white">
+                <select id="newDocDay" class="glass-input p-3 rounded-md bg-white">
                     ${anchorDay ? `<option value="${esc(anchorDay.id)}" selected>⚓ Trip Anchor (passport, multi-day hotel, return flight…)</option>` : ''}
                     ${numberedDays.map(d => `<option value="${esc(d.id)}">Day ${d.dayNumber}${d.date ? ` — ${formatDayDate(d.date) || d.date}` : ''}</option>`).join('')}
                 </select>
             </div>
-            <div class="tmm-field-row">
-                <button id="newDocCancelBtn" class="btn-neutral tmm-btn-secondary">Cancel</button>
-                <button id="newDocSaveBtn" class="btn-primary tmm-btn-primary">Add</button>
+            <div class="flex gap-3">
+                <button id="newDocCancelBtn" class="btn-neutral flex-1 rounded-lg">Cancel</button>
+                <button id="newDocSaveBtn" class="btn-primary flex-[2] rounded-lg">Add</button>
             </div>
         `,
     });
@@ -813,7 +813,7 @@ export const openEditTripDocumentModal = (trip: any, docId: string): void => {
             <p class="text-subtitle">${isTripLevel ? 'Rename it, swap the link, or move it to a different day.' : 'Rename it or swap the link. (Legacy per-day entries can\'t be moved between days; delete + re-add to do that.)'}</p>
             <div class="tmm-form-col">
                 <label class="tmm-section-label">Name</label>
-                <input type="text" id="editDocName" class="glass-input" value="${esc(doc.name || '')}" class="tmm-card-minor">
+                <input type="text" id="editDocName" class="glass-input" value="${esc(doc.name || '')}" class="p-3 rounded-md">
                 <label class="tmm-section-label--mt-8">Link or URL</label>
                 <div style="display: flex; gap: var(--space-2);">
                     <input type="text" id="editDocUrl" class="glass-input" value="${esc(doc.url || '')}" style="flex: 1; padding: var(--space-3); border-radius: 12px;">
@@ -825,15 +825,15 @@ export const openEditTripDocumentModal = (trip: any, docId: string): void => {
                 <div id="editDocStatus" class="tmm-status-hint"></div>
                 ${isTripLevel ? `
                     <label class="tmm-section-label--mt-8">Where does it belong?</label>
-                    <select id="editDocDay" class="glass-input tmm-card-minor-bg-white">
+                    <select id="editDocDay" class="glass-input p-3 rounded-md bg-white">
                         ${anchorDay ? `<option value="${esc(anchorDay.id)}" ${doc.dayId === anchorDay.id ? 'selected' : ''}>⚓ Trip Anchor (trip-wide)</option>` : ''}
                         ${numberedDays.map(d => `<option value="${esc(d.id)}" ${doc.dayId === d.id ? 'selected' : ''}>Day ${d.dayNumber}${d.date ? ` — ${formatDayDate(d.date) || d.date}` : ''}</option>`).join('')}
                     </select>
                 ` : ''}
             </div>
-            <div class="tmm-field-row">
-                <button id="editDocCancelBtn" class="btn-neutral tmm-btn-secondary">Cancel</button>
-                <button id="editDocSaveBtn" class="btn-primary tmm-btn-primary">Save changes</button>
+            <div class="flex gap-3">
+                <button id="editDocCancelBtn" class="btn-neutral flex-1 rounded-lg">Cancel</button>
+                <button id="editDocSaveBtn" class="btn-primary flex-[2] rounded-lg">Save changes</button>
             </div>
         `,
     });
@@ -922,19 +922,19 @@ export const openAddTripPhotoUrlModal = (trip: any): void => {
             <p class="text-subtitle">Paste a link to a hosted image, a Google Drive / Dropbox share, or a photo album page.</p>
             <div class="tmm-form-col">
                 <label class="tmm-section-label">Image / album URL</label>
-                <input type="text" id="newPhotoUrl" class="glass-input" placeholder="https://..." class="tmm-card-minor">
+                <input type="text" id="newPhotoUrl" class="glass-input" placeholder="https://..." class="p-3 rounded-md">
                 <div style="font-size:0.72rem; color:var(--text-secondary); line-height:1.45;">
                     <strong>Tip:</strong> for Drive / Dropbox albums, paste the share link — the link will open the album when clicked. Direct image URLs (ending in .jpg / .png / .heic) will render as a thumbnail in the grid.
                 </div>
                 <label class="tmm-section-label--mt-8">Where does it belong?</label>
-                <select id="newPhotoDay" class="glass-input tmm-card-minor-bg-white">
+                <select id="newPhotoDay" class="glass-input p-3 rounded-md bg-white">
                     ${anchorDay ? `<option value="${esc(anchorDay.id)}" selected>⚓ Trip Anchor</option>` : ''}
                     ${numberedDays.map(d => `<option value="${esc(d.id)}">Day ${d.dayNumber}${d.date ? ` — ${formatDayDate(d.date) || d.date}` : ''}</option>`).join('')}
                 </select>
             </div>
-            <div class="tmm-field-row">
-                <button id="newPhotoCancelBtn" class="btn-neutral tmm-btn-secondary">Cancel</button>
-                <button id="newPhotoSaveBtn" class="btn-primary tmm-btn-primary">Add</button>
+            <div class="flex gap-3">
+                <button id="newPhotoCancelBtn" class="btn-neutral flex-1 rounded-lg">Cancel</button>
+                <button id="newPhotoSaveBtn" class="btn-primary flex-[2] rounded-lg">Add</button>
             </div>
         `,
     });

@@ -611,7 +611,7 @@ export function Insights() {
                             marginBottom: '16px',
                         }}
                     >
-                        <h2 className="card-title in-no-margin">
+                        <h2 className="card-title m-0">
                             {t('insights.byCountryTitle')}
                         </h2>
                         <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
@@ -716,7 +716,7 @@ export function Insights() {
                         marginBottom: '24px',
                     }}
                 >
-                    <h2 className="card-title in-no-margin">
+                    <h2 className="card-title m-0">
                         {t('insights.timelineTitle')}
                     </h2>
                     <div style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>

@@ -132,13 +132,6 @@
 /* Trailing icon offset within a relative-positioned wrapper. */
 .pf-right-10 { right: 10px; }
 
-/* Inline-block wrapper for the language picker / similar dropdowns
- * that need a relative anchor for an absolute icon overlay. */
-.pf-inline-anchor {
-    position: relative;
-    display: inline-block;
-}
-
 /* Compact dropdown / pill button — chevron-friendly padding. */
 .pf-pill-sm {
     padding: 6px 28px 6px 12px;

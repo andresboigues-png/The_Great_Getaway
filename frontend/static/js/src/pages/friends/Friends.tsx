@@ -514,7 +514,7 @@ export function Friends() {
                         </p>
                     )}
                     {searchStatus.kind === 'results' && (
-                        <div className="fr-col-gap-8">
+                        <div className="flex flex-col gap-2">
                             {searchStatus.users.map((u) => (
                                 <UserCard
                                     key={u.id}
@@ -690,7 +690,7 @@ function NetworkSection({
                     {rows.length} · {hint}
                 </span>
             </div>
-            <div className="fr-col-gap-8">
+            <div className="flex flex-col gap-2">
                 {rows.length === 0 ? (
                     <EmptyState
                         accent={emptyAccent}

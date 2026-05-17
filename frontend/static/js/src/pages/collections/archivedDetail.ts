@@ -185,9 +185,9 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
                         data-trip-id="${esc(trip.id)}"
                         aria-label="Trip visibility"
                         style="background:transparent; border:0; color:${heroTextColor}; font-size:0.7rem; font-weight:800; text-transform:uppercase; letter-spacing:0.08em; padding: 2px 18px 2px 4px; appearance:none; -webkit-appearance:none; cursor:pointer; outline:none; background-image: url('data:image/svg+xml;utf8,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;10&quot; height=&quot;10&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;white&quot; stroke-width=&quot;3&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;><polyline points=&quot;6 9 12 15 18 9&quot;/></svg>'); background-repeat:no-repeat; background-position: right 4px center; background-size: 8px;">
-                        <option value="private" ${!trip.isPublic ? 'selected' : ''} class="ad-color-navy">🔒 Private</option>
-                        <option value="public-plan" ${trip.isPublic && !trip.publicShowExpenses ? 'selected' : ''} class="ad-color-navy">🌍 Public — plan only</option>
-                        <option value="public-full" ${trip.isPublic && trip.publicShowExpenses ? 'selected' : ''} class="ad-color-navy">🌍 Public — incl. expenses</option>
+                        <option value="private" ${!trip.isPublic ? 'selected' : ''} class="text-brand-navy">🔒 Private</option>
+                        <option value="public-plan" ${trip.isPublic && !trip.publicShowExpenses ? 'selected' : ''} class="text-brand-navy">🌍 Public — plan only</option>
+                        <option value="public-full" ${trip.isPublic && trip.publicShowExpenses ? 'selected' : ''} class="text-brand-navy">🌍 Public — incl. expenses</option>
                     </select>
                 </div>
             </div>
@@ -230,7 +230,7 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
                         onmouseover="this.style.transform='translateY(-6px)';this.style.boxShadow='0 24px 50px rgba(0,0,0,0.16)';"
                         onmouseout="this.style.transform='';this.style.boxShadow='0 10px 30px rgba(0,0,0,0.06)';">
                         <!-- Top: badge -->
-                        <div class="ad-row-gap-8">
+                        <div class="flex items-center gap-2">
                             <span style="background: ${isStartingPoint ? 'rgba(52,199,89,0.95)' : 'rgba(0,113,227,0.95)'}; color:white; padding: 4px 12px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.1em;">${isStartingPoint ? '⚓ Anchor' : `Day ${day.dayNumber}`}</span>
                         </div>
                         <!-- Bottom: name + count chips -->
@@ -337,7 +337,7 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
                         <a href="${esc(d.url || '#')}" target="_blank" rel="noreferrer" style="display:flex; align-items:center; gap:12px; background:white; border:1px solid rgba(0,0,0,0.07); border-radius:14px; padding:12px 14px; box-shadow: 0 2px 8px rgba(0,45,91,0.04); text-decoration:none; color:#002d5b;">
                             <span style="font-size:1.3rem; line-height:1; flex-shrink:0;">📎</span>
                             <div style="flex:1; min-width:0;">
-                                <div class="ad-row-gap-8">
+                                <div class="flex items-center gap-2">
                                     <span style="font-weight:800; font-size:0.92rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(d.name)}</span>
                                     ${dayChip(d.dayId)}
                                 </div>

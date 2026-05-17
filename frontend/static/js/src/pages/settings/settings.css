@@ -815,9 +815,3 @@
     margin-top: 0;
 }
 
-/* Full-width container utility — used on action buttons that should
- * span the card. Used 2×. */
-.st-full-width { width: 100%; }
-
-/* Standard settings card padding — used 2×. */
-.st-card-pad { padding: var(--space-6); }

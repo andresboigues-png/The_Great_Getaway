@@ -180,7 +180,7 @@ export function Collections() {
                     }}
                 >
                     <span style={{ fontSize: '1.4rem', lineHeight: 1 }}>💡</span>
-                    <div className="col-flex-grow-truncate">
+                    <div className="flex-1 min-w-0">
                         <div style={{ fontWeight: 800, color: '#002d5b', marginBottom: '4px' }}>
                             {t('collections.hintTitle')}
                         </div>
@@ -401,7 +401,7 @@ export function Collections() {
                             <h2 style={{ margin: '0 0 6px' }}>
                                 {t('collections.emptyNoMatchesTitle')}
                             </h2>
-                            <p className="text-muted col-no-margin">
+                            <p className="text-muted m-0">
                                 {t('collections.emptyNoMatchesBody')}
                             </p>
                         </div>
@@ -482,7 +482,7 @@ function ArchivedCard({ trip }: { trip: Trip }) {
                         }}
                     />
                 )}
-                <div className="col-flex-grow-truncate">
+                <div className="flex-1 min-w-0">
                     <div
                         style={{
                             display: 'flex',
@@ -491,7 +491,7 @@ function ArchivedCard({ trip }: { trip: Trip }) {
                             flexWrap: 'wrap',
                         }}
                     >
-                        <h3 className="col-no-margin">{trip.name}</h3>
+                        <h3 className="m-0">{trip.name}</h3>
                         {dest && dest !== trip.name && (
                             <span
                                 style={{

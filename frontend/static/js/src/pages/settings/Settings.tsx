@@ -666,7 +666,7 @@ function GeneralLanguageSection() {
 function ResetView() {
     return (
         <div className="settings-grid">
-            <div className="card glass st-card-pad">
+            <div className="card glass p-6">
                 <h3 className="st-card-title-amber">{t('settings.resetTripsTitle')}</h3>
                 <p className="muted-meta">{t('settings.resetTripsBody')}</p>
                 <button
@@ -678,7 +678,7 @@ function ResetView() {
                     {t('settings.resetTripsBtn')}
                 </button>
             </div>
-            <div className="card glass st-card-pad">
+            <div className="card glass p-6">
                 <h3 className="st-card-title-indigo">{t('settings.resetCategoriesTitle')}</h3>
                 <p className="muted-meta">{t('settings.resetCategoriesBody')}</p>
                 <button
@@ -897,7 +897,7 @@ function FormatView() {
                             {t('settings.formatVariableLabel')}
                         </label>
                         <select
-                            className="glass-input st-full-width"
+                            className="glass-input w-full"
                             value={mapVar}
                             onChange={(e) => setMapVar(e.target.value)}
                         >
@@ -922,7 +922,7 @@ function FormatView() {
                             {t('settings.formatColumnLabel')}
                         </label>
                         <select
-                            className="glass-input st-full-width"
+                            className="glass-input w-full"
                             value={mapCol}
                             onChange={(e) => setMapCol(e.target.value)}
                         >

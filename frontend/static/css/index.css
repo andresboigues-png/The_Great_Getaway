@@ -4938,52 +4938,6 @@ main#app-container.nav-anim-backward {
     min-height: 0;
 }
 
-/* ── §0.4 follow-up — shared modal styles (extracted from modals.ts) ──
- *
- * The modals.ts helper module is dynamically imported from multiple
- * page chunks, so co-locating these rules in index.css (always loaded
- * via the entry <link>) avoids chunk-CSS timing races when a modal
- * opens. Classes prefixed `mdl-` so they're obviously modal-scoped
- * and don't stomp on the broader app's class space.
- *
- * Collapses ~52 repeated inline-style sites in modals.ts into 18
- * class definitions. One-shot styles (each appearing once) stay
- * inline. Pattern matches the settlement.css extraction in scope. */
-
-/* Flex grow utilities — used by modal form rows. */
-.mdl-flex-1 { flex: 1; }
-.mdl-flex-2 { flex: 2; }
-
-/* Flex grow + truncate (the "let this column shrink below content
- * to allow ellipsis on the parent text node" idiom). */
-.mdl-flex-1-truncate {
-    flex: 1;
-    min-width: 0;
-}
-
-/* Standard form-field block: full-width input row with bottom margin. */
-.mdl-form-field {
-    margin-bottom: var(--space-4);
-    width: 100%;
-}
-
-/* Variant of the above with a relative anchor (used for absolutely-
- * positioned validation hints). */
-.mdl-form-field--relative {
-    margin-bottom: var(--space-4);
-    width: 100%;
-    position: relative;
-}
-
-/* Margin-bottom-only field block (when width is set elsewhere). */
-.mdl-form-field-mb { margin-bottom: var(--space-4); }
-
-/* Muted/disabled-looking helper text. */
-.mdl-text-muted-medium {
-    opacity: 0.5;
-    font-weight: 500;
-}
-
 /* Hero modal title — large centered white heading. */
 .mdl-title-hero {
     font-size: var(--font-3xl);
@@ -5053,12 +5007,6 @@ main#app-container.nav-anim-backward {
     margin-top: 2px;
 }
 
-/* 50%-opaque-black text (used for placeholder/disabled labels on
- * light-modal backgrounds). */
-.mdl-text-fade-50 {
-    color: rgba(0, 0, 0, 0.5);
-}
-
 /* Dark-on-light modal button variant — used when the modal card is
  * already on a dark background and a button needs the inverse tone. */
 .mdl-btn-dark {
@@ -5108,38 +5056,7 @@ main#app-container.nav-anim-backward {
     letter-spacing: 0.07em;
     color: var(--text-secondary);
     margin-top: 8px;
-}
-
-/* Inner card tiles — the rounded chips holding documents / photos. */
-.tmm-card-minor {
-    padding: var(--space-3);
-    border-radius: 12px;
-}
-
-.tmm-card-minor-bg-white {
-    padding: var(--space-3);
-    border-radius: 12px;
-    background: white;
-}
-
-/* Form button row — Cancel/Save pair at bottom of the modal. */
-.tmm-btn-primary {
-    flex: 2;
-    border-radius: var(--radius-lg);
-}
-
-.tmm-btn-secondary {
-    flex: 1;
-    border-radius: var(--radius-lg);
-}
-
-/* Horizontal field group with standard gap. */
-.tmm-field-row {
-    display: flex;
-    gap: var(--space-3);
-}
-
-/* Vertical form column with top/bottom margins. */
+}/* Vertical form column with top/bottom margins. */
 .tmm-form-col {
     display: flex;
     flex-direction: column;
@@ -5218,22 +5135,11 @@ main#app-container.nav-anim-backward {
     letter-spacing: -0.02em;
 }
 
-/* Standalone brand-navy color helper — 3× sites just need this one
- * color override on a span/div. */
-.ad-color-navy { color: #002d5b; }
-
 /* Muted secondary body text — sub-heading, helper text. Used 3×. */
 .ad-text-muted-sm {
     color: var(--text-secondary);
     font-size: 0.85rem;
     font-weight: 600;
-}
-
-/* Simple horizontal row with 8px gap — used 2×. */
-.ad-row-gap-8 {
-    display: flex;
-    align-items: center;
-    gap: 8px;
 }
 
 /* Baseline-aligned row with 12px gap and section spacing — used 2×
@@ -5290,21 +5196,7 @@ main#app-container.nav-anim-backward {
 /* Standard card padding — 28px on all sides. */
 .in-card-pad-28 { padding: 28px; }
 
-/* Zero margin override — used on h2/h3 inside cards to remove the
- * default browser top/bottom margin. */
-.in-no-margin { margin: 0; }
-
 /* ── Collections ─────────────────────────────────────────────── */
-
-/* Zero margin (same role as .in-no-margin but in the collections
- * namespace for grep-discoverability). */
-.col-no-margin { margin: 0; }
-
-/* Flex-grow with truncation. */
-.col-flex-grow-truncate {
-    flex: 1;
-    min-width: 0;
-}
 
 /* ── Friends ─────────────────────────────────────────────────── */
 
@@ -5313,13 +5205,6 @@ main#app-container.nav-anim-backward {
 .fr-icon-glyph {
     font-size: 0.95rem;
     line-height: 1;
-}
-
-/* Column flex with 8px gap — used by avatar+name stacks. */
-.fr-col-gap-8 {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
 }
 
 /* ── dayViewModal ───────────────────────────────────────────── */
@@ -5348,9 +5233,3 @@ main#app-container.nav-anim-backward {
     font-size: 0.85rem;
 }
 
-/* Vertical section column with generous gap. */
-.dvm-section-col {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-6);
-}

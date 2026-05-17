@@ -67,7 +67,7 @@ export const openDayView = (day: any): void => {
                 <button id="closeViewBtn" class="close-x-btn" aria-label="Close">✕</button>
             </div>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-10);">
-                <div class="dvm-section-col">
+                <div class="flex flex-col gap-6">
                     <div class="subcard-soft">
                         <h4 class="text-tag">Morning</h4>
                         ${renderParagraph(day.plan?.morning)}
@@ -81,7 +81,7 @@ export const openDayView = (day: any): void => {
                         ${renderParagraph(day.plan?.evening)}
                     </div>
                 </div>
-                <div class="dvm-section-col">
+                <div class="flex flex-col gap-6">
                     <div style="background: rgba(0,113,227,0.05); padding: var(--space-6); border-radius: 24px; border: 1px solid rgba(0,113,227,0.1);">
                         <h4 class="text-tag">Personal Notes</h4>
                         ${day.notes ? `<p class="dvm-plan-text">${esc(day.notes)}</p>` : `<p class="dvm-italic-muted">No notes.</p>`}

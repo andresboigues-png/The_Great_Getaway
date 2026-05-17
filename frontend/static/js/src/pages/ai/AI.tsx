@@ -150,7 +150,7 @@ function EmptyTripView() {
                     boxShadow: '0 40px 100px rgba(0,0,0,0.15)',
                 }}
             >
-                <div ref={mapRef} id="emptyMap" className="ai-full-box" />
+                <div ref={mapRef} id="emptyMap" className="w-full h-full" />
                 <div
                     style={{
                         position: 'absolute',
@@ -832,7 +832,7 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                                 <input
                                     id="aiDateFrom"
                                     type="date"
-                                    className="glass-input ai-full-width-bb"
+                                    className="glass-input w-full box-border"
                                     value={dateFrom}
                                     onChange={(e) => setDateFrom(e.target.value)}
                                 />
@@ -855,7 +855,7 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                                 <input
                                     id="aiDateTo"
                                     type="date"
-                                    className="glass-input ai-full-width-bb"
+                                    className="glass-input w-full box-border"
                                     value={dateTo}
                                     onChange={(e) => setDateTo(e.target.value)}
                                     min={dateFrom}
@@ -997,7 +997,7 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                         <div
                             ref={mapContainerRef}
                             id="aiGoogleMap"
-                            className="ai-full-box"
+                            className="w-full h-full"
                         />
                         <div
                             id="aiZoomBadge"

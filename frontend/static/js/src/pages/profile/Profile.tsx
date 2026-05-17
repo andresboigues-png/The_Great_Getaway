@@ -1079,7 +1079,7 @@ function BioBlock({
                         >
                             Home country — where you call "home base"
                         </label>
-                        <div className="pf-inline-anchor">
+                        <div className="relative inline-block">
                             <select
                                 ref={homeCountryRef}
                                 className="brand-select pf-pill-sm"
@@ -1115,7 +1115,7 @@ function BioBlock({
                         >
                             Home currency — what you'll see totals and insights in
                         </label>
-                        <div className="pf-inline-anchor">
+                        <div className="relative inline-block">
                             <select
                                 ref={homeCurrencyRef}
                                 className="brand-select pf-pill-sm"
