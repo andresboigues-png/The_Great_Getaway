@@ -85,15 +85,45 @@ def _check_archivist(cursor, user_id):
 
 
 def _country_count(cursor, user_id) -> int:
-    """Distinct country_codes across the user's trips. Falls back to
-    counting distinct `country` strings when country_code is missing
-    (legacy trips). Uses LOWER() on country names to dedup case-only
-    variants ("Portugal" vs "portugal" both count once)."""
+    """Distinct countries across the user's trips. A trip's full
+    country set comes from EITHER the scalar `country_code` (primary
+    pick) OR the per-leg entries in `trip_countries_json` (§4.3 multi-
+    country: Portugal+Spain trip yields both 'PT' and 'ES'). Falls
+    back to LOWER(country) for trips without a code (pre-Places
+    migration legacy rows).
+
+    Implemented as a UNION over two sub-queries so SQLite's `json_each`
+    on the multi-country array stays an additive layer rather than
+    forcing a per-row Python expansion. The DISTINCT in the outer
+    SELECT dedupes a code that appears in BOTH a trip's primary and
+    its array (the upsert writes the primary into position 0 of the
+    array, so this is the common case for §4.3-aware trips).
+    """
     cursor.execute(
-        "SELECT COUNT(DISTINCT COALESCE(NULLIF(country_code, ''), LOWER(country))) AS c "
-        "FROM trips "
-        "WHERE user_id = ? AND COALESCE(country, '') != ''",
-        (user_id,),
+        """
+        WITH all_codes AS (
+            -- Primary key per trip: country_code if present, else
+            -- LOWER(country). Same shape as the pre-§4.3 query so
+            -- legacy trips keep contributing exactly one row.
+            SELECT COALESCE(NULLIF(UPPER(country_code), ''), LOWER(country)) AS code
+            FROM trips
+            WHERE user_id = ? AND COALESCE(country, '') != ''
+
+            UNION
+
+            -- Additional codes from the multi-country array. Only
+            -- joins rows where trip_countries_json is populated, so
+            -- legacy trips contribute zero rows from this branch.
+            -- json_each emits a row per array element; `je.value` is
+            -- the raw string. Server upserts already upper-cased
+            -- these but UPPER() is cheap and idempotent.
+            SELECT UPPER(je.value) AS code
+            FROM trips, json_each(trips.trip_countries_json) AS je
+            WHERE trips.user_id = ? AND trips.trip_countries_json IS NOT NULL
+        )
+        SELECT COUNT(DISTINCT code) AS c FROM all_codes WHERE code != ''
+        """,
+        (user_id, user_id),
     )
     row = cursor.fetchone()
     return row["c"] if row else 0

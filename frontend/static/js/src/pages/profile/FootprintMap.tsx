@@ -29,10 +29,17 @@ export interface FootprintMapProps {
      *  cleaned + lowercased upstream. Drives the country-fill
      *  fuzzy-match fallback when a trip has no countryCode. */
     uniqueCountries: string[];
+    /** §4.3 follow-up: every ISO 3166-1 alpha-2 code each trip
+     *  touches (NOT just primary). A Portugal+Spain trip contributes
+     *  both 'PT' and 'ES' here, so the footprint map lights up both
+     *  legs. Falls back to a derived-from-primary set when empty
+     *  (legacy trips before §4.3's discovery loop ran). Always
+     *  upper-case. */
+    uniqueCountryCodes: string[];
 }
 
 
-export function FootprintMap({ trips, uniqueCountries }: FootprintMapProps) {
+export function FootprintMap({ trips, uniqueCountries, uniqueCountryCodes }: FootprintMapProps) {
     const containerRef = useRef<HTMLDivElement | null>(null);
     // Hold the trips/countries in refs so the one-shot effect can
     // read the latest values without re-running on every parent
@@ -40,8 +47,10 @@ export function FootprintMap({ trips, uniqueCountries }: FootprintMapProps) {
     // initialises once per mount.
     const tripsRef = useRef(trips);
     const countriesRef = useRef(uniqueCountries);
+    const countryCodesRef = useRef(uniqueCountryCodes);
     tripsRef.current = trips;
     countriesRef.current = uniqueCountries;
+    countryCodesRef.current = uniqueCountryCodes;
 
     useEffect(() => {
         if (typeof google === 'undefined' || !google.maps) return;
@@ -104,16 +113,24 @@ export function FootprintMap({ trips, uniqueCountries }: FootprintMapProps) {
         });
         applyMapTheme(map, profileMapStyles);
 
-        // Country-code set — highest-priority match key. Modern trips
-        // carry `countryCode` (ISO 3166-1 alpha-2 from Google Places);
-        // matching by ISO is far more reliable than guessing from the
-        // formatted-address string. Legacy trips without a code fall
-        // through to the name-match logic below.
-        const tripCodes = new Set(
-            (tripsRef.current || [])
-                .map((tr: any) => (tr.countryCode || '').toUpperCase())
-                .filter(Boolean),
+        // Country-code set — highest-priority match key. §4.3 follow-up
+        // (2026-05-17): we now use the parent-derived `uniqueCountryCodes`
+        // which walks every trip's `tr.countries` array (the full set
+        // each trip touches), not just the scalar `tr.countryCode`. A
+        // multi-country trip lights every leg. Falls back to a
+        // derived-from-primary set if the parent passes an empty array
+        // (defence against a legacy load where no trips have been
+        // re-saved since §4.3 landed).
+        let tripCodes = new Set(
+            (countryCodesRef.current || []).map((c) => c.toUpperCase()).filter(Boolean),
         );
+        if (tripCodes.size === 0) {
+            tripCodes = new Set(
+                (tripsRef.current || [])
+                    .map((tr: any) => (tr.countryCode || '').toUpperCase())
+                    .filter(Boolean),
+            );
+        }
         const localUniqueCountries = countriesRef.current;
 
         fetch(

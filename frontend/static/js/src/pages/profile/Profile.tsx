@@ -152,8 +152,47 @@ function LoginWallHost() {
 
 
 // ── derived helper: unique country names from a trips array ───────
+//
+// §4.3 follow-up (2026-05-17): pre-§4.3 this returned one entry per
+// trip from the scalar `tr.country` field. Post-§4.3, trips carry a
+// `tr.countries` array of ISO codes for every country the trip
+// touches (built by HeroMap's reverse-geocode loop on day pins). The
+// chip-strip + footprint map should reflect ALL of them — a single
+// Iberian trip should now light up BOTH Portugal AND Spain, not just
+// the primary.
+//
+// We return both shapes so call sites that need names (display
+// label, fuzzy match for the GeoJSON) still get them, and call sites
+// that need codes (set lookup against feature.ISO_A2) get those too.
+// Names fall back to the trip's primary `country` when no per-code
+// label is locally derivable.
 function deriveUniqueCountries(trips: Trip[]): string[] {
-    return [...new Set(trips.map((tr) => tr.country).filter(Boolean) as string[])];
+    const names = new Set<string>();
+    for (const tr of trips) {
+        // Always include the primary scalar — that's the legacy
+        // display label and it's the field the natural-earth GeoJSON
+        // fuzzy match still relies on.
+        if (tr.country) names.add(tr.country);
+    }
+    return [...names];
+}
+
+
+/** §4.3: ALL country codes any of the given trips touches, deduped +
+ *  upper-cased. Used by the footprint map to drive the country-fill
+ *  highlight: a multi-country trip lights every leg, not just the
+ *  primary. Also used by the country-count chip on the profile
+ *  header. */
+function deriveUniqueCountryCodes(trips: Trip[]): string[] {
+    const codes = new Set<string>();
+    for (const tr of trips) {
+        if (tr.countryCode) codes.add(tr.countryCode.toUpperCase());
+        for (const c of tr.countries || []) {
+            const up = (c || '').trim().toUpperCase();
+            if (up.length === 2) codes.add(up);
+        }
+    }
+    return [...codes];
 }
 
 
@@ -326,6 +365,14 @@ function ProfileContent({
     targetUserId,
 }: ProfileContentProps) {
     const uniqueCountries = deriveUniqueCountries(trips);
+    // §4.3: separate ISO-code list so the footprint map's fast-path
+    // ISO match + the country-count chip both cover multi-country
+    // trips. Falls back to `uniqueCountries.length` (name-based) when
+    // no codes are available (legacy trips before the Places
+    // migration), so the count never silently drops to zero on a user
+    // who hasn't logged in since pre-2026.
+    const uniqueCountryCodes = deriveUniqueCountryCodes(trips);
+    const countryCountForChip = Math.max(uniqueCountryCodes.length, uniqueCountries.length);
 
     return (
         <div className="profile-page" style={{ maxWidth: 800, margin: '0 auto', paddingBottom: 60 }}>
@@ -381,6 +428,7 @@ function ProfileContent({
                     user={user}
                     trips={trips}
                     uniqueCountries={uniqueCountries}
+                    countryCount={countryCountForChip}
                     followSnap={followSnap}
                     targetUserId={targetUserId}
                 />
@@ -482,7 +530,11 @@ function ProfileContent({
                         ? "Every country you've been to, lit up."
                         : `Explore where ${user.name.split(' ')[0]} has been.`}
                 </p>
-                <FootprintMap trips={trips} uniqueCountries={uniqueCountries} />
+                <FootprintMap
+                    trips={trips}
+                    uniqueCountries={uniqueCountries}
+                    uniqueCountryCodes={uniqueCountryCodes}
+                />
             </div>
         </div>
     );
@@ -690,6 +742,12 @@ interface ProfileInfoSectionProps {
     user: User & { bio?: string; status?: string };
     trips: Trip[];
     uniqueCountries: string[];
+    /** §4.3 follow-up: total unique-country count to show in the
+     *  stats chip. Counts each country a trip touches once (so a
+     *  Portugal+Spain trip lights up as 2). Caller derives via
+     *  `deriveUniqueCountryCodes(trips).length` and clamps against
+     *  the name-based count to avoid zeroing legacy users out. */
+    countryCount: number;
     followSnap: FollowSnapshot;
     targetUserId: string | undefined;
 }
@@ -699,6 +757,7 @@ function ProfileInfoSection({
     user,
     trips,
     uniqueCountries,
+    countryCount,
     followSnap,
     targetUserId,
 }: ProfileInfoSectionProps) {
@@ -764,8 +823,8 @@ function ProfileInfoSection({
                     label={tn('profile.publicTripsLabel', trips.length)}
                 />
                 <ProfileStat
-                    count={uniqueCountries.length}
-                    label={tn('profile.countriesLabel', uniqueCountries.length)}
+                    count={countryCount}
+                    label={tn('profile.countriesLabel', countryCount)}
                 />
                 <ProfileStat count={followers} label="followers" />
                 <ProfileStat count={followSnap.following} label="following" />

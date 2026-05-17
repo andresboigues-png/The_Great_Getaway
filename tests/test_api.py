@@ -4352,6 +4352,84 @@ def test_achievements_globe_trotter_tiers(client, seed_user, auth_headers):
     assert gt3["context"].get("countryCount") == 3
 
 
+def test_achievements_globe_trotter_counts_multi_country_legs(client, seed_user, auth_headers):
+    """§4.3 follow-up: a SINGLE trip that touches multiple countries
+    (via the `trip_countries_json` array) should contribute all its
+    legs to the globe_trotter count. Two such trips covering 4 unique
+    countries should unlock globe_trotter_3, even though the trip
+    COUNT is only 2.
+
+    Pre-§4.3 the badge counted only the primary `country_code` per
+    trip, so a Portugal+Spain trip + a Japan+Korea trip would have
+    earned only 2-country credit; post-§4.3 the same trips earn 4.
+    """
+    from database import get_db
+    import json as _json
+    with get_db() as conn:
+        c = conn.cursor()
+        # Trip 1: Iberia (PT + ES)
+        c.execute(
+            "INSERT INTO trips (id, user_id, name, country, country_code, "
+            "trip_countries_json) VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                "trip-multi-iberia", seed_user, "Iberia tour",
+                "Portugal", "PT", _json.dumps(["PT", "ES"]),
+            ),
+        )
+        # Trip 2: East Asia (JP + KR)
+        c.execute(
+            "INSERT INTO trips (id, user_id, name, country, country_code, "
+            "trip_countries_json) VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                "trip-multi-asia", seed_user, "East Asia",
+                "Japan", "JP", _json.dumps(["JP", "KR"]),
+            ),
+        )
+        conn.commit()
+
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    ids = {a["badgeId"] for a in data["achievements"]}
+    assert "globe_trotter_3" in ids, \
+        f"4-country count from 2 multi-country trips should unlock globe_trotter_3; badges={ids!r}"
+    gt3 = next(a for a in data["achievements"] if a["badgeId"] == "globe_trotter_3")
+    assert gt3["context"].get("countryCount") == 4, \
+        f"countryCount should reflect every leg; got {gt3['context'].get('countryCount')!r}"
+
+
+def test_achievements_globe_trotter_dedupes_primary_and_array(client, seed_user, auth_headers):
+    """§4.3 follow-up: the server-side upsert writes the primary
+    `country_code` into BOTH the scalar column AND position 0 of the
+    JSON array (see HeroMap's discovery loop). The badge count must
+    dedupe so a single Portugal+Spain trip counts as 2, not 3 (PT
+    from scalar + PT from array[0] + ES from array[1]).
+    """
+    from database import get_db
+    import json as _json
+    with get_db() as conn:
+        c = conn.cursor()
+        c.execute(
+            "INSERT INTO trips (id, user_id, name, country, country_code, "
+            "trip_countries_json) VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                "trip-dedupe", seed_user, "Iberia tour",
+                "Portugal", "PT",
+                # Primary deliberately included in the array too —
+                # mirrors what the HeroMap loop persists in production.
+                _json.dumps(["PT", "ES"]),
+            ),
+        )
+        conn.commit()
+
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    # Below the 3-threshold, so no globe-trotter badge — but the
+    # internal count is what we're testing. Inspect via the badge's
+    # context when a higher threshold fires would be cleaner; instead,
+    # we just confirm that the badge DIDN'T fire (count=2, below 3).
+    ids = {a["badgeId"] for a in data["achievements"]}
+    assert "globe_trotter_3" not in ids, \
+        f"deduped count of 2 shouldn't unlock the 3-threshold badge; badges={ids!r}"
+
+
 def test_achievements_repeat_country(client, seed_user, auth_headers):
     """Two trips in the same country (by country_code) unlocks the
     Local Hero badge. Encourages domestic / repeat-destination travel."""
