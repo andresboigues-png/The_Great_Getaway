@@ -586,10 +586,10 @@ export function Todo() {
     // ── EMPTY STATE: no active trip ─────────────────────────────────
     if (!activeTrip) {
         return (
-            <div style={{ maxWidth: '760px', margin: '0 auto' }}>
-                <div style={{ padding: '32px 0 24px', textAlign: 'center' }}>
+            <div className="td-content-cap">
+                <div className="td-page-header">
                     <h1 style={titleH1Style}>{t('todo.title')}</h1>
-                    <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '1rem' }}>
+                    <p className="td-subtitle">
                         {t('todo.subtitleNoTrip')}
                     </p>
                 </div>
@@ -653,11 +653,11 @@ export function Todo() {
     // ── EMPTY STATE: trip but no to-do items ────────────────────────
     if (todoItems.length === 0) {
         return (
-            <div style={{ maxWidth: '760px', margin: '0 auto' }}>
-                <div style={{ padding: '32px 0 24px', textAlign: 'center' }}>
+            <div className="td-content-cap">
+                <div className="td-page-header">
                     <h1 style={titleH1Style}>{t('todo.title')}</h1>
                     <p
-                        style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '1rem' }}
+                        className="td-subtitle"
                         // Subtitle has inline <strong> markup with the trip
                         // name; render via dangerouslySetInnerHTML so the
                         // markup in the locale string lands as actual HTML.
@@ -790,11 +790,11 @@ export function Todo() {
 
     // ── LIST STATE ──────────────────────────────────────────────────
     return (
-        <div style={{ maxWidth: '760px', margin: '0 auto' }}>
-            <div style={{ padding: '32px 0 24px', textAlign: 'center' }}>
+        <div className="td-content-cap">
+            <div className="td-page-header">
                 <h1 style={titleH1Style}>{t('todo.title')}</h1>
                 <p
-                    style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '1rem' }}
+                    className="td-subtitle"
                     dangerouslySetInnerHTML={{
                         __html: t('todo.subtitleWithTrip', { trip: activeTrip.name }),
                     }}

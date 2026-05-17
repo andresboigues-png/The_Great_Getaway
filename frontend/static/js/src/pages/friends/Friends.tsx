@@ -304,7 +304,7 @@ export function Friends() {
                         fontWeight: 800,
                     }}
                 >
-                    <span style={{ fontSize: '0.95rem', lineHeight: 1 }}>👥</span>
+                    <span className="fr-icon-glyph">👥</span>
                     {mutuals.length} {tn('profile.friendsLabel', mutuals.length)}
                 </span>
                 <span
@@ -320,7 +320,7 @@ export function Friends() {
                         fontWeight: 800,
                     }}
                 >
-                    <span style={{ fontSize: '0.95rem', lineHeight: 1 }}>👋</span>
+                    <span className="fr-icon-glyph">👋</span>
                     {followers.length + mutuals.length} followers
                 </span>
                 <span
@@ -336,7 +336,7 @@ export function Friends() {
                         fontWeight: 800,
                     }}
                 >
-                    <span style={{ fontSize: '0.95rem', lineHeight: 1 }}>🧭</span>
+                    <span className="fr-icon-glyph">🧭</span>
                     {following.length + mutuals.length} following
                 </span>
             </div>
@@ -514,7 +514,7 @@ export function Friends() {
                         </p>
                     )}
                     {searchStatus.kind === 'results' && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <div className="fr-col-gap-8">
                             {searchStatus.users.map((u) => (
                                 <UserCard
                                     key={u.id}
@@ -690,7 +690,7 @@ function NetworkSection({
                     {rows.length} · {hint}
                 </span>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div className="fr-col-gap-8">
                 {rows.length === 0 ? (
                     <EmptyState
                         accent={emptyAccent}

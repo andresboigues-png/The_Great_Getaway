@@ -521,7 +521,7 @@ export function Insights() {
 
             {/* Rankings Grid */}
             <div className="grid-2" style={{ marginBottom: '32px' }}>
-                <div className="card glass" style={{ padding: '28px' }}>
+                <div className="card glass in-card-pad-28">
                     <h2 className="card-title">{t('insights.topSpenders')}</h2>
                     <div style={{ marginBottom: '20px' }}>
                         <h1 style={{ margin: 0, fontSize: '2rem', color: 'var(--text-primary)' }}>
@@ -559,7 +559,7 @@ export function Insights() {
                     </div>
                 </div>
 
-                <div className="card glass" style={{ padding: '28px' }}>
+                <div className="card glass in-card-pad-28">
                     <h2 className="card-title">{t('insights.categoryBreakdown')}</h2>
                     <div
                         style={{
@@ -611,7 +611,7 @@ export function Insights() {
                             marginBottom: '16px',
                         }}
                     >
-                        <h2 className="card-title" style={{ margin: 0 }}>
+                        <h2 className="card-title in-no-margin">
                             {t('insights.byCountryTitle')}
                         </h2>
                         <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
@@ -716,7 +716,7 @@ export function Insights() {
                         marginBottom: '24px',
                     }}
                 >
-                    <h2 className="card-title" style={{ margin: 0 }}>
+                    <h2 className="card-title in-no-margin">
                         {t('insights.timelineTitle')}
                     </h2>
                     <div style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>

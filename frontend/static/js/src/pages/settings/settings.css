@@ -775,3 +775,49 @@
     cursor: not-allowed;
     transform: none;
 }
+
+/* ── §0.4 follow-up — Settings.tsx repeated style={{ ... }} blocks ──
+ * Each class collapses 2-5 React JSX inline-style occurrences. Prefix
+ * `st-` (settings) so it's obviously settings-scoped. */
+
+/* Help text under a settings field — small secondary copy with 8px
+ * top margin. Used 5× across various settings rows. */
+.st-help-text {
+    color: var(--text-secondary);
+    margin: 8px 0 0;
+}
+
+/* Secondary paragraph inside a settings card — bottom-padded for
+ * 24px section spacing. Used 4×. */
+.st-paragraph-mb-24 {
+    color: var(--text-secondary);
+    margin-bottom: 24px;
+}
+
+/* Same as above with tighter 16px spacing (used in denser cards).
+ * 2× sites. */
+.st-paragraph-mb-16 {
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+}
+
+/* Top-of-card heading in indigo brand color (used by integrations /
+ * gemini-key cards). Used 3×. */
+.st-card-title-indigo {
+    color: #5856d6;
+    margin-top: 0;
+}
+
+/* Top-of-card heading in warning amber (used by "danger zone" cards
+ * and unsaved-changes warnings). Used 2×. */
+.st-card-title-amber {
+    color: #a85d00;
+    margin-top: 0;
+}
+
+/* Full-width container utility — used on action buttons that should
+ * span the card. Used 2×. */
+.st-full-width { width: 100%; }
+
+/* Standard settings card padding — used 2×. */
+.st-card-pad { padding: var(--space-6); }

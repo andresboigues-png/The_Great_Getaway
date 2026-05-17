@@ -5263,3 +5263,102 @@ main#app-container.nav-anim-backward {
     align-items: center;
     gap: 6px;
 }
+
+/* ── §0.4 follow-up — Feed / Insights / Collections / Friends / dayViewModal
+ *
+ * Mid-tier pages that don't have their own page-scoped CSS file —
+ * rules land in index.css since these pages all bundle into different
+ * mount chunks anyway. Each prefix is page-scoped to keep the
+ * namespace tidy:
+ *   - fd-  Feed
+ *   - in-  Insights
+ *   - col- Collections (mount variant)
+ *   - fr-  Friends
+ *   - dvm- dayViewModal
+ */
+
+/* ── Feed ────────────────────────────────────────────────────── */
+
+/* Centered empty-state card with major padding + rounded corners. */
+.fd-empty-card {
+    padding: 32px;
+    border-radius: 24px;
+    text-align: center;
+}
+
+/* Flex-grow item with truncation guard — used by feed row content
+ * columns that need to ellipsis a long title. */
+.fd-flex-grow-truncate {
+    flex: 1;
+    min-width: 0;
+}
+
+/* ── Insights ────────────────────────────────────────────────── */
+
+/* Standard card padding — 28px on all sides. */
+.in-card-pad-28 { padding: 28px; }
+
+/* Zero margin override — used on h2/h3 inside cards to remove the
+ * default browser top/bottom margin. */
+.in-no-margin { margin: 0; }
+
+/* ── Collections ─────────────────────────────────────────────── */
+
+/* Zero margin (same role as .in-no-margin but in the collections
+ * namespace for grep-discoverability). */
+.col-no-margin { margin: 0; }
+
+/* Flex-grow with truncation. */
+.col-flex-grow-truncate {
+    flex: 1;
+    min-width: 0;
+}
+
+/* ── Friends ─────────────────────────────────────────────────── */
+
+/* Icon sizing — 0.95rem with tight line-height for ✕ buttons and
+ * similar single-character glyphs. */
+.fr-icon-glyph {
+    font-size: 0.95rem;
+    line-height: 1;
+}
+
+/* Column flex with 8px gap — used by avatar+name stacks. */
+.fr-col-gap-8 {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* ── dayViewModal ───────────────────────────────────────────── */
+
+/* Pre-wrap plan text — the journaling/notes blocks where line breaks
+ * matter. */
+.dvm-plan-text {
+    margin: 0;
+    white-space: pre-wrap;
+    line-height: 1.55;
+    color: #002d5b;
+}
+
+/* Italic muted helper text. */
+.dvm-italic-muted {
+    margin: 0;
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+/* Italic muted helper text with top margin (sub-line under a label). */
+.dvm-italic-muted-sub {
+    margin: 6px 0 0;
+    color: var(--text-secondary);
+    font-style: italic;
+    font-size: 0.85rem;
+}
+
+/* Vertical section column with generous gap. */
+.dvm-section-col {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+}

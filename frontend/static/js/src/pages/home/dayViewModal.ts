@@ -45,11 +45,11 @@ export const openDayView = (day: any): void => {
     ];
     const renderParagraph = (text: string | null | undefined) => {
         if (!text || !text.trim()) {
-            return `<p style="margin:0; color:var(--text-secondary); font-style:italic;">Nothing planned.</p>`;
+            return `<p class="dvm-italic-muted">Nothing planned.</p>`;
         }
         // pre-wrap preserves user's line breaks; esc() defends
         // against XSS.
-        return `<p style="margin:0; white-space:pre-wrap; line-height:1.55; color:#002d5b;">${esc(text)}</p>`;
+        return `<p class="dvm-plan-text">${esc(text)}</p>`;
     };
     const { root, close } = showModal({
         cardClass: 'card glass',
@@ -67,7 +67,7 @@ export const openDayView = (day: any): void => {
                 <button id="closeViewBtn" class="close-x-btn" aria-label="Close">✕</button>
             </div>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-10);">
-                <div style="display: flex; flex-direction: column; gap: var(--space-6);">
+                <div class="dvm-section-col">
                     <div class="subcard-soft">
                         <h4 class="text-tag">Morning</h4>
                         ${renderParagraph(day.plan?.morning)}
@@ -81,10 +81,10 @@ export const openDayView = (day: any): void => {
                         ${renderParagraph(day.plan?.evening)}
                     </div>
                 </div>
-                <div style="display: flex; flex-direction: column; gap: var(--space-6);">
+                <div class="dvm-section-col">
                     <div style="background: rgba(0,113,227,0.05); padding: var(--space-6); border-radius: 24px; border: 1px solid rgba(0,113,227,0.1);">
                         <h4 class="text-tag">Personal Notes</h4>
-                        ${day.notes ? `<p style="margin:0; white-space:pre-wrap; line-height:1.55; color:#002d5b;">${esc(day.notes)}</p>` : `<p style="margin:0; color:var(--text-secondary); font-style:italic;">No notes.</p>`}
+                        ${day.notes ? `<p class="dvm-plan-text">${esc(day.notes)}</p>` : `<p class="dvm-italic-muted">No notes.</p>`}
                     </div>
                     <!-- Photos + Documents always render. For Trip
                          Anchor these surface the trip-wide bucket
@@ -100,7 +100,7 @@ export const openDayView = (day: any): void => {
                                 ${photoSrcs.slice(0, 9).map(src => `<div style="aspect-ratio:1; background-image:url(${esc(src)}); background-size:cover; background-position:center; border-radius:10px;"></div>`).join('')}
                             </div>
                             ${photoSrcs.length > 9 ? `<div style="font-size:0.75rem; color:var(--text-secondary); margin-top:6px;">+${photoSrcs.length - 9} more</div>` : ''}
-                        ` : `<p style="margin: 6px 0 0; color: var(--text-secondary); font-style: italic; font-size: 0.85rem;">${Number(day.dayNumber) === 0 ? 'No trip-wide photos yet — add some from the Photos tab.' : 'No photos for this day.'}</p>`}
+                        ` : `<p class="dvm-italic-muted-sub">${Number(day.dayNumber) === 0 ? 'No trip-wide photos yet — add some from the Photos tab.' : 'No photos for this day.'}</p>`}
                     </div>
                     <div style="background: rgba(88,86,214,0.04); padding: var(--space-6); border-radius: 24px; border: 1px solid rgba(88,86,214,0.15);">
                         <h4 class="text-tag" style="--accent: 88,86,214;">${Number(day.dayNumber) === 0 ? 'Trip-wide documents' : 'Documents'}${docs.length > 0 ? ` (${docs.length})` : ''}</h4>
@@ -108,7 +108,7 @@ export const openDayView = (day: any): void => {
                             <div style="display:flex; flex-direction:column; gap:6px; margin-top:8px;">
                                 ${docs.map(d => `<a href="${esc(d.url || '#')}" target="_blank" rel="noreferrer" style="font-size:0.85rem; color:#005bb8; font-weight:700; text-decoration:none;">📎 ${esc(d.name || 'Document')}</a>`).join('')}
                             </div>
-                        ` : `<p style="margin: 6px 0 0; color: var(--text-secondary); font-style: italic; font-size: 0.85rem;">${Number(day.dayNumber) === 0 ? 'No trip-wide docs yet — add passports, hotels, return flights from the Documents tab.' : 'No documents for this day.'}</p>`}
+                        ` : `<p class="dvm-italic-muted-sub">${Number(day.dayNumber) === 0 ? 'No trip-wide docs yet — add passports, hotels, return flights from the Documents tab.' : 'No documents for this day.'}</p>`}
                     </div>
                     <div style="background: #000; padding: var(--space-6); border-radius: 24px; color: white;">
                         <h4 class="text-tag" style="--accent: 52,199,89;">Expert Tip</h4>

@@ -263,7 +263,7 @@ function MenuView() {
                 <h2 className="card-title" style={{ color: 'var(--accent-blue-deep)', margin: 0 }}>
                     {t('settings.cardGeneralTitle')}
                 </h2>
-                <p style={{ color: 'var(--text-secondary)', margin: '8px 0 0' }}>
+                <p className="st-help-text">
                     {t('settings.cardGeneralBody')}
                 </p>
                 <div style={{ marginTop: 20, color: 'var(--accent-blue-deep)', fontWeight: 700, fontSize: '0.85rem' }}>
@@ -279,7 +279,7 @@ function MenuView() {
                 <h2 className="card-title" style={{ color: '#a85d00', margin: 0 }}>
                     {t('settings.cardFormatTitle')}
                 </h2>
-                <p style={{ color: 'var(--text-secondary)', margin: '8px 0 0' }}>
+                <p className="st-help-text">
                     {t('settings.cardFormatBody')}
                 </p>
                 <div style={{ marginTop: 20, color: '#a85d00', fontWeight: 700, fontSize: '0.85rem' }}>
@@ -300,7 +300,7 @@ function MenuView() {
                 <h2 className="card-title" style={{ color: '#34c759', margin: 0 }}>
                     {t('settings.cardPersonalizationTitle')}
                 </h2>
-                <p style={{ color: 'var(--text-secondary)', margin: '8px 0 0' }}>
+                <p className="st-help-text">
                     {t('settings.cardPersonalizationBody')}
                 </p>
                 <div style={{ marginTop: 20, color: '#34c759', fontWeight: 700, fontSize: '0.85rem' }}>
@@ -324,7 +324,7 @@ function MenuView() {
                     <h2 className="card-title" style={{ color: 'var(--accent-purple-deep)', margin: 0 }}>
                         {t('settings.cardDeveloperTitle')}
                     </h2>
-                    <p style={{ color: 'var(--text-secondary)', margin: '8px 0 0' }}>
+                    <p className="st-help-text">
                         {t('settings.cardDeveloperBody')}
                     </p>
                     <div style={{ marginTop: 20, color: 'var(--accent-purple-deep)', fontWeight: 700, fontSize: '0.85rem' }}>
@@ -342,7 +342,7 @@ function MenuView() {
                 <h2 className="card-title" style={{ color: '#ff3b30', margin: 0 }}>
                     {t('settings.cardDataMgmtTitle')}
                 </h2>
-                <p style={{ color: 'var(--text-secondary)', margin: '8px 0 0' }}>
+                <p className="st-help-text">
                     {t('settings.cardDataMgmtBody')}
                 </p>
                 <div style={{ marginTop: 20, color: '#ff3b30', fontWeight: 700, fontSize: '0.85rem' }}>
@@ -458,13 +458,13 @@ function GeneralPillsSection() {
         // filters: responsive layout" in index.css.
         <div className="card glass settings-section">
             <h2 style={{ color: 'var(--accent-blue-deep)', marginTop: 0 }}>{t('settings.poiTitle')}</h2>
-            <p style={{ color: 'var(--text-secondary)', marginBottom: 16 }}>
+            <p className="st-paragraph-mb-16">
                 {t('settings.poiIntroVisibility')}
             </p>
-            <p style={{ color: 'var(--text-secondary)', marginBottom: 16 }}>
+            <p className="st-paragraph-mb-16">
                 {t('settings.poiIntroRating')}
             </p>
-            <p style={{ color: 'var(--text-secondary)', marginBottom: 24 }}>
+            <p className="st-paragraph-mb-24">
                 {t('settings.poiIntroAnchor')}
             </p>
             <div className="poi-filter-list">
@@ -597,8 +597,8 @@ function GeneralAppearanceSection() {
 
     return (
         <div className="card glass settings-section">
-            <h2 style={{ color: '#5856d6', marginTop: 0 }}>{t('settings.appearance')}</h2>
-            <p style={{ color: 'var(--text-secondary)', marginBottom: 24 }}>
+            <h2 className="st-card-title-indigo">{t('settings.appearance')}</h2>
+            <p className="st-paragraph-mb-24">
                 {t('settings.themePickerSubtitle')}
             </p>
             <div className="theme-options">
@@ -647,8 +647,8 @@ function GeneralLanguageSection() {
 
     return (
         <div className="card glass settings-section">
-            <h2 style={{ color: '#5856d6', marginTop: 0 }}>{t('settings.language')}</h2>
-            <p style={{ color: 'var(--text-secondary)', marginBottom: 24 }}>
+            <h2 className="st-card-title-indigo">{t('settings.language')}</h2>
+            <p className="st-paragraph-mb-24">
                 {t('settings.languageDesc')}
             </p>
             <div className="theme-options">
@@ -666,8 +666,8 @@ function GeneralLanguageSection() {
 function ResetView() {
     return (
         <div className="settings-grid">
-            <div className="card glass" style={{ padding: 'var(--space-6)' }}>
-                <h3 style={{ color: '#a85d00', marginTop: 0 }}>{t('settings.resetTripsTitle')}</h3>
+            <div className="card glass st-card-pad">
+                <h3 className="st-card-title-amber">{t('settings.resetTripsTitle')}</h3>
                 <p className="muted-meta">{t('settings.resetTripsBody')}</p>
                 <button
                     type="button"
@@ -678,8 +678,8 @@ function ResetView() {
                     {t('settings.resetTripsBtn')}
                 </button>
             </div>
-            <div className="card glass" style={{ padding: 'var(--space-6)' }}>
-                <h3 style={{ color: '#5856d6', marginTop: 0 }}>{t('settings.resetCategoriesTitle')}</h3>
+            <div className="card glass st-card-pad">
+                <h3 className="st-card-title-indigo">{t('settings.resetCategoriesTitle')}</h3>
                 <p className="muted-meta">{t('settings.resetCategoriesBody')}</p>
                 <button
                     type="button"
@@ -787,8 +787,8 @@ function FormatView() {
 
     return (
         <div className="card glass settings-section">
-            <h2 style={{ color: '#a85d00', marginTop: 0 }}>{t('settings.formatTitle')}</h2>
-            <p style={{ color: 'var(--text-secondary)', marginBottom: 24 }}>
+            <h2 className="st-card-title-amber">{t('settings.formatTitle')}</h2>
+            <p className="st-paragraph-mb-24">
                 {t('settings.formatSubtitle')}
             </p>
 
@@ -897,8 +897,7 @@ function FormatView() {
                             {t('settings.formatVariableLabel')}
                         </label>
                         <select
-                            className="glass-input"
-                            style={{ width: '100%' }}
+                            className="glass-input st-full-width"
                             value={mapVar}
                             onChange={(e) => setMapVar(e.target.value)}
                         >
@@ -923,8 +922,7 @@ function FormatView() {
                             {t('settings.formatColumnLabel')}
                         </label>
                         <select
-                            className="glass-input"
-                            style={{ width: '100%' }}
+                            className="glass-input st-full-width"
                             value={mapCol}
                             onChange={(e) => setMapCol(e.target.value)}
                         >

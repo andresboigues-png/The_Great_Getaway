@@ -542,8 +542,7 @@ function FeedListBody(props: FeedListBodyProps) {
         if (explore === null) {
             return (
                 <div
-                    className="card glass"
-                    style={{ padding: 32, borderRadius: 24, textAlign: 'center' }}
+                    className="card glass fd-empty-card"
                 >
                     <div
                         className="spinner-ring"
@@ -715,8 +714,7 @@ function FeedListBody(props: FeedListBodyProps) {
     if (!initialFetchDone && renderedItems.length === 0) {
         return (
             <div
-                className="card glass"
-                style={{ padding: 32, borderRadius: 24, textAlign: 'center' }}
+                className="card glass fd-empty-card"
             >
                 <div
                     className="spinner-ring"
@@ -906,7 +904,7 @@ function EventCard(props: EventCardProps) {
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
                 {/* Avatar — clickable via .feed-avatar-btn delegation. */}
                 <span dangerouslySetInnerHTML={{ __html: avatar(ev.actor) }} />
-                <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="fd-flex-grow-truncate">
                     <div
                         style={{
                             fontSize: '0.95rem',
@@ -1000,7 +998,7 @@ function EventCard(props: EventCardProps) {
                     }}
                 >
                     <span style={{ fontSize: '1.6rem', lineHeight: 1, flexShrink: 0 }}>🗺️</span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="fd-flex-grow-truncate">
                         <div
                             style={{
                                 fontWeight: 800,
