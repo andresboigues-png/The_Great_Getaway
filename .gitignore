@@ -30,6 +30,14 @@ frontend/static/js/app.bundle.js.map
 # chunk JS is committed (build artefact deployed alongside the entry),
 # but the matching .map files are dev-only and bloat the repo.
 frontend/static/js/chunks/*.map
+# User uploads — dev/test artifact only. Production deploys override
+# UPLOAD_FOLDER via GG_UPLOAD_ROOT (per src/main.py:60-65) to a path
+# OUTSIDE the cloned repo so user-uploaded photos survive code redeploys
+# (git pull / wipe-and-reclone). Locally, every Playwright run that
+# exercises /api/upload (photo-exif, photo-lightbox, photo-drag-reorder)
+# leaves an owner-<random>/ subdirectory here; manual testing leaves
+# its own. None of it should ever be committed.
+frontend/static/uploads/
 # D5: bundle visualizer output, emitted only when ANALYZE=1 and only
 # read locally for performance audits.
 bundle-stats.html
