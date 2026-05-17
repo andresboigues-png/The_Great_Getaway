@@ -13,36 +13,55 @@ import { showLiquidAlert } from './utils.js';
 // Exported so page-level files can use it for their direct fetches too.
 export const apiUrl = (path: string): string => `${API_BASE_URL}${path}`;
 
-// ── Auth token storage ──────────────────────────────────────────────────────
-// Phase G: server issues a JWT after Google verification; we store it in
-// localStorage and attach it to every API request. Replaces the old
-// trust-the-client-user_id pattern where the server believed whatever
-// user_id was in the request body.
+// ── Auth: HttpOnly session cookie (FIXING_ROADMAP §0.4 v2) ─────────────────
+// The session JWT now lives in an HttpOnly cookie (`gg_session`, set by
+// the server's /api/auth/google response). JS can't read it — that's
+// the whole point of the migration: a future XSS oversight can't
+// exfiltrate the token by reading localStorage. The browser attaches
+// the cookie automatically to every same-origin request via the
+// `credentials: 'include'` option below.
+//
+// Pre-§0.4-v2: token lived in localStorage under `gg_auth_token` and
+// was attached as `Authorization: Bearer <jwt>`. We KEEP the named
+// exports below (no-op'd appropriately) so call sites in
+// bootstrap/auth.ts and pages/profile.ts that import them keep working
+// during the cleanup pass. The server still accepts the old Bearer
+// header for one deploy cycle (see auth.py: _extract_token tries the
+// cookie first, falls back to header) so a stale tab from before this
+// deploy doesn't immediately log everyone out — they just gradually
+// transition to the cookie path as their /api/auth/google response
+// next sets it.
 
-const TOKEN_KEY = 'gg_auth_token';
+const LEGACY_TOKEN_KEY = 'gg_auth_token';
 
-// Round 6 audit fix — wrap all three localStorage hits in try/catch.
-// Safari private-browsing mode throws QuotaExceededError on setItem; getItem
-// and removeItem are technically no-ops but throwing in some old WebKit
-// builds. Failing silently is the right call here — without a token the
-// user just sees the login wall, which is what we'd want anyway.
-export const getAuthToken = (): string | null => {
-    try { return localStorage.getItem(TOKEN_KEY); }
-    catch { return null; }
+/** Legacy alias retained so the few remaining import sites compile;
+ *  no longer reads anything useful. Always returns null — the cookie
+ *  is HttpOnly and JS can't see it, which is the whole security
+ *  posture we're after. */
+export const getAuthToken = (): string | null => null;
+
+/** Legacy no-op. The server sets the session cookie on the
+ *  /api/auth/google response; the frontend never needs to handle the
+ *  token itself. Kept named so call sites still compile while they
+ *  get cleaned up. */
+export const setAuthToken = (_token: string | null | undefined): void => {
+    /* No-op: server-set HttpOnly cookie. */
 };
-export const setAuthToken = (token: string | null | undefined): void => {
-    if (!token) return;
-    try { localStorage.setItem(TOKEN_KEY, token); }
-    catch (e) { console.warn('setAuthToken: localStorage write failed', e); }
-};
+
+/** Wipe local auth artefacts.
+ *  - The server-side cookie is cleared by /api/auth/logout (see
+ *    pages/profile.ts). This function does NOT call that endpoint;
+ *    its job is purely client-side cleanup that pairs with it.
+ *  - Removes the legacy `gg_auth_token` localStorage key so users
+ *    upgrading across this deploy don't carry stale bytes forever.
+ *  - Wipes the SW's per-user API cache (§4.10) so a shared device
+ *    where Alice logs out + Bob logs in doesn't briefly serve Bob
+ *    a stale /api/data with Alice's trips before the network round-
+ *    trip completes.
+ */
 export const clearAuthToken = (): void => {
-    try { localStorage.removeItem(TOKEN_KEY); }
+    try { localStorage.removeItem(LEGACY_TOKEN_KEY); }
     catch { /* private mode: nothing to clear */ }
-    // §4.10 — wipe the SW's per-user API cache on logout. Without this,
-    // a shared device where Alice logs out + Bob logs in would briefly
-    // serve Bob a stale /api/data with Alice's trips before the network
-    // round-trip completes. Best-effort — SW may not be installed
-    // (dev mode, opt-out), or the postMessage may race the unload.
     try {
         if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
             navigator.serviceWorker.controller.postMessage({ type: 'CLEAR_API_CACHE' });
@@ -50,23 +69,20 @@ export const clearAuthToken = (): void => {
     } catch { /* SW not registered yet — fine */ }
 };
 
-/** Merge Authorization: Bearer <token> into an options object's headers,
- *  preserving anything the caller already set. */
-function _withAuth(options: RequestInit = {}): RequestInit {
-    const token = getAuthToken();
-    if (!token) return options;
-    return {
-        ...options,
-        headers: { ...(options.headers || {}), 'Authorization': `Bearer ${token}` },
-    };
-}
-
 /** Centralized fetch wrapper that:
  *  1. Prepends API_BASE_URL when called with a relative path
- *  2. Attaches Authorization: Bearer <token> if a token is stored
+ *  2. Adds `credentials: 'include'` so the browser attaches the
+ *     HttpOnly `gg_session` cookie that carries the JWT. The cookie
+ *     is set by /api/auth/google's response and cleared by
+ *     /api/auth/logout. Same-origin requests would attach the cookie
+ *     with `'same-origin'` too, but `'include'` is explicit about the
+ *     auth model and survives a future hosting move where the API
+ *     might live on a different subdomain.
  *  3. On 401 (token rejected — expired, invalid, deleted user), clears
- *     the stored token + STATE.user and triggers a re-render so the
- *     login wall comes back into view.
+ *     STATE.user and triggers a re-render so the login wall comes back
+ *     into view. Doesn't try to clear the server cookie itself — a 401
+ *     means the cookie is already invalid; the user's next /api/auth/
+ *     google call (or browser tab close + reopen) wipes it.
  *  4. FIXING_ROADMAP §1.8 — auto-threads the current nav AbortSignal
  *     so any request still in-flight when the user navigates away
  *     gets aborted instead of landing on the new page's STATE. Callers
@@ -81,11 +97,18 @@ export async function apiFetch(path: string, options: RequestInit = {}): Promise
     // conditionally so we don't write `signal: undefined` (TS's
     // exactOptionalPropertyTypes flags that).
     const inheritedSignal = options.signal ?? currentNavSignal();
-    const merged: RequestInit = inheritedSignal
-        ? { ...options, signal: inheritedSignal }
-        : { ...options };
-    const res = await fetch(url, _withAuth(merged));
-    if (res.status === 401 && getAuthToken()) {
+    const merged: RequestInit = {
+        ...options,
+        // `credentials: 'include'` attaches the gg_session cookie to
+        // both same-origin and cross-origin requests. Same-origin in
+        // practice today, but explicit is clearer than relying on
+        // default browser behaviour (which has varied across vendors
+        // and Fetch-spec revisions for the "default" case).
+        credentials: 'include',
+    };
+    if (inheritedSignal) merged.signal = inheritedSignal;
+    const res = await fetch(url, merged);
+    if (res.status === 401 && STATE.user) {
         clearAuthToken();
         STATE.user = null;
         emit(EVENTS.STATE_CHANGED);

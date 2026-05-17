@@ -5,7 +5,7 @@
 // at startup and the rest is self-contained here.
 
 import { STATE, emit } from '../state.js';
-import { apiUrl, apiFetch, setAuthToken, clearAuthToken, syncWithServer, pullFromServer } from '../api.js';
+import { apiUrl, apiFetch, clearAuthToken, syncWithServer, pullFromServer } from '../api.js';
 import { navigate } from '../router.js';
 import { showLiquidAlert } from '../utils.js';
 import { updateUserUI } from '../pages/profile.js';
@@ -16,15 +16,28 @@ async function handleGoogleLogin(response: { credential?: string; [key: string]:
         const res = await fetch(apiUrl('/api/auth/google'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            // §0.4 v2: include credentials so the gg_session cookie the
+            // server sets on this response actually lands in the jar.
+            // Without `include`, a future hosting move that splits API
+            // onto a subdomain would silently fail to set the cookie
+            // and login would appear to succeed but the very next
+            // /api/data call would 401. Same-origin would work without
+            // this today but explicit > implicit.
+            credentials: 'include',
             body: JSON.stringify({ credential: response.credential })
         });
         const data = await res.json();
         // FIXING_ROADMAP §1.9: surface server-side failures. Pre-fix,
         // the success branch was the only branch that did anything —
         // a 4xx with {status:'error'} just left the button stuck with
-        // no toast, no console log, no clue for the user. We also no
-        // longer accept "success without a token" as success.
-        if (data.status !== 'success' || !data.token) {
+        // no toast, no console log, no clue for the user.
+        //
+        // §0.4 v2 note: we no longer gate on `data.token` — the JWT
+        // now arrives in the HttpOnly gg_session cookie, which JS
+        // can't see. The `token` field stays in the JSON body for
+        // backward-compat with non-browser callers (pytest, Playwright)
+        // but the frontend ignores it.
+        if (data.status !== 'success' || !data.user) {
             const message = data.error
                 || data.message
                 || 'Login failed. Please try again.';
@@ -32,11 +45,14 @@ async function handleGoogleLogin(response: { credential?: string; [key: string]:
             showLiquidAlert(message);
             return;
         }
-        // Phase G: store the JWT first so subsequent fetches (sync /
-        // pull / notifications below) carry the Authorization header.
-        // Without this, those calls would 401 against require_auth and
-        // the UI would render as logged-out despite the login succeeding.
-        setAuthToken(data.token);
+        // §0.4 v2: no setAuthToken call here. The server set the
+        // gg_session cookie on this response; subsequent apiFetch
+        // calls (sync / pull / notifications below) inherit it via
+        // `credentials: 'include'` and the @require_auth gate is
+        // satisfied without any client-side token plumbing.
+        // Defensive cleanup: if the user is upgrading across the
+        // deploy, blow away any stale `gg_auth_token` in localStorage.
+        clearAuthToken();
         STATE.user = data.user;
         STATE.hasLoggedInBefore = true;
         // No more auto-self-companion creation — companions are per-trip

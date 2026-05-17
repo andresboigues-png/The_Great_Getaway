@@ -3310,6 +3310,173 @@ def test_main_manifest_declares_required_pwa_icons(client):
         "Need at least one maskable icon for adaptive-icon spec"
 
 
+def test_auth_google_sets_session_cookie(client, monkeypatch):
+    """§0.4 v2: /api/auth/google must drop the JWT into the gg_session
+    HttpOnly cookie. The cookie is the canonical session container post-
+    migration; localStorage-based storage is going away.
+    """
+    monkeypatch.setenv("GG_ALLOW_TEST_LOGIN", "1")
+    res = client.post("/api/auth/google", json={"token": "test:cookie-user", "name": "Cookie User"})
+    assert res.status_code == 200
+    # Werkzeug's test client surfaces Set-Cookie via the Set-Cookie header(s).
+    set_cookie_headers = [v for k, v in res.headers.items() if k.lower() == "set-cookie"]
+    session_cookies = [h for h in set_cookie_headers if h.startswith("gg_session=")]
+    assert len(session_cookies) == 1, f"expected one gg_session cookie, got: {set_cookie_headers!r}"
+    header = session_cookies[0]
+    # Pin the security flags. Each one matters:
+    #   HttpOnly  — JS can't read the cookie; XSS can't exfiltrate the JWT.
+    #   SameSite=Lax — browsers won't attach the cookie to cross-site
+    #     POST/PUT/DELETE → CSRF mitigation.
+    # `Secure` only fires when the request looks HTTPS (proxy header or
+    # request.is_secure); the test client runs over plain HTTP so it
+    # SHOULD NOT be present here. That's exercised below.
+    assert "HttpOnly" in header, f"gg_session missing HttpOnly: {header!r}"
+    assert "SameSite=Lax" in header, f"gg_session missing SameSite=Lax: {header!r}"
+    # And the cookie value is a JWT — three dot-separated b64 segments.
+    cookie_val = header.split(";")[0].split("=", 1)[1]
+    assert cookie_val.count(".") == 2, f"cookie value not a JWT shape: {cookie_val!r}"
+
+
+def test_auth_google_cookie_is_secure_when_proxy_signals_https(client, monkeypatch):
+    """§0.4 v2: PythonAnywhere (and most reverse proxies) terminate TLS
+    upstream and forward plain HTTP to the WSGI worker — `request.is_secure`
+    reads False even though the user is on https://. We detect via
+    X-Forwarded-Proto so the cookie still gets the Secure flag in
+    production. Pin the proxy-header path.
+    """
+    monkeypatch.setenv("GG_ALLOW_TEST_LOGIN", "1")
+    res = client.post(
+        "/api/auth/google",
+        json={"token": "test:secure-user", "name": "Secure User"},
+        headers={"X-Forwarded-Proto": "https"},
+    )
+    assert res.status_code == 200
+    set_cookie = next(
+        (v for k, v in res.headers.items() if k.lower() == "set-cookie"),
+        "",
+    )
+    assert "gg_session=" in set_cookie
+    assert "Secure" in set_cookie, \
+        f"gg_session missing Secure when X-Forwarded-Proto=https: {set_cookie!r}"
+
+
+def test_auth_cookie_authenticates_request_without_bearer_header(client, monkeypatch):
+    """§0.4 v2 round-trip: log in via /api/auth/google (which sets the
+    cookie), then hit a @require_auth-gated endpoint WITHOUT the
+    Authorization header — the cookie alone must satisfy the gate.
+
+    Werkzeug's test client maintains a cookie jar on the `client`
+    fixture, so the cookie set by the first call is auto-attached to
+    the second. This mirrors how a real browser behaves.
+    """
+    monkeypatch.setenv("GG_ALLOW_TEST_LOGIN", "1")
+    login = client.post(
+        "/api/auth/google",
+        json={"token": "test:round-trip-user", "name": "Round Trip"},
+    )
+    assert login.status_code == 200
+
+    # No Authorization header. The cookie carried by the test client's
+    # jar should authenticate this call.
+    status = client.get("/api/user-status")
+    assert status.status_code == 200
+    body = status.get_json()
+    assert body.get("logged_in") is True
+    assert body["user"]["id"] == "round-trip-user"
+
+
+def test_auth_logout_clears_session_cookie(client, monkeypatch):
+    """§0.4 v2: /api/auth/logout must (a) bump the jti (existing §0.3
+    contract) AND (b) clear the gg_session cookie so the browser stops
+    attaching it on subsequent polls. Pin both behaviours.
+    """
+    monkeypatch.setenv("GG_ALLOW_TEST_LOGIN", "1")
+    client.post(
+        "/api/auth/google",
+        json={"token": "test:logout-user", "name": "Logout User"},
+    )
+    # Before logout: cookie-only request authenticates.
+    assert client.get("/api/user-status").get_json()["logged_in"] is True
+
+    logout = client.post("/api/auth/logout")
+    assert logout.status_code == 200
+
+    # Logout must emit a Set-Cookie that deletes gg_session — max_age=0
+    # (which Werkzeug serializes as "Max-Age=0; Expires=<past>") AND the
+    # value MUST be empty. Don't assert on Expires (timezone formatting
+    # is platform-dependent); pin Max-Age=0 + empty value.
+    set_cookie = next(
+        (v for k, v in logout.headers.items() if k.lower() == "set-cookie"),
+        "",
+    )
+    assert "gg_session=" in set_cookie, f"no gg_session delete cookie: {set_cookie!r}"
+    assert "Max-Age=0" in set_cookie, f"gg_session not deleted: {set_cookie!r}"
+    # Empty value: the bit immediately after "gg_session=" up to the ";"
+    # should be empty (Werkzeug emits "gg_session=;" for cleared cookies).
+    val_segment = set_cookie.split(";", 1)[0]
+    assert val_segment == "gg_session=", f"gg_session value not empty: {val_segment!r}"
+
+    # And the jti bump means the OLD cookie is no longer accepted —
+    # next request with the SAME jar should now 401-equivalent (the
+    # status route returns logged_in:false rather than 401, by design).
+    after = client.get("/api/user-status")
+    assert after.get_json()["logged_in"] is False
+
+
+def test_auth_bearer_header_still_accepted_for_backcompat(client, monkeypatch, seed_user):
+    """§0.4 v2: the Authorization: Bearer fallback is intentionally
+    preserved during the migration so (a) pytest fixtures + the
+    Playwright getAuthForApi helper keep working without churn, (b)
+    users with a stale localStorage token from before the deploy don't
+    get force-logged-out on first request, and (c) potential future
+    non-browser clients (mobile shell) can still authenticate without
+    a cookie jar.
+
+    Pin the contract: a Bearer token alone (no cookie) MUST still
+    authenticate. The day we drop this, this test gets deleted in
+    the same commit — explicit removal beats silent drift.
+    """
+    from auth import issue_token
+    token = issue_token(seed_user)
+    # Fresh client — no cookie jar, only the explicit Bearer header.
+    res = client.get(
+        "/api/user-status",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert res.status_code == 200
+    assert res.get_json()["logged_in"] is True
+
+
+def test_auth_cookie_wins_when_both_cookie_and_bearer_present(client, monkeypatch, seed_user):
+    """§0.4 v2: during the migration a single tab might briefly send
+    BOTH the new cookie AND a stale Authorization: Bearer header from
+    its localStorage. The server picks the cookie (it's the canonical
+    post-migration container) so the migration converges on cookie-only.
+
+    Set up the cookie for user A, send the Bearer for user B; the
+    response identifies user A, proving cookie took precedence.
+    """
+    monkeypatch.setenv("GG_ALLOW_TEST_LOGIN", "1")
+    # User A logs in — client jar now carries A's cookie.
+    client.post(
+        "/api/auth/google",
+        json={"token": "test:cookie-user-a", "name": "User A"},
+    )
+    # Forge a Bearer header for seed_user (different identity).
+    from auth import issue_token
+    other_token = issue_token(seed_user)
+    res = client.get(
+        "/api/user-status",
+        headers={"Authorization": f"Bearer {other_token}"},
+    )
+    assert res.status_code == 200
+    body = res.get_json()
+    assert body["logged_in"] is True
+    # Cookie wins → identity is A, not seed_user.
+    assert body["user"]["id"] == "cookie-user-a", \
+        f"expected cookie to win, got identity={body['user']['id']!r}"
+
+
 def test_main_csp_uses_script_nonce_not_unsafe_inline(client):
     """§0.4 v2: script-src dropped 'unsafe-inline' and switched to a
     per-request nonce. Pin both invariants — a regression that re-adds

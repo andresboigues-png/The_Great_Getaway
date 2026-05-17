@@ -12,11 +12,18 @@ bodies entirely.
 import logging
 import os
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, make_response, request
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 
-from auth import bump_user_jti, current_user_id, issue_token, require_auth
+from auth import (
+    bump_user_jti,
+    clear_auth_cookie,
+    current_user_id,
+    issue_token,
+    require_auth,
+    set_auth_cookie,
+)
 from database import get_db, retry_on_lock
 from extensions import limiter
 
@@ -105,9 +112,16 @@ def google_auth():
                 (user_id, email, name, picture),
             )
             conn.commit()
-        return jsonify({
+        # §0.4 v2: also drop the JWT into the HttpOnly session cookie
+        # so test-mode login mirrors the production cookie behaviour.
+        # `token` stays in the JSON body for backward-compat with any
+        # caller (e.g. the existing E2E `getAuthForApi` helper) that
+        # extracts it from the response and replays it as Authorization
+        # in subsequent calls.
+        token = issue_token(user_id)
+        response = make_response(jsonify({
             "status": "success",
-            "token": issue_token(user_id),
+            "token": token,
             "user": {
                 "id": user_id,
                 "name": name,
@@ -120,7 +134,9 @@ def google_auth():
                 # falls back to navigator.language.
                 "language": None,
             },
-        })
+        }))
+        set_auth_cookie(response, token)
+        return response
 
     if not token or not client_id:
         return jsonify({"error": "Missing token or Client ID"}), 400
@@ -154,12 +170,18 @@ def google_auth():
 
             conn.commit()
 
-        return jsonify({
+        # §0.4 v2: drop the JWT into an HttpOnly session cookie
+        # (`gg_session`) so JS can't read it — XSS-via-localStorage
+        # exfiltration of the session token is no longer possible. The
+        # `token` field stays in the JSON body for one more deploy
+        # cycle so non-browser callers (pytest's auth_headers fixture,
+        # the Playwright `getAuthForApi` helper) keep working without
+        # any client-side change. The frontend stops READING this
+        # field in the same slice but the surface stays compatible.
+        token = issue_token(user_id)
+        response = make_response(jsonify({
             "status": "success",
-            # Signed JWT the frontend stores in localStorage and replays
-            # on every subsequent request as Authorization: Bearer ...
-            # Replaces the old "trust the client's user_id" pattern.
-            "token": issue_token(user_id),
+            "token": token,
             "user": {
                 "id": user_id,
                 "name": name,
@@ -174,7 +196,9 @@ def google_auth():
                 # default before that happens.
                 "language": db_language,
             },
-        })
+        }))
+        set_auth_cookie(response, token)
+        return response
     except ValueError as e:
         logger.error(f"Token verification failed: {e}")
         return jsonify({"error": "Invalid token"}), 401
@@ -185,14 +209,26 @@ def google_auth():
 @retry_on_lock()
 def logout():
     """Server-side logout — bumps the user's `token_jti` so every
-    JWT we've ever issued them is rejected on the next request.
+    JWT we've ever issued them is rejected on the next request, AND
+    clears the HttpOnly session cookie so the browser stops attaching
+    it.
 
     FIXING_ROADMAP §0.3: before this endpoint existed, logout just
     dropped the JWT from the client's localStorage. A stolen copy
     of the token (XSS, lost device, leaked log) stayed valid for
-    its 30-day lifetime. Now logout actually invalidates."""
+    its 30-day lifetime. Now logout actually invalidates.
+
+    FIXING_ROADMAP §0.4 v2: also clears the `gg_session` cookie. The
+    jti bump alone would expire the token at the server, but the
+    browser would still send the (now-invalid) cookie on every
+    request — wasting a verify round-trip + producing 401s on every
+    poll until the cookie naturally expires. Clearing it tells the
+    browser to stop sending.
+    """
     user_id = current_user_id()
     if not user_id:
         return jsonify({"error": "Unauthorized"}), 401
     bump_user_jti(user_id)
-    return jsonify({"status": "logged_out"})
+    response = make_response(jsonify({"status": "logged_out"}))
+    clear_auth_cookie(response)
+    return response
