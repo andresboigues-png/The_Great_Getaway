@@ -669,7 +669,7 @@ def _companion_avatar_color(name: str) -> str:
     return palette[h]
 
 
-def _companion_card(rl, styles, page_w, margin_lr, name: str, role: str = ""):
+def _companion_card(rl, styles, page_w, margin_lr, name: str, role: str = "", chip_w: float | None = None):
     """A "contact card"-style chip for a companion — colored
     avatar tile with the person's initials in white, then their
     name (bold) and optional role (muted) on the right. Designed
@@ -696,9 +696,16 @@ def _companion_card(rl, styles, page_w, margin_lr, name: str, role: str = ""):
     if role:
         info_flowables.append(rl.Paragraph(_esc(role), styles["muted"]))
 
+    # Explicit colWidths — `None` for auto-sizing breaks when the
+    # chip is nested inside the grid's outer table (reportlab's
+    # nested-table layout can't always resolve "auto" widths and
+    # raises). Caller passes the chip's target width.
+    avatar_w = 1.4 * rl.cm
+    fallback_chip_w = (page_w - 2 * margin_lr - 10) / 2
+    info_w = (chip_w if chip_w is not None else fallback_chip_w) - avatar_w
     chip = rl.Table(
         [[avatar_para, info_flowables]],
-        colWidths=[1.4 * rl.cm, None],
+        colWidths=[avatar_w, info_w],
     )
     chip.setStyle(rl.TableStyle([
         # Avatar tile — solid colored square (no native rounded
@@ -739,15 +746,16 @@ def _companion_grid(rl, styles, page_w, margin_lr, companions: list):
     gap = 10
     col_w = (full_width - gap) / 2
     use_single_col = len(companions) <= 2
+    chip_w = full_width if use_single_col else col_w
 
     chips: list[Any] = []
     for c in companions:
         if isinstance(c, dict):
             nm = c.get("name") or ""
             role = c.get("role") or ""
-            chips.append(_companion_card(rl, styles, page_w, margin_lr, nm, role))
+            chips.append(_companion_card(rl, styles, page_w, margin_lr, nm, role, chip_w=chip_w))
         elif isinstance(c, str):
-            chips.append(_companion_card(rl, styles, page_w, margin_lr, c))
+            chips.append(_companion_card(rl, styles, page_w, margin_lr, c, chip_w=chip_w))
 
     if use_single_col:
         rows = [[chip] for chip in chips]
@@ -839,9 +847,15 @@ def _day_card(rl, styles, page_w, margin_lr, day: dict, day_map_png: bytes | Non
                           fontSize=22, leading=24, alignment=1,
                           textColor=rl.colors.white),
     )
+    # Day card is itself nested inside an outer card table — the
+    # inner content width is `(page_w - 2*margin_lr) - 28` (28 = the
+    # outer card's 14pt LEFT + 14pt RIGHT padding). Use explicit
+    # widths so the nested-table layout doesn't trip on `None`.
+    card_inner_w = page_w - 2 * margin_lr - 28
+    badge_w = 1.5 * rl.cm
     header_row = rl.Table(
         [[badge_para, header_right_flowables]],
-        colWidths=[1.5 * rl.cm, None],
+        colWidths=[badge_w, card_inner_w - badge_w],
     )
     header_row.setStyle(rl.TableStyle([
         ("BACKGROUND", (0, 0), (0, 0), rl.colors.HexColor(_BRAND_BLUE)),
@@ -1741,9 +1755,13 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
             ]
             if addr:
                 place_info.append(rl.Paragraph(_esc(addr), styles["muted"]))
+            place_letter_w = 1.1 * rl.cm
             place_card = rl.Table(
                 [[letter_para, place_info]],
-                colWidths=[1.1 * rl.cm, None],
+                colWidths=[
+                    place_letter_w,
+                    page_w - 2 * margin_lr - place_letter_w,
+                ],
             )
             place_card.setStyle(rl.TableStyle([
                 ("BACKGROUND", (0, 0), (0, 0), rl.colors.HexColor(_BRAND_BLUE)),
