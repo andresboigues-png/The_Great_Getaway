@@ -166,11 +166,11 @@ export function HistoryTab() {
                     <div className="expense-history-filters">
                         {/* Row 1: Search (full width) */}
                         <div className="col-span-full">
-                            <label className="filter-label">Search</label>
+                            <label className="filter-label">{t('expenses.filterSearchLabel')}</label>
                             <input
                                 type="text"
                                 className="filter-input"
-                                placeholder="Search labels or items..."
+                                placeholder={t('expenses.filterSearchPlaceholder')}
                                 value={filters.search}
                                 onChange={(e) => patch('search', e.target.value)}
                             />
@@ -178,7 +178,7 @@ export function HistoryTab() {
 
                         {/* Row 2: Category | Payer | Sort */}
                         <div>
-                            <label className="filter-label">Category</label>
+                            <label className="filter-label">{t('expenses.filterCategoryLabel')}</label>
                             <select
                                 className="filter-input"
                                 value={filters.catId}
@@ -190,11 +190,11 @@ export function HistoryTab() {
                                         {c.icon} {c.name}
                                     </option>
                                 ))}
-                                <option value="settlement">🤝 Settlement</option>
+                                <option value="settlement">{t('expenses.filterCategorySettlement')}</option>
                             </select>
                         </div>
                         <div>
-                            <label className="filter-label">Payer</label>
+                            <label className="filter-label">{t('expenses.filterPayerLabel')}</label>
                             <select
                                 className="filter-input"
                                 value={filters.who}
@@ -209,7 +209,7 @@ export function HistoryTab() {
                             </select>
                         </div>
                         <div>
-                            <label className="filter-label">Sort By</label>
+                            <label className="filter-label">{t('expenses.filterSortLabel')}</label>
                             <select
                                 className="filter-input"
                                 value={filters.sort}
@@ -226,7 +226,7 @@ export function HistoryTab() {
 
                         {/* Row 3: From Date | To Date | Min–Max Value */}
                         <div>
-                            <label className="filter-label">From Date</label>
+                            <label className="filter-label">{t('expenses.filterFromDateLabel')}</label>
                             <input
                                 type="date"
                                 className="filter-input"
@@ -235,7 +235,7 @@ export function HistoryTab() {
                             />
                         </div>
                         <div>
-                            <label className="filter-label">To Date</label>
+                            <label className="filter-label">{t('expenses.filterToDateLabel')}</label>
                             <input
                                 type="date"
                                 className="filter-input"
@@ -244,12 +244,12 @@ export function HistoryTab() {
                             />
                         </div>
                         <div>
-                            <label className="filter-label">Value Range (€)</label>
+                            <label className="filter-label">{t('expenses.filterValueRangeLabel')} (€)</label>
                             <div className="flex gap-2 items-center">
                                 <input
                                     type="number"
                                     className="filter-input flex-1 p-3"
-                                    placeholder="Min"
+                                    placeholder={t('expenses.filterValueMin')}
                                     value={filters.minVal === 0 ? '' : String(filters.minVal)}
                                     onChange={(e) => {
                                         const v = parseFloat(e.target.value);
@@ -262,7 +262,7 @@ export function HistoryTab() {
                                 <input
                                     type="number"
                                     className="filter-input flex-1 p-3"
-                                    placeholder="Max"
+                                    placeholder={t('expenses.filterValueMax')}
                                     value={filters.maxVal === Infinity ? '' : String(filters.maxVal)}
                                     onChange={(e) => {
                                         const v = parseFloat(e.target.value);

@@ -123,13 +123,28 @@ def sync_data():
                 # of legitimately-editable rows).
                 continue
 
+            # ── trip_countries_json (§4.3) — normalize before persist
+            # Client may send either `countries` (top-level array we
+            # populate on the home map's reverse-geocode loop) or
+            # `tripCountries` (legacy single-trip POST field). The
+            # bulk-sync path used to omit this column entirely, which
+            # silently wiped the multi-country list on every 15s poll.
+            # Fix shipped 2026-05-18.
+            countries_raw = t.get('countries')
+            if not isinstance(countries_raw, list):
+                countries_raw = t.get('tripCountries')
+            countries_json = (
+                json.dumps([c for c in countries_raw if isinstance(c, str)])
+                if isinstance(countries_raw, list) else None
+            )
             cursor.execute('''
                 INSERT INTO trips (id, user_id, name, country, is_archived, is_public,
                                    public_show_expenses,
                                    place_id, lat, lng, viewport_json, place_types, country_code,
+                                   trip_countries_json,
                                    companions_json, marked_places_json,
                                    documents_json, photos_json, checklist_json, cover_url)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     name=excluded.name,
                     country=excluded.country,
@@ -142,6 +157,7 @@ def sync_data():
                     viewport_json=excluded.viewport_json,
                     place_types=excluded.place_types,
                     country_code=excluded.country_code,
+                    trip_countries_json=excluded.trip_countries_json,
                     companions_json=excluded.companions_json,
                     marked_places_json=excluded.marked_places_json,
                     documents_json=excluded.documents_json,
@@ -158,6 +174,7 @@ def sync_data():
                   json.dumps(t['viewport']) if t.get('viewport') else None,
                   json.dumps(t['placeTypes']) if t.get('placeTypes') else None,
                   t.get('countryCode'),
+                  countries_json,
                   json.dumps(t['companions']) if isinstance(t.get('companions'), list) else None,
                   json.dumps(t['markedPlaces']) if isinstance(t.get('markedPlaces'), list) else None,
                   json.dumps(t['documents']) if isinstance(t.get('documents'), list) else None,
@@ -180,13 +197,22 @@ def sync_data():
             if existing and not can_edit_trip(cursor, t['id'], user_id):
                 continue
 
+            # Same trip_countries_json normalization as the active path.
+            arch_countries_raw = t.get('countries')
+            if not isinstance(arch_countries_raw, list):
+                arch_countries_raw = t.get('tripCountries')
+            arch_countries_json = (
+                json.dumps([c for c in arch_countries_raw if isinstance(c, str)])
+                if isinstance(arch_countries_raw, list) else None
+            )
             cursor.execute('''
                 INSERT INTO trips (id, user_id, name, country, is_archived, is_public,
                                    public_show_expenses,
                                    place_id, lat, lng, viewport_json, place_types, country_code,
+                                   trip_countries_json,
                                    companions_json, marked_places_json,
                                    documents_json, photos_json, cover_url)
-                VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     name=excluded.name,
                     country=excluded.country,
@@ -199,6 +225,7 @@ def sync_data():
                     viewport_json=excluded.viewport_json,
                     place_types=excluded.place_types,
                     country_code=excluded.country_code,
+                    trip_countries_json=excluded.trip_countries_json,
                     companions_json=excluded.companions_json,
                     marked_places_json=excluded.marked_places_json,
                     documents_json=excluded.documents_json,
@@ -213,6 +240,7 @@ def sync_data():
                   json.dumps(t['viewport']) if t.get('viewport') else None,
                   json.dumps(t['placeTypes']) if t.get('placeTypes') else None,
                   t.get('countryCode'),
+                  arch_countries_json,
                   json.dumps(t['companions']) if isinstance(t.get('companions'), list) else None,
                   json.dumps(t['markedPlaces']) if isinstance(t.get('markedPlaces'), list) else None,
                   json.dumps(t['documents']) if isinstance(t.get('documents'), list) else None,
@@ -507,13 +535,23 @@ def get_data():
         # debt without a second round-trip. Shape comes from
         # routes/settlements.py's serialize_settlement_row to keep the
         # two paths in lockstep.
+        #
+        # Privacy: a settlement reveals who paid whom for what amount.
+        # Per the feed gate (`_visible_to_settlement_parties` in
+        # feed_events.py), only the two parties see the event card —
+        # other trip members can know a settlement happened but not
+        # the participants. /api/data has to honour the same rule, so
+        # we filter the SELECT to settlements WHERE caller is from or
+        # to. A separate broadcast that the settlement happened is
+        # carried by the feed event itself. Fix shipped 2026-05-18.
         settlements = []
         if trip_ids:
             placeholders = ','.join(['?'] * len(trip_ids))
             cursor.execute(
                 f"SELECT * FROM settlements WHERE trip_id IN ({placeholders}) "
+                f"AND (from_user_id = ? OR to_user_id = ?) "
                 f"ORDER BY created_at DESC",
-                trip_ids,
+                trip_ids + [user_id, user_id],
             )
             from routes.settlements import serialize_settlement_row
             settlements = [serialize_settlement_row(row) for row in cursor.fetchall()]

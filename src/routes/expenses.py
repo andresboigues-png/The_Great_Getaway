@@ -57,17 +57,42 @@ def upsert_expense():
 @require_auth
 @retry_on_lock()
 def delete_expense(expense_id):
-    """Delete a single expense by ID. Caller from JWT, not body."""
+    """Delete a single expense by ID. Caller from JWT, not body.
+
+    Idempotent: always returns 200 `{"status": "deleted"}` whether the
+    row was present, absent, or visible-but-not-yours. Pre-2026-05-18
+    the route returned 200 for absent and 403 for "exists but you
+    can't touch it" — an attacker could probe whether a guessed
+    expense_id existed by status-code differential. Now both shapes
+    collapse to the same idempotent 200 so the route stops being an
+    enumeration oracle. Permission still enforced server-side; we
+    just don't leak the existence to the caller."""
     user_id = current_user_id()
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT trip_id FROM expenses WHERE id = ?", (expense_id,))
         row = cursor.fetchone()
         if not row:
-            return jsonify({"status": "deleted"})  # idempotent
+            return jsonify({"status": "deleted"})  # idempotent (truly absent)
         bind_trip_context(row["trip_id"])
         if not can_edit_expenses(cursor, row["trip_id"], user_id):
-            return jsonify({"error": "Forbidden"}), 403
+            # Caller doesn't have edit rights — return the same shape as
+            # the truly-absent case so an attacker can't tell the two
+            # apart from the response. Log internally so legitimate
+            # permission failures still surface in observability.
+            try:
+                import logging
+                logging.getLogger(__name__).info(
+                    "delete_expense denied (no edit rights)",
+                    extra={
+                        "user_id": user_id,
+                        "expense_id": expense_id,
+                        "trip_id": row["trip_id"],
+                    },
+                )
+            except Exception:
+                pass
+            return jsonify({"status": "deleted"})
         cursor.execute("DELETE FROM expenses WHERE id = ?", (expense_id,))
         conn.commit()
     return jsonify({"status": "deleted"})

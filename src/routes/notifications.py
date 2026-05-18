@@ -97,13 +97,16 @@ def notify_trip_public():
         user_name = user_row["name"]
 
         # Daily dedupe — one fan-out per (caller, trip) per 24h.
-        # Looks for an existing notifications row from this trip
-        # within the last day; if we find one, skip the broadcast.
+        # Pre-2026-05-18 the dedupe stored `related_id = user_id`
+        # which made it (caller, anything) — completing two different
+        # trips in 24h suppressed the second broadcast. Now we look at
+        # the new (caller, trip) dedupe row written below, keyed on
+        # `related_id = trip_id`. Audit: 2026-05-18.
         cursor.execute(
             "SELECT 1 FROM notifications "
             "WHERE type = 'trip_public' AND related_id = ? "
             "AND created_at > datetime('now', '-1 day') LIMIT 1",
-            (user_id,),
+            (trip_id,),
         )
         if cursor.fetchone():
             return jsonify({"status": "ok", "deduped": True})
@@ -124,7 +127,12 @@ def notify_trip_public():
                 "INSERT INTO notifications "
                 "(user_id, type, title, related_id, message, is_read) "
                 "VALUES (?, 'trip_public', 'Trip Completed!', ?, ?, 0)",
-                (recipient_id, user_id, msg),
+                # related_id = trip_id so the daily-dedupe SELECT above
+                # keys on (trip, day) rather than (caller, day). The UI
+                # already treats related_id as polymorphic (per the
+                # routes/notifications.py top-level comment), so the
+                # recipient's click-through deep-link still resolves.
+                (recipient_id, trip_id, msg),
             )
 
         conn.commit()

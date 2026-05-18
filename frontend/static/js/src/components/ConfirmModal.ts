@@ -6,6 +6,7 @@
 // in components/ alongside Modal / Form / Rows.
 
 import { showModal } from './Modal.js';
+import { t } from '../i18n.js';
 
 interface ConfirmModalOptions {
     title?: string;
@@ -20,10 +21,13 @@ interface ConfirmModalOptions {
 }
 
 export function showConfirmModal(options: ConfirmModalOptions = {}) {
+    // i18n defaults — resolved per call so the active locale wins.
+    // Pre-2026-05-18 these were English literals which leaked into
+    // es/fr/pt UIs whenever a caller omitted the corresponding option.
     const {
-        title = "Are you sure?",
-        message = "This action cannot be undone.",
-        confirmText = "Delete",
+        title = t('confirmModal.defaultTitle'),
+        message = t('confirmModal.defaultMessage'),
+        confirmText = t('confirmModal.defaultConfirm'),
         confirmColor = "#ff3b30",
         requireInput = false,
         onConfirm = () => { }
@@ -41,14 +45,14 @@ export function showConfirmModal(options: ConfirmModalOptions = {}) {
 
             ${requireInput ? `
                 <div style="width: 100%; margin-bottom: var(--space-2);">
-                    <p style="font-size: var(--font-xs); color: #ff3b30; font-weight: 800; text-transform: uppercase; margin-bottom: var(--space-3); letter-spacing: 0.1em; text-align: center;">Type "${requireInput}" to confirm</p>
-                    <input type="text" id="safetyInput" class="glass-input-modal" placeholder="Type here..." style="text-align: center; background: rgba(255,255,255,0.08); padding: 18px; border-radius: var(--radius-xl); font-size: var(--font-xl);" autofocus>
+                    <p style="font-size: var(--font-xs); color: #ff3b30; font-weight: 800; text-transform: uppercase; margin-bottom: var(--space-3); letter-spacing: 0.1em; text-align: center;">${t('confirmModal.typeToConfirm', { token: requireInput })}</p>
+                    <input type="text" id="safetyInput" class="glass-input-modal" placeholder="${t('confirmModal.inputPlaceholder')}" style="text-align: center; background: rgba(255,255,255,0.08); padding: 18px; border-radius: var(--radius-xl); font-size: var(--font-xl);" autofocus>
                 </div>
             ` : ''}
 
             <div style="width: 100%; display: flex; flex-direction: column; gap: var(--space-2);">
                 <button class="btn-primary" id="modalConfirmBtn" style="width: 100%; background: ${confirmColor}; padding: 18px; border-radius: var(--radius-xl); box-shadow: 0 10px 30px ${confirmColor}66; font-size: var(--font-xl);" ${requireInput ? 'disabled' : ''}>${confirmText}</button>
-                <button id="modalCancelBtn" style="width: 100%; padding: var(--space-2); font-weight: 600; background: transparent; border: none; color: rgba(255,255,255,0.4); font-size: var(--font-base); cursor: pointer;">Cancel</button>
+                <button id="modalCancelBtn" style="width: 100%; padding: var(--space-2); font-weight: 600; background: transparent; border: none; color: rgba(255,255,255,0.4); font-size: var(--font-base); cursor: pointer;">${t('confirmModal.cancel')}</button>
             </div>
         `,
     });

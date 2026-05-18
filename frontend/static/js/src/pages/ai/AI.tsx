@@ -320,12 +320,26 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
         return () => {
             cancelled = true;
         };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+        // 2026-05-18 audit fix: include activeTrip.id so switching trips
+        // tears down + rebuilds the map against the new trip. The
+        // previous `[]` dep relied on the parent `navigate('home')`
+        // remount to repaint, which doesn't happen on every trip
+        // switch. The `idle` listener also captured `activeTrip` via
+        // closure — it now reads the current trip via the latest
+        // effect run.
+    }, [activeTrip.id]);
 
     // ── Repaint map markers when itinerary changes ──────────────
     useEffect(() => {
         if (!googleMapRef.current || !itinerary) return;
+        // 2026-05-18 audit fix: the previous loop scheduled N setTimeouts
+        // with no unmount guard, so switching trips or regenerating the
+        // itinerary left orphan geocoder callbacks mutating discarded
+        // `day` objects and pushing markers to a destroyed map. The
+        // `cancelled` flag below short-circuits every async callback
+        // (timer + geocoder + click listener) once the effect re-runs.
+        let cancelled = false;
+        const timers: number[] = [];
         // Clear previous markers.
         mapMarkersRef.current.forEach((m) => m.setMap(null));
         mapMarkersRef.current = [];
@@ -334,7 +348,8 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
         const geocoder = new google.maps.Geocoder();
 
         itinerary.forEach((day: any, i: number) => {
-            setTimeout(() => {
+            const handle = window.setTimeout(() => {
+                if (cancelled) return;
                 let loc = day.mainLocation || day.title || tripCountry;
                 if (!day.mainLocation && day.title) {
                     loc = day.title
@@ -347,6 +362,10 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                 geocoder.geocode(
                     { address: loc + ', ' + tripCountry },
                     (results: any, status: string) => {
+                        // Bail if the effect re-ran (trip switch or
+                        // itinerary regen) — don't mutate the day or
+                        // create a stranded marker.
+                        if (cancelled) return;
                         if (status === 'OK' && results[0]) {
                             const pos = results[0].geometry.location;
                             day.lat = pos.lat();
@@ -365,6 +384,7 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                                 },
                             });
                             marker.addListener('click', () => {
+                                if (cancelled) return;
                                 dayRowsRef.current.forEach((d) => {
                                     if (!d) return;
                                     d.style.boxShadow = '';
@@ -385,7 +405,12 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
                     },
                 );
             }, i * 500);
+            timers.push(handle);
         });
+        return () => {
+            cancelled = true;
+            timers.forEach((h) => window.clearTimeout(h));
+        };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [itinerary]);
 
@@ -1396,17 +1421,17 @@ function ItineraryOutput({
                                             className="ai-day-slots grid grid-cols-3 gap-4 mb-4"
                                         >
                                             <MealBlock
-                                                title="🥐 Breakfast"
+                                                title={t('ai.slotBreakfast')}
                                                 accent="0,113,227"
                                                 place={day.breakfast}
                                             />
                                             <MealBlock
-                                                title="🥗 Lunch"
+                                                title={t('ai.slotLunch')}
                                                 accent="255,149,0"
                                                 place={day.lunch}
                                             />
                                             <MealBlock
-                                                title="🍷 Dinner"
+                                                title={t('ai.slotDinner')}
                                                 accent="155,89,182"
                                                 place={day.dinner}
                                             />
@@ -1417,13 +1442,13 @@ function ItineraryOutput({
                                     <div
                                         className="ai-day-slots grid grid-cols-3 gap-4"
                                     >
-                                        <SlotBlock title="🌅 Morning" accent="0,113,227" slot={day.morning} />
+                                        <SlotBlock title={t('ai.slotMorning')} accent="0,113,227" slot={day.morning} />
                                         <SlotBlock
-                                            title="☀️ Afternoon"
+                                            title={t('ai.slotAfternoon')}
                                             accent="255,149,0"
                                             slot={day.afternoon}
                                         />
-                                        <SlotBlock title="🌙 Evening" accent="155,89,182" slot={day.evening} />
+                                        <SlotBlock title={t('ai.slotEvening')} accent="155,89,182" slot={day.evening} />
                                     </div>
                                 )}
                             </div>
@@ -1451,7 +1476,7 @@ function ItineraryOutput({
                         }}
                     >
                         {accepted
-                            ? '✓ Plan Accepted! (View in Home)'
+                            ? t('ai.acceptPlanBtnAccepted')
                             : t('ai.acceptPlanBtn')}
                     </button>
                 </div>
@@ -1506,14 +1531,14 @@ function SightsBlock({ sights }: { sights: any }) {
     const list = Array.isArray(sights) ? sights.filter(Boolean) : [];
     return (
         <div className="ai-plan-block" style={{ ['--accent' as any]: '52,199,89' }}>
-            <div className="ai-plan-block__tag">🏛️ Sightseeing</div>
+            <div className="ai-plan-block__tag">{t('ai.slotSightseeing')}</div>
             {list.length > 0 ? (
                 <div dangerouslySetInnerHTML={{ __html: renderSightsList(list) }} />
             ) : (
                 <div
                     className="text-secondary text-[0.82rem] py-1.5 px-0.5"
                 >
-                    No sightseeing suggested for this day.
+                    {t('ai.sightseeingEmpty')}
                 </div>
             )}
         </div>

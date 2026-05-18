@@ -130,20 +130,33 @@ let _syncOfflineToastShown = false;
 export async function syncWithServer() {
     if (!STATE.user) return;
     try {
+        // 2026-05-18: bulk sync is now scope-limited to data without
+        // dedicated delta endpoints. Previously this POSTed the entire
+        // `trips`, `archived_trips`, `expenses`, `budgets` arrays every
+        // 15s. With multi-tab use, a stale-snapshot tab would silently
+        // overwrite the other tab's newer mutations server-side (the
+        // server-side ON CONFLICT UPDATE has no `last_modified` gate).
+        //
+        // Mutations to trips/expenses/budgets/days now flow through
+        // their dedicated upsert*OnServer helpers (search: `upsertTrip`,
+        // `upsertExpense`, `upsertBudget`, `upsertDay`). Those are
+        // per-row, fire on every mutation, and have no LWW hazard.
+        //
+        // Categories remain on the bulk path because they don't yet
+        // have a per-row delta endpoint — but the server-side handler
+        // for categories does `DELETE … WHERE user_id = ? + bulk
+        // re-insert`, which is naturally idempotent against the
+        // single-user case. Multi-tab categories drift is a
+        // theoretical corner case we're accepting for now.
+        //
+        // The full migration to per-row deltas with timestamp
+        // reconciliation is queued as a follow-up task.
         const res = await apiFetch('/api/sync', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                // Phase G: caller's user_id is now derived from the JWT;
-                // server ignores any user_id in the body. Kept off the
-                // payload entirely so it's clear who the source of truth is.
-                trips: STATE.trips,
-                archived_trips: STATE.archivedTrips || [],
-                expenses: STATE.expenses,
-                activities: STATE.activities,
-                photos: STATE.photos,
+                // Phase G: caller's user_id is derived from the JWT.
                 categories: STATE.categories || [],
-                budgets: STATE.budgets || []
             })
         });
         if (!res.ok) throw new Error(`sync HTTP ${res.status}`);

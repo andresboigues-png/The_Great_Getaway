@@ -340,14 +340,24 @@ def share_trip_to_feed():
         return jsonify({"error": "Missing trip_id"}), 400
     with get_db() as conn:
         cursor = conn.cursor()
-        # Membership gate: caller must own the trip OR be an accepted
-        # member. The archive gate was dropped — archived public trips
-        # are a perfectly reasonable thing to share.
+        # Membership + visibility gate: caller must own the trip OR be
+        # an accepted member, AND the trip must be public. Pre-2026-05-18
+        # only the membership half was checked, so an owner could share
+        # a PRIVATE trip's card to the feed — followers saw the card
+        # but click-through to /api/public-trip/<id> 404'd. Now we
+        # require `is_public = 1` so every feed card resolves.
         cursor.execute(
-            "SELECT 1 FROM trips WHERE id = ? AND user_id = ?",
-            (trip_id, user_id),
+            "SELECT user_id, is_public FROM trips WHERE id = ?",
+            (trip_id,),
         )
-        is_owner = cursor.fetchone() is not None
+        trip_row = cursor.fetchone()
+        if not trip_row:
+            return jsonify({"error": "Trip not found"}), 404
+        if not trip_row["is_public"]:
+            return jsonify({
+                "error": "Trip must be public to share to feed",
+            }), 400
+        is_owner = (trip_row["user_id"] == user_id)
         if not is_owner:
             cursor.execute(
                 "SELECT 1 FROM trip_members WHERE trip_id = ? "

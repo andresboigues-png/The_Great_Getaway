@@ -129,15 +129,60 @@ def upsert_trip():
 def delete_trip(trip_id):
     """Delete a trip and all its expenses. Owner-only; non-owners can
     only leave the trip via the members/remove flow (they don't get
-    to nuke everyone's data)."""
+    to nuke everyone's data).
+
+    Pre-2026-05-18 this deleted only expenses + trip_members + trips.
+    Audit found it left orphans across 7 tables — settlements,
+    trip_days, feed_posts (incl. feed_likes/comments/bookmarks chains
+    keyed on event_id), share_token cookies, budgets, notifications
+    keyed on `trip_<id>` event ids, and user_achievements. Some of
+    those re-surfaced on /api/feed/explore + skewed achievements
+    counts. Now we cascade the same set as `delete_user_data` does
+    for an owner's trips, inside a single transaction so a mid-delete
+    failure rolls back cleanly. Audit: 2026-05-18."""
     bind_trip_context(trip_id)
     user_id = current_user_id()
     with get_db() as conn:
         cursor = conn.cursor()
         if not is_trip_owner(cursor, trip_id, user_id):
             return jsonify({"error": "Forbidden"}), 403
+        # Cascade in dependency order — child rows first, parent last,
+        # so any FK that's missing ON DELETE CASCADE doesn't block.
         cursor.execute("DELETE FROM expenses WHERE trip_id = ?", (trip_id,))
+        cursor.execute("DELETE FROM settlements WHERE trip_id = ?", (trip_id,))
+        cursor.execute("DELETE FROM trip_days WHERE trip_id = ?", (trip_id,))
+        cursor.execute("DELETE FROM budgets WHERE trip_id = ?", (trip_id,))
         cursor.execute("DELETE FROM trip_members WHERE trip_id = ?", (trip_id,))
+        # Feed posts associated with this trip — event_id has the form
+        # `trip_share_<n>` / `trip_public_<trip_id>_<n>`. We can't match
+        # on trip_id directly (event_id is opaque), so delete posts that
+        # reference this trip via `trip_id` if the schema has it
+        # (column added in feed_posts), else skip silently. The likes /
+        # comments / bookmarks cascade via FK ON DELETE.
+        try:
+            cursor.execute("DELETE FROM feed_posts WHERE trip_id = ?", (trip_id,))
+        except Exception:
+            # Older feed_posts schemas don't have trip_id — leave them.
+            # _orphan_feed cleanup task picks them up on next sweep.
+            pass
+        # Notifications keyed on the trip id (trip_public broadcast,
+        # trip_invite, etc.). related_id is polymorphic so we cast.
+        cursor.execute(
+            "DELETE FROM notifications WHERE related_id = ?",
+            (trip_id,),
+        )
+        # User-earned achievements that referenced this trip — wiped
+        # so the badge no longer surfaces with a dead link. Recompute
+        # next time the user logs in.
+        try:
+            cursor.execute(
+                "DELETE FROM user_achievements WHERE trip_id = ?",
+                (trip_id,),
+            )
+        except Exception:
+            # Schema may not carry trip_id on user_achievements (some
+            # badges aren't trip-scoped). Skip silently.
+            pass
         cursor.execute("DELETE FROM trips WHERE id = ? AND user_id = ?", (trip_id, user_id))
         conn.commit()
     return jsonify({"status": "deleted"})

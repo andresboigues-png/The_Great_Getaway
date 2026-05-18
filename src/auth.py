@@ -169,7 +169,31 @@ def verify_token(token: str) -> Optional[str]:
         row = cursor.execute(
             "SELECT token_jti FROM users WHERE id = ?", (user_id,),
         ).fetchone()
-    if not row or row["token_jti"] != token_jti:
+    if not row:
+        # Token signed correctly for a user_id that no longer exists
+        # (e.g. user deleted, DB rolled back). Log so ghost-401s in
+        # production are diagnosable instead of silent.
+        try:
+            import logging
+            logging.getLogger(__name__).warning(
+                "JWT valid but user row missing", extra={"user_id": user_id},
+            )
+        except Exception:
+            pass
+        return None
+    if row["token_jti"] != token_jti:
+        # Signature valid but jti mismatched — token was revoked (user
+        # logged out, password reset, or admin-revoked). Also worth a
+        # log so legitimate logout-on-stale-tab cases stand out from
+        # actual exploitation attempts in production telemetry.
+        try:
+            import logging
+            logging.getLogger(__name__).info(
+                "JWT jti mismatch (revoked token)",
+                extra={"user_id": user_id, "jti": token_jti},
+            )
+        except Exception:
+            pass
         return None
     return user_id
 
