@@ -427,6 +427,19 @@ def _styles(rl):
             spaceBefore=6,
             spaceAfter=2,
         ),
+        # Item title inside a parsed slot (the restaurant / sight
+        # name pulled out of the AI-generated content). Bold mid-size,
+        # navy — sits between the slot LABEL and the body prose.
+        "slotItemTitle": rl.ParagraphStyle(
+            "GGSlotItemTitle",
+            parent=base["BodyText"],
+            fontName="Helvetica-Bold",
+            fontSize=12,
+            leading=15,
+            textColor=_BRAND_NAVY,
+            spaceBefore=4,
+            spaceAfter=2,
+        ),
 
         # ── Body copy ────────────────────────────────────────────
         "body": rl.ParagraphStyle(
@@ -503,6 +516,81 @@ def _styles(rl):
             spaceAfter=0,
         ),
     }
+
+
+_WHY_RE = None  # lazily-compiled regex set inside _parse_day_slot
+_FACT_RE = None
+
+
+def _parse_day_slot(raw: str) -> list[dict] | None:
+    """Parse a free-text day slot ("morning" / "afternoon" / "evening")
+    into structured items when the content follows the standard AI-
+    generated format. Returns None if the text doesn't look structured
+    — the caller should fall back to plain paragraph rendering.
+
+    AI format (Gemini's output for itinerary slots):
+
+        Breakfast:
+        - A Merenda
+        Why: Start your golf morning with traditional pastries...
+        Fun fact: This spot is famous for its 'Dom Rodrigo'...
+
+    Multi-item slots (sightseeing) use `-` separators on one line:
+
+        Sightseeing: - Castle X Why: ... Fun fact: ... - Castle Y Why: ... Fun fact: ...
+
+    Each parsed item is a dict { name, why, fact }. We detect the
+    format by the presence of "Why:" — plain user notes without that
+    marker get None back so we don't garble them."""
+    import re
+    global _WHY_RE, _FACT_RE
+    if _WHY_RE is None:
+        _WHY_RE = re.compile(r"\bWhy\s*:\s*", re.IGNORECASE)
+        _FACT_RE = re.compile(r"\bFun\s+fact\s*:\s*", re.IGNORECASE)
+    if not raw or not _WHY_RE.search(raw):
+        return None
+
+    text = _strip_emoji(raw).strip()
+    # Strip leading slot label ("Breakfast:" / "Sightseeing:" /
+    # "Lunch:" etc.) — case-insensitive, only if it's the FIRST
+    # word followed by a colon. Emoji are already gone (via
+    # _strip_emoji above) so the regex anchors on a real letter.
+    text = re.sub(r"^[A-Za-zÀ-ÿ]+\s*:\s*", "", text, count=1)
+
+    # Split on " - " or "\n- " at item boundaries. The pattern
+    # matches a hyphen-bullet preceded by whitespace OR a newline.
+    # Also handle the case where the text STARTS with "- " (no
+    # preceding whitespace) by stripping that leading bullet
+    # before the split.
+    text = re.sub(r"^-\s+", "", text)
+    parts = re.split(r"(?:\n|\s+)-\s+", text)
+    # Strip any "- " that survived (defensive — happens when the
+    # regex didn't catch every boundary on the first pass).
+    parts = [re.sub(r"^-\s+", "", p).strip() for p in parts if p.strip()]
+    if not parts:
+        return None
+
+    items: list[dict] = []
+    for part in parts:
+        why_m = _WHY_RE.search(part)
+        fact_m = _FACT_RE.search(part)
+        if why_m and fact_m and fact_m.start() > why_m.end():
+            name = part[: why_m.start()].strip().rstrip(":.,")
+            why = part[why_m.end() : fact_m.start()].strip().rstrip(".")
+            fact = part[fact_m.end() :].strip().rstrip(".")
+        elif why_m:
+            name = part[: why_m.start()].strip().rstrip(":.,")
+            why = part[why_m.end() :].strip()
+            fact = ""
+            if fact_m:  # appears before "Why:" — unusual but handle it
+                fact = part[fact_m.end() : why_m.start()].strip().rstrip(".")
+        else:
+            name = part.strip()
+            why = ""
+            fact = ""
+        if name:
+            items.append({"name": name, "why": why, "fact": fact})
+    return items if items else None
 
 
 def _strip_emoji(text: str) -> str:
@@ -776,12 +864,15 @@ def _day_card(rl, styles, page_w, margin_lr, day: dict, day_map_png: bytes | Non
 
     if day_map_png:
         try:
+            # Source PNG: size=800x320 → 2.5:1 aspect. Card has 14pt
+            # inner padding each side. Direct sizing at exactly 2.5:1
+            # so the map fills the card content width.
+            inner_w = page_w - 2 * margin_lr - 28
             inner.append(
                 rl.Image(
                     io.BytesIO(day_map_png),
-                    width=page_w - 2 * margin_lr - 24,  # minus card padding
-                    height=(page_w - 2 * margin_lr - 24) * 0.28,
-                    kind="proportional",
+                    width=inner_w,
+                    height=inner_w / 2.5,
                 )
             )
             inner.append(rl.Spacer(1, 0.25 * rl.cm))
@@ -795,24 +886,66 @@ def _day_card(rl, styles, page_w, margin_lr, day: dict, day_map_png: bytes | Non
         ("evening", "EVENING"),
     ):
         val = day.get(slot_name)
-        if isinstance(val, str) and val.strip():
-            any_slot = True
-            inner.append(rl.Paragraph(slot_label, styles["slotLabel"]))
+        if not (isinstance(val, str) and val.strip()):
+            continue
+        any_slot = True
+        inner.append(rl.Paragraph(slot_label, styles["slotLabel"]))
+        # Try the AI-format parser first. If it pulls out structured
+        # items (name / why / fact), render each as its own editorial
+        # block — bold name, body "why" prose, italic muted "fact"
+        # with a ★ glyph. Plain user notes (no "Why:" marker) fall
+        # back to single-paragraph rendering so we don't garble them.
+        items = _parse_day_slot(val)
+        if items:
+            for it in items:
+                inner.append(rl.Paragraph(
+                    _esc(it["name"]), styles["slotItemTitle"],
+                ))
+                if it["why"]:
+                    inner.append(rl.Paragraph(
+                        _esc(it["why"]), styles["body"],
+                    ))
+                if it["fact"]:
+                    inner.append(rl.Paragraph(
+                        f'<font color="{_BRAND_BLUE}"><b>★</b></font>'
+                        f'  <i>{_esc(it["fact"])}</i>',
+                        styles["muted"],
+                    ))
+                inner.append(rl.Spacer(1, 0.15 * rl.cm))
+        else:
             body_text = _esc(val).replace("\n", "<br/>")
             inner.append(rl.Paragraph(body_text, styles["body"]))
 
     notes = day.get("notes")
     if isinstance(notes, str) and notes.strip():
         inner.append(rl.Paragraph("NOTES", styles["slotLabel"]))
-        inner.append(
-            rl.Paragraph(_esc(notes).replace("\n", "<br/>"), styles["body"])
-        )
+        items = _parse_day_slot(notes)
+        if items:
+            for it in items:
+                inner.append(rl.Paragraph(
+                    _esc(it["name"]), styles["slotItemTitle"],
+                ))
+                if it["why"]:
+                    inner.append(rl.Paragraph(
+                        _esc(it["why"]), styles["body"],
+                    ))
+                if it["fact"]:
+                    inner.append(rl.Paragraph(
+                        f'<font color="{_BRAND_BLUE}"><b>★</b></font>'
+                        f'  <i>{_esc(it["fact"])}</i>',
+                        styles["muted"],
+                    ))
+                inner.append(rl.Spacer(1, 0.15 * rl.cm))
+        else:
+            inner.append(
+                rl.Paragraph(_esc(notes).replace("\n", "<br/>"), styles["body"])
+            )
         any_slot = True
 
     tip = day.get("tip")
     if isinstance(tip, str) and tip.strip():
         inner.append(
-            rl.Paragraph(f"💡 {_esc(tip)}", styles["tip"])
+            rl.Paragraph(f"<b>TIP.</b>  {_esc(tip)}", styles["tip"])
         )
         any_slot = True
 
@@ -1175,26 +1308,18 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
         )
         if map_png:
             try:
-                # Wrap the map in a thin-bordered table so it looks
-                # framed rather than just floating loose on the page.
-                img = rl.Image(
+                # Source PNG: Google returns size=1200x600 → 2:1
+                # aspect. Use direct sizing with EXACT 2:1 ratio so
+                # the image fills the column edge-to-edge. The old
+                # kind="proportional" path was shrinking the image
+                # to preserve a slightly-mismatched aspect, leaving
+                # ~10% empty cell space on the right.
+                full_w = page_w - 2 * margin_lr
+                story.append(rl.Image(
                     io.BytesIO(map_png),
-                    width=page_w - 2 * margin_lr,
-                    height=(page_w - 2 * margin_lr) * 0.46,
-                    kind="proportional",
-                )
-                frame = rl.Table(
-                    [[img]],
-                    colWidths=[page_w - 2 * margin_lr],
-                )
-                frame.setStyle(rl.TableStyle([
-                    ("BOX", (0, 0), (-1, -1), 0.5, rl.colors.HexColor(_RULE_GREY)),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 0),
-                    ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-                    ("TOPPADDING", (0, 0), (-1, -1), 0),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
-                ]))
-                story.append(frame)
+                    width=full_w,
+                    height=full_w * 0.5,  # 2:1 aspect, no distortion
+                ))
                 story.append(rl.Spacer(1, 0.6 * rl.cm))
             except Exception:
                 # Reportlab refuses bad image bytes silently —
@@ -1316,28 +1441,20 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
                 )
                 if overview_png:
                     try:
-                        ov_img = rl.Image(
-                            io.BytesIO(overview_png),
-                            width=page_w - 2 * margin_lr,
-                            height=(page_w - 2 * margin_lr) * 0.42,
-                            kind="proportional",
-                        )
-                        ov_frame = rl.Table(
-                            [[ov_img]],
-                            colWidths=[page_w - 2 * margin_lr],
-                        )
-                        ov_frame.setStyle(rl.TableStyle([
-                            ("BOX", (0, 0), (-1, -1), 0.5, rl.colors.HexColor(_RULE_GREY)),
-                            ("LEFTPADDING", (0, 0), (-1, -1), 0),
-                            ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-                            ("TOPPADDING", (0, 0), (-1, -1), 0),
-                            ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
-                        ]))
+                        # Source PNG: size=1200x520 → ~2.31:1 aspect.
+                        # Direct sizing at width / 2.31 keeps the image
+                        # un-distorted while filling the column edge-
+                        # to-edge.
+                        full_w = page_w - 2 * margin_lr
                         story.append(rl.Paragraph(
                             f"EVERY DAY ON ONE MAP   ·   {len(pins)} PIN{'S' if len(pins) != 1 else ''}",
                             styles["kicker"],
                         ))
-                        story.append(ov_frame)
+                        story.append(rl.Image(
+                            io.BytesIO(overview_png),
+                            width=full_w,
+                            height=full_w / 2.31,
+                        ))
                         story.append(rl.Spacer(1, 0.7 * rl.cm))
                     except Exception:
                         pass
@@ -1593,23 +1710,14 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
             )
             if places_map_png:
                 try:
-                    pl_img = rl.Image(
+                    # Source PNG aspect 2.31:1 (size=1200x520).
+                    # Direct sizing fills the column edge-to-edge.
+                    full_w = page_w - 2 * margin_lr
+                    story.append(rl.Image(
                         io.BytesIO(places_map_png),
-                        width=page_w - 2 * margin_lr,
-                        height=(page_w - 2 * margin_lr) * 0.42,
-                        kind="proportional",
-                    )
-                    pl_frame = rl.Table(
-                        [[pl_img]], colWidths=[page_w - 2 * margin_lr],
-                    )
-                    pl_frame.setStyle(rl.TableStyle([
-                        ("BOX", (0, 0), (-1, -1), 0.5, rl.colors.HexColor(_RULE_GREY)),
-                        ("LEFTPADDING", (0, 0), (-1, -1), 0),
-                        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-                        ("TOPPADDING", (0, 0), (-1, -1), 0),
-                        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
-                    ]))
-                    story.append(pl_frame)
+                        width=full_w,
+                        height=full_w / 2.31,
+                    ))
                     story.append(rl.Spacer(1, 0.6 * rl.cm))
                 except Exception:
                     pass
