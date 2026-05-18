@@ -505,12 +505,42 @@ def _styles(rl):
     }
 
 
+def _strip_emoji(text: str) -> str:
+    """Drop emoji + wide-Unicode glyphs that Helvetica can't render.
+    Reportlab's built-in PDF fonts (Helvetica, Times, Courier) cover
+    Latin-Extended-A; everything above that — including all emoji,
+    CJK, most math symbols — renders as the fallback "missing glyph"
+    box (the ■ the user saw in their PDF was actually a 🥐 or 🥗
+    in their day notes).
+
+    Strategy: keep ASCII + Latin-1 + Latin-Extended-A (covers PT/ES/
+    FR/IT accented chars) plus a curated list of typography glyphs
+    (en/em dash, smart quotes, ellipsis, bullets, arrows). Strip
+    the rest. The day-note labels ("Breakfast:", "Sights:") carry
+    the meaning without the decorative emoji."""
+    if not text:
+        return ""
+    keep_extra = {
+        0x2013, 0x2014,  # – —
+        0x2018, 0x2019, 0x201C, 0x201D,  # smart quotes
+        0x2022, 0x2026,  # • …
+        0x2192, 0x2190, 0x2191, 0x2193,  # arrows → ← ↑ ↓
+        0x00B7,  # middle dot ·
+        0x20AC, 0x00A3, 0x00A5,  # € £ ¥
+    }
+    return "".join(
+        ch for ch in text
+        if ord(ch) <= 0x024F or ord(ch) in keep_extra
+    ).strip()
+
+
 def _esc(text: Any) -> str:
     """Escape a value for reportlab's Paragraph (uses a subset of
-    HTML — `<`, `>`, `&` are special). None → empty string."""
+    HTML — `<`, `>`, `&` are special). Strip emoji first since the
+    builtin Helvetica falls back to squares. None → empty string."""
     if text is None:
         return ""
-    s = str(text)
+    s = _strip_emoji(str(text))
     return (
         s.replace("&", "&amp;")
         .replace("<", "&lt;")
@@ -605,11 +635,23 @@ def _companion_card(rl, styles, page_w, margin_lr, name: str, role: str = ""):
 
 
 def _companion_grid(rl, styles, page_w, margin_lr, companions: list):
-    """Pack companions into a 2-column grid of chips. For odd
-    counts the last row's right cell is left empty so the grid
-    stays rectangular."""
+    """Pack companions into a grid of chips.
+
+    Layout rules:
+      ≤ 2 companions → one full-width chip per row (a single
+        avatar sat in a half-page chip looks lonely — full-width
+        gives it presence).
+      ≥ 3 companions → 2 chips per row; odd counts leave the
+        last row's right cell blank to keep the grid rectangular.
+    """
     if not companions:
         return rl.Spacer(1, 0)
+
+    full_width = page_w - 2 * margin_lr
+    gap = 10
+    col_w = (full_width - gap) / 2
+    use_single_col = len(companions) <= 2
+
     chips: list[Any] = []
     for c in companions:
         if isinstance(c, dict):
@@ -618,15 +660,18 @@ def _companion_grid(rl, styles, page_w, margin_lr, companions: list):
             chips.append(_companion_card(rl, styles, page_w, margin_lr, nm, role))
         elif isinstance(c, str):
             chips.append(_companion_card(rl, styles, page_w, margin_lr, c))
-    # 2-col grid
-    rows: list[list[Any]] = []
-    gap = 8
-    col_w = (page_w - 2 * margin_lr - gap) / 2
-    for i in range(0, len(chips), 2):
-        left = chips[i]
-        right = chips[i + 1] if i + 1 < len(chips) else ""
-        rows.append([left, "", right])
-    grid = rl.Table(rows, colWidths=[col_w, gap, col_w])
+
+    if use_single_col:
+        rows = [[chip] for chip in chips]
+        grid = rl.Table(rows, colWidths=[full_width])
+    else:
+        rows = []
+        for i in range(0, len(chips), 2):
+            left = chips[i]
+            right = chips[i + 1] if i + 1 < len(chips) else ""
+            rows.append([left, "", right])
+        grid = rl.Table(rows, colWidths=[col_w, gap, col_w])
+
     grid.setStyle(rl.TableStyle([
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
         ("LEFTPADDING", (0, 0), (-1, -1), 0),
@@ -665,8 +710,11 @@ def _section_opener(rl, styles, page_w, margin_lr, number: str, title: str, kick
 
 def _day_card(rl, styles, page_w, margin_lr, day: dict, day_map_png: bytes | None):
     """Render one day as a "card" — a table with a thin tinted
-    background, a date-chip header strip, the day's morning /
-    afternoon / evening copy, notes, and optional tip.
+    background. The header strip puts a big BRAND-BLUE day-number
+    badge on the left (44pt wide, navy text on light-blue), then
+    the date kicker + day name to the right of it. Visually echoes
+    the magazine-style section opener so the document hangs
+    together as one design system.
 
     Returned wrapped in a KeepTogether so the card doesn't split
     mid-block if it'd fit on a fresh page. Long days (lots of
@@ -676,27 +724,54 @@ def _day_card(rl, styles, page_w, margin_lr, day: dict, day_map_png: bytes | Non
     day_date = _fmt_date(day.get("date"))
     day_name = (day.get("name") or "").strip()
 
-    # Header strip: kicker (date) + big day title
-    kicker_text = ""
-    if day_date:
-        kicker_text = day_date.upper()
-    title_parts: list[str] = []
+    # Header strip — badge + date kicker + day title
+    badge_label = ""
     if day_number is not None and day_number != "":
-        title_parts.append(f"Day {day_number}")
-    if day_name:
-        title_parts.append(day_name)
-    day_title = "  ·  ".join(title_parts) or "Day"
+        try:
+            badge_label = str(int(day_number))
+        except (TypeError, ValueError):
+            badge_label = str(day_number)
+    kicker_text = day_date.upper() if day_date else ""
+    name_text = day_name or ""
+
+    header_right_flowables: list[Any] = []
+    if kicker_text:
+        header_right_flowables.append(
+            rl.Paragraph(_esc(kicker_text), styles["dayKicker"])
+        )
+    header_right_flowables.append(
+        rl.Paragraph(_esc(name_text or f"Day {badge_label}"), styles["dayTitle"])
+    )
+
+    # Day number badge — solid blue tile with the number in white.
+    # Same visual language as the marked-places A/B/C letter badge.
+    badge_para = rl.Paragraph(
+        f'<para alignment="center"><font color="white" size="22"><b>{_esc(badge_label or "•")}</b></font></para>',
+        rl.ParagraphStyle("GGDayBadge", fontName="Helvetica-Bold",
+                          fontSize=22, leading=24, alignment=1,
+                          textColor=rl.colors.white),
+    )
+    header_row = rl.Table(
+        [[badge_para, header_right_flowables]],
+        colWidths=[1.5 * rl.cm, None],
+    )
+    header_row.setStyle(rl.TableStyle([
+        ("BACKGROUND", (0, 0), (0, 0), rl.colors.HexColor(_BRAND_BLUE)),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("ALIGN", (0, 0), (0, 0), "CENTER"),
+        ("LEFTPADDING", (0, 0), (0, 0), 0),
+        ("RIGHTPADDING", (0, 0), (0, 0), 0),
+        ("TOPPADDING", (0, 0), (0, 0), 14),
+        ("BOTTOMPADDING", (0, 0), (0, 0), 14),
+        ("LEFTPADDING", (1, 0), (1, 0), 14),
+        ("RIGHTPADDING", (1, 0), (1, 0), 8),
+        ("TOPPADDING", (1, 0), (1, 0), 6),
+        ("BOTTOMPADDING", (1, 0), (1, 0), 6),
+    ]))
 
     inner: list[Any] = [
-        rl.Paragraph(_esc(kicker_text), styles["dayKicker"]) if kicker_text else rl.Spacer(1, 0),
-        rl.Paragraph(_esc(day_title), styles["dayTitle"]),
-        rl.HRFlowable(
-            width="100%",
-            thickness=0.6,
-            color=_RULE_GREY,
-            spaceBefore=0,
-            spaceAfter=8,
-        ),
+        header_row,
+        rl.Spacer(1, 0.3 * rl.cm),
     ]
 
     if day_map_png:
@@ -848,33 +923,37 @@ def _toc_entry(rl, styles, page_w, margin_lr, number: str, title: str, sub: str,
 
 def _toc_row(rl, styles, page_w, margin_lr, number: str, title: str, sub: str, color: str):
     """TOC row used by the cover-page 'What's inside' block. Each
-    row is: tinted accent bar | number | title | description.
-    Number + title sit on the same baseline; description wraps."""
+    row is: tinted accent bar | number | title + description.
+    Number column is wide enough for "01" / "02" on one line +
+    its padding — previous 0.8cm was just shy of fitting the
+    bold 9pt digits with 8pt left padding, so it wrapped to two
+    lines ("0" over "1") in the output."""
     t = rl.Table(
         [[
             "",
-            rl.Paragraph(_esc(number), styles["dayKicker"]),
+            rl.Paragraph(
+                f'<b><font color="{color}" size="13">{_esc(number)}</font></b>',
+                styles["body"],
+            ),
             [
                 rl.Paragraph(_esc(title), styles["tocItem"]),
                 rl.Paragraph(_esc(sub), styles["tocItemSub"]),
             ],
         ]],
         colWidths=[
-            0.18 * rl.cm,
-            0.8 * rl.cm,
-            page_w - 2 * margin_lr - 0.98 * rl.cm,
+            0.20 * rl.cm,
+            1.6 * rl.cm,
+            page_w - 2 * margin_lr - 1.8 * rl.cm,
         ],
     )
     t.setStyle(rl.TableStyle([
         ("BACKGROUND", (0, 0), (0, 0), rl.colors.HexColor(color)),
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("LEFTPADDING", (0, 0), (-1, -1), 0),
         ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-        ("TOPPADDING", (0, 0), (-1, -1), 6),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-        # Tiny gap between the accent bar and the number col so
-        # the bar reads as a separate element.
-        ("LEFTPADDING", (1, 0), (1, -1), 8),
+        ("TOPPADDING", (0, 0), (-1, -1), 8),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+        ("LEFTPADDING", (1, 0), (1, -1), 10),
     ]))
     return t
 
@@ -1034,6 +1113,23 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
     days = trip_row.get("days") or []
     ai_plan_extra = options.get("aiPlan") if isinstance(options.get("aiPlan"), list) else []
 
+    # Renderable days = anything other than the auto-created Day 0
+    # anchor + anything with NO content. The anchor exists for
+    # map-pinning bookkeeping; rendering it as an empty card
+    # wastes a page slot. Computed early so the cover stats + TOC
+    # use the same count the Day section eventually renders.
+    def _day_has_content(d: dict) -> bool:
+        if not isinstance(d, dict):
+            return False
+        if d.get("day_number") == 0:
+            return False
+        return any(
+            isinstance(d.get(k), str) and d[k].strip()
+            for k in ("morning", "afternoon", "evening", "notes", "tip")
+        ) or bool((d.get("name") or "").strip() and d.get("day_number"))
+
+    days_renderable = [d for d in days if _day_has_content(d)]
+
     # ── COVER PAGE ──
     # Full-bleed feel: tiny brand kicker → big hero title → country/
     # dates → hero map → stat tiles → "what's inside" mini-TOC.
@@ -1109,8 +1205,8 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
         # Build the summary tiles dynamically — only show what we
         # have so the strip never has empty cells.
         stats: list[tuple[str, str]] = []
-        if days:
-            stats.append((str(len(days)), "DAYS"))
+        if days_renderable:
+            stats.append((str(len(days_renderable)), "DAYS"))
         if companions:
             stats.append((str(len(companions)), "COMPANIONS"))
         if marked_places:
@@ -1127,10 +1223,10 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
     # ticked in the export modal.
     toc_entries: list[tuple[str, str, str, str]] = []
     n = 1
-    if opt("includeDays") and days:
+    if opt("includeDays") and days_renderable:
         toc_entries.append((
             f"{n:02d}", "Day-by-day",
-            f"{len(days)} day{'s' if len(days) != 1 else ''} of plans.",
+            f"{len(days_renderable)} day{'s' if len(days_renderable) != 1 else ''} of plans.",
             _BRAND_BLUE,
         ))
         n += 1
@@ -1178,14 +1274,16 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
     section_num = 1
 
     # ── DAYS ──
-    if opt("includeDays") and days:
+    # days_renderable was computed earlier (Day 0 anchor + empty
+    # days dropped) so the cover stats / TOC see the same count.
+    if opt("includeDays") and days_renderable:
         story.append(rl.PageBreak())
         story.extend(_section_opener(
             rl, styles, page_w, margin_lr,
             number=f"{section_num:02d}",
             title="Day-by-day",
             kicker=(
-                f"{len(days)} day{'s' if len(days) != 1 else ''} laid out below. "
+                f"{len(days_renderable)} day{'s' if len(days_renderable) != 1 else ''} laid out below. "
                 "Each card walks the day morning → afternoon → evening."
             ),
             color=_BRAND_BLUE,
@@ -1200,7 +1298,7 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
         # single-character).
         if opt("includeDayPins"):
             pins: list[tuple[float, float, str]] = []
-            for day in days:
+            for day in days_renderable:
                 if not isinstance(day, dict):
                     continue
                 d_lat = day.get("lat")
@@ -1244,7 +1342,7 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
                     except Exception:
                         pass
 
-        for day in days:
+        for day in days_renderable:
             if not isinstance(day, dict):
                 continue
             # Per-day mini-map (opt-in).
