@@ -386,10 +386,18 @@ def test_delete_user_sets_trip_member_invited_by_to_null(db):
     assert row[1] == "relaxer"
 
 
-def test_delete_post_sets_repost_of_post_id_to_null(db):
+def test_delete_post_cascades_to_reposts(db):
     """feed_posts.repost_of_post_id → feed_posts(id) ON DELETE
-    SET NULL. A repost survives the original's deletion; it just
-    loses the back-reference."""
+    CASCADE. 2026-05-18 audit M3: pre-fix the FK was SET NULL, which
+    left orphan reposts in the table with `repost_of_post_id = NULL`
+    — and since the feed query for ORIGINAL shares filters on
+    `WHERE repost_of_post_id IS NULL`, those orphans masqueraded as
+    new originals (with the repost's caption, pointing at the same
+    trip). CASCADE makes the repost share the original's lifecycle —
+    when the original is deleted, the reposts go with it. Matches
+    Twitter / Bluesky / Mastodon semantics.
+
+    Migration f3c4d5e6a7b8 applies the same FK change to prod DBs."""
     conn, u1, _ = db
     with conn:
         conn.execute(
@@ -418,9 +426,8 @@ def test_delete_post_sets_repost_of_post_id_to_null(db):
         "SELECT repost_of_post_id, caption FROM feed_posts WHERE id=?",
         (repost_id,),
     ).fetchone()
-    assert row is not None, "repost vanished — expected SET NULL"
-    assert row[0] is None
-    assert row[1] == "reposted"
+    assert row is None, \
+        "repost should cascade-delete with the original; got a survivor row"
 
 
 # ── (4) Reflexive check: audit still finds zero orphans ───────────────

@@ -76,22 +76,20 @@ def delete_expense(expense_id):
             return jsonify({"status": "deleted"})  # idempotent (truly absent)
         bind_trip_context(row["trip_id"])
         if not can_edit_expenses(cursor, row["trip_id"], user_id):
-            # Caller doesn't have edit rights — return the same shape as
-            # the truly-absent case so an attacker can't tell the two
-            # apart from the response. Log internally so legitimate
-            # permission failures still surface in observability.
-            try:
-                import logging
-                logging.getLogger(__name__).info(
-                    "delete_expense denied (no edit rights)",
-                    extra={
-                        "user_id": user_id,
-                        "expense_id": expense_id,
-                        "trip_id": row["trip_id"],
-                    },
-                )
-            except Exception:
-                pass
+            # Caller doesn't have edit rights — return the same shape
+            # as the truly-absent case so an attacker can't tell the
+            # two apart from the response.
+            #
+            # 2026-05-18 audit M7: the prior implementation also ran a
+            # logger.info on this branch — the absent branch above did
+            # not. That asymmetric work was a (small) timing oracle:
+            # an attacker measuring response latency could distinguish
+            # "expense exists but not yours" from "expense doesn't
+            # exist", confirming the existence of an enumerated id.
+            # Dropping the log evens out the work; legitimate
+            # permission-failure visibility comes from the generic
+            # request logger (every request logs status + path) so
+            # we haven't lost observability — just specificity.
             return jsonify({"status": "deleted"})
         cursor.execute("DELETE FROM expenses WHERE id = ?", (expense_id,))
         conn.commit()

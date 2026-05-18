@@ -1219,6 +1219,7 @@ GATED_ROUTES = [
     ("POST", "/api/notifications/read"),
     ("POST", "/api/notifications/trip_public"),
     ("GET", "/api/admin/stats"),
+    ("GET", "/api/gemini/host-keys/status"),
 ]
 
 
@@ -1245,6 +1246,40 @@ def test_admin_stats_rejects_non_admin_403(client, seed_user, auth_headers):
         "non-admin user must NOT receive a 200 from /api/admin/stats"
     body = res.get_json()
     assert body.get("error") == "Forbidden"
+
+
+def test_gemini_host_keys_status_returns_pool_shape(client, seed_user, auth_headers):
+    """2026-05-18 audit M8: /api/gemini/host-keys/status had zero
+    coverage. Pin the response envelope so the AI page's usage-bar
+    contract doesn't drift silently — the bar reads `total`,
+    `exhausted`, `available` to compute its fill ratio."""
+    res = client.get("/api/gemini/host-keys/status", headers=auth_headers)
+    assert res.status_code == 200
+    body = res.get_json()
+    for key in ("total", "exhausted", "available"):
+        assert key in body, f"pool status missing key: {key!r}"
+    # `total` + `exhausted` are non-negative ints; available = total - exhausted.
+    assert isinstance(body["total"], int) and body["total"] >= 0
+    assert isinstance(body["exhausted"], int) and body["exhausted"] >= 0
+    assert body["available"] == body["total"] - body["exhausted"]
+
+
+def test_feed_share_private_trip_400(client, seed_user, auth_headers):
+    """2026-05-18 audit M8: the audit found we had a test for
+    non-member rejection (403) but none for the "trip is private"
+    rejection (400). Both gates protect different attack paths:
+    private-and-yours = 400 ("make it public first"); public-but-
+    not-yours = 403 ("you're not a member"). Pin both contracts."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-private-share")
+    # Trip created without public=True → is_public=0 → share rejected
+    # with the "must be public" 400.
+    res = client.post("/api/feed/share", headers=auth_headers, json={
+        "trip_id": trip_id, "caption": "should fail",
+    })
+    assert res.status_code == 400
+    body = res.get_json()
+    assert "public" in body.get("error", "").lower(), \
+        f"expected 'must be public' error; got {body!r}"
 
 
 def test_admin_stats_allows_admin_email(client, seed_user, auth_headers, monkeypatch):
@@ -5276,6 +5311,57 @@ def test_achievements_joint_trip_counts_for_both_owner_and_member(
     member_data = client.get("/api/data", headers=auth_headers).get_json()
     assert "first_trip" in [a["badgeId"] for a in member_data["achievements"]], \
         "member should earn first_trip independently after archiving their copy"
+
+
+def test_achievements_globe_trotter_credits_member_for_joint_multi_country_trip(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """The 2026-05-18 H4 fix shifted globe_trotter_* to count any
+    archived membership, not just owned trips. A non-owner planner
+    on a multi-country trip should earn globe_trotter_3 from a
+    single shared trip that touches three countries.
+
+    Pre-fix the query was owner-scoped via `WHERE trips.user_id = ?`,
+    so the planner earned 0 countries from this trip no matter how
+    many it visited. The new query JOINs trip_members, so any
+    accepted+archived membership contributes the trip's country
+    set to the member's count."""
+    import json as _json
+    from database import get_db
+
+    # Owner creates a 3-country trip (Iberia + East Asia tour with
+    # PT, JP, FR in the multi-country array).
+    _create_trip(client, other_auth_headers, trip_id="trip-joint-multi")
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE trips SET trip_countries_json = ?, country_code = 'PT' "
+            "WHERE id = 'trip-joint-multi'",
+            (_json.dumps(["PT", "JP", "FR"]),),
+        )
+        # Add seed_user as a planner.
+        conn.execute(
+            "INSERT INTO trip_members "
+            "(trip_id, user_id, role, is_archived, invitation_status, invited_by) "
+            "VALUES (?, ?, 'planner', 0, 'accepted', ?)",
+            ("trip-joint-multi", seed_user, seed_other_user),
+        )
+        conn.commit()
+
+    # Member archives their copy → earns globe_trotter_3 from the
+    # single shared trip's three countries.
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE trip_members SET is_archived = 1 "
+            "WHERE trip_id = ? AND user_id = ?",
+            ("trip-joint-multi", seed_user),
+        )
+        conn.commit()
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    ids = {a["badgeId"] for a in data["achievements"]}
+    assert "globe_trotter_3" in ids, \
+        "non-owner member should earn globe_trotter_3 from a joint 3-country trip"
+    gt3 = next(a for a in data["achievements"] if a["badgeId"] == "globe_trotter_3")
+    assert gt3["context"].get("countryCount") == 3
 
 
 def test_achievements_revoked_when_trip_deleted(client, seed_user, auth_headers):

@@ -411,7 +411,18 @@ def init_db():
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
                 FOREIGN KEY(trip_id) REFERENCES trips(id) ON DELETE CASCADE,
-                FOREIGN KEY(repost_of_post_id) REFERENCES feed_posts(id) ON DELETE SET NULL
+                -- 2026-05-18 audit M3: CASCADE (was SET NULL). Pre-fix,
+                -- deleting the original share left the repost rows with
+                -- repost_of_post_id = NULL — and the feed query for
+                -- original shares filters on `WHERE repost_of_post_id
+                -- IS NULL`, so orphaned reposts started appearing as
+                -- if they were new original shares (with the repost's
+                -- caption, pointing at the same trip as the deleted
+                -- original). CASCADE makes the repost share the
+                -- original's lifecycle — when the original is gone,
+                -- the reposts go too. Migration f3c4d5e6a7b8 applies
+                -- the same change to prod DBs.
+                FOREIGN KEY(repost_of_post_id) REFERENCES feed_posts(id) ON DELETE CASCADE
             )
         ''')
         # NOTE: caption was added post-feed_posts launch — handled in

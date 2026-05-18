@@ -28,11 +28,23 @@ export interface EmptyCardOpts {
     emoji: string;
     /** Title text — escaped before rendering. */
     title: string;
-    /** Body — RAW HTML so callers can include `<strong>` / `<em>`
-     *  for in-line emphasis. Caller is responsible for escaping any
-     *  user-controlled input. All current call sites use hardcoded
-     *  UI copy so no escaping is needed. */
+    /** Body content.
+     *
+     *  ⚠️ By default rendered as RAW HTML so callers can include
+     *  `<strong>` / `<em>` for in-line emphasis. All current call
+     *  sites pass hardcoded `t()` translation strings — none of them
+     *  inject user input. If you add a new caller that passes ANYTHING
+     *  derived from user content (trip name, comment body, etc.) you
+     *  MUST set `escapeBody: true` to defeat XSS. Adding that ESLint
+     *  rule is on the audit M6 backlog. */
     body: string;
+    /** Set true to escape `body` as text before rendering. Pass this
+     *  whenever the body string could contain ANY user input. Default
+     *  false preserves the legacy "raw HTML so callers can include
+     *  <strong>/<em>" behaviour all current call sites depend on, but
+     *  every new caller passing untrusted content should opt in here
+     *  (2026-05-18 audit M6). */
+    escapeBody?: boolean;
     ctaLabel?: string;
     /** Optional id assigned to the CTA button so multiple empty
      *  states on the same page can be targeted independently. */
@@ -53,11 +65,16 @@ export function buildEmptyCardHtml(opts: EmptyCardOpts): string {
     const ctaHtml = opts.ctaLabel
         ? `<button type="button" data-empty-cta${opts.ctaId ? ` id="${esc(opts.ctaId)}"` : ''} class="btn-primary" style="margin-top:16px; padding:10px 22px; border-radius:999px;">${esc(opts.ctaLabel)}</button>`
         : '';
+    // 2026-05-18 audit M6: opt-in body escaping for callers that
+    // can't guarantee their string is hard-coded. Default path
+    // keeps the legacy raw-HTML behaviour every existing call site
+    // relies on (translation strings with <strong>/<em>).
+    const bodyHtml = opts.escapeBody ? esc(opts.body) : opts.body;
     return `
         <div class="card glass" style="padding: 32px; border-radius: 24px; border: 1.5px dashed ${palette.border}; background: ${palette.bg}; text-align:center;">
             <div style="font-size: 2.4rem; margin-bottom: 10px;">${opts.emoji}</div>
             <h3 style="margin:0 0 8px; color:${palette.heading}; font-weight:800; font-size: 1.1rem;">${esc(opts.title)}</h3>
-            <p style="margin:0; color: var(--text-secondary); font-size: 0.9rem; line-height: 1.5;">${opts.body}</p>
+            <p style="margin:0; color: var(--text-secondary); font-size: 0.9rem; line-height: 1.5;">${bodyHtml}</p>
             ${ctaHtml}
         </div>
     `;
