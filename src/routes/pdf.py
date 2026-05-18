@@ -59,6 +59,9 @@ from flask import Blueprint, jsonify, request, send_file
 
 from auth import current_user_id, require_auth
 from database import get_db
+from observability import get_logger
+
+logger = get_logger(__name__)
 from extensions import limiter
 from helpers import trip_member_role
 
@@ -144,7 +147,18 @@ def _fetch_cover_map(lat: float | None, lng: float | None, place_id: str | None)
         or os.getenv("GOOGLE_MAPS_API_KEY")
         or ""
     )
-    if not key or lat is None or lng is None:
+    if not key:
+        logger.warning(
+            "pdf cover map skipped: neither GOOGLE_MAPS_SERVER_KEY "
+            "nor GOOGLE_MAPS_API_KEY is set in env"
+        )
+        return None
+    if lat is None or lng is None:
+        logger.warning(
+            "pdf cover map skipped: trip has no lat/lng "
+            "(lat=%r lng=%r)",
+            lat, lng,
+        )
         return None
     try:
         params = {
@@ -161,9 +175,15 @@ def _fetch_cover_map(lat: float | None, lng: float | None, place_id: str | None)
             timeout=10,
         )
         if not res.ok:
+            logger.warning(
+                "pdf cover map: Google Static Maps returned %d — %s",
+                res.status_code,
+                (res.text or "")[:300],
+            )
             return None
         return res.content
-    except Exception:
+    except Exception as e:
+        logger.warning("pdf cover map: fetch failed: %s", e)
         return None
 
 
@@ -191,6 +211,7 @@ def _fetch_overview_pins_map(
     gets a labeled circular icon by default. Returns the PNG bytes
     or None on missing key / network error / empty pin list."""
     if not pins:
+        logger.info("pdf overview map skipped: no pins provided")
         return None
     key = (
         os.getenv("GOOGLE_MAPS_SERVER_KEY")
@@ -198,6 +219,10 @@ def _fetch_overview_pins_map(
         or ""
     )
     if not key:
+        logger.warning(
+            "pdf overview map skipped: neither GOOGLE_MAPS_SERVER_KEY "
+            "nor GOOGLE_MAPS_API_KEY is set in env"
+        )
         return None
     try:
         params: list[tuple[str, str]] = [
@@ -220,9 +245,19 @@ def _fetch_overview_pins_map(
             timeout=10,
         )
         if not res.ok:
+            logger.warning(
+                "pdf overview map: Google Static Maps returned %d — %s",
+                res.status_code,
+                (res.text or "")[:300],
+            )
             return None
+        logger.info(
+            "pdf overview map: fetched %d pin(s), %d bytes",
+            len(pins), len(res.content),
+        )
         return res.content
-    except Exception:
+    except Exception as e:
+        logger.warning("pdf overview map: fetch failed: %s", e)
         return None
 
 
@@ -1619,6 +1654,29 @@ def export_trip_pdf(trip_id: str):
         )
         ts = cursor.fetchone()
         trip["total_spend_eur"] = float(ts["total"]) if ts and ts["total"] else None
+
+    # Diagnostic — log what the builder is seeing so the dev can
+    # tell at a glance why a map / section might be missing.
+    days_with_coords = sum(
+        1 for d in (trip.get("days") or [])
+        if isinstance(d, dict) and d.get("lat") is not None and d.get("lng") is not None
+    )
+    logger.info(
+        "pdf build: trip=%s name=%r country=%r trip_lat/lng=%r/%r "
+        "days_total=%d days_with_coords=%d budgets=%d companions=%d "
+        "marked_places=%d options=%r",
+        trip_id,
+        trip.get("name"),
+        trip.get("country"),
+        trip.get("lat"),
+        trip.get("lng"),
+        len(trip.get("days") or []),
+        days_with_coords,
+        len(trip.get("budgets") or []),
+        len(_safe_json(trip.get("companions_json"), [])),
+        len(_safe_json(trip.get("marked_places_json"), [])),
+        options,
+    )
 
     pdf_bytes = _build_trip_pdf(trip, options)
     safe_name = "".join(
