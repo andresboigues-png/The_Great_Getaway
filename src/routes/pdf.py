@@ -167,6 +167,65 @@ def _fetch_cover_map(lat: float | None, lng: float | None, place_id: str | None)
         return None
 
 
+def _fetch_overview_pins_map(
+    pins: list[tuple[float, float, str]],
+    center_lat: float | None = None,
+    center_lng: float | None = None,
+) -> bytes | None:
+    """Wide overview map showing many pins at once — used for the
+    "all your days on one map" hero image at the top of the Day-by-
+    day section, and (when called with marked-place pins) for the
+    Marked-places section's overview.
+
+    `pins` is a list of (lat, lng, label) tuples where `label` is a
+    single character (Google Static Maps marker labels accept one
+    alphanumeric — A-Z or 0-9). Pass numeric day numbers for days,
+    or letters/dots for places.
+
+    Google auto-centers + zooms when `center` is omitted as long as
+    we pass markers — the map fits all markers in the viewport. We
+    still pass `center` when known so the framing matches the trip's
+    main location even if a couple of day pins are outliers.
+
+    Brand-coloured markers: brand-blue for the day list. Each marker
+    gets a labeled circular icon by default. Returns the PNG bytes
+    or None on missing key / network error / empty pin list."""
+    if not pins:
+        return None
+    key = (
+        os.getenv("GOOGLE_MAPS_SERVER_KEY")
+        or os.getenv("GOOGLE_MAPS_API_KEY")
+        or ""
+    )
+    if not key:
+        return None
+    try:
+        params: list[tuple[str, str]] = [
+            ("size", "1200x520"),
+            ("scale", "2"),
+            ("maptype", "roadmap"),
+            ("key", key),
+        ]
+        if center_lat is not None and center_lng is not None:
+            params.append(("center", f"{center_lat},{center_lng}"))
+        for plat, plng, plabel in pins[:20]:  # URL size cap
+            # label must be a single alphanumeric char; truncate
+            safe_label = (str(plabel) or "")[:1].upper() if plabel else ""
+            marker = f"color:0x0071e3|label:{safe_label}|{plat},{plng}" if safe_label \
+                else f"color:0x0071e3|{plat},{plng}"
+            params.append(("markers", marker))
+        res = requests.get(
+            "https://maps.googleapis.com/maps/api/staticmap",
+            params=params,
+            timeout=10,
+        )
+        if not res.ok:
+            return None
+        return res.content
+    except Exception:
+        return None
+
+
 def _fetch_day_pin_map(
     lat: float | None,
     lng: float | None,
@@ -434,6 +493,113 @@ def _hr(rl, color: str = _BRAND_BLUE, thickness: float = 2.0):
         spaceAfter=10,
         lineCap="round",
     )
+
+
+def _companion_avatar_color(name: str) -> str:
+    """Deterministic hex color for a companion's avatar — stable
+    across runs so the same person always gets the same color in
+    follow-up exports. Hash the name into a small palette of
+    brand-friendly hues (avoids bright lipsticks and muddy beiges)."""
+    palette = [
+        "#0071e3",  # brand blue
+        "#9b59b6",  # brand purple
+        "#34c759",  # brand green
+        "#ff9500",  # orange (Apple system)
+        "#5ac8fa",  # teal
+        "#af52de",  # violet
+        "#ff3b30",  # red
+        "#8e8e93",  # graphite
+    ]
+    if not name:
+        return palette[0]
+    h = sum(ord(c) for c in name) % len(palette)
+    return palette[h]
+
+
+def _companion_card(rl, styles, page_w, margin_lr, name: str, role: str = ""):
+    """A "contact card"-style chip for a companion — colored
+    avatar tile with the person's initials in white, then their
+    name (bold) and optional role (muted) on the right. Designed
+    to be packed into a 2-column grid for compact display."""
+    initials = "".join(part[:1].upper() for part in name.split()[:2]) if name else "?"
+    if not initials:
+        initials = "?"
+    color = _companion_avatar_color(name)
+
+    avatar_para = rl.Paragraph(
+        f'<para alignment="center"><font color="white" size="15"><b>{_esc(initials)}</b></font></para>',
+        rl.ParagraphStyle(
+            "GGAvatar",
+            fontName="Helvetica-Bold",
+            fontSize=15,
+            leading=18,
+            alignment=1,
+            textColor=rl.colors.white,
+        ),
+    )
+    info_flowables: list[Any] = [
+        rl.Paragraph(_esc(name) or "Untitled companion", styles["dayTitle"]),
+    ]
+    if role:
+        info_flowables.append(rl.Paragraph(_esc(role), styles["muted"]))
+
+    chip = rl.Table(
+        [[avatar_para, info_flowables]],
+        colWidths=[1.4 * rl.cm, None],
+    )
+    chip.setStyle(rl.TableStyle([
+        # Avatar tile — solid colored square (no native rounded
+        # corners in Table cells, but at this size the square reads
+        # as "tile/badge" cleanly enough).
+        ("BACKGROUND", (0, 0), (0, 0), rl.colors.HexColor(color)),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("ALIGN", (0, 0), (0, 0), "CENTER"),
+        ("LEFTPADDING", (0, 0), (0, 0), 0),
+        ("RIGHTPADDING", (0, 0), (0, 0), 0),
+        ("TOPPADDING", (0, 0), (0, 0), 8),
+        ("BOTTOMPADDING", (0, 0), (0, 0), 8),
+        ("LEFTPADDING", (1, 0), (1, 0), 12),
+        ("RIGHTPADDING", (1, 0), (1, 0), 8),
+        ("TOPPADDING", (1, 0), (1, 0), 6),
+        ("BOTTOMPADDING", (1, 0), (1, 0), 6),
+        # Outer card border so the chip reads as a unit
+        ("BOX", (0, 0), (-1, -1), 0.4, rl.colors.HexColor(_RULE_GREY)),
+        ("BACKGROUND", (1, 0), (-1, -1), rl.colors.white),
+    ]))
+    return chip
+
+
+def _companion_grid(rl, styles, page_w, margin_lr, companions: list):
+    """Pack companions into a 2-column grid of chips. For odd
+    counts the last row's right cell is left empty so the grid
+    stays rectangular."""
+    if not companions:
+        return rl.Spacer(1, 0)
+    chips: list[Any] = []
+    for c in companions:
+        if isinstance(c, dict):
+            nm = c.get("name") or ""
+            role = c.get("role") or ""
+            chips.append(_companion_card(rl, styles, page_w, margin_lr, nm, role))
+        elif isinstance(c, str):
+            chips.append(_companion_card(rl, styles, page_w, margin_lr, c))
+    # 2-col grid
+    rows: list[list[Any]] = []
+    gap = 8
+    col_w = (page_w - 2 * margin_lr - gap) / 2
+    for i in range(0, len(chips), 2):
+        left = chips[i]
+        right = chips[i + 1] if i + 1 < len(chips) else ""
+        rows.append([left, "", right])
+    grid = rl.Table(rows, colWidths=[col_w, gap, col_w])
+    grid.setStyle(rl.TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+    ]))
+    return grid
 
 
 def _section_opener(rl, styles, page_w, margin_lr, number: str, title: str, kicker: str, color: str):
@@ -742,16 +908,57 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
     )
 
     def _draw_chrome(canvas, _doc):
-        """Page footer — small brand strip + page number. Runs on
-        every page via the PageTemplate hook."""
+        """Page chrome — runs on every page via the PageTemplate
+        hook. Three pieces:
+
+          1. Thin brand-blue accent bar across the top edge so the
+             page has a distinct "this is part of a polished doc"
+             header rather than floating loose content.
+          2. Small kicker on the top-right naming the document
+             ("Trip Plan · <trip name>") so individual printed
+             pages keep their identity if they get separated.
+          3. Footer with brand line on the left + page number on
+             the right, plus a subtle separator rule above.
+        """
+        trip_name = trip_row.get("name", "") or ""
+        # 1. Top accent bar — full-bleed across the top
         canvas.saveState()
+        canvas.setFillColor(rl.colors.HexColor(_BRAND_BLUE))
+        canvas.rect(0, page_h - 0.18 * rl.cm, page_w, 0.18 * rl.cm, fill=1, stroke=0)
+        canvas.restoreState()
+
+        # 2. Top kicker — small caps, top-right, just under the bar.
+        # Skip on the COVER PAGE (page 1) so the hero block reads
+        # uncluttered.
+        if _doc.page > 1:
+            canvas.saveState()
+            canvas.setFont("Helvetica-Bold", 7.5)
+            canvas.setFillColor(rl.colors.HexColor(_BRAND_BLUE))
+            kicker_y = page_h - 0.9 * rl.cm
+            canvas.drawRightString(
+                page_w - margin_lr,
+                kicker_y,
+                f"TRIP PLAN  ·  {trip_name.upper()}",
+            )
+            canvas.restoreState()
+
+        # 3. Footer — thin separator rule + brand line + page number.
+        canvas.saveState()
+        canvas.setStrokeColor(rl.colors.HexColor(_RULE_GREY))
+        canvas.setLineWidth(0.4)
+        canvas.line(
+            margin_lr,
+            1.3 * rl.cm,
+            page_w - margin_lr,
+            1.3 * rl.cm,
+        )
         canvas.setFont("Helvetica", 8)
         canvas.setFillColor(rl.colors.HexColor(_TEXT_SECONDARY))
         footer_y = 0.9 * rl.cm
         canvas.drawString(
             margin_lr,
             footer_y,
-            f"The Great Getaway · {trip_row.get('name', '')}",
+            f"The Great Getaway  ·  {trip_name}",
         )
         canvas.drawRightString(
             page_w - margin_lr,
@@ -949,6 +1156,59 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
             color=_BRAND_BLUE,
         ))
         section_num += 1
+
+        # Hero overview map — pins for every day that has coords.
+        # Goes BEFORE the first day card so the reader sees "where
+        # the trip happens" at a glance, then dives into the
+        # individual day cards. Day 1-9 get numeric pin labels;
+        # day 10+ get unlabeled pins (Static Maps labels are
+        # single-character).
+        if opt("includeDayPins"):
+            pins: list[tuple[float, float, str]] = []
+            for day in days:
+                if not isinstance(day, dict):
+                    continue
+                d_lat = day.get("lat")
+                d_lng = day.get("lng")
+                if d_lat is None or d_lng is None:
+                    continue
+                d_num = day.get("day_number")
+                label = str(d_num) if (d_num is not None and 1 <= int(d_num) <= 9) else ""
+                pins.append((d_lat, d_lng, label))
+            if pins:
+                overview_png = _fetch_overview_pins_map(
+                    pins,
+                    center_lat=trip_row.get("lat"),
+                    center_lng=trip_row.get("lng"),
+                )
+                if overview_png:
+                    try:
+                        ov_img = rl.Image(
+                            io.BytesIO(overview_png),
+                            width=page_w - 2 * margin_lr,
+                            height=(page_w - 2 * margin_lr) * 0.42,
+                            kind="proportional",
+                        )
+                        ov_frame = rl.Table(
+                            [[ov_img]],
+                            colWidths=[page_w - 2 * margin_lr],
+                        )
+                        ov_frame.setStyle(rl.TableStyle([
+                            ("BOX", (0, 0), (-1, -1), 0.5, rl.colors.HexColor(_RULE_GREY)),
+                            ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                            ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                            ("TOPPADDING", (0, 0), (-1, -1), 0),
+                            ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+                        ]))
+                        story.append(rl.Paragraph(
+                            f"EVERY DAY ON ONE MAP   ·   {len(pins)} PIN{'S' if len(pins) != 1 else ''}",
+                            styles["kicker"],
+                        ))
+                        story.append(ov_frame)
+                        story.append(rl.Spacer(1, 0.7 * rl.cm))
+                    except Exception:
+                        pass
+
         for day in days:
             if not isinstance(day, dict):
                 continue
@@ -1159,10 +1419,9 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
             color=_BRAND_PURPLE,
         ))
         section_num += 1
-        for c in companions:
-            if isinstance(c, dict):
-                nm = c.get("name") or ""
-                story.append(rl.Paragraph(f"• {_esc(nm)}", styles["body"]))
+        # Pretty avatar grid — each companion gets a colored
+        # initials tile + name/role on the right, 2 per row.
+        story.append(_companion_grid(rl, styles, page_w, margin_lr, companions))
 
     # ── MARKED PLACES ──
     if opt("includeMarkedPlaces") and marked_places:
@@ -1178,29 +1437,87 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
             color=_BRAND_BLUE,
         ))
         section_num += 1
-        for p in marked_places:
+
+        # Overview map of all marked places with letter-labeled
+        # pins (A, B, C…). Sits at the top of the section so the
+        # reader sees where on the map the saved places sit before
+        # scanning the address list below.
+        place_pins: list[tuple[float, float, str]] = []
+        for i, p in enumerate(marked_places):
+            if not isinstance(p, dict):
+                continue
+            plat = p.get("lat")
+            plng = p.get("lng")
+            if plat is None or plng is None:
+                continue
+            label = chr(ord("A") + i) if i < 26 else ""
+            place_pins.append((plat, plng, label))
+        if place_pins:
+            places_map_png = _fetch_overview_pins_map(
+                place_pins,
+                center_lat=trip_row.get("lat"),
+                center_lng=trip_row.get("lng"),
+            )
+            if places_map_png:
+                try:
+                    pl_img = rl.Image(
+                        io.BytesIO(places_map_png),
+                        width=page_w - 2 * margin_lr,
+                        height=(page_w - 2 * margin_lr) * 0.42,
+                        kind="proportional",
+                    )
+                    pl_frame = rl.Table(
+                        [[pl_img]], colWidths=[page_w - 2 * margin_lr],
+                    )
+                    pl_frame.setStyle(rl.TableStyle([
+                        ("BOX", (0, 0), (-1, -1), 0.5, rl.colors.HexColor(_RULE_GREY)),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                        ("TOPPADDING", (0, 0), (-1, -1), 0),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+                    ]))
+                    story.append(pl_frame)
+                    story.append(rl.Spacer(1, 0.6 * rl.cm))
+                except Exception:
+                    pass
+
+        # List with letter-labeled cards matching the map pins.
+        for i, p in enumerate(marked_places):
             if not isinstance(p, dict):
                 continue
             nm = p.get("name") or ""
             addr = p.get("address") or p.get("vicinity") or ""
-            place_inner: list[Any] = [
+            label = chr(ord("A") + i) if i < 26 else "·"
+            # Left column = a small letter badge matching the map pin
+            letter_para = rl.Paragraph(
+                f'<para alignment="center"><font color="white" size="13"><b>{_esc(label)}</b></font></para>',
+                rl.ParagraphStyle("GGLetter", fontName="Helvetica-Bold",
+                                  fontSize=13, leading=15, alignment=1,
+                                  textColor=rl.colors.white),
+            )
+            place_info: list[Any] = [
                 rl.Paragraph(_esc(nm), styles["dayTitle"]),
             ]
             if addr:
-                place_inner.append(rl.Paragraph(_esc(addr), styles["muted"]))
+                place_info.append(rl.Paragraph(_esc(addr), styles["muted"]))
             place_card = rl.Table(
-                [[place_inner]], colWidths=[page_w - 2 * margin_lr],
+                [[letter_para, place_info]],
+                colWidths=[1.1 * rl.cm, None],
             )
             place_card.setStyle(rl.TableStyle([
-                ("BACKGROUND", (0, 0), (-1, -1), rl.colors.HexColor("#fafbff")),
+                ("BACKGROUND", (0, 0), (0, 0), rl.colors.HexColor(_BRAND_BLUE)),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("ALIGN", (0, 0), (0, 0), "CENTER"),
+                ("BACKGROUND", (1, 0), (-1, -1), rl.colors.HexColor("#fafbff")),
                 ("BOX", (0, 0), (-1, -1), 0.4, rl.colors.HexColor(_RULE_GREY)),
-                ("LEFTPADDING", (0, 0), (-1, -1), 14),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 14),
-                ("TOPPADDING", (0, 0), (-1, -1), 10),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (1, 0), (1, 0), 12),
+                ("RIGHTPADDING", (1, 0), (1, 0), 10),
+                ("TOPPADDING", (1, 0), (1, 0), 10),
+                ("BOTTOMPADDING", (1, 0), (1, 0), 10),
+                ("TOPPADDING", (0, 0), (0, 0), 0),
+                ("BOTTOMPADDING", (0, 0), (0, 0), 0),
             ]))
-            story.append(rl.KeepTogether([place_card, rl.Spacer(1, 0.2 * rl.cm)]))
+            story.append(rl.KeepTogether([place_card, rl.Spacer(1, 0.18 * rl.cm)]))
 
     if not any(opt(k) for k in (
         "includeDays", "includeTodos", "includeBudgets",
