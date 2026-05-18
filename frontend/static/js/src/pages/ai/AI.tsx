@@ -904,8 +904,18 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
 
                 {/* Right: Google Map (sticky) */}
                 <div className="sticky top-20 h-[700px]">
+                    {/* Inline `height` + `padding` overrides defeat the
+                        unlayered `.card { height: auto; padding: 24px }`
+                        rules in index.css — Tailwind v4 utilities live in
+                        `@layer utilities`, which loses to unlayered rules,
+                        so `h-full` / `p-0` here would collapse the card to
+                        its padding and the map renders as a blank ~50px
+                        sliver. The 2026-05-17 inline→Tailwind sweep dropped
+                        these inline styles; restoring them is the minimal
+                        fix. */}
                     <div
-                        className="card glass p-0 overflow-hidden h-full rounded-lg relative"
+                        className="card glass overflow-hidden rounded-lg relative"
+                        style={{ height: '100%', padding: 0 }}
                     >
                         <div
                             ref={mapContainerRef}
