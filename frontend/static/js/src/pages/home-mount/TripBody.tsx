@@ -448,45 +448,63 @@ export function TripBody({ activeTrip }: TripBodyProps) {
                             </svg>
                         </button>
                     ) : null}
-                    {/* PDF download — green-themed inverted-triangle
-                        button with a download arrow inside. Sits
-                        between Edit and Silence per the 2026-05-18
-                        request. The triangle clip-path keeps the
-                        glyph distinct from Edit's rounded-square
-                        and Silence's circle, so the three buttons
-                        read as three different actions at a glance. */}
+                    {/* PDF download — green-themed triangle button
+                        pointing UP, with chord-cut corners that visually
+                        read as rounded. Sits between Edit and Silence
+                        per the 2026-05-18 request. The triangle keeps
+                        the glyph distinct from Edit's rounded-square
+                        and Silence's circle so the three buttons read
+                        as three different actions at a glance.
+
+                        clip-path can't natively round corners, but a
+                        6-point polygon (one chord per vertex) gives
+                        the visual impression of rounded corners
+                        without leaning on SVG masks. The download-
+                        arrow icon sits in the wider bottom half of
+                        the triangle so it reads as "download into
+                        a container". */}
                     <button
                         id="downloadTripPdfBtn"
-                        className="icon-btn-square"
                         title="Download trip plan as PDF"
                         aria-label="Download trip plan as PDF"
                         onClick={() => openPdfExportModal(activeTrip)}
                         style={{
-                            ['--accent' as any]: '52,199,89',
                             color: '#34c759',
-                            borderColor: 'rgba(52,199,89,0.35)',
-                            // Inverted triangle via clip-path. Edit/
-                            // Silence are 28px square; mirror their
-                            // outer footprint so the trio aligns.
-                            clipPath: 'polygon(0 0, 100% 0, 50% 100%)',
-                            background: 'rgba(52,199,89,0.08)',
+                            background: 'rgba(52,199,89,0.10)',
+                            border: '1px solid rgba(52,199,89,0.35)',
+                            // Rounded-feeling triangle pointing up via
+                            // chord-cut polygon. Top peak → chord across
+                            // (46→54%); bottom corners → chord cuts
+                            // diagonally inward. 6 points total.
+                            clipPath:
+                                'polygon(46% 8%, 54% 8%, 92% 88%, 96% 96%, 4% 96%, 8% 88%)',
+                            // Slightly wider than tall so the triangle
+                            // reads as a triangle (not a sliver). Edit
+                            // is 28×28; this is 32×28 so the trio
+                            // baselines together.
+                            width: 32,
+                            height: 28,
+                            display: 'flex',
+                            alignItems: 'flex-end',
+                            justifyContent: 'center',
+                            paddingBottom: 3,
+                            cursor: 'pointer',
+                            transition: 'background 0.15s ease, transform 0.1s ease',
                         }}
                     >
                         <svg
-                            width="11"
-                            height="11"
+                            width="12"
+                            height="12"
                             viewBox="0 0 24 24"
                             fill="none"
                             stroke="currentColor"
-                            strokeWidth="2.4"
+                            strokeWidth="2.6"
                             strokeLinecap="round"
                             strokeLinejoin="round"
                             aria-hidden="true"
-                            style={{ marginTop: '-4px' }}
                         >
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                            <polyline points="7 10 12 15 17 10"></polyline>
-                            <line x1="12" y1="15" x2="12" y2="3"></line>
+                            <line x1="12" y1="5" x2="12" y2="17" />
+                            <polyline points="6 12 12 18 18 12" />
                         </svg>
                     </button>
                     {tripIsManageable ? (
