@@ -209,61 +209,132 @@ def _fetch_day_pin_map(
 
 
 def _styles(rl):
-    """Build the paragraph style sheet. All sizes in points
-    (1 pt = 1/72 inch). Leading set to ~1.4x for readable body
-    copy; titles use tighter leading."""
+    """Build the paragraph style sheet — magazine-grade hierarchy
+    so the layout reads as STRUCTURED rather than "wall of text."
+
+    Size pyramid (all in points; 1pt = 1/72 inch):
+      48  hero title      — cover page only, fills the upper half
+      14  hero subtitle   — country + dates under the hero
+      11  hero kicker     — small caps "the great getaway · trip plan"
+
+      36  section number  — the big "01" / "02" / "03" on opener pages
+      22  section title   — the section name on opener pages
+      11  section kicker  — small-caps tagline under the section title
+
+      18  day title       — "Day 3 · Florence"
+      9   day kicker      — small-caps date strip above the day title
+      13  slot label      — "MORNING / AFTERNOON / EVENING" labels
+      10.5 body           — the actual prose
+      9.5 muted body      — secondary notes, tips, addresses
+      24  stat value      — cover-page summary tile numbers
+      8.5 stat label      — under-tile caption
+
+    Leading is set to ~1.4x for body copy (readable line-spacing);
+    titles use tighter ~1.1x leading so multi-line titles don't
+    look floaty.
+    """
     base = rl.getSampleStyleSheet()
     return {
-        "h1": rl.ParagraphStyle(
-            "GGH1",
+        # ── Hero (cover page) ────────────────────────────────────
+        "hero": rl.ParagraphStyle(
+            "GGHero",
             parent=base["Heading1"],
             fontName="Helvetica-Bold",
-            fontSize=32,
-            leading=36,
+            fontSize=48,
+            leading=52,
             textColor=_BRAND_NAVY,
             spaceBefore=0,
-            spaceAfter=8,
+            spaceAfter=12,
         ),
-        "h1Sub": rl.ParagraphStyle(
-            "GGH1Sub",
+        "heroSub": rl.ParagraphStyle(
+            "GGHeroSub",
             parent=base["BodyText"],
             fontName="Helvetica",
-            fontSize=13,
-            leading=18,
+            fontSize=14,
+            leading=20,
             textColor=_TEXT_SECONDARY,
             spaceBefore=0,
-            spaceAfter=14,
-        ),
-        "h2": rl.ParagraphStyle(
-            "GGH2",
-            parent=base["Heading2"],
-            fontName="Helvetica-Bold",
-            fontSize=18,
-            leading=22,
-            textColor=_BRAND_NAVY,
-            spaceBefore=18,
-            spaceAfter=6,
-        ),
-        "h3": rl.ParagraphStyle(
-            "GGH3",
-            parent=base["Heading3"],
-            fontName="Helvetica-Bold",
-            fontSize=14,
-            leading=18,
-            textColor=_BRAND_BLUE,
-            spaceBefore=12,
             spaceAfter=4,
         ),
-        "label": rl.ParagraphStyle(
-            "GGLabel",
+        "kicker": rl.ParagraphStyle(
+            "GGKicker",
+            parent=base["BodyText"],
+            fontName="Helvetica-Bold",
+            fontSize=10,
+            leading=12,
+            textColor=_BRAND_BLUE,
+            spaceBefore=0,
+            spaceAfter=8,
+            # Small-caps via letter-spacing — reportlab can't do
+            # `text-transform: uppercase` directly so callers
+            # uppercase the string themselves.
+        ),
+
+        # ── Section openers (page-1 of every chapter) ────────────
+        "sectionNumber": rl.ParagraphStyle(
+            "GGSectionNumber",
+            parent=base["BodyText"],
+            fontName="Helvetica-Bold",
+            fontSize=36,
+            leading=40,
+            textColor=_BRAND_BLUE,
+            spaceBefore=0,
+            spaceAfter=2,
+        ),
+        "sectionTitle": rl.ParagraphStyle(
+            "GGSectionTitle",
+            parent=base["BodyText"],
+            fontName="Helvetica-Bold",
+            fontSize=24,
+            leading=28,
+            textColor=_BRAND_NAVY,
+            spaceBefore=0,
+            spaceAfter=6,
+        ),
+        "sectionKicker": rl.ParagraphStyle(
+            "GGSectionKicker",
+            parent=base["BodyText"],
+            fontName="Helvetica",
+            fontSize=11,
+            leading=16,
+            textColor=_TEXT_SECONDARY,
+            spaceBefore=0,
+            spaceAfter=18,
+        ),
+
+        # ── Day cards ────────────────────────────────────────────
+        "dayKicker": rl.ParagraphStyle(
+            "GGDayKicker",
             parent=base["BodyText"],
             fontName="Helvetica-Bold",
             fontSize=9,
-            leading=12,
-            textColor=_BRAND_PURPLE,
-            spaceBefore=4,
+            leading=11,
+            textColor=_BRAND_BLUE,
+            spaceBefore=0,
             spaceAfter=2,
         ),
+        "dayTitle": rl.ParagraphStyle(
+            "GGDayTitle",
+            parent=base["BodyText"],
+            fontName="Helvetica-Bold",
+            fontSize=18,
+            leading=21,
+            textColor=_BRAND_NAVY,
+            spaceBefore=0,
+            spaceAfter=6,
+        ),
+        "slotLabel": rl.ParagraphStyle(
+            "GGSlotLabel",
+            parent=base["BodyText"],
+            fontName="Helvetica-Bold",
+            fontSize=8.5,
+            leading=11,
+            textColor=_BRAND_PURPLE,
+            spaceBefore=6,
+            spaceAfter=2,
+        ),
+
+        # ── Body copy ────────────────────────────────────────────
         "body": rl.ParagraphStyle(
             "GGBody",
             parent=base["BodyText"],
@@ -284,23 +355,57 @@ def _styles(rl):
             spaceBefore=0,
             spaceAfter=2,
         ),
+        "tip": rl.ParagraphStyle(
+            "GGTip",
+            parent=base["BodyText"],
+            fontName="Helvetica-Oblique",
+            fontSize=9.5,
+            leading=13,
+            textColor=_BRAND_BLUE,
+            spaceBefore=4,
+            spaceAfter=2,
+        ),
+
+        # ── Cover stats tiles ────────────────────────────────────
         "stat": rl.ParagraphStyle(
             "GGStat",
             parent=base["BodyText"],
             fontName="Helvetica-Bold",
-            fontSize=22,
-            leading=24,
+            fontSize=24,
+            leading=26,
             textColor=_BRAND_NAVY,
             alignment=1,
         ),
         "statLabel": rl.ParagraphStyle(
             "GGStatLabel",
             parent=base["BodyText"],
+            fontName="Helvetica-Bold",
+            fontSize=8,
+            leading=10,
+            textColor=_BRAND_BLUE,
+            alignment=1,
+            spaceAfter=0,
+        ),
+
+        # ── TOC entries on the cover ─────────────────────────────
+        "tocItem": rl.ParagraphStyle(
+            "GGTocItem",
+            parent=base["BodyText"],
+            fontName="Helvetica-Bold",
+            fontSize=10,
+            leading=14,
+            textColor=_BRAND_NAVY,
+            spaceBefore=0,
+            spaceAfter=0,
+        ),
+        "tocItemSub": rl.ParagraphStyle(
+            "GGTocItemSub",
+            parent=base["BodyText"],
             fontName="Helvetica",
             fontSize=8.5,
-            leading=10,
+            leading=11,
             textColor=_TEXT_SECONDARY,
-            alignment=1,
+            spaceBefore=0,
             spaceAfter=0,
         ),
     }
@@ -331,37 +436,246 @@ def _hr(rl, color: str = _BRAND_BLUE, thickness: float = 2.0):
     )
 
 
-def _summary_stats_row(rl, styles, stats: list[tuple[str, str]]):
-    """Cover-page 'stat strip' — small evenly-spaced summary boxes
-    rendered as a Table so the layout is fixed across trip sizes.
+def _section_opener(rl, styles, page_w, margin_lr, number: str, title: str, kicker: str, color: str):
+    """A magazine-style section opener — big "01" number, section
+    title underneath, small-caps tagline, then a thick accent rule.
+    Returned as a list of flowables; caller is responsible for
+    putting a PageBreak BEFORE this list so the opener always
+    lands at the top of a fresh page.
+
+    The accent rule color matches the section's theme — blue for
+    days, purple for to-dos, green for budgets, etc. — so the
+    eye learns the color-to-section pairing as it flips through."""
+    return [
+        rl.Spacer(1, 0.4 * rl.cm),
+        rl.Paragraph(_esc(number), styles["sectionNumber"]),
+        rl.Paragraph(_esc(title), styles["sectionTitle"]),
+        rl.Paragraph(_esc(kicker), styles["sectionKicker"]),
+        rl.HRFlowable(
+            width="40%",
+            thickness=3.0,
+            color=color,
+            spaceBefore=0,
+            spaceAfter=24,
+            lineCap="round",
+        ),
+    ]
+
+
+def _day_card(rl, styles, page_w, margin_lr, day: dict, day_map_png: bytes | None):
+    """Render one day as a "card" — a table with a thin tinted
+    background, a date-chip header strip, the day's morning /
+    afternoon / evening copy, notes, and optional tip.
+
+    Returned wrapped in a KeepTogether so the card doesn't split
+    mid-block if it'd fit on a fresh page. Long days (lots of
+    notes) STILL split — KeepTogether falls back to natural flow
+    when the block exceeds a single page."""
+    day_number = day.get("day_number")
+    day_date = _fmt_date(day.get("date"))
+    day_name = (day.get("name") or "").strip()
+
+    # Header strip: kicker (date) + big day title
+    kicker_text = ""
+    if day_date:
+        kicker_text = day_date.upper()
+    title_parts: list[str] = []
+    if day_number is not None and day_number != "":
+        title_parts.append(f"Day {day_number}")
+    if day_name:
+        title_parts.append(day_name)
+    day_title = "  ·  ".join(title_parts) or "Day"
+
+    inner: list[Any] = [
+        rl.Paragraph(_esc(kicker_text), styles["dayKicker"]) if kicker_text else rl.Spacer(1, 0),
+        rl.Paragraph(_esc(day_title), styles["dayTitle"]),
+        rl.HRFlowable(
+            width="100%",
+            thickness=0.6,
+            color=_RULE_GREY,
+            spaceBefore=0,
+            spaceAfter=8,
+        ),
+    ]
+
+    if day_map_png:
+        try:
+            inner.append(
+                rl.Image(
+                    io.BytesIO(day_map_png),
+                    width=page_w - 2 * margin_lr - 24,  # minus card padding
+                    height=(page_w - 2 * margin_lr - 24) * 0.28,
+                    kind="proportional",
+                )
+            )
+            inner.append(rl.Spacer(1, 0.25 * rl.cm))
+        except Exception:
+            pass
+
+    any_slot = False
+    for slot_name, slot_label in (
+        ("morning", "MORNING"),
+        ("afternoon", "AFTERNOON"),
+        ("evening", "EVENING"),
+    ):
+        val = day.get(slot_name)
+        if isinstance(val, str) and val.strip():
+            any_slot = True
+            inner.append(rl.Paragraph(slot_label, styles["slotLabel"]))
+            body_text = _esc(val).replace("\n", "<br/>")
+            inner.append(rl.Paragraph(body_text, styles["body"]))
+
+    notes = day.get("notes")
+    if isinstance(notes, str) and notes.strip():
+        inner.append(rl.Paragraph("NOTES", styles["slotLabel"]))
+        inner.append(
+            rl.Paragraph(_esc(notes).replace("\n", "<br/>"), styles["body"])
+        )
+        any_slot = True
+
+    tip = day.get("tip")
+    if isinstance(tip, str) and tip.strip():
+        inner.append(
+            rl.Paragraph(f"💡 {_esc(tip)}", styles["tip"])
+        )
+        any_slot = True
+
+    if not any_slot:
+        inner.append(
+            rl.Paragraph("<i>No plan yet for this day.</i>", styles["muted"])
+        )
+
+    # Wrap the whole day in a one-cell table so it gets a card
+    # background + subtle padding. The table border is the visual
+    # "card edge"; reportlab doesn't have a native rounded-corner
+    # box flowable so we settle for a 0.4pt border at the brand's
+    # subtle grey.
+    card = rl.Table([[inner]], colWidths=[page_w - 2 * margin_lr])
+    card.setStyle(rl.TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), rl.colors.HexColor("#fafbff")),
+        ("BOX", (0, 0), (-1, -1), 0.4, rl.colors.HexColor(_RULE_GREY)),
+        ("LEFTPADDING", (0, 0), (-1, -1), 14),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 14),
+        ("TOPPADDING", (0, 0), (-1, -1), 12),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 12),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ]))
+
+    return [card, rl.Spacer(1, 0.35 * rl.cm)]
+
+
+def _summary_stats_row(rl, styles, stats: list[tuple[str, str]], page_w, margin_lr):
+    """Cover-page 'stat tiles' — each stat is its own pill-shaped
+    card with a tinted background. Tiles flex evenly to fill the
+    page width regardless of how many stats we have (2 / 3 / 4
+    common).
 
     `stats` is a list of (value, label) tuples — e.g.
     [("7", "DAYS"), ("12", "TO-DOS"), ("€842", "SPEND")]."""
     if not stats:
         return rl.Spacer(1, 0.1 * rl.cm)
-    cells = [
-        [
-            rl.Paragraph(_esc(value), styles["stat"]),
-            rl.Paragraph(_esc(label), styles["statLabel"]),
-        ]
-        for value, label in stats
-    ]
-    # Two rows (value over label) × N columns.
-    rows = [[c[0] for c in cells], [c[1] for c in cells]]
     n = len(stats)
-    table = rl.Table(rows, colWidths=[(17 * rl.cm) / n] * n)
-    table.setStyle(
-        rl.TableStyle(
+    available = page_w - 2 * margin_lr
+    gap = 8  # pts between tiles
+    tile_w = (available - gap * (n - 1)) / n
+
+    # Each tile is a 1-cell Table with value-over-label content
+    # and a tinted background. Wrapping all tiles in an outer
+    # Table-of-tiles handles the horizontal layout + gap.
+    tile_cells: list[Any] = []
+    for value, label in stats:
+        inner = rl.Table(
             [
-                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                ("BOTTOMPADDING", (0, 0), (-1, 0), 0),
-                ("TOPPADDING", (0, 1), (-1, 1), 0),
-                ("LINEBEFORE", (1, 0), (-1, -1), 0.5, _RULE_GREY),
-            ]
+                [rl.Paragraph(_esc(value), styles["stat"])],
+                [rl.Paragraph(_esc(label), styles["statLabel"])],
+            ],
+            colWidths=[tile_w],
         )
+        inner.setStyle(rl.TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), rl.colors.HexColor("#f0f6ff")),
+            ("BOX", (0, 0), (-1, -1), 0.4, rl.colors.HexColor("#d6e4ff")),
+            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("TOPPADDING", (0, 0), (-1, 0), 14),
+            ("BOTTOMPADDING", (0, 0), (-1, 0), 4),
+            ("TOPPADDING", (0, 1), (-1, 1), 0),
+            ("BOTTOMPADDING", (0, 1), (-1, 1), 12),
+        ]))
+        tile_cells.append(inner)
+
+    # Outer table places tiles side-by-side with a spacer column
+    # between each pair. Build the row + colWidths together.
+    row: list[Any] = []
+    col_widths: list[float] = []
+    for i, tile in enumerate(tile_cells):
+        if i > 0:
+            row.append("")
+            col_widths.append(gap)
+        row.append(tile)
+        col_widths.append(tile_w)
+    outer = rl.Table([row], colWidths=col_widths)
+    outer.setStyle(rl.TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+    ]))
+    return outer
+
+
+def _toc_entry(rl, styles, page_w, margin_lr, number: str, title: str, sub: str, color: str):
+    """One row in the 'What's inside' table-of-contents block on
+    the cover page. Renders as a tinted left edge + number + title
+    + subtitle, in one table row. The left-edge color matches the
+    section's theme color in the document body (blue/purple/etc.)
+    so the reader learns the chapter→color mapping immediately."""
+    return rl.Table(
+        [[
+            rl.Paragraph(_esc(number), styles["dayKicker"]),
+            rl.Paragraph(_esc(title), styles["tocItem"]),
+            rl.Paragraph(_esc(sub), styles["tocItemSub"]),
+        ]],
+        colWidths=[
+            0.7 * rl.cm,
+            5.4 * rl.cm,
+            page_w - 2 * margin_lr - 0.7 * rl.cm - 5.4 * rl.cm,
+        ],
+    ).setStyle  # chain a setStyle call returns None — fix below
+# (Note: setStyle returns None; the wrapper below assigns then returns.)
+
+
+def _toc_row(rl, styles, page_w, margin_lr, number: str, title: str, sub: str, color: str):
+    """TOC row used by the cover-page 'What's inside' block. Each
+    row is: tinted accent bar | number | title | description.
+    Number + title sit on the same baseline; description wraps."""
+    t = rl.Table(
+        [[
+            "",
+            rl.Paragraph(_esc(number), styles["dayKicker"]),
+            [
+                rl.Paragraph(_esc(title), styles["tocItem"]),
+                rl.Paragraph(_esc(sub), styles["tocItemSub"]),
+            ],
+        ]],
+        colWidths=[
+            0.18 * rl.cm,
+            0.8 * rl.cm,
+            page_w - 2 * margin_lr - 0.98 * rl.cm,
+        ],
     )
-    return table
+    t.setStyle(rl.TableStyle([
+        ("BACKGROUND", (0, 0), (0, 0), rl.colors.HexColor(color)),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+        ("TOPPADDING", (0, 0), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        # Tiny gap between the accent bar and the number col so
+        # the bar reads as a separate element.
+        ("LEFTPADDING", (1, 0), (1, -1), 8),
+    ]))
+    return t
 
 
 def _fmt_date(s: Any) -> str:
@@ -478,24 +792,42 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
     days = trip_row.get("days") or []
     ai_plan_extra = options.get("aiPlan") if isinstance(options.get("aiPlan"), list) else []
 
-    # ── COVER ──
+    # ── COVER PAGE ──
+    # Full-bleed feel: tiny brand kicker → big hero title → country/
+    # dates → hero map → stat tiles → "what's inside" mini-TOC.
+    # Everything sized so the cover fills a SINGLE page; PageBreak
+    # below it guarantees the next section starts on page 2.
     title = trip_row.get("name") or "Untitled trip"
     country = trip_row.get("country") or ""
-    sub_parts = []
-    if country:
-        sub_parts.append(country)
     date_from = trip_row.get("date_from") or ""
     date_to = trip_row.get("date_to") or ""
-    if date_from or date_to:
-        if date_from and date_to:
-            sub_parts.append(f"{_fmt_date(date_from)} → {_fmt_date(date_to)}")
-        else:
-            sub_parts.append(_fmt_date(date_from or date_to))
-    subtitle = "  ·  ".join(sub_parts) if sub_parts else "Plan"
+    if date_from and date_to:
+        date_line = f"{_fmt_date(date_from)}   →   {_fmt_date(date_to)}"
+    elif date_from or date_to:
+        date_line = _fmt_date(date_from or date_to)
+    else:
+        date_line = ""
 
-    story.append(rl.Paragraph(_esc(title), styles["h1"]))
-    story.append(rl.Paragraph(_esc(subtitle), styles["h1Sub"]))
-    story.append(_hr(rl, color=_BRAND_BLUE, thickness=2.0))
+    story.append(rl.Spacer(1, 0.6 * rl.cm))
+    story.append(
+        rl.Paragraph("THE GREAT GETAWAY   ·   TRIP PLAN", styles["kicker"])
+    )
+    story.append(
+        rl.HRFlowable(
+            width="22%",
+            thickness=2.5,
+            color=_BRAND_BLUE,
+            spaceBefore=0,
+            spaceAfter=16,
+            lineCap="round",
+        )
+    )
+    story.append(rl.Paragraph(_esc(title), styles["hero"]))
+    if country:
+        story.append(rl.Paragraph(_esc(country), styles["heroSub"]))
+    if date_line:
+        story.append(rl.Paragraph(_esc(date_line), styles["heroSub"]))
+    story.append(rl.Spacer(1, 0.7 * rl.cm))
 
     if opt("includeCoverMap"):
         map_png = _fetch_cover_map(
@@ -505,14 +837,26 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
         )
         if map_png:
             try:
-                story.append(
-                    rl.Image(
-                        io.BytesIO(map_png),
-                        width=page_w - 2 * margin_lr,
-                        height=(page_w - 2 * margin_lr) * 0.5,
-                        kind="proportional",
-                    )
+                # Wrap the map in a thin-bordered table so it looks
+                # framed rather than just floating loose on the page.
+                img = rl.Image(
+                    io.BytesIO(map_png),
+                    width=page_w - 2 * margin_lr,
+                    height=(page_w - 2 * margin_lr) * 0.46,
+                    kind="proportional",
                 )
+                frame = rl.Table(
+                    [[img]],
+                    colWidths=[page_w - 2 * margin_lr],
+                )
+                frame.setStyle(rl.TableStyle([
+                    ("BOX", (0, 0), (-1, -1), 0.5, rl.colors.HexColor(_RULE_GREY)),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                    ("TOPPADDING", (0, 0), (-1, -1), 0),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+                ]))
+                story.append(frame)
                 story.append(rl.Spacer(1, 0.6 * rl.cm))
             except Exception:
                 # Reportlab refuses bad image bytes silently —
@@ -533,163 +877,182 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
         if trip_row.get("total_spend_eur") is not None:
             stats.append((f"€{int(trip_row['total_spend_eur']):,}", "SPEND"))
         if stats:
-            story.append(_summary_stats_row(rl, styles, stats))
-            story.append(rl.Spacer(1, 0.6 * rl.cm))
+            story.append(_summary_stats_row(rl, styles, stats, page_w, margin_lr))
+            story.append(rl.Spacer(1, 0.7 * rl.cm))
+
+    # "What's inside" mini-TOC. Lists only the sections the user
+    # opted to include — so the cover honestly previews what they
+    # ticked in the export modal.
+    toc_entries: list[tuple[str, str, str, str]] = []
+    n = 1
+    if opt("includeDays") and days:
+        toc_entries.append((
+            f"{n:02d}", "Day-by-day",
+            f"{len(days)} day{'s' if len(days) != 1 else ''} of plans.",
+            _BRAND_BLUE,
+        ))
+        n += 1
+    todos = _safe_json(trip_row.get("checklist_json"), [])
+    if opt("includeTodos") and todos:
+        toc_entries.append((
+            f"{n:02d}", "Checklist",
+            f"{len(todos)} to-do{'s' if len(todos) != 1 else ''} grouped by category.",
+            _BRAND_PURPLE,
+        ))
+        n += 1
+    budgets = trip_row.get("budgets") or []
+    if opt("includeBudgets") and budgets:
+        toc_entries.append((
+            f"{n:02d}", "Budgets",
+            f"{len(budgets)} planned line item{'s' if len(budgets) != 1 else ''} + trip-total spend.",
+            _BRAND_GREEN,
+        ))
+        n += 1
+    if opt("includeCompanions") and companions:
+        toc_entries.append((
+            f"{n:02d}", "Companions",
+            f"Travelling with {len(companions)} other{'s' if len(companions) != 1 else ''}.",
+            _BRAND_PURPLE,
+        ))
+        n += 1
+    if opt("includeMarkedPlaces") and marked_places:
+        toc_entries.append((
+            f"{n:02d}", "Marked places",
+            f"{len(marked_places)} saved place{'s' if len(marked_places) != 1 else ''}.",
+            _BRAND_BLUE,
+        ))
+        n += 1
+
+    if toc_entries:
+        story.append(
+            rl.Paragraph("WHAT'S INSIDE", styles["kicker"])
+        )
+        for entry in toc_entries:
+            story.append(_toc_row(rl, styles, page_w, margin_lr, *entry))
+            story.append(rl.Spacer(1, 0.18 * rl.cm))
+
+    # Section counter mirrors the TOC numbering above so the
+    # "01" on the section opener matches the "01" on the cover.
+    section_num = 1
 
     # ── DAYS ──
     if opt("includeDays") and days:
         story.append(rl.PageBreak())
-        story.append(rl.Paragraph("Day-by-day plan", styles["h2"]))
-        story.append(_hr(rl, color=_BRAND_PURPLE))
+        story.extend(_section_opener(
+            rl, styles, page_w, margin_lr,
+            number=f"{section_num:02d}",
+            title="Day-by-day",
+            kicker=(
+                f"{len(days)} day{'s' if len(days) != 1 else ''} laid out below. "
+                "Each card walks the day morning → afternoon → evening."
+            ),
+            color=_BRAND_BLUE,
+        ))
+        section_num += 1
         for day in days:
             if not isinstance(day, dict):
                 continue
-            day_number = day.get("day_number")
-            day_date = _fmt_date(day.get("date"))
-            day_name = day.get("name") or ""
-            heading_parts: list[str] = []
-            if day_number is not None and day_number != "":
-                heading_parts.append(f"Day {day_number}")
-            if day_date:
-                heading_parts.append(day_date)
-            heading = " · ".join(heading_parts) or day_name
-            if day_name and day_name not in heading:
-                heading = f"{heading} — {day_name}" if heading else day_name
-            story.append(rl.Paragraph(_esc(heading), styles["h3"]))
-            day_block: list[Any] = []
-
-            # Optional day-pin map.
+            # Per-day mini-map (opt-in).
+            day_map_png = None
             if opt("includeDayPins"):
                 d_lat = day.get("lat")
                 d_lng = day.get("lng")
                 if d_lat is None or d_lng is None:
                     d_lat = trip_row.get("lat")
                     d_lng = trip_row.get("lng")
-                day_map = _fetch_day_pin_map(d_lat, d_lng, None)
-                if day_map:
-                    try:
-                        day_block.append(
-                            rl.Image(
-                                io.BytesIO(day_map),
-                                width=page_w - 2 * margin_lr,
-                                height=(page_w - 2 * margin_lr) * 0.32,
-                                kind="proportional",
-                            )
-                        )
-                        day_block.append(rl.Spacer(1, 0.3 * rl.cm))
-                    except Exception:
-                        pass
-
-            # trip_days schema — morning / afternoon / evening are
-            # free-text fields (the user-edited day plan). The
-            # AI-plan rich-slot shape (breakfast/lunch/dinner dicts)
-            # lives in localStorage on the client; this builder
-            # renders what's persisted server-side.
-            for slot_name, slot_emoji in (
-                ("morning", "🌅"),
-                ("afternoon", "☀️"),
-                ("evening", "🌙"),
-            ):
-                val = day.get(slot_name)
-                if isinstance(val, str) and val.strip():
-                    day_block.append(
-                        rl.Paragraph(
-                            f"{slot_emoji} <b>{slot_name.upper()}</b>",
-                            styles["label"],
-                        )
-                    )
-                    # Preserve linebreaks the user typed by
-                    # replacing them with reportlab's <br/> tag.
-                    body_text = _esc(val).replace("\n", "<br/>")
-                    day_block.append(rl.Paragraph(body_text, styles["body"]))
-
-            notes = day.get("notes")
-            if isinstance(notes, str) and notes.strip():
-                day_block.append(
-                    rl.Paragraph("📝 <b>NOTES</b>", styles["label"])
-                )
-                day_block.append(
-                    rl.Paragraph(
-                        _esc(notes).replace("\n", "<br/>"), styles["body"],
-                    )
-                )
-
-            tip = day.get("tip")
-            if isinstance(tip, str) and tip.strip():
-                day_block.append(
-                    rl.Paragraph(
-                        f"<i>💡 Tip: {_esc(tip)}</i>",
-                        styles["muted"],
-                    )
-                )
-
-            day_block.append(rl.Spacer(1, 0.4 * rl.cm))
-            # KeepTogether keeps the day-heading + at least the
-            # first chunk on the same page. Long days will still
-            # break naturally inside the block.
-            story.append(rl.KeepTogether(day_block))
+                day_map_png = _fetch_day_pin_map(d_lat, d_lng, None)
+            card_flowables = _day_card(rl, styles, page_w, margin_lr, day, day_map_png)
+            # KeepTogether on each card → don't split a single day
+            # mid-block. Long days (lots of notes) STILL fall back
+            # to natural pagination when they exceed one page.
+            story.append(rl.KeepTogether(card_flowables))
 
         # Optionally append the LLM-generated layer the frontend
         # forwarded along (lives in localStorage; not in the DB).
         if ai_plan_extra:
             story.append(rl.PageBreak())
-            story.append(rl.Paragraph("AI-suggested plan", styles["h2"]))
-            story.append(rl.Paragraph(
-                "Gemini-generated suggestions kept alongside your hand-"
-                "edited plan. These have not been &lt;accepted&gt; into "
-                "your day-by-day yet.",
-                styles["muted"],
+            story.extend(_section_opener(
+                rl, styles, page_w, margin_lr,
+                number="✦",
+                title="AI suggestions",
+                kicker=(
+                    "Gemini-generated plan kept alongside your hand-edited "
+                    "version. Not yet accepted into your day-by-day."
+                ),
+                color=_BRAND_PURPLE,
             ))
-            story.append(_hr(rl, color=_BRAND_PURPLE))
             for day in ai_plan_extra:
                 if not isinstance(day, dict):
                     continue
                 day_num = day.get("day", "")
                 day_dt = _fmt_date(day.get("date", ""))
                 main_loc = day.get("mainLocation") or day.get("title") or ""
-                parts = [f"Day {day_num}" if day_num else ""]
-                if day_dt:
-                    parts.append(day_dt)
-                hd = " · ".join(p for p in parts if p)
+                kicker_text = day_dt.upper() if day_dt else ""
+                title_parts = []
+                if day_num:
+                    title_parts.append(f"Day {day_num}")
                 if main_loc:
-                    hd = f"{hd} — {main_loc}" if hd else main_loc
-                story.append(rl.Paragraph(_esc(hd), styles["h3"]))
-                blk: list[Any] = []
-                for slot_name, slot_emoji in (
-                    ("breakfast", "🥐"),
-                    ("lunch", "🥗"),
-                    ("dinner", "🍽"),
+                    title_parts.append(main_loc)
+                ai_title = "  ·  ".join(title_parts) or "Day"
+
+                inner: list[Any] = []
+                if kicker_text:
+                    inner.append(rl.Paragraph(_esc(kicker_text), styles["dayKicker"]))
+                inner.append(rl.Paragraph(_esc(ai_title), styles["dayTitle"]))
+                inner.append(rl.HRFlowable(
+                    width="100%", thickness=0.6, color=_RULE_GREY,
+                    spaceBefore=0, spaceAfter=8,
+                ))
+                for slot_name, slot_label in (
+                    ("breakfast", "BREAKFAST"),
+                    ("lunch", "LUNCH"),
+                    ("dinner", "DINNER"),
                 ):
                     slot = day.get(slot_name)
                     if isinstance(slot, dict):
                         nm = slot.get("name") or slot.get("text") or ""
                         why = slot.get("why") or ""
-                        blk.append(rl.Paragraph(
-                            f"{slot_emoji} <b>{slot_name.upper()}</b>",
-                            styles["label"],
-                        ))
+                        inner.append(rl.Paragraph(slot_label, styles["slotLabel"]))
                         if nm:
-                            blk.append(rl.Paragraph(_esc(nm), styles["body"]))
+                            inner.append(rl.Paragraph(_esc(nm), styles["body"]))
                         if why:
-                            blk.append(rl.Paragraph(_esc(why), styles["muted"]))
+                            inner.append(rl.Paragraph(_esc(why), styles["muted"]))
                 sights = day.get("sights")
                 if isinstance(sights, list) and sights:
-                    blk.append(rl.Paragraph("📍 <b>SIGHTS</b>", styles["label"]))
+                    inner.append(rl.Paragraph("SIGHTS", styles["slotLabel"]))
                     for s in sights:
                         if isinstance(s, dict):
                             nm = s.get("name") or s.get("text") or ""
-                            blk.append(rl.Paragraph(f"• {_esc(nm)}", styles["body"]))
+                            inner.append(rl.Paragraph(f"• {_esc(nm)}", styles["body"]))
                         elif isinstance(s, str):
-                            blk.append(rl.Paragraph(f"• {_esc(s)}", styles["body"]))
-                blk.append(rl.Spacer(1, 0.3 * rl.cm))
-                story.append(rl.KeepTogether(blk))
+                            inner.append(rl.Paragraph(f"• {_esc(s)}", styles["body"]))
+                card = rl.Table([[inner]], colWidths=[page_w - 2 * margin_lr])
+                card.setStyle(rl.TableStyle([
+                    ("BACKGROUND", (0, 0), (-1, -1), rl.colors.HexColor("#fbf7ff")),
+                    ("BOX", (0, 0), (-1, -1), 0.4, rl.colors.HexColor("#e9d8fd")),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 14),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 14),
+                    ("TOPPADDING", (0, 0), (-1, -1), 12),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 12),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ]))
+                story.append(rl.KeepTogether([card, rl.Spacer(1, 0.35 * rl.cm)]))
 
     # ── TO-DOs ──
     todos = _safe_json(trip_row.get("checklist_json"), [])
     if opt("includeTodos") and todos:
         story.append(rl.PageBreak())
-        story.append(rl.Paragraph("To-do list", styles["h2"]))
-        story.append(_hr(rl, color=_BRAND_BLUE))
+        story.extend(_section_opener(
+            rl, styles, page_w, margin_lr,
+            number=f"{section_num:02d}",
+            title="Checklist",
+            kicker=(
+                f"{len(todos)} item{'s' if len(todos) != 1 else ''} "
+                "grouped by category. Tick what's done as you go."
+            ),
+            color=_BRAND_PURPLE,
+        ))
+        section_num += 1
         # Group by category if items have one; else flat list.
         by_cat: dict[str, list[dict]] = {}
         for t in todos:
@@ -698,22 +1061,47 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
             cat = t.get("category") or "General"
             by_cat.setdefault(cat, []).append(t)
         for cat, items in by_cat.items():
-            story.append(rl.Paragraph(_esc(cat), styles["h3"]))
+            cat_inner: list[Any] = [
+                rl.Paragraph(_esc(cat).upper(), styles["slotLabel"]),
+            ]
             for it in items:
                 done = bool(it.get("completed") or it.get("done"))
                 marker = "☑" if done else "☐"
                 body = it.get("text") or it.get("name") or ""
                 style = styles["muted"] if done else styles["body"]
-                story.append(
+                cat_inner.append(
                     rl.Paragraph(f"{marker}  {_esc(body)}", style)
                 )
+            cat_card = rl.Table(
+                [[cat_inner]], colWidths=[page_w - 2 * margin_lr],
+            )
+            cat_card.setStyle(rl.TableStyle([
+                ("BACKGROUND", (0, 0), (-1, -1), rl.colors.HexColor("#fdfafe")),
+                ("BOX", (0, 0), (-1, -1), 0.4, rl.colors.HexColor(_RULE_GREY)),
+                ("LEFTPADDING", (0, 0), (-1, -1), 14),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 14),
+                ("TOPPADDING", (0, 0), (-1, -1), 10),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ]))
+            story.append(rl.KeepTogether([cat_card, rl.Spacer(1, 0.3 * rl.cm)]))
 
     # ── BUDGETS ──
     budgets = trip_row.get("budgets") or []
     if opt("includeBudgets") and budgets:
         story.append(rl.PageBreak())
-        story.append(rl.Paragraph("Budgets", styles["h2"]))
-        story.append(_hr(rl, color=_BRAND_GREEN))
+        story.extend(_section_opener(
+            rl, styles, page_w, margin_lr,
+            number=f"{section_num:02d}",
+            title="Budgets",
+            kicker=(
+                f"{len(budgets)} planned line item"
+                f"{'s' if len(budgets) != 1 else ''} alongside the trip's "
+                "actual spend, EUR-normalised."
+            ),
+            color=_BRAND_GREEN,
+        ))
+        section_num += 1
         # The budgets table is { label, amount, currency } — there's
         # no per-budget→category mapping in this schema, so we can't
         # split spend by budget. Show each budget's planned amount
@@ -759,9 +1147,18 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
 
     # ── COMPANIONS ──
     if opt("includeCompanions") and companions:
-        story.append(rl.Spacer(1, 0.6 * rl.cm))
-        story.append(rl.Paragraph("Companions", styles["h2"]))
-        story.append(_hr(rl, color=_BRAND_PURPLE))
+        story.append(rl.PageBreak())
+        story.extend(_section_opener(
+            rl, styles, page_w, margin_lr,
+            number=f"{section_num:02d}",
+            title="Companions",
+            kicker=(
+                f"Travelling with {len(companions)} other"
+                f"{'s' if len(companions) != 1 else ''}."
+            ),
+            color=_BRAND_PURPLE,
+        ))
+        section_num += 1
         for c in companions:
             if isinstance(c, dict):
                 nm = c.get("name") or ""
@@ -769,17 +1166,41 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
 
     # ── MARKED PLACES ──
     if opt("includeMarkedPlaces") and marked_places:
-        story.append(rl.Spacer(1, 0.6 * rl.cm))
-        story.append(rl.Paragraph("Marked places", styles["h2"]))
-        story.append(_hr(rl, color=_BRAND_BLUE))
+        story.append(rl.PageBreak())
+        story.extend(_section_opener(
+            rl, styles, page_w, margin_lr,
+            number=f"{section_num:02d}",
+            title="Marked places",
+            kicker=(
+                f"{len(marked_places)} saved place"
+                f"{'s' if len(marked_places) != 1 else ''} with addresses."
+            ),
+            color=_BRAND_BLUE,
+        ))
+        section_num += 1
         for p in marked_places:
             if not isinstance(p, dict):
                 continue
             nm = p.get("name") or ""
             addr = p.get("address") or p.get("vicinity") or ""
-            story.append(rl.Paragraph(_esc(nm), styles["body"]))
+            place_inner: list[Any] = [
+                rl.Paragraph(_esc(nm), styles["dayTitle"]),
+            ]
             if addr:
-                story.append(rl.Paragraph(_esc(addr), styles["muted"]))
+                place_inner.append(rl.Paragraph(_esc(addr), styles["muted"]))
+            place_card = rl.Table(
+                [[place_inner]], colWidths=[page_w - 2 * margin_lr],
+            )
+            place_card.setStyle(rl.TableStyle([
+                ("BACKGROUND", (0, 0), (-1, -1), rl.colors.HexColor("#fafbff")),
+                ("BOX", (0, 0), (-1, -1), 0.4, rl.colors.HexColor(_RULE_GREY)),
+                ("LEFTPADDING", (0, 0), (-1, -1), 14),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 14),
+                ("TOPPADDING", (0, 0), (-1, -1), 10),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ]))
+            story.append(rl.KeepTogether([place_card, rl.Spacer(1, 0.2 * rl.cm)]))
 
     if not any(opt(k) for k in (
         "includeDays", "includeTodos", "includeBudgets",
