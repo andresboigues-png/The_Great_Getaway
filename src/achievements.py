@@ -68,8 +68,17 @@ class BadgeDef:
 
 
 def _check_first_trip(cursor, user_id):
-    """One trip you own — created, archived, anything."""
-    cursor.execute("SELECT COUNT(*) AS c FROM trips WHERE user_id = ?", (user_id,))
+    """One COMPLETED trip you own. Per the 2026-05-18 rule change,
+    every trip-based badge counts only currently-archived trips so an
+    un-archive reverts progress until the trip is completed again.
+    `first_trip` therefore overlaps with `archivist` at the trigger
+    level but stays in the registry as the "headline" milestone for
+    the badges UI."""
+    cursor.execute(
+        "SELECT COUNT(*) AS c FROM trips "
+        "WHERE user_id = ? AND COALESCE(is_archived, 0) = 1",
+        (user_id,),
+    )
     row = cursor.fetchone()
     return {} if (row and row["c"] >= 1) else None
 
@@ -105,9 +114,14 @@ def _country_count(cursor, user_id) -> int:
             -- Primary key per trip: country_code if present, else
             -- LOWER(country). Same shape as the pre-§4.3 query so
             -- legacy trips keep contributing exactly one row.
+            -- `is_archived = 1` filter scopes the count to CURRENTLY
+            -- completed trips (2026-05-18 rule change — restoring an
+            -- archived trip should drop it from the achievement count).
             SELECT COALESCE(NULLIF(UPPER(country_code), ''), LOWER(country)) AS code
             FROM trips
-            WHERE user_id = ? AND COALESCE(country, '') != ''
+            WHERE user_id = ?
+              AND COALESCE(country, '') != ''
+              AND COALESCE(is_archived, 0) = 1
 
             UNION
 
@@ -119,7 +133,9 @@ def _country_count(cursor, user_id) -> int:
             -- these but UPPER() is cheap and idempotent.
             SELECT UPPER(je.value) AS code
             FROM trips, json_each(trips.trip_countries_json) AS je
-            WHERE trips.user_id = ? AND trips.trip_countries_json IS NOT NULL
+            WHERE trips.user_id = ?
+              AND trips.trip_countries_json IS NOT NULL
+              AND COALESCE(trips.is_archived, 0) = 1
         )
         SELECT COUNT(DISTINCT code) AS c FROM all_codes WHERE code != ''
         """,
@@ -144,7 +160,9 @@ def _check_repeat_country(cursor, user_id):
     cursor.execute(
         "SELECT COALESCE(NULLIF(country_code, ''), LOWER(country)) AS key, COUNT(*) AS c "
         "FROM trips "
-        "WHERE user_id = ? AND COALESCE(country, '') != '' "
+        "WHERE user_id = ? "
+        "  AND COALESCE(country, '') != '' "
+        "  AND COALESCE(is_archived, 0) = 1 "
         "GROUP BY key "
         "HAVING c >= 2 "
         "ORDER BY c DESC LIMIT 1",
@@ -231,7 +249,7 @@ def _check_longest_trip(cursor, user_id):
         "SELECT t.id, t.name, COUNT(td.id) AS days "
         "FROM trips t "
         "LEFT JOIN trip_days td ON td.trip_id = t.id "
-        "WHERE t.user_id = ? "
+        "WHERE t.user_id = ? AND COALESCE(t.is_archived, 0) = 1 "
         "GROUP BY t.id "
         "HAVING days >= ? "
         "ORDER BY days DESC LIMIT 1",
@@ -260,7 +278,7 @@ def _check_priciest_trip(cursor, user_id):
         "SELECT t.id, t.name, COALESCE(SUM(e.euro_value), 0) AS spend "
         "FROM trips t "
         "LEFT JOIN expenses e ON e.trip_id = t.id "
-        "WHERE t.user_id = ? "
+        "WHERE t.user_id = ? AND COALESCE(t.is_archived, 0) = 1 "
         "GROUP BY t.id "
         "HAVING spend >= ? "
         "ORDER BY spend DESC LIMIT 1",
@@ -285,7 +303,8 @@ def _check_most_companions(cursor, user_id):
     json_array_length) because some older trip rows have non-array
     values from earlier schema iterations."""
     cursor.execute(
-        "SELECT id, name, companions_json FROM trips WHERE user_id = ?",
+        "SELECT id, name, companions_json FROM trips "
+        "WHERE user_id = ? AND COALESCE(is_archived, 0) = 1",
         (user_id,),
     )
     best = None
@@ -318,7 +337,9 @@ def _check_intra_country_3(cursor, user_id):
     cursor.execute(
         "SELECT COALESCE(NULLIF(country_code, ''), LOWER(country)) AS key, COUNT(*) AS c "
         "FROM trips "
-        "WHERE user_id = ? AND COALESCE(country, '') != '' "
+        "WHERE user_id = ? "
+        "  AND COALESCE(country, '') != '' "
+        "  AND COALESCE(is_archived, 0) = 1 "
         "GROUP BY key "
         "HAVING c >= 3 "
         "ORDER BY c DESC LIMIT 1",
@@ -342,7 +363,9 @@ def _check_back_to_back(cursor, user_id):
     cursor.execute(
         "SELECT DISTINCT strftime('%Y-%m', created_at) AS ym "
         "FROM trips "
-        "WHERE user_id = ? AND created_at IS NOT NULL "
+        "WHERE user_id = ? "
+        "  AND created_at IS NOT NULL "
+        "  AND COALESCE(is_archived, 0) = 1 "
         "ORDER BY ym",
         (user_id,),
     )
@@ -375,7 +398,7 @@ BADGES: list[BadgeDef] = [
         id="first_trip",
         emoji="🧳",
         label="First Trip",
-        description="Created your first trip.",
+        description="Completed your first trip.",
         check=_check_first_trip,
     ),
     BadgeDef(
@@ -389,28 +412,28 @@ BADGES: list[BadgeDef] = [
         id="globe_trotter_3",
         emoji="🌍",
         label="Globe Trotter — 3 countries",
-        description="Visited 3 distinct countries.",
+        description="Completed trips to 3 distinct countries.",
         check=_make_globe_trotter_check(3),
     ),
     BadgeDef(
         id="globe_trotter_10",
         emoji="🌏",
         label="Globe Trotter — 10 countries",
-        description="Visited 10 distinct countries.",
+        description="Completed trips to 10 distinct countries.",
         check=_make_globe_trotter_check(10),
     ),
     BadgeDef(
         id="globe_trotter_25",
         emoji="🌐",
         label="Globe Trotter — 25 countries",
-        description="Visited 25 distinct countries.",
+        description="Completed trips to 25 distinct countries.",
         check=_make_globe_trotter_check(25),
     ),
     BadgeDef(
         id="repeat_country",
         emoji="📍",
         label="Local Hero",
-        description="Visited the same country twice — repeat-destination respect.",
+        description="Completed two trips to the same country — repeat-destination respect.",
         check=_check_repeat_country,
     ),
     BadgeDef(
@@ -442,42 +465,42 @@ BADGES: list[BadgeDef] = [
         id="globe_trotter_50",
         emoji="🪐",
         label="Globe Trotter — 50 countries",
-        description="Visited 50 distinct countries.",
+        description="Completed trips to 50 distinct countries.",
         check=_make_globe_trotter_check(50),
     ),
     BadgeDef(
         id="intra_country_3",
         emoji="🏡",
         label="Homebody Explorer",
-        description="Visited the same country 3+ times — you really know the place.",
+        description="Completed 3+ trips to the same country — you really know the place.",
         check=_check_intra_country_3,
     ),
     BadgeDef(
         id="longest_trip",
         emoji="🛤️",
         label="Long Hauler",
-        description=f"Owned a trip ≥{_LONGEST_TRIP_DAYS} days long.",
+        description=f"Completed a trip ≥{_LONGEST_TRIP_DAYS} days long.",
         check=_check_longest_trip,
     ),
     BadgeDef(
         id="priciest_trip",
         emoji="💎",
         label="Big Spender",
-        description=f"Owned a trip with €{int(_PRICIEST_TRIP_EUR):,}+ recorded spend.",
+        description=f"Completed a trip with €{int(_PRICIEST_TRIP_EUR):,}+ recorded spend.",
         check=_check_priciest_trip,
     ),
     BadgeDef(
         id="most_companions",
         emoji="👥",
         label="Squad Leader",
-        description=f"Owned a trip with {_MOST_COMPANIONS}+ companions on the roster.",
+        description=f"Completed a trip with {_MOST_COMPANIONS}+ companions on the roster.",
         check=_check_most_companions,
     ),
     BadgeDef(
         id="back_to_back",
         emoji="🔁",
         label="Back to Back",
-        description="Took trips in two consecutive calendar months.",
+        description="Completed trips in two consecutive calendar months.",
         check=_check_back_to_back,
     ),
 ]
@@ -493,9 +516,26 @@ BADGES_BY_ID: dict[str, BadgeDef] = {b.id: b for b in BADGES}
 
 
 def check_user_achievements(cursor, user_id: str) -> list[dict]:
-    """Run every BADGE rule for the user. Returns the list of NEWLY
-    earned badges (those that weren't already in user_achievements).
-    Caller is responsible for the conn.commit() — we only stage inserts.
+    """Re-evaluate every BADGE rule for the user. Returns the list of
+    NEWLY earned badges (those that weren't already in
+    `user_achievements`). Caller is responsible for the conn.commit() —
+    we only stage inserts + deletes.
+
+    Pre-2026-05-18 the loop SKIPPED already-earned badges and never
+    revoked anything; achievements were therefore "sticky" — once
+    earned, always present. That broke the 2026-05-18 rule change
+    that all trip-based badges should only count CURRENTLY archived
+    trips. Now every rule re-runs every poll: passing rules insert
+    (idempotent via UNIQUE), failing rules whose badge IS already
+    present get DELETED. Cost is a handful of single-row SQL counts
+    per poll — well under a millisecond even for the busy badge set.
+
+    Revocations are SILENT (no notification dropped) — losing a badge
+    is a passive side-effect of mutating trip state, not an event the
+    user "earned". The frontend will simply stop rendering the badge
+    on the next /api/data refresh. Re-earning a previously revoked
+    badge generates a fresh `achievement_unlocked` notification the
+    same way as a first-time unlock.
 
     The return shape is a list of dicts:
         [{"badgeId": "...", "context": {...}, "label": "...",
@@ -515,15 +555,16 @@ def check_user_achievements(cursor, user_id: str) -> list[dict]:
     already_earned = {r["badge_id"] for r in cursor.fetchall()}
 
     newly_earned: list[dict] = []
+    to_revoke: list[str] = []
     for badge in BADGES:
-        if badge.id in already_earned:
-            continue
         try:
             context = badge.check(cursor, user_id)
         except Exception as e:
             # Don't let a bad rule poison the whole detection sweep —
             # log the badge id + skip. The other rules still run, and
             # this badge is re-evaluated on the next /api/data call.
+            # Deliberately do NOT revoke on rule failure — a transient
+            # SQL error shouldn't strip an earned badge.
             logger.warning(
                 "achievement rule failed: %s",
                 badge.id,
@@ -532,6 +573,14 @@ def check_user_achievements(cursor, user_id: str) -> list[dict]:
             )
             continue
         if context is None:
+            # Rule no longer (or not yet) passes. Queue a revoke if
+            # the user had previously earned it — un-archiving a trip
+            # is the canonical trigger for this branch.
+            if badge.id in already_earned:
+                to_revoke.append(badge.id)
+            continue
+        # Rule passes. Skip insert if already earned (saves a write).
+        if badge.id in already_earned:
             continue
         # Insert. UNIQUE(user_id, badge_id) makes this idempotent across
         # concurrent /api/data polls; one of them wins, the other no-ops.
@@ -558,6 +607,21 @@ def check_user_achievements(cursor, user_id: str) -> list[dict]:
                 exc_info=True,
                 extra=log_extra(user_id=user_id, badge_id=badge.id),
             )
+
+    if to_revoke:
+        # One DELETE per badge — keeps the SQL trivial and the count is
+        # almost always 0 or 1 in practice. Notifications are NOT
+        # cleared; the original unlock notif stays in the bell history
+        # (it accurately records that the badge was earned at that
+        # moment in time).
+        cursor.executemany(
+            "DELETE FROM user_achievements WHERE user_id = ? AND badge_id = ?",
+            [(user_id, bid) for bid in to_revoke],
+        )
+        logger.info(
+            "achievements revoked",
+            extra=log_extra(user_id=user_id, badge_ids=to_revoke),
+        )
 
     if newly_earned:
         logger.info(

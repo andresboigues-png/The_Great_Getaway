@@ -373,7 +373,12 @@ def test_delete_expense_idempotent_on_unknown_id(client, seed_user, auth_headers
 def test_delete_expense_rejects_non_member(
     client, seed_user, seed_other_user, auth_headers, other_auth_headers,
 ):
-    """Someone outside the trip can't delete its expenses."""
+    """Someone outside the trip can't actually delete its expenses. The
+    endpoint returns the same idempotent 200 `{status: 'deleted'}` shape
+    as a truly-absent expense (2026-05-18 change) so the response stops
+    being an enumeration oracle for "exists but you can't touch it" vs
+    "doesn't exist". Permission is still enforced — the row stays in
+    place; pin that by re-reading it after the deny."""
     client.post("/api/trips", headers=auth_headers, json={
         "trip": {"id": "trip-1", "name": "Tuscany"},
     })
@@ -384,7 +389,17 @@ def test_delete_expense_rejects_non_member(
         },
     })
     res = client.delete("/api/expenses/exp-1", headers=other_auth_headers)
-    assert res.status_code == 403
+    assert res.status_code == 200
+    assert res.get_json() == {"status": "deleted"}
+    # Critical: the row MUST still exist — the 200 is a security
+    # response, not a permission grant. Without this re-read the test
+    # would pass even if the endpoint silently mutated the table.
+    from database import get_db
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT id FROM expenses WHERE id = 'exp-1'",
+        ).fetchone()
+    assert row is not None, "non-member's DELETE must NOT actually remove the row"
 
 
 # ── /api/days ────────────────────────────────────────────────────────────────
@@ -1152,10 +1167,18 @@ def test_rate_limit_friends_add(temp_db, seed_user):
 import pytest
 
 
-def _create_trip(client, headers, trip_id="trip-feed", name="Test Trip"):
-    res = client.post("/api/trips", headers=headers, json={
-        "trip": {"id": trip_id, "name": name, "country": "Test"},
-    })
+def _create_trip(client, headers, trip_id="trip-feed", name="Test Trip", public=False):
+    """Mint a trip via /api/trips. Pass `public=True` to flip
+    `is_public = 1` so the trip is shareable to the feed — the
+    /api/feed/share endpoint requires public visibility (2026-05-18
+    change closing the "share private trip card with broken
+    click-through" hole). Defaults to private (matching the trip-
+    create endpoint's own default) so non-share tests keep their
+    pre-change behaviour."""
+    trip_payload: dict = {"id": trip_id, "name": name, "country": "Test"}
+    if public:
+        trip_payload["isPublic"] = True
+    res = client.post("/api/trips", headers=headers, json={"trip": trip_payload})
     assert res.status_code == 200
     return trip_id
 
@@ -1223,7 +1246,7 @@ def test_feed_share_creates_post(client, seed_user, auth_headers):
     """Sharing a trip mints a post row + returns its post_id. Idempotent
     server-side — re-sharing the same trip returns the same post_id with
     `status: 'already_shared'`."""
-    trip_id = _create_trip(client, auth_headers, trip_id="trip-share")
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-share", public=True)
     res = client.post("/api/feed/share", headers=auth_headers, json={
         "trip_id": trip_id, "caption": "First share",
     })
@@ -1246,7 +1269,7 @@ def test_feed_share_status_returns_post_id_when_shared(client, seed_user, auth_h
     """The home page hits /share/status/<trip_id> on mount to set the
     Share button's initial state without needing to do a roundtrip
     write. Pin the contract."""
-    trip_id = _create_trip(client, auth_headers, trip_id="trip-share-status")
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-share-status", public=True)
     client.post("/api/feed/share", headers=auth_headers, json={
         "trip_id": trip_id, "caption": "",
     })
@@ -1263,7 +1286,7 @@ def test_feed_unshare_deletes_caller_own_post(client, seed_user, auth_headers):
     """Author can delete their own share. Cascade-deletes any reposts
     pointing at it (other tests can pin that side; here we pin the
     author-deletes-self path)."""
-    trip_id = _create_trip(client, auth_headers, trip_id="trip-unshare")
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-unshare", public=True)
     res = client.post("/api/feed/share", headers=auth_headers, json={
         "trip_id": trip_id,
     })
@@ -1277,7 +1300,7 @@ def test_feed_repost_succeeds_for_other_users_post(
 ):
     """seed_other_user shares a trip; seed_user reposts it. The repost
     spreads the trip beyond the original sharer's friend graph."""
-    trip_id = _create_trip(client, other_auth_headers, trip_id="trip-repost")
+    trip_id = _create_trip(client, other_auth_headers, trip_id="trip-repost", public=True)
     res = client.post("/api/feed/share", headers=other_auth_headers, json={
         "trip_id": trip_id,
     })
@@ -1289,7 +1312,7 @@ def test_feed_repost_succeeds_for_other_users_post(
 def test_feed_repost_rejects_self_repost(client, seed_user, auth_headers):
     """Reposting your own post is a no-op + returns status: 'same_user'.
     Without this gate, the feed could fill with self-reposts."""
-    trip_id = _create_trip(client, auth_headers, trip_id="trip-self-repost")
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-self-repost", public=True)
     res = client.post("/api/feed/share", headers=auth_headers, json={
         "trip_id": trip_id,
     })
@@ -1304,7 +1327,7 @@ def test_feed_like_toggles(client, seed_user, seed_other_user, auth_headers, oth
     """Liking returns the new state + the new global count so the
     frontend can reconcile any drift from optimistic UI in one round-trip."""
     _befriend(client, auth_headers, other_auth_headers, seed_user, seed_other_user)
-    trip_id = _create_trip(client, other_auth_headers, trip_id="trip-like")
+    trip_id = _create_trip(client, other_auth_headers, trip_id="trip-like", public=True)
     res = client.post("/api/feed/share", headers=other_auth_headers, json={
         "trip_id": trip_id,
     })
@@ -1329,7 +1352,7 @@ def test_feed_bookmark_is_private_per_user(
     """Bookmarks are per-user — seed_user bookmarking doesn't affect
     seed_other_user's view. No global count exposed (unlike likes)."""
     _befriend(client, auth_headers, other_auth_headers, seed_user, seed_other_user)
-    trip_id = _create_trip(client, other_auth_headers, trip_id="trip-bookmark")
+    trip_id = _create_trip(client, other_auth_headers, trip_id="trip-bookmark", public=True)
     res = client.post("/api/feed/share", headers=other_auth_headers, json={
         "trip_id": trip_id,
     })
@@ -1347,7 +1370,7 @@ def test_feed_comments_post_then_list(
     """Post a comment as one user, list as another — the list returns
     the comment in oldest-first order so the UI can append-render."""
     _befriend(client, auth_headers, other_auth_headers, seed_user, seed_other_user)
-    trip_id = _create_trip(client, other_auth_headers, trip_id="trip-comment")
+    trip_id = _create_trip(client, other_auth_headers, trip_id="trip-comment", public=True)
     share_res = client.post("/api/feed/share", headers=other_auth_headers, json={
         "trip_id": trip_id,
     })
@@ -1373,7 +1396,7 @@ def test_feed_comment_delete_owner_only(
 ):
     """seed_user posts a comment; seed_other_user can't delete it
     (gate keeps friends from moderating each other's words)."""
-    trip_id = _create_trip(client, auth_headers, trip_id="trip-comment-del")
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-comment-del", public=True)
     share_res = client.post("/api/feed/share", headers=auth_headers, json={
         "trip_id": trip_id,
     })
@@ -1987,17 +2010,23 @@ def test_config_returns_empty_client_id_when_env_unset(client, monkeypatch):
 
 
 def test_generate_itinerary_rejects_missing_key(client, seed_user, auth_headers, monkeypatch):
-    """No BYO key + no env GEMINI_API_KEY → 400 with a helpful message
-    pointing the user at the AI Engine card. This is the most common
-    "I just signed up" path so the message matters."""
+    """No BYO key + every host-pool slot empty → 429 with a "shared AI
+    quota fully booked" message pointing the user at BYO. The 6-slot
+    host-key pool added 2026-05-17 rotates through GEMINI_API_KEY plus
+    GEMINI_API_KEY_2..6, so the test must clear ALL of them (an env that
+    has even one slot set would silently fall through to that key and
+    return 200). Pre-rotation this was a 400; post-rotation the
+    `_available_host_keys` path returns 429 when the pool is empty."""
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    for slot in range(2, 7):
+        monkeypatch.delenv(f"GEMINI_API_KEY_{slot}", raising=False)
     res = client.post("/api/generate_itinerary", headers=auth_headers, json={
         "destination": "Tokyo",
         "numDays": 3,
     })
-    assert res.status_code == 400
+    assert res.status_code == 429
     body = res.get_json()
-    assert "Gemini API key" in body["error"]
+    assert "fully booked" in body["error"]
 
 
 class _FakeGeminiResponse:
@@ -2022,13 +2051,15 @@ def test_generate_itinerary_happy_path(client, seed_user, auth_headers, monkeypa
     itinerary array. Pin the wire shape because a Gemini API change
     that drops or renames any of those fields would silently break.
 
-    Phase G slice 1: explicitly delenv GOOGLE_MAPS_API_KEY so the
-    Places verification path short-circuits — this test pins the Gemini
-    pass-through, the verification path has its own dedicated tests
-    below. Without the delenv, a developer's local env that has the
-    Maps key set would flip items from strings to objects and break
-    the assertion below."""
+    Phase G slice 1: explicitly delenv BOTH GOOGLE_MAPS_API_KEY and
+    GOOGLE_MAPS_SERVER_KEY so the Places verification path short-
+    circuits — this test pins the Gemini pass-through, the verification
+    path has its own dedicated tests below. The handler prefers the
+    `_SERVER_KEY` slot, so clearing only `_API_KEY` (the pre-split var
+    name) leaves the verification path live and flips items from
+    strings to objects, breaking the assertion below."""
     monkeypatch.delenv("GOOGLE_MAPS_API_KEY", raising=False)
+    monkeypatch.delenv("GOOGLE_MAPS_SERVER_KEY", raising=False)
     fake_itinerary = [
         {
             "day": 1, "date": "2026-04-15", "title": "Arrival",
@@ -2134,7 +2165,15 @@ def test_generate_itinerary_places_verification_enriches_items(
       1. Verified items carry a placeId (the unique-identity hook)
       2. Photo URL points at the Places API NEW media endpoint
       3. Items the LLM hallucinated (Places returns no result) come
-         back as `verified: false` so the UI can flag them"""
+         back as `verified: false` so the UI can flag them
+
+    The handler prefers GOOGLE_MAPS_SERVER_KEY over the legacy
+    GOOGLE_MAPS_API_KEY (post-2026-05-17 key split — see
+    `_verify_place` for the resolution order). A dev's .env that has
+    the real `_SERVER_KEY` set would hit the actual Places API and
+    bypass the fake_post mock — clear it first, then set the fake key
+    via the legacy `_API_KEY` slot the test still uses."""
+    monkeypatch.delenv("GOOGLE_MAPS_SERVER_KEY", raising=False)
     monkeypatch.setenv("GOOGLE_MAPS_API_KEY", "fake-maps-key")
 
     fake_itinerary = [{
@@ -2229,13 +2268,16 @@ def test_generate_itinerary_places_verification_enriches_items(
 def test_generate_itinerary_places_verification_skipped_without_key(
     client, seed_user, auth_headers, monkeypatch,
 ):
-    """Phase G slice 1: GOOGLE_MAPS_API_KEY missing → verification path
+    """Phase G slice 1: BOTH Maps key slots missing → verification path
     short-circuits, items pass through as strings unchanged. Critical
     for dev / self-hosted deploys that don't have a Maps API key — we
     don't want a 500 or a behavior change just because the key isn't
-    there. Pin the no-op so a regression that hard-requires the key
-    fails CI before it lands."""
+    there. Post-2026-05-17 the handler checks `GOOGLE_MAPS_SERVER_KEY`
+    first then falls back to `GOOGLE_MAPS_API_KEY`, so we need to clear
+    both for the no-op path to be exercised. Pin the no-op so a
+    regression that hard-requires the key fails CI before it lands."""
     monkeypatch.delenv("GOOGLE_MAPS_API_KEY", raising=False)
+    monkeypatch.delenv("GOOGLE_MAPS_SERVER_KEY", raising=False)
     fake_itinerary = [{
         "day": 1, "title": "Arrival",
         "morning": {"activity": "Coffee", "items": ["Some Cafe", "Another Place"]},
@@ -2325,7 +2367,7 @@ def test_feed_share_rejects_non_member_403(
     can't share it. Without this gate, anyone with a guessed trip_id
     could surface someone else's trip on the public feed."""
     trip_id = _create_trip(
-        client, other_auth_headers, trip_id="trip-share-403",
+        client, other_auth_headers, trip_id="trip-share-403", public=True,
     )
     res = client.post("/api/feed/share", headers=auth_headers, json={
         "trip_id": trip_id,
@@ -2367,7 +2409,7 @@ def test_feed_unshare_rejects_non_author_403(
     Author-only gate prevents drive-by takedowns of someone else's
     feed activity."""
     trip_id = _create_trip(
-        client, other_auth_headers, trip_id="trip-unshare-403",
+        client, other_auth_headers, trip_id="trip-unshare-403", public=True,
     )
     res = client.post("/api/feed/share", headers=other_auth_headers, json={
         "trip_id": trip_id,
@@ -2395,7 +2437,7 @@ def test_feed_repost_already_reposted_idempotent(
     status: 'already_reposted'. Pin so a double-click on the repost
     button doesn't multiply the user's feed."""
     trip_id = _create_trip(
-        client, other_auth_headers, trip_id="trip-already-repost",
+        client, other_auth_headers, trip_id="trip-already-repost", public=True,
     )
     res = client.post("/api/feed/share", headers=other_auth_headers, json={
         "trip_id": trip_id,
@@ -2420,7 +2462,7 @@ def test_feed_bookmark_toggles_off(
     one-shot only."""
     _befriend(client, auth_headers, other_auth_headers, seed_user, seed_other_user)
     trip_id = _create_trip(
-        client, other_auth_headers, trip_id="trip-bookmark-toggle",
+        client, other_auth_headers, trip_id="trip-bookmark-toggle", public=True,
     )
     share_res = client.post("/api/feed/share", headers=other_auth_headers, json={
         "trip_id": trip_id,
@@ -2443,7 +2485,7 @@ def test_feed_comment_rejects_empty_body_400(
     would accumulate empty rows from misclicks on the submit button."""
     _befriend(client, auth_headers, other_auth_headers, seed_user, seed_other_user)
     trip_id = _create_trip(
-        client, other_auth_headers, trip_id="trip-empty-comment",
+        client, other_auth_headers, trip_id="trip-empty-comment", public=True,
     )
     share_res = client.post("/api/feed/share", headers=other_auth_headers, json={
         "trip_id": trip_id,
@@ -3924,8 +3966,8 @@ def test_feed_surfaces_friend_archived_and_shared_trip_events(
         "/api/trips/trip-to-archive/archive", headers=other_auth_headers,
     )
 
-    # Share a different trip.
-    _create_trip(client, other_auth_headers, trip_id="trip-to-share")
+    # Share a different trip. Must be public for /feed/share to accept.
+    _create_trip(client, other_auth_headers, trip_id="trip-to-share", public=True)
     client.post("/api/feed/share", headers=other_auth_headers, json={
         "trip_id": "trip-to-share", "caption": "Check this out",
     })
@@ -3950,7 +3992,7 @@ def test_feed_surfaces_friend_reposted_trip_event(
     own feed includes the repost as a friend_reposted_trip event with
     original_sharer info attached. Covers lines 230-256."""
     _make_friends(seed_user, seed_other_user)
-    _create_trip(client, other_auth_headers, trip_id="trip-repost-feed")
+    _create_trip(client, other_auth_headers, trip_id="trip-repost-feed", public=True)
     share_res = client.post("/api/feed/share", headers=other_auth_headers, json={
         "trip_id": "trip-repost-feed", "caption": "Original share",
     })
@@ -3977,7 +4019,7 @@ def test_feed_attaches_like_bookmark_comment_counts(
     share, then fires a like + comment + bookmark on it, then asserts
     /api/feed returns those counts attached to the share event."""
     _make_friends(seed_user, seed_other_user)
-    _create_trip(client, other_auth_headers, trip_id="trip-counts")
+    _create_trip(client, other_auth_headers, trip_id="trip-counts", public=True)
     share_res = client.post("/api/feed/share", headers=other_auth_headers, json={
         "trip_id": "trip-counts",
     })
@@ -4343,13 +4385,35 @@ def test_settle_up_requires_auth(client):
 # loop end-to-end through /api/data + spot-check the rule semantics
 # directly via check_user_achievements() — the latter is faster for
 # rules that need a specific data shape.
+#
+# 2026-05-18 rule change: every TRIP-BASED badge now requires the
+# trip to be currently archived (`is_archived = 1`). Un-archiving a
+# trip drops it from the count and revokes any badge it was the only
+# thing keeping alive. Tests therefore archive their seeded trips
+# before polling /api/data — `_archive_all_trips` is the convenience
+# helper.
+
+
+def _archive_all_trips(user_id):
+    """Flip every owned trip for `user_id` to `is_archived = 1`.
+    Mirrors what the archive endpoint does for owner-owned rows. Used
+    by achievement tests so the trip-based rules (only count currently
+    archived trips, per the 2026-05-18 change) actually fire."""
+    from database import get_db
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE trips SET is_archived = 1 WHERE user_id = ?",
+            (user_id,),
+        )
+        conn.commit()
 
 
 def test_achievements_first_trip(client, seed_user, auth_headers):
-    """Creating any trip unlocks the first_trip badge. Detection runs
-    piggybacked on /api/data so we just hit that endpoint after
-    creating a trip."""
+    """Completing (archiving) any trip unlocks the first_trip badge.
+    Detection runs piggybacked on /api/data so we just hit that
+    endpoint after creating + archiving a trip."""
     _create_trip(client, auth_headers, trip_id="trip-ach-1")
+    _archive_all_trips(seed_user)
     data = client.get("/api/data", headers=auth_headers).get_json()
     ids = [a["badgeId"] for a in data["achievements"]]
     assert "first_trip" in ids
@@ -4364,6 +4428,7 @@ def test_achievements_idempotent_across_polls(client, seed_user, auth_headers):
     be empty (or at least not contain first_trip again) while the
     cumulative list still shows it."""
     _create_trip(client, auth_headers, trip_id="trip-ach-idem")
+    _archive_all_trips(seed_user)
     first = client.get("/api/data", headers=auth_headers).get_json()
     assert any(a["badgeId"] == "first_trip" for a in first["newlyEarnedAchievements"])
 
@@ -4401,8 +4466,8 @@ def test_achievements_globe_trotter_tiers(client, seed_user, auth_headers):
             ("Paris, France", "FR"),
         ]):
             c.execute(
-                "INSERT INTO trips (id, user_id, name, country, country_code) "
-                "VALUES (?, ?, ?, ?, ?)",
+                "INSERT INTO trips (id, user_id, name, country, country_code, is_archived) "
+                "VALUES (?, ?, ?, ?, ?, 1)",
                 (f"trip-gt-{i}", seed_user, f"Trip {i}", name, code),
             )
         conn.commit()
@@ -4436,7 +4501,7 @@ def test_achievements_globe_trotter_counts_multi_country_legs(client, seed_user,
         # Trip 1: Iberia (PT + ES)
         c.execute(
             "INSERT INTO trips (id, user_id, name, country, country_code, "
-            "trip_countries_json) VALUES (?, ?, ?, ?, ?, ?)",
+            "trip_countries_json, is_archived) VALUES (?, ?, ?, ?, ?, ?, 1)",
             (
                 "trip-multi-iberia", seed_user, "Iberia tour",
                 "Portugal", "PT", _json.dumps(["PT", "ES"]),
@@ -4445,7 +4510,7 @@ def test_achievements_globe_trotter_counts_multi_country_legs(client, seed_user,
         # Trip 2: East Asia (JP + KR)
         c.execute(
             "INSERT INTO trips (id, user_id, name, country, country_code, "
-            "trip_countries_json) VALUES (?, ?, ?, ?, ?, ?)",
+            "trip_countries_json, is_archived) VALUES (?, ?, ?, ?, ?, ?, 1)",
             (
                 "trip-multi-asia", seed_user, "East Asia",
                 "Japan", "JP", _json.dumps(["JP", "KR"]),
@@ -4475,7 +4540,7 @@ def test_achievements_globe_trotter_dedupes_primary_and_array(client, seed_user,
         c = conn.cursor()
         c.execute(
             "INSERT INTO trips (id, user_id, name, country, country_code, "
-            "trip_countries_json) VALUES (?, ?, ?, ?, ?, ?)",
+            "trip_countries_json, is_archived) VALUES (?, ?, ?, ?, ?, ?, 1)",
             (
                 "trip-dedupe", seed_user, "Iberia tour",
                 "Portugal", "PT",
@@ -4504,8 +4569,8 @@ def test_achievements_repeat_country(client, seed_user, auth_headers):
         c = conn.cursor()
         for i in range(2):
             c.execute(
-                "INSERT INTO trips (id, user_id, name, country, country_code) "
-                "VALUES (?, ?, ?, ?, ?)",
+                "INSERT INTO trips (id, user_id, name, country, country_code, is_archived) "
+                "VALUES (?, ?, ?, ?, ?, 1)",
                 (f"trip-rc-{i}", seed_user, f"Lisbon trip {i}", "Lisbon, Portugal", "PT"),
             )
         conn.commit()
@@ -4588,16 +4653,16 @@ def test_achievements_globe_trotter_50_only_at_threshold(client, seed_user, auth
     from database import get_db
     with get_db() as conn:
         c = conn.cursor()
-        # Insert 49 distinct-country trips. globe_trotter_50 should NOT
-        # appear; globe_trotter_25 should.
+        # Insert 49 distinct-country ARCHIVED trips. globe_trotter_50
+        # should NOT appear; globe_trotter_25 should.
         for i in range(49):
             # Synthetic 2-letter country codes (AA..BV) — far past any
             # real-world ISO list but the rule is `COUNT(DISTINCT
             # country_code)` so synthetic codes work.
             code = f"X{i:02d}"
             c.execute(
-                "INSERT INTO trips (id, user_id, name, country, country_code) "
-                "VALUES (?, ?, ?, ?, ?)",
+                "INSERT INTO trips (id, user_id, name, country, country_code, is_archived) "
+                "VALUES (?, ?, ?, ?, ?, 1)",
                 (f"trip-gt50-{i}", seed_user, f"Trip {i}", f"Country {i}", code),
             )
         conn.commit()
@@ -4610,8 +4675,8 @@ def test_achievements_globe_trotter_50_only_at_threshold(client, seed_user, auth
     # One more — crosses the threshold.
     with get_db() as conn:
         conn.execute(
-            "INSERT INTO trips (id, user_id, name, country, country_code) "
-            "VALUES ('trip-gt50-final', ?, 'Trip 50', 'Country 50', 'XFF')",
+            "INSERT INTO trips (id, user_id, name, country, country_code, is_archived) "
+            "VALUES ('trip-gt50-final', ?, 'Trip 50', 'Country 50', 'XFF', 1)",
             (seed_user,),
         )
         conn.commit()
@@ -4628,6 +4693,7 @@ def test_achievements_longest_trip_threshold(client, seed_user, auth_headers):
     carries (tripId, tripName, days)."""
     from database import get_db
     trip_id = _create_trip(client, auth_headers, trip_id="trip-long-1", name="Long Haul")
+    _archive_all_trips(seed_user)
 
     with get_db() as conn:
         c = conn.cursor()
@@ -4667,6 +4733,7 @@ def test_achievements_priciest_trip_threshold(client, seed_user, auth_headers):
     sums survive."""
     from database import get_db
     trip_id = _create_trip(client, auth_headers, trip_id="trip-spend-1", name="Splurge Trip")
+    _archive_all_trips(seed_user)
 
     # €999 across two expenses — just under the threshold.
     with get_db() as conn:
@@ -4717,8 +4784,8 @@ def test_achievements_most_companions(client, seed_user, auth_headers):
     with get_db() as conn:
         c = conn.cursor()
         c.execute(
-            "INSERT INTO trips (id, user_id, name, country, companions_json) "
-            "VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO trips (id, user_id, name, country, companions_json, is_archived) "
+            "VALUES (?, ?, ?, ?, ?, 1)",
             (
                 "trip-c-4",
                 seed_user,
@@ -4735,8 +4802,8 @@ def test_achievements_most_companions(client, seed_user, auth_headers):
         # production because all writers go through json.dumps; trip
         # serialization crashes earlier on it.)
         c.execute(
-            "INSERT INTO trips (id, user_id, name, country, companions_json) "
-            "VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO trips (id, user_id, name, country, companions_json, is_archived) "
+            "VALUES (?, ?, ?, ?, ?, 1)",
             ("trip-c-bad", seed_user, "Non-array JSON trip", "PT", '{"legacy": true}'),
         )
         conn.commit()
@@ -4772,8 +4839,8 @@ def test_achievements_intra_country_3(client, seed_user, auth_headers):
         # 2 Portugal trips — below threshold, but repeat_country fires.
         for i in range(2):
             c.execute(
-                "INSERT INTO trips (id, user_id, name, country, country_code) "
-                "VALUES (?, ?, ?, ?, ?)",
+                "INSERT INTO trips (id, user_id, name, country, country_code, is_archived) "
+                "VALUES (?, ?, ?, ?, ?, 1)",
                 (f"trip-ic-{i}", seed_user, f"Lisbon {i}", "Portugal", "PT"),
             )
         conn.commit()
@@ -4786,8 +4853,8 @@ def test_achievements_intra_country_3(client, seed_user, auth_headers):
     # Add the 3rd Portugal trip.
     with get_db() as conn:
         conn.execute(
-            "INSERT INTO trips (id, user_id, name, country, country_code) "
-            "VALUES ('trip-ic-final', ?, 'Lisbon 3', 'Portugal', 'PT')",
+            "INSERT INTO trips (id, user_id, name, country, country_code, is_archived) "
+            "VALUES ('trip-ic-final', ?, 'Lisbon 3', 'Portugal', 'PT', 1)",
             (seed_user,),
         )
         conn.commit()
@@ -4810,13 +4877,13 @@ def test_achievements_back_to_back_consecutive_months(client, seed_user, auth_he
     with get_db() as conn:
         c = conn.cursor()
         c.execute(
-            "INSERT INTO trips (id, user_id, name, country, created_at) "
-            "VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO trips (id, user_id, name, country, created_at, is_archived) "
+            "VALUES (?, ?, ?, ?, ?, 1)",
             ("trip-bb-jan", seed_user, "January trip", "X", "2025-01-15 10:00:00"),
         )
         c.execute(
-            "INSERT INTO trips (id, user_id, name, country, created_at) "
-            "VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO trips (id, user_id, name, country, created_at, is_archived) "
+            "VALUES (?, ?, ?, ?, ?, 1)",
             ("trip-bb-mar", seed_user, "March trip", "X", "2025-03-15 10:00:00"),
         )
         conn.commit()
@@ -4828,8 +4895,8 @@ def test_achievements_back_to_back_consecutive_months(client, seed_user, auth_he
     # Add a February trip — now Jan/Feb are adjacent.
     with get_db() as conn:
         conn.execute(
-            "INSERT INTO trips (id, user_id, name, country, created_at) "
-            "VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO trips (id, user_id, name, country, created_at, is_archived) "
+            "VALUES (?, ?, ?, ?, ?, 1)",
             ("trip-bb-feb", seed_user, "February trip", "X", "2025-02-15 10:00:00"),
         )
         conn.commit()
@@ -4851,13 +4918,13 @@ def test_achievements_back_to_back_crosses_year_boundary(client, seed_user, auth
     with get_db() as conn:
         c = conn.cursor()
         c.execute(
-            "INSERT INTO trips (id, user_id, name, country, created_at) "
-            "VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO trips (id, user_id, name, country, created_at, is_archived) "
+            "VALUES (?, ?, ?, ?, ?, 1)",
             ("trip-bb-dec", seed_user, "December trip", "X", "2024-12-15 10:00:00"),
         )
         c.execute(
-            "INSERT INTO trips (id, user_id, name, country, created_at) "
-            "VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO trips (id, user_id, name, country, created_at, is_archived) "
+            "VALUES (?, ?, ?, ?, ?, 1)",
             ("trip-bb-jan-next", seed_user, "January trip", "X", "2025-01-15 10:00:00"),
         )
         conn.commit()
@@ -4875,6 +4942,7 @@ def test_achievements_notification_on_unlock(client, seed_user, auth_headers):
     so the bell badge ticks up. Re-poll after a no-change tick must NOT
     add another notification for the same badge."""
     _create_trip(client, auth_headers, trip_id="trip-ach-notif")
+    _archive_all_trips(seed_user)
     client.get("/api/data", headers=auth_headers)  # detection + insert
 
     from database import get_db
@@ -4906,6 +4974,7 @@ def test_achievements_on_public_profile(
     """A viewer fetching /api/public-profile/<id> sees the user's
     earned badges. Public surface — same shape as /api/data."""
     _create_trip(client, auth_headers, trip_id="trip-ach-pub")
+    _archive_all_trips(seed_user)
     # Trigger detection by polling /api/data for the owner first.
     client.get("/api/data", headers=auth_headers)
 
@@ -4926,6 +4995,7 @@ def test_achievements_feed_event_for_friends(
     in the caller's friend set."""
     _make_friends(seed_user, seed_other_user)
     _create_trip(client, other_auth_headers, trip_id="trip-ach-feed")
+    _archive_all_trips(seed_other_user)
     # Make sure the other user's detection runs (it would on any
     # subsequent /api/data they hit; we force it here so the test is
     # deterministic regardless of polling).
@@ -4937,6 +5007,87 @@ def test_achievements_feed_event_for_friends(
     # Actor should be seed_other_user (who earned it).
     actor_ids = {e["actor"]["id"] for e in achievement_events}
     assert seed_other_user in actor_ids
+
+
+def test_achievements_revoked_when_trip_unarchived(client, seed_user, auth_headers):
+    """2026-05-18 rule: trip-based badges count only CURRENTLY archived
+    trips. Un-archiving the trip that earned `first_trip` should revoke
+    that badge on the next /api/data poll, and re-archiving should
+    re-grant it (with a fresh `newlyEarnedAchievements` entry so the UI
+    can re-toast)."""
+    from database import get_db
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-revoke-1")
+    _archive_all_trips(seed_user)
+
+    # First poll — badge earned.
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    assert "first_trip" in [a["badgeId"] for a in data["achievements"]]
+    assert "first_trip" in [a["badgeId"] for a in data["newlyEarnedAchievements"]]
+
+    # Un-archive the trip — the only archived trip, so first_trip's
+    # underlying count drops to 0 and the badge should disappear.
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE trips SET is_archived = 0 WHERE id = ?",
+            (trip_id,),
+        )
+        conn.commit()
+
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    assert "first_trip" not in [a["badgeId"] for a in data["achievements"]], \
+        "first_trip should be revoked once the only archived trip is restored"
+    # Revoke is silent — no fresh notification, no entry in newlyEarned.
+    assert "first_trip" not in [a["badgeId"] for a in data["newlyEarnedAchievements"]]
+
+    # Re-archive — badge comes back AND fires as newly earned so the UI
+    # can re-toast it. Notification rows are append-only (the original
+    # unlock notif stays in the bell history regardless of revoke/regrant).
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE trips SET is_archived = 1 WHERE id = ?",
+            (trip_id,),
+        )
+        conn.commit()
+
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    assert "first_trip" in [a["badgeId"] for a in data["achievements"]]
+    assert "first_trip" in [a["badgeId"] for a in data["newlyEarnedAchievements"]], \
+        "re-archiving should re-grant + fire newly-earned so the toast can show"
+
+
+def test_achievements_globe_trotter_revoked_when_country_unarchived(client, seed_user, auth_headers):
+    """globe_trotter_3 should revoke when un-archiving one of the trips
+    drops the distinct-country count below 3. The other badges (first_trip,
+    archivist) survive because at least one archived trip remains."""
+    from database import get_db
+    with get_db() as conn:
+        c = conn.cursor()
+        for i, code in enumerate(["PT", "JP", "FR"]):
+            c.execute(
+                "INSERT INTO trips (id, user_id, name, country, country_code, is_archived) "
+                "VALUES (?, ?, ?, ?, ?, 1)",
+                (f"trip-rev-gt-{i}", seed_user, f"Trip {i}", code, code),
+            )
+        conn.commit()
+
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    ids = {a["badgeId"] for a in data["achievements"]}
+    assert "globe_trotter_3" in ids
+
+    # Un-archive the FR trip — count drops from 3 to 2, below threshold.
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE trips SET is_archived = 0 WHERE id = 'trip-rev-gt-2'",
+        )
+        conn.commit()
+
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    ids = {a["badgeId"] for a in data["achievements"]}
+    assert "globe_trotter_3" not in ids, "2 archived countries < 3 threshold"
+    # first_trip + archivist + repeat_country survive (PT, JP still
+    # archived). Not asserting their presence specifically here — the
+    # point is the SELECTIVE revoke.
+    assert "first_trip" in ids
 
 
 def test_achievements_rule_failure_doesnt_poison_sweep(client, seed_user, auth_headers, monkeypatch):
@@ -4961,6 +5112,7 @@ def test_achievements_rule_failure_doesnt_poison_sweep(client, seed_user, auth_h
     monkeypatch.setattr(ach, "BADGES", [bad_badge, *BADGES])
 
     _create_trip(client, auth_headers, trip_id="trip-ach-resilient")
+    _archive_all_trips(seed_user)
     data = client.get("/api/data", headers=auth_headers).get_json()
     ids = [a["badgeId"] for a in data["achievements"]]
     # The good rule (first_trip) still ran.
