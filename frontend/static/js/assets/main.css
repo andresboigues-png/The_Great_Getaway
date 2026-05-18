@@ -1222,9 +1222,6 @@
     .rounded-\[980px\] {
         border-radius: 980px;
     }
-    .rounded-\[999px\] {
-        border-radius: 999px;
-    }
     .rounded-\[var\(--radius-lg\)\] {
         border-radius: var(--radius-lg);
     }

@@ -5182,13 +5182,17 @@ def test_achievements_revoked_when_trip_unarchived(client, seed_user, auth_heade
     trip_id = _create_trip(client, auth_headers, trip_id="trip-revoke-1")
     _archive_all_trips(seed_user)
 
-    # First poll — badge earned.
+    # First poll — `archivist` earned. Pre-2026-05-19 this test
+    # asserted on `first_trip`, but that badge is now the welcome-
+    # aboard "you started planning" milestone (no archive required);
+    # `archivist` is the correct archive-state-dependent badge to
+    # use as the revoke probe.
     data = client.get("/api/data", headers=auth_headers).get_json()
-    assert "first_trip" in [a["badgeId"] for a in data["achievements"]]
-    assert "first_trip" in [a["badgeId"] for a in data["newlyEarnedAchievements"]]
+    assert "archivist" in [a["badgeId"] for a in data["achievements"]]
+    assert "archivist" in [a["badgeId"] for a in data["newlyEarnedAchievements"]]
 
     # Un-archive the trip — flip the per-user trip_members.is_archived
-    # back to 0. The only archived membership, so first_trip's count
+    # back to 0. The only archived membership, so archivist's count
     # drops to 0 and the badge should disappear.
     with get_db() as conn:
         conn.execute(
@@ -5199,10 +5203,10 @@ def test_achievements_revoked_when_trip_unarchived(client, seed_user, auth_heade
         conn.commit()
 
     data = client.get("/api/data", headers=auth_headers).get_json()
-    assert "first_trip" not in [a["badgeId"] for a in data["achievements"]], \
-        "first_trip should be revoked once the only archived trip is restored"
+    assert "archivist" not in [a["badgeId"] for a in data["achievements"]], \
+        "archivist should be revoked once the only archived trip is restored"
     # Revoke is silent — no fresh notification, no entry in newlyEarned.
-    assert "first_trip" not in [a["badgeId"] for a in data["newlyEarnedAchievements"]]
+    assert "archivist" not in [a["badgeId"] for a in data["newlyEarnedAchievements"]]
 
     # Re-archive — badge comes back AND fires as newly earned so the UI
     # can re-toast it. Notification rows are append-only (the original
@@ -5216,8 +5220,8 @@ def test_achievements_revoked_when_trip_unarchived(client, seed_user, auth_heade
         conn.commit()
 
     data = client.get("/api/data", headers=auth_headers).get_json()
-    assert "first_trip" in [a["badgeId"] for a in data["achievements"]]
-    assert "first_trip" in [a["badgeId"] for a in data["newlyEarnedAchievements"]], \
+    assert "archivist" in [a["badgeId"] for a in data["achievements"]]
+    assert "archivist" in [a["badgeId"] for a in data["newlyEarnedAchievements"]], \
         "re-archiving should re-grant + fire newly-earned so the toast can show"
 
 
@@ -5287,18 +5291,24 @@ def test_achievements_joint_trip_counts_for_both_owner_and_member(
         )
         conn.commit()
 
-    # OWNER archives their copy — earns first_trip.
+    # OWNER archives their copy — earns `archivist` (the archive-
+    # state-dependent badge). `first_trip` is no longer a useful
+    # probe here because post-2026-05-19 it fires on any accepted
+    # membership regardless of archive state.
     _archive_all_trips(seed_other_user)
     owner_data = client.get("/api/data", headers=other_auth_headers).get_json()
-    assert "first_trip" in [a["badgeId"] for a in owner_data["achievements"]], \
-        "owner should earn first_trip after archiving their copy"
+    assert "archivist" in [a["badgeId"] for a in owner_data["achievements"]], \
+        "owner should earn archivist after archiving their copy"
 
-    # MEMBER (seed_user) has not archived their copy yet → no badge.
+    # MEMBER (seed_user) has not archived their copy yet → archivist
+    # should NOT fire. `first_trip` WILL fire here because just being
+    # an accepted member is enough — that's the welcome-aboard badge
+    # by design.
     member_data = client.get("/api/data", headers=auth_headers).get_json()
-    assert "first_trip" not in [a["badgeId"] for a in member_data["achievements"]], \
-        "member should NOT earn first_trip until they archive their copy"
+    assert "archivist" not in [a["badgeId"] for a in member_data["achievements"]], \
+        "member should NOT earn archivist until they archive their copy"
 
-    # Now the member archives their copy → they earn first_trip
+    # Now the member archives their copy → they earn archivist
     # INDEPENDENTLY of the owner's archive state. This is the joint-
     # trip semantic: both users get credit for the same trip.
     with get_db() as conn:
@@ -5309,8 +5319,8 @@ def test_achievements_joint_trip_counts_for_both_owner_and_member(
         )
         conn.commit()
     member_data = client.get("/api/data", headers=auth_headers).get_json()
-    assert "first_trip" in [a["badgeId"] for a in member_data["achievements"]], \
-        "member should earn first_trip independently after archiving their copy"
+    assert "archivist" in [a["badgeId"] for a in member_data["achievements"]], \
+        "member should earn archivist independently after archiving their copy"
 
 
 def test_achievements_globe_trotter_credits_member_for_joint_multi_country_trip(

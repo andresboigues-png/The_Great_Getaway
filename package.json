@@ -4,7 +4,10 @@
     "description": "The Great Escape — Travel Planning App",
     "type": "module",
     "scripts": {
-        "build": "vite build",
+        "build": "vite build && node scripts/prune-dead-chunks.mjs --apply",
+        "build:no-prune": "vite build",
+        "prune": "node scripts/prune-dead-chunks.mjs --apply",
+        "prune:check": "node scripts/prune-dead-chunks.mjs",
         "watch": "vite build --watch",
         "lint": "eslint .",
         "lint:fix": "eslint . --fix",

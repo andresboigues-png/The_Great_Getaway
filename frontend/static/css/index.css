@@ -1,3 +1,40 @@
+/* 2026-05-18 audit LOW-tier hygiene fix.
+ * ────────────────────────────────────────────────────────────────────
+ * Declare a single global CSS layer order so the unlayered rules in
+ * this file STOP silently beating Tailwind utility classes.
+ *
+ * Per CSS Cascade Level 5 spec, unlayered rules always win over
+ * layered rules at the same specificity. Tailwind v4 emits every
+ * utility inside `@layer utilities`. Result: any unlayered `.card`-
+ * type rule here was overriding `h-full`, `p-0`, `bg-[var(...)]`,
+ * etc. silently. We hit this twice in 24h (AI map h-full collapse,
+ * gradient-page-title invisibility) before tracing it back to the
+ * layer rule.
+ *
+ * Fix: wrap the entire file in a `legacy` layer, and pre-declare the
+ * full layer order including Tailwind's expected layers. Final
+ * priority (low → high):
+ *
+ *     properties  <  theme  <  base  <  legacy  <  components  <  utilities
+ *
+ * Why `legacy` sits ABOVE Tailwind's `base` (the preflight reset):
+ *   The hand-crafted body / h1 / form-control styles in this file
+ *   must continue to override Tailwind's preflight, same as before
+ *   the layer fix. Putting legacy in its own layer ABOVE base
+ *   preserves that.
+ *
+ * Why `legacy` sits BELOW `components` and `utilities`:
+ *   So `h-full`, `p-0`, `bg-[<gradient>]`, and any future utility
+ *   reliably win over the `.card`, `.glass`, `.btn-*` rules below.
+ *
+ * The layer order declaration on this line REGISTERS the order
+ * before either file's content lands. Tailwind's main.css emits
+ * its own `@layer` blocks later; those slot into the already-
+ * declared order rather than re-defining it. */
+@layer properties, theme, base, legacy, components, utilities;
+
+@layer legacy {
+
 /* Base Apple-like Aesthetics */
 :root {
     /* Pair with [data-theme="dark"]'s `color-scheme: dark` below.
@@ -5232,4 +5269,6 @@ main#app-container.nav-anim-backward {
     font-style: italic;
     font-size: 0.85rem;
 }
+
+} /* end @layer legacy */
 

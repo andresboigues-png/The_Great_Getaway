@@ -86,18 +86,23 @@ class BadgeDef:
 
 
 def _check_first_trip(cursor, user_id):
-    """One COMPLETED trip in your membership (owner or invited).
-    Per the 2026-05-18 rule change, every trip-based badge counts
-    only currently-archived trips so an un-archive reverts progress
-    until the trip is completed again. `first_trip` therefore overlaps
-    with `archivist` at the trigger level but stays in the registry
-    as the "headline" milestone for the badges UI."""
+    """One trip in your membership (owner or invited, accepted).
+    Archive state is NOT required: `first_trip` is the welcome-aboard
+    milestone — earned as soon as you've started planning a trip. It's
+    deliberately the only trip-based badge that doesn't require a
+    completed trip, so a brand-new user sees a green dot the moment
+    they create their first plan.
+
+    `archivist` is the post-completion mirror ("you finished one") —
+    the two badges line up as a "started → completed" pair on the
+    profile strip. Pre-2026-05-19 first_trip was changed to require
+    archived too, which made it a trigger-identical duplicate of
+    archivist; this restores the distinction."""
     cursor.execute(
         "SELECT COUNT(*) AS c "
         "FROM trip_members tm "
         "WHERE tm.user_id = ? "
-        "  AND tm.invitation_status = 'accepted' "
-        "  AND COALESCE(tm.is_archived, 0) = 1",
+        "  AND tm.invitation_status = 'accepted'",
         (user_id,),
     )
     row = cursor.fetchone()
@@ -450,7 +455,7 @@ BADGES: list[BadgeDef] = [
         id="first_trip",
         emoji="🧳",
         label="First Trip",
-        description="Completed your first trip.",
+        description="Started planning your first trip.",
         check=_check_first_trip,
     ),
     BadgeDef(
