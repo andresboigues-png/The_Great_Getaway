@@ -2959,12 +2959,21 @@ body.is-signed-out .trip-controls-popover {
     cursor: pointer;
     transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
 }
+/* 2026-05-18: hover shifts to the button's accent color. Edit
+   button defaults to blue (--accent unset → falls back to the
+   blue triple). Download sets `--accent: 52,199,89` (green);
+   silence sets `--accent: 255,59,48` (red). Lets the three
+   trip-header buttons share one shape + one hover behavior while
+   each lighting up to its own color on hover. */
 .icon-btn-square:hover , .icon-btn-square:active , .icon-btn-square:focus-visible {
-    background: rgba(0,113,227,0.08);
-    border-color: rgba(0,113,227,0.2);
-    color: var(--accent-blue);
+    background: rgba(var(--accent, 0,113,227), 0.08);
+    border-color: rgba(var(--accent, 0,113,227), 0.2);
+    color: rgb(var(--accent, 0,113,227));
 }
-.icon-btn-square:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 2px; }
+.icon-btn-square:focus-visible {
+    outline: 2px solid rgb(var(--accent, 0,113,227));
+    outline-offset: 2px;
+}
 
 /* (.trip-companions-pill + :hover/:active + .__count REMOVED
    2026-05-16 — zero refs. The companions picker is now invoked from
