@@ -1264,22 +1264,78 @@ def test_gemini_host_keys_status_returns_pool_shape(client, seed_user, auth_head
     assert body["available"] == body["total"] - body["exhausted"]
 
 
-def test_feed_share_private_trip_400(client, seed_user, auth_headers):
-    """2026-05-18 audit M8: the audit found we had a test for
-    non-member rejection (403) but none for the "trip is private"
-    rejection (400). Both gates protect different attack paths:
-    private-and-yours = 400 ("make it public first"); public-but-
-    not-yours = 403 ("you're not a member"). Pin both contracts."""
+def test_feed_share_owner_auto_promotes_private_trip(client, seed_user, auth_headers):
+    """2026-05-18 follow-up to H5: when the OWNER explicitly clicks
+    Share to feed on a private trip, the endpoint auto-promotes
+    the trip to `is_public = 1` and proceeds with the share. The
+    previous behaviour (400 "must be public first") forced the user
+    into a hidden settings menu to flip privacy before retrying —
+    a frustrating UX since clicking Share IS the user's consent to
+    publicness. Non-owner members still get the 400 (see the
+    non-owner test below) since they shouldn't flip the owner's
+    privacy without consent."""
+    from database import get_db
     trip_id = _create_trip(client, auth_headers, trip_id="trip-private-share")
-    # Trip created without public=True → is_public=0 → share rejected
-    # with the "must be public" 400.
+
+    # Confirm trip starts private.
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT is_public FROM trips WHERE id = ?", (trip_id,),
+        ).fetchone()
+    assert row["is_public"] == 0, "trip should default to private"
+
+    # Owner clicks Share → 200, trip flips to public.
     res = client.post("/api/feed/share", headers=auth_headers, json={
-        "trip_id": trip_id, "caption": "should fail",
+        "trip_id": trip_id, "caption": "First share",
     })
+    assert res.status_code == 200, \
+        f"owner Share should auto-promote private trip; got {res.status_code} {res.get_data(as_text=True)!r}"
+    body = res.get_json()
+    assert body.get("post_id"), "expected a post_id in the response"
+
+    # Verify the trip is now public.
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT is_public FROM trips WHERE id = ?", (trip_id,),
+        ).fetchone()
+    assert row["is_public"] == 1, "trip should be public after owner Share"
+
+
+def test_feed_share_non_owner_private_trip_400(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """Counterpart to the owner-auto-promote test above: a non-owner
+    accepted member trying to share the owner's PRIVATE trip still
+    gets a 400 with a "ask the owner to make it public" hint. The
+    member can share PUBLIC trips they're a member of (covered by
+    existing tests); only the privacy flip is owner-only."""
+    from database import get_db
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-private-nonowner")
+    # Seed seed_other_user as an accepted member of the trip.
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO trip_members "
+            "(trip_id, user_id, role, is_archived, invitation_status, invited_by) "
+            "VALUES (?, ?, 'planner', 0, 'accepted', ?)",
+            (trip_id, seed_other_user, seed_user),
+        )
+        conn.commit()
+    # Non-owner share attempt while trip is private.
+    res = client.post(
+        "/api/feed/share", headers=other_auth_headers, json={
+            "trip_id": trip_id, "caption": "should fail",
+        },
+    )
     assert res.status_code == 400
     body = res.get_json()
-    assert "public" in body.get("error", "").lower(), \
-        f"expected 'must be public' error; got {body!r}"
+    assert "private" in body.get("error", "").lower(), \
+        f"expected 'private' error; got {body!r}"
+    # Trip should remain private.
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT is_public FROM trips WHERE id = ?", (trip_id,),
+        ).fetchone()
+    assert row["is_public"] == 0, "non-owner share must NOT flip privacy"
 
 
 def test_admin_stats_allows_admin_email(client, seed_user, auth_headers, monkeypatch):

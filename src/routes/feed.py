@@ -341,11 +341,14 @@ def share_trip_to_feed():
     with get_db() as conn:
         cursor = conn.cursor()
         # Membership + visibility gate: caller must own the trip OR be
-        # an accepted member, AND the trip must be public. Pre-2026-05-18
-        # only the membership half was checked, so an owner could share
-        # a PRIVATE trip's card to the feed — followers saw the card
-        # but click-through to /api/public-trip/<id> 404'd. Now we
-        # require `is_public = 1` so every feed card resolves.
+        # an accepted member, AND the trip must be public so the feed
+        # click-through lands on a real public-trip page (rather than
+        # a 404). 2026-05-18 H5 added the public requirement; the
+        # follow-up (this commit) auto-promotes the trip to public
+        # when the OWNER explicitly clicks Share — clicking Share is
+        # consent to publicness. Non-owner members trying to share
+        # a private trip still get the 400 since they shouldn't be
+        # flipping the owner's privacy without consent.
         cursor.execute(
             "SELECT user_id, is_public FROM trips WHERE id = ?",
             (trip_id,),
@@ -353,11 +356,20 @@ def share_trip_to_feed():
         trip_row = cursor.fetchone()
         if not trip_row:
             return jsonify({"error": "Trip not found"}), 404
-        if not trip_row["is_public"]:
-            return jsonify({
-                "error": "Trip must be public to share to feed",
-            }), 400
         is_owner = (trip_row["user_id"] == user_id)
+        if not trip_row["is_public"]:
+            if is_owner:
+                cursor.execute(
+                    "UPDATE trips SET is_public = 1 WHERE id = ?",
+                    (trip_id,),
+                )
+            else:
+                return jsonify({
+                    "error": (
+                        "This trip is private. Ask the owner to make "
+                        "it public before sharing to the feed."
+                    ),
+                }), 400
         if not is_owner:
             cursor.execute(
                 "SELECT 1 FROM trip_members WHERE trip_id = ? "
