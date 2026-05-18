@@ -3822,37 +3822,35 @@ def test_upsert_trip_empty_countries_array_clears_column(client, seed_user, auth
     assert trip["countries"] == []
 
 
-def test_serialize_trip_row_drops_malformed_countries_json(client, seed_user, auth_headers, temp_db):
-    """§4.3 defence: if the trip_countries_json column ever contains
-    bytes the upsert never writes (corrupt DB, manual SQL surgery, a
-    future bad migration), the read path must NOT crash /api/data.
-    Pin that the read defensively returns `[]` for malformed shapes.
-    """
-    # Insert a trip via SQL with a deliberately-bad JSON payload.
+def test_trip_countries_json_check_rejects_malformed_writes(client, seed_user, auth_headers, temp_db):
+    """§4.3 defence, post-2026-05-18 audit M1 hardening: malformed
+    `trip_countries_json` values can't reach the DB anymore — the
+    json_valid() CHECK constraint (migration a8b9c0d1e2f3) makes
+    invalid writes fail at the SQLite layer.
+
+    Previously this test wrote a deliberately-bad value via raw SQL
+    to exercise the read-path's defensive json.loads. With the CHECK
+    in place, that INSERT now fails with IntegrityError before the
+    read even runs. The read-path defense is still in source (an
+    untrusted SELECT result could in theory ship NULL bytes or a
+    type-confused value), but the meaningful regression net is now
+    the constraint itself."""
     import sqlite3
     conn = sqlite3.connect(temp_db)
     conn.row_factory = sqlite3.Row
-    conn.execute(
-        "INSERT INTO trips (id, user_id, name, country, country_code, "
-        "is_archived, is_public, trip_countries_json) "
-        "VALUES (?, ?, ?, ?, ?, 0, 0, ?)",
-        ("trip-malformed-1", seed_user, "Bad", "PT", "PT", "not-valid-json{"),
-    )
-    # Also insert a trip_members row so /api/data's visibility query picks it up.
-    conn.execute(
-        "INSERT INTO trip_members (trip_id, user_id, role, invitation_status) "
-        "VALUES (?, ?, 'planner', 'accepted')",
-        ("trip-malformed-1", seed_user),
-    )
-    conn.commit()
+    with pytest.raises(sqlite3.IntegrityError) as exc_info:
+        conn.execute(
+            "INSERT INTO trips (id, user_id, name, country, country_code, "
+            "is_archived, is_public, trip_countries_json) "
+            "VALUES (?, ?, ?, ?, ?, 0, 0, ?)",
+            ("trip-malformed-1", seed_user, "Bad", "PT", "PT", "not-valid-json{"),
+        )
     conn.close()
-
-    data = client.get("/api/data", headers=auth_headers)
-    assert data.status_code == 200, \
-        f"/api/data crashed on malformed trip_countries_json: {data.get_data(as_text=True)}"
-    trip = next(t for t in data.get_json()["trips"] if t["id"] == "trip-malformed-1")
-    assert trip["countries"] == [], \
-        f"malformed JSON should defensively become []; got {trip.get('countries')!r}"
+    # Useful message + names the column so the operator sees what
+    # tripped the constraint at write time.
+    msg = str(exc_info.value)
+    assert "CHECK" in msg.upper() and "trip_countries_json" in msg, \
+        f"expected CHECK error naming trip_countries_json; got: {msg!r}"
 
 
 def test_main_csp_uses_script_nonce_not_unsafe_inline(client):

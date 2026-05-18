@@ -230,20 +230,36 @@ def init_db():
                 place_id TEXT,
                 lat REAL,
                 lng REAL,
-                viewport_json TEXT,
-                place_types TEXT,
-                companions_json TEXT,
-                marked_places_json TEXT,
-                documents_json TEXT,
-                photos_json TEXT,
-                checklist_json TEXT,
+                -- 2026-05-18 audit M1: every JSON column carries a
+                -- json_valid() CHECK so invalid writes fail at the DB
+                -- level rather than silently corrupt rows. NULL is
+                -- still allowed (the constraint short-circuits on
+                -- NULL per SQL semantics). Migration a8b9c0d1e2f3
+                -- rebuilds prod DBs that pre-date this change.
+                viewport_json TEXT
+                    CHECK(viewport_json IS NULL OR json_valid(viewport_json)),
+                place_types TEXT
+                    CHECK(place_types IS NULL OR json_valid(place_types)),
+                companions_json TEXT
+                    CHECK(companions_json IS NULL OR json_valid(companions_json)),
+                marked_places_json TEXT
+                    CHECK(marked_places_json IS NULL
+                          OR json_valid(marked_places_json)),
+                documents_json TEXT
+                    CHECK(documents_json IS NULL OR json_valid(documents_json)),
+                photos_json TEXT
+                    CHECK(photos_json IS NULL OR json_valid(photos_json)),
+                checklist_json TEXT
+                    CHECK(checklist_json IS NULL OR json_valid(checklist_json)),
                 -- §4.3: JSON array of ISO 3166-1 alpha-2 codes the trip
                 -- touches (e.g. '["PT", "ES"]'). Primary country first,
                 -- additional codes from client-side reverse-geocode in
                 -- discovery order. Null on legacy rows + on trips with
                 -- only a single country (frontend falls back to
                 -- country_code in that case).
-                trip_countries_json TEXT,
+                trip_countries_json TEXT
+                    CHECK(trip_countries_json IS NULL
+                          OR json_valid(trip_countries_json)),
                 cover_url TEXT,
                 actions_hidden INTEGER DEFAULT 0,
                 share_token TEXT,
@@ -541,7 +557,11 @@ def init_db():
                 user_id TEXT NOT NULL,
                 badge_id TEXT NOT NULL,
                 earned_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                context_json TEXT,
+                -- 2026-05-18 audit M1: json_valid CHECK (see trips
+                -- comment above). Migration a8b9c0d1e2f3 brings prod
+                -- DBs onto this shape.
+                context_json TEXT
+                    CHECK(context_json IS NULL OR json_valid(context_json)),
                 UNIQUE(user_id, badge_id),
                 FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
             )
