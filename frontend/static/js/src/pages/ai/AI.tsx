@@ -150,7 +150,7 @@ function EmptyTripView() {
         <div>
             <div style={{ padding: '32px 0 24px', fontFamily: sf }}>
                 <h1
-                    className="mt-0 mx-0 mb-1.5 text-[2.8rem] font-extrabold tracking-[-0.04em] bg-[var(--gradient-title)] [-webkit-background-clip:text] [-webkit-text-fill-color:transparent] bg-clip-text"
+                    className="mt-0 mx-0 mb-1.5 text-[2.8rem] font-extrabold tracking-[-0.04em] [background-image:var(--gradient-title)] [-webkit-background-clip:text] [-webkit-text-fill-color:transparent] bg-clip-text"
                 >
                     {t('ai.title')}
                 </h1>
@@ -748,7 +748,7 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
             <div className="pt-8 px-0 pb-6">
                 <div className="flex items-center gap-3 mb-[6px]">
                     <h1
-                        className="m-0 text-[2.8rem] font-extrabold tracking-[-0.04em] bg-[var(--gradient-title)] [-webkit-background-clip:text] [-webkit-text-fill-color:transparent] bg-clip-text"
+                        className="m-0 text-[2.8rem] font-extrabold tracking-[-0.04em] [background-image:var(--gradient-title)] [-webkit-background-clip:text] [-webkit-text-fill-color:transparent] bg-clip-text"
                     >
                         {t('ai.title')}
                     </h1>

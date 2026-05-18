@@ -71,7 +71,7 @@ export function Insights() {
         return (
             <div>
                 <h1
-                    className="inline-block bg-[var(--gradient-title)] [-webkit-background-clip:text] [-webkit-text-fill-color:transparent] bg-clip-text"
+                    className="inline-block [background-image:var(--gradient-title)] [-webkit-background-clip:text] [-webkit-text-fill-color:transparent] bg-clip-text"
                 >
                     {t('insights.title')}
                 </h1>
@@ -220,7 +220,7 @@ export function Insights() {
         return (
             <div>
                 <h1
-                    className="inline-block bg-[var(--gradient-title)] [-webkit-background-clip:text] [-webkit-text-fill-color:transparent] bg-clip-text"
+                    className="inline-block [background-image:var(--gradient-title)] [-webkit-background-clip:text] [-webkit-text-fill-color:transparent] bg-clip-text"
                 >
                     {t('insights.title')}
                 </h1>
@@ -356,7 +356,7 @@ export function Insights() {
             >
                 <div className="min-w-0 flex-[1_1_240px]">
                     <h1
-                        className="inline-block bg-[var(--gradient-title)] [-webkit-background-clip:text] [-webkit-text-fill-color:transparent] bg-clip-text mb-3"
+                        className="inline-block [background-image:var(--gradient-title)] [-webkit-background-clip:text] [-webkit-text-fill-color:transparent] bg-clip-text mb-3"
                     >
                         {t('insights.title')}
                     </h1>

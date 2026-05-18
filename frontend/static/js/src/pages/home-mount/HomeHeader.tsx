@@ -108,7 +108,7 @@ export function HomeHeader({ activeTrip, poiPillsVisible, onTogglePoiPills }: Ho
         <>
             <div className="ai-page-header text-center">
                 <h1
-                    className="inline-block bg-[var(--gradient-title)] [-webkit-background-clip:text] [-webkit-text-fill-color:transparent] bg-clip-text"
+                    className="inline-block [background-image:var(--gradient-title)] [-webkit-background-clip:text] [-webkit-text-fill-color:transparent] bg-clip-text"
                 >
                     {greeting}
                 </h1>

@@ -79,7 +79,7 @@ export function Expenses() {
         return (
             <div>
                 <h1
-                    className="inline-block bg-[var(--gradient-title)] [-webkit-background-clip:text] [-webkit-text-fill-color:transparent] bg-clip-text"
+                    className="inline-block [background-image:var(--gradient-title)] [-webkit-background-clip:text] [-webkit-text-fill-color:transparent] bg-clip-text"
                 >
                     {t('expenses.title')}
                 </h1>
@@ -107,7 +107,7 @@ export function Expenses() {
     return (
         <div>
             <h1
-                className="inline-block bg-[var(--gradient-title)] [-webkit-background-clip:text] [-webkit-text-fill-color:transparent] bg-clip-text mb-3"
+                className="inline-block [background-image:var(--gradient-title)] [-webkit-background-clip:text] [-webkit-text-fill-color:transparent] bg-clip-text mb-3"
             >
                 {t('expenses.title')}
             </h1>

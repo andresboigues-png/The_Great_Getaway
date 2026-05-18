@@ -1529,6 +1529,9 @@
     .bg-white {
         background-color: var(--color-white);
     }
+    .\[background-image\:var\(--gradient-title\)\] {
+        background-image: var(--gradient-title);
+    }
     .bg-\[linear-gradient\(135deg\,_\#9b59b6_0\%\,_\#5856d6_100\%\)\] {
         background-image: linear-gradient(135deg, #9b59b6 0%, #5856d6 100%);
     }
