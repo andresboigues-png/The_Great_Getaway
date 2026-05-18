@@ -67,16 +67,37 @@ class BadgeDef:
 # on the earned row.
 
 
+# 2026-05-18 audit H1+H4: every trip-based check now reads
+# `trip_members.is_archived` instead of `trips.is_archived`. Two
+# reasons:
+#   1. `trip_members.is_archived` is per-user; `trips.is_archived`
+#      is owner-only. A non-owner member archiving their copy never
+#      reached the legacy column, so a member of a 5-country group
+#      trip was invisible to the owner-scoped query AND couldn't
+#      earn badges for joint trips.
+#   2. The post-2026-05-18 rule ("only count CURRENTLY archived
+#      trips") is genuinely per-user — un-archiving your copy
+#      should drop YOUR badge progress even if other members still
+#      have their copy archived.
+# Joining trip_members + filtering on invitation_status = 'accepted'
+# gives the right semantic: a user earns a badge from every trip
+# they actively joined (owner or invited) and have currently
+# archived for themselves.
+
+
 def _check_first_trip(cursor, user_id):
-    """One COMPLETED trip you own. Per the 2026-05-18 rule change,
-    every trip-based badge counts only currently-archived trips so an
-    un-archive reverts progress until the trip is completed again.
-    `first_trip` therefore overlaps with `archivist` at the trigger
-    level but stays in the registry as the "headline" milestone for
-    the badges UI."""
+    """One COMPLETED trip in your membership (owner or invited).
+    Per the 2026-05-18 rule change, every trip-based badge counts
+    only currently-archived trips so an un-archive reverts progress
+    until the trip is completed again. `first_trip` therefore overlaps
+    with `archivist` at the trigger level but stays in the registry
+    as the "headline" milestone for the badges UI."""
     cursor.execute(
-        "SELECT COUNT(*) AS c FROM trips "
-        "WHERE user_id = ? AND COALESCE(is_archived, 0) = 1",
+        "SELECT COUNT(*) AS c "
+        "FROM trip_members tm "
+        "WHERE tm.user_id = ? "
+        "  AND tm.invitation_status = 'accepted' "
+        "  AND COALESCE(tm.is_archived, 0) = 1",
         (user_id,),
     )
     row = cursor.fetchone()
@@ -84,9 +105,16 @@ def _check_first_trip(cursor, user_id):
 
 
 def _check_archivist(cursor, user_id):
-    """First archived trip — you finished one."""
+    """First archived trip — you finished one. Counts any trip you're
+    an accepted member of and have currently archived for yourself
+    (post-2026-05-18: members archive their own copy independently
+    of the owner)."""
     cursor.execute(
-        "SELECT COUNT(*) AS c FROM trips WHERE user_id = ? AND COALESCE(is_archived, 0) = 1",
+        "SELECT COUNT(*) AS c "
+        "FROM trip_members tm "
+        "WHERE tm.user_id = ? "
+        "  AND tm.invitation_status = 'accepted' "
+        "  AND COALESCE(tm.is_archived, 0) = 1",
         (user_id,),
     )
     row = cursor.fetchone()
@@ -108,20 +136,24 @@ def _country_count(cursor, user_id) -> int:
     its array (the upsert writes the primary into position 0 of the
     array, so this is the common case for §4.3-aware trips).
     """
+    # H1+H4 (2026-05-18): JOIN via trip_members so members of joint
+    # trips also earn the count, and the archive-state filter reads
+    # the per-user `trip_members.is_archived` instead of the legacy
+    # owner-only `trips.is_archived`. Both UNION branches share the
+    # same join.
     cursor.execute(
         """
         WITH all_codes AS (
             -- Primary key per trip: country_code if present, else
             -- LOWER(country). Same shape as the pre-§4.3 query so
             -- legacy trips keep contributing exactly one row.
-            -- `is_archived = 1` filter scopes the count to CURRENTLY
-            -- completed trips (2026-05-18 rule change — restoring an
-            -- archived trip should drop it from the achievement count).
-            SELECT COALESCE(NULLIF(UPPER(country_code), ''), LOWER(country)) AS code
-            FROM trips
-            WHERE user_id = ?
-              AND COALESCE(country, '') != ''
-              AND COALESCE(is_archived, 0) = 1
+            SELECT COALESCE(NULLIF(UPPER(t.country_code), ''), LOWER(t.country)) AS code
+            FROM trip_members tm
+            JOIN trips t ON t.id = tm.trip_id
+            WHERE tm.user_id = ?
+              AND tm.invitation_status = 'accepted'
+              AND COALESCE(tm.is_archived, 0) = 1
+              AND COALESCE(t.country, '') != ''
 
             UNION
 
@@ -132,10 +164,12 @@ def _country_count(cursor, user_id) -> int:
             -- the raw string. Server upserts already upper-cased
             -- these but UPPER() is cheap and idempotent.
             SELECT UPPER(je.value) AS code
-            FROM trips, json_each(trips.trip_countries_json) AS je
-            WHERE trips.user_id = ?
-              AND trips.trip_countries_json IS NOT NULL
-              AND COALESCE(trips.is_archived, 0) = 1
+            FROM trip_members tm
+            JOIN trips t ON t.id = tm.trip_id, json_each(t.trip_countries_json) AS je
+            WHERE tm.user_id = ?
+              AND tm.invitation_status = 'accepted'
+              AND COALESCE(tm.is_archived, 0) = 1
+              AND t.trip_countries_json IS NOT NULL
         )
         SELECT COUNT(DISTINCT code) AS c FROM all_codes WHERE code != ''
         """,
@@ -158,11 +192,14 @@ def _check_repeat_country(cursor, user_id):
     2+ trips. Encourages domestic / repeat-destination travel (the
     "internal tourism" call-out from FIXING_ROADMAP)."""
     cursor.execute(
-        "SELECT COALESCE(NULLIF(country_code, ''), LOWER(country)) AS key, COUNT(*) AS c "
-        "FROM trips "
-        "WHERE user_id = ? "
-        "  AND COALESCE(country, '') != '' "
-        "  AND COALESCE(is_archived, 0) = 1 "
+        "SELECT COALESCE(NULLIF(t.country_code, ''), LOWER(t.country)) AS key, "
+        "       COUNT(*) AS c "
+        "FROM trip_members tm "
+        "JOIN trips t ON t.id = tm.trip_id "
+        "WHERE tm.user_id = ? "
+        "  AND tm.invitation_status = 'accepted' "
+        "  AND COALESCE(tm.is_archived, 0) = 1 "
+        "  AND COALESCE(t.country, '') != '' "
         "GROUP BY key "
         "HAVING c >= 2 "
         "ORDER BY c DESC LIMIT 1",
@@ -247,9 +284,12 @@ def _check_longest_trip(cursor, user_id):
     user — "12 days of adventure" includes the anchor."""
     cursor.execute(
         "SELECT t.id, t.name, COUNT(td.id) AS days "
-        "FROM trips t "
+        "FROM trip_members tm "
+        "JOIN trips t ON t.id = tm.trip_id "
         "LEFT JOIN trip_days td ON td.trip_id = t.id "
-        "WHERE t.user_id = ? AND COALESCE(t.is_archived, 0) = 1 "
+        "WHERE tm.user_id = ? "
+        "  AND tm.invitation_status = 'accepted' "
+        "  AND COALESCE(tm.is_archived, 0) = 1 "
         "GROUP BY t.id "
         "HAVING days >= ? "
         "ORDER BY days DESC LIMIT 1",
@@ -276,9 +316,12 @@ def _check_priciest_trip(cursor, user_id):
     here."""
     cursor.execute(
         "SELECT t.id, t.name, COALESCE(SUM(e.euro_value), 0) AS spend "
-        "FROM trips t "
+        "FROM trip_members tm "
+        "JOIN trips t ON t.id = tm.trip_id "
         "LEFT JOIN expenses e ON e.trip_id = t.id "
-        "WHERE t.user_id = ? AND COALESCE(t.is_archived, 0) = 1 "
+        "WHERE tm.user_id = ? "
+        "  AND tm.invitation_status = 'accepted' "
+        "  AND COALESCE(tm.is_archived, 0) = 1 "
         "GROUP BY t.id "
         "HAVING spend >= ? "
         "ORDER BY spend DESC LIMIT 1",
@@ -303,8 +346,12 @@ def _check_most_companions(cursor, user_id):
     json_array_length) because some older trip rows have non-array
     values from earlier schema iterations."""
     cursor.execute(
-        "SELECT id, name, companions_json FROM trips "
-        "WHERE user_id = ? AND COALESCE(is_archived, 0) = 1",
+        "SELECT t.id, t.name, t.companions_json "
+        "FROM trip_members tm "
+        "JOIN trips t ON t.id = tm.trip_id "
+        "WHERE tm.user_id = ? "
+        "  AND tm.invitation_status = 'accepted' "
+        "  AND COALESCE(tm.is_archived, 0) = 1",
         (user_id,),
     )
     best = None
@@ -335,11 +382,14 @@ def _check_intra_country_3(cursor, user_id):
     (≥2). Promotes deep-dive travel patterns (regulars, locals,
     domestic). Same key-normalisation as repeat_country."""
     cursor.execute(
-        "SELECT COALESCE(NULLIF(country_code, ''), LOWER(country)) AS key, COUNT(*) AS c "
-        "FROM trips "
-        "WHERE user_id = ? "
-        "  AND COALESCE(country, '') != '' "
-        "  AND COALESCE(is_archived, 0) = 1 "
+        "SELECT COALESCE(NULLIF(t.country_code, ''), LOWER(t.country)) AS key, "
+        "       COUNT(*) AS c "
+        "FROM trip_members tm "
+        "JOIN trips t ON t.id = tm.trip_id "
+        "WHERE tm.user_id = ? "
+        "  AND tm.invitation_status = 'accepted' "
+        "  AND COALESCE(tm.is_archived, 0) = 1 "
+        "  AND COALESCE(t.country, '') != '' "
         "GROUP BY key "
         "HAVING c >= 3 "
         "ORDER BY c DESC LIMIT 1",
@@ -361,11 +411,13 @@ def _check_back_to_back(cursor, user_id):
     year-long) can extend this with longer-streak rules using the
     same DISTINCT-month scaffold."""
     cursor.execute(
-        "SELECT DISTINCT strftime('%Y-%m', created_at) AS ym "
-        "FROM trips "
-        "WHERE user_id = ? "
-        "  AND created_at IS NOT NULL "
-        "  AND COALESCE(is_archived, 0) = 1 "
+        "SELECT DISTINCT strftime('%Y-%m', t.created_at) AS ym "
+        "FROM trip_members tm "
+        "JOIN trips t ON t.id = tm.trip_id "
+        "WHERE tm.user_id = ? "
+        "  AND tm.invitation_status = 'accepted' "
+        "  AND COALESCE(tm.is_archived, 0) = 1 "
+        "  AND t.created_at IS NOT NULL "
         "ORDER BY ym",
         (user_id,),
     )

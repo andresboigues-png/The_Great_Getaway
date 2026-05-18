@@ -120,6 +120,19 @@ def upsert_trip():
               countries_payload,
               t.get('coverUrl')))
         ensure_owner_member_row(cursor, t['id'], owner_id)
+        # 2026-05-18 audit H1: mirror the client-supplied archive flag
+        # to the OWNER's trip_members row so the per-user archive
+        # signal (now the source of truth for the achievement queries +
+        # feed events + admin stats) stays in sync with the trip's
+        # `isArchived` payload field. `ensure_owner_member_row` above
+        # is INSERT OR IGNORE, so it doesn't touch a pre-existing
+        # row's is_archived — without this UPDATE, importing a
+        # completed trip would leave the owner's per-user flag at 0.
+        cursor.execute(
+            "UPDATE trip_members SET is_archived = ? "
+            "WHERE trip_id = ? AND user_id = ?",
+            (1 if t.get('isArchived') else 0, t['id'], owner_id),
+        )
         conn.commit()
     return jsonify({"status": "ok"})
 

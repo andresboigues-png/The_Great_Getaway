@@ -4483,16 +4483,44 @@ def test_settle_up_requires_auth(client):
 
 
 def _archive_all_trips(user_id):
-    """Flip every owned trip for `user_id` to `is_archived = 1`.
-    Mirrors what the archive endpoint does for owner-owned rows. Used
-    by achievement tests so the trip-based rules (only count currently
-    archived trips, per the 2026-05-18 change) actually fire."""
+    """Flip every trip the user has any membership in to archived for
+    THEM. Maintains both:
+      - `trips.is_archived`        — legacy owner-only mirror, still
+                                     read by sync + public-profile
+                                     surfaces during the deprecation
+                                     window.
+      - `trip_members.is_archived` — per-user, post-2026-05-18 source
+                                     of truth for the achievement
+                                     queries (which now JOIN
+                                     trip_members so members earn
+                                     badges for joint trips too).
+    Also ensures the user has an accepted trip_members row for every
+    owned trip — direct-INSERT tests bypass the /api/trips upsert
+    path (and therefore the `ensure_owner_member_row` call), so the
+    join in the achievement queries would see no member rows
+    without this backfill."""
     from database import get_db
+    from helpers import ensure_owner_member_row
     with get_db() as conn:
-        conn.execute(
+        cursor = conn.cursor()
+        # Legacy mirror — keep updating until the column is fully
+        # decommissioned in a follow-up migration.
+        cursor.execute(
             "UPDATE trips SET is_archived = 1 WHERE user_id = ?",
             (user_id,),
         )
+        # Per-user — backfill the owner row for each owned trip,
+        # then flip it to archived.
+        cursor.execute(
+            "SELECT id FROM trips WHERE user_id = ?", (user_id,),
+        )
+        for row in cursor.fetchall():
+            ensure_owner_member_row(cursor, row['id'], user_id)
+            cursor.execute(
+                "UPDATE trip_members SET is_archived = 1 "
+                "WHERE trip_id = ? AND user_id = ?",
+                (row['id'], user_id),
+            )
         conn.commit()
 
 
@@ -4526,15 +4554,11 @@ def test_achievements_idempotent_across_polls(client, seed_user, auth_headers):
 
 
 def test_achievements_archivist_after_archive(client, seed_user, auth_headers):
-    """Archiving a trip unlocks `archivist`. The archive flow flips
-    is_archived; the rule counts WHERE is_archived = 1."""
-    trip_id = _create_trip(client, auth_headers, trip_id="trip-ach-archive")
-    # Fire-and-forget — the rule just looks at is_archived. Direct DB
-    # update keeps the test focused on the badge logic.
-    from database import get_db
-    with get_db() as conn:
-        conn.execute("UPDATE trips SET is_archived = 1 WHERE id = ?", (trip_id,))
-        conn.commit()
+    """Archiving a trip unlocks `archivist`. Post-2026-05-18 the rule
+    counts WHERE trip_members.is_archived = 1 (per-user, not the
+    legacy owner-only trips.is_archived column)."""
+    _create_trip(client, auth_headers, trip_id="trip-ach-archive")
+    _archive_all_trips(seed_user)
 
     data = client.get("/api/data", headers=auth_headers).get_json()
     ids = [a["badgeId"] for a in data["achievements"]]
@@ -4554,11 +4578,12 @@ def test_achievements_globe_trotter_tiers(client, seed_user, auth_headers):
             ("Paris, France", "FR"),
         ]):
             c.execute(
-                "INSERT INTO trips (id, user_id, name, country, country_code, is_archived) "
-                "VALUES (?, ?, ?, ?, ?, 1)",
+                "INSERT INTO trips (id, user_id, name, country, country_code) "
+                "VALUES (?, ?, ?, ?, ?)",
                 (f"trip-gt-{i}", seed_user, f"Trip {i}", name, code),
             )
         conn.commit()
+    _archive_all_trips(seed_user)
 
     data = client.get("/api/data", headers=auth_headers).get_json()
     ids = {a["badgeId"] for a in data["achievements"]}
@@ -4589,7 +4614,7 @@ def test_achievements_globe_trotter_counts_multi_country_legs(client, seed_user,
         # Trip 1: Iberia (PT + ES)
         c.execute(
             "INSERT INTO trips (id, user_id, name, country, country_code, "
-            "trip_countries_json, is_archived) VALUES (?, ?, ?, ?, ?, ?, 1)",
+            "trip_countries_json) VALUES (?, ?, ?, ?, ?, ?)",
             (
                 "trip-multi-iberia", seed_user, "Iberia tour",
                 "Portugal", "PT", _json.dumps(["PT", "ES"]),
@@ -4598,13 +4623,14 @@ def test_achievements_globe_trotter_counts_multi_country_legs(client, seed_user,
         # Trip 2: East Asia (JP + KR)
         c.execute(
             "INSERT INTO trips (id, user_id, name, country, country_code, "
-            "trip_countries_json, is_archived) VALUES (?, ?, ?, ?, ?, ?, 1)",
+            "trip_countries_json) VALUES (?, ?, ?, ?, ?, ?)",
             (
                 "trip-multi-asia", seed_user, "East Asia",
                 "Japan", "JP", _json.dumps(["JP", "KR"]),
             ),
         )
         conn.commit()
+    _archive_all_trips(seed_user)
 
     data = client.get("/api/data", headers=auth_headers).get_json()
     ids = {a["badgeId"] for a in data["achievements"]}
@@ -4628,7 +4654,7 @@ def test_achievements_globe_trotter_dedupes_primary_and_array(client, seed_user,
         c = conn.cursor()
         c.execute(
             "INSERT INTO trips (id, user_id, name, country, country_code, "
-            "trip_countries_json, is_archived) VALUES (?, ?, ?, ?, ?, ?, 1)",
+            "trip_countries_json) VALUES (?, ?, ?, ?, ?, ?)",
             (
                 "trip-dedupe", seed_user, "Iberia tour",
                 "Portugal", "PT",
@@ -4638,6 +4664,7 @@ def test_achievements_globe_trotter_dedupes_primary_and_array(client, seed_user,
             ),
         )
         conn.commit()
+    _archive_all_trips(seed_user)
 
     data = client.get("/api/data", headers=auth_headers).get_json()
     # Below the 3-threshold, so no globe-trotter badge — but the
@@ -4657,11 +4684,12 @@ def test_achievements_repeat_country(client, seed_user, auth_headers):
         c = conn.cursor()
         for i in range(2):
             c.execute(
-                "INSERT INTO trips (id, user_id, name, country, country_code, is_archived) "
-                "VALUES (?, ?, ?, ?, ?, 1)",
+                "INSERT INTO trips (id, user_id, name, country, country_code) "
+                "VALUES (?, ?, ?, ?, ?)",
                 (f"trip-rc-{i}", seed_user, f"Lisbon trip {i}", "Lisbon, Portugal", "PT"),
             )
         conn.commit()
+    _archive_all_trips(seed_user)
 
     data = client.get("/api/data", headers=auth_headers).get_json()
     ids = [a["badgeId"] for a in data["achievements"]]
@@ -4749,11 +4777,12 @@ def test_achievements_globe_trotter_50_only_at_threshold(client, seed_user, auth
             # country_code)` so synthetic codes work.
             code = f"X{i:02d}"
             c.execute(
-                "INSERT INTO trips (id, user_id, name, country, country_code, is_archived) "
-                "VALUES (?, ?, ?, ?, ?, 1)",
+                "INSERT INTO trips (id, user_id, name, country, country_code) "
+                "VALUES (?, ?, ?, ?, ?)",
                 (f"trip-gt50-{i}", seed_user, f"Trip {i}", f"Country {i}", code),
             )
         conn.commit()
+    _archive_all_trips(seed_user)
 
     data = client.get("/api/data", headers=auth_headers).get_json()
     ids = {a["badgeId"] for a in data["achievements"]}
@@ -4763,11 +4792,12 @@ def test_achievements_globe_trotter_50_only_at_threshold(client, seed_user, auth
     # One more — crosses the threshold.
     with get_db() as conn:
         conn.execute(
-            "INSERT INTO trips (id, user_id, name, country, country_code, is_archived) "
-            "VALUES ('trip-gt50-final', ?, 'Trip 50', 'Country 50', 'XFF', 1)",
+            "INSERT INTO trips (id, user_id, name, country, country_code) "
+            "VALUES ('trip-gt50-final', ?, 'Trip 50', 'Country 50', 'XFF')",
             (seed_user,),
         )
         conn.commit()
+    _archive_all_trips(seed_user)
     data = client.get("/api/data", headers=auth_headers).get_json()
     ids = {a["badgeId"] for a in data["achievements"]}
     assert "globe_trotter_50" in ids
@@ -4872,8 +4902,8 @@ def test_achievements_most_companions(client, seed_user, auth_headers):
     with get_db() as conn:
         c = conn.cursor()
         c.execute(
-            "INSERT INTO trips (id, user_id, name, country, companions_json, is_archived) "
-            "VALUES (?, ?, ?, ?, ?, 1)",
+            "INSERT INTO trips (id, user_id, name, country, companions_json) "
+            "VALUES (?, ?, ?, ?, ?)",
             (
                 "trip-c-4",
                 seed_user,
@@ -4890,11 +4920,12 @@ def test_achievements_most_companions(client, seed_user, auth_headers):
         # production because all writers go through json.dumps; trip
         # serialization crashes earlier on it.)
         c.execute(
-            "INSERT INTO trips (id, user_id, name, country, companions_json, is_archived) "
-            "VALUES (?, ?, ?, ?, ?, 1)",
+            "INSERT INTO trips (id, user_id, name, country, companions_json) "
+            "VALUES (?, ?, ?, ?, ?)",
             ("trip-c-bad", seed_user, "Non-array JSON trip", "PT", '{"legacy": true}'),
         )
         conn.commit()
+    _archive_all_trips(seed_user)
 
     data = client.get("/api/data", headers=auth_headers).get_json()
     ids = {a["badgeId"] for a in data["achievements"]}
@@ -4927,11 +4958,12 @@ def test_achievements_intra_country_3(client, seed_user, auth_headers):
         # 2 Portugal trips — below threshold, but repeat_country fires.
         for i in range(2):
             c.execute(
-                "INSERT INTO trips (id, user_id, name, country, country_code, is_archived) "
-                "VALUES (?, ?, ?, ?, ?, 1)",
+                "INSERT INTO trips (id, user_id, name, country, country_code) "
+                "VALUES (?, ?, ?, ?, ?)",
                 (f"trip-ic-{i}", seed_user, f"Lisbon {i}", "Portugal", "PT"),
             )
         conn.commit()
+    _archive_all_trips(seed_user)
 
     data = client.get("/api/data", headers=auth_headers).get_json()
     ids = {a["badgeId"] for a in data["achievements"]}
@@ -4941,11 +4973,12 @@ def test_achievements_intra_country_3(client, seed_user, auth_headers):
     # Add the 3rd Portugal trip.
     with get_db() as conn:
         conn.execute(
-            "INSERT INTO trips (id, user_id, name, country, country_code, is_archived) "
-            "VALUES ('trip-ic-final', ?, 'Lisbon 3', 'Portugal', 'PT', 1)",
+            "INSERT INTO trips (id, user_id, name, country, country_code) "
+            "VALUES ('trip-ic-final', ?, 'Lisbon 3', 'Portugal', 'PT')",
             (seed_user,),
         )
         conn.commit()
+    _archive_all_trips(seed_user)
 
     data = client.get("/api/data", headers=auth_headers).get_json()
     ids = {a["badgeId"] for a in data["achievements"]}
@@ -4965,16 +4998,17 @@ def test_achievements_back_to_back_consecutive_months(client, seed_user, auth_he
     with get_db() as conn:
         c = conn.cursor()
         c.execute(
-            "INSERT INTO trips (id, user_id, name, country, created_at, is_archived) "
-            "VALUES (?, ?, ?, ?, ?, 1)",
+            "INSERT INTO trips (id, user_id, name, country, created_at) "
+            "VALUES (?, ?, ?, ?, ?)",
             ("trip-bb-jan", seed_user, "January trip", "X", "2025-01-15 10:00:00"),
         )
         c.execute(
-            "INSERT INTO trips (id, user_id, name, country, created_at, is_archived) "
-            "VALUES (?, ?, ?, ?, ?, 1)",
+            "INSERT INTO trips (id, user_id, name, country, created_at) "
+            "VALUES (?, ?, ?, ?, ?)",
             ("trip-bb-mar", seed_user, "March trip", "X", "2025-03-15 10:00:00"),
         )
         conn.commit()
+    _archive_all_trips(seed_user)
 
     data = client.get("/api/data", headers=auth_headers).get_json()
     ids = {a["badgeId"] for a in data["achievements"]}
@@ -4983,11 +5017,12 @@ def test_achievements_back_to_back_consecutive_months(client, seed_user, auth_he
     # Add a February trip — now Jan/Feb are adjacent.
     with get_db() as conn:
         conn.execute(
-            "INSERT INTO trips (id, user_id, name, country, created_at, is_archived) "
-            "VALUES (?, ?, ?, ?, ?, 1)",
+            "INSERT INTO trips (id, user_id, name, country, created_at) "
+            "VALUES (?, ?, ?, ?, ?)",
             ("trip-bb-feb", seed_user, "February trip", "X", "2025-02-15 10:00:00"),
         )
         conn.commit()
+    _archive_all_trips(seed_user)
 
     data = client.get("/api/data", headers=auth_headers).get_json()
     ids = {a["badgeId"] for a in data["achievements"]}
@@ -5006,16 +5041,17 @@ def test_achievements_back_to_back_crosses_year_boundary(client, seed_user, auth
     with get_db() as conn:
         c = conn.cursor()
         c.execute(
-            "INSERT INTO trips (id, user_id, name, country, created_at, is_archived) "
-            "VALUES (?, ?, ?, ?, ?, 1)",
+            "INSERT INTO trips (id, user_id, name, country, created_at) "
+            "VALUES (?, ?, ?, ?, ?)",
             ("trip-bb-dec", seed_user, "December trip", "X", "2024-12-15 10:00:00"),
         )
         c.execute(
-            "INSERT INTO trips (id, user_id, name, country, created_at, is_archived) "
-            "VALUES (?, ?, ?, ?, ?, 1)",
+            "INSERT INTO trips (id, user_id, name, country, created_at) "
+            "VALUES (?, ?, ?, ?, ?)",
             ("trip-bb-jan-next", seed_user, "January trip", "X", "2025-01-15 10:00:00"),
         )
         conn.commit()
+    _archive_all_trips(seed_user)
 
     data = client.get("/api/data", headers=auth_headers).get_json()
     ids = {a["badgeId"] for a in data["achievements"]}
@@ -5102,7 +5138,11 @@ def test_achievements_revoked_when_trip_unarchived(client, seed_user, auth_heade
     trips. Un-archiving the trip that earned `first_trip` should revoke
     that badge on the next /api/data poll, and re-archiving should
     re-grant it (with a fresh `newlyEarnedAchievements` entry so the UI
-    can re-toast)."""
+    can re-toast).
+
+    Post-2026-05-18 the archive signal lives in `trip_members.is_archived`
+    (per-user, the audit-H1+H4 fix), so the unarchive simulation toggles
+    that column instead of the legacy `trips.is_archived` mirror."""
     from database import get_db
     trip_id = _create_trip(client, auth_headers, trip_id="trip-revoke-1")
     _archive_all_trips(seed_user)
@@ -5112,12 +5152,14 @@ def test_achievements_revoked_when_trip_unarchived(client, seed_user, auth_heade
     assert "first_trip" in [a["badgeId"] for a in data["achievements"]]
     assert "first_trip" in [a["badgeId"] for a in data["newlyEarnedAchievements"]]
 
-    # Un-archive the trip — the only archived trip, so first_trip's
-    # underlying count drops to 0 and the badge should disappear.
+    # Un-archive the trip — flip the per-user trip_members.is_archived
+    # back to 0. The only archived membership, so first_trip's count
+    # drops to 0 and the badge should disappear.
     with get_db() as conn:
         conn.execute(
-            "UPDATE trips SET is_archived = 0 WHERE id = ?",
-            (trip_id,),
+            "UPDATE trip_members SET is_archived = 0 "
+            "WHERE trip_id = ? AND user_id = ?",
+            (trip_id, seed_user),
         )
         conn.commit()
 
@@ -5132,8 +5174,9 @@ def test_achievements_revoked_when_trip_unarchived(client, seed_user, auth_heade
     # unlock notif stays in the bell history regardless of revoke/regrant).
     with get_db() as conn:
         conn.execute(
-            "UPDATE trips SET is_archived = 1 WHERE id = ?",
-            (trip_id,),
+            "UPDATE trip_members SET is_archived = 1 "
+            "WHERE trip_id = ? AND user_id = ?",
+            (trip_id, seed_user),
         )
         conn.commit()
 
@@ -5152,20 +5195,24 @@ def test_achievements_globe_trotter_revoked_when_country_unarchived(client, seed
         c = conn.cursor()
         for i, code in enumerate(["PT", "JP", "FR"]):
             c.execute(
-                "INSERT INTO trips (id, user_id, name, country, country_code, is_archived) "
-                "VALUES (?, ?, ?, ?, ?, 1)",
+                "INSERT INTO trips (id, user_id, name, country, country_code) "
+                "VALUES (?, ?, ?, ?, ?)",
                 (f"trip-rev-gt-{i}", seed_user, f"Trip {i}", code, code),
             )
         conn.commit()
+    _archive_all_trips(seed_user)
 
     data = client.get("/api/data", headers=auth_headers).get_json()
     ids = {a["badgeId"] for a in data["achievements"]}
     assert "globe_trotter_3" in ids
 
-    # Un-archive the FR trip — count drops from 3 to 2, below threshold.
+    # Un-archive the FR trip for this user — count drops from 3 to 2.
+    # Per-user flag lives on trip_members (post-2026-05-18 H1+H4 fix).
     with get_db() as conn:
         conn.execute(
-            "UPDATE trips SET is_archived = 0 WHERE id = 'trip-rev-gt-2'",
+            "UPDATE trip_members SET is_archived = 0 "
+            "WHERE trip_id = 'trip-rev-gt-2' AND user_id = ?",
+            (seed_user,),
         )
         conn.commit()
 
@@ -5176,6 +5223,59 @@ def test_achievements_globe_trotter_revoked_when_country_unarchived(client, seed
     # archived). Not asserting their presence specifically here — the
     # point is the SELECTIVE revoke.
     assert "first_trip" in ids
+
+
+def test_achievements_joint_trip_counts_for_both_owner_and_member(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """2026-05-18 audit H4: members earn badges from trips they JOINED
+    (not just trips they OWN). Owner creates a trip; other user joins
+    as planner via the invite flow; both archive their copy. Both
+    users earn `first_trip` independently — the badge counts each
+    user's own accepted+archived memberships.
+
+    Pre-fix the achievement queries did `WHERE trips.user_id = ?`
+    which is owner-only, so a planner of a 5-country group trip
+    would never earn globe_trotter_3 from it."""
+    from database import get_db
+    trip_id = _create_trip(client, other_auth_headers, trip_id="trip-joint")
+
+    # Seed the other user as an accepted planner via direct
+    # trip_members insert — the full invite-flow is exercised
+    # elsewhere; here we just want both rows present.
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO trip_members "
+            "(trip_id, user_id, role, is_archived, invitation_status, invited_by) "
+            "VALUES (?, ?, 'planner', 0, 'accepted', ?)",
+            (trip_id, seed_user, seed_other_user),
+        )
+        conn.commit()
+
+    # OWNER archives their copy — earns first_trip.
+    _archive_all_trips(seed_other_user)
+    owner_data = client.get("/api/data", headers=other_auth_headers).get_json()
+    assert "first_trip" in [a["badgeId"] for a in owner_data["achievements"]], \
+        "owner should earn first_trip after archiving their copy"
+
+    # MEMBER (seed_user) has not archived their copy yet → no badge.
+    member_data = client.get("/api/data", headers=auth_headers).get_json()
+    assert "first_trip" not in [a["badgeId"] for a in member_data["achievements"]], \
+        "member should NOT earn first_trip until they archive their copy"
+
+    # Now the member archives their copy → they earn first_trip
+    # INDEPENDENTLY of the owner's archive state. This is the joint-
+    # trip semantic: both users get credit for the same trip.
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE trip_members SET is_archived = 1 "
+            "WHERE trip_id = ? AND user_id = ?",
+            (trip_id, seed_user),
+        )
+        conn.commit()
+    member_data = client.get("/api/data", headers=auth_headers).get_json()
+    assert "first_trip" in [a["badgeId"] for a in member_data["achievements"]], \
+        "member should earn first_trip independently after archiving their copy"
 
 
 def test_achievements_revoked_when_trip_deleted(client, seed_user, auth_headers):

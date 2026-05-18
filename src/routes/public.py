@@ -55,16 +55,26 @@ def get_public_trip(trip_id):
         # endpoint, including future-added columns that might not be
         # public-safe (e.g. share_token after §4.1 lands). Listing
         # makes new private columns opt-in rather than opt-out.
+        # 2026-05-18 audit H1: pull is_archived from the OWNER's
+        # trip_members row (the post-deprecation source of truth) via
+        # LEFT JOIN so a trip with no member row defaults to 0
+        # (not archived). Public viewer sees the owner's state — same
+        # semantic as the legacy trips.is_archived mirror, decoupled
+        # from the column.
         cursor.execute(
-            "SELECT id, user_id, name, country, country_code, "
-            "       is_archived, is_public, public_show_expenses, "
-            "       place_id, lat, lng, "
-            "       viewport_json, place_types, "
-            "       companions_json, marked_places_json, "
-            "       documents_json, photos_json, checklist_json, "
-            "       trip_countries_json, "
-            "       cover_url, actions_hidden "
-            "FROM trips WHERE id = ?",
+            "SELECT t.id, t.user_id, t.name, t.country, t.country_code, "
+            "       COALESCE(tm.is_archived, 0) AS is_archived, "
+            "       t.is_public, t.public_show_expenses, "
+            "       t.place_id, t.lat, t.lng, "
+            "       t.viewport_json, t.place_types, "
+            "       t.companions_json, t.marked_places_json, "
+            "       t.documents_json, t.photos_json, t.checklist_json, "
+            "       t.trip_countries_json, "
+            "       t.cover_url, t.actions_hidden "
+            "FROM trips t "
+            "LEFT JOIN trip_members tm "
+            "  ON tm.trip_id = t.id AND tm.user_id = t.user_id "
+            "WHERE t.id = ?",
             (trip_id,),
         )
         row = cursor.fetchone()
@@ -242,13 +252,25 @@ def get_public_profile(user_id):
         # user's public profile. Archived means "done with this trip"
         # not "make this trip public"; the two flags are independent
         # and the public-profile surface must respect is_public only.
-        # is_archived is still returned in the row shape so the
+        # `isArchived` is still returned in the row shape so the
         # frontend's footprint render can render the public *trip's*
         # archive state, but no row leaks unless is_public=1.
+        #
+        # 2026-05-18 audit H1: read the OWNER's per-user archive flag
+        # from trip_members (the post-deprecation source of truth) via
+        # a LEFT JOIN so a trip with no member row still renders
+        # (isArchived → False). The legacy `trips.is_archived` column
+        # stays untouched until the column-drop migration in a future
+        # slice.
         cursor.execute(
-            "SELECT id, name, country, is_public, is_archived, "
-            "place_id, lat, lng, viewport_json, place_types, country_code "
-            "FROM trips WHERE user_id = ? AND is_public = 1",
+            "SELECT t.id, t.name, t.country, t.is_public, "
+            "       COALESCE(tm.is_archived, 0) AS is_archived, "
+            "       t.place_id, t.lat, t.lng, t.viewport_json, "
+            "       t.place_types, t.country_code "
+            "FROM trips t "
+            "LEFT JOIN trip_members tm "
+            "  ON tm.trip_id = t.id AND tm.user_id = t.user_id "
+            "WHERE t.user_id = ? AND t.is_public = 1",
             (user_id,),
         )
         trips = []

@@ -188,6 +188,16 @@ def sync_data():
                   json.dumps(t['checklist']) if isinstance(t.get('checklist'), list) else None,
                   t.get('coverUrl')))
             ensure_owner_member_row(cursor, t['id'], user_id)
+            # 2026-05-18 audit H1: mirror the payload's is_archived to
+            # THIS caller's trip_members row (the post-deprecation
+            # source of truth for the achievement queries + feed
+            # events + admin stats). Active-trips block — usually
+            # is_archived=0, but the payload is the authority.
+            cursor.execute(
+                "UPDATE trip_members SET is_archived = ? "
+                "WHERE trip_id = ? AND user_id = ?",
+                (1 if t.get('is_archived') else 0, t['id'], user_id),
+            )
 
         # Commit trips section before moving on — releases the writer
         # lock so concurrent friend/follow/expense writers don't wait
@@ -258,6 +268,15 @@ def sync_data():
                   json.dumps(t['photos']) if isinstance(t.get('photos'), list) else None,
                   t.get('coverUrl')))
             ensure_owner_member_row(cursor, t['id'], user_id)
+            # 2026-05-18 audit H1: archived-trips loop unconditionally
+            # flips THIS caller's trip_members.is_archived to 1. The
+            # legacy `trips.is_archived=1` mirror above stays during the
+            # column-deprecation window.
+            cursor.execute(
+                "UPDATE trip_members SET is_archived = 1 "
+                "WHERE trip_id = ? AND user_id = ?",
+                (t['id'], user_id),
+            )
 
             # Expenses inside archived trips — gate per-row by role on the
             # trip (which exists by now since we just upserted it).

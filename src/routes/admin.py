@@ -100,10 +100,24 @@ def admin_stats():
     cursor.execute("SELECT COUNT(*) AS n FROM users")
     total_users = cursor.fetchone()["n"]
 
-    cursor.execute("SELECT COUNT(*) AS n FROM trips WHERE COALESCE(is_archived, 0) = 0")
+    # 2026-05-18 audit H1: archive state lives on trip_members
+    # (per-user). For the global "active vs archived" admin counter,
+    # we read from the owner's row (the row where trip_members.user_id
+    # equals trips.user_id) — semantically the same as the legacy
+    # trips.is_archived column the archive endpoint used to mirror,
+    # but read from the post-deprecation source of truth.
+    cursor.execute(
+        "SELECT COUNT(*) AS n FROM trips t "
+        "JOIN trip_members tm ON tm.trip_id = t.id AND tm.user_id = t.user_id "
+        "WHERE COALESCE(tm.is_archived, 0) = 0"
+    )
     total_trips = cursor.fetchone()["n"]
 
-    cursor.execute("SELECT COUNT(*) AS n FROM trips WHERE COALESCE(is_archived, 0) = 1")
+    cursor.execute(
+        "SELECT COUNT(*) AS n FROM trips t "
+        "JOIN trip_members tm ON tm.trip_id = t.id AND tm.user_id = t.user_id "
+        "WHERE COALESCE(tm.is_archived, 0) = 1"
+    )
     total_archived_trips = cursor.fetchone()["n"]
 
     cursor.execute("SELECT COUNT(*) AS n FROM expenses")

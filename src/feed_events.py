@@ -276,18 +276,25 @@ def _recipient_for_post(cursor, components) -> Optional[str]:
 
 def _build_friend_created_trip(cursor, ctx: FeedContext) -> list:
     """Actor is the trip owner, trip created in the last 30 days, not
-    archived, not silenced via per-trip `actions_hidden` toggle."""
+    archived, not silenced via per-trip `actions_hidden` toggle.
+
+    2026-05-18 audit H1: archive state now reads from `trip_members`
+    (per-user). For the owner-perspective "still working on this"
+    surface, we read the OWNER's own member row — semantically the
+    same as the legacy trips.is_archived = 0 but decoupled from the
+    column that's being deprecated."""
     if not ctx.actor_ids:
         return []
     placeholders = ",".join(["?"] * len(ctx.actor_ids))
     cursor.execute(f'''
-        SELECT id, user_id, name, country, created_at
-        FROM trips
-        WHERE user_id IN ({placeholders})
-          AND COALESCE(is_archived, 0) = 0
-          AND COALESCE(actions_hidden, 0) = 0
-          AND created_at >= datetime('now', '-30 days')
-        ORDER BY created_at DESC
+        SELECT t.id, t.user_id, t.name, t.country, t.created_at
+        FROM trips t
+        JOIN trip_members tm ON tm.trip_id = t.id AND tm.user_id = t.user_id
+        WHERE t.user_id IN ({placeholders})
+          AND COALESCE(tm.is_archived, 0) = 0
+          AND COALESCE(t.actions_hidden, 0) = 0
+          AND t.created_at >= datetime('now', '-30 days')
+        ORDER BY t.created_at DESC
     ''', ctx.actor_ids)
     events = []
     for row in cursor.fetchall():
@@ -307,18 +314,25 @@ def _build_friend_created_trip(cursor, ctx: FeedContext) -> list:
 def _build_friend_archived_trip(cursor, ctx: FeedContext) -> list:
     """Actor's trip got archived (= they marked it complete). Falls
     back to created_at since we don't have an archived_at column —
-    archive ordering is good-enough by trip-creation time."""
+    archive ordering is good-enough by trip-creation time.
+
+    2026-05-18 audit H1: read the OWNER's per-user archive flag on
+    trip_members rather than the legacy trips.is_archived mirror.
+    Same semantic ("owner archived their trip → 'friend_archived' card
+    on followers' feeds"), but decoupled from the column slated for
+    deprecation."""
     if not ctx.actor_ids:
         return []
     placeholders = ",".join(["?"] * len(ctx.actor_ids))
     cursor.execute(f'''
-        SELECT id, user_id, name, country, created_at
-        FROM trips
-        WHERE user_id IN ({placeholders})
-          AND COALESCE(is_archived, 0) = 1
-          AND COALESCE(actions_hidden, 0) = 0
-          AND created_at >= datetime('now', '-30 days')
-        ORDER BY created_at DESC
+        SELECT t.id, t.user_id, t.name, t.country, t.created_at
+        FROM trips t
+        JOIN trip_members tm ON tm.trip_id = t.id AND tm.user_id = t.user_id
+        WHERE t.user_id IN ({placeholders})
+          AND COALESCE(tm.is_archived, 0) = 1
+          AND COALESCE(t.actions_hidden, 0) = 0
+          AND t.created_at >= datetime('now', '-30 days')
+        ORDER BY t.created_at DESC
     ''', ctx.actor_ids)
     events = []
     for row in cursor.fetchall():
