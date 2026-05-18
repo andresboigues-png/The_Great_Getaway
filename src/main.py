@@ -31,6 +31,7 @@ from routes.friends import bp as friends_bp
 from routes.integrations import bp as integrations_bp
 from routes.media import bp as media_bp
 from routes.notifications import bp as notifications_bp
+from routes.pdf import bp as pdf_bp
 from routes.public import bp as public_bp, fetch_share_payload
 from routes.settings import bp as settings_bp
 from routes.settlements import bp as settlements_bp
@@ -109,6 +110,7 @@ app.register_blueprint(friends_bp)
 app.register_blueprint(integrations_bp)
 app.register_blueprint(media_bp)
 app.register_blueprint(notifications_bp)
+app.register_blueprint(pdf_bp)
 app.register_blueprint(public_bp)
 app.register_blueprint(settings_bp)
 app.register_blueprint(settlements_bp)

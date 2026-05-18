@@ -11,3 +11,12 @@ pyjwt
 # this installed; install with `pip install sentry-sdk[flask]` once
 # you have a DSN ready.
 sentry-sdk[flask]
+
+# Trip-PDF export (2026-05-18). reportlab is pure-Python — no native
+# dep, resolves on PA's free-tier `pip install` without surprises.
+# xhtml2pdf would have given us HTML-template rendering but it pulls
+# `pycairo` as a transitive build dep, which needs the cairo system
+# library at build time (PA can't install that). reportlab is more
+# code per page but produces higher-fidelity PDFs and ships fonts
+# cleanly. The trip-PDF builder lives at routes/pdf.py.
+reportlab

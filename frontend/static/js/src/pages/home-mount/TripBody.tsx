@@ -30,6 +30,7 @@ import { showLiquidAlert, esc } from '../../utils.js';
 import { setTripActionsHidden } from '../../api.js';
 import {
     openEditTripModal,
+    openPdfExportModal,
     openCompanionPickerModal,
     openTripMembersModal,
     openAddDayModal,
@@ -447,6 +448,47 @@ export function TripBody({ activeTrip }: TripBodyProps) {
                             </svg>
                         </button>
                     ) : null}
+                    {/* PDF download — green-themed inverted-triangle
+                        button with a download arrow inside. Sits
+                        between Edit and Silence per the 2026-05-18
+                        request. The triangle clip-path keeps the
+                        glyph distinct from Edit's rounded-square
+                        and Silence's circle, so the three buttons
+                        read as three different actions at a glance. */}
+                    <button
+                        id="downloadTripPdfBtn"
+                        className="icon-btn-square"
+                        title="Download trip plan as PDF"
+                        aria-label="Download trip plan as PDF"
+                        onClick={() => openPdfExportModal(activeTrip)}
+                        style={{
+                            ['--accent' as any]: '52,199,89',
+                            color: '#34c759',
+                            borderColor: 'rgba(52,199,89,0.35)',
+                            // Inverted triangle via clip-path. Edit/
+                            // Silence are 28px square; mirror their
+                            // outer footprint so the trio aligns.
+                            clipPath: 'polygon(0 0, 100% 0, 50% 100%)',
+                            background: 'rgba(52,199,89,0.08)',
+                        }}
+                    >
+                        <svg
+                            width="11"
+                            height="11"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.4"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            aria-hidden="true"
+                            style={{ marginTop: '-4px' }}
+                        >
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="7 10 12 15 17 10"></polyline>
+                            <line x1="12" y1="15" x2="12" y2="3"></line>
+                        </svg>
+                    </button>
                     {tripIsManageable ? (
                         <button
                             id="silenceTripBtn"

@@ -668,6 +668,131 @@ export const openEditTripModal = (trip: any) => {
     };
 };
 
+/** 2026-05-18 — PDF export modal.
+ *  Opens a modal with checkboxes letting the user customize what
+ *  goes into their trip-plan PDF (cover map, day pins, to-dos,
+ *  budgets, companions, marked places). Submitting POSTs to
+ *  /api/trips/<id>/pdf with the chosen options, streams the PDF
+ *  blob back, and triggers a download via an anchor click.
+ *
+ *  The endpoint defaults to "include everything" so the modal's
+ *  unchecked-by-default state is meaningful — anything the user
+ *  unticks gets omitted server-side. */
+export const openPdfExportModal = (trip: any) => {
+    if (!trip || !trip.id) {
+        showLiquidAlert('Open a trip first.');
+        return;
+    }
+    const tripName = trip.name || 'Trip';
+    const innerHTML = `
+        <div class="mdl-col-center" style="text-align:center;">
+            <div style="font-size:2.6rem; margin-bottom:8px;">📄</div>
+            <h2 class="card-title mdl-title-hero" style="margin:0 0 6px;">
+                Download trip PDF
+            </h2>
+            <p style="margin:0 0 20px; color: var(--text-secondary); font-size:0.92rem;">
+                Pick what to include in your printable plan for
+                <strong>${esc(tripName)}</strong>.
+            </p>
+            <div id="pdfExportOptions" style="text-align:left; display:flex; flex-direction:column; gap:10px; width:100%;">
+                ${renderPdfOption('includeCoverMap', '🗺️ Cover map',
+                    'A wide map of the trip’s location on the title page.')}
+                ${renderPdfOption('includeStats', '📊 Summary stats',
+                    'Day count, companions, places, and total spend tiles.')}
+                ${renderPdfOption('includeDays', '📅 Day-by-day plan',
+                    'Every day’s morning / afternoon / evening + notes.')}
+                ${renderPdfOption('includeDayPins', '📍 Per-day mini maps',
+                    'A small map alongside each day showing where you’ll be.')}
+                ${renderPdfOption('includeTodos', '✅ To-do list',
+                    'Grouped by category, checkmarks for done items.')}
+                ${renderPdfOption('includeBudgets', '💰 Budgets',
+                    'Planned amounts + actual trip spend (if recorded).')}
+                ${renderPdfOption('includeCompanions', '👥 Companions',
+                    'Roster of travelers on this trip.')}
+                ${renderPdfOption('includeMarkedPlaces', '⭐ Marked places',
+                    'Saved places with addresses.')}
+            </div>
+            <div style="display:flex; gap:10px; margin-top:24px; width:100%;">
+                <button type="button" id="cancelPdfBtn" class="btn-ghost flex-1">Cancel</button>
+                <button type="button" id="submitPdfBtn" class="btn-primary flex-1"
+                        style="background: #34c759; border-color:#34c759;">
+                    <span id="pdfBtnLabel">Download PDF</span>
+                </button>
+            </div>
+        </div>
+    `;
+    const { root, close } = showModal({ innerHTML, cardStyle: 'max-width: 460px;' });
+
+    function renderPdfOption(key: string, label: string, sub: string): string {
+        return `
+            <label style="display:flex; align-items:flex-start; gap:10px; cursor:pointer; padding:8px 10px; border-radius:10px; transition: background 0.15s;">
+                <input type="checkbox" name="${key}" checked
+                       style="margin-top:3px; width:18px; height:18px; accent-color:#34c759;">
+                <span>
+                    <span style="font-weight:600; color:#001a33; font-size:0.92rem;">${label}</span>
+                    <span style="display:block; color: var(--text-secondary); font-size:0.78rem; line-height:1.4; margin-top:2px;">${sub}</span>
+                </span>
+            </label>
+        `;
+    }
+
+    const cancelBtn = q(root, '#cancelPdfBtn') as HTMLButtonElement | null;
+    const submitBtn = q(root, '#submitPdfBtn') as HTMLButtonElement | null;
+    const btnLabel = q(root, '#pdfBtnLabel') as HTMLSpanElement | null;
+    if (cancelBtn) cancelBtn.onclick = () => close();
+
+    if (submitBtn) {
+        submitBtn.onclick = async () => {
+            // Collect checked options.
+            const checkboxes = root.querySelectorAll<HTMLInputElement>(
+                '#pdfExportOptions input[type="checkbox"]',
+            );
+            const options: Record<string, boolean> = {};
+            checkboxes.forEach((cb) => { options[cb.name] = cb.checked; });
+
+            // Lock the button while the build runs server-side.
+            // Map fetches + PDF assembly take ~1–3s on a typical
+            // trip, so a visible "Building…" state matters.
+            submitBtn.disabled = true;
+            if (btnLabel) btnLabel.textContent = 'Building…';
+            try {
+                const res = await apiFetch(`/api/trips/${trip.id}/pdf`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(options),
+                });
+                if (!res.ok) {
+                    showLiquidAlert('Couldn’t build the PDF. Try again in a moment.');
+                    return;
+                }
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                // Server's Content-Disposition carries the slugified
+                // filename; the anchor's `download` attribute is a
+                // hint that some browsers honor over the response
+                // header. Sanitize once more so a future endpoint
+                // rename doesn't leak a weird name into the user's
+                // Downloads folder.
+                const safe = (trip.name || 'trip').replace(/[^A-Za-z0-9 _-]/g, '_').trim() || 'trip';
+                a.download = `${safe}.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                close();
+            } catch (e) {
+                showLiquidAlert('Network error building the PDF.');
+            } finally {
+                submitBtn.disabled = false;
+                if (btnLabel) btnLabel.textContent = 'Download PDF';
+            }
+        };
+    }
+};
+
+
 export const openAddDayModal = () => {
     if (!STATE.activeTripId) {
         showLiquidAlert("Please create a trip before adding days.");

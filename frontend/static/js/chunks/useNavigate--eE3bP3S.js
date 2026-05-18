@@ -1,0 +1,2 @@
+import{r as e}from"./rolldown-runtime-C3V63i2j.js";import{r as t}from"./vendor-react-BRKukhy3.js";import{$ as n}from"../app.bundle.js";var r=e(t(),1);function i(){return(0,r.useCallback)((e,t=null,r=!1)=>n(e,t,r),[])}export{i as t};
+//# sourceMappingURL=useNavigate--eE3bP3S.js.map
