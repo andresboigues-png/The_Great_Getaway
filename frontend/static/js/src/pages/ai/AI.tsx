@@ -40,7 +40,7 @@ import {
     type GeminiHostKeyStatus,
 } from '../../api.js';
 import { applyMapTheme } from '../../theme.js';
-import { mobileSafeGestureHandling } from '../../googleMapsServices.js';
+import { mobileSafeGestureHandling, whenGoogleMapsReady } from '../../googleMapsServices.js';
 import { showModal } from '../../components/Modal.js';
 import { openNewTripModal } from '../../modals.js';
 import { navigate } from '../../router.js';
@@ -74,6 +74,7 @@ import {
     iconToLabel,
     groupingIcon,
     groupByCategory,
+    placeMapsUrl,
 } from '../../todoCategories.js';
 import { FilterSelect } from '../../react/components/FilterSelect.js';
 // Page-scoped CSS — AI plan blocks, place cards, generate button,
@@ -107,21 +108,39 @@ function EmptyTripView() {
     const mapRef = useRef<HTMLDivElement | null>(null);
 
     useEffect(() => {
-        if (typeof google === 'undefined' || !google.maps) return;
-        const mapEl = mapRef.current;
-        if (!mapEl) return;
-        const emptyMap = new google.maps.Map(mapEl, {
-            center: { lat: 20, lng: 0 },
-            zoom: 2,
-            minZoom: 2,
-            gestureHandling: mobileSafeGestureHandling(),
-            restriction: {
-                latLngBounds: { north: 85, south: -85, west: -180, east: 180 },
-                strictBounds: true,
-            },
-            styles: [] as any,
-        });
-        applyMapTheme(emptyMap, []);
+        // Wait for the async Google Maps script to finish loading
+        // before initialising. Without the gate, a direct landing on
+        // /ai (or a hard-refresh) often arrived before the SDK was
+        // ready and left the container blank forever. See
+        // `whenGoogleMapsReady` in googleMapsServices.ts.
+        let cancelled = false;
+        whenGoogleMapsReady()
+            .then(() => {
+                if (cancelled) return;
+                const mapEl = mapRef.current;
+                if (!mapEl) return;
+                const emptyMap = new google.maps.Map(mapEl, {
+                    center: { lat: 20, lng: 0 },
+                    zoom: 2,
+                    minZoom: 2,
+                    gestureHandling: mobileSafeGestureHandling(),
+                    restriction: {
+                        latLngBounds: { north: 85, south: -85, west: -180, east: 180 },
+                        strictBounds: true,
+                    },
+                    styles: [] as any,
+                });
+                applyMapTheme(emptyMap, []);
+            })
+            .catch((err) => {
+                // Log but don't surface — the empty-trip view is a
+                // welcome screen, missing map there is degraded but
+                // not blocking.
+                console.warn('[AI empty map] Google Maps failed to load:', err);
+            });
+        return () => {
+            cancelled = true;
+        };
     }, []);
 
     const sf =
@@ -257,38 +276,50 @@ function ActiveTripView({ activeTrip }: ActiveTripViewProps) {
 
     // ── Initial map setup ────────────────────────────────────────
     useEffect(() => {
-        if (typeof google === 'undefined' || !google.maps) return;
-        const mapEl = mapContainerRef.current;
-        if (!mapEl) return;
-        const map = new google.maps.Map(mapEl, {
-            center: { lat: 20, lng: 0 },
-            zoom: 2,
-            minZoom: 2,
-            mapTypeId: 'roadmap',
-            disableDefaultUI: true,
-            gestureHandling: mobileSafeGestureHandling(),
-            restriction: {
-                latLngBounds: { north: 85, south: -85, west: -180, east: 180 },
-                strictBounds: true,
-            },
-            styles: [] as any,
-        });
-        applyMapTheme(map, []);
-        googleMapRef.current = map;
+        // Wait for the async Google Maps script — see the empty-trip
+        // effect above for the rationale.
+        let cancelled = false;
+        whenGoogleMapsReady()
+            .then(() => {
+                if (cancelled) return;
+                const mapEl = mapContainerRef.current;
+                if (!mapEl) return;
+                const map = new google.maps.Map(mapEl, {
+                    center: { lat: 20, lng: 0 },
+                    zoom: 2,
+                    minZoom: 2,
+                    mapTypeId: 'roadmap',
+                    disableDefaultUI: true,
+                    gestureHandling: mobileSafeGestureHandling(),
+                    restriction: {
+                        latLngBounds: { north: 85, south: -85, west: -180, east: 180 },
+                        strictBounds: true,
+                    },
+                    styles: [] as any,
+                });
+                applyMapTheme(map, []);
+                googleMapRef.current = map;
 
-        zoomToLocation(map, tripCountry, activeTrip);
+                zoomToLocation(map, tripCountry, activeTrip);
 
-        map.addListener('idle', () => {
-            const aiTripMapKey = activeTrip.id + '_ai';
-            if (!STATE.mapViews) STATE.mapViews = {};
-            const c = map.getCenter();
-            STATE.mapViews[aiTripMapKey] = {
-                lat: c.lat(),
-                lng: c.lng(),
-                zoom: map.getZoom(),
-            };
-            emit('state:changed');
-        });
+                map.addListener('idle', () => {
+                    const aiTripMapKey = activeTrip.id + '_ai';
+                    if (!STATE.mapViews) STATE.mapViews = {};
+                    const c = map.getCenter();
+                    STATE.mapViews[aiTripMapKey] = {
+                        lat: c.lat(),
+                        lng: c.lng(),
+                        zoom: map.getZoom(),
+                    };
+                    emit('state:changed');
+                });
+            })
+            .catch((err) => {
+                console.warn('[AI active map] Google Maps failed to load:', err);
+            });
+        return () => {
+            cancelled = true;
+        };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
@@ -1790,6 +1821,15 @@ function MarkedCard({
         upsertTrip(activeTrip);
     };
 
+    // Per-user request 2026-05-18: name + icon are a Maps link so the
+    // user can click any place card to see it on Google Maps. We
+    // wrap the icon+name in a single <a> so the whole "left column"
+    // is a hit target. The day/time selects stay outside the anchor
+    // so changing them doesn't trigger a navigation. mapsUrl is null
+    // for pre-Phase-G items added without Maps grounding — those
+    // still render but as plain text, not a link.
+    const mapsUrl = placeMapsUrl(place);
+
     return (
         <div
             className="ai-marked-card"
@@ -1806,23 +1846,56 @@ function MarkedCard({
                 minHeight: 0,
             }}
         >
-            <div className="flex items-start gap-[10px]">
-                <span className="text-[1.4rem] leading-none">{place.icon}</span>
-                <div className="flex-1 min-w-0">
-                    <div
-                        className="font-extrabold text-brand-navy text-[0.95rem] leading-[1.25]"
-                    >
-                        {place.name}
-                    </div>
-                    {place.address ? (
+            {mapsUrl ? (
+                <a
+                    href={mapsUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={`Open ${place.name} on Google Maps`}
+                    aria-label={`Open ${place.name} on Google Maps`}
+                    className="flex items-start gap-[10px] no-underline text-inherit hover:opacity-80 transition-[opacity_0.15s]"
+                >
+                    <span className="text-[1.4rem] leading-none">{place.icon}</span>
+                    <div className="flex-1 min-w-0">
                         <div
-                            className="text-xs text-secondary mt-0.5"
+                            className="font-extrabold text-brand-navy text-[0.95rem] leading-[1.25] inline-flex items-center gap-1"
                         >
-                            {place.address}
+                            {place.name}
+                            <span
+                                aria-hidden="true"
+                                className="text-[0.7rem] text-accent-blue opacity-70"
+                            >
+                                ↗
+                            </span>
                         </div>
-                    ) : null}
+                        {place.address ? (
+                            <div
+                                className="text-xs text-secondary mt-0.5"
+                            >
+                                {place.address}
+                            </div>
+                        ) : null}
+                    </div>
+                </a>
+            ) : (
+                <div className="flex items-start gap-[10px]">
+                    <span className="text-[1.4rem] leading-none">{place.icon}</span>
+                    <div className="flex-1 min-w-0">
+                        <div
+                            className="font-extrabold text-brand-navy text-[0.95rem] leading-[1.25]"
+                        >
+                            {place.name}
+                        </div>
+                        {place.address ? (
+                            <div
+                                className="text-xs text-secondary mt-0.5"
+                            >
+                                {place.address}
+                            </div>
+                        ) : null}
+                    </div>
                 </div>
-            </div>
+            )}
             {datesSet ? (
                 <div className="flex gap-2 min-w-0">
                     <select

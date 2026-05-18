@@ -76,7 +76,7 @@ interface TodoMarkedPlace {
 // AI plan page can reuse the same sort/filter primitives without a
 // copy-paste drift hazard. (Phase G v3 follow-up — Todo and AI now
 // share the dropdown UX for picking which marked places to view.)
-import { iconToLabel, groupingIcon, CATEGORY_ORDER } from '../../todoCategories.js';
+import { iconToLabel, groupingIcon, CATEGORY_ORDER, placeMapsUrl } from '../../todoCategories.js';
 
 const titleH1Style = {
     margin: '0 0 6px',
@@ -105,15 +105,11 @@ interface TodoRowProps {
 function TodoRow({ place: p, isTicked, tripIsEditable, onTickToggle, onRemove }: TodoRowProps) {
     const [expanded, setExpanded] = useState(false);
     const hasDetails = !!(p.address || p.why || p.fact);
-    /** Build a Maps URL for this place. Prefers the canonical short
-     *  URL (mapsUrl) when the AI verifier supplied it; falls back to
-     *  a place_id deep link. Returns null when there's neither — those
-     *  are pre-Phase-G items added without Maps grounding, no Maps
-     *  link possible without a separate lookup. */
-    const mapsUrl = (p as { mapsUrl?: string; placeId?: string }).mapsUrl
-        || (p.placeId
-            ? `https://www.google.com/maps/place/?q=place_id:${encodeURIComponent(p.placeId)}`
-            : null);
+    /** Build a Maps URL for this place. See `placeMapsUrl` for the
+     *  prefer-canonical-then-place_id_deep-link rule + null fallback
+     *  for pre-Phase-G items without Maps grounding. Identical logic
+     *  to the AI page's MarkedCard, sharing the same helper. */
+    const mapsUrl = placeMapsUrl(p as { mapsUrl?: string; placeId?: string });
 
     return (
         <div

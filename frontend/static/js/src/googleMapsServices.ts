@@ -13,6 +13,56 @@
 
 const _apiKey = () => /** @type {any} */ (window).googleMapsApiKey || '';
 
+
+// ── Async-script readiness gate ──────────────────────────────────────
+// The Google Maps JS SDK is loaded with `loading=async` in index.html
+// so it doesn't block the initial paint. Side-effect: by the time a
+// React component mounts and runs its useEffect, `window.google` /
+// `google.maps` may not exist yet. Single-shot effects that test
+// `typeof google === 'undefined'` and silently bail leave their map
+// container blank forever — that's what was happening on the AI page
+// when the user landed there before the script finished loading
+// (reported 2026-05-18).
+//
+// This helper resolves when `google.maps.Map` is ready. It polls every
+// 60ms (fast enough that mounts on warm sessions feel instant, slow
+// enough that the polling itself adds no measurable CPU). After 10s
+// it rejects so callers can show an error instead of hanging.
+//
+// Usage in a React useEffect:
+//
+//   useEffect(() => {
+//     let cancelled = false;
+//     whenGoogleMapsReady().then(() => {
+//       if (cancelled) return;
+//       const map = new google.maps.Map(...);
+//     });
+//     return () => { cancelled = true; };
+//   }, []);
+//
+// The cancel flag protects against the component unmounting while
+// the poll is still running — without it, the .then() would still
+// fire and grab a stale ref to a removed DOM node.
+export function whenGoogleMapsReady(timeoutMs = 10000): Promise<void> {
+    return new Promise((resolve, reject) => {
+        const start = Date.now();
+        const check = () => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const g = (window as any).google;
+            if (g && g.maps && g.maps.Map) {
+                resolve();
+                return;
+            }
+            if (Date.now() - start > timeoutMs) {
+                reject(new Error('Google Maps SDK did not load within ' + timeoutMs + 'ms'));
+                return;
+            }
+            setTimeout(check, 60);
+        };
+        check();
+    });
+}
+
 // ── Map gesture handling helper ──────────────────────────────────────
 // `cooperative` is Google Maps' "respect the surrounding scrollable
 // page" mode: on touch devices, ONE finger scrolls the page and TWO

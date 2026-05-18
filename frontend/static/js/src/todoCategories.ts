@@ -80,6 +80,28 @@ export const CATEGORY_ORDER: string[] = [
     '📍',
 ];
 
+/** Build a Google Maps URL for a marked place. Prefers the canonical
+ *  short `mapsUrl` set by the AI verifier (it points to the canonical
+ *  Google Maps place page when the verifier could ground the entry),
+ *  otherwise falls back to a `place_id` deep link. Returns null only
+ *  when the item has neither — those are pre-Phase-G entries added
+ *  without Maps grounding, and we don't try to look up Maps from a
+ *  raw address client-side because the geocoder isn't always cheap
+ *  + we don't want a render-blocking lookup.
+ *
+ *  Used by Todo (the to-do list rows) AND AI (the marked-card grid)
+ *  so a click on the name reliably opens the same canonical place. */
+export function placeMapsUrl(p: {
+    mapsUrl?: string;
+    placeId?: string;
+}): string | null {
+    if (p.mapsUrl) return p.mapsUrl;
+    if (p.placeId) {
+        return `https://www.google.com/maps/place/?q=place_id:${encodeURIComponent(p.placeId)}`;
+    }
+    return null;
+}
+
 /** Group an array of items by their `icon` field (normalised via
  *  groupingIcon). Returns a Map whose entries are in CATEGORY_ORDER —
  *  empty buckets are stripped. Use the spread `[...result.entries()]`

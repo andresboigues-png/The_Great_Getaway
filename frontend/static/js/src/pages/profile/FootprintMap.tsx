@@ -15,9 +15,9 @@
 // implicitly tears down the map (Google's gc handles markers when
 // their containing element is gone).
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { applyMapTheme } from '../../theme.js';
-import { mobileSafeGestureHandling } from '../../googleMapsServices.js';
+import { mobileSafeGestureHandling, whenGoogleMapsReady } from '../../googleMapsServices.js';
 import { viewArchivedDetails } from '../collections.js';
 import { esc } from '../../utils.js';
 import type { Trip } from '../../types';
@@ -52,8 +52,29 @@ export function FootprintMap({ trips, uniqueCountries, uniqueCountryCodes }: Foo
     countriesRef.current = uniqueCountries;
     countryCodesRef.current = uniqueCountryCodes;
 
+    // Retry counter — incremented when the async Google Maps SDK
+    // finishes loading on a cold landing, so the effect re-runs and
+    // actually builds the map. See HeroMap.tsx for the same pattern.
+    const [mapRetryTick, setMapRetryTick] = useState(0);
+
     useEffect(() => {
-        if (typeof google === 'undefined' || !google.maps) return;
+        if (typeof google === 'undefined' || !google.maps) {
+            // Async-load fallback: bump the retry counter when the SDK
+            // is ready so React re-runs this effect. Without it, a
+            // direct landing on /profile before the script finishes
+            // loading leaves the country-fill map permanently blank.
+            let cancelled = false;
+            whenGoogleMapsReady()
+                .then(() => {
+                    if (!cancelled) setMapRetryTick((n) => n + 1);
+                })
+                .catch((err) => {
+                    console.warn('[FootprintMap] Google Maps failed to load:', err);
+                });
+            return () => {
+                cancelled = true;
+            };
+        }
         const mapContainer = containerRef.current;
         if (!mapContainer) return;
 
@@ -308,7 +329,15 @@ export function FootprintMap({ trips, uniqueCountries, uniqueCountryCodes }: Foo
             }
         };
         addPins();
-    }, []);
+        // Happy path has no cleanup — map + markers are GC'd when the
+        // container DOM node is removed on unmount. Explicit undefined
+        // satisfies tsc's noImplicitReturns since the early bail-out
+        // above returns a cleanup function.
+        return undefined;
+        // mapRetryTick re-runs the effect once the async Maps SDK
+        // finishes loading on cold landings.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [mapRetryTick]);
 
     return (
         <div

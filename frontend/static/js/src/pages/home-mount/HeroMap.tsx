@@ -38,6 +38,7 @@ import {
     fetchTimeZone,
     formatLocalTime,
     mobileSafeGestureHandling,
+    whenGoogleMapsReady,
 } from '../../googleMapsServices.js';
 import { canEdit } from '../../permissions.js';
 import { findMarkedPlace, toggleTodoListMembership } from '../../markedPlaces.js';
@@ -76,6 +77,11 @@ export interface HeroMapProps {
 export function HeroMap({ activeTrip }: HeroMapProps) {
     const mapContainerRef = useRef<HTMLDivElement | null>(null);
     const cardRef = useRef<HTMLDivElement | null>(null);
+    // Retry counter incremented when the async Google Maps SDK
+    // finally loads on a cold landing. Wired into the map-setup
+    // effect's deps so React re-runs the effect once the SDK is
+    // ready instead of leaving the map blank.
+    const [mapRetryTick, setMapRetryTick] = useState(0);
 
     // Slideshow controller built lazily (once per mount). The active-
     // trip Home doesn't rotate the slideshow — only the quote at
@@ -119,7 +125,41 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
         }
 
         const mapContainer = mapContainerRef.current;
-        if (!mapContainer || typeof google === 'undefined' || !google.maps) return;
+        if (!mapContainer || typeof google === 'undefined' || !google.maps) {
+            // Async-load fallback: the Google Maps SDK is loaded with
+            // loading=async, so first-paint may arrive before
+            // `google.maps` exists (e.g. user deep-links to /home or
+            // hard-refreshes there). Schedule a single retry — when
+            // the SDK is ready we trigger a no-op state update to
+            // re-run this effect via React's normal re-render path.
+            // The local-time wiring above DID run synchronously and
+            // its setInterval needs to clean up either way.
+            if (!mapContainer) {
+                return () => {
+                    if (_localTimeClockInterval !== null) {
+                        clearInterval(_localTimeClockInterval);
+                        setLocalTimeClockInterval(null);
+                    }
+                };
+            }
+            let cancelled = false;
+            whenGoogleMapsReady()
+                .then(() => {
+                    if (cancelled) return;
+                    // Bump the retry counter so the effect re-runs.
+                    setMapRetryTick((n) => n + 1);
+                })
+                .catch((err) => {
+                    console.warn('[HeroMap] Google Maps failed to load:', err);
+                });
+            return () => {
+                cancelled = true;
+                if (_localTimeClockInterval !== null) {
+                    clearInterval(_localTimeClockInterval);
+                    setLocalTimeClockInterval(null);
+                }
+            };
+        }
 
         // Legacy trips only have `country` (sometimes "USA - California"
         // pre-Places-migration). Build a free-text query for the
@@ -787,12 +827,14 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
                 setLocalTimeClockInterval(null);
             }
         };
-        // Intentional: this effect runs once per mount. activeTrip is
+        // Intentional: this effect runs once per mount AND once more
+        // if `mapRetryTick` bumps (i.e. the async Google Maps SDK
+        // finished loading after the initial bail-out). activeTrip is
         // captured by closure; if the user switches active trip, the
         // parent component re-mounts the whole Home tree via
         // navigate('home'), which re-runs this effect with the new trip.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [mapRetryTick]);
 
     // ── Auto-scroll the map card into view when entering edit
     // mode. The user clicks Add Pin / Edit Pin from the day card
