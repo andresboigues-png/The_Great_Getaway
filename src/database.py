@@ -214,7 +214,13 @@ def init_db():
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS trips (
                 id TEXT PRIMARY KEY,
-                user_id TEXT,
+                -- 2026-05-18 audit fix (critical bug #5): NOT NULL on
+                -- user_id. Every WHERE clause filters on this column;
+                -- a NULL row silently vanishes from every scoped read
+                -- (it doesn't match `= ?` for any value, no FK error,
+                -- no observable owner). Migration c5e6f7a8b9c0 rebuilds
+                -- prod DBs that pre-date this change.
+                user_id TEXT NOT NULL,
                 name TEXT,
                 country TEXT,
                 country_code TEXT,
