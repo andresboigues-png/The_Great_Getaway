@@ -616,6 +616,13 @@ def init_db():
             "CREATE INDEX IF NOT EXISTS idx_trips_user ON trips(user_id)",
             "CREATE INDEX IF NOT EXISTS idx_trips_user_public "
             "ON trips(user_id, is_public)",
+            # 2026-05-18 audit H5: partial UNIQUE on original
+            # (non-repost) shares so two concurrent /api/feed/share
+            # calls for the same trip can't both INSERT. Reposts are
+            # intentionally allowed to multiply — they're filtered
+            # out of the constraint via the WHERE clause.
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_feed_posts_unique_original_share "
+            "ON feed_posts(user_id, trip_id) WHERE repost_of_post_id IS NULL",
         ):
             cursor.execute(ddl)
 

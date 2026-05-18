@@ -97,6 +97,15 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
     const initialQuote = slideshow.quotes[0] || '';
 
     useEffect(() => {
+        // Shared cancel flag — every async path inside this effect
+        // checks it before mutating DOM / state. Without it, a fast
+        // navigate-away mid-render leaves the resolved `.then`
+        // callbacks reaching into removed DOM nodes and starting a
+        // setInterval whose handle the now-fired cleanup function
+        // can't see (the cleanup already ran with
+        // `_localTimeClockInterval === null`). 2026-05-18 audit H2.
+        let cancelled = false;
+
         // ── Local-time chip wiring ────────────────────────────────
         // One Time Zone API call per render (cached by coords inside
         // googleMapsServices), then a 30s setInterval keeps the
@@ -108,7 +117,7 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
         }
         if (typeof activeTrip.lat === 'number' && typeof activeTrip.lng === 'number') {
             fetchTimeZone(activeTrip.lat, activeTrip.lng).then((tz) => {
-                if (!tz) return;
+                if (cancelled || !tz) return;
                 const chip = document.getElementById('homeTripLocalTimeChip');
                 if (!chip) return;
                 const paint = () => {
@@ -136,13 +145,13 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
             // its setInterval needs to clean up either way.
             if (!mapContainer) {
                 return () => {
+                    cancelled = true;
                     if (_localTimeClockInterval !== null) {
                         clearInterval(_localTimeClockInterval);
                         setLocalTimeClockInterval(null);
                     }
                 };
             }
-            let cancelled = false;
             whenGoogleMapsReady()
                 .then(() => {
                     if (cancelled) return;
@@ -817,10 +826,13 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
         }
 
         return () => {
-            // Cleanup on unmount: tear down the POI delegation
-            // listener. The map + markers + InfoWindow are owned by
-            // the now-removed DOM element, so Google's GC handles
-            // them when their containers go away.
+            // Cleanup on unmount: flip the shared cancel flag so any
+            // in-flight fetchTimeZone / whenGoogleMapsReady callbacks
+            // bail before touching DOM/state. Tear down the POI
+            // delegation listener. The map + markers + InfoWindow are
+            // owned by the now-removed DOM element, so Google's GC
+            // handles them when their containers go away.
+            cancelled = true;
             poiTogglesEl?.removeEventListener('click', onPoiTogglesClick);
             if (_localTimeClockInterval !== null) {
                 clearInterval(_localTimeClockInterval);

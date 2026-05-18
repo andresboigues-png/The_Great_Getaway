@@ -1218,6 +1218,7 @@ GATED_ROUTES = [
     ("GET", "/api/notifications/list"),
     ("POST", "/api/notifications/read"),
     ("POST", "/api/notifications/trip_public"),
+    ("GET", "/api/admin/stats"),
 ]
 
 
@@ -1227,6 +1228,41 @@ def test_gated_route_rejects_anonymous(client, method, path):
     Catches a future endpoint shipped with the decorator forgotten."""
     res = client.open(path, method=method, json={})
     assert res.status_code == 401, f"{method} {path} returned {res.status_code}, expected 401"
+
+
+# ── /api/admin/stats ────────────────────────────────────────────────────────
+# 2026-05-18 audit H6: prior to this slice, /api/admin/stats had
+# zero test coverage — a regression deleting the email check would
+# silently expose admin-only data. These two tests pin the gate.
+
+
+def test_admin_stats_rejects_non_admin_403(client, seed_user, auth_headers):
+    """A logged-in user whose email is NOT in ADMIN_EMAILS gets 403,
+    not 200 with a populated payload. Hardcoded `seed_user` fixture
+    uses test@example.com which is deliberately NOT in the allowlist."""
+    res = client.get("/api/admin/stats", headers=auth_headers)
+    assert res.status_code == 403, \
+        "non-admin user must NOT receive a 200 from /api/admin/stats"
+    body = res.get_json()
+    assert body.get("error") == "Forbidden"
+
+
+def test_admin_stats_allows_admin_email(client, seed_user, auth_headers, monkeypatch):
+    """Conversely, when the caller's email is in ADMIN_EMAILS the
+    handler returns 200 with the expected stats envelope. Patch the
+    allowlist set instead of changing the seed_user email so the test
+    doesn't have to know what's hardcoded in admin.py."""
+    import routes.admin
+    monkeypatch.setattr(routes.admin, "ADMIN_EMAILS", {"test@example.com"})
+
+    res = client.get("/api/admin/stats", headers=auth_headers)
+    assert res.status_code == 200, \
+        f"admin caller must be allowed; got {res.status_code} body={res.get_json()!r}"
+    body = res.get_json()
+    # Spot-check the shape so a refactor that drops one of the
+    # headline counts fails fast.
+    for required in ("totalUsers", "totalTrips", "totalExpenses", "users"):
+        assert required in body, f"admin stats missing key: {required!r}"
 
 
 # ── /api/feed ────────────────────────────────────────────────────────────────
@@ -1868,6 +1904,58 @@ def test_friends_search_returns_other_user(client, seed_user, seed_other_user, a
     assert res.status_code == 200
     body = res.get_json()
     assert isinstance(body, list)
+
+
+def test_friends_search_masks_email(client, seed_user, auth_headers):
+    """2026-05-18 audit H7: search responses must return a MASKED email
+    so an attacker prefix-iterating the user table can't harvest
+    full unknown addresses. Existing safeguards (10/min rate limit,
+    3-char min, prefix-only LIKE) make bulk enumeration slow, but
+    every successful match was still leaking the full local-part
+    + domain pre-fix. Now the local-part is reduced to first + last
+    char with `*` filling the middle; the domain stays intact so
+    the caller can confirm "yes, that's the @example.com address I
+    just typed."""
+    from database import get_db
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO users (id, email, name) VALUES (?, ?, ?)",
+            ("u-mask-1", "andres.boigues@example.com", "Andres"),
+        )
+        conn.commit()
+    # Prefix search the local-part. Must be ≥3 chars per the
+    # length gate in search_friends.
+    res = client.get("/api/friends/search?q=andre", headers=auth_headers)
+    assert res.status_code == 200
+    body = res.get_json()
+    hit = next((u for u in body if u["id"] == "u-mask-1"), None)
+    assert hit is not None, f"expected to find the seeded user; got {body!r}"
+    # First + last char of the local + full domain; middle is `*`s.
+    assert hit["email"] == "a************s@example.com", \
+        f"email mask shape regressed: got {hit['email']!r}"
+    # Other fields untouched — id is what the follow flow needs;
+    # name + picture drive the search-result card.
+    assert hit["name"] == "Andres"
+
+
+def test_friends_search_masks_short_local_collapsed(client, seed_user, auth_headers):
+    """Edge case for the mask helper: a local-part of ≤2 chars
+    collapses to a single `*` rather than revealing both ends (which
+    would be the whole string for a 2-char local). Domain preserved."""
+    from database import get_db
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO users (id, email, name) VALUES (?, ?, ?)",
+            ("u-mask-short", "ab@tinydomain.io", "AB"),
+        )
+        conn.commit()
+    res = client.get("/api/friends/search?q=ab@", headers=auth_headers)
+    assert res.status_code == 200
+    body = res.get_json()
+    hit = next((u for u in body if u["id"] == "u-mask-short"), None)
+    assert hit is not None
+    assert hit["email"] == "*@tinydomain.io", \
+        f"short-local mask should collapse to single `*`; got {hit['email']!r}"
 
 
 def test_friends_pending_lists_outstanding_requests(

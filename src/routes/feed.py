@@ -366,30 +366,43 @@ def share_trip_to_feed():
             )
             if not cursor.fetchone():
                 return jsonify({"error": "Forbidden"}), 403
+        # 2026-05-18 audit H5: race-safe share via the partial UNIQUE
+        # index `idx_feed_posts_unique_original_share` on
+        # (user_id, trip_id) WHERE repost_of_post_id IS NULL. Two
+        # concurrent shares of the same trip used to both pass the
+        # "no existing" branch and INSERT — duplicate feed_posts.
+        # Now we INSERT OR IGNORE: on conflict, the unique index
+        # rejects the second writer, and we re-SELECT to get the
+        # canonical existing post_id. Single atomic statement
+        # collapses the SELECT-then-INSERT into the DB's own
+        # conflict-resolution path.
+        cursor.execute(
+            "INSERT OR IGNORE INTO feed_posts "
+            "(user_id, trip_id, repost_of_post_id, caption) "
+            "VALUES (?, ?, NULL, ?)",
+            (user_id, trip_id, caption),
+        )
+        if cursor.rowcount > 0:
+            # Brand-new share: INSERT actually wrote the row.
+            post_id = cursor.lastrowid
+            conn.commit()
+            return jsonify({"status": "shared", "post_id": post_id})
+        # IGNORE'd — there's already an original share for this
+        # (user, trip). Update the caption if the caller sent one
+        # (re-share with a new message), then return the existing id.
         cursor.execute(
             "SELECT id FROM feed_posts WHERE user_id = ? AND trip_id = ? "
             "AND repost_of_post_id IS NULL",
             (user_id, trip_id),
         )
         existing = cursor.fetchone()
-        if existing:
-            # Update caption on a re-share so the user can edit their
-            # message without unsharing first.
-            if caption is not None:
-                cursor.execute(
-                    "UPDATE feed_posts SET caption = ? WHERE id = ?",
-                    (caption, existing['id']),
-                )
-                conn.commit()
-            return jsonify({"status": "already_shared", "post_id": existing['id']})
-        cursor.execute(
-            "INSERT INTO feed_posts (user_id, trip_id, repost_of_post_id, caption) "
-            "VALUES (?, ?, NULL, ?)",
-            (user_id, trip_id, caption),
-        )
-        post_id = cursor.lastrowid
+        if caption is not None:
+            cursor.execute(
+                "UPDATE feed_posts SET caption = ? WHERE id = ?",
+                (caption, existing['id']),
+            )
         conn.commit()
-    return jsonify({"status": "shared", "post_id": post_id})
+    return jsonify({"status": "already_shared", "post_id": existing['id']})
 
 
 @bp.route("/api/feed/share/status/<trip_id>", methods=["GET"])

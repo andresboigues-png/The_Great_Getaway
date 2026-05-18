@@ -75,8 +75,45 @@ def search_friends():
             "WHERE email LIKE ? ESCAPE '\\' LIMIT 5",
             (f"{safe_query}%",),
         )
-        users = [dict(row) for row in cursor.fetchall()]
+        rows = cursor.fetchall()
+    # 2026-05-18 audit H7: mask the email before returning. The 3-char
+    # prefix + 10/min rate limit + 5-row cap already make bulk
+    # enumeration slow, but a successful match still leaked the FULL
+    # email — an attacker could prefix-search "a", "b", ... and
+    # harvest. Now we return a masked form ("a***s@example.com") that
+    # lets the caller visually confirm "yes that's the address I just
+    # typed" without leaking unknown locals. The id is what
+    # /api/friends/add takes, so the follow flow is unaffected.
+    users = [
+        {
+            "id": row["id"],
+            "name": row["name"],
+            "email": _mask_email(row["email"]),
+            "picture": row["picture"],
+        }
+        for row in rows
+    ]
     return jsonify(users)
+
+
+def _mask_email(email: str | None) -> str:
+    """Mask the local part of an email so search responses don't leak
+    full unknown addresses. Keeps the first + last char of the local
+    (for prefix confirmation), masks the rest with `*`, leaves the
+    domain intact. Short locals (≤2 chars) collapse to a single `*`
+    so we don't accidentally reveal the entire string.
+
+    Examples:
+      andres.boigues@example.com  →  a************s@example.com
+      ab@example.com              →  *@example.com
+      ''                          →  ''
+    """
+    if not email or "@" not in email:
+        return ""
+    local, _, domain = email.rpartition("@")
+    if len(local) <= 2:
+        return f"*@{domain}"
+    return f"{local[0]}{'*' * (len(local) - 2)}{local[-1]}@{domain}"
 
 
 def _follow(cursor, follower_id: str, followee_id: str, source: str) -> bool:

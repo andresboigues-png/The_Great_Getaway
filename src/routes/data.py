@@ -157,7 +157,13 @@ def sync_data():
                     viewport_json=excluded.viewport_json,
                     place_types=excluded.place_types,
                     country_code=excluded.country_code,
-                    trip_countries_json=excluded.trip_countries_json,
+                    -- 2026-05-18 audit H3: COALESCE so a payload that
+                    -- omits the field (older clients, partial syncs)
+                    -- preserves whatever the server already had. The
+                    -- raw `excluded.x` form would NULL-overwrite on
+                    -- every sync that didn't carry the field —
+                    -- silent data loss for multi-country trips.
+                    trip_countries_json=COALESCE(excluded.trip_countries_json, trip_countries_json),
                     companions_json=excluded.companions_json,
                     marked_places_json=excluded.marked_places_json,
                     documents_json=excluded.documents_json,
@@ -225,7 +231,12 @@ def sync_data():
                     viewport_json=excluded.viewport_json,
                     place_types=excluded.place_types,
                     country_code=excluded.country_code,
-                    trip_countries_json=excluded.trip_countries_json,
+                    -- 2026-05-18 audit H3: same COALESCE protection
+                    -- as the active-trips block above. Archived trip
+                    -- sync runs on the same /api/sync poll, so older
+                    -- clients that don't send the field would wipe
+                    -- the stored multi-country array on every tick.
+                    trip_countries_json=COALESCE(excluded.trip_countries_json, trip_countries_json),
                     companions_json=excluded.companions_json,
                     marked_places_json=excluded.marked_places_json,
                     documents_json=excluded.documents_json,
