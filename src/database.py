@@ -601,6 +601,15 @@ def init_db():
             "ON follows(followee_id)",
             "CREATE INDEX IF NOT EXISTS idx_follows_follower "
             "ON follows(follower_id)",
+            # 2026-05-18 audit fix (critical bug #4): every user-scoped
+            # trips query was full-scanning the table. The composite
+            # `(user_id, is_public)` index doubles as a leading-column
+            # cover for plain `WHERE user_id = ?` lookups, but we keep
+            # the bare `idx_trips_user` too — half the size, and the
+            # planner picks it for the simple case.
+            "CREATE INDEX IF NOT EXISTS idx_trips_user ON trips(user_id)",
+            "CREATE INDEX IF NOT EXISTS idx_trips_user_public "
+            "ON trips(user_id, is_public)",
         ):
             cursor.execute(ddl)
 

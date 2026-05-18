@@ -15,6 +15,7 @@ import secrets
 
 from flask import Blueprint, jsonify, request
 
+from achievements import check_user_achievements
 from auth import current_user_id, require_auth
 from database import get_db, retry_on_lock
 from extensions import limiter
@@ -171,19 +172,21 @@ def delete_trip(trip_id):
             "DELETE FROM notifications WHERE related_id = ?",
             (trip_id,),
         )
-        # User-earned achievements that referenced this trip — wiped
-        # so the badge no longer surfaces with a dead link. Recompute
-        # next time the user logs in.
-        try:
-            cursor.execute(
-                "DELETE FROM user_achievements WHERE trip_id = ?",
-                (trip_id,),
-            )
-        except Exception:
-            # Schema may not carry trip_id on user_achievements (some
-            # badges aren't trip-scoped). Skip silently.
-            pass
+        # Delete the trip row first, THEN re-evaluate the user's
+        # achievements. Two reasons:
+        #   1. user_achievements has no trip_id column — the previous
+        #      `DELETE WHERE trip_id = ?` ALWAYS raised, the try/except
+        #      swallowed it, and stale badges with dead-trip refs in
+        #      context_json piled up. (Audit 2026-05-18.)
+        #   2. The post-2026-05-18 revoke logic in
+        #      `check_user_achievements` deletes any badge whose rule
+        #      no longer passes — once the trip row is gone, the
+        #      country / spend / day-count checks drop below threshold
+        #      and the revoke path cleans up. This single source of
+        #      truth replaces the per-endpoint cleanup that drifted
+        #      out of sync with the schema.
         cursor.execute("DELETE FROM trips WHERE id = ? AND user_id = ?", (trip_id, user_id))
+        check_user_achievements(cursor, user_id)
         conn.commit()
     return jsonify({"status": "deleted"})
 

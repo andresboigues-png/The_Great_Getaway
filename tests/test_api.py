@@ -5090,6 +5090,97 @@ def test_achievements_globe_trotter_revoked_when_country_unarchived(client, seed
     assert "first_trip" in ids
 
 
+def test_achievements_revoked_when_trip_deleted(client, seed_user, auth_headers):
+    """2026-05-18 audit fix (critical bug #1): DELETE /api/trips/<id>
+    used to run `DELETE FROM user_achievements WHERE trip_id = ?`
+    against a table that has NO trip_id column — the SQL always
+    errored and a `try/except: pass` swallowed it, so badges referencing
+    the deleted trip kept showing up with a dead `tripId` in their
+    tooltip context. The fix replaced the broken DELETE with a
+    `check_user_achievements(cursor, user_id)` call so the post-2026-05-18
+    revoke path drops badges whose qualifying trip no longer exists.
+
+    Permanent deletion is the stronger version of unarchive — once
+    deleted, the trip can't be restored, so the badge stays revoked."""
+    from database import get_db
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-del-revoke")
+    _archive_all_trips(seed_user)
+
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    assert "first_trip" in [a["badgeId"] for a in data["achievements"]], \
+        "archived trip should earn first_trip before deletion"
+
+    # Permanent delete via the API (covers the full handler including
+    # the post-delete check_user_achievements call).
+    res = client.delete(f"/api/trips/{trip_id}", headers=auth_headers)
+    assert res.status_code == 200
+
+    # Badge should be gone IMMEDIATELY on the next poll — the revoke
+    # ran inside the delete transaction, not waiting for the next
+    # /api/data tick to catch up.
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    assert "first_trip" not in [a["badgeId"] for a in data["achievements"]], \
+        "first_trip should be revoked the instant the only earning trip is deleted"
+
+    # Direct DB sanity: the row really is gone, not just hidden by the
+    # response layer.
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT badge_id FROM user_achievements WHERE user_id = ?",
+            (seed_user,),
+        ).fetchall()
+    assert not any(r["badge_id"] == "first_trip" for r in rows)
+
+
+def test_user_data_delete_rate_limited(temp_db, seed_user, seed_other_user):
+    """2026-05-18 audit fix (critical bug #2): /api/user-data DELETE is
+    a factory reset — it wipes EVERY trip, expense, settlement,
+    notification, etc. owned by the caller (including the `users`
+    row itself). Without a rate limit, a logged-in attacker (or
+    stolen session token) could script the endpoint in a loop and
+    keep wiping the victim's data immediately after they restore
+    from backup. Cap is 1/hour.
+
+    flask-limiter defaults to keying on the remote address, so the
+    cap protects the FLOW per-source-IP, not per-user-id. Test two
+    distinct users from the same test-client (both 127.0.0.1) — the
+    second one must 429 even though it's a different user_id, because
+    the per-IP bucket is already spent. Using two users instead of
+    one re-poll avoids the "JWT valid but user row missing" 401 that
+    would otherwise mask the limiter response (first call deletes
+    the user row, so the user can't auth a second time)."""
+    if "main" in sys.modules:
+        from database import init_db
+        init_db()
+        from main import app, limiter
+    else:
+        import main
+        from database import init_db
+        init_db()
+        app = main.app
+        limiter = main.limiter
+
+    from auth import issue_token
+    headers_a = {"Authorization": f"Bearer {issue_token(seed_user)}"}
+    headers_b = {"Authorization": f"Bearer {issue_token(seed_other_user)}"}
+
+    app.config["TESTING"] = True
+    app.config["RATELIMIT_ENABLED"] = True
+    limiter.reset()
+    try:
+        with app.test_client() as c:
+            res = c.delete("/api/user-data", headers=headers_a)
+            assert res.status_code == 200
+            # Second call from the same IP — flask-limiter rejects
+            # before the request reaches the handler.
+            res = c.delete("/api/user-data", headers=headers_b)
+            assert res.status_code == 429, \
+                "second factory-reset within the hour must be rejected by the limiter"
+    finally:
+        app.config["RATELIMIT_ENABLED"] = False
+        limiter.reset()
+
+
 def test_achievements_rule_failure_doesnt_poison_sweep(client, seed_user, auth_headers, monkeypatch):
     """If one badge rule raises, the detection loop logs + skips it
     and the OTHER rules still run. Without this guard a future bad

@@ -790,10 +790,25 @@ function EmptyState({ activeTab, bookmarkedOnly, onSwitchTab, onClearBookmarked 
         ctaId: 'feedEmptyCtaBtn',
     });
     const ref = useRef<HTMLDivElement | null>(null);
+    // 2026-05-18 audit fix: previously had NO dependency array, so the
+    // effect re-ran on every render and reassigned `btn.onclick`.
+    // `ctaAction` is a fresh closure each render, so a naive
+    // `[ctaAction]` dep would also re-run every render — chasing the
+    // tail. Use a ref to always point at the latest action while the
+    // effect itself runs only when the rendered HTML changes (which
+    // happens iff the empty-state mode flips). Cleanup nulls the
+    // handler so the detached DOM node doesn't keep the callback
+    // graph alive after unmount.
+    const ctaActionRef = useRef(ctaAction);
+    ctaActionRef.current = ctaAction;
     useEffect(() => {
         const btn = ref.current?.querySelector('#feedEmptyCtaBtn') as HTMLButtonElement | null;
-        if (btn) btn.onclick = ctaAction;
-    });
+        if (!btn) return;
+        btn.onclick = () => ctaActionRef.current();
+        return () => {
+            btn.onclick = null;
+        };
+    }, [html]);
     return <div ref={ref} dangerouslySetInnerHTML={{ __html: html }} />;
 }
 

@@ -633,6 +633,7 @@ def get_data():
 
 @bp.route("/api/user-data", methods=["DELETE"])
 @require_auth
+@limiter.limit("1 per hour")
 def delete_user_data():
     """Wipe all data for a user (factory reset).
 
@@ -640,7 +641,14 @@ def delete_user_data():
     implementation ran un-scoped DELETEs, so any authenticated caller
     could nuke the entire database with one request — same threat
     surface as `DROP DATABASE`. Now each statement targets only the
-    caller's own rows (or rows that hang off trips they own)."""
+    caller's own rows (or rows that hang off trips they own).
+
+    Rate limited to 1/hour: legitimate factory-reset is a once-in-a-
+    blue-moon action, but a logged-in attacker (or stolen session
+    token) could otherwise script this in a loop to keep wiping the
+    victim's data immediately after they restore from a backup. The
+    1/hour cap gives the user a real chance to notice + invalidate
+    the session before catastrophic data loss can recur."""
     user_id = current_user_id()
     with get_db() as conn:
         cursor = conn.cursor()
