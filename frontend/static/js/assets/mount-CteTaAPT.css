@@ -1202,6 +1202,9 @@
 .path-column--selected {
     flex: auto;
 }
+.path-cards-row--solo-anchor .path-column--anchor {
+    flex: 100%;
+}
 @media (width<=720px) {
     .path-cards-row {
         flex-direction: column;
@@ -1212,6 +1215,14 @@
         flex: 100%;
         width: 100%;
     }
+    .path-cards-row:not(.path-cards-row--solo-anchor) .path-column--anchor {
+        display: none;
+    }
+}
+.path-chips .path-chip--anchor {
+    z-index: 2;
+    position: sticky;
+    left: 0;
 }
 .path-card {
     cursor: pointer;

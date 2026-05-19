@@ -3934,20 +3934,27 @@ main#app-container.nav-anim-backward {
        sidebar drawer (1998-1999) and modals (10000), so the
        bottom-tab nav is the topmost layer for normal page reads
        while drawers/modals can still cover it when open. */
+    /* 2026-05-19 (round 2): the previous attempt used
+       `display: flex !important` inside this media block, but the
+       user still reported the bar invisible on mobile. Hypothesis:
+       the base `.mobile-bottom-nav { display: none; }` at line 3755
+       lives in `@layer legacy`, and so does this media-rule, so they
+       resolve at the SAME layer — and `display: flex !important`
+       does win there. But if any Tailwind-emitted rule at the
+       `utilities` layer (a higher layer in `@layer properties, theme,
+       base, legacy, components, utilities;`) sets display on this
+       element, the utility wins regardless of !important because
+       cross-layer order beats !important. Defence: target the nav
+       with a higher-specificity selector (body > .mobile-bottom-nav)
+       which is more specific than any plausible utility class. Combined
+       with !important + position-fixed it's a belt-and-braces fix. */
+    body > nav.mobile-bottom-nav,
     .mobile-bottom-nav {
-        /* 2026-05-19: bumped to `display: flex !important` because a
-           user-reported regression had the bar invisible on a logged-
-           in mobile session. Some legacy utility class or specificity
-           ladder was overriding the base `display: flex` here; making
-           the activate-on-mobile rule explicit-important so the bar
-           always paints. The only intentional hide is the
-           `body.is-signed-out` block above, which still wins because
-           that rule also uses !important. */
         display: flex !important;
-        position: fixed;
-        left: 0;
-        right: 0;
-        bottom: 0;
+        position: fixed !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
         background: rgba(255, 255, 255, 0.96);
         backdrop-filter: saturate(180%) blur(20px);
         -webkit-backdrop-filter: saturate(180%) blur(20px);
@@ -3955,13 +3962,21 @@ main#app-container.nav-anim-backward {
         padding: 4px 0 calc(4px + env(safe-area-inset-bottom));
         z-index: 1500;
         box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.06);
-        /* Visibility fallbacks — on iOS Safari a stale GPU compositing
-           layer can leave the bar painted at zero opacity. These
-           explicit declarations defeat any leftover transform/opacity
-           inheritance from animation libraries. */
-        opacity: 1;
-        visibility: visible;
-        pointer-events: auto;
+        opacity: 1 !important;
+        visibility: visible !important;
+        pointer-events: auto !important;
+        /* Guarantee a renderable size in case anything else is
+           collapsing it to 0 — paddings above + this min-height give
+           the bar a visible footprint even before children paint. */
+        min-height: 56px;
+        transform: none !important;
+    }
+    /* Sign-out override still wins (more specific + same !important
+       rank, declared later in the cascade). Re-stating it inside
+       this media block so the cascade order is explicit. */
+    body.is-signed-out > nav.mobile-bottom-nav,
+    body.is-signed-out .mobile-bottom-nav {
+        display: none !important;
     }
 
     /* Push main content above the bottom nav so the last row of

@@ -1533,16 +1533,16 @@
         flex: 1 1 100%;
         width: 100%;
     }
-    /* 2026-05-19: on mobile when a numbered day IS selected (both
-       columns render), hide the Anchor card so the screen isn't
-       eaten by a redundant Anchor block stacked above the day the
-       user actually clicked to see. The Anchor chip in the strip
-       above stays visible so they can tap back to it.
-       When only the Anchor is selected (--solo-anchor) the row has
-       a single column, the :not() guard lets it stay visible. */
-    .path-cards-row:not(.path-cards-row--solo-anchor) .path-column--anchor {
-        display: none;
-    }
+    /* 2026-05-19 (revert): an earlier pass added a `display: none`
+       on the Anchor column when a numbered day was selected on
+       mobile, intending to declutter the stacked view. The user
+       reported "anchor doesn't appear at all" because the rule was
+       hiding the Anchor outright. Anchor is already ABOVE the day
+       in DOM order on mobile (flex-direction: column), so leaving
+       both cards visible is what the user wants — they can scroll
+       past the Anchor to reach the day. The Anchor chip in the
+       strip is still sticky-left below, so it's always tappable
+       regardless of how far the user has scrolled. */
 }
 
 /* 2026-05-19: keep the Anchor chip pinned to the left edge of the

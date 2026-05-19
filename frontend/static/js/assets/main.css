@@ -1135,6 +1135,11 @@
     .gap-\[14px\] {
         gap: 14px;
     }
+    .truncate {
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        overflow: hidden;
+    }
     .overflow-auto {
         overflow: auto;
     }
