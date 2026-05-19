@@ -3934,20 +3934,19 @@ main#app-container.nav-anim-backward {
        sidebar drawer (1998-1999) and modals (10000), so the
        bottom-tab nav is the topmost layer for normal page reads
        while drawers/modals can still cover it when open. */
-    /* 2026-05-19 (round 2): the previous attempt used
-       `display: flex !important` inside this media block, but the
-       user still reported the bar invisible on mobile. Hypothesis:
-       the base `.mobile-bottom-nav { display: none; }` at line 3755
-       lives in `@layer legacy`, and so does this media-rule, so they
-       resolve at the SAME layer — and `display: flex !important`
-       does win there. But if any Tailwind-emitted rule at the
-       `utilities` layer (a higher layer in `@layer properties, theme,
-       base, legacy, components, utilities;`) sets display on this
-       element, the utility wins regardless of !important because
-       cross-layer order beats !important. Defence: target the nav
-       with a higher-specificity selector (body > .mobile-bottom-nav)
-       which is more specific than any plausible utility class. Combined
-       with !important + position-fixed it's a belt-and-braces fix. */
+    /* 2026-05-19 (round 3): user diagnostic confirmed the bar IS
+       rendered correctly (display:flex, position:fixed, bottom:0,
+       rect 0,860 430x72 on iPhone 14 Pro Max). What we missed: iOS
+       Safari with the bottom URL bar (default on iOS 15+) overlays
+       the bottom ~80–90px of the screen WITHOUT shrinking the layout
+       viewport. So `bottom: 0` puts the nav at y=932 — the literal
+       bottom of the layout viewport — which is BEHIND Safari's URL
+       bar. The compensation: shift the nav UP by exactly the height
+       of the URL bar. That height equals `100vh - 100dvh` (vh = full
+       layout viewport, dvh = dynamic visible viewport excluding the
+       URL bar). When the URL bar is minimised (user scrolls), dvh
+       grows to equal vh, the diff goes to 0, and the bar settles
+       back to the true bottom. */
     body > nav.mobile-bottom-nav,
     .mobile-bottom-nav {
         display: flex !important;
@@ -3970,6 +3969,16 @@ main#app-container.nav-anim-backward {
            the bar a visible footprint even before children paint. */
         min-height: 56px;
         transform: none !important;
+    }
+    /* iOS Safari URL-bar compensation. Only browsers that support
+       dvh (Safari 15.4+, Chrome 108+) enter this block; older
+       browsers see `bottom: 0` and Safari handles fixed-bottom
+       above-the-URL-bar natively in the older behavior. */
+    @supports (height: 100dvh) {
+        body > nav.mobile-bottom-nav,
+        .mobile-bottom-nav {
+            bottom: calc(100vh - 100dvh) !important;
+        }
     }
     /* Sign-out override still wins (more specific + same !important
        rank, declared later in the cascade). Re-stating it inside
