@@ -593,6 +593,30 @@ def _parse_day_slot(raw: str) -> list[dict] | None:
     return items if items else None
 
 
+def _image_aspect(png_bytes: bytes) -> float:
+    """Read the actual width/height ratio of a PNG. Used to size
+    map images in the PDF without distortion: Google Static Maps
+    sometimes returns a slightly different aspect than what `size=`
+    requests (e.g., when the requested coords are near the poles or
+    a small marker cluster auto-bounds the view). Hard-coding the
+    aspect from the request params then stretching the image
+    causes visible distortion. Reading the actual aspect here
+    eliminates the guesswork.
+
+    Uses PIL (already a reportlab dep, no new install). Returns 2.0
+    as a fallback if the bytes can't be parsed — same as the prior
+    "assume 2:1" default."""
+    try:
+        from PIL import Image as _PILImage
+        with _PILImage.open(io.BytesIO(png_bytes)) as im:
+            w, h = im.size
+            if h > 0:
+                return w / h
+    except Exception:
+        pass
+    return 2.0
+
+
 def _strip_emoji(text: str) -> str:
     """Drop emoji + wide-Unicode glyphs that Helvetica can't render.
     Reportlab's built-in PDF fonts (Helvetica, Times, Courier) cover
@@ -882,11 +906,12 @@ def _day_card(rl, styles, page_w, margin_lr, day: dict, day_map_png: bytes | Non
             # inner padding each side. Direct sizing at exactly 2.5:1
             # so the map fills the card content width.
             inner_w = page_w - 2 * margin_lr - 28
+            day_aspect = _image_aspect(day_map_png)
             inner.append(
                 rl.Image(
                     io.BytesIO(day_map_png),
                     width=inner_w,
-                    height=inner_w / 2.5,
+                    height=inner_w / day_aspect,
                 )
             )
             inner.append(rl.Spacer(1, 0.25 * rl.cm))
@@ -1329,10 +1354,11 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
                 # to preserve a slightly-mismatched aspect, leaving
                 # ~10% empty cell space on the right.
                 full_w = page_w - 2 * margin_lr
+                aspect = _image_aspect(map_png)
                 story.append(rl.Image(
                     io.BytesIO(map_png),
                     width=full_w,
-                    height=full_w * 0.5,  # 2:1 aspect, no distortion
+                    height=full_w / aspect,  # exact aspect → no distortion
                 ))
                 story.append(rl.Spacer(1, 0.6 * rl.cm))
             except Exception:
@@ -1460,6 +1486,7 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
                         # un-distorted while filling the column edge-
                         # to-edge.
                         full_w = page_w - 2 * margin_lr
+                        ov_aspect = _image_aspect(overview_png)
                         story.append(rl.Paragraph(
                             f"EVERY DAY ON ONE MAP   ·   {len(pins)} PIN{'S' if len(pins) != 1 else ''}",
                             styles["kicker"],
@@ -1467,7 +1494,7 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
                         story.append(rl.Image(
                             io.BytesIO(overview_png),
                             width=full_w,
-                            height=full_w / 2.31,
+                            height=full_w / ov_aspect,
                         ))
                         story.append(rl.Spacer(1, 0.7 * rl.cm))
                     except Exception:
@@ -1724,13 +1751,16 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
             )
             if places_map_png:
                 try:
-                    # Source PNG aspect 2.31:1 (size=1200x520).
-                    # Direct sizing fills the column edge-to-edge.
+                    # Direct sizing with the PNG's REAL aspect (read
+                    # via PIL) — Google sometimes returns a slightly
+                    # different aspect than `size=` requests when the
+                    # marker bounds auto-fit.
                     full_w = page_w - 2 * margin_lr
+                    places_aspect = _image_aspect(places_map_png)
                     story.append(rl.Image(
                         io.BytesIO(places_map_png),
                         width=full_w,
-                        height=full_w / 2.31,
+                        height=full_w / places_aspect,
                     ))
                     story.append(rl.Spacer(1, 0.6 * rl.cm))
                 except Exception:

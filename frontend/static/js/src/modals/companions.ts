@@ -22,7 +22,6 @@ import {
     removeTripMember,
     type FriendListEntry,
 } from '../api.js';
-import { navigate } from '../router.js';
 import { findTripCompanion, addTripCompanion, removeTripCompanion } from '../companions.js';
 import { ROLE_PLANNER, ROLE_BUDGETEER, ROLE_RELAXER, canManageRoster } from '../permissions.js';
 import { showModal } from '../components/Modal.js';
@@ -212,14 +211,15 @@ export const openCompanionPickerModal = (tripId: string) => {
 
     (q(root, '#companionPickerCloseBtn') as HTMLButtonElement).onclick = () => {
         close();
-        // Re-render home so the companions panel picks up any
-        // adds / removes / links done inside the picker. Without
-        // this, closing the modal drops the user back on the
-        // stale render and the new chips don't appear until the
-        // user navigates somewhere and back. emit('state:changed')
-        // alone only refreshes the trip selector + user UI, not
-        // the home page body.
-        navigate('home', null, true);
+        // 2026-05-19: previously called `navigate('home', null, true)`
+        // here to force a re-render. Side effect: navigate() remounts
+        // the Home component, which resets its `activeTab` useState
+        // back to 'days' — so the user clicking "+ Add companion"
+        // from the Companions tab got dropped onto Path on close,
+        // losing their place. emit('state:changed') alone refreshes
+        // the TripBody (it subscribes to that event) WITHOUT
+        // remounting, so the active tab survives the modal close.
+        emit('state:changed');
     };
     (q(root, '#companionPickerFriendCancel') as HTMLButtonElement).onclick = () => {
         friendSheet.hidden = true;

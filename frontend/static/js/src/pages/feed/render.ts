@@ -216,7 +216,10 @@ export function eventLine(ev: any) {
         case 'friend_created_trip':
             return `${who} started planning a new trip — ${tripName}${ev.trip?.country ? ` (${esc(ev.trip.country)})` : ''}`;
         case 'friend_archived_trip':
-            return `${who} just completed their trip to <strong style="color:#002d5b;">${esc(ev.trip?.country || ev.trip?.name || 'somewhere')}</strong> 🎉`;
+            // Self-attribution flips "their" → "your" so the user
+            // doesn't see "You just completed their trip to X" when
+            // it's their own archive event surfaced in their own feed.
+            return `${who} just completed ${isSelf ? 'your' : 'their'} trip to <strong style="color:#002d5b;">${esc(ev.trip?.country || ev.trip?.name || 'somewhere')}</strong> 🎉`;
         case 'friend_joined_trip':
             return `${who} joined the trip ${tripName}`;
         case 'new_friendship':

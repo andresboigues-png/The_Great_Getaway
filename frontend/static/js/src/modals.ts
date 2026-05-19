@@ -684,53 +684,63 @@ export const openPdfExportModal = (trip: any) => {
         return;
     }
     const tripName = trip.name || 'Trip';
+    // 2026-05-19 redesign: pre-existing layout was a tall single-
+    // column stack of 8 checkboxes — tall, washed-out text, big
+    // vertical footprint. New: 2-col grid, darker text (#001a33
+    // titles, #4a5568 subtitles), tighter rows. Card widens to
+    // 560px so each option has breathing room without forcing
+    // the modal to grow vertically.
     const innerHTML = `
-        <div class="mdl-col-center" style="text-align:center;">
-            <div style="font-size:2.6rem; margin-bottom:8px;">📄</div>
-            <h2 class="card-title mdl-title-hero" style="margin:0 0 6px;">
-                Download trip PDF
-            </h2>
-            <p style="margin:0 0 20px; color: var(--text-secondary); font-size:0.92rem;">
-                Pick what to include in your printable plan for
-                <strong>${esc(tripName)}</strong>.
-            </p>
-            <div id="pdfExportOptions" style="text-align:left; display:flex; flex-direction:column; gap:10px; width:100%;">
-                ${renderPdfOption('includeCoverMap', '🗺️ Cover map',
-                    'A wide map of the trip’s location on the title page.')}
-                ${renderPdfOption('includeStats', '📊 Summary stats',
-                    'Day count, companions, places, and total spend tiles.')}
-                ${renderPdfOption('includeDays', '📅 Day-by-day plan',
-                    'Every day’s morning / afternoon / evening + notes.')}
-                ${renderPdfOption('includeDayPins', '📍 Per-day mini maps',
-                    'A small map alongside each day showing where you’ll be.')}
-                ${renderPdfOption('includeTodos', '✅ To-do list',
-                    'Grouped by category, checkmarks for done items.')}
-                ${renderPdfOption('includeBudgets', '💰 Budgets',
-                    'Planned amounts + actual trip spend (if recorded).')}
-                ${renderPdfOption('includeCompanions', '👥 Companions',
-                    'Roster of travelers on this trip.')}
-                ${renderPdfOption('includeMarkedPlaces', '⭐ Marked places',
-                    'Saved places with addresses.')}
+        <div class="mdl-col-center" style="text-align:left;">
+            <div style="display:flex; align-items:center; gap:12px; margin-bottom:4px;">
+                <div style="font-size:1.8rem; line-height:1;">📄</div>
+                <div>
+                    <h2 class="card-title" style="margin:0; font-size:1.25rem; color:#001a33; font-weight:800;">
+                        Download trip PDF
+                    </h2>
+                    <p style="margin:2px 0 0; color:#4a5568; font-size:0.82rem;">
+                        Pick what to include for <strong style="color:#001a33;">${esc(tripName)}</strong>
+                    </p>
+                </div>
             </div>
-            <div style="display:flex; gap:10px; margin-top:24px; width:100%;">
-                <button type="button" id="cancelPdfBtn" class="btn-ghost flex-1">Cancel</button>
+            <div id="pdfExportOptions" style="margin-top:14px; display:grid; grid-template-columns: 1fr 1fr; gap:6px 10px;">
+                ${renderPdfOption('includeCoverMap', '🗺️ Cover map',
+                    'Wide map of the trip location')}
+                ${renderPdfOption('includeStats', '📊 Summary stats',
+                    'Days, companions, places, spend')}
+                ${renderPdfOption('includeDays', '📅 Day-by-day plan',
+                    'Morning, afternoon, evening')}
+                ${renderPdfOption('includeDayPins', '📍 Per-day maps',
+                    'A small map next to each day')}
+                ${renderPdfOption('includeTodos', '✅ To-do list',
+                    'Grouped by category')}
+                ${renderPdfOption('includeBudgets', '💰 Budgets',
+                    'Planned + actual spend')}
+                ${renderPdfOption('includeCompanions', '👥 Companions',
+                    'Roster of travelers')}
+                ${renderPdfOption('includeMarkedPlaces', '⭐ Marked places',
+                    'Saved places + addresses')}
+            </div>
+            <div style="display:flex; gap:10px; margin-top:18px;">
+                <button type="button" id="cancelPdfBtn" class="btn-ghost flex-1"
+                        style="font-weight:600; color:#001a33;">Cancel</button>
                 <button type="button" id="submitPdfBtn" class="btn-primary flex-1"
-                        style="background: #34c759; border-color:#34c759;">
+                        style="background:#34c759; border-color:#34c759; font-weight:700;">
                     <span id="pdfBtnLabel">Download PDF</span>
                 </button>
             </div>
         </div>
     `;
-    const { root, close } = showModal({ innerHTML, cardStyle: 'max-width: 460px;' });
+    const { root, close } = showModal({ innerHTML, cardStyle: 'max-width: 560px;' });
 
     function renderPdfOption(key: string, label: string, sub: string): string {
         return `
-            <label style="display:flex; align-items:flex-start; gap:10px; cursor:pointer; padding:8px 10px; border-radius:10px; transition: background 0.15s;">
+            <label style="display:flex; align-items:flex-start; gap:8px; cursor:pointer; padding:8px 10px; border-radius:10px; transition: background 0.15s; border:1px solid rgba(0,0,0,0.06);">
                 <input type="checkbox" name="${key}" checked
-                       style="margin-top:3px; width:18px; height:18px; accent-color:#34c759;">
-                <span>
-                    <span style="font-weight:600; color:#001a33; font-size:0.92rem;">${label}</span>
-                    <span style="display:block; color: var(--text-secondary); font-size:0.78rem; line-height:1.4; margin-top:2px;">${sub}</span>
+                       style="margin-top:2px; width:16px; height:16px; accent-color:#34c759; flex-shrink:0;">
+                <span style="min-width:0; flex:1;">
+                    <span style="display:block; font-weight:700; color:#001a33; font-size:0.86rem; line-height:1.2;">${label}</span>
+                    <span style="display:block; color:#4a5568; font-size:0.74rem; line-height:1.35; margin-top:2px;">${sub}</span>
                 </span>
             </label>
         `;
