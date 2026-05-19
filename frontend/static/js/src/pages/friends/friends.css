@@ -1,0 +1,135 @@
+/* Per-page CSS for the Friends / Network page.
+ *
+ * 2026-05-19: co-located so the page's chrome works even when the
+ * user lands directly on /friends without having visited /home first
+ * (which previously loaded the .trip-tabnav base via home.css). The
+ * .network-tabnav* modifiers below tighten the segmented tab bar so
+ * the Followers / Following / Friends triplet fits on narrow phones.
+ *
+ * In this file:
+ *   .network-tabnav  — strip-level overrides on the base trip-tabnav
+ *     capsule. Shrinks side padding and gap so the three pills
+ *     don't overflow on iPhone SE (320px) / iPhone 14 Pro Max
+ *     (430px) when text + count chip live side-by-side.
+ *   .network-tabnav__tab — per-button overrides for the same.
+ *   .network-tabnav__label / __count — the label-with-counter row
+ *     inside each pill. Count chip uses negative margin on small
+ *     screens so it tucks into the label's tail instead of pushing
+ *     the pill width past viewport.
+ *
+ * The base capsule styling (background, border-radius, gradient
+ * active state) is the .trip-tabnav rules from home.css. When the
+ * user has visited /home once, those rules are in the document and
+ * the cascade picks them up here. When they haven't, the inline
+ * `display: inline-flex` etc. below give the buttons enough shape
+ * to be usable until the first home visit.
+ */
+
+/* ── Self-contained base — mirrors .trip-tabnav so /friends is
+   standalone. Kept narrow (just enough for the network bar to
+   render correctly on a cold load) rather than a full duplication
+   of home.css's segmented-capsule. */
+.network-tabnav {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px;
+    background: rgba(255, 255, 255, 0.72);
+    backdrop-filter: blur(14px) saturate(160%);
+    -webkit-backdrop-filter: blur(14px) saturate(160%);
+    border: 1px solid rgba(0, 45, 91, 0.08);
+    border-radius: 999px;
+    box-shadow: 0 4px 14px rgba(0, 45, 91, 0.06);
+    max-width: 100%;
+}
+.network-tabnav__tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    border: 0;
+    background: transparent;
+    border-radius: 999px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    cursor: pointer;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+    transition: background 0.2s ease, color 0.2s ease,
+        box-shadow 0.2s ease, transform 0.18s ease;
+}
+.network-tabnav__tab:hover:not(.is-active),
+.network-tabnav__tab:focus-visible:not(.is-active) {
+    color: var(--accent-blue);
+    background: rgba(0, 113, 227, 0.06);
+}
+.network-tabnav__tab.is-active {
+    color: white;
+    background: linear-gradient(135deg, var(--accent-blue), #5856d6);
+    box-shadow: 0 4px 12px rgba(0, 113, 227, 0.28);
+    font-weight: 800;
+}
+.network-tabnav__label {
+    /* Truncate if the label is so long it would otherwise push the
+       count chip off the pill. Three letters of margin protect
+       against languages with longer translations of "Following". */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 18ch;
+}
+.network-tabnav__count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    height: 20px;
+    padding: 0 7px;
+    border-radius: 999px;
+    font-size: 0.7rem;
+    font-weight: 800;
+    line-height: 1;
+}
+
+/* ── Mobile shrink ─────────────────────────────────────────────
+   Below 480px the three pills + count chips were spilling past
+   the viewport edge. Tighter padding + smaller font keep the row
+   on one line on iPhone SE (320px) through iPhone 14 Pro Max
+   (430px). Below 360px we drop the count chip entirely since the
+   tab label alone needs the real estate. */
+@media (max-width: 480px) {
+    .network-tabnav {
+        gap: 2px;
+        padding: 4px;
+        width: 100%;
+        max-width: 100%;
+        justify-content: space-between;
+    }
+    .network-tabnav__tab {
+        gap: 4px;
+        padding: 7px 10px;
+        font-size: 0.78rem;
+        /* Equal flex so each pill takes a third of the row — no
+           runt pill at the end when the labels are short. */
+        flex: 1 1 0;
+        justify-content: center;
+        min-width: 0;
+    }
+    .network-tabnav__label {
+        /* Allow a tighter ellipsis on phone — long localised labels
+           like Portuguese "Seguidores" already fit, but Russian /
+           German variants could need it. */
+        max-width: 12ch;
+    }
+    .network-tabnav__count {
+        min-width: 18px;
+        height: 18px;
+        padding: 0 5px;
+        font-size: 0.62rem;
+    }
+}
+@media (max-width: 359px) {
+    .network-tabnav__count {
+        display: none;
+    }
+}

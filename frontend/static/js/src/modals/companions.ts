@@ -128,7 +128,12 @@ export const openCompanionPickerModal = (tripId: string) => {
 
     const { root, close } = showModal({
         variant: 'glass-light',
-        cardStyle: 'width: 520px; max-height: 80vh; display: flex; flex-direction: column;',
+        // 2026-05-19: `width: 520px` was overflowing on phones below
+        // 540px viewport (iPhone SE through 14 Pro Max). Use `min()`
+        // to cap at 520px on desktop but fall back to `calc(100vw -
+        // 24px)` on narrow screens so the modal always has a 12px
+        // gutter on each side instead of being pinned to the edges.
+        cardStyle: 'width: min(520px, calc(100vw - 24px)); max-width: 100%; max-height: 85vh; display: flex; flex-direction: column;',
         innerHTML: `
             <h2 style="margin: 0 0 var(--space-2); font-size: var(--font-2xl); color: #002d5b; font-weight: 800; letter-spacing: -0.03em;">Trip Companions</h2>
             <p style="margin: 0 0 var(--space-5); font-size: var(--font-base); color: rgba(0,0,0,0.55);">
@@ -352,7 +357,8 @@ export const openTripMembersModal = (tripId: string) => {
 
     const { root, close } = showModal({
         variant: 'glass-light',
-        cardStyle: 'width: 460px; max-height: 80vh; display: flex; flex-direction: column;',
+        // 2026-05-19: same mobile-fit pattern as the picker modal above.
+        cardStyle: 'width: min(460px, calc(100vw - 24px)); max-width: 100%; max-height: 85vh; display: flex; flex-direction: column;',
         innerHTML: `
             <h2 style="margin: 0 0 var(--space-2); font-size: var(--font-2xl); color: #002d5b; font-weight: 800; letter-spacing: -0.03em;">Trip members</h2>
             <p style="margin: 0 0 var(--space-5); font-size: var(--font-base); color: rgba(0,0,0,0.55);">

@@ -1,0 +1,91 @@
+.network-tabnav {
+    -webkit-backdrop-filter: blur(14px) saturate(160%);
+    background: #ffffffb8;
+    border: 1px solid #002d5b14;
+    border-radius: 999px;
+    align-items: center;
+    gap: 4px;
+    max-width: 100%;
+    padding: 5px;
+    display: inline-flex;
+    box-shadow: 0 4px 14px #002d5b0f;
+}
+.network-tabnav__tab {
+    color: var(--text-secondary);
+    cursor: pointer;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+    background: 0 0;
+    border: 0;
+    border-radius: 999px;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    transition:
+        background 0.2s,
+        color 0.2s,
+        box-shadow 0.2s,
+        transform 0.18s;
+    display: inline-flex;
+}
+.network-tabnav__tab:hover:not(.is-active),
+.network-tabnav__tab:focus-visible:not(.is-active) {
+    color: var(--accent-blue);
+    background: #0071e30f;
+}
+.network-tabnav__tab.is-active {
+    color: #fff;
+    background: linear-gradient(135deg, var(--accent-blue), #5856d6);
+    font-weight: 800;
+    box-shadow: 0 4px 12px #0071e347;
+}
+.network-tabnav__label {
+    text-overflow: ellipsis;
+    max-width: 18ch;
+    overflow: hidden;
+}
+.network-tabnav__count {
+    border-radius: 999px;
+    justify-content: center;
+    align-items: center;
+    min-width: 22px;
+    height: 20px;
+    padding: 0 7px;
+    font-size: 0.7rem;
+    font-weight: 800;
+    line-height: 1;
+    display: inline-flex;
+}
+@media (width<=480px) {
+    .network-tabnav {
+        justify-content: space-between;
+        gap: 2px;
+        width: 100%;
+        max-width: 100%;
+        padding: 4px;
+    }
+    .network-tabnav__tab {
+        flex: 1 1 0;
+        justify-content: center;
+        gap: 4px;
+        min-width: 0;
+        padding: 7px 10px;
+        font-size: 0.78rem;
+    }
+    .network-tabnav__label {
+        max-width: 12ch;
+    }
+    .network-tabnav__count {
+        min-width: 18px;
+        height: 18px;
+        padding: 0 5px;
+        font-size: 0.62rem;
+    }
+}
+@media (width<=359px) {
+    .network-tabnav__count {
+        display: none;
+    }
+}

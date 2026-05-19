@@ -16,7 +16,10 @@ import { apiFetch } from '../../api.js';
 import { showLiquidAlert, showConfirmModal } from '../../utils.js';
 import { EmptyState } from '../../react/components/EmptyState.js';
 import { Avatar } from '../../react/components/Avatar.js';
-import { t, tn } from '../../i18n.js';
+import { t } from '../../i18n.js';
+// Per-page CSS — co-located so /friends works standalone without
+// depending on home.css being preloaded for the segmented tab bar.
+import './friends.css';
 
 interface FriendRow {
     id: string;
@@ -295,29 +298,12 @@ export function Friends() {
                 </p>
             </div>
 
-            {/* Stat chips — three buckets, all visible. Mutuals
-                (the friends label) gets the brand-blue accent; the
-                one-way buckets get neutral chip styling. */}
-            <div className="mt-4 flex gap-[10px] flex-wrap">
-                <span
-                    className="inline-flex items-center gap-2 bg-[rgba(0,113,227,0.08)] text-accent-blue-deep py-1.5 px-3.5 rounded-full text-[0.82rem] font-extrabold"
-                >
-                    <span className="fr-icon-glyph">👥</span>
-                    {mutuals.length} {tn('profile.friendsLabel', mutuals.length)}
-                </span>
-                <span
-                    className="inline-flex items-center gap-2 bg-[rgba(0,0,0,0.04)] text-brand-navy py-1.5 px-3.5 rounded-full text-[0.82rem] font-extrabold"
-                >
-                    <span className="fr-icon-glyph">👋</span>
-                    {followers.length + mutuals.length} followers
-                </span>
-                <span
-                    className="inline-flex items-center gap-2 bg-[rgba(0,0,0,0.04)] text-brand-navy py-1.5 px-3.5 rounded-full text-[0.82rem] font-extrabold"
-                >
-                    <span className="fr-icon-glyph">🧭</span>
-                    {following.length + mutuals.length} following
-                </span>
-            </div>
+            {/* 2026-05-19: the old stat-chip strip (👥 N friends,
+                👋 N followers, 🧭 N following) was removed because
+                the new tab bar below also carries per-bucket counts
+                with the same emojis — keeping both made the page
+                read as "the same info twice" and the duplicated 👋
+                / 🧭 / 👥 glyphs looked like a UI bug on mobile. */}
 
             {/* Search section */}
             <div
@@ -439,33 +425,24 @@ export function Friends() {
                 app. Each tab carries a small count chip so the bucket
                 size is legible without clicking in. */}
             <div className="trip-tabnav-wrap" role="tablist" aria-label="Network filter">
-                <nav className="trip-tabnav">
+                <nav className="trip-tabnav network-tabnav">
                     {([
-                        { id: 'followers', label: t('friends.followersOnlyTitle'), emoji: '👋', count: followers.length },
-                        { id: 'following', label: t('friends.followingOnlyTitle'), emoji: '🧭', count: following.length },
-                        { id: 'friends',   label: t('friends.friendsTitle'),       emoji: '🤝', count: mutuals.length },
-                    ] as Array<{ id: NetworkTab; label: string; emoji: string; count: number }>).map((tab) => (
+                        { id: 'followers', label: t('friends.followersOnlyTitle'), short: 'Followers', count: followers.length },
+                        { id: 'following', label: t('friends.followingOnlyTitle'), short: 'Following', count: following.length },
+                        { id: 'friends',   label: t('friends.friendsTitle'),       short: 'Friends',   count: mutuals.length },
+                    ] as Array<{ id: NetworkTab; label: string; short: string; count: number }>).map((tab) => (
                         <button
                             key={tab.id}
                             type="button"
                             role="tab"
                             aria-selected={networkTab === tab.id}
-                            className={`trip-tabnav__tab${networkTab === tab.id ? ' is-active' : ''}`}
+                            className={`trip-tabnav__tab network-tabnav__tab${networkTab === tab.id ? ' is-active' : ''}`}
                             onClick={() => switchNetworkTab(tab.id)}
                         >
-                            <span style={{ fontSize: '1rem', lineHeight: 1 }} aria-hidden="true">{tab.emoji}</span>
-                            <span>{tab.label}</span>
+                            <span className="network-tabnav__label">{tab.short}</span>
                             <span
+                                className="network-tabnav__count"
                                 style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    minWidth: 22,
-                                    height: 20,
-                                    padding: '0 7px',
-                                    borderRadius: 999,
-                                    fontSize: '0.7rem',
-                                    fontWeight: 800,
                                     background: networkTab === tab.id ? 'rgba(255,255,255,0.22)' : 'rgba(0,113,227,0.10)',
                                     color: networkTab === tab.id ? 'white' : 'var(--accent-blue)',
                                 }}
