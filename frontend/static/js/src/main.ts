@@ -153,6 +153,51 @@ async function init() {
     // live for the document lifetime.
     setupInstallPrompt();
 
+    // 2026-05-19: built-in diagnostic for the user-reported "mobile
+    // bottom-nav doesn't show up" issue. Append `?debug=botbar` to
+    // the URL on any device and an alert pops up with the exact
+    // state of the .mobile-bottom-nav element. Plus the bar gets a
+    // RED border + YELLOW background so it's impossible to miss
+    // visually if it IS painted but somehow invisible. Self-contained
+    // and gated on the query string — zero footprint for normal use.
+    if (window.location.search.includes('debug=botbar')) {
+        // Slight delay so any post-init layout settles first.
+        setTimeout(() => {
+            const nav = document.querySelector('.mobile-bottom-nav') as HTMLElement | null;
+            if (!nav) {
+                alert('🔴 BOTBAR DEBUG\n\nThe .mobile-bottom-nav element is NOT in the DOM at all.\nViewport: ' + window.innerWidth + 'x' + window.innerHeight + '\nUA: ' + navigator.userAgent.slice(0, 80));
+                return;
+            }
+            // Make it impossible to miss visually.
+            nav.style.border = '4px solid red';
+            nav.style.background = 'yellow';
+            const cs = window.getComputedStyle(nav);
+            const rect = nav.getBoundingClientRect();
+            const isSignedOut = document.body.classList.contains('is-signed-out');
+            // What's covering its center point?
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
+            const elAtCenter = document.elementFromPoint(centerX, centerY);
+            const elAtCenterPath = elAtCenter
+                ? elAtCenter.tagName + '.' + (elAtCenter.className || '').toString().slice(0, 60)
+                : '(none)';
+            alert('🔴 BOTBAR DEBUG\n\n' +
+                'Viewport: ' + window.innerWidth + ' x ' + window.innerHeight + '\n' +
+                'body.is-signed-out: ' + isSignedOut + '\n' +
+                'display: ' + cs.display + '\n' +
+                'visibility: ' + cs.visibility + '\n' +
+                'opacity: ' + cs.opacity + '\n' +
+                'position: ' + cs.position + '\n' +
+                'bottom: ' + cs.bottom + '\n' +
+                'z-index: ' + cs.zIndex + '\n' +
+                'transform: ' + cs.transform + '\n' +
+                'rect: ' + Math.round(rect.left) + ',' + Math.round(rect.top) + ' ' + Math.round(rect.width) + 'x' + Math.round(rect.height) + '\n' +
+                'el at center point: ' + elAtCenterPath + '\n' +
+                '(Red border + yellow bg applied — if you see them, the bar is just hidden by computed style.)'
+            );
+        }, 500);
+    }
+
     setInterval(() => {
         // FIXING_ROADMAP §1.8 — skip the poll when the tab isn't
         // visible. A user with the app open in a background tab was

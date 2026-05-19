@@ -1215,9 +1215,6 @@
         flex: 100%;
         width: 100%;
     }
-    .path-cards-row:not(.path-cards-row--solo-anchor) .path-column--anchor {
-        display: none;
-    }
 }
 .path-chips .path-chip--anchor {
     z-index: 2;
