@@ -315,6 +315,13 @@ export function buildPathTabHtml(ctx: PathTabContext): string {
             </div>
         `);
     }
+    // 2026-05-19: when only the Anchor column renders (no numbered
+    // day selected, or selected day IS the anchor), tag the row with
+    // `--solo-anchor` so CSS can stretch the anchor column to 100%
+    // width. Default 32% leaves a wide empty right gap that read as
+    // a broken layout.
+    const soloAnchor = columns.length === 1;
+    const rowClass = `path-cards-row${soloAnchor ? ' path-cards-row--solo-anchor' : ''}`;
     return `
         <div class="path-strip">
             <button type="button" class="path-nav-btn" id="pathPrevBtn" title="Previous day" aria-label="Previous day" ${prevDisabled ? 'disabled' : ''}>
@@ -329,6 +336,6 @@ export function buildPathTabHtml(ctx: PathTabContext): string {
             </button>
         </div>
         <div class="path-summary">${esc(summaryText)}</div>
-        <div class="path-cards-row">${columns.join('')}</div>
+        <div class="${rowClass}">${columns.join('')}</div>
     `;
 }

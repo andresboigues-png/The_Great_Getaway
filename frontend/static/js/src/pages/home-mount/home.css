@@ -1514,6 +1514,12 @@
 }
 .path-column--anchor { flex: 0 0 32%; }
 .path-column--selected { flex: 1 1 auto; }
+/* 2026-05-19: when no numbered day is selected and the Anchor is
+   the only column in the row, stretch it to fill the full width
+   instead of sitting at 32% with a wide empty right gap. The
+   `--solo-anchor` modifier is added by buildPathTabHtml() when
+   columns.length === 1. */
+.path-cards-row--solo-anchor .path-column--anchor { flex: 1 1 100%; }
 @media (max-width: 720px) {
     .path-cards-row { flex-direction: column; }
     /* Both columns stretch full-width on mobile so the Anchor card
@@ -1527,6 +1533,28 @@
         flex: 1 1 100%;
         width: 100%;
     }
+    /* 2026-05-19: on mobile when a numbered day IS selected (both
+       columns render), hide the Anchor card so the screen isn't
+       eaten by a redundant Anchor block stacked above the day the
+       user actually clicked to see. The Anchor chip in the strip
+       above stays visible so they can tap back to it.
+       When only the Anchor is selected (--solo-anchor) the row has
+       a single column, the :not() guard lets it stay visible. */
+    .path-cards-row:not(.path-cards-row--solo-anchor) .path-column--anchor {
+        display: none;
+    }
+}
+
+/* 2026-05-19: keep the Anchor chip pinned to the left edge of the
+   day strip on any viewport — when there are enough days that the
+   chip strip overflows horizontally, scrolling right was hiding the
+   Anchor. Sticky-positioning the anchor chip means it stays in view
+   regardless of scroll position so the user can always jump back
+   to the trip headquarters. */
+.path-chips .path-chip--anchor {
+    position: sticky;
+    left: 0;
+    z-index: 2;
 }
 
 .path-card {

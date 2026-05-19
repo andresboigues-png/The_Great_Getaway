@@ -120,6 +120,19 @@ function UserCard({ user, variant = 'neutral', onClick, rightSide, rowClass = ''
     );
 }
 
+// 2026-05-19: segmented-tab state for the Followers/Following/Friends
+// switcher. localStorage-persisted so the user's last-viewed bucket
+// survives reload.
+type NetworkTab = 'followers' | 'following' | 'friends';
+const NETWORK_TAB_KEY = 'network_tab';
+function loadNetworkTab(): NetworkTab {
+    try {
+        const v = localStorage.getItem(NETWORK_TAB_KEY);
+        if (v === 'followers' || v === 'following' || v === 'friends') return v;
+    } catch { /* localStorage may be unavailable */ }
+    return 'friends';
+}
+
 export function Friends() {
     const navigate = useNavigate();
     const user = useStore((s) => s.user);
@@ -131,6 +144,17 @@ export function Friends() {
     const [followers, setFollowers] = useState<FriendRow[]>([]);
     const [following, setFollowing] = useState<FriendRow[]>([]);
     const [mutuals, setMutuals] = useState<FriendRow[]>([]);
+
+    // 2026-05-19: segmented tab bar replaces the three stacked
+    // <NetworkSection> cards. Persisted to localStorage so the user's
+    // last-viewed bucket survives page reload / navigation. Defaults
+    // to 'friends' (mutuals) — the most-relevant bucket for users
+    // who land here to see their actual social connections.
+    const [networkTab, setNetworkTab] = useState<NetworkTab>(() => loadNetworkTab());
+    const switchNetworkTab = (tab: NetworkTab) => {
+        setNetworkTab(tab);
+        try { localStorage.setItem(NETWORK_TAB_KEY, tab); } catch { /* private mode */ }
+    };
 
     const [searchQuery, setSearchQuery] = useState('');
     const [searchStatus, setSearchStatus] = useState<SearchStatus>({ kind: 'idle' });
@@ -409,70 +433,112 @@ export function Friends() {
                 </div>
             </div>
 
-            {/* Section 1 — Followers (one-way in). People who follow
-                me but I don't follow back. Each row shows a "Follow
-                back" button that promotes the relationship to mutual
-                (i.e. the person moves into the Friends section on the
-                next refresh). Clicking the row navigates to their
-                profile, same as the other sections. */}
-            <NetworkSection
-                title={t('friends.followersOnlyTitle')}
-                hint={t('friends.followersOnlyHint')}
-                rows={followers}
-                emptyTitle={t('friends.followersOnlyEmptyTitle')}
-                emptyBody={t('friends.followersOnlyEmptyBody')}
-                emoji="👋"
-                onRowClick={(u) => navigate('profile', { userId: u.id })}
-                renderRowAction={(u) => (
-                    <button
-                        type="button"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            followUser(u.id);
-                        }}
-                        className="bg-accent-blue text-white border-0 py-[7px] px-3.5 rounded-full font-extrabold text-[0.76rem] cursor-pointer shrink-0 shadow-[0_4px_12px_rgba(0,113,227,0.22)]"
-                    >
-                        {t('friends.followBackBtn')}
-                    </button>
-                )}
-            />
+            {/* 2026-05-19: segmented tab bar — reuses the
+                `.trip-tabnav` capsule shell (Path/Companions toggle in
+                home.css) so the visual rhythm matches the rest of the
+                app. Each tab carries a small count chip so the bucket
+                size is legible without clicking in. */}
+            <div className="trip-tabnav-wrap" role="tablist" aria-label="Network filter">
+                <nav className="trip-tabnav">
+                    {([
+                        { id: 'followers', label: t('friends.followersOnlyTitle'), emoji: '👋', count: followers.length },
+                        { id: 'following', label: t('friends.followingOnlyTitle'), emoji: '🧭', count: following.length },
+                        { id: 'friends',   label: t('friends.friendsTitle'),       emoji: '🤝', count: mutuals.length },
+                    ] as Array<{ id: NetworkTab; label: string; emoji: string; count: number }>).map((tab) => (
+                        <button
+                            key={tab.id}
+                            type="button"
+                            role="tab"
+                            aria-selected={networkTab === tab.id}
+                            className={`trip-tabnav__tab${networkTab === tab.id ? ' is-active' : ''}`}
+                            onClick={() => switchNetworkTab(tab.id)}
+                        >
+                            <span style={{ fontSize: '1rem', lineHeight: 1 }} aria-hidden="true">{tab.emoji}</span>
+                            <span>{tab.label}</span>
+                            <span
+                                style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    minWidth: 22,
+                                    height: 20,
+                                    padding: '0 7px',
+                                    borderRadius: 999,
+                                    fontSize: '0.7rem',
+                                    fontWeight: 800,
+                                    background: networkTab === tab.id ? 'rgba(255,255,255,0.22)' : 'rgba(0,113,227,0.10)',
+                                    color: networkTab === tab.id ? 'white' : 'var(--accent-blue)',
+                                }}
+                            >
+                                {tab.count}
+                            </span>
+                        </button>
+                    ))}
+                </nav>
+            </div>
 
-            {/* Section 2 — Following (one-way out). People I follow
-                who don't follow me back. Action button: Unfollow. */}
-            <NetworkSection
-                title={t('friends.followingOnlyTitle')}
-                hint={t('friends.followingOnlyHint')}
-                rows={following}
-                emptyTitle={t('friends.followingOnlyEmptyTitle')}
-                emptyBody={t('friends.followingOnlyEmptyBody')}
-                emoji="🧭"
-                onRowClick={(u) => navigate('profile', { userId: u.id })}
-                renderRowAction={(u) => (
-                    <UnfollowButton
-                        onClick={() => unfollowUser(u.id, u.name || u.email || 'this user')}
-                    />
-                )}
-            />
+            {/* Active bucket — only one of the three renders at a
+                time. Anchor / Following / Friends share the same
+                <NetworkSection> shell so action buttons, empty states
+                and row layout match across tabs. */}
+            {networkTab === 'followers' && (
+                <NetworkSection
+                    title={t('friends.followersOnlyTitle')}
+                    hint={t('friends.followersOnlyHint')}
+                    rows={followers}
+                    emptyTitle={t('friends.followersOnlyEmptyTitle')}
+                    emptyBody={t('friends.followersOnlyEmptyBody')}
+                    emoji="👋"
+                    onRowClick={(u) => navigate('profile', { userId: u.id })}
+                    renderRowAction={(u) => (
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                followUser(u.id);
+                            }}
+                            className="bg-accent-blue text-white border-0 py-[7px] px-3.5 rounded-full font-extrabold text-[0.76rem] cursor-pointer shrink-0 shadow-[0_4px_12px_rgba(0,113,227,0.22)]"
+                        >
+                            {t('friends.followBackBtn')}
+                        </button>
+                    )}
+                />
+            )}
 
-            {/* Section 3 — Friends (mutuals). The Model B equivalent
-                of pre-fix friends — mutual-follow pairs. Unfollow
-                here demotes them to a one-way follower (they still
-                follow me, I no longer follow them). */}
-            <NetworkSection
-                title={t('friends.friendsTitle')}
-                hint={t('friends.friendsHint')}
-                rows={mutuals}
-                emptyTitle={t('friends.friendsEmptyTitle')}
-                emptyBody={t('friends.friendsEmptyBody')}
-                emoji="🤝"
-                emptyAccent="blue"
-                onRowClick={(u) => navigate('profile', { userId: u.id })}
-                renderRowAction={(u) => (
-                    <UnfollowButton
-                        onClick={() => unfollowUser(u.id, u.name || u.email || 'this friend')}
-                    />
-                )}
-            />
+            {networkTab === 'following' && (
+                <NetworkSection
+                    title={t('friends.followingOnlyTitle')}
+                    hint={t('friends.followingOnlyHint')}
+                    rows={following}
+                    emptyTitle={t('friends.followingOnlyEmptyTitle')}
+                    emptyBody={t('friends.followingOnlyEmptyBody')}
+                    emoji="🧭"
+                    onRowClick={(u) => navigate('profile', { userId: u.id })}
+                    renderRowAction={(u) => (
+                        <UnfollowButton
+                            onClick={() => unfollowUser(u.id, u.name || u.email || 'this user')}
+                        />
+                    )}
+                />
+            )}
+
+            {networkTab === 'friends' && (
+                <NetworkSection
+                    title={t('friends.friendsTitle')}
+                    hint={t('friends.friendsHint')}
+                    rows={mutuals}
+                    emptyTitle={t('friends.friendsEmptyTitle')}
+                    emptyBody={t('friends.friendsEmptyBody')}
+                    emoji="🤝"
+                    emptyAccent="blue"
+                    onRowClick={(u) => navigate('profile', { userId: u.id })}
+                    renderRowAction={(u) => (
+                        <UnfollowButton
+                            onClick={() => unfollowUser(u.id, u.name || u.email || 'this friend')}
+                        />
+                    )}
+                />
+            )}
         </div>
     );
 }

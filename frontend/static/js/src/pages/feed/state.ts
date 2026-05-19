@@ -131,7 +131,11 @@ export function ensureExploreLoaded(onResolve: () => void): Promise<void> {
             const res = await fetchExploreFeed();
             if (res.error) {
                 console.warn('explore fetch failed:', res.error);
-                _explore = [];
+                // 2026-05-19: leave `_explore` at its current value
+                // (null on first load) so the next tab-switch retries
+                // the fetch instead of caching the failure as []. The
+                // old behaviour locked the user into an empty Explore
+                // until full page reload.
             } else {
                 _explore = res.items || [];
             }

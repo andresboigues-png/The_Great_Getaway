@@ -147,6 +147,16 @@ export function Feed() {
             }
         };
         refresh();
+        // 2026-05-19: if the user's saved tab IS 'explore', we land
+        // here with `_explore === null` and the existing tab-switch
+        // handler (onSwitchTab) never fires because tab didn't
+        // change. Kick the Explore fetch on mount so the tab paints
+        // with data on first visit instead of spinning forever.
+        if (activeTab === 'explore' && explore === null) {
+            ensureExploreLoaded(() => {
+                setExplore(getCachedExplore());
+            });
+        }
     }, []);
 
     // ── Avatar click delegation ──────────────────────────────────

@@ -277,7 +277,15 @@ def explore_feed():
             views = r["share_views"] or 0
             engagement_bonus = 1.0 + math.log1p(views) * 0.3
 
-            recency_factor = 0.0
+            # 2026-05-19: previously this used a 60-day linear decay
+            # to zero — every trip older than 2 months got `score = 0`
+            # and was DROPPED entirely by the `if score <= 0` guard
+            # below. With a small share base that wiped out the whole
+            # Explore feed for users seeing nothing. Now decay over
+            # 180 days with a 0.15 floor so old-but-shareable trips
+            # still surface (ranked below recent ones), and we no
+            # longer drop trips for score-zero reasons.
+            recency_factor = 0.15
             try:
                 created = datetime.fromisoformat(
                     (r["created_at"] or "").replace(" ", "T")
@@ -285,15 +293,13 @@ def explore_feed():
                 if created.tzinfo is None:
                     created = created.replace(tzinfo=timezone.utc)
                 age_days = max(0.0, (now - created).total_seconds() / 86400.0)
-                recency_factor = max(0.0, 1.0 - age_days / 60.0)
+                recency_factor = max(0.15, 1.0 - age_days / 180.0)
             except (ValueError, TypeError):
-                # Legacy / malformed timestamp — score it as borderline
-                # so it can still surface if engagement is high.
-                recency_factor = 0.1
+                # Legacy / malformed timestamp — leave at the floor so
+                # it can still surface if engagement is high.
+                pass
 
             score = recency_factor * country_factor * engagement_bonus
-            if score <= 0:
-                continue
 
             owner_name = r["owner_name"] or "Someone"
             scored.append((score, {

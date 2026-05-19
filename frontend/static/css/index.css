@@ -757,8 +757,18 @@ h1 {
     position: fixed;
     top: 0;
     left: 0;
-    width: 300px;
+    /* 2026-05-19: cap the drawer width to leave at least 36px of the
+       viewport visible on small phones — iPhone SE at 320px viewport
+       was rendering a 300px drawer with only 20px tap-to-dismiss
+       gutter, which read as "fullscreen takeover" and made the user
+       feel trapped. `min()` falls back gracefully on older browsers
+       since both args resolve to a length. */
+    width: min(300px, calc(100vw - 36px));
+    /* 100dvh accounts for the dynamic viewport (URL bar collapsing
+       in mobile Safari) so the last sidebar items aren't cut off
+       behind the chrome. Fallback to 100vh on browsers without dvh. */
     height: 100vh;
+    height: 100dvh;
     z-index: 1999;
     transform: translateX(-100%);
     /* Spring-flavoured easing (easeOutExpo-ish): fast off the line and
@@ -767,13 +777,17 @@ h1 {
        gives the staggered content fade-in below room to land before the
        panel itself fully settles. */
     transition: transform 0.38s cubic-bezier(0.22, 1, 0.36, 1);
-    padding: 24px 20px;
+    /* Bottom padding includes safe-area + extra room so Settings (the
+       last item in the drawer on mobile) clears the home-indicator
+       and the bottom-tab nav strip when both are open at once. */
+    padding: 24px 20px calc(28px + env(safe-area-inset-bottom));
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
     border-right: 1px solid var(--glass-border);
     border-bottom: none;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 /* ── Sidebar rail (desktop-only quick-nav strip) ─────────────────────
@@ -3921,18 +3935,33 @@ main#app-container.nav-anim-backward {
        bottom-tab nav is the topmost layer for normal page reads
        while drawers/modals can still cover it when open. */
     .mobile-bottom-nav {
-        display: flex;
+        /* 2026-05-19: bumped to `display: flex !important` because a
+           user-reported regression had the bar invisible on a logged-
+           in mobile session. Some legacy utility class or specificity
+           ladder was overriding the base `display: flex` here; making
+           the activate-on-mobile rule explicit-important so the bar
+           always paints. The only intentional hide is the
+           `body.is-signed-out` block above, which still wins because
+           that rule also uses !important. */
+        display: flex !important;
         position: fixed;
         left: 0;
         right: 0;
         bottom: 0;
-        background: rgba(255, 255, 255, 0.92);
+        background: rgba(255, 255, 255, 0.96);
         backdrop-filter: saturate(180%) blur(20px);
         -webkit-backdrop-filter: saturate(180%) blur(20px);
         border-top: 1px solid rgba(0, 0, 0, 0.08);
         padding: 4px 0 calc(4px + env(safe-area-inset-bottom));
         z-index: 1500;
         box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.06);
+        /* Visibility fallbacks — on iOS Safari a stale GPU compositing
+           layer can leave the bar painted at zero opacity. These
+           explicit declarations defeat any leftover transform/opacity
+           inheritance from animation libraries. */
+        opacity: 1;
+        visibility: visible;
+        pointer-events: auto;
     }
 
     /* Push main content above the bottom nav so the last row of
