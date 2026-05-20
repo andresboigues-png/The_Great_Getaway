@@ -153,6 +153,48 @@ async function init() {
     // live for the document lifetime.
     setupInstallPrompt();
 
+    // 2026-05-20: diagnostic for the "Couldn't... try again later"
+    // mobile-wide failure. Append `?debug=api` to any URL; 800ms after
+    // init, an alert reports: are you logged in (STATE.user set)? do
+    // visible cookies exist? does a test API call succeed? what HTTP
+    // status do we get? Gives us enough to triangulate auth-cookie
+    // problems on iOS Safari ITP without DevTools.
+    if (window.location.search.includes('debug=api')) {
+        setTimeout(async () => {
+            const ua = (navigator.userAgent || '').slice(0, 80);
+            const isLoggedIn = !!STATE.user;
+            const userInfo = STATE.user ? `${STATE.user.name} <${STATE.user.email}>` : '(none)';
+            // document.cookie shows only non-HttpOnly cookies. The
+            // auth cookie is HttpOnly so it WON'T appear here — but
+            // a non-empty result tells us cookies work at all.
+            const visibleCookies = document.cookie || '(no visible cookies)';
+            // Test request — hits an auth-gated endpoint. If the auth
+            // cookie IS reaching the server, this returns 200/304. If
+            // not, 401. If the server can't even be reached, throws.
+            let testResult = '(not run)';
+            try {
+                const r = await fetch('/api/data', { credentials: 'include' });
+                testResult = `HTTP ${r.status} ${r.ok ? 'OK' : '(NOT OK)'}`;
+                if (!r.ok) {
+                    let body = '';
+                    try { body = await r.text(); } catch { /* ignore */ }
+                    testResult += `\nbody: ${body.slice(0, 200)}`;
+                }
+            } catch (e) {
+                testResult = `THREW: ${String(e).slice(0, 200)}`;
+            }
+            alert('🔵 API DEBUG\n\n' +
+                'STATE.user: ' + (isLoggedIn ? 'YES' : 'NO') + '\n' +
+                'user: ' + userInfo + '\n' +
+                'visible cookies: ' + visibleCookies.slice(0, 200) + '\n' +
+                'origin: ' + window.location.origin + '\n' +
+                'protocol: ' + window.location.protocol + '\n' +
+                'test /api/data: ' + testResult + '\n' +
+                'UA: ' + ua,
+            );
+        }, 800);
+    }
+
     setInterval(() => {
         // FIXING_ROADMAP §1.8 — skip the poll when the tab isn't
         // visible. A user with the app open in a background tab was

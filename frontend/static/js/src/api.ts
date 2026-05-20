@@ -107,11 +107,28 @@ export async function apiFetch(path: string, options: RequestInit = {}): Promise
         credentials: 'include',
     };
     if (inheritedSignal) merged.signal = inheritedSignal;
-    const res = await fetch(url, merged);
+    let res: Response;
+    try {
+        res = await fetch(url, merged);
+    } catch (e) {
+        // Network-level failure (offline, DNS, CORS). Log + rethrow so
+        // callers' try/catch still runs.
+        console.error('[apiFetch] network failure', { url, method: options.method || 'GET', err: String(e) });
+        throw e;
+    }
     if (res.status === 401 && STATE.user) {
+        // 2026-05-20 diagnostic: log the path so we can see WHICH
+        // endpoint is rejecting the session. Helps narrow down whether
+        // it's a global cookie-miss (every call 401s) or one specific
+        // route that's permission-gated.
+        console.warn('[apiFetch] 401 — clearing session', { url, method: options.method || 'GET' });
         clearAuthToken();
         STATE.user = null;
         emit(EVENTS.STATE_CHANGED);
+    } else if (!res.ok) {
+        // Log 4xx/5xx so a user reporting "X doesn't work" can share
+        // the console output and we can see which call is failing.
+        console.warn('[apiFetch] non-ok response', { url, method: options.method || 'GET', status: res.status });
     }
     return res;
 }
