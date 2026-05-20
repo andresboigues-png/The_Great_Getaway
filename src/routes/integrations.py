@@ -197,11 +197,14 @@ def _verify_place(query: str, destination: str, api_key: str) -> dict | None:
             ),
         }
         payload = {"textQuery": text_query, "maxResultCount": 1}
-        resp = requests.post(url, headers=headers, json=payload, timeout=8)
-        if not resp.ok:
-            logger.info(f"Places verification miss ({resp.status_code}) for: {text_query}")
-            return None
-        data = resp.json()
+        # 2026-05-20: wrap in `with` to release the socket on exit —
+        # prevents FD accumulation under sustained Places verification
+        # traffic.
+        with requests.post(url, headers=headers, json=payload, timeout=8) as resp:
+            if not resp.ok:
+                logger.info(f"Places verification miss ({resp.status_code}) for: {text_query}")
+                return None
+            data = resp.json()
         places = data.get("places", [])
         if not places:
             return None
@@ -544,17 +547,19 @@ def generate_itinerary():
                     },
                 }
 
-                resp = requests.post(url, headers=headers, json=payload, timeout=30)
-                # Capture Google's error body before raising — a bare HTTPError
-                # message ("503 Server Error") hides the actual reason.
-                if not resp.ok:
-                    try:
-                        err_body = resp.json().get("error", {})
-                        raise RuntimeError(f"{err_body.get('status', resp.status_code)}: {err_body.get('message', resp.text[:200])}")
-                    except ValueError:
-                        raise RuntimeError(f"HTTP {resp.status_code}: {resp.text[:200]}")
+                # 2026-05-20: `with` ensures the socket is released on
+                # exit so Gemini's long generations don't pile up FDs.
+                with requests.post(url, headers=headers, json=payload, timeout=30) as resp:
+                    # Capture Google's error body before raising — a bare HTTPError
+                    # message ("503 Server Error") hides the actual reason.
+                    if not resp.ok:
+                        try:
+                            err_body = resp.json().get("error", {})
+                            raise RuntimeError(f"{err_body.get('status', resp.status_code)}: {err_body.get('message', resp.text[:200])}")
+                        except ValueError:
+                            raise RuntimeError(f"HTTP {resp.status_code}: {resp.text[:200]}")
 
-                result = resp.json()
+                    result = resp.json()
                 result_text = result.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "[]")
                 if result_text:
                     break

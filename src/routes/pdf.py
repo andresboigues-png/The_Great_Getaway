@@ -169,19 +169,24 @@ def _fetch_cover_map(lat: float | None, lng: float | None, place_id: str | None)
             "maptype": "roadmap",
             "key": key,
         }
-        res = requests.get(
+        # 2026-05-20: wrap in `with` so the response socket is
+        # released immediately. Without it the keep-alive socket
+        # stays in the requests-library pool until GC; under heavy
+        # PDF export traffic that piles up FDs and trips the dev
+        # server's ulimit (Errno 24 Too many open files).
+        with requests.get(
             "https://maps.googleapis.com/maps/api/staticmap",
             params=params,
             timeout=10,
-        )
-        if not res.ok:
-            logger.warning(
-                "pdf cover map: Google Static Maps returned %d — %s",
-                res.status_code,
-                (res.text or "")[:300],
-            )
-            return None
-        return res.content
+        ) as res:
+            if not res.ok:
+                logger.warning(
+                    "pdf cover map: Google Static Maps returned %d — %s",
+                    res.status_code,
+                    (res.text or "")[:300],
+                )
+                return None
+            return res.content
     except Exception as e:
         logger.warning("pdf cover map: fetch failed: %s", e)
         return None
@@ -239,23 +244,27 @@ def _fetch_overview_pins_map(
             marker = f"color:0x0071e3|label:{safe_label}|{plat},{plng}" if safe_label \
                 else f"color:0x0071e3|{plat},{plng}"
             params.append(("markers", marker))
-        res = requests.get(
+        # 2026-05-20: see note on the cover-map fetch above —
+        # `with requests.get(...)` releases the socket immediately
+        # on exit to keep the FD pool from growing under heavy
+        # PDF export traffic.
+        with requests.get(
             "https://maps.googleapis.com/maps/api/staticmap",
             params=params,
             timeout=10,
-        )
-        if not res.ok:
-            logger.warning(
-                "pdf overview map: Google Static Maps returned %d — %s",
-                res.status_code,
-                (res.text or "")[:300],
+        ) as res:
+            if not res.ok:
+                logger.warning(
+                    "pdf overview map: Google Static Maps returned %d — %s",
+                    res.status_code,
+                    (res.text or "")[:300],
+                )
+                return None
+            logger.info(
+                "pdf overview map: fetched %d pin(s), %d bytes",
+                len(pins), len(res.content),
             )
-            return None
-        logger.info(
-            "pdf overview map: fetched %d pin(s), %d bytes",
-            len(pins), len(res.content),
-        )
-        return res.content
+            return res.content
     except Exception as e:
         logger.warning("pdf overview map: fetch failed: %s", e)
         return None
@@ -290,14 +299,15 @@ def _fetch_day_pin_map(
         ]
         for m in markers:
             params.append(("markers", m))
-        res = requests.get(
+        # 2026-05-20: `with` releases the socket on exit (FD-leak fix).
+        with requests.get(
             "https://maps.googleapis.com/maps/api/staticmap",
             params=params,
             timeout=10,
-        )
-        if not res.ok:
-            return None
-        return res.content
+        ) as res:
+            if not res.ok:
+                return None
+            return res.content
     except Exception:
         return None
 

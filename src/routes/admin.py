@@ -47,14 +47,23 @@ ADMIN_EMAILS = {
 def _is_admin(user_id: str) -> bool:
     """True iff `user_id` belongs to one of the admin emails. Cheap
     one-row SELECT; cached implicitly by SQLite's page cache so the
-    cost is negligible even on every admin request."""
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT email FROM users WHERE id = ?", (user_id,))
-    row = cursor.fetchone()
-    if not row:
-        return False
-    return (row["email"] or "").strip().lower() in ADMIN_EMAILS
+    cost is negligible even on every admin request.
+
+    2026-05-20: wrapped in `with closing(...)` because the previous
+    pattern (`conn = get_db()` with no explicit close) was leaking
+    sqlite3 connection FDs — Sentry caught `OSError: [Errno 24]
+    Too many open files` on the local Mac dev server (ulimit -n
+    256). The sqlite3 connection's own __exit__ commits/rollbacks
+    but DOES NOT close — `contextlib.closing` is the right
+    helper for that."""
+    from contextlib import closing
+    with closing(get_db()) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT email FROM users WHERE id = ?", (user_id,))
+        row = cursor.fetchone()
+        if not row:
+            return False
+        return (row["email"] or "").strip().lower() in ADMIN_EMAILS
 
 
 @bp.route("/api/admin/stats", methods=["GET"])
@@ -91,110 +100,114 @@ def admin_stats():
     if not _is_admin(user_id):
         return jsonify({"error": "Forbidden"}), 403
 
-    conn = get_db()
-    cursor = conn.cursor()
+    # 2026-05-20: wrapped in `with closing(...)` to guarantee the
+    # sqlite3 connection FD is released when the handler returns.
+    # See _is_admin() above for the longer note on why this matters.
+    from contextlib import closing
+    with closing(get_db()) as conn:
+        cursor = conn.cursor()
 
-    # ── Aggregate counters ────────────────────────────────────
-    # All cheap COUNT(*) queries; even with 10k users + 100k
-    # expenses this lands in a few ms on SQLite's page cache.
-    cursor.execute("SELECT COUNT(*) AS n FROM users")
-    total_users = cursor.fetchone()["n"]
+        # ── Aggregate counters ────────────────────────────────────
+        # All cheap COUNT(*) queries; even with 10k users + 100k
+        # expenses this lands in a few ms on SQLite's page cache.
+        cursor.execute("SELECT COUNT(*) AS n FROM users")
+        total_users = cursor.fetchone()["n"]
 
-    # 2026-05-18 audit H1: archive state lives on trip_members
-    # (per-user). For the global "active vs archived" admin counter,
-    # we read from the owner's row (the row where trip_members.user_id
-    # equals trips.user_id) — semantically the same as the legacy
-    # trips.is_archived column the archive endpoint used to mirror,
-    # but read from the post-deprecation source of truth.
-    cursor.execute(
-        "SELECT COUNT(*) AS n FROM trips t "
-        "JOIN trip_members tm ON tm.trip_id = t.id AND tm.user_id = t.user_id "
-        "WHERE COALESCE(tm.is_archived, 0) = 0"
-    )
-    total_trips = cursor.fetchone()["n"]
+        # 2026-05-18 audit H1: archive state lives on trip_members
+        # (per-user). For the global "active vs archived" admin counter,
+        # we read from the owner's row (the row where trip_members.user_id
+        # equals trips.user_id) — semantically the same as the legacy
+        # trips.is_archived column the archive endpoint used to mirror,
+        # but read from the post-deprecation source of truth.
+        cursor.execute(
+            "SELECT COUNT(*) AS n FROM trips t "
+            "JOIN trip_members tm ON tm.trip_id = t.id AND tm.user_id = t.user_id "
+            "WHERE COALESCE(tm.is_archived, 0) = 0"
+        )
+        total_trips = cursor.fetchone()["n"]
 
-    cursor.execute(
-        "SELECT COUNT(*) AS n FROM trips t "
-        "JOIN trip_members tm ON tm.trip_id = t.id AND tm.user_id = t.user_id "
-        "WHERE COALESCE(tm.is_archived, 0) = 1"
-    )
-    total_archived_trips = cursor.fetchone()["n"]
+        cursor.execute(
+            "SELECT COUNT(*) AS n FROM trips t "
+            "JOIN trip_members tm ON tm.trip_id = t.id AND tm.user_id = t.user_id "
+            "WHERE COALESCE(tm.is_archived, 0) = 1"
+        )
+        total_archived_trips = cursor.fetchone()["n"]
 
-    cursor.execute("SELECT COUNT(*) AS n FROM expenses")
-    total_expenses = cursor.fetchone()["n"]
+        cursor.execute("SELECT COUNT(*) AS n FROM expenses")
+        total_expenses = cursor.fetchone()["n"]
 
-    cursor.execute("SELECT COUNT(*) AS n FROM settlements")
-    total_settlements = cursor.fetchone()["n"]
+        cursor.execute("SELECT COUNT(*) AS n FROM settlements")
+        total_settlements = cursor.fetchone()["n"]
 
-    # feed_posts may not exist on older schemas — guard the query.
-    try:
-        cursor.execute("SELECT COUNT(*) AS n FROM feed_posts")
-        total_feed_posts = cursor.fetchone()["n"]
-    except Exception:
-        total_feed_posts = 0
+        # feed_posts may not exist on older schemas — guard the query.
+        try:
+            cursor.execute("SELECT COUNT(*) AS n FROM feed_posts")
+            total_feed_posts = cursor.fetchone()["n"]
+        except Exception:
+            total_feed_posts = 0
 
-    # Recent-signup activity. Two windows: 7d and 30d.
-    # SQLite's `datetime(now, '-7 days')` returns a comparable string.
-    cursor.execute(
-        """
-        SELECT COUNT(*) AS n FROM users
-        WHERE created_at >= datetime('now', '-7 days')
-        """
-    )
-    signups_last_7d = cursor.fetchone()["n"]
-    cursor.execute(
-        """
-        SELECT COUNT(*) AS n FROM users
-        WHERE created_at >= datetime('now', '-30 days')
-        """
-    )
-    signups_last_30d = cursor.fetchone()["n"]
+        # Recent-signup activity. Two windows: 7d and 30d.
+        # SQLite's `datetime(now, '-7 days')` returns a comparable string.
+        cursor.execute(
+            """
+            SELECT COUNT(*) AS n FROM users
+            WHERE created_at >= datetime('now', '-7 days')
+            """
+        )
+        signups_last_7d = cursor.fetchone()["n"]
+        cursor.execute(
+            """
+            SELECT COUNT(*) AS n FROM users
+            WHERE created_at >= datetime('now', '-30 days')
+            """
+        )
+        signups_last_30d = cursor.fetchone()["n"]
 
-    # ── User roster ───────────────────────────────────────────
-    # One row per user. Trip and expense counts come from
-    # subqueries so we get them in a single result set without N+1.
-    # No last-seen yet — the users table doesn't carry a session/
-    # last-login timestamp. The token_jti column is bumped on
-    # logout but its value isn't a timestamp, so we can't derive
-    # last-seen from it. Future: add a `last_seen_at` column +
-    # touch it on every successful require_auth lookup.
-    # Note: the expenses table keys off trip_id (not user_id); the
-    # user is implicit through the parent trip. JOIN through trips
-    # so we count expenses belonging to trips owned by each user.
-    # Same pattern would apply if we ever want a per-user settlement
-    # count later.
-    cursor.execute(
-        """
-        SELECT
-            u.id,
-            u.email,
-            u.name,
-            u.picture,
-            u.created_at,
-            (SELECT COUNT(*) FROM trips t WHERE t.user_id = u.id) AS trip_count,
-            (SELECT COUNT(*)
-                FROM expenses e
-                JOIN trips t ON e.trip_id = t.id
-                WHERE t.user_id = u.id) AS expense_count
-        FROM users u
-        ORDER BY u.created_at DESC
-        """
-    )
-    user_rows = cursor.fetchall()
+        # ── User roster ───────────────────────────────────────────
+        # One row per user. Trip and expense counts come from
+        # subqueries so we get them in a single result set without N+1.
+        # No last-seen yet — the users table doesn't carry a session/
+        # last-login timestamp. The token_jti column is bumped on
+        # logout but its value isn't a timestamp, so we can't derive
+        # last-seen from it. Future: add a `last_seen_at` column +
+        # touch it on every successful require_auth lookup.
+        # Note: the expenses table keys off trip_id (not user_id); the
+        # user is implicit through the parent trip. JOIN through trips
+        # so we count expenses belonging to trips owned by each user.
+        # Same pattern would apply if we ever want a per-user settlement
+        # count later.
+        cursor.execute(
+            """
+            SELECT
+                u.id,
+                u.email,
+                u.name,
+                u.picture,
+                u.created_at,
+                (SELECT COUNT(*) FROM trips t WHERE t.user_id = u.id) AS trip_count,
+                (SELECT COUNT(*)
+                    FROM expenses e
+                    JOIN trips t ON e.trip_id = t.id
+                    WHERE t.user_id = u.id) AS expense_count
+            FROM users u
+            ORDER BY u.created_at DESC
+            """
+        )
+        user_rows = cursor.fetchall()
 
-    users = []
-    for row in user_rows:
-        email = (row["email"] or "").strip().lower()
-        users.append({
-            "id": row["id"],
-            "email": row["email"],
-            "name": row["name"],
-            "picture": row["picture"],
-            "createdAt": row["created_at"],
-            "tripCount": row["trip_count"],
-            "expenseCount": row["expense_count"],
-            "isAdmin": email in ADMIN_EMAILS,
-        })
+        users = []
+        for row in user_rows:
+            email = (row["email"] or "").strip().lower()
+            users.append({
+                "id": row["id"],
+                "email": row["email"],
+                "name": row["name"],
+                "picture": row["picture"],
+                "createdAt": row["created_at"],
+                "tripCount": row["trip_count"],
+                "expenseCount": row["expense_count"],
+                "isAdmin": email in ADMIN_EMAILS,
+            })
 
     # ── Process metadata (for fun + diagnostics) ──────────────
     process_info = {
