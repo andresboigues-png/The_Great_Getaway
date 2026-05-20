@@ -802,20 +802,48 @@ export const openPdfExportModal = (trip: any) => {
                 }
                 const blob = await res.blob();
                 const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                // Server's Content-Disposition carries the slugified
-                // filename; the anchor's `download` attribute is a
-                // hint that some browsers honor over the response
-                // header. Sanitize once more so a future endpoint
-                // rename doesn't leak a weird name into the user's
-                // Downloads folder.
+                // 2026-05-20: iOS Safari doesn't honour the
+                // `<a download>` attribute on programmatic clicks
+                // inside an async callback — the user-gesture
+                // requirement is considered broken by the time the
+                // fetch resolves, so nothing happens. Branch on the
+                // platform:
+                //   - iOS Safari / iPadOS: open the blob URL in a
+                //     new tab. iOS shows its native PDF viewer
+                //     overlay with a "Share / Save to Files" sheet,
+                //     which is the platform-native way to save.
+                //   - Everything else (desktop Safari, Chrome,
+                //     Firefox, Android): the anchor-click pattern
+                //     still works.
+                const ua = navigator.userAgent || '';
+                const isIOS = /iPad|iPhone|iPod/.test(ua)
+                    || (ua.includes('Mac') && 'ontouchend' in document);
                 const safe = (trip.name || 'trip').replace(/[^A-Za-z0-9 _-]/g, '_').trim() || 'trip';
-                a.download = `${safe}.pdf`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
+                if (isIOS) {
+                    // window.open from inside an async chain can be
+                    // popup-blocked. Falling back to assigning the
+                    // current location keeps the PDF reachable —
+                    // Safari renders the blob inline and the user
+                    // taps the iOS share icon to save.
+                    const opened = window.open(url, '_blank');
+                    if (!opened) window.location.href = url;
+                    // Defer the URL revoke so Safari has time to
+                    // load the blob in the new tab before the URL
+                    // is invalidated.
+                    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+                } else {
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `${safe}.pdf`;
+                    document.body.appendChild(a);
+                    a.click();
+                    // Delay removal slightly so Firefox actually
+                    // gets the click event before the node is gone.
+                    setTimeout(() => {
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                    }, 100);
+                }
                 close();
             } catch (e) {
                 showLiquidAlert('Network error building the PDF.');

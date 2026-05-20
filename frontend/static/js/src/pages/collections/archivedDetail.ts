@@ -118,8 +118,8 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
                  user has explicitly marked Public can be shared.
                  Outline pill aesthetic for Back + Share matches the
                  .btn-primary-pill family already used by Restore. -->
-            <div style="position:absolute; top:24px; right:24px; display:flex; gap:8px; z-index:2;">
-                <button id="backToCollectionsBtn" type="button" style="background:rgba(255,255,255,0.16); border:1px solid rgba(255,255,255,0.3); color:#ffffff; padding:10px 18px; border-radius:999px; font-weight:800; font-size:0.85rem; cursor:pointer; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);">← Back</button>
+            <div class="archived-hero__actions">
+                <button id="backToCollectionsBtn" type="button" class="ad-pill-glass" style="background:rgba(255,255,255,0.16);">← Back</button>
                 <!-- Share button — now ALWAYS visible (no isPublic
                      gate). Opens the Share Chooser which lets the
                      user pick between "Share to feed" (in-app post,

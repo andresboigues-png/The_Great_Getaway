@@ -5269,6 +5269,39 @@ main#app-container.nav-anim-backward {
     gap: 6px;
 }
 
+/* 2026-05-20: archived-trip hero action row — Back / Share / Clone /
+   Restore. Desktop: floats top-right of the hero card. Mobile:
+   the four pills could never fit at 375px width when absolutely
+   positioned with 24px right offset (they overflowed off-screen
+   and tap targets stacked on top of each other). On ≤640px the
+   row drops to a static, wrapping flex layout that sits BELOW
+   the hero's title block, giving each pill its full intended
+   width and tap-target. */
+.archived-hero__actions {
+    position: absolute;
+    top: 24px;
+    right: 24px;
+    display: flex;
+    gap: 8px;
+    z-index: 2;
+}
+@media (max-width: 640px) {
+    .archived-hero__actions {
+        position: static;
+        margin-top: 18px;
+        margin-bottom: -18px;
+        flex-wrap: wrap;
+        justify-content: flex-start;
+        gap: 8px;
+        max-width: 100%;
+    }
+    .archived-hero__actions .ad-pill-glass,
+    .archived-hero__actions .restore-trip-btn {
+        padding: 8px 14px;
+        font-size: 0.78rem;
+    }
+}
+
 /* ── §0.4 follow-up — Feed / Insights / Collections / Friends / dayViewModal
  *
  * Mid-tier pages that don't have their own page-scoped CSS file —
