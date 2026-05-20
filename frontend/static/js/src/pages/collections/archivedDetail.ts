@@ -504,7 +504,22 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
                     openShareToFeedModal(trip, async (caption) => {
                         const result = await shareTripToFeed(trip.id, caption);
                         if (!result || !result.ok) {
-                            showLiquidAlert("Couldn't share — try again in a moment.");
+                            // 2026-05-20: surface the actual HTTP status +
+                            // server error so we can see WHY share is
+                            // failing on mobile. Auth/diagnostic on the
+                            // user's session showed /api/data = 200 OK,
+                            // so the failure is specific to this endpoint.
+                            const status = result?.status ?? 'no-response';
+                            const errMsg = result?.body?.error || '';
+                            showLiquidAlert(
+                                `Share failed — HTTP ${status}` +
+                                (errMsg ? ` · ${errMsg}` : ''),
+                            );
+                            console.error('[collections.share] failed', {
+                                tripId: trip.id,
+                                status,
+                                body: result?.body,
+                            });
                             return;
                         }
                         const postId = Number(result.body?.post_id) || 0;
