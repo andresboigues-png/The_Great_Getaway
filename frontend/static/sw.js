@@ -43,7 +43,18 @@
 // Otherwise leave it alone; routine bundle updates don't need a bump
 // because the network-first strategy supplies fresh JS on every load.
 
-const SW_VERSION = 'v1';
+// 2026-05-21: bumped to v2 to force re-cache on every device.
+// Real-phone users (notably Android Chrome) reported sharing + other
+// POSTs returning the generic "Couldn't ... try again later" toast,
+// while the SAME share worked from DevTools mobile-view on desktop.
+// API DEBUG popup confirmed auth + GET /api/data were fine on the
+// failing phone, so the failure had to live in the JS layer — most
+// likely a stale bundle being served from the phone's SW cache. A
+// SW_VERSION bump invalidates SHELL_CACHE, API_CACHE, UPLOADS_CACHE
+// on `activate`, and combined with skipWaiting() + clients.claim()
+// already in this file, ALL clients pick up the new bundle on next
+// reload instead of waiting for every tab to close.
+const SW_VERSION = 'v2';
 const SHELL_CACHE = `gg-shell-${SW_VERSION}`;
 const API_CACHE = `gg-api-${SW_VERSION}`;
 const UPLOADS_CACHE = `gg-uploads-${SW_VERSION}`;
