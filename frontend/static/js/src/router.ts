@@ -239,6 +239,17 @@ export function navigate(
     //
     // Default fallback (PAGES.HOME) so an unknown page hash lands on
     // a working route, not a stuck empty container.
+    // 2026-05-20: capture scroll position BEFORE the async loader so we
+    // can restore it after the DOM clear if this is a same-page nav.
+    // Without this, even when `isSamePage` is true and we skip the
+    // explicit scrollTo(0,0), the `content.innerHTML = ''` step below
+    // collapses the document height temporarily and the browser auto-
+    // clamps scrollY to 0 — visually scrolling the user to the top of
+    // the page on actions that are just re-renders (Quick Access show/
+    // hide, filter toggles, etc.).
+    const savedScrollY = window.scrollY;
+    const willBeSamePage = currentPage === page;
+
     const loader = PAGE_LOADERS[page] ?? PAGE_LOADERS[PAGES.HOME];
     loader().then((mount) => {
         // Re-check that the route hasn't changed under us (the user
@@ -256,6 +267,16 @@ export function navigate(
         // enters from the side the swipe came from, matching the
         // user's gesture instead of materialising in place.
         if (animDir) applyNavAnimation(content, animDir);
+        // Restore the saved scroll for same-page renders. RAF defers
+        // until after React has committed the new tree so the document
+        // is tall enough to actually scroll to that y — otherwise the
+        // call lands while scrollHeight is still post-clear and the
+        // browser silently clamps back to 0.
+        if ((preserveScroll || willBeSamePage) && savedScrollY > 0) {
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => window.scrollTo(0, savedScrollY));
+            });
+        }
     }).catch((err) => {
         console.error(`[router] failed to load chunk for "${page}":`, err);
         // Last-ditch fallback: load home instead of leaving the user
