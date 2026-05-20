@@ -684,17 +684,28 @@ export const openPdfExportModal = (trip: any) => {
         return;
     }
     const tripName = trip.name || 'Trip';
-    // 2026-05-19 round 3: restyled to match GG's signature
-    // gradient-header + glass body pattern (see .trip-companions-card
-    // in home.css). Gradient strip at the top carries the white
-    // title + tagline; body below is a translucent surface with
-    // option cards that themselves carry a subtle gradient + white
-    // text so the "every box is on-brand" look reads consistently.
-    // Cancel button picks up the same translucent-white treatment.
+    // 2026-05-20: round 4 redesign. Two regressions from round 3
+    // surfaced: (a) the gradient cards on every option read as
+    // "weird blue boxes around names" — too much branding noise;
+    // (b) the gradient header was getting CLIPPED at the top
+    // because the card has rounded corners and my negative-margin
+    // bleed-trick was fighting them. Fix both by:
+    //   - Header keeps the GG gradient + white text (that's the
+    //     "same style as other GG boxes" the user asked for).
+    //   - The option cards revert to a plain light-on-white look
+    //     — easier to read at a glance, and the contrast against
+    //     the gradient header makes the page header POP without
+    //     drowning the body in colour.
+    //   - Zero card padding + explicit section padding inside.
+    //     Header is the first child, takes the modal's top
+    //     border-radius via its own matching corners, no clipping.
     const innerHTML = `
-        <div class="mdl-col-center" style="text-align:left; padding:0; overflow:hidden; border-radius:24px;">
-            <!-- Gradient header strip — matches .trip-companions-card__header -->
-            <div style="display:flex; align-items:center; gap:14px; padding:18px 22px; background:linear-gradient(135deg, var(--accent-blue) 0%, #5856d6 100%); color:white; margin:-22px -22px 0;">
+        <div style="display:flex; flex-direction:column; text-align:left;">
+            <!-- Gradient header strip — corners match the card's
+                 border-radius so it sits flush with the modal's
+                 top edge instead of being clipped by the card's
+                 overflow:hidden + corner curve. -->
+            <div style="display:flex; align-items:center; gap:14px; padding:18px 22px; background:linear-gradient(135deg, var(--accent-blue) 0%, #5856d6 100%); color:white; border-top-left-radius: var(--radius-3xl); border-top-right-radius: var(--radius-3xl);">
                 <div style="width:44px; height:44px; border-radius:12px; background:rgba(255,255,255,0.18); backdrop-filter:blur(8px); border:1px solid rgba(255,255,255,0.28); display:inline-flex; align-items:center; justify-content:center; font-size:1.5rem; flex-shrink:0;">📄</div>
                 <div style="flex:1; min-width:0;">
                     <h2 style="margin:0; font-size:1.15rem; color:white; font-weight:800; letter-spacing:-0.02em; line-height:1.15;">
@@ -705,13 +716,10 @@ export const openPdfExportModal = (trip: any) => {
                     </p>
                 </div>
             </div>
-            <!-- Option grid — translucent-white cards with white text on
-                 a subtle accent gradient. Mirrors the GG "everything in
-                 a coloured glass card" aesthetic from the companions
-                 card chips. -->
-            <!-- auto-fit grid: 2 columns when room, single column on
-                 narrow phones — no inline @media needed. -->
-            <div id="pdfExportOptions" style="padding:16px 22px 0; display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:8px;">
+            <!-- Option grid — plain light cards. Auto-fit grid:
+                 2 columns when there's room, single column on
+                 narrow phones. -->
+            <div id="pdfExportOptions" style="padding:18px 22px 0; display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:8px;">
                 ${renderPdfOption('includeCoverMap', '🗺️ Cover map',
                     'Wide map of the trip location')}
                 ${renderPdfOption('includeStats', '📊 Summary stats',
@@ -729,7 +737,7 @@ export const openPdfExportModal = (trip: any) => {
                 ${renderPdfOption('includeMarkedPlaces', '⭐ Marked places',
                     'Saved places + addresses')}
             </div>
-            <div style="display:flex; gap:10px; padding:16px 22px 22px;">
+            <div style="display:flex; gap:10px; padding:18px 22px 22px;">
                 <button type="button" id="cancelPdfBtn" class="flex-1"
                         style="font-weight:700; color:#002d5b; background:rgba(0,45,91,0.06); border:1px solid rgba(0,45,91,0.12); padding:11px 18px; border-radius:12px; cursor:pointer; font-size:0.9rem;">Cancel</button>
                 <button type="button" id="submitPdfBtn" class="flex-1"
@@ -739,20 +747,25 @@ export const openPdfExportModal = (trip: any) => {
             </div>
         </div>
     `;
-    const { root, close } = showModal({ innerHTML, cardStyle: 'max-width: 560px; width: min(560px, calc(100vw - 24px)); padding: 22px; overflow: hidden;' });
+    // Zero padding on the card so the gradient header's
+    // border-top-radius matches the card's exact corner curve.
+    // overflow:hidden clips the corners cleanly. background:white so
+    // the body sections (with their own padding declared inline)
+    // get a clean light surface for the option cards.
+    const { root, close } = showModal({ innerHTML, cardStyle: 'max-width: 560px; width: min(560px, calc(100vw - 24px)); padding: 0; overflow: hidden; background: white;' });
 
     function renderPdfOption(key: string, label: string, sub: string): string {
-        // White-text gradient card to match the "other boxes in GG"
-        // styling the user asked for. Selection state (checkbox)
-        // toggles via the native checkbox inside — visible via the
-        // accent-color override and a subtle border highlight.
+        // Plain light card — soft accent-blue hairline border, dark
+        // text. Sits against the white modal body with enough contrast
+        // to read at a glance while the gradient header carries the
+        // "this is a GG box" brand signal.
         return `
-            <label style="display:flex; align-items:flex-start; gap:8px; cursor:pointer; padding:10px 12px; border-radius:14px; transition: transform 0.15s, box-shadow 0.15s; background:linear-gradient(135deg, rgba(0,113,227,0.92), rgba(88,86,214,0.92)); border:1px solid rgba(255,255,255,0.18); box-shadow:0 4px 10px rgba(0,113,227,0.18); color:white;">
+            <label style="display:flex; align-items:flex-start; gap:8px; cursor:pointer; padding:10px 12px; border-radius:12px; transition: background 0.15s, border-color 0.15s; background:rgba(0,113,227,0.04); border:1px solid rgba(0,113,227,0.10);">
                 <input type="checkbox" name="${key}" checked
-                       style="margin-top:2px; width:16px; height:16px; accent-color:#34c759; flex-shrink:0;">
+                       style="margin-top:2px; width:16px; height:16px; accent-color:var(--accent-blue); flex-shrink:0;">
                 <span style="min-width:0; flex:1;">
-                    <span style="display:block; font-weight:800; color:white; font-size:0.86rem; line-height:1.2;">${label}</span>
-                    <span style="display:block; color:rgba(255,255,255,0.82); font-size:0.74rem; line-height:1.35; margin-top:2px;">${sub}</span>
+                    <span style="display:block; font-weight:700; color:#002d5b; font-size:0.86rem; line-height:1.2;">${label}</span>
+                    <span style="display:block; color:#4a5568; font-size:0.74rem; line-height:1.35; margin-top:2px;">${sub}</span>
                 </span>
             </label>
         `;

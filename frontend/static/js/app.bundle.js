@@ -377,9 +377,12 @@ import{r as e}from"./chunks/rolldown-runtime-C3V63i2j.js";import{n as t,r as n,t
                 </div>
             </form>
         `}),r=E(t,`#editTripName`);r.value=e.name||``;let i=(x.tripDays||[]).filter(t=>t.tripId===e.id&&t.dayNumber>0).sort((e,t)=>e.dayNumber-t.dayNumber),a=E(t,`#editTripStartDate`),o=E(t,`#editTripEndDate`),s=E(t,`#editTripDateHint`);i.length>0?(a.value=i[0].date||``,o.value=i[i.length-1].date||``,s.textContent=`Change these to re-date your existing Path days. Day count stays the same; each day shifts to keep the new start.`):s.textContent=`If you fill these in, we'll create one empty Path day per date — you can pin places later.`;let c=E(t,`#editTripPlaceInput`),l=E(t,`#editTripPlaceHint`),u=E(t,`#editTripSubmitBtn`),d=e.placeId||e.lat?{placeId:e.placeId||``,name:e.country||``,lat:e.lat||0,lng:e.lng||0,viewport:e.viewport||null,types:e.placeTypes||[],countryCode:e.countryCode||null}:null,{getPicked:f}=Wn({placeInput:c,hint:l,submitBtn:u,initialPlace:d});Hn(t,`editTripStartDate`,`editTripEndDate`,`editTripDateHint`);let p=e.coverUrl||null,m=E(t,`#editTripCoverInput`),h=E(t,`#editTripCoverPickBtn`),g=E(t,`#editTripCoverPreview`),_=E(t,`#editTripCoverThumb`),v=E(t,`#editTripCoverRemoveBtn`),y=E(t,`#editTripCoverStatus`),ee=()=>{p?(_.src=p,g.style.display=`flex`,y.textContent=``):g.style.display=`none`};ee(),h.onclick=()=>m.click(),m.onchange=async()=>{let e=m.files?.[0];if(e){y.textContent=`Uploading…`,h.disabled=!0;try{let t=await hn(e);if(t?.url)p=t.url,ee();else{let e=t?.error||`Upload failed — try again.`;y.textContent=e,T(e)}}catch(e){console.warn(`cover upload failed`,e);let t=`Upload failed — try again.`;y.textContent=t,T(t)}finally{h.disabled=!1,m.value=``}}},v.onclick=()=>{p=null,ee()},E(t,`#cancelEditTripBtn`).onclick=()=>n(),E(t,`#editTripForm`).onsubmit=t=>{t.preventDefault();let s=r.value.trim();if(!s){T(`Trip name can't be empty.`);return}let c=f();if(!c){T(`Pick a destination from the suggestions.`);return}let l=c.placeId!==(d?.placeId||``)||c.name!==(d?.name||``);if(e.name=s,e.country=c.name,e.placeId=c.placeId,e.lat=c.lat,e.lng=c.lng,e.viewport=c.viewport,e.placeTypes=c.types,e.countryCode=c.countryCode,e.coverUrl=p,l&&x.mapViews&&(delete x.mapViews[e.id],delete x.mapViews[e.id+`_ai`]),l){let t=(x.tripDays||[]).find(t=>t.tripId===e.id&&t.dayNumber===0);t&&(t.lat=c.lat,t.lng=c.lng,t.lon=c.lng)}let u=[],m=[];if(i.length===0)u=Un(e.id,a.value,o.value,1),u.length>0&&x.tripDays.push(...u);else{let e=a.value,t=i[0].date||``;if(e&&e!==t){let t=new Date(e+`T00:00:00`);if(!isNaN(t.getTime()))for(let e of i){let n=new Date(t);n.setDate(n.getDate()+(e.dayNumber-1));let r=n.toISOString().split(`T`)[0]??``;e.date!==r&&(e.date=r,m.push(e))}}}a.value&&(e.dateFrom=a.value),o.value&&(e.dateTo=o.value),w(`state:changed`),K(e),u.forEach(e=>q(e)),m.forEach(e=>q(e)),n(),R(`home`,null,!0)}},qn=e=>{if(!e||!e.id){T(`Open a trip first.`);return}let{root:t,close:n}=O({innerHTML:`
-        <div class="mdl-col-center" style="text-align:left; padding:0; overflow:hidden; border-radius:24px;">
-            <!-- Gradient header strip — matches .trip-companions-card__header -->
-            <div style="display:flex; align-items:center; gap:14px; padding:18px 22px; background:linear-gradient(135deg, var(--accent-blue) 0%, #5856d6 100%); color:white; margin:-22px -22px 0;">
+        <div style="display:flex; flex-direction:column; text-align:left;">
+            <!-- Gradient header strip — corners match the card's
+                 border-radius so it sits flush with the modal's
+                 top edge instead of being clipped by the card's
+                 overflow:hidden + corner curve. -->
+            <div style="display:flex; align-items:center; gap:14px; padding:18px 22px; background:linear-gradient(135deg, var(--accent-blue) 0%, #5856d6 100%); color:white; border-top-left-radius: var(--radius-3xl); border-top-right-radius: var(--radius-3xl);">
                 <div style="width:44px; height:44px; border-radius:12px; background:rgba(255,255,255,0.18); backdrop-filter:blur(8px); border:1px solid rgba(255,255,255,0.28); display:inline-flex; align-items:center; justify-content:center; font-size:1.5rem; flex-shrink:0;">📄</div>
                 <div style="flex:1; min-width:0;">
                     <h2 style="margin:0; font-size:1.15rem; color:white; font-weight:800; letter-spacing:-0.02em; line-height:1.15;">
@@ -390,13 +393,10 @@ import{r as e}from"./chunks/rolldown-runtime-C3V63i2j.js";import{n as t,r as n,t
                     </p>
                 </div>
             </div>
-            <!-- Option grid — translucent-white cards with white text on
-                 a subtle accent gradient. Mirrors the GG "everything in
-                 a coloured glass card" aesthetic from the companions
-                 card chips. -->
-            <!-- auto-fit grid: 2 columns when room, single column on
-                 narrow phones — no inline @media needed. -->
-            <div id="pdfExportOptions" style="padding:16px 22px 0; display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:8px;">
+            <!-- Option grid — plain light cards. Auto-fit grid:
+                 2 columns when there's room, single column on
+                 narrow phones. -->
+            <div id="pdfExportOptions" style="padding:18px 22px 0; display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:8px;">
                 ${r(`includeCoverMap`,`🗺️ Cover map`,`Wide map of the trip location`)}
                 ${r(`includeStats`,`📊 Summary stats`,`Days, companions, places, spend`)}
                 ${r(`includeDays`,`📅 Day-by-day plan`,`Morning, afternoon, evening`)}
@@ -406,7 +406,7 @@ import{r as e}from"./chunks/rolldown-runtime-C3V63i2j.js";import{n as t,r as n,t
                 ${r(`includeCompanions`,`👥 Companions`,`Roster of travelers`)}
                 ${r(`includeMarkedPlaces`,`⭐ Marked places`,`Saved places + addresses`)}
             </div>
-            <div style="display:flex; gap:10px; padding:16px 22px 22px;">
+            <div style="display:flex; gap:10px; padding:18px 22px 22px;">
                 <button type="button" id="cancelPdfBtn" class="flex-1"
                         style="font-weight:700; color:#002d5b; background:rgba(0,45,91,0.06); border:1px solid rgba(0,45,91,0.12); padding:11px 18px; border-radius:12px; cursor:pointer; font-size:0.9rem;">Cancel</button>
                 <button type="button" id="submitPdfBtn" class="flex-1"
@@ -415,13 +415,13 @@ import{r as e}from"./chunks/rolldown-runtime-C3V63i2j.js";import{n as t,r as n,t
                 </button>
             </div>
         </div>
-    `,cardStyle:`max-width: 560px; width: min(560px, calc(100vw - 24px)); padding: 22px; overflow: hidden;`});function r(e,t,n){return`
-            <label style="display:flex; align-items:flex-start; gap:8px; cursor:pointer; padding:10px 12px; border-radius:14px; transition: transform 0.15s, box-shadow 0.15s; background:linear-gradient(135deg, rgba(0,113,227,0.92), rgba(88,86,214,0.92)); border:1px solid rgba(255,255,255,0.18); box-shadow:0 4px 10px rgba(0,113,227,0.18); color:white;">
+    `,cardStyle:`max-width: 560px; width: min(560px, calc(100vw - 24px)); padding: 0; overflow: hidden; background: white;`});function r(e,t,n){return`
+            <label style="display:flex; align-items:flex-start; gap:8px; cursor:pointer; padding:10px 12px; border-radius:12px; transition: background 0.15s, border-color 0.15s; background:rgba(0,113,227,0.04); border:1px solid rgba(0,113,227,0.10);">
                 <input type="checkbox" name="${e}" checked
-                       style="margin-top:2px; width:16px; height:16px; accent-color:#34c759; flex-shrink:0;">
+                       style="margin-top:2px; width:16px; height:16px; accent-color:var(--accent-blue); flex-shrink:0;">
                 <span style="min-width:0; flex:1;">
-                    <span style="display:block; font-weight:800; color:white; font-size:0.86rem; line-height:1.2;">${t}</span>
-                    <span style="display:block; color:rgba(255,255,255,0.82); font-size:0.74rem; line-height:1.35; margin-top:2px;">${n}</span>
+                    <span style="display:block; font-weight:700; color:#002d5b; font-size:0.86rem; line-height:1.2;">${t}</span>
+                    <span style="display:block; color:#4a5568; font-size:0.74rem; line-height:1.35; margin-top:2px;">${n}</span>
                 </span>
             </label>
         `}let i=E(t,`#cancelPdfBtn`),a=E(t,`#submitPdfBtn`),o=E(t,`#pdfBtnLabel`);i&&(i.onclick=()=>n()),a&&(a.onclick=async()=>{let r=t.querySelectorAll(`#pdfExportOptions input[type="checkbox"]`),i={};r.forEach(e=>{i[e.name]=e.checked}),a.disabled=!0,o&&(o.textContent=`Building…`);try{let t=await B(`/api/trips/${e.id}/pdf`,{method:`POST`,headers:{"Content-Type":`application/json`},body:JSON.stringify(i)});if(!t.ok){T(`Couldn’t build the PDF. Try again in a moment.`);return}let r=await t.blob(),a=URL.createObjectURL(r),o=document.createElement(`a`);o.href=a,o.download=`${(e.name||`trip`).replace(/[^A-Za-z0-9 _-]/g,`_`).trim()||`trip`}.pdf`,document.body.appendChild(o),o.click(),document.body.removeChild(o),URL.revokeObjectURL(a),n()}catch{T(`Network error building the PDF.`)}finally{a.disabled=!1,o&&(o.textContent=`Download PDF`)}})},Jn=()=>{if(!x.activeTripId){T(`Please create a trip before adding days.`);return}let e=(x.tripDays||[]).filter(e=>e.tripId===x.activeTripId).sort((e,t)=>e.dayNumber-t.dayNumber),t=e.filter(e=>e.dayNumber>0),n=(t.length>0?t[t.length-1].dayNumber:0)+1,r=``;if(e.length>0){let t=e[e.length-1];if(t.date){let e=new Date(t.date);e.setDate(e.getDate()+1),r=e.toISOString().split(`T`)[0]??``}}let{root:i,close:a}=O({variant:`glass-light`,cardStyle:`width: 400px;`,innerHTML:`
