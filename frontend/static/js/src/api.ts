@@ -705,10 +705,19 @@ export function deleteBudgetOnServer(budgetId: string) {
     return _delete(`/api/budgets/${budgetId}`, {});
 }
 
-/** Upsert a single trip day to the server. */
+/** Upsert a single trip day to the server.
+ *
+ * 2026-05-21: switched from fire-and-forget `_post` (which swallowed
+ * non-2xx responses + network errors) to `_postJson` so callers can
+ * tell whether the day actually reached the server. The cross-device
+ * sync bug — days created on one device not appearing on another —
+ * traced back to this silent-failure path: a 403/500 here left the
+ * day in local state only, so pull-from-server on the other device
+ * would never see it. With the result envelope, openAddDayModal can
+ * now toast on failure and the user knows to retry. */
 export function upsertDay(day: any) {
-    if (!STATE.user) return;
-    return _post('/api/days', { day });
+    if (!STATE.user) return Promise.resolve({ ok: false, status: 0, body: null } as ApiJsonResult);
+    return _postJson('/api/days', { day });
 }
 
 /** Delete a single trip day from the server. */

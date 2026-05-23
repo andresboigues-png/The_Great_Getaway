@@ -567,9 +567,18 @@ export function TripBody({ activeTrip }: TripBodyProps) {
                 <p
                     className="text-[0.95rem] text-secondary mt-1.5 mx-0 mb-0 font-medium flex items-center gap-2.5 flex-wrap"
                 >
-                    <span>
-                        {tripDays.length} Day{tripDays.length !== 1 ? 's' : ''} of adventure
-                    </span>
+                    {/* 2026-05-21: anchor (Hub, dayNumber=0) doesn't
+                        count as a planned day — show only numbered
+                        days. A brand-new trip with only the auto-stamped
+                        Hub correctly reads "0 Days of adventure" now. */}
+                    {(() => {
+                        const plannedDayCount = tripDays.filter((d: any) => (d.dayNumber || 0) > 0).length;
+                        return (
+                            <span>
+                                {plannedDayCount} Day{plannedDayCount !== 1 ? 's' : ''} of adventure
+                            </span>
+                        );
+                    })()}
                     <span
                         id="homeTripLocalTimeChip"
                         className="trip-local-time-chip hidden"

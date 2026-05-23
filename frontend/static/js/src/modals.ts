@@ -932,7 +932,24 @@ export const openAddDayModal = () => {
         STATE.tripDays.push(newDay);
 
         emit('state:changed');               // saveState via subscriber
-        await upsertDay(newDay);             // server delta still explicit
+        // 2026-05-21: actually check the upsert result. Previously
+        // this was fire-and-forget — a failed upsertDay (auth issue,
+        // server 500, network drop) silently left the day in local
+        // state only, and the user wouldn't know until they opened
+        // the trip on another device and didn't see the day. Now we
+        // toast the actual HTTP status so they can retry + know the
+        // create is pending sync.
+        const upsertResult = await upsertDay(newDay);
+        if (upsertResult && !upsertResult.ok) {
+            const status = upsertResult.status || 'no-response';
+            const errMsg = upsertResult.body?.error || '';
+            showLiquidAlert(
+                `Day created locally — server save failed (HTTP ${status}` +
+                (errMsg ? ` · ${errMsg}` : '') +
+                `). Won't appear on other devices until it syncs — try again or refresh.`,
+            );
+            console.error('[upsertDay] failed', { dayId: newDay.id, status, body: upsertResult.body });
+        }
         close();
         navigate('home');
     };

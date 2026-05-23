@@ -993,11 +993,65 @@ body.is-signed-out .sidebar-rail {
 }
 @media (min-width: 721px) {
     /* Compass button + popover are mobile chrome; on desktop the same
-       controls live in the navbar's .nav-trips--desktop-only block. */
+       controls live in the navbar's .nav-trips--desktop-only block.
+       2026-05-21: also hide the new mobile-trip-switcher button on
+       desktop — it's the in-content replacement for the compass and
+       has no place in the desktop layout. */
     #tripControlsBtn,
-    .trip-controls-popover {
+    .trip-controls-popover,
+    #mobileTripSwitcherBtn {
         display: none !important;
     }
+}
+/* 2026-05-21: mobile-only — REMOVE the compass from the top banner
+   (per-user request: "shouldn't be a button in the top banner at
+   all"). The replacement #mobileTripSwitcherBtn lives in
+   HomeHeader.tsx and reuses the same popover. */
+@media (max-width: 720px) {
+    #tripControlsBtn {
+        display: none !important;
+    }
+}
+/* Row wrapper that puts the switcher button to the LEFT of the
+   greeting H1. Stays centred so the title remains the visual focus. */
+.trip-switch-row {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    max-width: 100%;
+}
+.trip-switch-row h1 {
+    margin: 0;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+/* The circular-arrow trip-switch button. Soft accent-blue tinted
+   pill so it reads as "tap to switch" without dominating the
+   greeting. */
+.mobile-trip-switcher {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 1px solid rgba(0, 113, 227, 0.22);
+    background: rgba(0, 113, 227, 0.08);
+    color: var(--accent-blue);
+    cursor: pointer;
+    flex-shrink: 0;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.18s ease, transform 0.18s ease;
+}
+.mobile-trip-switcher:hover,
+.mobile-trip-switcher:active,
+.mobile-trip-switcher:focus-visible {
+    background: rgba(0, 113, 227, 0.18);
+}
+.mobile-trip-switcher:active {
+    transform: scale(0.95);
 }
 /* Signed-out users have no trip controls to show — keep parity with
    the rest of the chrome that hides on the login wall. */
@@ -3372,13 +3426,18 @@ body.is-signed-out #sidebarOverlay {
 }
 
 /* Small pill button that warns on hover (grey → red). Used for the
-   "Hide" quick-access dismissal — destructive but not catastrophic. */
+   "Hide" quick-access dismissal — destructive but not catastrophic.
+   2026-05-21: replaced the raw rgba(0,0,0,...) tokens with theme-
+   aware vars so the button stays legible in dark mode. The hard-
+   coded blacks rendered as ~invisible-on-dark before (5% black on
+   a near-black surface = unreadable). `--text-secondary` and
+   `--border-subtle` already exist in both themes' :root blocks. */
 .pill-btn-warn-hover {
-    background: rgba(0,0,0,0.05);
-    border: 1px solid rgba(0,0,0,0.05);
+    background: var(--surface-subtle, rgba(0,0,0,0.05));
+    border: 1px solid var(--border-subtle, rgba(0,0,0,0.10));
     padding: var(--space-1) 14px;
     border-radius: var(--radius-pill);
-    color: rgba(0,0,0,0.5);
+    color: var(--text-secondary);
     cursor: pointer;
     font-size: var(--font-xs);
     font-weight: 700;
@@ -3387,9 +3446,28 @@ body.is-signed-out #sidebarOverlay {
     transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
 }
 .pill-btn-warn-hover:hover , .pill-btn-warn-hover:active , .pill-btn-warn-hover:focus-visible {
-    background: rgba(255,59,48,0.1);
+    background: rgba(255,59,48,0.14);
     color: #ff3b30;
-    border-color: rgba(255,59,48,0.2);
+    border-color: rgba(255,59,48,0.32);
+}
+
+/* 2026-05-21: utility class for collapsing button labels to icons
+   only on phones. Applied to the spans inside Discover-places / Maps
+   / Share on the home action row. Buttons keep their icons + tap
+   targets; the text label is suppressed below 720px (mobile bar
+   was getting crowded with three labelled pills on iPhone SE).
+   On desktop the label stays visible. */
+@media (max-width: 720px) {
+    .hide-on-mobile-collapsed {
+        display: none !important;
+    }
+    /* Reduce padding to keep the icons-only buttons compact. */
+    #homePoiToggleBtn,
+    #homeOpenMapsBtn,
+    #homeShareTripBtn {
+        padding-left: 12px !important;
+        padding-right: 12px !important;
+    }
 }
 
 /* Upload dropzone label — dashed-border button used twice in home.js
@@ -4785,23 +4863,41 @@ main#app-container.nav-anim-backward {
     .poi-filter-row__label { font-size: 0.95rem; }
     .poi-filter-row__hint { font-size: 0.72rem; }
 
-    /* General-subtabs strip — pill row that can overflow off-
-       screen on narrow viewports. Let it scroll horizontally and
-       hide the scrollbar for a cleaner look (Apple-style horizontal
-       pill scroller). */
+    /* General-subtabs strip — pill row that previously scrolled
+       horizontally with hidden scrollbars, which left the third tab
+       (Language) off-screen and undiscoverable. 2026-05-21: switched
+       to `flex-wrap: wrap` so all three tabs are visible at once even
+       on a 320px viewport, plus an inline chevron after each label
+       so taps look like "open this section" affordances. */
     .general-subtabs {
         display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
         max-width: 100%;
-        overflow-x: auto;
-        scrollbar-width: none;        /* Firefox */
-        -ms-overflow-style: none;     /* IE */
     }
-    .general-subtabs::-webkit-scrollbar { display: none; }  /* WebKit */
     .general-subtab {
-        flex-shrink: 0;
-        padding: 9px 16px;
+        flex: 1 1 auto;
+        min-width: 0;
+        padding: 9px 12px;
+        position: relative;
     }
     .general-subtab__icon { font-size: 0.9rem; }
+    .general-subtab__label {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    /* Inline chevron — sits flush right of the label so the tab reads
+       as "tap to open this section". Hidden on the currently-active
+       tab (no need to advertise affordance for the one already open). */
+    .general-subtab:not(.is-active)::after {
+        content: '›';
+        margin-left: 6px;
+        font-size: 1rem;
+        line-height: 1;
+        opacity: 0.55;
+        font-weight: 700;
+    }
 
     /* Management cards (menu view) — desktop has 32px padding +
        28px radius; tighter on phones. */

@@ -877,7 +877,7 @@ export function HeroMap({ activeTrip }: HeroMapProps) {
         editingDay && typeof editingDay.lat === 'number' && editingDay.lat !== null;
     const editingLabel = editingDay
         ? Number(editingDay.dayNumber) === 0
-            ? 'Trip Anchor pin'
+            ? 'Trip Hub pin'
             : `Day ${editingDay.dayNumber} pin`
         : '';
     const onSaveClick = () => {

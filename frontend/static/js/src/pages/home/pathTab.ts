@@ -105,17 +105,17 @@ function buildDayCardBody(
     const { isAnchor, isSelected } = flags;
     const badge = isAnchor
         ? `<div style="background: var(--gradient-anchor-deep); color: white; width: 48px; height: 48px; border-radius: 50%; border: 3px solid white; display: flex; align-items: center; justify-content: center; flex-shrink:0; box-shadow: 0 8px 18px rgba(212,160,23,0.28);">
-               <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                   <circle cx="12" cy="5" r="3"/>
-                   <line x1="12" y1="22" x2="12" y2="8"/>
-                   <path d="M5 12H2a10 10 0 0 0 20 0h-3"/>
+               <!-- 2026-05-21: replaced the anchor glyph with a 5-point
+                    star to match the Trip Anchor → Trip Hub rename. -->
+               <svg width="26" height="26" viewBox="0 0 24 24" fill="white" stroke="white" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true">
+                   <polygon points="12 2 15 8.5 22 9.3 17 14.3 18.2 21.3 12 18 5.8 21.3 7 14.3 2 9.3 9 8.5"/>
                </svg>
            </div>`
         : `<div style="background: var(--gradient-title); color: white; width: 48px; height: 48px; border-radius: 14px; display: flex; flex-direction: column; align-items: center; justify-content: center; flex-shrink:0; box-shadow: 0 8px 18px rgba(0,113,227,0.15);">
                <span style="font-size: 0.6rem; font-weight: 800; text-transform: uppercase; opacity: 0.85; letter-spacing: 0.05em; line-height:1;">Day</span>
                <span style="font-size: 1.25rem; font-weight: 800; line-height: 1.05;">${day.dayNumber}</span>
            </div>`;
-    const title = isAnchor ? 'Trip Anchor' : esc(day.name || `Day ${day.dayNumber}`);
+    const title = isAnchor ? 'Trip Hub' : esc(day.name || `Day ${day.dayNumber}`);
     const subtitleParts: string[] = [];
     if (isAnchor) {
         subtitleParts.push(activeTrip && activeTrip.country ? esc(shortPlaceName(activeTrip.country)) : 'Where the trip begins');
@@ -252,7 +252,7 @@ export function buildPathTabHtml(ctx: PathTabContext): string {
     const totalDays = numberedDays.length;
     const selectedIsAnchor = selectedDay?.dayNumber === 0;
     const summaryText = selectedIsAnchor
-        ? `Trip Anchor · ${totalDays} day${totalDays === 1 ? '' : 's'} planned`
+        ? `Trip Hub · ${totalDays} day${totalDays === 1 ? '' : 's'} planned`
         : (selectedDay
             ? `Day ${selectedDay.dayNumber} of ${totalDays}`
             : `${totalDays} day${totalDays === 1 ? '' : 's'} planned`);
@@ -274,10 +274,10 @@ export function buildPathTabHtml(ctx: PathTabContext): string {
         const isToday = !isGen && d.date === todayStr;
         const cls = `path-chip${isGen ? ' path-chip--anchor' : ''}${isToday ? ' path-chip--today' : ''}${isSel ? ' is-selected' : ''}`;
         const tooltip = isGen
-            ? 'Trip Anchor — your trip\'s anchor'
+            ? 'Trip Hub — your trip\'s home base'
             : `${isToday ? 'Today · ' : ''}Day ${d.dayNumber}${d.name ? ' — ' + d.name : ''}${d.date ? ' · ' + (formatDayDate(d.date) || d.date) : ''}`;
         const inner = isGen
-            ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="5" r="3"></circle><line x1="12" y1="22" x2="12" y2="8"></line><path d="M5 12H2a10 10 0 0 0 20 0h-3"></path></svg>`
+            ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15 8.5 22 9.3 17 14.3 18.2 21.3 12 18 5.8 21.3 7 14.3 2 9.3 9 8.5"/></svg>`
             : String(d.dayNumber);
         return `<button type="button" class="${cls}" data-path-chip-day-id="${esc(d.id)}" title="${esc(tooltip)}" aria-label="${esc(tooltip)}" aria-pressed="${isSel}">${inner}</button>`;
     }).join('');

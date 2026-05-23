@@ -137,17 +137,31 @@ export function wireNavChrome(): void {
     // inline in the navbar's .nav-trips--desktop-only block.
     const tripControlsBtn = document.getElementById('tripControlsBtn');
     const tripControlsPopover = document.getElementById('tripControlsPopover');
-    tripControlsBtn?.addEventListener('click', (e) => {
+    // 2026-05-21: the navbar compass was relocated to a circular-arrow
+    // button next to the trip name on mobile (HomeHeader.tsx
+    // #mobileTripSwitcherBtn). Document-level delegated click handles
+    // BOTH triggers since the new button mounts/unmounts with each
+    // home-page render and a direct addEventListener would only catch
+    // the first instance.
+    const togglePopover = (e: Event) => {
         e.stopPropagation();
         if (!tripControlsPopover) return;
         const isHidden = tripControlsPopover.style.display === 'none' || !tripControlsPopover.style.display;
         tripControlsPopover.style.display = isHidden ? 'block' : 'none';
-        tripControlsBtn.setAttribute('aria-expanded', isHidden ? 'true' : 'false');
+        tripControlsBtn?.setAttribute('aria-expanded', isHidden ? 'true' : 'false');
         if (isHidden) {
             // Close any open notification dropdown — only one navbar
             // popover can be visible at a time. Both copies handled.
             closeOtherDropdowns();
         }
+    };
+    tripControlsBtn?.addEventListener('click', togglePopover);
+    // Delegated handler for the mobile in-content button. Lives at the
+    // document level so the listener survives home-page re-mounts.
+    document.addEventListener('click', (e) => {
+        const target = e.target as HTMLElement | null;
+        const btn = target?.closest('#mobileTripSwitcherBtn');
+        if (btn) togglePopover(e);
     });
 
     // ── Trip-controls buttons (desktop navbar + mobile popover) ──
@@ -220,11 +234,18 @@ export function wireNavChrome(): void {
         // popover element, so it WOULDN'T be inside the popover —
         // closing on selection is fine here, the user has confirmed
         // their pick by then.
+        // 2026-05-21: also allow clicks on the new in-content mobile
+        // trip-switcher button (#mobileTripSwitcherBtn) — without this
+        // the outside-click handler would fire on the same click that
+        // togglePopover already toggled, snapping the popover back
+        // closed before the user could see it.
+        const onMobileSwitcher = target?.closest('#mobileTripSwitcherBtn');
         if (tripControlsPopover
             && tripControlsPopover.style.display === 'block'
             && target
             && !tripControlsPopover.contains(target)
             && !(tripControlsBtn && tripControlsBtn.contains(target))
+            && !onMobileSwitcher
         ) {
             tripControlsPopover.style.display = 'none';
             if (tripControlsBtn) tripControlsBtn.setAttribute('aria-expanded', 'false');

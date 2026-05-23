@@ -245,7 +245,7 @@ export function ensureDayZero(activeTrip: Trip | null | undefined): void {
         const day0 = {
             id: generateId(),
             tripId: activeTrip.id,
-            name: 'Trip Anchor',
+            name: 'Trip Hub',
             date: '',
             dayNumber: 0,
             lat: activeTrip.lat,
@@ -277,7 +277,7 @@ export const deleteDay = (dayId: string): void => {
     // belt-and-braces in case some old in-memory STATE / external
     // call site reaches deleteDay with a day-0 id.
     if (Number(day.dayNumber) === 0) {
-        showLiquidAlert("Trip Anchor can't be deleted — it anchors the trip.");
+        showLiquidAlert("Trip Hub can't be deleted — it's the trip's home base.");
         return;
     }
 

@@ -79,11 +79,11 @@ export const openTripDocumentsModal = (trip: any): void => {
             if (!id) return null;
             const day = (STATE.tripDays || []).find(d => d.id === id);
             if (!day) return null;
-            return Number(day.dayNumber) === 0 ? '⚓ Anchor' : `Day ${day.dayNumber}`;
+            return Number(day.dayNumber) === 0 ? '⭐ Hub' : `Day ${day.dayNumber}`;
         };
         const isAnchorDoc = (id: string | null | undefined) => !!id && id === anchorDay?.id;
         const dayChip = (id: string | null | undefined) => {
-            if (isAnchorDoc(id)) return `<span style="background:rgba(212,160,23,0.14); color:#8b6e0c; padding:2px 8px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">⚓ Anchor</span>`;
+            if (isAnchorDoc(id)) return `<span style="background:rgba(212,160,23,0.14); color:#8b6e0c; padding:2px 8px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">⭐ Hub</span>`;
             const lbl = dayLabel(id);
             return lbl
                 ? `<span style="background:rgba(0,113,227,0.08); color:#005bb8; padding:2px 8px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">${esc(lbl)}</span>`
@@ -127,7 +127,7 @@ export const openTripDocumentsModal = (trip: any): void => {
                 <div class="card glass" style="padding: 28px; border-radius: 18px; border: 1.5px dashed rgba(88,86,214,0.32); background: rgba(88,86,214,0.04); text-align:center;">
                     <div class="tmm-icon-large">📎</div>
                     <h3 style="margin:0 0 6px; color:#5856d6; font-weight:800;">No documents yet</h3>
-                    <p class="tmm-modal-subtext">Click <strong>📧 Search Gmail for bookings</strong> to find your confirmation emails, then drop the PDFs / links in via <strong>➕ Add document</strong>. Trip-wide docs (passport, multi-day hotel) live on <strong>⚓ Trip Anchor</strong>; day-specific ones (museum ticket) tag to a numbered day.</p>
+                    <p class="tmm-modal-subtext">Click <strong>📧 Search Gmail for bookings</strong> to find your confirmation emails, then drop the PDFs / links in via <strong>➕ Add document</strong>. Trip-wide docs (passport, multi-day hotel) live on <strong>⭐ Trip Hub</strong>; day-specific ones (museum ticket) tag to a numbered day.</p>
                 </div>
             `;
         }
@@ -138,7 +138,7 @@ export const openTripDocumentsModal = (trip: any): void => {
                     const items = groups.get(key) || [];
                     const orphan = key === '__orphan__';
                     const isGen = !orphan && isAnchorDoc(key);
-                    const groupLabel = orphan ? 'Unsorted' : (isGen ? '⚓ Trip Anchor · trip-wide' : (dayLabel(key) || 'Unknown day'));
+                    const groupLabel = orphan ? 'Unsorted' : (isGen ? '⭐ Trip Hub · trip-wide' : (dayLabel(key) || 'Unknown day'));
                     const accent = orphan ? 'rgba(0,0,0,0.45)' : (isGen ? '#8b6e0c' : 'var(--accent-blue)');
                     return `
                         <div>
@@ -158,7 +158,7 @@ export const openTripDocumentsModal = (trip: any): void => {
                                             ${d._source === 'trip' && (anchorDay || numberedDays.length > 0) ? `
                                                 <select class="trip-doc-day-select" data-doc-id="${esc(d.id)}"
                                                     style="padding:6px 8px; border-radius:8px; border:1px solid rgba(0,0,0,0.1); font-size:0.75rem; background:white; max-width:160px;">
-                                                    ${anchorDay ? `<option value="${esc(anchorDay.id)}" ${d.dayId === anchorDay.id ? 'selected' : ''}>⚓ Anchor</option>` : ''}
+                                                    ${anchorDay ? `<option value="${esc(anchorDay.id)}" ${d.dayId === anchorDay.id ? 'selected' : ''}>⭐ Hub</option>` : ''}
                                                     ${numberedDays.map(nd => `<option value="${esc(nd.id)}" ${d.dayId === nd.id ? 'selected' : ''}>Day ${nd.dayNumber}</option>`).join('')}
                                                 </select>
                                             ` : ''}
@@ -290,7 +290,7 @@ export const openTripPhotosModal = (trip: any): void => {
             if (!id) return null;
             const day = (STATE.tripDays || []).find(d => d.id === id);
             if (!day) return null;
-            return Number(day.dayNumber) === 0 ? '⚓ Anchor' : `Day ${day.dayNumber}`;
+            return Number(day.dayNumber) === 0 ? '⭐ Hub' : `Day ${day.dayNumber}`;
         };
         const isAnchorPhoto = (id: string | null | undefined) => !!id && id === anchorDayForPhotos?.id;
         const headerRow = `
@@ -315,7 +315,7 @@ export const openTripPhotosModal = (trip: any): void => {
                 <div class="card glass" style="padding: 28px; border-radius: 18px; border: 1.5px dashed rgba(52,199,89,0.32); background: rgba(52,199,89,0.04); text-align:center;">
                     <div class="tmm-icon-large">📸</div>
                     <h3 style="margin:0 0 6px; color:#1a6b3c; font-weight:800;">No photos yet</h3>
-                    <p class="tmm-modal-subtext">Use <strong>📤 Upload photos</strong> for files on your device, or <strong>🔗 Add by link</strong> for a Drive / Dropbox / iCloud share. New photos go to <strong>⚓ Trip Anchor</strong> (the trip-wide bucket); you can re-tag any of them to a specific day from the dropdown on each card.</p>
+                    <p class="tmm-modal-subtext">Use <strong>📤 Upload photos</strong> for files on your device, or <strong>🔗 Add by link</strong> for a Drive / Dropbox / iCloud share. New photos go to <strong>⭐ Trip Hub</strong> (the trip-wide bucket); you can re-tag any of them to a specific day from the dropdown on each card.</p>
                 </div>
             `;
         }
@@ -331,13 +331,13 @@ export const openTripPhotosModal = (trip: any): void => {
                         ? 'rgba(140,110,12,0.85)'
                         : (p.dayId ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0.45)');
                     const dayBadge = canEditDay
-                        ? `<select class="trip-photo-day-select" data-photo-id="${esc(p.id)}" title="Move to Trip Anchor or a numbered day"
+                        ? `<select class="trip-photo-day-select" data-photo-id="${esc(p.id)}" title="Move to Trip Hub or a numbered day"
                                 style="position:absolute; top:6px; left:6px; background: ${chipBg}; color:white; border:0; padding:2px 22px 2px 10px; border-radius:999px; font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; backdrop-filter: blur(6px); cursor:pointer; appearance:none; -webkit-appearance:none; background-image: url('data:image/svg+xml;utf8,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;10&quot; height=&quot;10&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;white&quot; stroke-width=&quot;3&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;><polyline points=&quot;6 9 12 15 18 9&quot;/></svg>'); background-repeat:no-repeat; background-position: right 7px center; background-size: 8px;">
-                                ${anchorDayForPhotos ? `<option value="${esc(anchorDayForPhotos.id)}" ${p.dayId === anchorDayForPhotos.id ? 'selected' : ''}>⚓ Anchor</option>` : ''}
+                                ${anchorDayForPhotos ? `<option value="${esc(anchorDayForPhotos.id)}" ${p.dayId === anchorDayForPhotos.id ? 'selected' : ''}>⭐ Hub</option>` : ''}
                                 ${numberedDaysForPhotos.map(nd => `<option value="${esc(nd.id)}" ${p.dayId === nd.id ? 'selected' : ''}>Day ${nd.dayNumber}</option>`).join('')}
                             </select>`
                         : (isAnchorPhoto(p.dayId)
-                            ? staticChipFor('⚓ Anchor', 'rgba(140,110,12,0.85)')
+                            ? staticChipFor('⭐ Hub', 'rgba(140,110,12,0.85)')
                             : (p.dayId ? staticChipFor(dayLabel(p.dayId) || '', 'rgba(0,0,0,0.55)') : staticChipFor('Unsorted', 'rgba(0,0,0,0.45)')));
                     const removeBtn = tripIsEditable
                         ? `<button type="button" class="trip-photo-remove-btn" data-photo-id="${esc(p.id)}" title="Remove" aria-label="Remove photo"
@@ -733,7 +733,7 @@ export const openAddTripDocumentModal = (trip: any): void => {
                 </div>
                 <label class="tmm-section-label--mt-8">Where does it belong?</label>
                 <select id="newDocDay" class="glass-input p-3 rounded-md bg-white">
-                    ${anchorDay ? `<option value="${esc(anchorDay.id)}" selected>⚓ Trip Anchor (passport, multi-day hotel, return flight…)</option>` : ''}
+                    ${anchorDay ? `<option value="${esc(anchorDay.id)}" selected>⭐ Trip Hub (passport, multi-day hotel, return flight…)</option>` : ''}
                     ${numberedDays.map(d => `<option value="${esc(d.id)}">Day ${d.dayNumber}${d.date ? ` — ${formatDayDate(d.date) || d.date}` : ''}</option>`).join('')}
                 </select>
             </div>
@@ -826,7 +826,7 @@ export const openEditTripDocumentModal = (trip: any, docId: string): void => {
                 ${isTripLevel ? `
                     <label class="tmm-section-label--mt-8">Where does it belong?</label>
                     <select id="editDocDay" class="glass-input p-3 rounded-md bg-white">
-                        ${anchorDay ? `<option value="${esc(anchorDay.id)}" ${doc.dayId === anchorDay.id ? 'selected' : ''}>⚓ Trip Anchor (trip-wide)</option>` : ''}
+                        ${anchorDay ? `<option value="${esc(anchorDay.id)}" ${doc.dayId === anchorDay.id ? 'selected' : ''}>⭐ Trip Hub (trip-wide)</option>` : ''}
                         ${numberedDays.map(d => `<option value="${esc(d.id)}" ${doc.dayId === d.id ? 'selected' : ''}>Day ${d.dayNumber}${d.date ? ` — ${formatDayDate(d.date) || d.date}` : ''}</option>`).join('')}
                     </select>
                 ` : ''}
@@ -928,7 +928,7 @@ export const openAddTripPhotoUrlModal = (trip: any): void => {
                 </div>
                 <label class="tmm-section-label--mt-8">Where does it belong?</label>
                 <select id="newPhotoDay" class="glass-input p-3 rounded-md bg-white">
-                    ${anchorDay ? `<option value="${esc(anchorDay.id)}" selected>⚓ Trip Anchor</option>` : ''}
+                    ${anchorDay ? `<option value="${esc(anchorDay.id)}" selected>⭐ Trip Hub</option>` : ''}
                     ${numberedDays.map(d => `<option value="${esc(d.id)}">Day ${d.dayNumber}${d.date ? ` — ${formatDayDate(d.date) || d.date}` : ''}</option>`).join('')}
                 </select>
             </div>

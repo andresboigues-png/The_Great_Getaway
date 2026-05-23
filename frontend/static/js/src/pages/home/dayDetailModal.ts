@@ -229,15 +229,15 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
     const isAnchor = Number(day.dayNumber) === 0;
 
     // Header label varies — numbered days show "Day N", Anchor
-    // shows a gold "⚓ Trip Anchor" chip to match the Path tab
+    // shows a gold "⭐ Trip Hub" chip to match the Path tab
     // styling.
     const headerChipHtml = isAnchor
-        ? `<div style="background: var(--gradient-anchor-deep); color: white; padding: var(--space-1) var(--space-3); border-radius: var(--radius-sm); font-weight: 800; font-size: var(--font-xs); text-transform: uppercase; letter-spacing: 0.06em;">⚓ Trip Anchor</div>`
+        ? `<div style="background: var(--gradient-anchor-deep); color: white; padding: var(--space-1) var(--space-3); border-radius: var(--radius-sm); font-weight: 800; font-size: var(--font-xs); text-transform: uppercase; letter-spacing: 0.06em;">⭐ Trip Hub</div>`
         : `<div style="background: var(--accent-blue); color: white; padding: var(--space-1) var(--space-3); border-radius: var(--radius-sm); font-weight: 800; font-size: var(--font-xs); text-transform: uppercase;">Day ${day.dayNumber}</div>`;
     const headerSubtitle = isAnchor
         ? (trip?.country ? esc(shortPlaceName(trip.country)) : 'Where the trip begins')
         : esc(formatDayDate(day.date));
-    const headerTitle = isAnchor ? 'Trip Anchor' : esc(day.name);
+    const headerTitle = isAnchor ? 'Trip Hub' : esc(day.name);
 
     // Anchor body: quick-links row + single "Trip notes"
     // textarea on the left; Expert Tip + Done on the right. No
@@ -417,7 +417,7 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
             return `
                 <div style="background: rgba(212,160,23,0.04); padding: var(--space-5); border-radius: 24px; border: 1.5px dashed rgba(212,160,23,0.32);">
                     <h4 class="text-tag" style="--accent: 212,160,23;">📝 Trip checklist</h4>
-                    <p style="margin: 6px 0 8px; font-size: 0.82rem; color: var(--text-secondary); line-height:1.45;">No tasks yet — open Trip Anchor → 📝 Trip checklist to add packing/errand tasks. They'll appear here on every day.</p>
+                    <p style="margin: 6px 0 8px; font-size: 0.82rem; color: var(--text-secondary); line-height:1.45;">No tasks yet — open Trip Hub → 📝 Trip checklist to add packing/errand tasks. They'll appear here on every day.</p>
                 </div>
             `;
         }
@@ -443,7 +443,7 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
                 <div id="dayChecklistRows" style="display:flex; flex-direction:column;">
                     ${rowsHtml}
                 </div>
-                <button type="button" id="dayChecklistManageBtn" style="margin-top:6px; background:transparent; border:0; color:#8b6e0c; font-weight:700; font-size:0.78rem; cursor:pointer; padding:0;">Manage in Trip Anchor →</button>
+                <button type="button" id="dayChecklistManageBtn" style="margin-top:6px; background:transparent; border:0; color:#8b6e0c; font-weight:700; font-size:0.78rem; cursor:pointer; padding:0;">Manage in Trip Hub →</button>
             </div>
         `;
     })();
