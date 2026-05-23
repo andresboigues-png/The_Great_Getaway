@@ -43,18 +43,16 @@
 // Otherwise leave it alone; routine bundle updates don't need a bump
 // because the network-first strategy supplies fresh JS on every load.
 
-// 2026-05-21: bumped to v2 to force re-cache on every device.
-// Real-phone users (notably Android Chrome) reported sharing + other
-// POSTs returning the generic "Couldn't ... try again later" toast,
-// while the SAME share worked from DevTools mobile-view on desktop.
-// API DEBUG popup confirmed auth + GET /api/data were fine on the
-// failing phone, so the failure had to live in the JS layer — most
-// likely a stale bundle being served from the phone's SW cache. A
-// SW_VERSION bump invalidates SHELL_CACHE, API_CACHE, UPLOADS_CACHE
-// on `activate`, and combined with skipWaiting() + clients.claim()
-// already in this file, ALL clients pick up the new bundle on next
-// reload instead of waiting for every tab to close.
-const SW_VERSION = 'v2';
+// 2026-05-21: bumped again to v3. After v2 shipped, user still
+// reported the new mobile-trip-switcher button + icons-only action
+// buttons missing on their phone, even though the bundle chunk did
+// contain them. Either PA didn't have the latest commit yet OR the
+// v1→v2 transition didn't actually take (browser served the v1 sw.js
+// from HTTP cache, never realised v2 existed). Bumping again forces
+// a fresh sw.js fetch since the activate handler now sees a stranger
+// (v2 → v3 → wipe everything not in CURRENT_CACHES). Belt-and-braces
+// for the n-th cached-bundle regression.
+const SW_VERSION = 'v3';
 const SHELL_CACHE = `gg-shell-${SW_VERSION}`;
 const API_CACHE = `gg-api-${SW_VERSION}`;
 const UPLOADS_CACHE = `gg-uploads-${SW_VERSION}`;
