@@ -48,18 +48,19 @@ export interface DayMarkersContext {
     getInfoWindow?: () => google.maps.InfoWindow;
 }
 
-/** The Anchor day's icon: a gold-plated circle with a white anchor
- *  glyph stamped inside, shipped as one SVG data-URL — no text
- *  label, no font fallback, the glyph is part of the image so it
- *  never glitches on re-render. */
+/** The Hub day's map icon: a gold-plated circle with a filled
+ *  white 5-point star stamped inside, shipped as one SVG data-URL —
+ *  no text label, no font fallback, the glyph is part of the image
+ *  so it never glitches on re-render.
+ *
+ *  2026-05-21: replaced the white anchor glyph (line/circle/path
+ *  trio) with a filled star polygon to match the Trip Anchor →
+ *  Trip Hub rename + ⭐ visual identity elsewhere in the app. */
 const _GENESIS_SVG = 'data:image/svg+xml;utf8,'
     + '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">'
     + '<circle cx="24" cy="24" r="21" fill="%23c89a18" stroke="white" stroke-width="3"/>'
-    + '<g fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">'
-    + '<circle cx="24" cy="14" r="3"/>'
-    + '<line x1="24" y1="38" x2="24" y2="17"/>'
-    + '<path d="M14 28H10a14 14 0 0 0 28 0h-4"/>'
-    + '</g>'
+    + '<polygon points="24 10 28.4 19.6 39 21 31 28.6 33 39 24 33.6 15 39 17 28.6 9 21 19.6 19.6" '
+    + 'fill="white" stroke="white" stroke-width="1.5" stroke-linejoin="round"/>'
     + '</svg>';
 
 /** Paint markers for every Trip Day with a pinned location. Returns

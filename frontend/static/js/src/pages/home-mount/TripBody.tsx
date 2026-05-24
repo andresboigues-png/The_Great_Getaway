@@ -413,6 +413,35 @@ export function TripBody({ activeTrip }: TripBodyProps) {
         <div ref={daysContainerRef} className="mt-10">
             <div className="flex flex-col mb-6">
                 <div className="flex items-center gap-3">
+                    {/* 2026-05-21: mobile-only circular-arrow trip
+                        switcher to the LEFT of the trip name. Replaces
+                        the navbar compass (now hidden on mobile). Opens
+                        the same #tripControlsPopover via the delegated
+                        handler in nav-chrome.ts. */}
+                    <button
+                        type="button"
+                        id="mobileTripSwitcherBtn"
+                        className="mobile-trip-switcher"
+                        aria-label="Switch trip"
+                        title="Switch trip"
+                    >
+                        <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.4"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            aria-hidden="true"
+                        >
+                            <polyline points="23 4 23 10 17 10"></polyline>
+                            <polyline points="1 20 1 14 7 14"></polyline>
+                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"></path>
+                            <path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14"></path>
+                        </svg>
+                    </button>
                     <button
                         id="resetMapViewBtn"
                         title="Reset the map view to show the whole trip"
