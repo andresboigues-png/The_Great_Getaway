@@ -25,6 +25,7 @@
 // cached id no longer matches a day on the trip.
 
 import { STATE } from '../../state.js';
+import { setPathCardCollapsed } from './pathTab.js';
 
 
 type PathSelectionHooks = {
@@ -103,6 +104,30 @@ export function setSelectedDay(tripId: string, dayId: string): void {
     try {
         localStorage.setItem('home_path_selected_day_by_trip', JSON.stringify(selectedDayByTrip));
     } catch (_) { /* localStorage full or disabled — fine */ }
+
+    // 2026-05-24: on mobile, when the user picks a numbered day, force
+    // the Hub options closed + force the new day's options open in
+    // ONE shot via setPathCardCollapsed. Done here (in the selection
+    // handler) instead of inside buildPathTabHtml so manual chevron
+    // toggles applied AFTER the auto-collapse aren't fought every
+    // subsequent render. Desktop layout has both columns side-by-side
+    // so this collapse-on-select dance isn't needed there.
+    const onPhone = typeof window !== 'undefined'
+        && typeof window.matchMedia === 'function'
+        && window.matchMedia('(max-width: 720px)').matches;
+    if (onPhone) {
+        const days = (STATE.tripDays || []).filter(d => d.tripId === tripId);
+        const newDay = days.find(d => d.id === dayId);
+        const hub = days.find(d => Number(d.dayNumber) === 0);
+        // Only flip if the new selection is a numbered day (anchor
+        // selected via the chip strip means the user explicitly chose
+        // the Hub — keep it expanded).
+        if (newDay && Number(newDay.dayNumber) > 0) {
+            if (hub) setPathCardCollapsed(hub.id, true);
+            setPathCardCollapsed(newDay.id, false);
+        }
+    }
+
     if (typeof hooks.repaintPathTab === 'function') hooks.repaintPathTab();
     // Notify the active home map so any active POI pills can
     // re-fetch with the new search center (the selected day's

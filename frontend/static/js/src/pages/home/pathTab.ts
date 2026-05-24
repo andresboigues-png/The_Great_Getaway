@@ -70,6 +70,23 @@ export function isPathCardCollapsed(dayId: string): boolean {
     return loadCollapsedSet().has(dayId);
 }
 
+/** Explicitly set a day's collapsed state. Unlike `toggle*`, this
+ *  doesn't flip — it writes the exact value. Used by setSelectedDay
+ *  on mobile so the Hub auto-collapses and the new day auto-expands
+ *  once per selection-change (then later renders respect any manual
+ *  chevron toggle the user applies on top). */
+export function setPathCardCollapsed(dayId: string, collapsed: boolean): void {
+    const set = loadCollapsedSet();
+    const has = set.has(dayId);
+    if (collapsed && !has) {
+        set.add(dayId);
+        saveCollapsedSet(set);
+    } else if (!collapsed && has) {
+        set.delete(dayId);
+        saveCollapsedSet(set);
+    }
+}
+
 /** Inputs `buildPathTabHtml` needs to render the Path tab. Owned by
  *  the caller (renderHome) so the path-tab module stays a pure
  *  function — no module-level state, easy to swap or test. */
@@ -150,14 +167,18 @@ function buildDayCardBody(
     // stack below this day card. Aria-label includes the day name so
     // screen-readers announce it as "Toggle options for Day 3" (etc.).
     // Persists via localStorage (see togglePathCardCollapsed in home.ts).
-    // The chevron points DOWN by default (options visible) and rotates
-    // up via CSS on `.path-column.is-collapsed` so the visual matches
-    // the state.
+    //
+    // 2026-05-24: chevron direction inverted per user request — UP
+    // means "options open" (chevron points up to suggest "tap to
+    // close upward"), DOWN means "options collapsed" (suggests "tap
+    // to open downward"). Default SVG is now an up-chevron; CSS
+    // applies rotate(180deg) on `.path-column.is-collapsed` to flip
+    // it to a down-chevron when the panel is hidden.
     const chevronBtn = `
         <button type="button" class="path-card-collapse-btn" data-day-id="${esc(day.id)}"
             aria-label="Toggle options for ${esc(title)}" title="Hide / show options">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <polyline points="6 9 12 15 18 9"></polyline>
+                <polyline points="6 15 12 9 18 15"></polyline>
             </svg>
         </button>
     `;
