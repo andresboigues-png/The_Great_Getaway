@@ -35,6 +35,21 @@ export const en = {
         remove: 'Remove',
         add: 'Add',
         search: 'Search',
+        saveChanges: 'Save Changes',
+    },
+    // 2026-05-25: Edit-Trip modal (renaming + repinning + cover photo).
+    editTrip: {
+        title: 'Edit Trip',
+        adventureName: 'Adventure Name',
+        destination: 'Destination',
+        destinationPlaceholder: 'Search a country, city, or address...',
+        destinationHint: 'Pick a new suggestion to change the location, or just rename.',
+        startDate: 'Start date',
+        endDate: 'End date',
+        optional: 'optional',
+        coverPhoto: 'Cover photo',
+        chooseCover: 'Choose cover',
+        coverPreviewAlt: 'Cover preview',
     },
     // Default copy for the shared ConfirmModal component. Used when a
     // caller omits the corresponding option — pre-2026-05-18 the
@@ -67,6 +82,17 @@ export const en = {
         notifications: 'Notifications',
         markAllRead: 'Mark all read',
         notificationsEmpty: 'No new notifications',
+    },
+    // 2026-05-25: sidebar (hamburger drawer) chrome — header + section
+    // dividers + close button. The nav items themselves reuse `nav.*`
+    // keys above.
+    sidebar: {
+        menuTitle: 'Menu',
+        closeMenu: 'Close menu',
+        sectionAccount: 'Account',
+        sectionKeepingTrack: 'Keeping track',
+        sectionPreferences: 'Preferences',
+        yourNetwork: 'Your network',
     },
     login: {
         brand: 'The Great Getaway',
@@ -920,6 +946,12 @@ export const en = {
         tabCompanions: 'Companions',
         // Map search input placeholder.
         searchMapPlaceholder: 'Search any place on the map…',
+        // Quick Access / Getting Started guide card.
+        showQuickAccessBtn: 'Show Quick Access',
+        quickAccessTitle: 'Quick Access',
+        gettingStartedTitle: 'Getting Started Guide',
+        quickAccessToolbar: 'Toolbar',
+        hideBtn: 'Hide',
     },
     // 2026-05-24: Path tab — summary line under the chip strip.
     path: {

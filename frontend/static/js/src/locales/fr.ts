@@ -36,6 +36,20 @@ export const fr: Translations = {
         remove: 'Retirer',
         add: 'Ajouter',
         search: 'Rechercher',
+        saveChanges: 'Enregistrer',
+    },
+    editTrip: {
+        title: 'Modifier le voyage',
+        adventureName: 'Nom de l\'aventure',
+        destination: 'Destination',
+        destinationPlaceholder: 'Rechercher un pays, une ville ou une adresse...',
+        destinationHint: 'Choisis une nouvelle suggestion pour changer le lieu, ou renomme simplement.',
+        startDate: 'Date de début',
+        endDate: 'Date de fin',
+        optional: 'facultatif',
+        coverPhoto: 'Photo de couverture',
+        chooseCover: 'Choisir la couverture',
+        coverPreviewAlt: 'Aperçu de la couverture',
     },
     confirmModal: {
         defaultTitle: 'Es-tu sûr ?',
@@ -63,6 +77,14 @@ export const fr: Translations = {
         notifications: 'Notifications',
         markAllRead: 'Tout marquer comme lu',
         notificationsEmpty: 'Aucune nouvelle notification',
+    },
+    sidebar: {
+        menuTitle: 'Menu',
+        closeMenu: 'Fermer le menu',
+        sectionAccount: 'Compte',
+        sectionKeepingTrack: 'Suivi',
+        sectionPreferences: 'Préférences',
+        yourNetwork: 'Ton réseau',
     },
     login: {
         brand: 'The Great Getaway',
@@ -746,6 +768,11 @@ export const fr: Translations = {
         tabPath: 'Itinéraire',
         tabCompanions: 'Compagnons',
         searchMapPlaceholder: 'Rechercher un lieu sur la carte…',
+        showQuickAccessBtn: 'Afficher l\'accès rapide',
+        quickAccessTitle: 'Accès rapide',
+        gettingStartedTitle: 'Guide de démarrage',
+        quickAccessToolbar: 'Raccourcis',
+        hideBtn: 'Masquer',
     },
     path: {
         summaryHub: {

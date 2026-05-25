@@ -401,24 +401,24 @@ export const openEditTripModal = (trip: any) => {
         variant: 'glass',
         cardStyle: 'width: 420px;',
         innerHTML: `
-            <h2 class="card-title mdl-title-hero">Edit Trip</h2>
+            <h2 class="card-title mdl-title-hero">${esc(t('editTrip.title'))}</h2>
             <form id="editTripForm" class="mdl-col-center">
                 <div class="w-full mb-4">
-                    <label class="form-label">Adventure Name</label>
+                    <label class="form-label">${esc(t('editTrip.adventureName'))}</label>
                     <input type="text" id="editTripName" class="glass-input-modal" required>
                 </div>
                 <div class="w-full mb-4 relative">
-                    <label class="form-label">Destination</label>
-                    <input type="text" id="editTripPlaceInput" class="glass-input-modal" placeholder="Search a country, city, or address..." autocomplete="off">
-                    <p id="editTripPlaceHint" class="form-hint">Pick a new suggestion to change the location, or just rename.</p>
+                    <label class="form-label">${esc(t('editTrip.destination'))}</label>
+                    <input type="text" id="editTripPlaceInput" class="glass-input-modal" placeholder="${esc(t('editTrip.destinationPlaceholder'))}" autocomplete="off">
+                    <p id="editTripPlaceHint" class="form-hint">${esc(t('editTrip.destinationHint'))}</p>
                 </div>
                 <div class="form-row-split mdl-field-row">
                     <div class="flex-1">
-                        <label class="form-label">Start date <span class="opacity-50 font-medium">(optional)</span></label>
+                        <label class="form-label">${esc(t('editTrip.startDate'))} <span class="opacity-50 font-medium">(${esc(t('editTrip.optional'))})</span></label>
                         <input type="date" id="editTripStartDate" class="glass-input-modal">
                     </div>
                     <div class="flex-1">
-                        <label class="form-label">End date <span class="opacity-50 font-medium">(optional)</span></label>
+                        <label class="form-label">${esc(t('editTrip.endDate'))} <span class="opacity-50 font-medium">(${esc(t('editTrip.optional'))})</span></label>
                         <input type="date" id="editTripEndDate" class="glass-input-modal">
                     </div>
                 </div>
@@ -430,15 +430,15 @@ export const openEditTripModal = (trip: any) => {
                      Preview thumbnail appears below once a photo is set,
                      with a "Remove" link to clear it. -->
                 <div class="w-full mb-4">
-                    <label class="form-label">Cover photo <span class="opacity-50 font-medium">(optional)</span></label>
+                    <label class="form-label">${esc(t('editTrip.coverPhoto'))} <span class="opacity-50 font-medium">(${esc(t('editTrip.optional'))})</span></label>
                     <input type="file" id="editTripCoverInput" accept="image/*" style="display: none;">
                     <div style="display: flex; gap: var(--space-3); align-items: center;">
                         <button type="button" id="editTripCoverPickBtn" class="btn-ghost" style="flex: 0 0 auto; padding: 10px 18px; font-size: 0.85rem; font-weight: 700;">
-                            🖼 Choose cover
+                            🖼 ${esc(t('editTrip.chooseCover'))}
                         </button>
                         <div id="editTripCoverPreview" style="display: none; flex: 1; align-items: center; gap: var(--space-3);">
-                            <img id="editTripCoverThumb" src="" alt="Cover preview" style="width: 56px; height: 56px; border-radius: 12px; object-fit: cover; border: 1px solid rgba(255,255,255,0.25); box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
-                            <button type="button" id="editTripCoverRemoveBtn" class="btn-ghost" style="padding: 10px 16px; min-height: var(--tap-min); font-size: 0.78rem; font-weight: 700; opacity: 0.85; border-radius: 8px; cursor: pointer;">Remove</button>
+                            <img id="editTripCoverThumb" src="" alt="${esc(t('editTrip.coverPreviewAlt'))}" style="width: 56px; height: 56px; border-radius: 12px; object-fit: cover; border: 1px solid rgba(255,255,255,0.25); box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+                            <button type="button" id="editTripCoverRemoveBtn" class="btn-ghost" style="padding: 10px 16px; min-height: var(--tap-min); font-size: 0.78rem; font-weight: 700; opacity: 0.85; border-radius: 8px; cursor: pointer;">${esc(t('common.remove'))}</button>
                         </div>
                         <span id="editTripCoverStatus" style="flex: 1; font-size: 0.78rem; color: rgba(255,255,255,0.7); font-weight: 600;"></span>
                     </div>
@@ -451,8 +451,8 @@ export const openEditTripModal = (trip: any) => {
                      cover photo — share is its own surface. -->
 
                 <div class="mdl-btn-row">
-                    <button type="submit" id="editTripSubmitBtn" class="btn-primary flex-[2]">Save Changes</button>
-                    <button type="button" id="cancelEditTripBtn" class="btn-ghost flex-1">Cancel</button>
+                    <button type="submit" id="editTripSubmitBtn" class="btn-primary flex-[2]">${esc(t('common.saveChanges'))}</button>
+                    <button type="button" id="cancelEditTripBtn" class="btn-ghost flex-1">${esc(t('common.cancel'))}</button>
                 </div>
             </form>
         `,

@@ -94,8 +94,8 @@
     <!-- Left Sidebar Panel -->
     <div id="sidebar" class="sidebar glass">
         <div class="sidebar-header">
-            <span class="sidebar-title">Menu</span>
-            <button id="sidebarClose" class="sidebar-close-btn" aria-label="Close menu">&times;</button>
+            <span class="sidebar-title" data-i18n-key="sidebar.menuTitle">Menu</span>
+            <button id="sidebarClose" class="sidebar-close-btn" aria-label="Close menu" data-i18n-aria-label="sidebar.closeMenu">&times;</button>
         </div>
 
         <!-- Pinned Profile / Login — TOP of the drawer (round 3 reorg).
@@ -177,17 +177,17 @@
                     <circle cx="11" cy="11" r="7"></circle>
                     <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                 </svg>
-                Search
+                <span data-i18n-key="nav.search">Search</span>
             </a>
         </div>
 
         <div class="sidebar-section">
-            <div class="sidebar-section-label">Account</div>
+            <div class="sidebar-section-label" data-i18n-key="sidebar.sectionAccount">Account</div>
             <a href="#" class="sidebar-item" data-page="collections">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
                 </svg>
-                Collections
+                <span data-i18n-key="nav.collections">Collections</span>
             </a>
             <a href="#" class="sidebar-item" data-page="friends">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -196,29 +196,29 @@
                     <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
                     <path d="M16 3.13a4 4 0 0 1 0 7.75" />
                 </svg>
-                Your network
+                <span data-i18n-key="sidebar.yourNetwork">Your network</span>
             </a>
         </div>
 
         <div class="sidebar-section">
-            <div class="sidebar-section-label" style="color: #ff9500;">Keeping track</div>
+            <div class="sidebar-section-label" style="color: #ff9500;" data-i18n-key="sidebar.sectionKeepingTrack">Keeping track</div>
             <a href="#" class="sidebar-item" data-page="budgets">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <rect x="2" y="7" width="20" height="14" rx="2" />
                     <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
                 </svg>
-                Budgets
+                <span data-i18n-key="nav.budgets">Budgets</span>
             </a>
             <a href="#" class="sidebar-item" data-page="settlement">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
                 </svg>
-                Settlements
+                <span data-i18n-key="nav.settlement">Settlements</span>
             </a>
         </div>
 
         <div class="sidebar-section">
-            <div class="sidebar-section-label" style="color: #34c759;">Preferences</div>
+            <div class="sidebar-section-label" style="color: #34c759;" data-i18n-key="sidebar.sectionPreferences">Preferences</div>
             <!-- 2026-05-14: Personalization moved into Settings as a
                  sub-section card; the dedicated sidebar entry was
                  collapsing the Preferences section into two near-
@@ -231,7 +231,7 @@
                         d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
                     <circle cx="12" cy="12" r="3" />
                 </svg>
-                Settings
+                <span data-i18n-key="nav.settings">Settings</span>
             </a>
         </div>
 

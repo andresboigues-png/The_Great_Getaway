@@ -27,6 +27,8 @@ import { STATE, emit } from '../../state.js';
 import { navigate } from '../../router.js';
 import { openNewTripModal, openAddDayModal, openCompanionPickerModal } from '../../modals.js';
 import { showPersTab } from '../settings.js';
+import { t } from '../../i18n.js';
+import { esc } from '../../utils.js';
 
 
 type GuideStep = {
@@ -153,7 +155,7 @@ export function appendGettingStartedGuide(opts: GettingStartedGuideOptions): voi
         showBtnContainer.style.marginTop = '40px';
         showBtnContainer.innerHTML = `
             <button class="btn-glass-light">
-                🧭 Show Quick Access
+                🧭 ${esc(t('home.showQuickAccessBtn'))}
             </button>
         `;
         const showBtn = (showBtnContainer.querySelector('button') as HTMLButtonElement | null);
@@ -177,11 +179,11 @@ export function appendGettingStartedGuide(opts: GettingStartedGuideOptions): voi
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px;">
                 <div style="display: flex; align-items: center; gap: 12px;">
                     <div style="background: ${allDone ? 'var(--text-brand-navy)' : 'var(--accent-blue)'}; color: white; width: 32px; height: 32px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem;">${allDone ? '⚡️' : '🧭'}</div>
-                    <h2 style="margin: 0; font-size: 1.5rem; letter-spacing: -0.02em; color: var(--text-brand-navy);">${allDone ? 'Quick Access' : 'Getting Started Guide'}</h2>
+                    <h2 style="margin: 0; font-size: 1.5rem; letter-spacing: -0.02em; color: var(--text-brand-navy);">${esc(allDone ? t('home.quickAccessTitle') : t('home.gettingStartedTitle'))}</h2>
                 </div>
                 <div style="display: flex; align-items: center; gap: 12px;">
-                    ${allDone ? `<span style="font-size: 0.75rem; font-weight: 800; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">Toolbar</span>` : ''}
-                    <button id="hideQuickAccessBtn" class="pill-btn-warn-hover">Hide</button>
+                    ${allDone ? `<span style="font-size: 0.75rem; font-weight: 800; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">${esc(t('home.quickAccessToolbar'))}</span>` : ''}
+                    <button id="hideQuickAccessBtn" class="pill-btn-warn-hover">${esc(t('home.hideBtn'))}</button>
                 </div>
             </div>
 
