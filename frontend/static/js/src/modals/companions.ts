@@ -14,6 +14,7 @@
 // a cross-module circular import back into modals.ts.
 
 import { STATE, emit } from '../state.js';
+import { t } from '../i18n.js';
 import { showLiquidAlert, q, esc } from '../utils.js';
 import {
     upsertTrip,
@@ -75,11 +76,13 @@ export const openCompanionPickerModal = (tripId: string) => {
 
     let cachedFriends: FriendListEntry[] = [];
 
-    /** Pretty role label. */
+    /** Pretty role label. Translated via the shared companions.role* keys
+     *  so the picker, friend-pick rows, and the toast all read the same
+     *  copy in every locale. */
     const roleLabel = (r: string) =>
-        r === ROLE_PLANNER ? 'Planner'
-        : r === ROLE_BUDGETEER ? 'Budgeteer'
-        : r === ROLE_RELAXER ? 'Relaxer'
+        r === ROLE_PLANNER ? t('companions.rolePlanner')
+        : r === ROLE_BUDGETEER ? t('companions.roleBudgeteer')
+        : r === ROLE_RELAXER ? t('companions.roleRelaxer')
         : r;
 
     /** Build a row for one companion currently on the trip. */
@@ -90,20 +93,20 @@ export const openCompanionPickerModal = (tripId: string) => {
 
         let badge = '';
         if (member) {
-            badge = `<span class="companion-link-pill companion-link-pill--linked" title="Trip invitation accepted">${esc(roleLabel(member.role))}</span>`;
+            badge = `<span class="companion-link-pill companion-link-pill--linked" title="${esc(t('companions.pillLinkedTitle'))}">${esc(roleLabel(member.role))}</span>`;
         } else if (linkedUserId) {
-            badge = `<span class="companion-link-pill companion-link-pill--pending" title="Trip invitation pending">⏳ Pending</span>`;
+            badge = `<span class="companion-link-pill companion-link-pill--pending" title="${esc(t('companions.pillPendingTitle'))}">${esc(t('companions.pillPendingText'))}</span>`;
         } else {
-            badge = `<span class="companion-link-pill companion-link-pill--companion">Unlinked</span>`;
+            badge = `<span class="companion-link-pill companion-link-pill--companion">${esc(t('companions.pillUnlinkedText'))}</span>`;
         }
 
         const linkAction = !linkedUserId
-            ? `<button type="button" class="btn-link-action picker-link-btn" data-name="${esc(c.name)}">🔗 Link to friend</button>`
+            ? `<button type="button" class="btn-link-action picker-link-btn" data-name="${esc(c.name)}">${esc(t('companions.rowLinkBtn'))}</button>`
             : '';
 
         const removeBtn = isLocked
-            ? `<span class="companion-row__lock" title="Has expenses on this trip — can't remove">🔒</span>`
-            : `<button type="button" class="btn-x-bare picker-remove-btn" data-name="${esc(c.name)}" title="Remove from trip">✕</button>`;
+            ? `<span class="companion-row__lock" title="${esc(t('companions.rowLockTitle'))}">🔒</span>`
+            : `<button type="button" class="btn-x-bare picker-remove-btn" data-name="${esc(c.name)}" title="${esc(t('companions.rowRemoveTitle'))}">✕</button>`;
 
         return `
             <div class="companion-row" data-name="${esc(c.name)}">
@@ -120,7 +123,7 @@ export const openCompanionPickerModal = (tripId: string) => {
         const list = trip.companions || [];
         if (list.length === 0) {
             return `<p style="text-align:center; color: rgba(0,0,0,0.55); padding: var(--space-6); margin: 0;">
-                No companions on this trip yet. Add a friend or type a name below.
+                ${esc(t('companions.pickerEmpty'))}
             </p>`;
         }
         return list.map(buildRow).join('');
@@ -135,9 +138,9 @@ export const openCompanionPickerModal = (tripId: string) => {
         // gutter on each side instead of being pinned to the edges.
         cardStyle: 'width: min(520px, calc(100vw - 24px)); max-width: 100%; max-height: 85vh; display: flex; flex-direction: column;',
         innerHTML: `
-            <h2 style="margin: 0 0 var(--space-2); font-size: var(--font-2xl); color: #002d5b; font-weight: 800; letter-spacing: -0.03em;">Trip Companions</h2>
+            <h2 style="margin: 0 0 var(--space-2); font-size: var(--font-2xl); color: #002d5b; font-weight: 800; letter-spacing: -0.03em;">${esc(t('companions.pickerTitle'))}</h2>
             <p style="margin: 0 0 var(--space-5); font-size: var(--font-base); color: rgba(0,0,0,0.55);">
-                Add who's coming on <strong>${esc(trip.name)}</strong>. Friends get a trip invitation (Relaxer by default — you can override per pick); plain companions are just labels for non-app travellers.
+                ${t('companions.pickerIntro', { trip: esc(trip.name) })}
             </p>
 
             <div id="companionPickerList" style="display: flex; flex-direction: column; gap: var(--space-2); overflow-y: auto; padding: var(--space-1); margin-bottom: var(--space-4); flex: 1; min-height: 0;">
@@ -150,11 +153,11 @@ export const openCompanionPickerModal = (tripId: string) => {
             <div class="companion-picker-add-section">
                 <button type="button" id="companionPickerAddFriendBtn" class="companion-picker-add-section__friend-btn">
                     <span style="font-size: 1rem;">👤</span>
-                    <span>Add a friend</span>
+                    <span>${esc(t('companions.addFriendBtn'))}</span>
                 </button>
                 <form id="companionPickerAddForm" class="companion-picker-add-form" style="margin-bottom: 0;">
-                    <input type="text" id="companionPickerAddInput" class="companion-picker-add-form__input" placeholder="+ Add unlinked companion" autocomplete="off">
-                    <button type="submit" class="companion-picker-add-form__btn">Add</button>
+                    <input type="text" id="companionPickerAddInput" class="companion-picker-add-form__input" placeholder="${esc(t('companions.addInputPlaceholder'))}" autocomplete="off">
+                    <button type="submit" class="companion-picker-add-form__btn">${esc(t('companions.addBtn'))}</button>
                 </form>
             </div>
 
@@ -163,16 +166,16 @@ export const openCompanionPickerModal = (tripId: string) => {
                  on this trip. Pick one + role → adds to trip + invites. -->
             <div id="companionPickerFriendSheet" class="companion-picker-friend-sheet" hidden>
                 <div class="companion-picker-friend-sheet__header">
-                    <strong>Add a friend</strong>
-                    <button type="button" id="companionPickerFriendCancel" class="btn-x-bare" title="Close">✕</button>
+                    <strong>${esc(t('companions.friendSheetTitle'))}</strong>
+                    <button type="button" id="companionPickerFriendCancel" class="btn-x-bare" title="${esc(t('companions.rowCloseTitle'))}">✕</button>
                 </div>
                 <div id="companionPickerFriendList" class="companion-picker-friend-sheet__list">
-                    <p style="text-align:center; color: rgba(0,0,0,0.45); padding: var(--space-4); margin: 0;">Loading friends…</p>
+                    <p style="text-align:center; color: rgba(0,0,0,0.45); padding: var(--space-4); margin: 0;">${esc(t('companions.friendSheetLoading'))}</p>
                 </div>
             </div>
 
             <div style="display: flex; gap: var(--space-3); flex-shrink: 0;">
-                <button id="companionPickerCloseBtn" class="btn-primary" style="flex: 1; padding: var(--space-4); border-radius: var(--radius-lg); font-size: var(--font-lg);">Done</button>
+                <button id="companionPickerCloseBtn" class="btn-primary" style="flex: 1; padding: var(--space-4); border-radius: var(--radius-lg); font-size: var(--font-lg);">${esc(t('companions.doneBtn'))}</button>
             </div>
         `,
     });
@@ -195,7 +198,7 @@ export const openCompanionPickerModal = (tripId: string) => {
         const candidates = cachedFriends.filter(f => f.id !== myId && !onTripUserIds.has(f.id));
         if (candidates.length === 0) {
             friendListEl.innerHTML = `<p style="text-align:center; color: rgba(0,0,0,0.55); padding: var(--space-4); margin: 0;">
-                No friends available — every accepted friend is already on this trip, or your friends list is empty.
+                ${esc(t('companions.friendSheetEmpty'))}
             </p>`;
             return;
         }
@@ -205,11 +208,11 @@ export const openCompanionPickerModal = (tripId: string) => {
                 <span class="companion-row__name">${esc(f.name)}</span>
                 <span style="flex:1; font-size: var(--font-xs); color: rgba(0,0,0,0.45);">${esc(f.email)}</span>
                 <select class="companion-row__role-select picker-friend-role-select">
-                    <option value="${ROLE_RELAXER}" selected>Relaxer</option>
-                    <option value="${ROLE_BUDGETEER}">Budgeteer</option>
-                    <option value="${ROLE_PLANNER}">Planner</option>
+                    <option value="${ROLE_RELAXER}" selected>${esc(t('companions.roleRelaxer'))}</option>
+                    <option value="${ROLE_BUDGETEER}">${esc(t('companions.roleBudgeteer'))}</option>
+                    <option value="${ROLE_PLANNER}">${esc(t('companions.rolePlanner'))}</option>
                 </select>
-                <button type="button" class="btn-link-action picker-friend-add-btn">+ Add</button>
+                <button type="button" class="btn-link-action picker-friend-add-btn">${esc(t('companions.friendAddBtn'))}</button>
             </div>
         `).join('');
     };
@@ -319,7 +322,7 @@ export const openCompanionPickerModal = (tripId: string) => {
             await inviteTripMember(trip.id, friendId, role);
             friendSheet.hidden = true;
             refreshList();
-            showLiquidAlert(`${friendName} invited as ${roleLabel(role)}`);
+            showLiquidAlert(t('companions.invitedToast', { name: friendName, role: roleLabel(role) }));
         }
     });
 };
@@ -340,9 +343,9 @@ export const openTripMembersModal = (tripId: string) => {
     const others = members.filter((m: any) => m.userId !== trip.ownerId);
 
     const roleLabel = (role: string) =>
-        role === ROLE_PLANNER ? 'Planner'
-        : role === ROLE_BUDGETEER ? 'Budgeteer'
-        : role === ROLE_RELAXER ? 'Relaxer'
+        role === ROLE_PLANNER ? t('companions.rolePlanner')
+        : role === ROLE_BUDGETEER ? t('companions.roleBudgeteer')
+        : role === ROLE_RELAXER ? t('companions.roleRelaxer')
         : role;
 
     const memberRow = (m: import('../types').TripMember, isOwnerRow: boolean) => `
@@ -350,7 +353,7 @@ export const openTripMembersModal = (tripId: string) => {
             ${m.picture ? `<img src="${esc(m.picture)}" alt="" referrerpolicy="no-referrer" style="width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0; object-fit: cover;">` : ''}
             <span class="companion-row__name">${esc(m.name || m.userId)}</span>
             <span class="companion-link-pill ${isOwnerRow ? 'companion-link-pill--linked' : 'companion-link-pill--pending'}">
-                ${isOwnerRow ? '👑 Owner' : esc(roleLabel(m.role))}
+                ${isOwnerRow ? esc(t('companions.membersOwnerBadge')) : esc(roleLabel(m.role))}
             </span>
         </div>
     `;
@@ -360,9 +363,9 @@ export const openTripMembersModal = (tripId: string) => {
         // 2026-05-19: same mobile-fit pattern as the picker modal above.
         cardStyle: 'width: min(460px, calc(100vw - 24px)); max-width: 100%; max-height: 85vh; display: flex; flex-direction: column;',
         innerHTML: `
-            <h2 style="margin: 0 0 var(--space-2); font-size: var(--font-2xl); color: #002d5b; font-weight: 800; letter-spacing: -0.03em;">Trip members</h2>
+            <h2 style="margin: 0 0 var(--space-2); font-size: var(--font-2xl); color: #002d5b; font-weight: 800; letter-spacing: -0.03em;">${esc(t('companions.membersTitle'))}</h2>
             <p style="margin: 0 0 var(--space-5); font-size: var(--font-base); color: rgba(0,0,0,0.55);">
-                You're on <strong>${esc(trip.name)}</strong> as a <strong>${esc(roleLabel(trip.myRole || ROLE_RELAXER))}</strong>. Roster is managed by the trip owner.
+                ${t('companions.membersIntro', { trip: esc(trip.name), role: esc(roleLabel(trip.myRole || ROLE_RELAXER)) })}
             </p>
 
             <div style="display: flex; flex-direction: column; gap: var(--space-2); overflow-y: auto; padding: var(--space-1); margin-bottom: var(--space-5); flex: 1; min-height: 0;">
@@ -371,7 +374,7 @@ export const openTripMembersModal = (tripId: string) => {
             </div>
 
             <div style="display: flex; gap: var(--space-3); flex-shrink: 0;">
-                <button id="tripMembersCloseBtn" class="btn-neutral" style="flex: 1; border-radius: var(--radius-lg);">Close</button>
+                <button id="tripMembersCloseBtn" class="btn-neutral" style="flex: 1; border-radius: var(--radius-lg);">${esc(t('companions.closeBtn'))}</button>
             </div>
         `,
     });

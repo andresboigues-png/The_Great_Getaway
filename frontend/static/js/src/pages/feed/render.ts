@@ -10,6 +10,7 @@
 
 import { STATE } from '../../state.js';
 import { esc } from '../../utils.js';
+import { t, getLocale } from '../../i18n.js';
 
 export interface Actor {
     id: string;
@@ -172,71 +173,104 @@ export function avatar(
             style="width:${size}px; height:${size}px; border-radius:50%; object-fit:cover; flex-shrink:0; border:2px solid rgba(255,255,255,0.6); box-shadow: 0 2px 8px rgba(0,45,91,0.12);">`
         : fallback;
     if (!user?.id) return inner;
+    const safeName = esc(user.name || t('feed.verbProfile'));
     return `<button type="button" class="feed-avatar-btn" data-feed-avatar-user-id="${esc(user.id)}"
-        title="View ${esc(user.name || 'profile')}"
-        aria-label="View ${esc(user.name || 'profile')}'s profile"
+        title="${esc(t('feed.avatarBtnTitle', { name: safeName }))}"
+        aria-label="${esc(t('feed.avatarBtnAriaLabel', { name: safeName }))}"
         style="background:transparent; border:0; padding:0; margin:0; cursor:pointer; line-height:0; flex-shrink:0; border-radius:50%;">${inner}</button>`;
 }
 
 /** Format an ISO timestamp as a relative phrase ("5m ago"). Falls back
- *  to a locale-formatted date for anything beyond a week. */
+ *  to a locale-formatted date for anything beyond a week. The fallback
+ *  uses Intl.DateTimeFormat with the page's active locale so "May 18"
+ *  becomes "18 mai" / "18 mayo" / "18 mai." rather than always being
+ *  pinned to en-US.
+ *
+ *  Note: the local timestamp variable is named `ms` rather than `t` —
+ *  shadowing the imported `t()` translation helper would silently break
+ *  the i18n branches below. */
 export function relativeTime(iso: string | null | undefined): string {
     if (!iso) return '';
     const normalised =
         typeof iso === 'string' && iso.includes(' ') && !iso.includes('T')
             ? iso.replace(' ', 'T') + 'Z'
             : iso;
-    const t = new Date(normalised).getTime();
-    if (Number.isNaN(t)) return '';
-    const diffMs = Date.now() - t;
+    const ms = new Date(normalised).getTime();
+    if (Number.isNaN(ms)) return '';
+    const diffMs = Date.now() - ms;
     const sec = Math.floor(diffMs / 1000);
-    if (sec < 60) return 'just now';
+    if (sec < 60) return t('feed.relTimeJustNow');
     const min = Math.floor(sec / 60);
-    if (min < 60) return `${min}m ago`;
+    if (min < 60) return t('feed.relTimeMin', { count: min });
     const hr = Math.floor(min / 60);
-    if (hr < 24) return `${hr}h ago`;
+    if (hr < 24) return t('feed.relTimeHour', { count: hr });
     const d = Math.floor(hr / 24);
-    if (d < 7) return `${d}d ago`;
-    return new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    if (d < 7) return t('feed.relTimeDay', { count: d });
+    // Use the active i18n locale's BCP-47 tag for the date fallback. The
+    // mapping mirrors the four currently-shipped locales; anything else
+    // falls back to en-US.
+    const loc = getLocale();
+    const localeTag =
+        loc === 'pt' ? 'pt-PT'
+        : loc === 'es' ? 'es-ES'
+        : loc === 'fr' ? 'fr-FR'
+        : 'en-US';
+    return new Date(ms).toLocaleDateString(localeTag, { month: 'short', day: 'numeric' });
 }
 
 /** Build the human verb line for one event. Switch-style so adding a
  *  new event type is one branch — no clever inference. Self-attribution
- *  flips to second person ("You shared ...") when the actor is the caller. */
+ *  flips to second person ("You shared ...") when the actor is the caller.
+ *
+ *  i18n note: the `{who}`, `{trip}`, `{orig}` placeholders all receive
+ *  pre-formatted HTML (the names wrapped in <strong>). The values are
+ *  escaped at the source so passing them through t() with their literal
+ *  HTML markup is safe — translations must keep the `{…}` tokens intact
+ *  so the wrapped HTML lands in the right grammatical slot for each locale. */
 export function eventLine(ev: any) {
     const meId = STATE.user?.id;
     const isSelf = !!meId && ev.actor?.id === meId;
     const who = isSelf
-        ? `<strong style="color:#002d5b;">You</strong>`
+        ? `<strong style="color:#002d5b;">${esc(t('feed.verbYou'))}</strong>`
         : `<strong style="color:#002d5b;">${esc(ev.actor.name)}</strong>`;
     const tripName = ev.trip
-        ? `<strong style="color:#002d5b;">${esc(ev.trip.name || ev.trip.country || 'a trip')}</strong>`
+        ? `<strong style="color:#002d5b;">${esc(ev.trip.name || ev.trip.country || t('feed.verbATrip'))}</strong>`
         : '';
     switch (ev.type) {
         case 'friend_created_trip':
-            return `${who} started planning a new trip — ${tripName}${ev.trip?.country ? ` (${esc(ev.trip.country)})` : ''}`;
-        case 'friend_archived_trip':
+            return ev.trip?.country
+                ? t('feed.evCreatedTripCountry', { who, trip: tripName, country: esc(ev.trip.country) })
+                : t('feed.evCreatedTrip', { who, trip: tripName });
+        case 'friend_archived_trip': {
             // Self-attribution flips "their" → "your" so the user
             // doesn't see "You just completed their trip to X" when
             // it's their own archive event surfaced in their own feed.
-            return `${who} just completed ${isSelf ? 'your' : 'their'} trip to <strong style="color:#002d5b;">${esc(ev.trip?.country || ev.trip?.name || 'somewhere')}</strong> 🎉`;
+            const country = esc(ev.trip?.country || ev.trip?.name || t('feed.verbSomewhere'));
+            return isSelf
+                ? t('feed.evArchivedTripSelf', { who, country })
+                : t('feed.evArchivedTripOther', { who, country });
+        }
         case 'friend_joined_trip':
-            return `${who} joined the trip ${tripName}`;
+            return t('feed.evJoinedTrip', { who, trip: tripName });
         case 'new_friendship':
-            return `You and ${who} are now friends 🤝`;
+            return t('feed.evNewFriendship', { who });
         case 'friend_shared_trip':
-            return `${who} shared a trip — ${tripName}${ev.trip?.country ? ` (${esc(ev.trip.country)})` : ''}`;
+            return ev.trip?.country
+                ? t('feed.evSharedTripCountry', { who, trip: tripName, country: esc(ev.trip.country) })
+                : t('feed.evSharedTrip', { who, trip: tripName });
         case 'friend_reposted_trip': {
             const origIsSelf = !!meId && ev.original_sharer?.id === meId;
             const orig = !ev.original_sharer
-                ? 'someone'
+                ? t('feed.verbSomeone')
                 : origIsSelf
-                  ? `<strong style="color:#002d5b;">your</strong> share`
-                  : `<strong style="color:#002d5b;">${esc(ev.original_sharer.name)}</strong>'s trip`;
-            return `${who} reposted ${orig} — ${tripName}${ev.trip?.country ? ` (${esc(ev.trip.country)})` : ''}`;
+                  ? t('feed.evRepostedYourShare')
+                  : t('feed.evRepostedOthersTrip', { name: esc(ev.original_sharer.name) });
+            return ev.trip?.country
+                ? t('feed.evRepostedSomeoneCountry', { who, orig, trip: tripName, country: esc(ev.trip.country) })
+                : t('feed.evRepostedSomeone', { who, orig, trip: tripName });
         }
         default:
-            return `${who} did something new`;
+            return t('feed.evDefault', { who });
     }
 }
 

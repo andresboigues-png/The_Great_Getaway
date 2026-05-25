@@ -1,6 +1,6 @@
 import { STATE, emit } from '../state.js';
 import { CONVERSION_RATES } from '../constants.js';
-import { generateId, q, showLiquidAlert } from '../utils.js';
+import { generateId, q, showLiquidAlert, esc } from '../utils.js';
 import { syncWithServer } from '../api.js';
 import { navigate } from '../router.js';
 import { showSettingsTab } from './settings.js';
@@ -204,15 +204,15 @@ function parseCellDate(cell: unknown): string {
 export function renderUpload() {
     const div = document.createElement('div');
     div.innerHTML = `
-        <h1>Upload Data</h1>
+        <h1>${esc(t('upload.pageTitle'))}</h1>
         <div class="card glass" style="border-color: rgba(33, 115, 70, 0.3); box-shadow: 0 0 15px rgba(33, 115, 70, 0.1);">
             <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
-                <h2 class="card-title" style="color: #217346; margin: 0;">Excel Upload</h2>
+                <h2 class="card-title" style="color: #217346; margin: 0;">${esc(t('upload.sectionHeading'))}</h2>
             </div>
 
             <!-- Format Selector -->
             <div style="margin-bottom: 20px;">
-                <label style="display:block; font-size:0.8rem; font-weight:600; margin-bottom:8px;">Import Format</label>
+                <label style="display:block; font-size:0.8rem; font-weight:600; margin-bottom:8px;">${esc(t('upload.labelImportFormat'))}</label>
                 <select id="formatSelect" class="glass-input" style="width:100%;">
                     ${(() => {
             const sf = STATE.savedFormats || [];
@@ -231,57 +231,50 @@ export function renderUpload() {
             ).join('');
 
             const custOpts = sf.length === 0
-                ? '<option disabled>No saved custom formats yet</option>'
+                ? `<option disabled>${esc(t('upload.noCustomFormats'))}</option>`
                 : sf.map(f =>
                     `<option value="custom:${f.id}" ${activeType === 'custom' && activeId === f.id ? 'selected' : ''}>${f.name}</option>`
                 ).join('');
 
             return `
-                            <optgroup label="Popular Formats">${popOpts}</optgroup>
-                            <optgroup label="Custom Formats">${custOpts}</optgroup>
+                            <optgroup label="${esc(t('upload.groupPopular'))}">${popOpts}</optgroup>
+                            <optgroup label="${esc(t('upload.groupCustom'))}">${custOpts}</optgroup>
                         `;
         })()}
                 </select>
                 <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 12px; line-height: 1.5;">
-                    Use your favourite app's format or <a href="#" id="uploadFormatSettingsLink" style="color: #005bb8; text-decoration: none; font-weight: 600;">customize your own upload format</a> in settings.
+                    ${t('upload.helperText')}
                 </p>
                 <p id="formatNote" style="font-size:0.8rem; color:var(--text-secondary); margin-top:8px;"></p>
             </div>
 
             <!-- Column reference for custom formats -->
             <div id="customFormatPreview" class="callout-tinted" style="display:none; margin-bottom: var(--space-4); --accent: 255,149,0;">
-                <p class="callout-tinted__label">Active Format Mapping</p>
+                <p class="callout-tinted__label">${esc(t('upload.activeFormatMapping'))}</p>
                 <div id="customFormatTable"></div>
             </div>
 
             <!-- Popular format note -->
             <div id="popularNote" class="callout-tinted callout-tinted--lg" style="margin-bottom: var(--space-5); --accent: 0,113,227;">
-                <span class="callout-tinted__label">💡 FORMAT PREVIEW</span>
-                <p class="callout-tinted__body">Ensure your file contains these columns. We will try to auto-detect categories.</p>
+                <span class="callout-tinted__label">${esc(t('upload.previewCalloutLabel'))}</span>
+                <p class="callout-tinted__body">${esc(t('upload.previewCalloutBody'))}</p>
                 <div id="popularFormatTableContainer" style="margin-top: var(--space-4); overflow-x: auto; background: var(--card-bg); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);"></div>
             </div>
 
             <div class="callout-tinted" style="margin-bottom: 15px; --accent: 0,113,227;">
-                <p class="callout-tinted__label">📅 Date format</p>
-                <p class="callout-tinted__body">Use <strong>DD-MM-YYYY</strong> (e.g. <code class="code-inline">15-03-2024</code>) or <strong>YYYY-MM-DD</strong>. Excel-typed date cells are recognised automatically.</p>
+                <p class="callout-tinted__label">${esc(t('upload.dateCalloutLabel'))}</p>
+                <p class="callout-tinted__body">${t('upload.dateCalloutBody')}</p>
             </div>
 
             <div class="callout-tinted" style="margin-bottom: 15px; --accent: 52,199,89;">
-                <p class="callout-tinted__label">⚖️ Splits &amp; settlements</p>
-                <p class="callout-tinted__body">
-                    <strong>Tricount / Splitwise</strong> rows are imported as equal-split shared expenses.
-                    <strong>Revolut</strong> rows are imported as personal (no debt).
-                    <strong>Custom formats</strong> can map two optional variables:
-                    <code class="code-inline">splits</code> (e.g. <code class="code-inline">Alice:50,Bob:50</code>) to define percentages, and
-                    <code class="code-inline">isSettlement</code> (Y/N) to mark a row as a transfer — receiver goes in the splits cell, e.g. <code class="code-inline">Bob:100</code>.
-                    <br>By default, custom rows are <strong>regular expenses, never settlements</strong>: a row only counts as a settlement when <code class="code-inline">isSettlement</code> is mapped <em>and</em> its cell is Y/Yes/True/1. Without <code class="code-inline">splits</code>, the row is recorded as 100% paid by the payer (no debt created).
-                </p>
+                <p class="callout-tinted__label">${esc(t('upload.splitsCalloutLabel'))}</p>
+                <p class="callout-tinted__body">${t('upload.splitsCalloutBody')}</p>
             </div>
 
             <input type="file" id="excelFile" accept=".xlsx, .xls, .csv" class="glass-input" style="margin-bottom: 15px; width: 100%;">
-            
+
             <div id="previewContainer" style="display: none; margin-bottom: 15px;">
-                <h3 style="margin-bottom: 10px;">Preview (First 3 Rows)</h3>
+                <h3 style="margin-bottom: 10px;">${esc(t('upload.previewHeading'))}</h3>
                 <div style="overflow-x: auto;">
                     <table class="liquid-table" id="previewTable">
                         <thead></thead>
@@ -291,7 +284,7 @@ export function renderUpload() {
             </div>
 
             <br>
-            <button class="btn" id="uploadBtn">Upload and Process</button>
+            <button class="btn" id="uploadBtn">${esc(t('upload.uploadBtn'))}</button>
             <div id="uploadStatus" style="margin-top: 15px; font-weight: bold;"></div>
         </div>
     `;
@@ -439,7 +432,7 @@ export function renderUpload() {
             const popularFormat = formatVal.split(':')[1];
 
             if (!parsedRows) {
-                statusDiv.innerText = "Please select a valid file to process.";
+                statusDiv.innerText = t('upload.errorSelectFile');
                 statusDiv.style.color = "red";
                 return;
             }
@@ -559,7 +552,7 @@ export function renderUpload() {
                         tripId: activeTripId,
                         who,
                         categoryId,
-                        label: isSettlement && !label ? `Settlement: ${who} → ${Object.keys(splits)[0] || ''}` : label,
+                        label: isSettlement && !label ? t('settlement.settlementLabel', { from: who, to: Object.keys(splits)[0] || '' }) : label,
                         date,
                         country,
                         value,
@@ -587,13 +580,13 @@ export function renderUpload() {
 
                 emit('state:changed');
                 syncWithServer(); // Bulk: sync all newly imported data to server
-                statusDiv.innerText = `Successfully imported ${added} expenses!`;
+                statusDiv.innerText = t('upload.successImported', { count: added });
                 statusDiv.style.color = "green";
                 parsedRows = null;
                 q(div, '#previewContainer').style.display = 'none';
             } catch (error) {
                 console.error(error);
-                statusDiv.innerText = "Error parsing file. Check the format.";
+                statusDiv.innerText = t('upload.errorParsing');
                 statusDiv.style.color = "red";
             }
         });

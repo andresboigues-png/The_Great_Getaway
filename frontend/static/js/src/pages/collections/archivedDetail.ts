@@ -16,6 +16,7 @@
 
 import { STATE, emit } from '../../state.js';
 import { formatHome, esc, showLiquidAlert, showConfirmModal } from '../../utils.js';
+import { t } from '../../i18n.js';
 import { navigate } from '../../router.js';
 import { shareTripToFeed, fetchShareStatus, unshareFeedPost, cloneTrip, pullFromServer } from '../../api.js';
 import { openDayView, openPdfPreview, looksLikePdfUrl, openShareToFeedModal, updateShareBtnVisualState } from '../home.js';
@@ -40,7 +41,7 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
         : tripIdOrTrip;
     const div = document.createElement('div');
     if (!trip) {
-        div.innerHTML = `<p style="padding: 40px; text-align: center;">Trip not found.</p>`;
+        div.innerHTML = `<p style="padding: 40px; text-align: center;">${esc(t('archivedDetail.notFound'))}</p>`;
         return div;
     }
 
@@ -123,7 +124,7 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
                  Outline pill aesthetic for Back + Share matches the
                  .btn-primary-pill family already used by Restore. -->
             <div class="archived-hero__actions">
-                <button id="backToCollectionsBtn" type="button" class="ad-pill-glass" style="background:rgba(255,255,255,0.16);">← Back</button>
+                <button id="backToCollectionsBtn" type="button" class="ad-pill-glass" style="background:rgba(255,255,255,0.16);">${esc(t('archivedDetail.backBtn'))}</button>
                 <!-- Share button — now ALWAYS visible (no isPublic
                      gate). Opens the Share Chooser which lets the
                      user pick between "Share to feed" (in-app post,
@@ -133,7 +134,7 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
                      completed trips ARE shareable, even if the
                      feed-share path needs the public toggle flipped
                      first. -->
-                <button id="shareTripBtn" type="button" data-trip-id="${esc(trip.id)}" title="Share this trip" aria-label="Share this trip"
+                <button id="shareTripBtn" type="button" data-trip-id="${esc(trip.id)}" title="${esc(t('archivedDetail.shareBtnTitle'))}" aria-label="${esc(t('archivedDetail.shareBtnTitle'))}"
                     class="ad-pill-glass">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                         <circle cx="18" cy="5" r="3"></circle>
@@ -142,7 +143,7 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
                         <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
                         <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
                     </svg>
-                    Share
+                    ${esc(t('archivedDetail.shareBtn'))}
                 </button>
                 <!-- §4.6 — Clone button. Available on every
                      archived trip detail (own AND fetched-via-public
@@ -150,22 +151,22 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
                      active trips with the same Path + ideas; their
                      expenses / photos / companions are NOT carried
                      over (clone is a template, not a copy). -->
-                <button id="cloneTripBtn" type="button" data-trip-id="${esc(trip.id)}" title="Start a new trip based on this one" aria-label="Clone this trip"
+                <button id="cloneTripBtn" type="button" data-trip-id="${esc(trip.id)}" title="${esc(t('archivedDetail.cloneBtnTitle'))}" aria-label="${esc(t('archivedDetail.cloneBtnAria'))}"
                     class="ad-pill-glass">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                         <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
                         <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
                     </svg>
-                    Clone
+                    ${esc(t('archivedDetail.cloneBtn'))}
                 </button>
-                <button class="restore-trip-btn" data-trip-id="${esc(trip.id)}" type="button" style="background:#ffffff; color:#002d5b; padding:10px 18px; border-radius:999px; font-weight:800; font-size:0.85rem; cursor:pointer; box-shadow:0 4px 14px rgba(0,0,0,0.18); border: 0;">↺ Restore Trip</button>
+                <button class="restore-trip-btn" data-trip-id="${esc(trip.id)}" type="button" style="background:#ffffff; color:#002d5b; padding:10px 18px; border-radius:999px; font-weight:800; font-size:0.85rem; cursor:pointer; box-shadow:0 4px 14px rgba(0,0,0,0.18); border: 0;">${esc(t('archivedDetail.restoreBtn'))}</button>
             </div>
 
             <!-- Top tag chip + title block. -->
             <div style="position:relative; z-index:1; max-width: calc(100% - 260px);">
                 <div style="display:inline-flex; align-items:center; gap:8px; background:${chipBg}; border:${chipBorder}; padding:6px 14px; border-radius:999px; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); margin-bottom:18px;">
                     <span style="font-size:0.85rem; line-height:1;">📚</span>
-                    <span style="font-size:0.7rem; font-weight:800; text-transform:uppercase; letter-spacing:0.18em; color:${heroTextColor};">Completed memory</span>
+                    <span style="font-size:0.7rem; font-weight:800; text-transform:uppercase; letter-spacing:0.18em; color:${heroTextColor};">${esc(t('archivedDetail.heroTag'))}</span>
                 </div>
                 <h1 style="font-size: 3.2rem; margin: 0; letter-spacing: -0.04em; color: ${heroTextColor}; font-weight: 800; line-height: 1; text-shadow: 0 2px 24px rgba(0,0,0,0.2);">${esc(trip.name)}</h1>
                 ${trip.country ? `<div style="margin-top:10px; font-size:1rem; color:${heroSecondary}; font-weight:600; display:flex; align-items:center; gap:8px;">📍 ${esc(trip.country)}</div>` : ''}
@@ -173,10 +174,10 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
 
             <!-- Stat chip row. -->
             <div style="position:relative; z-index:1; display:flex; flex-wrap:wrap; gap:10px; margin-top:24px;">
-                ${statChip('🗓️', 'Days', String(dayCount))}
-                ${totalPhotos > 0 ? statChip('📸', 'Photos', String(totalPhotos)) : ''}
-                ${totalDocs > 0 ? statChip('📎', 'Documents', String(totalDocs)) : ''}
-                ${expenses.length > 0 ? statChip('💰', 'Spent', formatHome(totalSpent, 'EUR')) : ''}
+                ${statChip('🗓️', t('archivedDetail.statDays'), String(dayCount))}
+                ${totalPhotos > 0 ? statChip('📸', t('archivedDetail.statPhotos'), String(totalPhotos)) : ''}
+                ${totalDocs > 0 ? statChip('📎', t('archivedDetail.statDocuments'), String(totalDocs)) : ''}
+                ${expenses.length > 0 ? statChip('💰', t('archivedDetail.statSpent'), formatHome(totalSpent, 'EUR')) : ''}
 
                 <!-- Public-trip granularity select, styled as a chip.
                      Replaces the legacy binary toggle. Three states:
@@ -187,11 +188,11 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
                     <select
                         class="trip-privacy-select"
                         data-trip-id="${esc(trip.id)}"
-                        aria-label="Trip visibility"
+                        aria-label="${esc(t('archivedDetail.visibilityAria'))}"
                         style="background:transparent; border:0; color:${heroTextColor}; font-size:0.7rem; font-weight:800; text-transform:uppercase; letter-spacing:0.08em; padding: 2px 18px 2px 4px; appearance:none; -webkit-appearance:none; cursor:pointer; outline:none; background-image: url('data:image/svg+xml;utf8,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;10&quot; height=&quot;10&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;white&quot; stroke-width=&quot;3&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;><polyline points=&quot;6 9 12 15 18 9&quot;/></svg>'); background-repeat:no-repeat; background-position: right 4px center; background-size: 8px;">
-                        <option value="private" ${!trip.isPublic ? 'selected' : ''} class="text-brand-navy">🔒 Private</option>
-                        <option value="public-plan" ${trip.isPublic && !trip.publicShowExpenses ? 'selected' : ''} class="text-brand-navy">🌍 Public — plan only</option>
-                        <option value="public-full" ${trip.isPublic && trip.publicShowExpenses ? 'selected' : ''} class="text-brand-navy">🌍 Public — incl. expenses</option>
+                        <option value="private" ${!trip.isPublic ? 'selected' : ''} class="text-brand-navy">${esc(t('archivedDetail.visibilityPrivate'))}</option>
+                        <option value="public-plan" ${trip.isPublic && !trip.publicShowExpenses ? 'selected' : ''} class="text-brand-navy">${esc(t('archivedDetail.visibilityPublicPlan'))}</option>
+                        <option value="public-full" ${trip.isPublic && trip.publicShowExpenses ? 'selected' : ''} class="text-brand-navy">${esc(t('archivedDetail.visibilityPublicAll'))}</option>
                     </select>
                 </div>
             </div>
@@ -200,8 +201,8 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
         <!-- Day grid. Each card is keyboard-accessible (role=button)
              and opens the read-only openDayView modal on click. -->
         <div style="display:flex; align-items:baseline; gap:12px; margin: 8px 4px 14px;">
-            <h2 class="ad-hero-title">The journey</h2>
-            <span class="ad-text-muted-sm">Tap a day to relive what was planned.</span>
+            <h2 class="ad-hero-title">${esc(t('archivedDetail.journeyTitle'))}</h2>
+            <span class="ad-text-muted-sm">${esc(t('archivedDetail.journeySubtitle'))}</span>
         </div>
         <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:18px;">
             ${tripDays.sort((a: any, b: any) => a.dayNumber - b.dayNumber).map((day: any) => {
@@ -228,22 +229,27 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
                 // trip overall, not any one day).
                 const photoBg = dayPhotosFromDay[0] || dayPhotosFromTrip[0]?.src || null;
                 const hasBg = !!photoBg;
+                const dayAria = day.name
+                    ? t('archivedDetail.dayAriaWithName', { n: day.dayNumber, name: day.name })
+                    : t('archivedDetail.dayAria', { n: day.dayNumber });
+                const dayBadgeLabel = isStartingPoint ? t('archivedDetail.dayBadgeHub') : t('tripMedia.dayBucketDay', { n: day.dayNumber });
+                const dayTitleFallback = isStartingPoint ? t('archivedDetail.dayTitleHub') : t('tripMedia.dayBucketDay', { n: day.dayNumber });
                 return `
-                    <div class="archived-day-block" data-day-id="${esc(day.id)}" role="button" tabindex="0" aria-label="View Day ${day.dayNumber}${day.name ? ' — ' + day.name : ''}"
+                    <div class="archived-day-block" data-day-id="${esc(day.id)}" role="button" tabindex="0" aria-label="${esc(dayAria)}"
                         style="position:relative; cursor:pointer; min-height:170px; border-radius:24px; padding:20px; display:flex; flex-direction:column; justify-content:space-between; transition: transform 0.35s cubic-bezier(0.16,1,0.3,1), box-shadow 0.35s cubic-bezier(0.16,1,0.3,1); ${hasBg ? `background: linear-gradient(180deg, rgba(0,45,91,0.15) 0%, rgba(0,45,91,0.78) 100%), url(${esc(photoBg)}) center/cover no-repeat; border: 1px solid rgba(0,0,0,0.08); color: white;` : `background: white; border: 1.5px solid rgba(0,113,227,0.18); color: #002d5b;`} box-shadow: 0 10px 30px rgba(0,0,0,0.06);"
                         onmouseover="this.style.transform='translateY(-6px)';this.style.boxShadow='0 24px 50px rgba(0,0,0,0.16)';"
                         onmouseout="this.style.transform='';this.style.boxShadow='0 10px 30px rgba(0,0,0,0.06)';">
                         <!-- Top: badge -->
                         <div class="flex items-center gap-2">
-                            <span style="background: ${isStartingPoint ? 'rgba(52,199,89,0.95)' : 'rgba(0,113,227,0.95)'}; color:white; padding: 4px 12px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.1em;">${isStartingPoint ? '⭐ Hub' : `Day ${day.dayNumber}`}</span>
+                            <span style="background: ${isStartingPoint ? 'rgba(52,199,89,0.95)' : 'rgba(0,113,227,0.95)'}; color:white; padding: 4px 12px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.1em;">${esc(dayBadgeLabel)}</span>
                         </div>
                         <!-- Bottom: name + count chips -->
                         <div>
-                            <h3 style="margin:0; font-size:1.4rem; font-weight:800; letter-spacing:-0.02em; color:${hasBg ? '#ffffff' : '#002d5b'}; line-height:1.15; ${hasBg ? 'text-shadow: 0 2px 12px rgba(0,0,0,0.4);' : ''}">${esc(day.name || (isStartingPoint ? 'Trip Hub' : `Day ${day.dayNumber}`))}</h3>
+                            <h3 style="margin:0; font-size:1.4rem; font-weight:800; letter-spacing:-0.02em; color:${hasBg ? '#ffffff' : '#002d5b'}; line-height:1.15; ${hasBg ? 'text-shadow: 0 2px 12px rgba(0,0,0,0.4);' : ''}">${esc(day.name || dayTitleFallback)}</h3>
                             <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:10px;">
                                 ${totalDayPhotos > 0 ? `<span style="background:${hasBg ? 'rgba(255,255,255,0.18)' : 'rgba(0,113,227,0.08)'}; color:${hasBg ? '#ffffff' : 'var(--accent-blue)'}; padding:3px 10px; border-radius:999px; font-size:0.7rem; font-weight:700;">📸 ${totalDayPhotos}</span>` : ''}
                                 ${totalDayDocs > 0 ? `<span style="background:${hasBg ? 'rgba(255,255,255,0.18)' : 'rgba(88,86,214,0.08)'}; color:${hasBg ? '#ffffff' : '#5856d6'}; padding:3px 10px; border-radius:999px; font-size:0.7rem; font-weight:700;">📎 ${totalDayDocs}</span>` : ''}
-                                ${day.notes ? `<span style="background:${hasBg ? 'rgba(255,255,255,0.18)' : 'rgba(255,149,0,0.08)'}; color:${hasBg ? '#ffffff' : '#ff9500'}; padding:3px 10px; border-radius:999px; font-size:0.7rem; font-weight:700;">📝 Notes</span>` : ''}
+                                ${day.notes ? `<span style="background:${hasBg ? 'rgba(255,255,255,0.18)' : 'rgba(255,149,0,0.08)'}; color:${hasBg ? '#ffffff' : '#ff9500'}; padding:3px 10px; border-radius:999px; font-size:0.7rem; font-weight:700;">${esc(t('archivedDetail.notesChip'))}</span>` : ''}
                             </div>
                         </div>
                     </div>
@@ -275,7 +281,7 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
                 if (!id) return null;
                 const d = tripDays.find((x: any) => x.id === id);
                 if (!d) return null;
-                return Number(d.dayNumber) === 0 ? '⭐ Hub' : `Day ${d.dayNumber}`;
+                return Number(d.dayNumber) === 0 ? t('archivedDetail.dayBadgeHub') : t('tripMedia.dayBucketDay', { n: d.dayNumber });
             };
             const isAnchorId = (id: string | null | undefined) => {
                 if (!id) return false;
@@ -284,25 +290,31 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
             };
             const dayChip = (id: string | null | undefined) => {
                 if (isAnchorId(id)) {
-                    return `<span style="background:rgba(52,199,89,0.12); color:#1a6b3c; padding:2px 10px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">⭐ Hub</span>`;
+                    return `<span style="background:rgba(52,199,89,0.12); color:#1a6b3c; padding:2px 10px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">${esc(t('archivedDetail.dayBadgeHub'))}</span>`;
                 }
                 const lbl = dayLabel(id);
                 return lbl
                     ? `<span style="background:rgba(0,113,227,0.08); color:var(--accent-blue); padding:2px 10px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">${esc(lbl)}</span>`
-                    : `<span style="background:rgba(0,0,0,0.05); color:rgba(0,0,0,0.45); padding:2px 10px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">Unsorted</span>`;
+                    : `<span style="background:rgba(0,0,0,0.05); color:rgba(0,0,0,0.45); padding:2px 10px; border-radius:999px; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">${esc(t('archivedDetail.dayBucketUnsorted'))}</span>`;
             };
 
             // Build the union document list (trip-level + legacy
             // day.tickets) sorted Trip-wide → Day 1 → Day 2 …
             interface UnionDoc { name: string; url: string; dayId: string | null; source: 'trip' | 'day'; _key: string }
             const allDocs: UnionDoc[] = [];
+            const docFallback = t('tripMedia.docsFallbackName');
             tripDocs.forEach((d: any) => allDocs.push({
-                name: d.name || 'Document', url: d.url || '', dayId: d.dayId || null,
+                name: d.name || docFallback, url: d.url || '', dayId: d.dayId || null,
                 source: 'trip', _key: d.id || `${d.name}-${d.url}`,
             }));
             tripDays.forEach((day: any) => {
-                (day.tickets || []).forEach((t: any, i: number) => allDocs.push({
-                    name: t.name || 'Document', url: t.url || '', dayId: day.id,
+                // `t` is the imported i18n helper at module scope. The
+                // ticket var was previously named `t` here and silently
+                // shadowed it, which would crash at runtime if we used
+                // the i18n helper inside this callback. Rename to `tk`
+                // to avoid the shadow.
+                (day.tickets || []).forEach((tk: any, i: number) => allDocs.push({
+                    name: tk.name || docFallback, url: tk.url || '', dayId: day.id,
                     source: 'day', _key: `${day.id}#${i}`,
                 }));
             });
@@ -333,8 +345,8 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
 
             const docsSection = allDocs.length === 0 ? '' : `
                 <div class="ad-section-header-row">
-                    <h2 class="ad-hero-title">Documents</h2>
-                    <span class="ad-text-muted-sm">${allDocs.length} saved · click any to open</span>
+                    <h2 class="ad-hero-title">${esc(t('archivedDetail.docsTitle'))}</h2>
+                    <span class="ad-text-muted-sm">${esc(t('archivedDetail.docsSubtitle', { count: allDocs.length }))}</span>
                 </div>
                 <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:8px;">
                     ${allDocs.map(d => `
@@ -347,7 +359,7 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
                                 </div>
                                 ${d.url ? `<div style="font-size:0.7rem; color:var(--text-secondary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(d.url)}</div>` : ''}
                             </div>
-                            <span style="color: var(--accent-blue); font-size:0.78rem; font-weight:700; flex-shrink:0;">Open ↗</span>
+                            <span style="color: var(--accent-blue); font-size:0.78rem; font-weight:700; flex-shrink:0;">${esc(t('archivedDetail.docOpenAction'))}</span>
                         </a>
                     `).join('')}
                 </div>
@@ -355,8 +367,8 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
 
             const photosSection = allPhotos.length === 0 ? '' : `
                 <div class="ad-section-header-row">
-                    <h2 class="ad-hero-title">All photos</h2>
-                    <span class="ad-text-muted-sm">${allPhotos.length} saved</span>
+                    <h2 class="ad-hero-title">${esc(t('archivedDetail.allPhotosTitle'))}</h2>
+                    <span class="ad-text-muted-sm">${esc(t('archivedDetail.allPhotosSubtitle', { count: allPhotos.length }))}</span>
                 </div>
                 <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:10px; margin-bottom:24px;">
                     ${allPhotos.map(p => {
@@ -365,7 +377,7 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
                         const chipBg = isAnchorId(p.dayId) ? 'rgba(52,199,89,0.85)' : 'rgba(0,0,0,0.55)';
                         const chip = lbl
                             ? `<div style="position:absolute; top:6px; left:6px; background: ${chipBg}; color:white; padding:2px 8px; border-radius:999px; font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; backdrop-filter: blur(6px);">${esc(lbl)}</div>`
-                            : `<div style="position:absolute; top:6px; left:6px; background: rgba(0,0,0,0.45); color:white; padding:2px 8px; border-radius:999px; font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; backdrop-filter: blur(6px);">Unsorted</div>`;
+                            : `<div style="position:absolute; top:6px; left:6px; background: rgba(0,0,0,0.45); color:white; padding:2px 8px; border-radius:999px; font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; backdrop-filter: blur(6px);">${esc(t('archivedDetail.dayBucketUnsorted'))}</div>`;
                         if (isImage(p.src)) {
                             return `<a href="${esc(p.src)}" target="_blank" rel="noreferrer" style="position:relative; aspect-ratio:1; border-radius:14px; overflow:hidden; background-image:url(${esc(p.src)}); background-size:cover; background-position:center; box-shadow: 0 4px 12px rgba(0,0,0,0.06); border:1px solid rgba(0,0,0,0.06); display:block;">${chip}</a>`;
                         }
@@ -429,11 +441,11 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
         if (cloneBtn?.dataset.tripId) {
             cloneBtn.setAttribute('disabled', 'true');
             const originalText = cloneBtn.innerHTML;
-            cloneBtn.innerHTML = 'Cloning…';
+            cloneBtn.innerHTML = esc(t('archivedDetail.cloneStatusCloning'));
             try {
                 const res = await cloneTrip(cloneBtn.dataset.tripId);
                 if (!res?.ok || !res.body?.tripId) {
-                    showLiquidAlert("Couldn't clone — try again in a moment.");
+                    showLiquidAlert(t('archivedDetail.cloneError'));
                     cloneBtn.removeAttribute('disabled');
                     cloneBtn.innerHTML = originalText;
                     return;
@@ -460,11 +472,11 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
                 // cycle will surface it).
                 STATE.activeTripId = newTripId;
                 emit('state:changed');
-                showLiquidAlert('Trip cloned! Edit your draft on Home.');
+                showLiquidAlert(t('archivedDetail.cloneSuccess'));
                 navigate('home');
             } catch (err) {
                 console.error('Clone failed:', err);
-                showLiquidAlert("Couldn't clone — try again in a moment.");
+                showLiquidAlert(t('archivedDetail.cloneError'));
                 cloneBtn.removeAttribute('disabled');
                 cloneBtn.innerHTML = originalText;
             }
@@ -488,19 +500,19 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
                         const postId = Number(shareBtn.dataset.postId || 0);
                         if (!postId) return;
                         showConfirmModal({
-                            title: "Unshare this trip?",
-                            message: "It'll disappear from your friends' feeds. Any reposts of it will be removed too.",
-                            confirmText: "Unshare",
+                            title: t('archivedDetail.unshareConfirmTitle'),
+                            message: t('archivedDetail.unshareConfirmBody'),
+                            confirmText: t('archivedDetail.unshareConfirmBtn'),
                             onConfirm: async () => {
                                 const result = await unshareFeedPost(postId);
                                 if (!result || !result.ok) {
-                                    showLiquidAlert("Couldn't unshare — try again in a moment.");
+                                    showLiquidAlert(t('archivedDetail.unshareError'));
                                     return;
                                 }
                                 shareBtn.dataset.shared = '0';
                                 shareBtn.dataset.postId = '';
                                 updateShareBtnVisualState(shareBtn, false);
-                                showLiquidAlert("Removed from your feed.");
+                                showLiquidAlert(t('archivedDetail.unshareSuccess'));
                             },
                         });
                         return;
@@ -533,9 +545,9 @@ export function renderArchivedTripDetail(tripIdOrTrip: string | any) {
                             updateShareBtnVisualState(shareBtn, true);
                         }
                         if (result.body?.status === 'already_shared') {
-                            showLiquidAlert(caption ? "Updated your share." : "Already shared to your feed.");
+                            showLiquidAlert(caption ? t('archivedDetail.shareUpdated') : t('archivedDetail.shareAlready'));
                         } else {
-                            showLiquidAlert("Shared to your feed.");
+                            showLiquidAlert(t('archivedDetail.shareSuccess'));
                         }
                     });
                 },

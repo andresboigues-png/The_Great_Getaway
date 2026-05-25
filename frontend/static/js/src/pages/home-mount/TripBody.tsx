@@ -588,9 +588,9 @@ export function TripBody({ activeTrip }: TripBodyProps) {
                     {!tripIsEditable ? (
                         <span
                             className="trip-role-badge trip-role-badge--relaxer"
-                            title="You're a Relaxer on this trip — view-only"
+                            title={t('companions.relaxerBadgeTitle')}
                         >
-                            👁 Relaxer
+                            👁 {t('companions.roleRelaxer')}
                         </span>
                     ) : null}
                 </div>
@@ -835,16 +835,16 @@ function MemberChipsPanel({
     const renderBadge = (chip: ChipShape) => {
         if (chip.isOwner) {
             return (
-                <span className="member-chip__role member-chip__role--owner">👑 Owner</span>
+                <span className="member-chip__role member-chip__role--owner">{t('companions.membersOwnerBadge')}</span>
             );
         }
         if (chip.isMember) {
             const label =
                 chip.role === ROLE_PLANNER
-                    ? 'Planner'
+                    ? t('companions.rolePlanner')
                     : chip.role === ROLE_BUDGETEER
-                      ? 'Budgeteer'
-                      : 'Relaxer';
+                      ? t('companions.roleBudgeteer')
+                      : t('companions.roleRelaxer');
             const variant =
                 chip.role === ROLE_PLANNER
                     ? 'planner'
@@ -857,17 +857,17 @@ function MemberChipsPanel({
         }
         if (chip.isPending) {
             return (
-                <span className="member-chip__role member-chip__role--companion">⏳ Pending</span>
+                <span className="member-chip__role member-chip__role--companion">{t('companions.pillPendingText')}</span>
             );
         }
-        return <span className="member-chip__role member-chip__role--relaxer">Relaxer</span>;
+        return <span className="member-chip__role member-chip__role--relaxer">{t('companions.roleRelaxer')}</span>;
     };
 
     return (
         <div
             className="trip-companions-card__chips"
             id="tripMembersPanel"
-            title={tripIsManageable ? 'Manage trip companions' : "See who's on this trip"}
+            title={tripIsManageable ? t('companions.chipsManageTitle') : t('companions.chipsSeeTitle')}
             onClick={onClick}
         >
             {chips.map((chip, i) => {

@@ -250,31 +250,31 @@ export const openNewTripModal = () => {
         variant: 'glass',
         cardStyle: 'width: 420px;',
         innerHTML: `
-            <h2 class="card-title mdl-title-hero">New Trip</h2>
+            <h2 class="card-title mdl-title-hero">${esc(t('modals.newTripTitle'))}</h2>
             <form id="newTripForm" class="mdl-col-center">
                 <div class="w-full mb-4">
-                    <label class="form-label">Adventure Name</label>
-                    <input type="text" id="tripName" class="glass-input-modal" placeholder="e.g. Summer in Tuscany" required>
+                    <label class="form-label">${esc(t('modals.newTripLabelName'))}</label>
+                    <input type="text" id="tripName" class="glass-input-modal" placeholder="${esc(t('modals.newTripPlaceholderName'))}" required>
                 </div>
                 <div class="w-full mb-4 relative">
-                    <label class="form-label">Destination</label>
-                    <input type="text" id="tripPlaceInput" class="glass-input-modal" placeholder="Search a country, city, or address..." autocomplete="off">
-                    <p id="tripPlaceHint" class="form-hint">Pick a suggestion to confirm the location.</p>
+                    <label class="form-label">${esc(t('modals.newTripLabelDest'))}</label>
+                    <input type="text" id="tripPlaceInput" class="glass-input-modal" placeholder="${esc(t('modals.newTripPlaceholderDest'))}" autocomplete="off">
+                    <p id="tripPlaceHint" class="form-hint">${esc(t('modals.newTripDestHint'))}</p>
                 </div>
                 <div class="form-row-split mdl-field-row">
                     <div class="flex-1">
-                        <label class="form-label">Start date <span class="opacity-50 font-medium">(optional)</span></label>
+                        <label class="form-label">${esc(t('modals.newTripLabelStart'))} <span class="opacity-50 font-medium">${esc(t('modals.newTripDateOptional'))}</span></label>
                         <input type="date" id="tripStartDate" class="glass-input-modal">
                     </div>
                     <div class="flex-1">
-                        <label class="form-label">End date <span class="opacity-50 font-medium">(optional)</span></label>
+                        <label class="form-label">${esc(t('modals.newTripLabelEnd'))} <span class="opacity-50 font-medium">${esc(t('modals.newTripDateOptional'))}</span></label>
                         <input type="date" id="tripEndDate" class="glass-input-modal">
                     </div>
                 </div>
-                <p class="form-hint" id="tripDateHint" class="w-full mb-4">If you fill these in, we'll create one empty Path day per date — you can pin places later.</p>
+                <p class="form-hint" id="tripDateHint" class="w-full mb-4">${esc(t('modals.newTripDatesHint'))}</p>
                 <div class="mdl-btn-row">
-                    <button type="submit" id="newTripSubmitBtn" class="btn-primary flex-[2]" disabled>Create Trip</button>
-                    <button type="button" id="cancelTripBtn" class="btn-ghost flex-1">Cancel</button>
+                    <button type="submit" id="newTripSubmitBtn" class="btn-primary flex-[2]" disabled>${esc(t('modals.newTripCreateBtn'))}</button>
+                    <button type="button" id="cancelTripBtn" class="btn-ghost flex-1">${esc(t('modals.newTripCancelBtn'))}</button>
                 </div>
             </form>
         `,
@@ -293,7 +293,7 @@ export const openNewTripModal = () => {
         e.preventDefault();
         const pickedPlace = getPicked();
         if (!pickedPlace) {
-            showLiquidAlert("Pick a destination from the suggestions.");
+            showLiquidAlert(t('modals.newTripValidationDest'));
             return;
         }
         const id = generateId();
@@ -474,9 +474,9 @@ export const openEditTripModal = (trip: any) => {
     if (numberedDays.length > 0) {
         startInput.value = numberedDays[0]!.date || '';
         endInput.value = numberedDays[numberedDays.length - 1]!.date || '';
-        dateHint.textContent = "Change these to re-date your existing Path days. Day count stays the same; each day shifts to keep the new start.";
+        dateHint.textContent = t('modals.editTripDatesHintRekey');
     } else {
-        dateHint.textContent = "If you fill these in, we'll create one empty Path day per date — you can pin places later.";
+        dateHint.textContent = t('modals.newTripDatesHint');
     }
 
     const placeInput = (q(root, '#editTripPlaceInput') as HTMLInputElement);
@@ -533,7 +533,7 @@ export const openEditTripModal = (trip: any) => {
     coverInput.onchange = async () => {
         const file = coverInput.files?.[0];
         if (!file) return;
-        coverStatus.textContent = 'Uploading…';
+        coverStatus.textContent = t('modals.editTripStatusUploading');
         coverPickBtn.disabled = true;
         try {
             // Round 1 audit fix: uploadMedia now returns a structured
@@ -547,13 +547,13 @@ export const openEditTripModal = (trip: any) => {
                 coverUrl = result.url;
                 refreshCoverUI();
             } else {
-                const msg = result?.error || 'Upload failed — try again.';
+                const msg = result?.error || t('modals.editTripStatusUploadFailed');
                 coverStatus.textContent = msg;
                 showLiquidAlert(msg);
             }
         } catch (e) {
             console.warn('cover upload failed', e);
-            const msg = 'Upload failed — try again.';
+            const msg = t('modals.editTripStatusUploadFailed');
             coverStatus.textContent = msg;
             showLiquidAlert(msg);
         } finally {
@@ -573,12 +573,12 @@ export const openEditTripModal = (trip: any) => {
         e.preventDefault();
         const newName = nameInput.value.trim();
         if (!newName) {
-            showLiquidAlert("Trip name can't be empty.");
+            showLiquidAlert(t('modals.editTripValidationEmptyName'));
             return;
         }
         const picked = getPicked();
         if (!picked) {
-            showLiquidAlert("Pick a destination from the suggestions.");
+            showLiquidAlert(t('modals.newTripValidationDest'));
             return;
         }
 
@@ -680,10 +680,10 @@ export const openEditTripModal = (trip: any) => {
  *  unticks gets omitted server-side. */
 export const openPdfExportModal = (trip: any) => {
     if (!trip || !trip.id) {
-        showLiquidAlert('Open a trip first.');
+        showLiquidAlert(t('modals.pdfErrorNoTrip'));
         return;
     }
-    const tripName = trip.name || 'Trip';
+    const tripName = trip.name || t('feed.tripFallback');
     // 2026-05-20: round 4 redesign. Two regressions from round 3
     // surfaced: (a) the gradient cards on every option read as
     // "weird blue boxes around names" — too much branding noise;
@@ -709,10 +709,10 @@ export const openPdfExportModal = (trip: any) => {
                 <div style="width:44px; height:44px; border-radius:12px; background:rgba(255,255,255,0.18); backdrop-filter:blur(8px); border:1px solid rgba(255,255,255,0.28); display:inline-flex; align-items:center; justify-content:center; font-size:1.5rem; flex-shrink:0;">📄</div>
                 <div style="flex:1; min-width:0;">
                     <h2 style="margin:0; font-size:1.15rem; color:white; font-weight:800; letter-spacing:-0.02em; line-height:1.15;">
-                        Download trip PDF
+                        ${esc(t('modals.pdfTitle'))}
                     </h2>
                     <p style="margin:3px 0 0; color:rgba(255,255,255,0.85); font-size:0.78rem; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
-                        Pick what to include for <strong style="color:white;">${esc(tripName)}</strong>
+                        ${esc(t('modals.pdfSubtitlePrefix'))} <strong style="color:white;">${esc(tripName)}</strong>
                     </p>
                 </div>
             </div>
@@ -720,29 +720,29 @@ export const openPdfExportModal = (trip: any) => {
                  2 columns when there's room, single column on
                  narrow phones. -->
             <div id="pdfExportOptions" style="padding:18px 22px 0; display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:8px;">
-                ${renderPdfOption('includeCoverMap', '🗺️ Cover map',
-                    'Wide map of the trip location')}
-                ${renderPdfOption('includeStats', '📊 Summary stats',
-                    'Days, companions, places, spend')}
-                ${renderPdfOption('includeDays', '📅 Day-by-day plan',
-                    'Morning, afternoon, evening')}
-                ${renderPdfOption('includeDayPins', '📍 Per-day maps',
-                    'A small map next to each day')}
-                ${renderPdfOption('includeTodos', '✅ To-do list',
-                    'Grouped by category')}
-                ${renderPdfOption('includeBudgets', '💰 Budgets',
-                    'Planned + actual spend')}
-                ${renderPdfOption('includeCompanions', '👥 Companions',
-                    'Roster of travelers')}
-                ${renderPdfOption('includeMarkedPlaces', '⭐ Marked places',
-                    'Saved places + addresses')}
+                ${renderPdfOption('includeCoverMap', t('modals.pdfOptCoverMap'),
+                    t('modals.pdfOptCoverMapBody'))}
+                ${renderPdfOption('includeStats', t('modals.pdfOptSummary'),
+                    t('modals.pdfOptSummaryBody'))}
+                ${renderPdfOption('includeDays', t('modals.pdfOptDayPlan'),
+                    t('modals.pdfOptDayPlanBody'))}
+                ${renderPdfOption('includeDayPins', t('modals.pdfOptDayMaps'),
+                    t('modals.pdfOptDayMapsBody'))}
+                ${renderPdfOption('includeTodos', t('modals.pdfOptTodo'),
+                    t('modals.pdfOptTodoBody'))}
+                ${renderPdfOption('includeBudgets', t('modals.pdfOptBudgets'),
+                    t('modals.pdfOptBudgetsBody'))}
+                ${renderPdfOption('includeCompanions', t('modals.pdfOptCompanions'),
+                    t('modals.pdfOptCompanionsBody'))}
+                ${renderPdfOption('includeMarkedPlaces', t('modals.pdfOptMarkedPlaces'),
+                    t('modals.pdfOptMarkedPlacesBody'))}
             </div>
             <div style="display:flex; gap:10px; padding:18px 22px 22px;">
                 <button type="button" id="cancelPdfBtn" class="flex-1"
-                        style="font-weight:700; color:#002d5b; background:rgba(0,45,91,0.06); border:1px solid rgba(0,45,91,0.12); padding:11px 18px; border-radius:12px; cursor:pointer; font-size:0.9rem;">Cancel</button>
+                        style="font-weight:700; color:#002d5b; background:rgba(0,45,91,0.06); border:1px solid rgba(0,45,91,0.12); padding:11px 18px; border-radius:12px; cursor:pointer; font-size:0.9rem;">${esc(t('modals.pdfCancelBtn'))}</button>
                 <button type="button" id="submitPdfBtn" class="flex-1"
                         style="background:linear-gradient(135deg, #34c759, #1a9947); border:0; color:white; padding:11px 18px; border-radius:12px; cursor:pointer; font-weight:800; font-size:0.9rem; box-shadow:0 4px 12px rgba(52,199,89,0.32);">
-                    <span id="pdfBtnLabel">Download PDF</span>
+                    <span id="pdfBtnLabel">${esc(t('modals.pdfDownloadBtn'))}</span>
                 </button>
             </div>
         </div>
@@ -789,7 +789,7 @@ export const openPdfExportModal = (trip: any) => {
             // Map fetches + PDF assembly take ~1–3s on a typical
             // trip, so a visible "Building…" state matters.
             submitBtn.disabled = true;
-            if (btnLabel) btnLabel.textContent = 'Building…';
+            if (btnLabel) btnLabel.textContent = t('modals.pdfStatusBuilding');
             try {
                 const res = await apiFetch(`/api/trips/${trip.id}/pdf`, {
                     method: 'POST',
@@ -797,7 +797,7 @@ export const openPdfExportModal = (trip: any) => {
                     body: JSON.stringify(options),
                 });
                 if (!res.ok) {
-                    showLiquidAlert('Couldn’t build the PDF. Try again in a moment.');
+                    showLiquidAlert(t('modals.pdfErrorBuild'));
                     return;
                 }
                 const blob = await res.blob();
@@ -846,10 +846,10 @@ export const openPdfExportModal = (trip: any) => {
                 }
                 close();
             } catch (e) {
-                showLiquidAlert('Network error building the PDF.');
+                showLiquidAlert(t('modals.pdfErrorNetwork'));
             } finally {
                 submitBtn.disabled = false;
-                if (btnLabel) btnLabel.textContent = 'Download PDF';
+                if (btnLabel) btnLabel.textContent = t('modals.pdfDownloadBtn');
             }
         };
     }
@@ -858,7 +858,7 @@ export const openPdfExportModal = (trip: any) => {
 
 export const openAddDayModal = () => {
     if (!STATE.activeTripId) {
-        showLiquidAlert("Please create a trip before adding days.");
+        showLiquidAlert(t('modals.addDayErrorNoTrip'));
         return;
     }
 
@@ -890,20 +890,20 @@ export const openAddDayModal = () => {
         innerHTML: `
             <div style="display: flex; align-items: center; justify-content: center; gap: var(--space-3); margin-bottom: var(--space-5);">
                 <div style="background: var(--accent-blue); color: white; width: 28px; height: 28px; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: var(--font-base);">${nextDayNumber}</div>
-                <h2 class="card-title" style="font-size: var(--font-3xl); margin: 0; color: #000000; letter-spacing: -0.06em; font-weight: 800; text-align: center;">Add Day</h2>
+                <h2 class="card-title" style="font-size: var(--font-3xl); margin: 0; color: #000000; letter-spacing: -0.06em; font-weight: 800; text-align: center;">${esc(t('modals.addDayTitle'))}</h2>
             </div>
             <form id="addDayForm" style="display: flex; flex-direction: column; width: 100%;">
                 <div class="mb-4">
-                    <label class="form-label text-black/50">Where are you going?</label>
-                    <input type="text" id="dayName" class="glass-input-modal mdl-btn-dark" value="Day ${nextDayNumber}" placeholder="e.g. Exploring Rome" required autofocus>
+                    <label class="form-label text-black/50">${esc(t('modals.addDayLabelWhere'))}</label>
+                    <input type="text" id="dayName" class="glass-input-modal mdl-btn-dark" value="${esc(t('tripMedia.dayBucketDay', { n: nextDayNumber }))}" placeholder="${esc(t('modals.addDayPlaceholderWhere'))}" required autofocus>
                 </div>
                 <div style="margin-bottom: var(--space-6);">
-                    <label class="form-label text-black/50">Date ${suggestedDate ? '(Auto)' : ''}</label>
+                    <label class="form-label text-black/50">${esc(t('modals.addDayLabelDate'))} ${suggestedDate ? esc(t('modals.addDayDateAuto')) : ''}</label>
                     <input type="date" id="dayDate" class="glass-input-modal mdl-btn-dark" value="${suggestedDate}" required>
                 </div>
                 <div style="display: flex; gap: var(--space-2); width: 100%;">
-                    <button type="submit" class="btn-primary flex-[2]">Confirm</button>
-                    <button type="button" id="cancelDayBtn" class="btn-ghost" style="flex: 1; background: rgba(0,0,0,0.05); color: #000; border: none;">Cancel</button>
+                    <button type="submit" class="btn-primary flex-[2]">${esc(t('modals.addDayConfirmBtn'))}</button>
+                    <button type="button" id="cancelDayBtn" class="btn-ghost" style="flex: 1; background: rgba(0,0,0,0.05); color: #000; border: none;">${esc(t('modals.addDayCancelBtn'))}</button>
                 </div>
             </form>
         `,
@@ -943,11 +943,8 @@ export const openAddDayModal = () => {
         if (upsertResult && !upsertResult.ok) {
             const status = upsertResult.status || 'no-response';
             const errMsg = upsertResult.body?.error || '';
-            showLiquidAlert(
-                `Day created locally — server save failed (HTTP ${status}` +
-                (errMsg ? ` · ${errMsg}` : '') +
-                `). Won't appear on other devices until it syncs — try again or refresh.`,
-            );
+            const statusWithErr = errMsg ? `${status} · ${errMsg}` : String(status);
+            showLiquidAlert(t('modals.addDayErrorServerSave', { status: statusWithErr }));
             console.error('[upsertDay] failed', { dayId: newDay.id, status, body: upsertResult.body });
         }
         close();
@@ -966,26 +963,25 @@ export const openTripInviteResponseModal = (notification: { related_id?: string 
     const tripId = notification.related_id ? String(notification.related_id) : '';
     if (!tripId) return;
 
-    // Pull trip name + role out of the message ("X invited you to <trip> as a <role>.").
-    const m = (notification.message || '').match(/invited you to (.+?) as a (\w+)/i);
-    const tripName = m ? m[1] : 'a trip';
-    const roleName = m ? m[2] : 'member';
-
+    // The notification.message arrives PRE-FORMATTED from the server with
+    // trip + role names already filled in; we display it as-is. Only the
+    // structural copy (title, explanatory paragraph, button labels) is
+    // translated locally.
     const { root, close } = showModal({
         variant: 'glass-light',
         cardStyle: 'width: 440px;',
         innerHTML: `
-            <h2 style="margin: 0 0 var(--space-2); font-size: var(--font-2xl); color: #002d5b; font-weight: 800; letter-spacing: -0.03em;">Trip invitation</h2>
+            <h2 style="margin: 0 0 var(--space-2); font-size: var(--font-2xl); color: #002d5b; font-weight: 800; letter-spacing: -0.03em;">${esc(t('modals.inviteTitle'))}</h2>
             <p style="margin: 0 0 var(--space-5); font-size: var(--font-base); color: rgba(0,0,0,0.6); line-height: 1.5;">
-                ${esc(notification.message || `You've been invited to ${tripName} as a ${roleName}.`)}
+                ${esc(notification.message || '')}
             </p>
             <p style="margin: 0 0 var(--space-5); font-size: var(--font-sm); color: rgba(0,0,0,0.5);">
-                Accept and the trip appears in your active list. Planners can edit; Relaxers can only watch.
+                ${esc(t('modals.inviteBody'))}
             </p>
 
             <div style="display: flex; gap: var(--space-3);">
-                <button id="tripInviteAcceptBtn" class="btn-primary" style="flex: 2; padding: var(--space-4); border-radius: var(--radius-lg); font-size: var(--font-lg);">Accept</button>
-                <button id="tripInviteDeclineBtn" class="btn-neutral" style="flex: 1; border-radius: var(--radius-lg);">Decline</button>
+                <button id="tripInviteAcceptBtn" class="btn-primary" style="flex: 2; padding: var(--space-4); border-radius: var(--radius-lg); font-size: var(--font-lg);">${esc(t('modals.inviteAcceptBtn'))}</button>
+                <button id="tripInviteDeclineBtn" class="btn-neutral" style="flex: 1; border-radius: var(--radius-lg);">${esc(t('modals.inviteDeclineBtn'))}</button>
             </div>
         `,
     });
@@ -993,7 +989,7 @@ export const openTripInviteResponseModal = (notification: { related_id?: string 
     (q(root, '#tripInviteAcceptBtn') as HTMLButtonElement).onclick = async () => {
         const result = await respondTripInvite(tripId, true);
         if (!result || !result.ok) {
-            showLiquidAlert("This trip invitation is no longer valid");
+            showLiquidAlert(t('modals.inviteErrorInvalid'));
             close();
             return;
         }
@@ -1010,15 +1006,15 @@ export const openTripInviteResponseModal = (notification: { related_id?: string 
             STATE.activeTripId = tripId;
             emit('state:changed');
         }
-        showLiquidAlert("Joined the trip");
+        showLiquidAlert(t('modals.inviteSuccessJoined'));
         navigate('home');
     };
     (q(root, '#tripInviteDeclineBtn') as HTMLButtonElement).onclick = async () => {
         const result = await respondTripInvite(tripId, false);
         if (!result || !result.ok) {
-            showLiquidAlert("This invitation is no longer active");
+            showLiquidAlert(t('modals.inviteErrorNotActive'));
         } else {
-            showLiquidAlert("Declined");
+            showLiquidAlert(t('modals.inviteToastDeclined'));
         }
         close();
     };

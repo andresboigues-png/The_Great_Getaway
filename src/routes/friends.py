@@ -185,53 +185,16 @@ def add_friend():
     return jsonify({"status": "success"})
 
 
-@bp.route("/api/friends/accept", methods=["POST"])
-@limiter.limit("30 per minute")
-@require_auth
-@retry_on_lock()
-def accept_friend():
-    """Façade for "follow them back". Pre-Model-B this was the accept
-    half of the friend-request dance; under Model B it just records a
-    follow from the caller to `friend_id` (which, if the other party
-    is already following the caller, instantly upgrades the pair to
-    mutuals).
-
-    Kept so old clients that fire /api/friends/accept after seeing a
-    `friend_request` notification still produce the right end state.
-    Idempotent — re-accepting an already-mutual pair is a no-op success."""
-    user_id = current_user_id()
-    friend_id = (request.json or {}).get("friend_id")
-    if not friend_id:
-        return jsonify({"status": "error", "message": "Missing data"}), 400
-
-    with get_db() as conn:
-        cursor = conn.cursor()
-        if not ensure_user_exists(cursor, friend_id):
-            return jsonify({"status": "error", "message": "User not found"}), 404
-        _follow(cursor, user_id, friend_id, source='accepted_request')
-        conn.commit()
-    return jsonify({"status": "success"})
-
-
-@bp.route("/api/friends/pending", methods=["GET"])
-@require_auth
-def pending_friends():
-    """Model B: no pending state. Always returns []. Kept so clients
-    polling this endpoint for the bell-icon "X has X pending" badge
-    don't error — they'll just see no items, which is the correct
-    end state under the new model."""
-    return jsonify([])
-
-
-@bp.route("/api/friends/reject", methods=["POST"])
-@limiter.limit("30 per minute")
-@require_auth
-def reject_friend():
-    """Model B: no pending state to reject. Returns success so old
-    clients clicking "Reject" on a stale friend-request notification
-    don't see an error toast. No-op DB-side — the user simply doesn't
-    follow back, which is the default state."""
-    return jsonify({"status": "success"})
+# 2026-05-25 (audit): removed /api/friends/accept, /api/friends/pending,
+# /api/friends/reject. All three were Model-B compatibility façades —
+# accept aliased to "follow them back", pending returned [], reject
+# returned success. Audit confirmed zero callers in the current
+# frontend bundle (Friends.tsx explicitly notes "the `pending`
+# variant is gone under Model B"). The cached bundles in older browsers
+# have also rotated past the Model A code paths by now. If a stale
+# client surfaces in the wild, it now sees a 404 — the bell badge
+# behaviour gracefully degrades, and the follow action goes through
+# /api/follows directly anyway.
 
 
 @bp.route("/api/friends/remove", methods=["POST"])

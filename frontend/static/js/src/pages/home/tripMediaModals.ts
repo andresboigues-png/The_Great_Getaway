@@ -40,6 +40,7 @@ import { upsertTrip, upsertDay, uploadMedia } from '../../api.js';
 import { canEdit } from '../../permissions.js';
 import { showModal } from '../../components/Modal.js';
 import { esc, q, formatDayDate, showLiquidAlert } from '../../utils.js';
+import { t } from '../../i18n.js';
 import { navigate } from '../../router.js';
 import { resolveDayIdForFile } from '../../exif.js';
 import {
@@ -111,14 +112,14 @@ export const openTripDocumentsModal = (trip: any): void => {
                 ${tripIsEditable ? `
                     <button id="addDocBtn" type="button"
                         style="background:var(--accent-blue); color:white; border:0; padding:9px 16px; border-radius:999px; font-weight:800; font-size:0.82rem; cursor:pointer; box-shadow: 0 4px 12px rgba(0,113,227,0.22);">
-                        ➕ Add document
+                        ${esc(t('tripMedia.docsAddBtn'))}
                     </button>
                 ` : ''}
                 <button id="searchGmailDocsBtn" type="button"
                     style="background:white; color:#002d5b; border:1px solid rgba(0,0,0,0.1); padding:9px 16px; border-radius:999px; font-weight:800; font-size:0.82rem; cursor:pointer;">
-                    📧 Search Gmail for bookings
+                    ${esc(t('tripMedia.docsSearchGmailBtn'))}
                 </button>
-                <span class="tmm-count-right">${docs.length} ${docs.length === 1 ? 'document' : 'documents'}</span>
+                <span class="tmm-count-right">${esc(docs.length === 1 ? t('tripMedia.docsCountOne', { count: docs.length }) : t('tripMedia.docsCountOther', { count: docs.length }))}</span>
             </div>
         `;
         if (docs.length === 0) {
@@ -126,8 +127,8 @@ export const openTripDocumentsModal = (trip: any): void => {
                 ${headerRow}
                 <div class="card glass" style="padding: 28px; border-radius: 18px; border: 1.5px dashed rgba(88,86,214,0.32); background: rgba(88,86,214,0.04); text-align:center;">
                     <div class="tmm-icon-large">📎</div>
-                    <h3 style="margin:0 0 6px; color:#5856d6; font-weight:800;">No documents yet</h3>
-                    <p class="tmm-modal-subtext">Click <strong>📧 Search Gmail for bookings</strong> to find your confirmation emails, then drop the PDFs / links in via <strong>➕ Add document</strong>. Trip-wide docs (passport, multi-day hotel) live on <strong>⭐ Trip Hub</strong>; day-specific ones (museum ticket) tag to a numbered day.</p>
+                    <h3 style="margin:0 0 6px; color:#5856d6; font-weight:800;">${esc(t('tripMedia.docsEmptyTitle'))}</h3>
+                    <p class="tmm-modal-subtext">${t('tripMedia.docsEmptyBody')}</p>
                 </div>
             `;
         }
@@ -138,7 +139,7 @@ export const openTripDocumentsModal = (trip: any): void => {
                     const items = groups.get(key) || [];
                     const orphan = key === '__orphan__';
                     const isGen = !orphan && isAnchorDoc(key);
-                    const groupLabel = orphan ? 'Unsorted' : (isGen ? '⭐ Trip Hub · trip-wide' : (dayLabel(key) || 'Unknown day'));
+                    const groupLabel = orphan ? t('tripMedia.docsBucketUnsorted') : (isGen ? t('tripMedia.docsBucketAnchorTripWide') : (dayLabel(key) || t('tripMedia.docsUnknownDay')));
                     const accent = orphan ? 'rgba(0,0,0,0.45)' : (isGen ? '#8b6e0c' : 'var(--accent-blue)');
                     return `
                         <div>
@@ -149,7 +150,7 @@ export const openTripDocumentsModal = (trip: any): void => {
                                         <span style="font-size:1.3rem; line-height:1; flex-shrink:0;">📎</span>
                                         <div style="flex:1; min-width:0;">
                                             <div style="display:flex; align-items:center; gap:8px; margin-bottom:2px;">
-                                                <a href="${esc(d.url || '#')}" target="_blank" rel="noreferrer" class="trip-doc-link" style="font-weight:800; color:#002d5b; font-size:0.92rem; text-decoration:none; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(d.name || 'Document')}</a>
+                                                <a href="${esc(d.url || '#')}" target="_blank" rel="noreferrer" class="trip-doc-link" style="font-weight:800; color:#002d5b; font-size:0.92rem; text-decoration:none; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(d.name || t('tripMedia.docsFallbackName'))}</a>
                                                 ${dayChip(d.dayId)}
                                             </div>
                                             ${d.url ? `<div style="font-size:0.7rem; color:var(--text-secondary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(d.url)}</div>` : ''}
@@ -158,13 +159,13 @@ export const openTripDocumentsModal = (trip: any): void => {
                                             ${d._source === 'trip' && (anchorDay || numberedDays.length > 0) ? `
                                                 <select class="trip-doc-day-select" data-doc-id="${esc(d.id)}"
                                                     style="padding:6px 8px; border-radius:8px; border:1px solid rgba(0,0,0,0.1); font-size:0.75rem; background:white; max-width:160px;">
-                                                    ${anchorDay ? `<option value="${esc(anchorDay.id)}" ${d.dayId === anchorDay.id ? 'selected' : ''}>⭐ Hub</option>` : ''}
-                                                    ${numberedDays.map(nd => `<option value="${esc(nd.id)}" ${d.dayId === nd.id ? 'selected' : ''}>Day ${nd.dayNumber}</option>`).join('')}
+                                                    ${anchorDay ? `<option value="${esc(anchorDay.id)}" ${d.dayId === anchorDay.id ? 'selected' : ''}>${esc(t('tripMedia.dayBucketAnchorShort'))}</option>` : ''}
+                                                    ${numberedDays.map(nd => `<option value="${esc(nd.id)}" ${d.dayId === nd.id ? 'selected' : ''}>${esc(t('tripMedia.dayBucketDay', { n: nd.dayNumber }))}</option>`).join('')}
                                                 </select>
                                             ` : ''}
-                                            <button type="button" class="trip-doc-edit-btn" data-doc-id="${esc(d.id)}" title="Rename / change link" aria-label="Edit ${esc(d.name)}"
+                                            <button type="button" class="trip-doc-edit-btn" data-doc-id="${esc(d.id)}" title="${esc(t('tripMedia.docsEditTitle'))}" aria-label="${esc(t('tripMedia.docsEditAria', { name: d.name }))}"
                                                 style="background: rgba(0,113,227,0.08); border: 1px solid rgba(0,113,227,0.22); color:#005bb8; border-radius: 8px; padding: 4px 8px; font-size:0.75rem; font-weight:800; cursor:pointer; flex-shrink:0;">✎</button>
-                                            <button type="button" class="trip-doc-remove-btn" data-doc-id="${esc(d.id)}" title="Remove" aria-label="Remove ${esc(d.name)}"
+                                            <button type="button" class="trip-doc-remove-btn" data-doc-id="${esc(d.id)}" title="${esc(t('tripMedia.docsRemoveTitle'))}" aria-label="${esc(t('tripMedia.docsRemoveAria', { name: d.name }))}"
                                                 style="background: rgba(255,59,48,0.08); border: 1px solid rgba(255,59,48,0.25); color:#ff3b30; border-radius: 8px; padding: 4px 8px; font-size:0.75rem; font-weight:800; cursor:pointer; flex-shrink:0;">✕</button>
                                         ` : ''}
                                     </div>
@@ -183,9 +184,9 @@ export const openTripDocumentsModal = (trip: any): void => {
         innerHTML: `
             <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 18px;">
                 <h2 class="tmm-modal-title">
-                    <span class="tmm-icon-medium">📎</span> Documents
+                    <span class="tmm-icon-medium">📎</span> ${esc(t('tripMedia.docsTitle'))}
                 </h2>
-                <button id="closeDocsModalBtn" class="close-x-btn" aria-label="Close">✕</button>
+                <button id="closeDocsModalBtn" class="close-x-btn" aria-label="${esc(t('tripMedia.closeAria'))}">✕</button>
             </div>
             <div id="tripDocsBody">${renderBody()}</div>
         `,
@@ -290,23 +291,23 @@ export const openTripPhotosModal = (trip: any): void => {
             if (!id) return null;
             const day = (STATE.tripDays || []).find(d => d.id === id);
             if (!day) return null;
-            return Number(day.dayNumber) === 0 ? '⭐ Hub' : `Day ${day.dayNumber}`;
+            return Number(day.dayNumber) === 0 ? t('tripMedia.dayBucketAnchorShort') : t('tripMedia.dayBucketDay', { n: day.dayNumber });
         };
         const isAnchorPhoto = (id: string | null | undefined) => !!id && id === anchorDayForPhotos?.id;
         const headerRow = `
             <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:14px;">
                 ${tripIsEditable ? `
-                    <button id="addPhotosBtn" type="button" title="Upload photos from your device"
+                    <button id="addPhotosBtn" type="button" title="${esc(t('tripMedia.photosUploadBtn'))}"
                         style="background:#34c759; color:white; border:0; padding:9px 16px; border-radius:999px; font-weight:800; font-size:0.82rem; cursor:pointer; box-shadow: 0 4px 12px rgba(52,199,89,0.22);">
-                        📤 Upload photos
+                        ${esc(t('tripMedia.photosUploadBtn'))}
                     </button>
                     <input id="addPhotosInput" type="file" accept="image/*" multiple style="display:none;">
-                    <button id="addPhotoUrlBtn" type="button" title="Paste a link to a Google Drive / Dropbox / hosted image album"
+                    <button id="addPhotoUrlBtn" type="button" title="${esc(t('tripMedia.photosAddByLinkTitle'))}"
                         style="background:white; color:#002d5b; border:1px solid rgba(0,0,0,0.1); padding:9px 16px; border-radius:999px; font-weight:800; font-size:0.82rem; cursor:pointer;">
-                        🔗 Add by link
+                        ${esc(t('tripMedia.photosAddByLinkBtn'))}
                     </button>
                 ` : ''}
-                <span class="tmm-count-right">${photos.length} ${photos.length === 1 ? 'photo' : 'photos'}</span>
+                <span class="tmm-count-right">${esc(photos.length === 1 ? t('tripMedia.photosCountOne', { count: photos.length }) : t('tripMedia.photosCountOther', { count: photos.length }))}</span>
             </div>
         `;
         if (photos.length === 0) {
@@ -314,8 +315,8 @@ export const openTripPhotosModal = (trip: any): void => {
                 ${headerRow}
                 <div class="card glass" style="padding: 28px; border-radius: 18px; border: 1.5px dashed rgba(52,199,89,0.32); background: rgba(52,199,89,0.04); text-align:center;">
                     <div class="tmm-icon-large">📸</div>
-                    <h3 style="margin:0 0 6px; color:#1a6b3c; font-weight:800;">No photos yet</h3>
-                    <p class="tmm-modal-subtext">Use <strong>📤 Upload photos</strong> for files on your device, or <strong>🔗 Add by link</strong> for a Drive / Dropbox / iCloud share. New photos go to <strong>⭐ Trip Hub</strong> (the trip-wide bucket); you can re-tag any of them to a specific day from the dropdown on each card.</p>
+                    <h3 style="margin:0 0 6px; color:#1a6b3c; font-weight:800;">${esc(t('tripMedia.photosEmptyTitle'))}</h3>
+                    <p class="tmm-modal-subtext">${t('tripMedia.photosEmptyBody')}</p>
                 </div>
             `;
         }
@@ -331,16 +332,16 @@ export const openTripPhotosModal = (trip: any): void => {
                         ? 'rgba(140,110,12,0.85)'
                         : (p.dayId ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0.45)');
                     const dayBadge = canEditDay
-                        ? `<select class="trip-photo-day-select" data-photo-id="${esc(p.id)}" title="Move to Trip Hub or a numbered day"
+                        ? `<select class="trip-photo-day-select" data-photo-id="${esc(p.id)}" title="${esc(t('tripMedia.photosMoveTitle'))}"
                                 style="position:absolute; top:6px; left:6px; background: ${chipBg}; color:white; border:0; padding:2px 22px 2px 10px; border-radius:999px; font-size:0.62rem; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; backdrop-filter: blur(6px); cursor:pointer; appearance:none; -webkit-appearance:none; background-image: url('data:image/svg+xml;utf8,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;10&quot; height=&quot;10&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;white&quot; stroke-width=&quot;3&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;><polyline points=&quot;6 9 12 15 18 9&quot;/></svg>'); background-repeat:no-repeat; background-position: right 7px center; background-size: 8px;">
-                                ${anchorDayForPhotos ? `<option value="${esc(anchorDayForPhotos.id)}" ${p.dayId === anchorDayForPhotos.id ? 'selected' : ''}>⭐ Hub</option>` : ''}
-                                ${numberedDaysForPhotos.map(nd => `<option value="${esc(nd.id)}" ${p.dayId === nd.id ? 'selected' : ''}>Day ${nd.dayNumber}</option>`).join('')}
+                                ${anchorDayForPhotos ? `<option value="${esc(anchorDayForPhotos.id)}" ${p.dayId === anchorDayForPhotos.id ? 'selected' : ''}>${esc(t('tripMedia.dayBucketAnchorShort'))}</option>` : ''}
+                                ${numberedDaysForPhotos.map(nd => `<option value="${esc(nd.id)}" ${p.dayId === nd.id ? 'selected' : ''}>${esc(t('tripMedia.dayBucketDay', { n: nd.dayNumber }))}</option>`).join('')}
                             </select>`
                         : (isAnchorPhoto(p.dayId)
-                            ? staticChipFor('⭐ Hub', 'rgba(140,110,12,0.85)')
-                            : (p.dayId ? staticChipFor(dayLabel(p.dayId) || '', 'rgba(0,0,0,0.55)') : staticChipFor('Unsorted', 'rgba(0,0,0,0.45)')));
+                            ? staticChipFor(t('tripMedia.dayBucketAnchorShort'), 'rgba(140,110,12,0.85)')
+                            : (p.dayId ? staticChipFor(dayLabel(p.dayId) || '', 'rgba(0,0,0,0.55)') : staticChipFor(t('tripMedia.docsBucketUnsorted'), 'rgba(0,0,0,0.45)')));
                     const removeBtn = tripIsEditable
-                        ? `<button type="button" class="trip-photo-remove-btn" data-photo-id="${esc(p.id)}" title="Remove" aria-label="Remove photo"
+                        ? `<button type="button" class="trip-photo-remove-btn" data-photo-id="${esc(p.id)}" title="${esc(t('tripMedia.photosRemoveTitle'))}" aria-label="${esc(t('tripMedia.photosRemoveAria'))}"
                             style="position:absolute; top:6px; right:6px; background:rgba(0,0,0,0.55); border:0; color:white; width:24px; height:24px; border-radius:50%; cursor:pointer; font-size:0.75rem; line-height:1; backdrop-filter: blur(6px); z-index:1;">✕</button>`
                         : '';
                     // §4.9 — drag handle. Only on trip-source photos
@@ -352,7 +353,7 @@ export const openTripPhotosModal = (trip: any): void => {
                     // delta values instead of fighting the scroll
                     // gesture.
                     const dragHandle = tripIsEditable && p._source === 'trip'
-                        ? `<button type="button" class="trip-photo-drag-handle" data-photo-id="${esc(p.id)}" title="Drag to reorder" aria-label="Drag to reorder"
+                        ? `<button type="button" class="trip-photo-drag-handle" data-photo-id="${esc(p.id)}" title="${esc(t('tripMedia.photosDragTitle'))}" aria-label="${esc(t('tripMedia.photosDragAria'))}"
                             style="position:absolute; bottom:6px; right:6px; background:rgba(0,0,0,0.55); border:0; color:white; width:26px; height:26px; border-radius:50%; cursor:grab; font-size:0.95rem; line-height:1; backdrop-filter: blur(6px); z-index:2; touch-action:none; user-select:none; display:flex; align-items:center; justify-content:center;">⠿</button>`
                         : '';
                     if (isImage) {
@@ -384,9 +385,9 @@ export const openTripPhotosModal = (trip: any): void => {
         innerHTML: `
             <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 18px;">
                 <h2 class="tmm-modal-title">
-                    <span class="tmm-icon-medium">📸</span> Photos
+                    <span class="tmm-icon-medium">📸</span> ${esc(t('tripMedia.photosTitle'))}
                 </h2>
-                <button id="closePhotosModalBtn" class="close-x-btn" aria-label="Close">✕</button>
+                <button id="closePhotosModalBtn" class="close-x-btn" aria-label="${esc(t('tripMedia.closeAria'))}">✕</button>
             </div>
             <div id="tripPhotosBody">${renderBody()}</div>
         `,
@@ -402,7 +403,9 @@ export const openTripPhotosModal = (trip: any): void => {
         input.addEventListener('change', async () => {
             const files = Array.from(input.files || []);
             if (files.length === 0) return;
-            showLiquidAlert(`Uploading ${files.length} photo${files.length === 1 ? '' : 's'}…`);
+            showLiquidAlert(files.length === 1
+                ? t('tripMedia.photoUploadingOne', { count: files.length })
+                : t('tripMedia.photoUploadingOther', { count: files.length }));
             const anchorDay = (STATE.tripDays || [])
                 .find(d => d.tripId === trip.id && Number(d.dayNumber) === 0);
             const defaultDayId = anchorDay ? anchorDay.id : null;
@@ -439,16 +442,17 @@ export const openTripPhotosModal = (trip: any): void => {
                 // auto-tagged (the common case for trips with no day
                 // dates set yet — anchor bucket is still correct).
                 if (autoTagged > 0) {
-                    showLiquidAlert(
-                        `${added} photo${added === 1 ? '' : 's'} added — `
-                            + `${autoTagged} auto-sorted by date.`,
-                    );
+                    showLiquidAlert(added === 1
+                        ? t('tripMedia.photoUploadedSortedOne', { count: added, sorted: autoTagged })
+                        : t('tripMedia.photoUploadedSortedOther', { count: added, sorted: autoTagged }));
                 } else {
-                    showLiquidAlert(`${added} photo${added === 1 ? '' : 's'} added.`);
+                    showLiquidAlert(added === 1
+                        ? t('tripMedia.photoUploadedOne', { count: added })
+                        : t('tripMedia.photoUploadedOther', { count: added }));
                 }
                 repaint();
             } else {
-                showLiquidAlert('Upload failed — please try again.');
+                showLiquidAlert(t('tripMedia.photoUploadFailed'));
             }
         });
     };
@@ -704,16 +708,16 @@ export const openAddTripDocumentModal = (trip: any): void => {
         variant: 'glass-light',
         cardStyle: 'width: 480px; max-width: calc(100vw - 32px); max-height: 90vh; overflow-y: auto;',
         innerHTML: `
-            <h2 class="h2-display">Add document</h2>
-            <p class="text-subtitle">Booking confirmation, hotel voucher, ticket — link or upload.</p>
+            <h2 class="h2-display">${esc(t('tripMedia.addDocTitle'))}</h2>
+            <p class="text-subtitle">${esc(t('tripMedia.addDocSubtitle'))}</p>
             <div class="tmm-form-col">
-                <label class="tmm-section-label">Name</label>
-                <input type="text" id="newDocName" class="glass-input" placeholder="e.g. Flight to Lisbon — Confirmation 7AB22Q" class="p-3 rounded-md">
-                <label class="tmm-section-label--mt-8">Link or URL</label>
+                <label class="tmm-section-label">${esc(t('tripMedia.addDocLabelName'))}</label>
+                <input type="text" id="newDocName" class="glass-input" placeholder="${esc(t('tripMedia.addDocPlaceholderName'))}" class="p-3 rounded-md">
+                <label class="tmm-section-label--mt-8">${esc(t('tripMedia.addDocLabelUrl'))}</label>
                 <div style="display: flex; gap: var(--space-2);">
-                    <input type="text" id="newDocUrl" class="glass-input" placeholder="https://..." style="flex: 1; padding: var(--space-3); border-radius: 12px;">
+                    <input type="text" id="newDocUrl" class="glass-input" placeholder="${esc(t('tripMedia.addDocPlaceholderUrl'))}" style="flex: 1; padding: var(--space-3); border-radius: 12px;">
                     <label class="btn-primary tmm-upload-pill">
-                        📤 Upload
+                        ${esc(t('tripMedia.addDocUploadBtn'))}
                         <input type="file" id="newDocUpload" style="display: none;">
                     </label>
                 </div>
@@ -728,18 +732,18 @@ export const openAddTripDocumentModal = (trip: any): void => {
                      details). Surfacing the recipe here so users
                      don't have to learn it elsewhere. -->
                 <div style="background: rgba(0,113,227,0.06); border:1px solid rgba(0,113,227,0.18); border-radius: 12px; padding: 12px 14px; font-size:0.78rem; color:#002d5b; line-height:1.55; margin-top:4px;">
-                    <strong style="color: #005bb8;">📧 Booking email without an attachment?</strong><br>
-                    Open the email in Gmail, hit <strong>Cmd&nbsp;+&nbsp;P</strong> (or Ctrl + P on Windows), pick <strong>Save as PDF</strong> as the destination, then come back here and click <strong>📤 Upload</strong> with that file. Captures the layout exactly — QR codes, dates, prices, all of it.
+                    <strong style="color: #005bb8;">${esc(t('tripMedia.addDocGmailHelpTitle'))}</strong><br>
+                    ${t('tripMedia.addDocGmailHelpBody')}
                 </div>
-                <label class="tmm-section-label--mt-8">Where does it belong?</label>
+                <label class="tmm-section-label--mt-8">${esc(t('tripMedia.addDocLabelWhere'))}</label>
                 <select id="newDocDay" class="glass-input p-3 rounded-md bg-white">
-                    ${anchorDay ? `<option value="${esc(anchorDay.id)}" selected>⭐ Trip Hub (passport, multi-day hotel, return flight…)</option>` : ''}
-                    ${numberedDays.map(d => `<option value="${esc(d.id)}">Day ${d.dayNumber}${d.date ? ` — ${formatDayDate(d.date) || d.date}` : ''}</option>`).join('')}
+                    ${anchorDay ? `<option value="${esc(anchorDay.id)}" selected>${esc(t('tripMedia.addDocOptionAnchor'))}</option>` : ''}
+                    ${numberedDays.map(d => `<option value="${esc(d.id)}">${esc(t('tripMedia.dayBucketDay', { n: d.dayNumber }))}${d.date ? ` — ${formatDayDate(d.date) || d.date}` : ''}</option>`).join('')}
                 </select>
             </div>
             <div class="flex gap-3">
-                <button id="newDocCancelBtn" class="btn-neutral flex-1 rounded-lg">Cancel</button>
-                <button id="newDocSaveBtn" class="btn-primary flex-[2] rounded-lg">Add</button>
+                <button id="newDocCancelBtn" class="btn-neutral flex-1 rounded-lg">${esc(t('tripMedia.addDocCancelBtn'))}</button>
+                <button id="newDocSaveBtn" class="btn-primary flex-[2] rounded-lg">${esc(t('tripMedia.addDocAddBtn'))}</button>
             </div>
         `,
     });
@@ -751,18 +755,18 @@ export const openAddTripDocumentModal = (trip: any): void => {
     fileEl.addEventListener('change', async () => {
         const file = fileEl.files?.[0];
         if (!file) return;
-        statusEl.textContent = '⌛ Uploading…';
+        statusEl.textContent = t('tripMedia.addDocStatusUploading');
         try {
             const res = await uploadMedia(file);
             if (res && res.url) {
                 urlEl.value = res.url;
                 if (!nameEl.value) nameEl.value = res.name || file.name;
-                statusEl.textContent = '✓ Uploaded — click Add to attach.';
+                statusEl.textContent = t('tripMedia.addDocStatusUploaded');
             } else {
-                statusEl.textContent = '❌ Upload failed.';
+                statusEl.textContent = t('tripMedia.addDocStatusFailed');
             }
         } catch (e) {
-            statusEl.textContent = '❌ Upload failed.';
+            statusEl.textContent = t('tripMedia.addDocStatusFailed');
         }
     });
     (q(root, '#newDocCancelBtn') as HTMLButtonElement).onclick = () => close();
@@ -770,14 +774,14 @@ export const openAddTripDocumentModal = (trip: any): void => {
         const name = nameEl.value.trim();
         const url = urlEl.value.trim();
         if (!name || !url) {
-            statusEl.textContent = 'Both name and URL are required.';
+            statusEl.textContent = t('tripMedia.addDocValidationRequired');
             return;
         }
         addTripDocument(trip, { name, url, dayId: dayEl.value || null });
         emit('state:changed');
         await upsertTrip(trip);
         close();
-        showLiquidAlert('Document added.');
+        showLiquidAlert(t('tripMedia.addDocToastAdded'));
         navigate('home');
     };
 };
@@ -796,7 +800,7 @@ export const openEditTripDocumentModal = (trip: any, docId: string): void => {
     const all = getAllTripDocuments(trip);
     const doc = all.find(d => d.id === docId);
     if (!doc) {
-        showLiquidAlert('Could not find that document.');
+        showLiquidAlert(t('tripMedia.editDocErrorNotFound'));
         return;
     }
     const isTripLevel = doc._source === 'trip';
@@ -809,31 +813,31 @@ export const openEditTripDocumentModal = (trip: any, docId: string): void => {
         variant: 'glass-light',
         cardStyle: 'width: 480px; max-width: calc(100vw - 32px); max-height: 90vh; overflow-y: auto;',
         innerHTML: `
-            <h2 class="h2-display">Edit document</h2>
-            <p class="text-subtitle">${isTripLevel ? 'Rename it, swap the link, or move it to a different day.' : 'Rename it or swap the link. (Legacy per-day entries can\'t be moved between days; delete + re-add to do that.)'}</p>
+            <h2 class="h2-display">${esc(t('tripMedia.editDocTitle'))}</h2>
+            <p class="text-subtitle">${esc(isTripLevel ? t('tripMedia.editDocSubtitleTrip') : t('tripMedia.editDocSubtitleLegacy'))}</p>
             <div class="tmm-form-col">
-                <label class="tmm-section-label">Name</label>
+                <label class="tmm-section-label">${esc(t('tripMedia.addDocLabelName'))}</label>
                 <input type="text" id="editDocName" class="glass-input" value="${esc(doc.name || '')}" class="p-3 rounded-md">
-                <label class="tmm-section-label--mt-8">Link or URL</label>
+                <label class="tmm-section-label--mt-8">${esc(t('tripMedia.addDocLabelUrl'))}</label>
                 <div style="display: flex; gap: var(--space-2);">
                     <input type="text" id="editDocUrl" class="glass-input" value="${esc(doc.url || '')}" style="flex: 1; padding: var(--space-3); border-radius: 12px;">
                     <label class="btn-primary tmm-upload-pill">
-                        📤 Replace
+                        ${esc(t('tripMedia.editDocReplaceBtn'))}
                         <input type="file" id="editDocUpload" style="display: none;">
                     </label>
                 </div>
                 <div id="editDocStatus" class="tmm-status-hint"></div>
                 ${isTripLevel ? `
-                    <label class="tmm-section-label--mt-8">Where does it belong?</label>
+                    <label class="tmm-section-label--mt-8">${esc(t('tripMedia.addDocLabelWhere'))}</label>
                     <select id="editDocDay" class="glass-input p-3 rounded-md bg-white">
-                        ${anchorDay ? `<option value="${esc(anchorDay.id)}" ${doc.dayId === anchorDay.id ? 'selected' : ''}>⭐ Trip Hub (trip-wide)</option>` : ''}
-                        ${numberedDays.map(d => `<option value="${esc(d.id)}" ${doc.dayId === d.id ? 'selected' : ''}>Day ${d.dayNumber}${d.date ? ` — ${formatDayDate(d.date) || d.date}` : ''}</option>`).join('')}
+                        ${anchorDay ? `<option value="${esc(anchorDay.id)}" ${doc.dayId === anchorDay.id ? 'selected' : ''}>${esc(t('tripMedia.editDocOptionAnchor'))}</option>` : ''}
+                        ${numberedDays.map(d => `<option value="${esc(d.id)}" ${doc.dayId === d.id ? 'selected' : ''}>${esc(t('tripMedia.dayBucketDay', { n: d.dayNumber }))}${d.date ? ` — ${formatDayDate(d.date) || d.date}` : ''}</option>`).join('')}
                     </select>
                 ` : ''}
             </div>
             <div class="flex gap-3">
-                <button id="editDocCancelBtn" class="btn-neutral flex-1 rounded-lg">Cancel</button>
-                <button id="editDocSaveBtn" class="btn-primary flex-[2] rounded-lg">Save changes</button>
+                <button id="editDocCancelBtn" class="btn-neutral flex-1 rounded-lg">${esc(t('tripMedia.editDocCancelBtn'))}</button>
+                <button id="editDocSaveBtn" class="btn-primary flex-[2] rounded-lg">${esc(t('tripMedia.editDocSaveBtn'))}</button>
             </div>
         `,
     });
@@ -845,17 +849,17 @@ export const openEditTripDocumentModal = (trip: any, docId: string): void => {
     fileEl.addEventListener('change', async () => {
         const file = fileEl.files?.[0];
         if (!file) return;
-        statusEl.textContent = '⌛ Uploading…';
+        statusEl.textContent = t('tripMedia.addDocStatusUploading');
         try {
             const res = await uploadMedia(file);
             if (res?.url) {
                 urlEl.value = res.url;
-                statusEl.textContent = '✓ Replaced — click Save to confirm.';
+                statusEl.textContent = t('tripMedia.editDocStatusReplaced');
             } else {
-                statusEl.textContent = '❌ Upload failed.';
+                statusEl.textContent = t('tripMedia.addDocStatusFailed');
             }
         } catch (e) {
-            statusEl.textContent = '❌ Upload failed.';
+            statusEl.textContent = t('tripMedia.addDocStatusFailed');
         }
     });
     (q(root, '#editDocCancelBtn') as HTMLButtonElement).onclick = () => close();
@@ -863,14 +867,14 @@ export const openEditTripDocumentModal = (trip: any, docId: string): void => {
         const name = nameEl.value.trim();
         const url = urlEl.value.trim();
         if (!name || !url) {
-            statusEl.textContent = 'Name and URL are both required.';
+            statusEl.textContent = t('tripMedia.editDocValidationRequired');
             statusEl.style.color = '#ff9500';
             return;
         }
         const patch = { name, url, ...(dayEl ? { dayId: dayEl.value || null } : {}) };
         const source = updateTripDocument(trip, docId, patch);
         if (!source) {
-            statusEl.textContent = 'Could not save. Refresh and try again.';
+            statusEl.textContent = t('tripMedia.editDocErrorNoSave');
             statusEl.style.color = '#ff3b30';
             return;
         }
@@ -886,10 +890,10 @@ export const openEditTripDocumentModal = (trip: any, docId: string): void => {
                 if (day) await upsertDay(day);
             }
             close();
-            showLiquidAlert('Document updated.');
+            showLiquidAlert(t('tripMedia.editDocToastUpdated'));
             navigate('home');
         } catch (err) {
-            statusEl.textContent = `Save failed (${(err as Error).message}). Try again.`;
+            statusEl.textContent = t('tripMedia.editDocErrorSaveWithMsg', { error: (err as Error).message });
             statusEl.style.color = '#ff3b30';
         }
     };
@@ -918,23 +922,23 @@ export const openAddTripPhotoUrlModal = (trip: any): void => {
         variant: 'glass-light',
         cardStyle: 'width: 480px; max-width: calc(100vw - 32px);',
         innerHTML: `
-            <h2 class="h2-display">Add photo by link</h2>
-            <p class="text-subtitle">Paste a link to a hosted image, a Google Drive / Dropbox share, or a photo album page.</p>
+            <h2 class="h2-display">${esc(t('tripMedia.addPhotoTitle'))}</h2>
+            <p class="text-subtitle">${esc(t('tripMedia.addPhotoSubtitle'))}</p>
             <div class="tmm-form-col">
-                <label class="tmm-section-label">Image / album URL</label>
-                <input type="text" id="newPhotoUrl" class="glass-input" placeholder="https://..." class="p-3 rounded-md">
+                <label class="tmm-section-label">${esc(t('tripMedia.addPhotoLabelUrl'))}</label>
+                <input type="text" id="newPhotoUrl" class="glass-input" placeholder="${esc(t('tripMedia.addPhotoPlaceholderUrl'))}" class="p-3 rounded-md">
                 <div style="font-size:0.72rem; color:var(--text-secondary); line-height:1.45;">
-                    <strong>Tip:</strong> for Drive / Dropbox albums, paste the share link — the link will open the album when clicked. Direct image URLs (ending in .jpg / .png / .heic) will render as a thumbnail in the grid.
+                    ${esc(t('tripMedia.addPhotoTip'))}
                 </div>
-                <label class="tmm-section-label--mt-8">Where does it belong?</label>
+                <label class="tmm-section-label--mt-8">${esc(t('tripMedia.addPhotoLabelWhere'))}</label>
                 <select id="newPhotoDay" class="glass-input p-3 rounded-md bg-white">
-                    ${anchorDay ? `<option value="${esc(anchorDay.id)}" selected>⭐ Trip Hub</option>` : ''}
-                    ${numberedDays.map(d => `<option value="${esc(d.id)}">Day ${d.dayNumber}${d.date ? ` — ${formatDayDate(d.date) || d.date}` : ''}</option>`).join('')}
+                    ${anchorDay ? `<option value="${esc(anchorDay.id)}" selected>${esc(t('tripMedia.addPhotoOptionAnchor'))}</option>` : ''}
+                    ${numberedDays.map(d => `<option value="${esc(d.id)}">${esc(t('tripMedia.dayBucketDay', { n: d.dayNumber }))}${d.date ? ` — ${formatDayDate(d.date) || d.date}` : ''}</option>`).join('')}
                 </select>
             </div>
             <div class="flex gap-3">
-                <button id="newPhotoCancelBtn" class="btn-neutral flex-1 rounded-lg">Cancel</button>
-                <button id="newPhotoSaveBtn" class="btn-primary flex-[2] rounded-lg">Add</button>
+                <button id="newPhotoCancelBtn" class="btn-neutral flex-1 rounded-lg">${esc(t('tripMedia.addPhotoCancelBtn'))}</button>
+                <button id="newPhotoSaveBtn" class="btn-primary flex-[2] rounded-lg">${esc(t('tripMedia.addPhotoAddBtn'))}</button>
             </div>
         `,
     });
@@ -948,7 +952,7 @@ export const openAddTripPhotoUrlModal = (trip: any): void => {
         emit('state:changed');
         await upsertTrip(trip);
         close();
-        showLiquidAlert('Photo link added.');
+        showLiquidAlert(t('tripMedia.addPhotoToastAdded'));
         navigate('home');
     };
 };

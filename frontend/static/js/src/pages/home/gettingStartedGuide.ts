@@ -100,14 +100,22 @@ export function appendGettingStartedGuide(opts: GettingStartedGuideOptions): voi
     // Collections holds completed trips, Friends + Feed are
     // the social layer. Order roughly follows the natural
     // user flow: sign in → plan → log → reconcile → share.
+    // 2026-05-25 (audit): each step's text now comes from i18n. The
+    // two complex steps (Plan with AI / Log expenses) interpolate the
+    // raw t() result with nested data-guide-action spans so the
+    // inline action-links keep working — paintI18nBindings re-runs
+    // on locale change so the HTML stays in sync.
+    const planSubLink = `<span data-guide-action="open-add-day" class="link-underline">${esc(t('home.guideStep5Sub'))}</span>`;
+    const expenseManual = `<span data-guide-action="navigate-expenses" class="link-underline">${esc(t('home.guideStep6Manual'))}</span>`;
+    const expenseBatch = `<span data-guide-action="navigate-upload" class="link-underline">${esc(t('home.guideStep6Batch'))}</span>`;
     const steps: GuideStep[] = [
-        { text: 'Sign in with Google', done: !!STATE.guideProgress.login, icon: '🔐', action: () => navigate('profile') },
-        { text: 'Create your first trip', done: !!STATE.guideProgress.trip, icon: '✈️', action: () => openNewTripModal() },
+        { text: t('home.guideStep1'), done: !!STATE.guideProgress.login, icon: '🔐', action: () => navigate('profile') },
+        { text: t('home.guideStep2'), done: !!STATE.guideProgress.trip, icon: '✈️', action: () => openNewTripModal() },
         // Companions are per-trip now — the action opens the
         // trip-companion picker on Home (or just navigates Home
         // if there's no active trip yet, since the picker is
         // reachable from the trip header there).
-        { text: 'Invite your travel companions', done: !!STATE.guideProgress.companions, icon: '👥', action: () => {
+        { text: t('home.guideStep3'), done: !!STATE.guideProgress.companions, icon: '👥', action: () => {
             if (activeTrip) openCompanionPickerModal(activeTrip.id);
             else navigate('home');
         } },
@@ -115,13 +123,13 @@ export function appendGettingStartedGuide(opts: GettingStartedGuideOptions): voi
         // #persCategories) only exists once the page has
         // rendered, so navigate first and switch the tab on the
         // next tick.
-        { text: 'Customize your expense categories', done: !!STATE.guideProgress.categories, icon: '🏷️', action: () => { navigate('personalization'); setTimeout(() => showPersTab('categories'), 50); } },
-        { text: 'Plan with AI<br><span style="font-size: 0.85rem; opacity: 0.8; font-weight: 500;">(food + sights prompts — or <span data-guide-action="open-add-day" class="link-underline">build days manually</span>)</span>', done: !!STATE.guideProgress.plan, icon: '✦', action: () => navigate('ai') },
-        { text: 'Log your expenses<br><span style="font-size: 0.85rem; opacity: 0.8; font-weight: 500;">(<span data-guide-action="navigate-expenses" class="link-underline">manually</span> or <span data-guide-action="navigate-upload" class="link-underline">batch upload</span>)</span>', done: !!STATE.guideProgress.expenses, icon: '💰', action: () => navigate('expenses') },
-        { text: 'Set a budget per trip', done: !!STATE.guideProgress.budgets, icon: '📊', action: () => navigate('budgets') },
-        { text: 'Settle up — who owes who', done: !!STATE.guideProgress.settlement, icon: '🤝', action: () => navigate('settlement') },
-        { text: 'Complete a trip to your Collections', done: !!STATE.guideProgress.collections, icon: '📂', action: () => navigate('collections') },
-        { text: 'Follow friends + share trips on your Feed', done: !!STATE.guideProgress.friends, icon: '📱', action: () => navigate('friends') },
+        { text: t('home.guideStep4'), done: !!STATE.guideProgress.categories, icon: '🏷️', action: () => { navigate('personalization'); setTimeout(() => showPersTab('categories'), 50); } },
+        { text: `${t('home.guideStep5')}<br><span style="font-size: 0.85rem; opacity: 0.8; font-weight: 500;">(${t('home.guideStep5Prefix')} — ${planSubLink})</span>`, done: !!STATE.guideProgress.plan, icon: '✦', action: () => navigate('ai') },
+        { text: `${t('home.guideStep6')}<br><span style="font-size: 0.85rem; opacity: 0.8; font-weight: 500;">(${expenseManual} ${t('home.guideStep6Or')} ${expenseBatch})</span>`, done: !!STATE.guideProgress.expenses, icon: '💰', action: () => navigate('expenses') },
+        { text: t('home.guideStep7'), done: !!STATE.guideProgress.budgets, icon: '📊', action: () => navigate('budgets') },
+        { text: t('home.guideStep8'), done: !!STATE.guideProgress.settlement, icon: '🤝', action: () => navigate('settlement') },
+        { text: t('home.guideStep9'), done: !!STATE.guideProgress.collections, icon: '📂', action: () => navigate('collections') },
+        { text: t('home.guideStep10'), done: !!STATE.guideProgress.friends, icon: '📱', action: () => navigate('friends') },
     ];
 
     const allDone = steps.every(s => s.done) || !!STATE.guideAllDone;

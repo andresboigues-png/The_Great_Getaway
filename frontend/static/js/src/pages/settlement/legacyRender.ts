@@ -746,7 +746,7 @@ export async function settleDebt(
     const settlementExp = {
         id: generateId(),
         tripId: tripId,
-        label: `Settlement: ${from} → ${to}`,
+        label: t('settlement.settlementLabel', { from, to }),
         value: amount,
         euroValue: euroValue,
         currency: currency,
@@ -811,18 +811,19 @@ export async function deleteSettlement(
 
 // ── Modals ────────────────────────────────────────────────────────────
 
-/** Method quick-picks for the manual settle modal. The set mirrors
- *  the server-side _ALLOWED_METHODS in routes/settlements.py — any
- *  value here gets accepted unchanged; 'custom' is the catch-all for
- *  free-form notes ("Cash via Andre at the airport"). The roadmap
- *  §4.5 explicitly calls out this list. */
+/** Method quick-picks for the manual settle modal. The `value` is the
+ *  enum sent to /api/settlements (mirrors server-side _ALLOWED_METHODS
+ *  in routes/settlements.py — any value here gets accepted unchanged;
+ *  'custom' is the catch-all for free-form notes). The `labelKey`
+ *  resolves at render time so the dropdown reflects the active locale.
+ *  Roadmap §4.5 calls out this list. */
 const SETTLE_METHODS = [
-    { value: 'cash',          label: 'Cash' },
-    { value: 'revolut',       label: 'Revolut' },
-    { value: 'bank_transfer', label: 'Bank transfer' },
-    { value: 'wise',          label: 'Wise' },
-    { value: 'paypal',        label: 'PayPal' },
-    { value: 'custom',        label: 'Custom' },
+    { value: 'cash',          labelKey: 'settlement.methodCash' as const },
+    { value: 'revolut',       labelKey: 'settlement.methodRevolut' as const },
+    { value: 'bank_transfer', labelKey: 'settlement.methodBankTransfer' as const },
+    { value: 'wise',          labelKey: 'settlement.methodWise' as const },
+    { value: 'paypal',        labelKey: 'settlement.methodPayPal' as const },
+    { value: 'custom',        labelKey: 'settlement.methodCustom' as const },
 ];
 
 export function openManualSettleModal(tripId: string): void {
@@ -830,7 +831,7 @@ export function openManualSettleModal(tripId: string): void {
     const peopleSource = getTripCompanionNames(trip);
     const peopleOptions = peopleSource.map((p) => `<option value="${esc(p)}">${esc(p)}</option>`).join('');
     const methodOptions = SETTLE_METHODS
-        .map(m => `<option value="${esc(m.value)}">${esc(m.label)}</option>`)
+        .map(m => `<option value="${esc(m.value)}">${esc(t(m.labelKey))}</option>`)
         .join('');
     const home = getHomeCurrency();
 
@@ -841,19 +842,19 @@ export function openManualSettleModal(tripId: string): void {
             <h2 class="h2-display">${t('settlement.manualTitle')}</h2>
             <p class="text-subtitle">${t('settlement.manualSubtitle')}</p>
             <form id="manualSettleForm" style="display:flex; flex-direction:column; gap: var(--space-3); margin-top: var(--space-4);">
-                <label class="form-label">From</label>
+                <label class="form-label">${esc(t('settlement.labelFrom'))}</label>
                 <select id="manualSettleFrom" class="glass-input stl-card-minor-bg">${peopleOptions}</select>
-                <label class="form-label stl-mt-6">To</label>
+                <label class="form-label stl-mt-6">${esc(t('settlement.labelTo'))}</label>
                 <select id="manualSettleTo" class="glass-input stl-card-minor-bg">${peopleOptions}</select>
-                <label class="form-label stl-mt-6">Amount (${esc(home)})</label>
+                <label class="form-label stl-mt-6">${esc(t('settlement.labelAmount', { currency: home }))}</label>
                 <input type="number" step="0.01" min="0.01" id="manualSettleAmount" class="glass-input" placeholder="0.00" required class="stl-card-minor">
-                <label class="form-label stl-mt-6">Method</label>
+                <label class="form-label stl-mt-6">${esc(t('settlement.labelMethod'))}</label>
                 <select id="manualSettleMethod" class="glass-input stl-card-minor-bg">${methodOptions}</select>
-                <label class="form-label stl-mt-6">Note <span class="text-subtitle" style="font-weight:500;">(optional)</span></label>
-                <input type="text" id="manualSettleNote" class="glass-input" maxlength="240" placeholder="e.g. Cash at the airport" class="stl-card-minor">
+                <label class="form-label stl-mt-6">${esc(t('settlement.labelNote'))} <span class="text-subtitle" style="font-weight:500;">${esc(t('settlement.labelNoteOptional'))}</span></label>
+                <input type="text" id="manualSettleNote" class="glass-input" maxlength="240" placeholder="${esc(t('settlement.notePlaceholder'))}" class="stl-card-minor">
                 <div style="display:flex; gap: var(--space-3); margin-top: var(--space-4);">
-                    <button type="button" id="cancelManualSettleBtn" class="btn-neutral" style="flex:1; border-radius: var(--radius-lg);">Cancel</button>
-                    <button type="submit" class="btn-primary" style="flex:2; border-radius: var(--radius-lg);">Record payment</button>
+                    <button type="button" id="cancelManualSettleBtn" class="btn-neutral" style="flex:1; border-radius: var(--radius-lg);">${esc(t('settlement.cancelBtn'))}</button>
+                    <button type="submit" class="btn-primary" style="flex:2; border-radius: var(--radius-lg);">${esc(t('settlement.recordPaymentBtn'))}</button>
                 </div>
             </form>
         `,
@@ -899,17 +900,17 @@ export function openEditSettlementModal(id: string): void {
         innerHTML: `
             <h2 class="h2-display">${t('settlement.editTitle')}</h2>
             <form id="editSettlementForm" style="display:flex; flex-direction:column; gap: var(--space-3); margin-top: var(--space-4);">
-                <label class="form-label">From</label>
+                <label class="form-label">${esc(t('settlement.labelFrom'))}</label>
                 <select id="editSettleFrom" class="glass-input stl-card-minor-bg">${fromOpts}</select>
-                <label class="form-label stl-mt-6">To</label>
+                <label class="form-label stl-mt-6">${esc(t('settlement.labelTo'))}</label>
                 <select id="editSettleTo" class="glass-input stl-card-minor-bg">${toOpts}</select>
-                <label class="form-label stl-mt-6">Amount (${esc(home)})</label>
+                <label class="form-label stl-mt-6">${esc(t('settlement.labelAmount', { currency: home }))}</label>
                 <input type="number" step="0.01" min="0.01" id="editSettleAmount" value="${convertCurrency(s.euroValue || 0, 'EUR', home).toFixed(2)}" class="glass-input" required class="stl-card-minor">
-                <label class="form-label stl-mt-6">Date</label>
+                <label class="form-label stl-mt-6">${esc(t('settlement.labelDate'))}</label>
                 <input type="date" id="editSettleDate" value="${esc(s.date || '')}" class="glass-input" required class="stl-card-minor">
                 <div style="display:flex; gap: var(--space-3); margin-top: var(--space-4);">
-                    <button type="button" id="cancelEditSettleBtn" class="btn-neutral" style="flex:1; border-radius: var(--radius-lg);">Cancel</button>
-                    <button type="submit" class="btn-primary" style="flex:2; border-radius: var(--radius-lg);">Update</button>
+                    <button type="button" id="cancelEditSettleBtn" class="btn-neutral" style="flex:1; border-radius: var(--radius-lg);">${esc(t('settlement.cancelBtn'))}</button>
+                    <button type="submit" class="btn-primary" style="flex:2; border-radius: var(--radius-lg);">${esc(t('settlement.updateBtn'))}</button>
                 </div>
             </form>
         `,
@@ -931,7 +932,7 @@ export function openEditSettlementModal(id: string): void {
         s.currency = home;
         s.euroValue = convertCurrency(amount, home, 'EUR');
         s.date = date;
-        s.label = `Settlement: ${from} → ${to}`;
+        s.label = t('settlement.settlementLabel', { from, to });
         emit(EVENTS.STATE_CHANGED);
         close();
     };

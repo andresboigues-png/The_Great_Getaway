@@ -29,6 +29,7 @@ import { upsertDay, upsertTrip } from '../../api.js';
 import { canEdit } from '../../permissions.js';
 import { showModal } from '../../components/Modal.js';
 import { esc, q, formatDayDate, shortPlaceName, showLiquidAlert } from '../../utils.js';
+import { t } from '../../i18n.js';
 import { navigate } from '../../router.js';
 import { openTripChecklistModal } from './tripChecklistModal.js';
 import { openDayView } from './dayViewModal.js';
@@ -98,7 +99,7 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
             || (p.placeId ? `https://www.google.com/maps/place/?q=place_id:${encodeURIComponent(p.placeId)}` : null);
         const nameHtml = mapsUrl
             ? `<a href="${esc(mapsUrl)}" target="_blank" rel="noopener noreferrer"
-                title="Open ${esc(p.name)} on Google Maps"
+                title="${esc(t('dayDetail.openOnMaps', { name: p.name }))}"
                 style="font-weight:700; color:#002d5b; font-size:0.9rem; line-height:1.2; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-decoration:none; display:inline-flex; align-items:center; gap:4px; max-width:100%;">
                 <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(p.name)}</span>
                 <span aria-hidden="true" style="font-size:0.7rem; color:var(--accent-blue); opacity:0.7; flex-shrink:0;">↗</span>
@@ -112,12 +113,12 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
                     ${p.address ? `<div style="font-size:0.72rem; color:var(--text-secondary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(p.address)}</div>` : ''}
                 </div>
                 <div style="display:flex; gap:4px; flex-shrink:0;">
-                    <button type="button" class="day-shortlist-add-btn" data-place-id="${esc(p.placeId)}" data-time="morning" title="Add to Morning"
-                        style="background:rgba(0,113,227,0.08); border:1px solid rgba(0,113,227,0.2); color:var(--accent-blue); padding:5px 10px; border-radius:6px; font-size:0.7rem; font-weight:700; cursor:pointer;">☀️ AM</button>
-                    <button type="button" class="day-shortlist-add-btn" data-place-id="${esc(p.placeId)}" data-time="afternoon" title="Add to Afternoon"
-                        style="background:rgba(255,149,0,0.08); border:1px solid rgba(255,149,0,0.25); color:#ff9500; padding:5px 10px; border-radius:6px; font-size:0.7rem; font-weight:700; cursor:pointer;">🌅 PM</button>
-                    <button type="button" class="day-shortlist-add-btn" data-place-id="${esc(p.placeId)}" data-time="evening" title="Add to Evening"
-                        style="background:rgba(88,86,214,0.08); border:1px solid rgba(88,86,214,0.25); color:#5856d6; padding:5px 10px; border-radius:6px; font-size:0.7rem; font-weight:700; cursor:pointer;">🌙 Eve</button>
+                    <button type="button" class="day-shortlist-add-btn" data-place-id="${esc(p.placeId)}" data-time="morning" title="${esc(t('dayDetail.shortlistAddToMorning'))}"
+                        style="background:rgba(0,113,227,0.08); border:1px solid rgba(0,113,227,0.2); color:var(--accent-blue); padding:5px 10px; border-radius:6px; font-size:0.7rem; font-weight:700; cursor:pointer;">${esc(t('dayDetail.shortlistBtnAm'))}</button>
+                    <button type="button" class="day-shortlist-add-btn" data-place-id="${esc(p.placeId)}" data-time="afternoon" title="${esc(t('dayDetail.shortlistAddToAfternoon'))}"
+                        style="background:rgba(255,149,0,0.08); border:1px solid rgba(255,149,0,0.25); color:#ff9500; padding:5px 10px; border-radius:6px; font-size:0.7rem; font-weight:700; cursor:pointer;">${esc(t('dayDetail.shortlistBtnPm'))}</button>
+                    <button type="button" class="day-shortlist-add-btn" data-place-id="${esc(p.placeId)}" data-time="evening" title="${esc(t('dayDetail.shortlistAddToEvening'))}"
+                        style="background:rgba(88,86,214,0.08); border:1px solid rgba(88,86,214,0.25); color:#5856d6; padding:5px 10px; border-radius:6px; font-size:0.7rem; font-weight:700; cursor:pointer;">${esc(t('dayDetail.shortlistBtnEve'))}</button>
                 </div>
             </div>
         `;
@@ -154,13 +155,19 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
     // for the imperative-DOM render path; both lists evolve from
     // the same POI_CATEGORIES emoji set so drift is unlikely (but
     // a future consolidation could pull this into a shared module).
+    // Build the icon→label map from the shared `poi.*` translations so
+    // the shortlist filter pills read in the active locale. Mirrors the
+    // POI_CATEGORIES emoji set used by the home map; if a new POI type
+    // is added, just add the key to en.ts under `poi:` and translate it
+    // in the other locale files — the map below picks it up
+    // automatically.
     const ICON_TO_LABEL: Record<string, string> = {
-        '🍽️': 'Restaurants', '🛒': 'Supermarkets', '🛏️': 'Hotels',
-        '🏖️': 'Sights', '🌳': 'Parks', '⛪': 'Worship',
-        '🏥': 'Medical', '💊': 'Pharmacies', '🩺': 'Doctors', '🦷': 'Dentists',
-        '🐾': 'Pets', '🐶': 'Pet stores', '🎓': 'Schools', '🏟️': 'Sports',
-        '🚉': 'Transit', '🛣️': 'Roads & traffic',
-        '📋': 'AI suggestions', '📍': 'Other places',
+        '🍽️': t('poi.restaurants'), '🛒': t('poi.supermarkets'), '🛏️': t('poi.hotels'),
+        '🏖️': t('poi.sights'), '🌳': t('poi.parks'), '⛪': t('poi.worship'),
+        '🏥': t('poi.medical'), '💊': t('poi.pharmacies'), '🩺': t('poi.doctors'), '🦷': t('poi.dentists'),
+        '🐾': t('poi.pets'), '🐶': t('poi.petStores'), '🎓': t('poi.schools'), '🏟️': t('poi.sports'),
+        '🚉': t('poi.transit'), '🛣️': t('poi.roadsTraffic'),
+        '📋': t('poi.aiSuggestions'), '📍': t('poi.otherPlaces'),
     };
     const _shortlistIconCounts = new Map<string, number>();
     for (const p of allShortlist) {
@@ -180,32 +187,32 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
     const filterPillsHtml = _shortlistIcons.length > 1 ? `
         <div id="dayShortlistFilterPills" class="day-shortlist-filter-pills"
             style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px; align-items:center;">
-            ${_renderShortlistFilterPill('✨', 'All', allShortlist.length, true)}
-            ${_shortlistIcons.map(i => _renderShortlistFilterPill(i, ICON_TO_LABEL[i] || 'Other', _shortlistIconCounts.get(i) || 0, false)).join('')}
+            ${_renderShortlistFilterPill('✨', t('dayDetail.shortlistAllPill'), allShortlist.length, true)}
+            ${_shortlistIcons.map(i => _renderShortlistFilterPill(i, ICON_TO_LABEL[i] || t('poi.other'), _shortlistIconCounts.get(i) || 0, false)).join('')}
         </div>
     ` : '';
     const shortlistSectionHtml = `
         <div class="day-shortlist-section" style="margin-top: var(--space-10); padding: var(--space-6); background: rgba(155, 89, 182, 0.04); border: 1px solid rgba(155, 89, 182, 0.2); border-radius: 24px;">
             <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px; flex-wrap:wrap;">
                 <span style="font-size: 1.2rem;">📋</span>
-                <h4 style="margin:0; color:#7c3a9e; font-weight:800; letter-spacing:-0.01em;">From your to-do list</h4>
+                <h4 style="margin:0; color:#7c3a9e; font-weight:800; letter-spacing:-0.01em;">${esc(t('dayDetail.shortlistHeading'))}</h4>
                 <span class="day-shortlist-count" style="background: rgba(155,89,182,0.12); color:#7c3a9e; padding: 2px 10px; border-radius:999px; font-size:0.72rem; font-weight:800;">${allShortlist.length}</span>
                 ${allShortlist.length > 6 ? `
-                    <input type="search" id="dayShortlistFilter" placeholder="Filter…" autocomplete="off"
+                    <input type="search" id="dayShortlistFilter" placeholder="${esc(t('dayDetail.shortlistFilterPlaceholder'))}" autocomplete="off"
                         style="margin-left:auto; max-width: 200px; padding:6px 12px; border:1px solid rgba(155,89,182,0.25); background:white; border-radius:999px; font-size:0.78rem; color:#002d5b; outline:none; font-family: inherit;">
                 ` : ''}
             </div>
             ${filterPillsHtml}
             ${allShortlist.length > 0 ? `
-                <p style="margin:0 0 12px; font-size:0.74rem; color:var(--text-secondary); line-height:1.4;">Tap AM / PM / Eve to drop into the matching textarea — tap again to remove it. ✓ shows where it currently lives.</p>
+                <p style="margin:0 0 12px; font-size:0.74rem; color:var(--text-secondary); line-height:1.4;">${esc(t('dayDetail.shortlistInstructions'))}</p>
                 <div id="dayShortlistRows" class="day-shortlist-rows"
                     style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:8px; max-height: 360px; overflow-y: auto; padding-right: 4px;">
                     ${allShortlist.map(shortlistRowHtml).join('')}
                 </div>
-                <div id="dayShortlistEmpty" style="display:none; padding: 16px 8px; text-align:center; color:var(--text-secondary); font-size:0.84rem;">No matches.</div>
+                <div id="dayShortlistEmpty" style="display:none; padding: 16px 8px; text-align:center; color:var(--text-secondary); font-size:0.84rem;">${esc(t('dayDetail.shortlistNoMatches'))}</div>
             ` : `
                 <div style="margin-top:6px; padding: 18px 16px; border:1.5px dashed rgba(155,89,182,0.35); border-radius: 14px; background: rgba(155,89,182,0.03); color: var(--text-secondary); font-size: 0.85rem; line-height: 1.5;">
-                    No places saved yet. Open the map on Home, tap any pin, then click <strong style="color:#7c3a9e;">📋 Add to to-do list</strong>. Each saved place lands here with AM / PM / Eve buttons so you can drop it into a time slot for this day in one tap.
+                    ${t('dayDetail.shortlistEmptyHTML')}
                 </div>
             `}
         </div>
@@ -232,12 +239,12 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
     // shows a gold "⭐ Trip Hub" chip to match the Path tab
     // styling.
     const headerChipHtml = isAnchor
-        ? `<div style="background: var(--gradient-anchor-deep); color: white; padding: var(--space-1) var(--space-3); border-radius: var(--radius-sm); font-weight: 800; font-size: var(--font-xs); text-transform: uppercase; letter-spacing: 0.06em;">⭐ Trip Hub</div>`
-        : `<div style="background: var(--accent-blue); color: white; padding: var(--space-1) var(--space-3); border-radius: var(--radius-sm); font-weight: 800; font-size: var(--font-xs); text-transform: uppercase;">Day ${day.dayNumber}</div>`;
+        ? `<div style="background: var(--gradient-anchor-deep); color: white; padding: var(--space-1) var(--space-3); border-radius: var(--radius-sm); font-weight: 800; font-size: var(--font-xs); text-transform: uppercase; letter-spacing: 0.06em;">${esc(t('dayDetail.headerChipAnchor'))}</div>`
+        : `<div style="background: var(--accent-blue); color: white; padding: var(--space-1) var(--space-3); border-radius: var(--radius-sm); font-weight: 800; font-size: var(--font-xs); text-transform: uppercase;">${esc(t('dayDetail.headerChipDay', { n: day.dayNumber }))}</div>`;
     const headerSubtitle = isAnchor
-        ? (trip?.country ? esc(shortPlaceName(trip.country)) : 'Where the trip begins')
+        ? (trip?.country ? esc(shortPlaceName(trip.country)) : esc(t('dayDetail.subtitleAnchorFallback')))
         : esc(formatDayDate(day.date));
-    const headerTitle = isAnchor ? 'Trip Hub' : esc(day.name);
+    const headerTitle = isAnchor ? t('dayDetail.titleAnchor') : esc(day.name);
 
     // Anchor body: quick-links row + single "Trip notes"
     // textarea on the left; Expert Tip + Done on the right. No
@@ -247,15 +254,15 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
         <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom: var(--space-6);">
             <button type="button" class="anchor-quicklink-btn" data-target="checklist"
                 style="display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:999px; background:rgba(212,160,23,0.1); border:1px solid rgba(212,160,23,0.3); color:#8b6e0c; font-weight:700; font-size:0.82rem; cursor:pointer;">
-                📝 Trip checklist
+                ${esc(t('dayDetail.quickChecklist'))}
             </button>
             <button type="button" class="anchor-quicklink-btn" data-target="documents"
                 style="display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:999px; background:rgba(88,86,214,0.08); border:1px solid rgba(88,86,214,0.25); color:#5856d6; font-weight:700; font-size:0.82rem; cursor:pointer;">
-                📎 Documents
+                ${esc(t('dayDetail.quickDocuments'))}
             </button>
             <button type="button" class="anchor-quicklink-btn" data-target="photos"
                 style="display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:999px; background:rgba(52,199,89,0.08); border:1px solid rgba(52,199,89,0.25); color:#1a6b3c; font-weight:700; font-size:0.82rem; cursor:pointer;">
-                📸 Photos
+                ${esc(t('dayDetail.quickPhotos'))}
             </button>
         </div>
     `;
@@ -268,8 +275,8 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
     const anchorBodyHtml = `
         ${anchorQuickLinksHtml}
         <div class="subcard-soft" style="display:flex; flex-direction:column;">
-            <h4 class="text-tag" style="--accent: 212,160,23;">Trip notes & journal</h4>
-            <textarea id="detailNotes" class="plain-textarea" placeholder="What this trip is about, highlights, things to remember…" style="min-height: 320px;">${esc(day.notes || '')}</textarea>
+            <h4 class="text-tag" style="--accent: 212,160,23;">${esc(t('dayDetail.anchorNotesHeading'))}</h4>
+            <textarea id="detailNotes" class="plain-textarea" placeholder="${esc(t('dayDetail.anchorNotesPlaceholder'))}" style="min-height: 320px;">${esc(day.notes || '')}</textarea>
         </div>
     `;
 
@@ -293,9 +300,21 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
     // along on `aria-label` so the tab is announced clearly to
     // screen-readers — it's just no longer painted on the button.
     const _slotIcon: Record<string, string> = { morning: '☀️', afternoon: '🌅', evening: '🌙' };
-    const _slotLabel: Record<string, string> = { morning: 'Morning', afternoon: 'Afternoon', evening: 'Evening' };
+    // Slot labels & placeholders resolve through t() so the tab strip,
+    // the textareas, and the "place pinned to this slot" counts all
+    // read in the active locale. Look-up indirection mirrors the
+    // existing accent-colour map below.
+    const _slotLabel: Record<string, string> = {
+        morning: t('dayDetail.tabMorning'),
+        afternoon: t('dayDetail.tabAfternoon'),
+        evening: t('dayDetail.tabEvening'),
+    };
     const _slotAccent: Record<string, string> = { morning: '0,113,227', afternoon: '255,149,0', evening: '88,86,214' };
-    const _slotPlaceholder: Record<string, string> = { morning: 'Morning plans…', afternoon: 'Afternoon plans…', evening: 'Evening plans…' };
+    const _slotPlaceholder: Record<string, string> = {
+        morning: t('dayDetail.morningPlaceholder'),
+        afternoon: t('dayDetail.afternoonPlaceholder'),
+        evening: t('dayDetail.eveningPlaceholder'),
+    };
     const _slots = ['morning', 'afternoon', 'evening'];
     const _initialSlot = 'morning';
     const _renderTab = (slot: string) => {
@@ -346,7 +365,7 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
             // so the user knows they're not strictly morning/PM/eve;
             // the AI page can promote them to a specific slot later.
             const anytimeHtml = !p.timeOfDay
-                ? `<span class="day-plan-place__anytime" title="Pinned to this day, no specific time-of-day yet">Anytime</span>`
+                ? `<span class="day-plan-place__anytime" title="${esc(t('dayDetail.chipAnytimeTitle'))}">${esc(t('dayDetail.chipAnytime'))}</span>`
                 : '';
             const whyHtml = p.why
                 ? `<div class="day-plan-place__why">${esc(p.why)}</div>`
@@ -377,9 +396,19 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
                 </${wrapTag}>
             `;
         }).join('');
+        // Pluralised count label — the singular/plural divergence is
+        // locale-specific so the t() lookup branches on length === 1.
+        // The `_slotIcon[slot]` lookup is statically known to be defined
+        // for every value of `slot` we iterate over, but TS widens the
+        // index signature to `string | undefined`; coerce with `?? ''`
+        // so the t() params type is satisfied.
+        const slotIconValue = _slotIcon[slot] ?? '';
+        const countLabel = places.length === 1
+            ? t('dayDetail.slotPinnedCountOne', { icon: slotIconValue, count: places.length })
+            : t('dayDetail.slotPinnedCountOther', { icon: slotIconValue, count: places.length });
         return `
             <div class="day-plan-places" style="--accent: ${_slotAccent[slot]};">
-                <div class="day-plan-places__label">${_slotIcon[slot]} ${places.length} place${places.length === 1 ? '' : 's'} pinned to this slot</div>
+                <div class="day-plan-places__label">${countLabel}</div>
                 ${cardsHtml}
             </div>
         `;
@@ -395,7 +424,7 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
     };
     const numberedDayLeftHtml = `
         <div class="day-plan-tabs">
-            <div class="day-plan-tabnav" role="tablist" aria-label="Day plan time slots">
+            <div class="day-plan-tabnav" role="tablist" aria-label="${esc(t('dayDetail.tablistLabel'))}">
                 ${_slots.map(_renderTab).join('')}
             </div>
             <div class="day-plan-panes">
@@ -416,8 +445,8 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
         if (items.length === 0) {
             return `
                 <div style="background: rgba(212,160,23,0.04); padding: var(--space-5); border-radius: 24px; border: 1.5px dashed rgba(212,160,23,0.32);">
-                    <h4 class="text-tag" style="--accent: 212,160,23;">📝 Trip checklist</h4>
-                    <p style="margin: 6px 0 8px; font-size: 0.82rem; color: var(--text-secondary); line-height:1.45;">No tasks yet — open Trip Hub → 📝 Trip checklist to add packing/errand tasks. They'll appear here on every day.</p>
+                    <h4 class="text-tag" style="--accent: 212,160,23;">${esc(t('dayDetail.checklistHeading'))}</h4>
+                    <p style="margin: 6px 0 8px; font-size: 0.82rem; color: var(--text-secondary); line-height:1.45;">${esc(t('dayDetail.checklistEmpty'))}</p>
                 </div>
             `;
         }
@@ -426,7 +455,7 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
             const done = !!item.done;
             return `
                 <div class="day-checklist-row" data-item-id="${id}" style="display:flex; align-items:center; gap:10px; padding:6px 0;">
-                    <button type="button" class="day-checklist-toggle" data-item-id="${id}" aria-pressed="${done}" title="${done ? 'Mark not done' : 'Mark done'}"
+                    <button type="button" class="day-checklist-toggle" data-item-id="${id}" aria-pressed="${done}" title="${done ? esc(t('dayDetail.checklistMarkNotDone')) : esc(t('dayDetail.checklistMarkDone'))}"
                         style="flex-shrink:0; width:20px; height:20px; border-radius:50%; border:2px solid ${done ? '#8b6e0c' : 'rgba(0,113,227,0.3)'}; background:${done ? 'var(--gradient-anchor-deep)' : 'white'}; color:white; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; padding:0;">
                         ${done ? `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>` : ''}
                     </button>
@@ -437,13 +466,13 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
         return `
             <div style="background: rgba(212,160,23,0.04); padding: var(--space-5); border-radius: 24px; border: 1.5px solid rgba(212,160,23,0.22);">
                 <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
-                    <h4 class="text-tag" style="--accent: 212,160,23; margin:0;">📝 Trip checklist</h4>
-                    <span class="day-checklist-summary" style="font-size:0.7rem; color:var(--text-secondary); font-weight:700; text-transform:uppercase; letter-spacing:0.05em;">${remaining} of ${items.length} left</span>
+                    <h4 class="text-tag" style="--accent: 212,160,23; margin:0;">${esc(t('dayDetail.checklistHeading'))}</h4>
+                    <span class="day-checklist-summary" style="font-size:0.7rem; color:var(--text-secondary); font-weight:700; text-transform:uppercase; letter-spacing:0.05em;">${esc(t('dayDetail.checklistRemaining', { remaining, total: items.length }))}</span>
                 </div>
                 <div id="dayChecklistRows" style="display:flex; flex-direction:column;">
                     ${rowsHtml}
                 </div>
-                <button type="button" id="dayChecklistManageBtn" style="margin-top:6px; background:transparent; border:0; color:#8b6e0c; font-weight:700; font-size:0.78rem; cursor:pointer; padding:0;">Manage in Trip Hub →</button>
+                <button type="button" id="dayChecklistManageBtn" style="margin-top:6px; background:transparent; border:0; color:#8b6e0c; font-weight:700; font-size:0.78rem; cursor:pointer; padding:0;">${esc(t('dayDetail.checklistManage'))}</button>
             </div>
         `;
     })();
@@ -456,8 +485,8 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
     // panel.
     const numberedDayRightHtml = `
         <div style="background: rgba(0,113,227,0.05); padding: var(--space-6); border-radius: 24px; border: 1px solid rgba(0,113,227,0.1);">
-            <h4 class="text-tag">Personal Notes</h4>
-            <textarea id="detailNotes" class="plain-textarea plain-textarea--no-resize" style="height: 200px;" placeholder="Private thoughts about this day...">${esc(day.notes || '')}</textarea>
+            <h4 class="text-tag">${esc(t('dayDetail.personalNotesHeading'))}</h4>
+            <textarea id="detailNotes" class="plain-textarea plain-textarea--no-resize" style="height: 200px;" placeholder="${esc(t('dayDetail.personalNotesPlaceholder'))}">${esc(day.notes || '')}</textarea>
         </div>
         ${checklistPanelHtml}
     `;
@@ -468,8 +497,8 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
     // yet another right-column item.
     const footerHtml = `
         <div style="margin-top: var(--space-10); padding-top: var(--space-8); border-top: 1px solid rgba(0,45,91,0.08); display:flex; flex-direction:column; align-items:center; gap:8px;">
-            <button id="saveDetailBtn" class="btn-primary" style="min-width: 220px; padding: var(--space-5) var(--space-10); border-radius: var(--radius-xl); font-size: var(--font-lg); font-weight:800; letter-spacing:-0.01em;">Done</button>
-            <div id="autosaveStatus" style="text-align:center; font-size:0.72rem; color:var(--text-secondary); font-weight:600; min-height:1em; letter-spacing:0.02em;">Changes save automatically</div>
+            <button id="saveDetailBtn" class="btn-primary" style="min-width: 220px; padding: var(--space-5) var(--space-10); border-radius: var(--radius-xl); font-size: var(--font-lg); font-weight:800; letter-spacing:-0.01em;">${esc(t('dayDetail.doneBtn'))}</button>
+            <div id="autosaveStatus" style="text-align:center; font-size:0.72rem; color:var(--text-secondary); font-weight:600; min-height:1em; letter-spacing:0.02em;">${esc(t('dayDetail.statusAuto'))}</div>
         </div>
     `;
 
@@ -515,7 +544,7 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
                     </div>
                     <h2 class="day-detail-header__title">${headerTitle}</h2>
                 </div>
-                <button id="closeDetailBtn" class="close-x-btn" aria-label="Close">✕</button>
+                <button id="closeDetailBtn" class="close-x-btn" aria-label="${esc(t('dayDetail.closeBtn'))}">✕</button>
             </div>
             ${bodyHtml}
             ${footerHtml}
@@ -626,24 +655,30 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
         day.notes = notesTextarea?.value ?? '';
     };
 
+    // Cache the translated `Saved ✓` form so the decay-to-neutral check
+    // below can compare against the literal text it just set, rather
+    // than the English string (which would never match in non-en locales).
+    const SAVED_STATUS_TEXT = t('dayDetail.statusSaved');
+
     const persistNow = async () => {
         if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
         syncDayFromInputs();
         emit('state:changed');
         pendingSave = true;
-        flashStatus('Saving…');
+        flashStatus(t('dayDetail.statusSaving'));
         try {
             await upsertDay(day);
-            flashStatus('Saved ✓', '#1a6b3c');
+            flashStatus(SAVED_STATUS_TEXT, '#1a6b3c');
             // Decay back to neutral after a beat so the badge
             // isn't permanently green (would imply nothing's
-            // pending).
+            // pending). Compare against the cached translated string
+            // — `Saved ✓` is locale-dependent.
             setTimeout(() => {
-                if (statusEl.textContent === 'Saved ✓') flashStatus('Changes save automatically');
+                if (statusEl.textContent === SAVED_STATUS_TEXT) flashStatus(t('dayDetail.statusAuto'));
             }, 1400);
         } catch (e) {
             console.error('Day auto-save failed:', e);
-            flashStatus('Save failed — try again', '#ff3b30');
+            flashStatus(t('dayDetail.statusFailed'), '#ff3b30');
         } finally {
             pendingSave = false;
         }
@@ -652,7 +687,7 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
     const queueSave = () => {
         syncDayFromInputs();
         emit('state:changed'); // local persistence + UI subscribers
-        flashStatus('Editing…');
+        flashStatus(t('dayDetail.statusEditing'));
         if (saveTimer) clearTimeout(saveTimer);
         saveTimer = setTimeout(() => { saveTimer = null; persistNow(); }, 700);
     };
@@ -706,9 +741,13 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
             // toggle — first click adds, re-click removes the
             // line. Without this the tooltip stays "Add to
             // Morning" forever and the remove behavior reads as
-            // a surprise.
-            const slot = time === 'morning' ? 'Morning' : time === 'afternoon' ? 'Afternoon' : 'Evening';
-            btn.title = isThere ? `Remove from ${slot}` : `Add to ${slot}`;
+            // a surprise. The {slot} placeholder receives the
+            // translated time-of-day label so "Remove from Morning"
+            // becomes "Retirer du matin" / "Remover da manhã".
+            const slot = _slotLabel[time] ?? time;
+            btn.title = isThere
+                ? t('dayDetail.shortlistRemoveFromSlot', { slot })
+                : t('dayDetail.shortlistAddToSlot', { slot });
         });
     };
 
@@ -942,7 +981,7 @@ export const openDayDetail = (dayId: string, opts: OpenDayDetailOptions): void =
         // redundant with auto-save but kept as a comfortable
         // Big Button exit.
         await persistNow();
-        showLiquidAlert('Itinerary updated!');
+        showLiquidAlert(t('dayDetail.toastUpdated'));
         close();
         navigate('home');
     };

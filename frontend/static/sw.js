@@ -52,7 +52,7 @@
 // a fresh sw.js fetch since the activate handler now sees a stranger
 // (v2 → v3 → wipe everything not in CURRENT_CACHES). Belt-and-braces
 // for the n-th cached-bundle regression.
-const SW_VERSION = 'v3';
+const SW_VERSION = 'v4';
 const SHELL_CACHE = `gg-shell-${SW_VERSION}`;
 const API_CACHE = `gg-api-${SW_VERSION}`;
 const UPLOADS_CACHE = `gg-uploads-${SW_VERSION}`;

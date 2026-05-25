@@ -380,6 +380,29 @@ export const en = {
         settleBtn: 'Settle',
         // Manual settlement open button.
         manualSettleOpenBtn: '+ Manual settlement',
+        // Manual + Edit settlement modals (pages/settlement/legacyRender.ts).
+        // Shared field labels.
+        labelFrom: 'From',
+        labelTo: 'To',
+        labelAmount: 'Amount ({currency})',
+        labelMethod: 'Method',
+        labelNote: 'Note',
+        labelNoteOptional: '(optional)',
+        labelDate: 'Date',
+        notePlaceholder: 'e.g. Cash at the airport',
+        cancelBtn: 'Cancel',
+        recordPaymentBtn: 'Record payment',
+        updateBtn: 'Update',
+        // Settlement record label (the "Settlement: A → B" string used as
+        // the `label` field on the synthetic expense row).
+        settlementLabel: 'Settlement: {from} → {to}',
+        // Payment-method dropdown options.
+        methodCash: 'Cash',
+        methodRevolut: 'Revolut',
+        methodBankTransfer: 'Bank transfer',
+        methodWise: 'Wise',
+        methodPayPal: 'PayPal',
+        methodCustom: 'Custom',
     },
     budgets: {
         // Page header.
@@ -928,6 +951,43 @@ export const en = {
         toastReposted: 'Reposted to your feed',
         toastRepostFailed: 'Repost failed — try again in a moment.',
         toastRepostOwnShare: "That's your own share — no need to repost it.",
+        // ── Relative time (pages/feed/render.ts relativeTime).
+        // `justNow` is used for <60s, the rest are short forms (m / h / d).
+        // Note: the pluralised m/h/d-ago strings DON'T need separate one/other
+        // forms in English because "1m ago" reads fine and saves space; locales
+        // that need agreement (e.g. fr "il y a 1 minute" vs "il y a 5 minutes")
+        // can swap to a pluralised key by adding `relTimeMin: { one, other }`
+        // and switching the call site to tn().
+        relTimeJustNow: 'just now',
+        relTimeMin: '{count}m ago',
+        relTimeHour: '{count}h ago',
+        relTimeDay: '{count}d ago',
+        // ── Event verb-line strings (pages/feed/render.ts eventLine).
+        // The `{who}` placeholder receives pre-formatted HTML (the actor's name
+        // wrapped in <strong>) and the `{trip}` placeholder gets the trip name
+        // similarly. Keep the {…} tokens exactly as is in translations.
+        // `verbYou` is the second-person pronoun for self-attribution.
+        verbYou: 'You',
+        verbSomeone: 'someone',
+        verbSomewhere: 'somewhere',
+        verbProfile: 'profile',
+        verbATrip: 'a trip',
+        evCreatedTrip: '{who} started planning a new trip — {trip}',
+        evCreatedTripCountry: '{who} started planning a new trip — {trip} ({country})',
+        evArchivedTripSelf: '{who} just completed your trip to <strong style="color:#002d5b;">{country}</strong> 🎉',
+        evArchivedTripOther: '{who} just completed their trip to <strong style="color:#002d5b;">{country}</strong> 🎉',
+        evJoinedTrip: '{who} joined the trip {trip}',
+        evNewFriendship: 'You and {who} are now friends 🤝',
+        evSharedTrip: '{who} shared a trip — {trip}',
+        evSharedTripCountry: '{who} shared a trip — {trip} ({country})',
+        evRepostedSomeone: '{who} reposted {orig} — {trip}',
+        evRepostedSomeoneCountry: '{who} reposted {orig} — {trip} ({country})',
+        evRepostedYourShare: '<strong style="color:#002d5b;">your</strong> share',
+        evRepostedOthersTrip: "<strong style=\"color:#002d5b;\">{name}</strong>'s trip",
+        evDefault: '{who} did something new',
+        // Avatar button a11y.
+        avatarBtnTitle: 'View {name}',
+        avatarBtnAriaLabel: "View {name}'s profile",
     },
     home: {
         // Pre-trip empty-state hero (welcomeCard.ts buildEmptyStateHtml).
@@ -967,6 +1027,24 @@ export const en = {
         gettingStartedTitle: 'Getting Started Guide',
         quickAccessToolbar: 'Toolbar',
         hideBtn: 'Hide',
+        // Getting-started guide step labels (pages/home/gettingStartedGuide.ts).
+        // Steps 5 + 6 have inline action chips that are translated separately
+        // and spliced in by the renderer — keep these short, sentence-case.
+        guideStep1: 'Sign in with Google',
+        guideStep2: 'Create your first trip',
+        guideStep3: 'Invite your travel companions',
+        guideStep4: 'Customize your expense categories',
+        guideStep5: 'Plan with AI',
+        guideStep5Prefix: 'food + sights prompts',
+        guideStep5Sub: 'build days manually',
+        guideStep6: 'Log your expenses',
+        guideStep6Manual: 'manually',
+        guideStep6Batch: 'batch upload',
+        guideStep6Or: 'or',
+        guideStep7: 'Set a budget per trip',
+        guideStep8: 'Settle up — who owes who',
+        guideStep9: 'Complete a trip to your Collections',
+        guideStep10: 'Follow friends + share trips on your Feed',
     },
     // 2026-05-24: Path tab — summary line under the chip strip.
     path: {
@@ -979,6 +1057,44 @@ export const en = {
             one: '{count} day planned',
             other: '{count} days planned',
         },
+    },
+    // Trip-companions roster (modals/companions.ts).
+    companions: {
+        // openCompanionPickerModal — owner-side roster manager.
+        pickerTitle: 'Trip Companions',
+        pickerIntro: "Add who's coming on <strong>{trip}</strong>. Friends get a trip invitation (Relaxer by default — you can override per pick); plain companions are just labels for non-app travellers.",
+        pickerEmpty: 'No companions on this trip yet. Add a friend or type a name below.',
+        addFriendBtn: 'Add a friend',
+        addInputPlaceholder: '+ Add unlinked companion',
+        addBtn: 'Add',
+        friendSheetTitle: 'Add a friend',
+        friendSheetLoading: 'Loading friends…',
+        friendSheetEmpty: 'No friends available — every accepted friend is already on this trip, or your friends list is empty.',
+        friendAddBtn: '+ Add',
+        rowLinkBtn: '🔗 Link to friend',
+        rowLockTitle: "Has expenses on this trip — can't remove",
+        rowRemoveTitle: 'Remove from trip',
+        rowCloseTitle: 'Close',
+        pillLinkedTitle: 'Trip invitation accepted',
+        pillPendingTitle: 'Trip invitation pending',
+        pillPendingText: '⏳ Pending',
+        pillUnlinkedText: 'Unlinked',
+        doneBtn: 'Done',
+        invitedToast: '{name} invited as {role}',
+        // openTripMembersModal — read-only view for non-owners.
+        membersTitle: 'Trip members',
+        membersIntro: "You're on <strong>{trip}</strong> as a <strong>{role}</strong>. Roster is managed by the trip owner.",
+        membersOwnerBadge: '👑 Owner',
+        closeBtn: 'Close',
+        // Role labels (shared by picker + members modal).
+        rolePlanner: 'Planner',
+        roleBudgeteer: 'Budgeteer',
+        roleRelaxer: 'Relaxer',
+        // Relaxer-only view-only badge on TripBody header.
+        relaxerBadgeTitle: "You're a Relaxer on this trip — view-only",
+        // Members panel title attributes (owner vs non-owner).
+        chipsManageTitle: 'Manage trip companions',
+        chipsSeeTitle: "See who's on this trip",
     },
     share: {
         // Share-chooser modal — the entry point that asks "which way?"
@@ -1089,7 +1205,309 @@ export const en = {
         transit: 'Transit',
         roadsTraffic: 'Roads & traffic',
         otherPlaces: 'Other places',
+        aiSuggestions: 'AI suggestions',
         other: 'Other',
+    },
+    // Day-detail modal (pages/home/dayDetailModal.ts). The single modal
+    // handles BOTH the trip anchor (Trip Hub) AND any numbered day; some
+    // keys are shared, others are mode-specific (anchor-only / day-only).
+    dayDetail: {
+        // Header chips & title.
+        headerChipAnchor: '⭐ Trip Hub',
+        headerChipDay: 'Day {n}',
+        titleAnchor: 'Trip Hub',
+        // Subtitle under the anchor header when the trip has no `country`
+        // set yet — fallback copy that hints what Trip Hub is for.
+        subtitleAnchorFallback: 'Where the trip begins',
+        closeBtn: 'Close',
+        // Anchor quick-links row.
+        quickChecklist: '📝 Trip checklist',
+        quickDocuments: '📎 Documents',
+        quickPhotos: '📸 Photos',
+        // Anchor body: trip notes & journal.
+        anchorNotesHeading: 'Trip notes & journal',
+        anchorNotesPlaceholder: 'What this trip is about, highlights, things to remember…',
+        // Day plan tabs.
+        tabMorning: 'Morning',
+        tabAfternoon: 'Afternoon',
+        tabEvening: 'Evening',
+        morningPlaceholder: 'Morning plans…',
+        afternoonPlaceholder: 'Afternoon plans…',
+        eveningPlaceholder: 'Evening plans…',
+        tablistLabel: 'Day plan time slots',
+        // Personal notes section (numbered days).
+        personalNotesHeading: 'Personal Notes',
+        personalNotesPlaceholder: 'Private thoughts about this day...',
+        // Shortlist (to-do list) section.
+        shortlistAllPill: 'All',
+        shortlistFilterPlaceholder: 'Filter…',
+        shortlistHeading: 'From your to-do list',
+        shortlistInstructions: 'Tap AM / PM / Eve to drop into the matching textarea — tap again to remove it. ✓ shows where it currently lives.',
+        shortlistNoMatches: 'No matches.',
+        shortlistEmptyHTML: 'No places saved yet. Open the map on Home, tap any pin, then click <strong style="color:#7c3a9e;">📋 Add to to-do list</strong>. Each saved place lands here with AM / PM / Eve buttons so you can drop it into a time slot for this day in one tap.',
+        // Per-row time-slot buttons.
+        shortlistBtnAm: '☀️ AM',
+        shortlistBtnPm: '🌅 PM',
+        shortlistBtnEve: '🌙 Eve',
+        shortlistAddToMorning: 'Add to Morning',
+        shortlistAddToAfternoon: 'Add to Afternoon',
+        shortlistAddToEvening: 'Add to Evening',
+        shortlistRemoveFromSlot: 'Remove from {slot}',
+        shortlistAddToSlot: 'Add to {slot}',
+        // Place links.
+        openOnMaps: 'Open {name} on Google Maps',
+        // Place card chips.
+        chipAnytime: 'Anytime',
+        chipAnytimeTitle: 'Pinned to this day, no specific time-of-day yet',
+        slotPinnedCountOne: '{icon} {count} place pinned to this slot',
+        slotPinnedCountOther: '{icon} {count} places pinned to this slot',
+        // Trip checklist section (within day detail).
+        checklistHeading: '📝 Trip checklist',
+        checklistEmpty: "No tasks yet — open Trip Hub → 📝 Trip checklist to add packing/errand tasks. They'll appear here on every day.",
+        checklistRemaining: '{remaining} of {total} left',
+        checklistManage: 'Manage in Trip Hub →',
+        checklistMarkDone: 'Mark done',
+        checklistMarkNotDone: 'Mark not done',
+        // Auto-save status messages (lower-right of footer).
+        statusAuto: 'Changes save automatically',
+        statusSaving: 'Saving…',
+        statusSaved: 'Saved ✓',
+        statusFailed: 'Save failed — try again',
+        statusEditing: 'Editing…',
+        // Footer.
+        doneBtn: 'Done',
+        // Toast on close.
+        toastUpdated: 'Itinerary updated!',
+    },
+    // Trip Documents + Photos modals (pages/home/tripMediaModals.ts).
+    // Five popups share these keys: documents list, photos grid, add
+    // doc, edit doc, add-photo-by-link.
+    tripMedia: {
+        // ── Documents list modal ──
+        docsTitle: 'Documents',
+        docsAddBtn: '➕ Add document',
+        docsSearchGmailBtn: '📧 Search Gmail for bookings',
+        docsCountOne: '{count} document',
+        docsCountOther: '{count} documents',
+        docsEmptyTitle: 'No documents yet',
+        docsEmptyBody: 'Click <strong>📧 Search Gmail for bookings</strong> to find your confirmation emails, then drop the PDFs / links in via <strong>➕ Add document</strong>. Trip-wide docs (passport, multi-day hotel) live on <strong>⭐ Trip Hub</strong>; day-specific ones (museum ticket) tag to a numbered day.',
+        docsBucketUnsorted: 'Unsorted',
+        docsBucketAnchorTripWide: '⭐ Trip Hub · trip-wide',
+        docsUnknownDay: 'Unknown day',
+        docsFallbackName: 'Document',
+        docsEditTitle: 'Rename / change link',
+        docsEditAria: 'Edit {name}',
+        docsRemoveTitle: 'Remove',
+        docsRemoveAria: 'Remove {name}',
+        // ── Photos grid modal ──
+        photosTitle: 'Photos',
+        photosUploadBtn: '📤 Upload photos',
+        photosAddByLinkBtn: '🔗 Add by link',
+        photosAddByLinkTitle: 'Paste a link to a Google Drive / Dropbox / hosted image album',
+        photosCountOne: '{count} photo',
+        photosCountOther: '{count} photos',
+        photosEmptyTitle: 'No photos yet',
+        photosEmptyBody: 'Use <strong>📤 Upload photos</strong> for files on your device, or <strong>🔗 Add by link</strong> for a Drive / Dropbox / iCloud share. New photos go to <strong>⭐ Trip Hub</strong> (the trip-wide bucket); you can re-tag any of them to a specific day from the dropdown on each card.',
+        photosMoveTitle: 'Move to Trip Hub or a numbered day',
+        photosRemoveTitle: 'Remove',
+        photosRemoveAria: 'Remove photo',
+        photosDragTitle: 'Drag to reorder',
+        photosDragAria: 'Drag to reorder',
+        closeAria: 'Close',
+        // ── Photo upload progress / toasts ──
+        photoUploadingOne: 'Uploading {count} photo…',
+        photoUploadingOther: 'Uploading {count} photos…',
+        photoUploadedSortedOne: '{count} photo added — {sorted} auto-sorted by date.',
+        photoUploadedSortedOther: '{count} photos added — {sorted} auto-sorted by date.',
+        photoUploadedOne: '{count} photo added.',
+        photoUploadedOther: '{count} photos added.',
+        photoUploadFailed: 'Upload failed — please try again.',
+        // ── Add-document sub-modal ──
+        addDocTitle: 'Add document',
+        addDocSubtitle: 'Booking confirmation, hotel voucher, ticket — link or upload.',
+        addDocLabelName: 'Name',
+        addDocPlaceholderName: 'e.g. Flight to Lisbon — Confirmation 7AB22Q',
+        addDocLabelUrl: 'Link or URL',
+        addDocPlaceholderUrl: 'https://...',
+        addDocUploadBtn: '📤 Upload',
+        addDocGmailHelpTitle: '📧 Booking email without an attachment?',
+        addDocGmailHelpBody: 'Open the email in Gmail, hit <strong>Cmd + P</strong> (or Ctrl + P on Windows), pick <strong>Save as PDF</strong> as the destination, then come back here and click <strong>📤 Upload</strong> with that file. Captures the layout exactly — QR codes, dates, prices, all of it.',
+        addDocLabelWhere: 'Where does it belong?',
+        addDocOptionAnchor: '⭐ Trip Hub (passport, multi-day hotel, return flight…)',
+        addDocCancelBtn: 'Cancel',
+        addDocAddBtn: 'Add',
+        addDocStatusUploading: '⌛ Uploading…',
+        addDocStatusUploaded: '✓ Uploaded — click Add to attach.',
+        addDocStatusFailed: '❌ Upload failed.',
+        addDocValidationRequired: 'Both name and URL are required.',
+        addDocToastAdded: 'Document added.',
+        // ── Edit-document sub-modal ──
+        editDocTitle: 'Edit document',
+        editDocSubtitleTrip: 'Rename it, swap the link, or move it to a different day.',
+        editDocSubtitleLegacy: "Rename it or swap the link. (Legacy per-day entries can't be moved between days; delete + re-add to do that.)",
+        editDocReplaceBtn: '📤 Replace',
+        editDocOptionAnchor: '⭐ Trip Hub (trip-wide)',
+        editDocCancelBtn: 'Cancel',
+        editDocSaveBtn: 'Save changes',
+        editDocStatusReplaced: '✓ Replaced — click Save to confirm.',
+        editDocValidationRequired: 'Name and URL are both required.',
+        editDocErrorNoSave: 'Could not save. Refresh and try again.',
+        editDocToastUpdated: 'Document updated.',
+        editDocErrorSaveWithMsg: 'Save failed ({error}). Try again.',
+        editDocErrorNotFound: 'Could not find that document.',
+        // ── Add-photo-by-link sub-modal ──
+        addPhotoTitle: 'Add photo by link',
+        addPhotoSubtitle: 'Paste a link to a hosted image, a Google Drive / Dropbox share, or a photo album page.',
+        addPhotoLabelUrl: 'Image / album URL',
+        addPhotoPlaceholderUrl: 'https://...',
+        addPhotoTip: 'Tip: for Drive / Dropbox albums, paste the share link — the link will open the album when clicked. Direct image URLs (ending in .jpg / .png / .heic) will render as a thumbnail in the grid.',
+        addPhotoLabelWhere: 'Where does it belong?',
+        addPhotoOptionAnchor: '⭐ Trip Hub',
+        addPhotoCancelBtn: 'Cancel',
+        addPhotoAddBtn: 'Add',
+        addPhotoToastAdded: 'Photo link added.',
+        // ── Day-bucket labels (used in select <option>s and group headings) ──
+        dayBucketAnchor: '⭐ Trip Hub',
+        dayBucketAnchorShort: '⭐ Hub',
+        dayBucketDay: 'Day {n}',
+    },
+    // Top-level modals (modals.ts): new trip, edit trip, PDF export,
+    // add day, trip invite. Companions + share modals have their own
+    // sections (`companions:` / `share:`).
+    modals: {
+        // ── New trip modal ──
+        newTripTitle: 'New Trip',
+        newTripLabelName: 'Adventure Name',
+        newTripPlaceholderName: 'e.g. Summer in Tuscany',
+        newTripLabelDest: 'Destination',
+        newTripPlaceholderDest: 'Search a country, city, or address...',
+        newTripDestHint: 'Pick a suggestion to confirm the location.',
+        newTripLabelStart: 'Start date',
+        newTripLabelEnd: 'End date',
+        newTripDateOptional: '(optional)',
+        newTripDatesHint: "If you fill these in, we'll create one empty Path day per date — you can pin places later.",
+        newTripCreateBtn: 'Create Trip',
+        newTripCancelBtn: 'Cancel',
+        newTripValidationDest: 'Pick a destination from the suggestions.',
+        // ── Edit trip modal ──
+        editTripDatesHintRekey: 'Change these to re-date your existing Path days. Day count stays the same; each day shifts to keep the new start.',
+        editTripStatusUploading: 'Uploading…',
+        editTripStatusUploadFailed: 'Upload failed — try again.',
+        editTripValidationEmptyName: "Trip name can't be empty.",
+        // ── PDF export modal ──
+        pdfErrorNoTrip: 'Open a trip first.',
+        pdfTitle: 'Download trip PDF',
+        pdfSubtitlePrefix: 'Pick what to include for',
+        pdfOptCoverMap: '🗺️ Cover map',
+        pdfOptCoverMapBody: 'Wide map of the trip location',
+        pdfOptSummary: '📊 Summary stats',
+        pdfOptSummaryBody: 'Days, companions, places, spend',
+        pdfOptDayPlan: '📅 Day-by-day plan',
+        pdfOptDayPlanBody: 'Morning, afternoon, evening',
+        pdfOptDayMaps: '📍 Per-day maps',
+        pdfOptDayMapsBody: 'A small map next to each day',
+        pdfOptTodo: '✅ To-do list',
+        pdfOptTodoBody: 'Grouped by category',
+        pdfOptBudgets: '💰 Budgets',
+        pdfOptBudgetsBody: 'Planned + actual spend',
+        pdfOptCompanions: '👥 Companions',
+        pdfOptCompanionsBody: 'Roster of travelers',
+        pdfOptMarkedPlaces: '⭐ Marked places',
+        pdfOptMarkedPlacesBody: 'Saved places + addresses',
+        pdfCancelBtn: 'Cancel',
+        pdfDownloadBtn: 'Download PDF',
+        pdfStatusBuilding: 'Building…',
+        pdfErrorBuild: "Couldn't build the PDF. Try again in a moment.",
+        pdfErrorNetwork: 'Network error building the PDF.',
+        // ── Add Day modal ──
+        addDayErrorNoTrip: 'Please create a trip before adding days.',
+        addDayTitle: 'Add Day',
+        addDayLabelWhere: 'Where are you going?',
+        addDayPlaceholderWhere: 'e.g. Exploring Rome',
+        addDayLabelDate: 'Date',
+        addDayDateAuto: '(Auto)',
+        addDayConfirmBtn: 'Confirm',
+        addDayCancelBtn: 'Cancel',
+        addDayErrorServerSave: "Day created locally — server save failed (HTTP {status}). Won't appear on other devices until it syncs — try again or refresh.",
+        // ── Trip invite modal ──
+        inviteTitle: 'Trip invitation',
+        inviteBody: 'Accept and the trip appears in your active list. Planners can edit; Relaxers can only watch.',
+        inviteAcceptBtn: 'Accept',
+        inviteDeclineBtn: 'Decline',
+        inviteErrorInvalid: 'This trip invitation is no longer valid',
+        inviteSuccessJoined: 'Joined the trip',
+        inviteErrorNotActive: 'This invitation is no longer active',
+        inviteToastDeclined: 'Declined',
+    },
+    // Archived trip detail page (pages/collections/archivedDetail.ts).
+    // Shown when the user clicks a trip in their Collections.
+    archivedDetail: {
+        notFound: 'Trip not found.',
+        backBtn: '← Back',
+        shareBtn: 'Share',
+        shareBtnTitle: 'Share this trip',
+        cloneBtn: 'Clone',
+        cloneBtnTitle: 'Start a new trip based on this one',
+        cloneBtnAria: 'Clone this trip',
+        restoreBtn: '↺ Restore Trip',
+        heroTag: 'Completed memory',
+        statDays: 'Days',
+        statPhotos: 'Photos',
+        statDocuments: 'Documents',
+        statSpent: 'Spent',
+        visibilityAria: 'Trip visibility',
+        visibilityPrivate: '🔒 Private',
+        visibilityPublicPlan: '🌍 Public — plan only',
+        visibilityPublicAll: '🌍 Public — incl. expenses',
+        journeyTitle: 'The journey',
+        journeySubtitle: 'Tap a day to relive what was planned.',
+        dayAria: 'View Day {n}',
+        dayAriaWithName: 'View Day {n} — {name}',
+        dayBadgeHub: '⭐ Hub',
+        dayTitleHub: 'Trip Hub',
+        dayBucketUnsorted: 'Unsorted',
+        docsTitle: 'Documents',
+        docsSubtitle: '{count} saved · click any to open',
+        docOpenAction: 'Open ↗',
+        allPhotosTitle: 'All photos',
+        allPhotosSubtitle: '{count} saved',
+        // Clone flow.
+        cloneStatusCloning: 'Cloning…',
+        cloneSuccess: 'Trip cloned! Edit your draft on Home.',
+        cloneError: "Couldn't clone — try again in a moment.",
+        // Unshare flow.
+        unshareConfirmTitle: 'Unshare this trip?',
+        unshareConfirmBody: "It'll disappear from your friends' feeds. Any reposts of it will be removed too.",
+        unshareConfirmBtn: 'Unshare',
+        unshareError: "Couldn't unshare — try again in a moment.",
+        unshareSuccess: 'Removed from your feed.',
+        // Share-to-feed flow.
+        shareUpdated: 'Updated your share.',
+        shareAlready: 'Already shared to your feed.',
+        shareSuccess: 'Shared to your feed.',
+        notesChip: '📝 Notes',
+    },
+    // Upload tab (pages/upload.ts) — Excel/CSV import for bulk expenses.
+    upload: {
+        pageTitle: 'Upload Data',
+        sectionHeading: 'Excel Upload',
+        labelImportFormat: 'Import Format',
+        noCustomFormats: 'No saved custom formats yet',
+        groupPopular: 'Popular Formats',
+        groupCustom: 'Custom Formats',
+        helperText: "Use your favourite app's format or customize your own upload format in settings.",
+        activeFormatMapping: 'Active Format Mapping',
+        previewCalloutLabel: '💡 FORMAT PREVIEW',
+        previewCalloutBody: 'Ensure your file contains these columns. We will try to auto-detect categories.',
+        dateCalloutLabel: '📅 Date format',
+        dateCalloutBody: 'Use DD-MM-YYYY (e.g. 15-03-2024) or YYYY-MM-DD. Excel-typed date cells are recognised automatically.',
+        splitsCalloutLabel: '⚖️ Splits & settlements',
+        splitsCalloutBody: 'Tricount / Splitwise rows are imported as equal-split shared expenses. Revolut rows are imported as personal (no debt). Custom formats can map two optional variables: <code>splits</code> (e.g. <code>Alice:50,Bob:50</code>) to define percentages, and <code>isSettlement</code> (Y/N) to mark a row as a transfer — receiver goes in the splits cell, e.g. <code>Bob:100</code>. By default, custom rows are regular expenses, never settlements: a row only counts as a settlement when <code>isSettlement</code> is mapped and its cell is <code>Y/Yes/True/1</code>. Without <code>splits</code>, the row is recorded as 100% paid by the payer (no debt created).',
+        previewHeading: 'Preview (First 3 Rows)',
+        uploadBtn: 'Upload and Process',
+        errorSelectFile: 'Please select a valid file to process.',
+        successImported: 'Successfully imported {count} expenses!',
+        errorParsing: 'Error parsing file. Check the format.',
     },
 } as const;
 
