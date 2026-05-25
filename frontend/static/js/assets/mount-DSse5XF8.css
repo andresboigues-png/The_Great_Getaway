@@ -262,6 +262,39 @@
     transition: opacity 0.2s;
     display: grid;
 }
+@media (width<=720px) {
+    .poi-filter-row {
+        row-gap: var(--space-2);
+        grid-template-columns: 32px 1fr auto;
+        grid-template-areas: 'icon label switch' 'ctrls ctrls ctrls';
+    }
+    .poi-filter-row__icon {
+        grid-area: icon;
+    }
+    .poi-filter-row__body {
+        grid-area: label;
+        min-width: 0;
+    }
+    .poi-visibility-switch {
+        grid-area: switch;
+    }
+    .poi-anchor-mode,
+    .poi-filter-rating,
+    .poi-filter-row__default {
+        grid-area: ctrls;
+        justify-self: stretch;
+    }
+    .poi-filter-row > .poi-anchor-mode,
+    .poi-filter-row > .poi-filter-rating,
+    .poi-filter-row > .poi-filter-row__default {
+        display: inline-block;
+    }
+    .poi-anchor-mode,
+    .poi-filter-rating {
+        width: auto;
+        min-width: 0 !important;
+    }
+}
 .poi-filter-row--hidden > :not(.poi-visibility-switch) {
     opacity: 0.4;
 }

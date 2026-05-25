@@ -73,6 +73,18 @@ export const es: Translations = {
         markAllRead: 'Marcar todo como leído',
         notificationsEmpty: 'Sin notificaciones nuevas',
     },
+    notifications: {
+        titleNewFollower: 'Nuevo seguidor',
+        titleTripCompleted: 'Viaje completado',
+        titleTripInvite: 'Invitación de viaje',
+        titleTripInviteUpdate: 'Actualización de invitación',
+        titleRemovedFromTrip: 'Eliminado del viaje',
+        titleNewLike: 'Nuevo me gusta',
+        titleNewComment: 'Nuevo comentario',
+        titleNewRepost: 'Nueva republicación',
+        titleAlert: 'Alerta',
+        titleGeneric: 'Notificación',
+    },
     sidebar: {
         menuTitle: 'Menú',
         closeMenu: 'Cerrar menú',

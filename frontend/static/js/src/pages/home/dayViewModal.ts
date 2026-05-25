@@ -52,8 +52,12 @@ export const openDayView = (day: any): void => {
         return `<p class="dvm-plan-text">${esc(text)}</p>`;
     };
     const { root, close } = showModal({
-        cardClass: 'card glass',
-        cardStyle: 'width: 800px; max-height: 90vh; overflow-y: auto; padding: var(--space-12); border-radius: 48px; background: white; border: 1px solid rgba(0,0,0,0.1);',
+        cardClass: 'card glass day-view-modal',
+        // 2026-05-25 (audit): width was a hard-coded 800px which
+        // overflowed every phone viewport by ~425px (cardClass also
+        // bypasses the card-glass-modal mobile sheet rule). Now
+        // min() so 800 caps on desktop but shrinks to fit ≤720px.
+        cardStyle: 'width: min(800px, calc(100vw - 24px)); max-height: 90vh; overflow-y: auto; padding: var(--space-12); border-radius: 32px; background: white; border: 1px solid rgba(0,0,0,0.1);',
         innerHTML: `
             <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: var(--space-10);">
                 <div>
@@ -66,7 +70,7 @@ export const openDayView = (day: any): void => {
                 </div>
                 <button id="closeViewBtn" class="close-x-btn" aria-label="Close">✕</button>
             </div>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-10);">
+            <div class="dvm-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: var(--space-10);">
                 <div class="flex flex-col gap-6">
                     <div class="subcard-soft">
                         <h4 class="text-tag">Morning</h4>

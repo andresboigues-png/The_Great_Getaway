@@ -1604,6 +1604,16 @@ body.is-signed-out .trip-controls-popover {
 .liquid-alert.show { transform: translateX(-50%) translateY(0); }
 .liquid-alert.dismiss { transform: translateX(-50%) translateY(100px); opacity: 0; }
 
+/* 2026-05-25 (audit): on mobile the bottom-nav is ~80px tall + safe-
+   area inset. The default `bottom: var(--space-10)` (40px) puts the
+   toast BEHIND the bottom-nav so the user can't read it. Lift the
+   toast above the nav strip on phones. */
+@media (max-width: 720px) {
+    .liquid-alert {
+        bottom: calc(96px + env(safe-area-inset-bottom) + var(--space-4));
+    }
+}
+
 /* Gradient page-header headline — used by the AI/Settlements/Budgets/
    Insights/Personalization/Collections page titles. Each call site sets
    `--g-from` and `--g-to` for the diagonal gradient endpoints. */
@@ -4257,6 +4267,17 @@ main#app-container.nav-anim-backward {
     main#app-container .ai-page-header * {
         word-break: break-word;
         overflow-wrap: break-word;
+    }
+    /* 2026-05-25 (audit): the gradient h1 sat at 3.5rem (56px) with
+       40px header padding. Long greetings ("Bem-vindo de volta,
+       viajante" / "Time to write your Belgium story") wrapped to 2-3
+       lines on iPhone SE. Shrink the font + padding to fit. */
+    main#app-container .ai-page-header {
+        padding: 24px 16px;
+    }
+    main#app-container .ai-page-header h1 {
+        font-size: 2.2rem;
+        line-height: 1.1;
     }
     /* Plan with AI: the top-level 2-col grid (left controls panel +
        right map) uses inline `grid-template-columns: 380px 1fr` on

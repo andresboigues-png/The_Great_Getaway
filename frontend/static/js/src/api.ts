@@ -34,19 +34,9 @@ export const apiUrl = (path: string): string => `${API_BASE_URL}${path}`;
 
 const LEGACY_TOKEN_KEY = 'gg_auth_token';
 
-/** Legacy alias retained so the few remaining import sites compile;
- *  no longer reads anything useful. Always returns null — the cookie
- *  is HttpOnly and JS can't see it, which is the whole security
- *  posture we're after. */
-export const getAuthToken = (): string | null => null;
-
-/** Legacy no-op. The server sets the session cookie on the
- *  /api/auth/google response; the frontend never needs to handle the
- *  token itself. Kept named so call sites still compile while they
- *  get cleaned up. */
-export const setAuthToken = (_token: string | null | undefined): void => {
-    /* No-op: server-set HttpOnly cookie. */
-};
+// 2026-05-25 (audit): getAuthToken/setAuthToken were retained "while
+// the few remaining import sites get cleaned up". Audit confirmed zero
+// import sites remain; both removed.
 
 /** Wipe local auth artefacts.
  *  - The server-side cookie is cleared by /api/auth/logout (see
@@ -61,6 +51,15 @@ export const setAuthToken = (_token: string | null | undefined): void => {
  */
 export const clearAuthToken = (): void => {
     try { localStorage.removeItem(LEGACY_TOKEN_KEY); }
+    catch { /* private mode: nothing to clear */ }
+    // 2026-05-25 (audit #8.2): also wipe the snapshot of STATE that
+    // saveState() persists under `theGreatEscapeState`. Without this,
+    // User A logging out then User B logging in on the same device
+    // sees User A's trips / expenses / draftExpense in STATE until
+    // pullFromServer overwrites it — a privacy leak. The pull also
+    // doesn't reset draftExpense, rateCache, or preferences, so
+    // those leak persistently. Clearing the blob forces a clean slate.
+    try { localStorage.removeItem('theGreatEscapeState'); }
     catch { /* private mode: nothing to clear */ }
     try {
         if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
@@ -849,20 +848,11 @@ export async function deleteSettlementOnServer(settlementId: string): Promise<{ 
     }
 }
 
-/** GET /api/settlements/<tripId> — list settlements for a trip.
- *  Used when a caller needs the freshest server copy without waiting
- *  for the next /api/data pull. Members only; 404 for non-members. */
-export async function fetchSettlementsForTrip(tripId: string): Promise<{ settlements?: import('./types').Settlement[]; error?: string }> {
-    if (!STATE.user) return { error: 'Not signed in' };
-    try {
-        const res = await apiFetch(`/api/settlements/${encodeURIComponent(tripId)}`);
-        const body = await res.json().catch(() => ({}));
-        if (!res.ok) return { error: body?.error || `HTTP ${res.status}` };
-        return body;
-    } catch (e: any) {
-        return { error: e?.message || 'Network error' };
-    }
-}
+// 2026-05-25 (audit): fetchSettlementsForTrip removed — zero callers.
+// The /api/settlements/<id> route stays on the server for completeness
+// but is no longer hit from the frontend; settlements ride the bulk
+// /api/data pull. If a per-trip refetch is needed in the future,
+// re-add a thin wrapper at this site.
 
 /** POST a file to /api/upload. Returns the parsed JSON response, or
  *  an `{error: string}` shape on failure. Round 1 audit fix: previous

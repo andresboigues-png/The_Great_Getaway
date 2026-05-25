@@ -83,6 +83,21 @@ export const en = {
         markAllRead: 'Mark all read',
         notificationsEmpty: 'No new notifications',
     },
+    // 2026-05-25 (audit): notification dropdown row title fallbacks.
+    // Server sometimes ships a row without a title; previously the
+    // frontend swapped in hardcoded English. Now i18n.
+    notifications: {
+        titleNewFollower: 'New follower',
+        titleTripCompleted: 'Trip Completed',
+        titleTripInvite: 'Trip invitation',
+        titleTripInviteUpdate: 'Trip invite update',
+        titleRemovedFromTrip: 'Removed from trip',
+        titleNewLike: 'New like',
+        titleNewComment: 'New comment',
+        titleNewRepost: 'New repost',
+        titleAlert: 'Alert',
+        titleGeneric: 'Notification',
+    },
     // 2026-05-25: sidebar (hamburger drawer) chrome — header + section
     // dividers + close button. The nav items themselves reuse `nav.*`
     // keys above.

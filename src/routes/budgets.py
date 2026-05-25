@@ -25,6 +25,14 @@ def upsert_budget():
     b = data.get("budget")
     if not b:
         return jsonify({"error": "Missing data"}), 400
+    # 2026-05-25 (audit B2): the frontend's "All trips" option carries
+    # tripId='all'. Writing 'all' to budgets.trip_id triggers a FK
+    # constraint failure (trips.id has no 'all' row) and SQLite raises
+    # IntegrityError → 500 on save. Coerce the sentinel + empty values
+    # to NULL so the FK accepts the row (ON DELETE SET NULL is already
+    # the declared behaviour).
+    raw_trip_id = b.get('tripId')
+    trip_id = raw_trip_id if (raw_trip_id and raw_trip_id != 'all') else None
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute('''
@@ -35,7 +43,7 @@ def upsert_budget():
                 amount=excluded.amount,
                 currency=excluded.currency,
                 trip_id=excluded.trip_id
-        ''', (b['id'], user_id, b.get('tripId'), b.get('label', ''),
+        ''', (b['id'], user_id, trip_id, b.get('label', ''),
               b.get('amount', 0), b.get('currency', 'EUR')))
         conn.commit()
     return jsonify({"status": "ok"})

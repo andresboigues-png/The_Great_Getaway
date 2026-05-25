@@ -102,9 +102,21 @@ export function computeTripBalances(trip: any) {
         const amount = exp.euroValue || exp.value || 0;
         if (balances[exp.who] !== undefined) balances[exp.who]! += amount;
         if (exp.splits && Object.keys(exp.splits).length > 0) {
+            // 2026-05-25 (audit S5): normalise splits to sum to 100%
+            // before applying. Without normalisation, a 33/33/33 (=99%)
+            // entry leaked 1% of every expense; the simplifyDebts 0.01
+            // epsilon below couldn't catch it because the drift is
+            // structural, not numerical. Now we divide each percentage
+            // by the actual sum, so any near-100 entry self-corrects
+            // and the balances always close to zero (modulo rounding).
+            const totalPct = Object.values(exp.splits).reduce(
+                (s, p) => s + Number(p || 0),
+                0,
+            );
+            const denom = totalPct > 0 ? totalPct : 100;
             for (const [person, pct] of Object.entries(exp.splits)) {
                 if (balances[person] !== undefined)
-                    balances[person]! -= amount * (Number(pct) / 100);
+                    balances[person]! -= amount * (Number(pct) / denom);
             }
         } else {
             // No-splits fallback: equal share across the roster.

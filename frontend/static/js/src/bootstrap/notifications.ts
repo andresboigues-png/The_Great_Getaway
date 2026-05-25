@@ -7,7 +7,7 @@
 // the whole main.ts import graph.
 
 import { STATE } from '../state.js';
-import { t } from '../i18n.js';
+import { t, getIntlLocale } from '../i18n.js';
 import { navigate } from '../router.js';
 import { PAGES } from '../constants.js';
 import { esc } from '../utils.js';
@@ -58,25 +58,27 @@ function notificationAccent(type: string) {
     }
 }
 
-/** Human-readable title fallback when the row didn't ship one. */
+/** Human-readable title fallback when the row didn't ship one.
+ *  2026-05-25 (audit): titles now route through t() so notifications
+ *  display in the user's chosen locale. */
 function notificationDefaultTitle(type: string) {
     switch (type) {
         // Model B — `followed_you` is the live type; the legacy
         // friend_request / accepted_request titles stay for
         // backward-compatible rendering of historical rows.
-        case 'followed_you': return 'New follower';
-        case 'friend_request': return 'New follower';
-        case 'accepted_request': return 'New follower';
-        case 'trip_public': return 'Trip Completed';
-        case 'trip_invite': return 'Trip invitation';
-        case 'trip_invite_accepted': return 'Trip invite update';
-        case 'trip_invite_declined': return 'Trip invite update';
-        case 'trip_member_removed': return 'Removed from trip';
-        case 'share_liked': return 'New like';
-        case 'share_commented': return 'New comment';
-        case 'share_reposted': return 'New repost';
-        case 'alert': return 'Alert';
-        default: return 'Notification';
+        case 'followed_you': return t('notifications.titleNewFollower');
+        case 'friend_request': return t('notifications.titleNewFollower');
+        case 'accepted_request': return t('notifications.titleNewFollower');
+        case 'trip_public': return t('notifications.titleTripCompleted');
+        case 'trip_invite': return t('notifications.titleTripInvite');
+        case 'trip_invite_accepted': return t('notifications.titleTripInviteUpdate');
+        case 'trip_invite_declined': return t('notifications.titleTripInviteUpdate');
+        case 'trip_member_removed': return t('notifications.titleRemovedFromTrip');
+        case 'share_liked': return t('notifications.titleNewLike');
+        case 'share_commented': return t('notifications.titleNewComment');
+        case 'share_reposted': return t('notifications.titleNewRepost');
+        case 'alert': return t('notifications.titleAlert');
+        default: return t('notifications.titleGeneric');
     }
 }
 
@@ -120,7 +122,7 @@ export function renderNotificationDropdown() {
                 ${esc(n.title || notificationDefaultTitle(n.type))}
             </div>
             <div class="notification-item__message">${esc(n.message)}</div>
-            <div class="notification-item__time">${new Date(n.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
+            <div class="notification-item__time">${new Date(n.created_at).toLocaleDateString(getIntlLocale(), { month: 'short', day: 'numeric' })}</div>
         </div>
     `).join('');
     for (const list of lists) list.innerHTML = html;

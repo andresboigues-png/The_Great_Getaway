@@ -730,6 +730,12 @@ export async function settleDebt(
             showLiquidAlert(
                 `Settlement failed: ${result.error || 'Network error'}`,
             );
+            // 2026-05-25 (audit S3): emit STATE_CHANGED so the Settle
+            // button re-renders out of its disabled "Recording…" state.
+            // Without this, the button stayed permanently disabled on
+            // failure since no state mutation triggered a repaint —
+            // user had to navigate away to re-arm the row.
+            emit(EVENTS.STATE_CHANGED);
         }
         return;
     }

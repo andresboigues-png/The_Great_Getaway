@@ -337,6 +337,42 @@
     border-radius: var(--radius-lg);
     transition: opacity 0.2s ease;
 }
+/* 2026-05-25 (audit): 6-col rigid grid with min-widths totalling
+   ~462px never collapsed on mobile — row overflowed iPhone SE
+   (320px) and iPhone 14 Pro Max (430px). Stack into two rows on
+   ≤720px: row 1 = icon + label + visibility switch on the right,
+   row 2 = the three controls (anchor / rating / reset) flowing
+   beneath. Anchor + rating selects shrink to the available width. */
+@media (max-width: 720px) {
+    .poi-filter-row {
+        grid-template-columns: 32px 1fr auto;
+        grid-template-areas:
+            "icon  label  switch"
+            "ctrls ctrls  ctrls";
+        row-gap: var(--space-2);
+    }
+    .poi-filter-row__icon { grid-area: icon; }
+    .poi-filter-row__body { grid-area: label; min-width: 0; }
+    .poi-visibility-switch { grid-area: switch; }
+    .poi-anchor-mode,
+    .poi-filter-rating,
+    .poi-filter-row__default {
+        grid-area: ctrls;
+        justify-self: stretch;
+    }
+    /* Force the three controls back into a single row inside their
+       shared grid cell so they wrap evenly instead of stacking. */
+    .poi-filter-row > .poi-anchor-mode,
+    .poi-filter-row > .poi-filter-rating,
+    .poi-filter-row > .poi-filter-row__default {
+        display: inline-block;
+    }
+    .poi-anchor-mode,
+    .poi-filter-rating {
+        min-width: 0 !important;
+        width: auto;
+    }
+}
 /* Hidden pill: dim everything except the switch (and keep its
    tooltip readable) so the user sees the row's other controls
    don't apply while the pill itself is off. The switch stays at
