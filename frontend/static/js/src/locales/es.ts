@@ -149,6 +149,8 @@ export const es: Translations = {
         poiAnchorTooltip: 'Por día = usa el día elegido como centro de búsqueda en Inicio (recurre al ancla). Todo el viaje = ancla siempre en el pin ancla del viaje.',
         poiVisibilitySwitchTitleVisible: 'Visible en la fila de píldoras de Inicio — apaga para ocultar.',
         poiVisibilitySwitchTitleHidden: 'Oculta de la fila de píldoras de Inicio — enciende para mostrar.',
+        poiInfoModalSubtitle: 'Sobre esta categoría',
+        poiInfoModalClose: 'Entendido',
         resetTripsTitle: 'Viajes y días',
         resetTripsBody: 'Elimina todos los viajes, itinerarios y registros diarios.',
         resetTripsBtn: 'Eliminar todos los viajes',

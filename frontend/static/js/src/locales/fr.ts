@@ -154,6 +154,8 @@ export const fr: Translations = {
         poiAnchorTooltip: 'Par jour = utilise le jour choisi comme centre de recherche sur Accueil (revient à l\'ancre). Tout le voyage = ancre toujours sur le pin d\'ancre du voyage.',
         poiVisibilitySwitchTitleVisible: 'Visible dans la rangée de pastilles d\'Accueil — désactive pour cacher.',
         poiVisibilitySwitchTitleHidden: 'Cachée de la rangée de pastilles d\'Accueil — active pour afficher.',
+        poiInfoModalSubtitle: 'À propos de cette catégorie',
+        poiInfoModalClose: 'Compris',
         resetTripsTitle: 'Voyages & jours',
         resetTripsBody: 'Supprime tous les voyages, itinéraires et journaux quotidiens.',
         resetTripsBtn: 'Supprimer tous les voyages',

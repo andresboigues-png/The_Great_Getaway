@@ -133,7 +133,11 @@ export const pt: Translations = {
         themeBodyLight: 'Superfícies claras, texto escuro. Clássico.',
         themeBodyDark: 'Superfícies escuras, texto claro. Mais agradável depois do pôr do sol.',
         themeBodySystem: 'Segue o teu dispositivo. Alterna automaticamente quando o sistema operativo o faz.',
-        poiTitle: 'Filtros das pílulas do mapa',
+        // 2026-05-25: "Pílulas do mapa" was a literal translation
+        // of the English jargon "Map pills" — meaningless in PT and
+        // too long for the section title box. Replaced with the
+        // user-suggested "Informação de mapa" (map information).
+        poiTitle: 'Informação de mapa',
         poiIntroVisibility: '<strong>Mostrar no Início</strong> (interruptor à direita) controla se cada pílula aparece na fila de pílulas do mapa do Início. Útil para esconder categorias que nunca usas e manter a fila compacta.',
         poiIntroRating: '<strong>Rating mínimo</strong> oculta resultados abaixo da estrela escolhida. Restaurantes e hotéis assumem 4★+ por defeito (rating é um sinal de qualidade significativo); o resto assume "Qualquer rating".',
         poiIntroAnchor: '<strong>Âncora de pesquisa</strong> escolhe de onde cada pílula pesquisa. <em>Por dia</em> usa o dia que definiste como centro de pesquisa na página Início (recorre ao pin âncora da viagem). <em>Toda a viagem</em> ancora sempre no pin âncora, para que a pesquisa de 50 km cubra a viagem inteira — melhor para categorias dispersas como Médico, Desporto, Governo, Escolas, Transportes públicos.',
@@ -149,6 +153,8 @@ export const pt: Translations = {
         poiAnchorTooltip: 'Por dia = usa o dia que escolheste como centro de pesquisa no Início (recorre à âncora). Toda a viagem = ancora sempre no pin âncora da viagem.',
         poiVisibilitySwitchTitleVisible: 'Visível na fila de pílulas do Início — desliga para esconder.',
         poiVisibilitySwitchTitleHidden: 'Oculta da fila de pílulas do Início — liga para mostrar.',
+        poiInfoModalSubtitle: 'Sobre esta categoria',
+        poiInfoModalClose: 'Entendi',
         resetTripsTitle: 'Viagens & dias',
         resetTripsBody: 'Remove todas as viagens, itinerários e registos diários.',
         resetTripsBtn: 'Apagar todas as viagens',

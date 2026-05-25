@@ -170,6 +170,9 @@ export const en = {
         poiAnchorTooltip: "Day-aware = uses the day you've picked as search center on Home (falls back to anchor). Trip-wide = always anchored on the trip's anchor pin.",
         poiVisibilitySwitchTitleVisible: 'Visible on the home pill row — switch off to hide.',
         poiVisibilitySwitchTitleHidden: 'Hidden from the home pill row — switch on to show.',
+        // 2026-05-25: ⓘ info modal opened from each pill row.
+        poiInfoModalSubtitle: 'About this pill',
+        poiInfoModalClose: 'Got it',
         // ── Reset / Data management ──
         resetTripsTitle: 'Trips & Days',
         resetTripsBody: 'Remove all trips, itineraries, and daily logs.',
