@@ -32,7 +32,7 @@ test.describe('Cookie session (§0.4 v2)', () => {
         // playwright.config.js's webServer block). Hits /api/auth/google
         // via page.request — which SHARES its cookie jar with `context`.
         const res = await page.request.post('/api/auth/google', {
-            data: { token: `test:cookie-jar-${Date.now()}`, name: 'Jar Test' },
+            data: { token: `test:test-cookie-jar-${Date.now()}`, name: 'Jar Test' },
         });
         expect(res.ok()).toBeTruthy();
 
@@ -60,7 +60,7 @@ test.describe('Cookie session (§0.4 v2)', () => {
 
     test('cookie alone authenticates /api/user-status (no Bearer header)', async ({ page, context }) => {
         await context.clearCookies();
-        const userId = `test:cookie-auth-${Date.now()}`;
+        const userId = `test:test-cookie-auth-${Date.now()}`;
         await page.request.post('/api/auth/google', {
             data: { token: userId, name: 'Cookie Auth' },
         });
@@ -79,7 +79,7 @@ test.describe('Cookie session (§0.4 v2)', () => {
     test('logout deletes gg_session from the cookie jar', async ({ page, context }) => {
         await context.clearCookies();
         await page.request.post('/api/auth/google', {
-            data: { token: `test:logout-${Date.now()}`, name: 'Logout Test' },
+            data: { token: `test:test-logout-${Date.now()}`, name: 'Logout Test' },
         });
         expect(
             (await context.cookies()).find((c) => c.name === 'gg_session'),

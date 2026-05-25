@@ -191,10 +191,30 @@ def serialize_trip_row(row):
 def serialize_expense_row(row):
     """Shape an `expenses` row into camelCase. Same drift-prone
     site as serialize_trip_row — extracted so /api/data and
-    /api/public-trip can both go through one canonical shaper."""
+    /api/public-trip can both go through one canonical shaper.
+
+    2026-05-25 (audit S1): also parses + ships the new `splits`
+    JSON and `is_settlement` flag. Without these the frontend's
+    balance math fell back to equal-share on every reload."""
+    import json as _json
     e = dict(row)
     e['tripId'] = e.pop('trip_id', None)
     e['categoryId'] = e.pop('category_id', None)
     e['euroValue'] = e.pop('euro_value', None)
     e['receiptUrl'] = e.pop('receipt_url', None)
+    # Split-map: parse the JSON blob into a dict (frontend reads it
+    # as `{ name: pct }`). Defensive try/except — a malformed row
+    # logs and returns an empty dict so a single bad write doesn't
+    # break the whole /api/data response.
+    splits_raw = e.pop('splits', None)
+    if splits_raw:
+        try:
+            e['splits'] = _json.loads(splits_raw)
+        except (TypeError, ValueError):
+            e['splits'] = {}
+    else:
+        e['splits'] = {}
+    # is_settlement: SQLite stores as int (0/1); ship as bool so
+    # the frontend's truthy checks (`if (e.isSettlement)`) DTRT.
+    e['isSettlement'] = bool(e.pop('is_settlement', 0))
     return e

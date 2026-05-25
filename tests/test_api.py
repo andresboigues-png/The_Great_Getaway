@@ -3603,7 +3603,7 @@ def test_auth_google_sets_session_cookie(client, monkeypatch):
     migration; localStorage-based storage is going away.
     """
     monkeypatch.setenv("GG_ALLOW_TEST_LOGIN", "1")
-    res = client.post("/api/auth/google", json={"token": "test:cookie-user", "name": "Cookie User"})
+    res = client.post("/api/auth/google", json={"token": "test:test-cookie-user", "name": "Cookie User"})
     assert res.status_code == 200
     # Werkzeug's test client surfaces Set-Cookie via the Set-Cookie header(s).
     set_cookie_headers = [v for k, v in res.headers.items() if k.lower() == "set-cookie"]
@@ -3634,7 +3634,7 @@ def test_auth_google_cookie_is_secure_when_proxy_signals_https(client, monkeypat
     monkeypatch.setenv("GG_ALLOW_TEST_LOGIN", "1")
     res = client.post(
         "/api/auth/google",
-        json={"token": "test:secure-user", "name": "Secure User"},
+        json={"token": "test:test-secure-user", "name": "Secure User"},
         headers={"X-Forwarded-Proto": "https"},
     )
     assert res.status_code == 200
@@ -3659,7 +3659,7 @@ def test_auth_cookie_authenticates_request_without_bearer_header(client, monkeyp
     monkeypatch.setenv("GG_ALLOW_TEST_LOGIN", "1")
     login = client.post(
         "/api/auth/google",
-        json={"token": "test:round-trip-user", "name": "Round Trip"},
+        json={"token": "test:test-round-trip-user", "name": "Round Trip"},
     )
     assert login.status_code == 200
 
@@ -3669,7 +3669,7 @@ def test_auth_cookie_authenticates_request_without_bearer_header(client, monkeyp
     assert status.status_code == 200
     body = status.get_json()
     assert body.get("logged_in") is True
-    assert body["user"]["id"] == "round-trip-user"
+    assert body["user"]["id"] == "test-round-trip-user"
 
 
 def test_auth_logout_clears_session_cookie(client, monkeypatch):
@@ -3680,7 +3680,7 @@ def test_auth_logout_clears_session_cookie(client, monkeypatch):
     monkeypatch.setenv("GG_ALLOW_TEST_LOGIN", "1")
     client.post(
         "/api/auth/google",
-        json={"token": "test:logout-user", "name": "Logout User"},
+        json={"token": "test:test-logout-user", "name": "Logout User"},
     )
     # Before logout: cookie-only request authenticates.
     assert client.get("/api/user-status").get_json()["logged_in"] is True
@@ -3747,7 +3747,7 @@ def test_auth_cookie_wins_when_both_cookie_and_bearer_present(client, monkeypatc
     # User A logs in — client jar now carries A's cookie.
     client.post(
         "/api/auth/google",
-        json={"token": "test:cookie-user-a", "name": "User A"},
+        json={"token": "test:test-cookie-user-a", "name": "User A"},
     )
     # Forge a Bearer header for seed_user (different identity).
     from auth import issue_token

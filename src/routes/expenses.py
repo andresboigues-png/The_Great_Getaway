@@ -32,9 +32,19 @@ def upsert_expense():
         cursor = conn.cursor()
         if not can_edit_expenses(cursor, e["tripId"], user_id):
             return jsonify({"error": "Forbidden"}), 403
+        # 2026-05-25 (audit S1): splits + isSettlement are now persisted.
+        # `splits` may arrive as a dict (the frontend's shape) — serialise
+        # to JSON for storage. None / missing = legacy equal-share fallback.
+        splits_raw = e.get('splits')
+        if isinstance(splits_raw, dict) and splits_raw:
+            import json as _json
+            splits_json = _json.dumps(splits_raw)
+        else:
+            splits_json = None
+        is_settlement = 1 if e.get('isSettlement') else 0
         cursor.execute('''
-            INSERT INTO expenses (id, trip_id, who, category_id, label, date, country, value, currency, euro_value, receipt_url)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO expenses (id, trip_id, who, category_id, label, date, country, value, currency, euro_value, receipt_url, splits, is_settlement)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 who=excluded.who,
                 category_id=excluded.category_id,
@@ -44,11 +54,13 @@ def upsert_expense():
                 value=excluded.value,
                 currency=excluded.currency,
                 euro_value=excluded.euro_value,
-                receipt_url=excluded.receipt_url
+                receipt_url=excluded.receipt_url,
+                splits=excluded.splits,
+                is_settlement=excluded.is_settlement
         ''', (e['id'], e['tripId'], e['who'], e.get('categoryId', ''),
               e.get('label', ''), e.get('date', ''), e.get('country', ''),
               e.get('value', 0), e.get('currency', 'EUR'), e.get('euroValue', 0),
-              e.get('receiptUrl')))
+              e.get('receiptUrl'), splits_json, is_settlement))
         conn.commit()
     return jsonify({"status": "ok"})
 

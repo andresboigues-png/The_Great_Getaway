@@ -5,7 +5,7 @@
 // at startup and the rest is self-contained here.
 
 import { STATE, emit } from '../state.js';
-import { apiUrl, apiFetch, clearAuthToken, syncWithServer, pullFromServer } from '../api.js';
+import { apiUrl, apiFetch, clearAuthToken, syncWithServer, pullFromServer, announceUserToSW } from '../api.js';
 import { navigate } from '../router.js';
 import { showLiquidAlert } from '../utils.js';
 import { updateUserUI } from '../pages/profile.js';
@@ -55,6 +55,10 @@ async function handleGoogleLogin(response: { credential?: string; [key: string]:
         clearAuthToken();
         STATE.user = data.user;
         STATE.hasLoggedInBefore = true;
+        // 2026-05-25 (audit F3): tell the SW which user is now signed
+        // in so it can key its API cache per-user (no more shared
+        // 'anon' bucket leaking previous user's responses).
+        announceUserToSW(data.user?.id);
         // No more auto-self-companion creation — companions are per-trip
         // and the trip owner is implicitly a member of every trip they
         // create (via _ensure_owner_member_row on the server).
@@ -134,6 +138,10 @@ export async function restoreSession(): Promise<boolean> {
         const data = await res.json();
         if (data.logged_in) {
             STATE.user = data.user;
+            // 2026-05-25 (audit F3): re-announce on every cold boot
+            // so a freshly-installed SW (after version bump) picks
+            // up the per-user cache key on the first /api/data hit.
+            announceUserToSW(data.user?.id);
             return true;
         }
         // No valid token — make sure we don't show stale STATE.user

@@ -284,16 +284,26 @@ def sync_data():
                 for e in t['expenses']:
                     if not can_edit_trip(cursor, t['id'], user_id):
                         continue
+                    # 2026-05-25 (audit S1): persist splits + is_settlement.
+                    splits_raw = e.get('splits')
+                    if isinstance(splits_raw, dict) and splits_raw:
+                        import json as _json
+                        splits_json = _json.dumps(splits_raw)
+                    else:
+                        splits_json = None
+                    is_settlement = 1 if e.get('isSettlement') else 0
                     cursor.execute('''
-                        INSERT INTO expenses (id, trip_id, who, category_id, label, date, country, value, currency, euro_value, receipt_url)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        INSERT INTO expenses (id, trip_id, who, category_id, label, date, country, value, currency, euro_value, receipt_url, splits, is_settlement)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         ON CONFLICT(id) DO UPDATE SET
                             who=excluded.who,
                             label=excluded.label,
                             value=excluded.value,
                             euro_value=excluded.euro_value,
-                            receipt_url=excluded.receipt_url
-                    ''', (e['id'], t['id'], e['who'], e['categoryId'], e['label'], e['date'], e['country'], e['value'], e['currency'], e['euroValue'], e.get('receiptUrl')))
+                            receipt_url=excluded.receipt_url,
+                            splits=excluded.splits,
+                            is_settlement=excluded.is_settlement
+                    ''', (e['id'], t['id'], e['who'], e['categoryId'], e['label'], e['date'], e['country'], e['value'], e['currency'], e['euroValue'], e.get('receiptUrl'), splits_json, is_settlement))
 
         # Commit archived-trips section (plus the inline archived
         # expenses) before moving to active expenses.
@@ -319,16 +329,27 @@ def sync_data():
             gate_trip_id = existing['trip_id'] if existing else e.get('tripId')
             if not can_edit_expenses(cursor, gate_trip_id, user_id):
                 continue
+            # 2026-05-25 (audit S1): persist splits + is_settlement here too,
+            # so a bulk-sync path doesn't silently strip them.
+            splits_raw = e.get('splits')
+            if isinstance(splits_raw, dict) and splits_raw:
+                import json as _json
+                splits_json = _json.dumps(splits_raw)
+            else:
+                splits_json = None
+            is_settlement = 1 if e.get('isSettlement') else 0
             cursor.execute('''
-                INSERT INTO expenses (id, trip_id, who, category_id, label, date, country, value, currency, euro_value, receipt_url)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO expenses (id, trip_id, who, category_id, label, date, country, value, currency, euro_value, receipt_url, splits, is_settlement)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     who=excluded.who,
                     label=excluded.label,
                     value=excluded.value,
                     euro_value=excluded.euro_value,
-                    receipt_url=excluded.receipt_url
-            ''', (e['id'], e['tripId'], e['who'], e['categoryId'], e['label'], e['date'], e['country'], e['value'], e['currency'], e['euroValue'], e.get('receiptUrl')))
+                    receipt_url=excluded.receipt_url,
+                    splits=excluded.splits,
+                    is_settlement=excluded.is_settlement
+            ''', (e['id'], e['tripId'], e['who'], e['categoryId'], e['label'], e['date'], e['country'], e['value'], e['currency'], e['euroValue'], e.get('receiptUrl'), splits_json, is_settlement))
 
         # Commit active-expenses section before categories.
         conn.commit()
@@ -590,10 +611,29 @@ def get_data():
         cursor.execute("SELECT id, name, icon, color FROM categories WHERE user_id = ?", (user_id,))
         categories = [dict(row) for row in cursor.fetchall()]
 
-        # Get budgets
-        cursor.execute("SELECT id, trip_id, label, amount, currency FROM budgets WHERE user_id = ?", (user_id,))
+        # Get budgets. 2026-05-25 (audit B1): now reads + ships the 4
+        # filter columns the frontend needs to render the budget card
+        # subtitle ("was X USD") and to scope `spentForBudget` to the
+        # right category + owner. Translates `owner_name` (snake_case
+        # storage) → `user` (camelCase frontend field).
+        cursor.execute(
+            "SELECT id, trip_id, label, amount, currency, "
+            "category_id, owner_name, original_amount, original_currency "
+            "FROM budgets WHERE user_id = ?",
+            (user_id,),
+        )
         budgets_rows = cursor.fetchall()
-        budgets = [{'id': r['id'], 'tripId': r['trip_id'], 'label': r['label'], 'amount': r['amount'], 'currency': r['currency']} for r in budgets_rows]
+        budgets = [{
+            'id': r['id'],
+            'tripId': r['trip_id'],
+            'label': r['label'],
+            'amount': r['amount'],
+            'currency': r['currency'],
+            'categoryId': r['category_id'],
+            'user': r['owner_name'],
+            'originalAmount': r['original_amount'],
+            'originalCurrency': r['original_currency'],
+        } for r in budgets_rows]
 
         # Get trip days for every trip the caller can see.
         if trip_ids:

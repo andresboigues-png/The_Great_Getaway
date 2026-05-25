@@ -33,18 +33,40 @@ def upsert_budget():
     # the declared behaviour).
     raw_trip_id = b.get('tripId')
     trip_id = raw_trip_id if (raw_trip_id and raw_trip_id != 'all') else None
+    # 2026-05-25 (audit B1): the frontend ships 4 more fields that the
+    # schema now persists. Coerce the "all"/"" sentinels for categoryId
+    # and user to NULL so we can ORDER and group cleanly on the read
+    # side without special-casing the strings.
+    raw_cat = b.get('categoryId')
+    category_id = raw_cat if (raw_cat and raw_cat != 'all') else None
+    raw_owner = b.get('user')
+    owner_name = raw_owner if (raw_owner and raw_owner != 'all') else None
+    # original_amount / original_currency carry the user-typed value
+    # before the frontend's currency conversion. Default to the
+    # canonical amount/currency if not explicitly sent — covers older
+    # clients that don't know about these fields.
+    original_amount = b.get('originalAmount')
+    if original_amount is None:
+        original_amount = b.get('amount', 0)
+    original_currency = b.get('originalCurrency') or b.get('currency', 'EUR')
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute('''
-            INSERT INTO budgets (id, user_id, trip_id, label, amount, currency)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO budgets (id, user_id, trip_id, label, amount, currency,
+                                 category_id, owner_name, original_amount, original_currency)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 label=excluded.label,
                 amount=excluded.amount,
                 currency=excluded.currency,
-                trip_id=excluded.trip_id
+                trip_id=excluded.trip_id,
+                category_id=excluded.category_id,
+                owner_name=excluded.owner_name,
+                original_amount=excluded.original_amount,
+                original_currency=excluded.original_currency
         ''', (b['id'], user_id, trip_id, b.get('label', ''),
-              b.get('amount', 0), b.get('currency', 'EUR')))
+              b.get('amount', 0), b.get('currency', 'EUR'),
+              category_id, owner_name, original_amount, original_currency))
         conn.commit()
     return jsonify({"status": "ok"})
 

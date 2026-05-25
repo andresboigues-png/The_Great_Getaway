@@ -63,9 +63,35 @@ export const clearAuthToken = (): void => {
     catch { /* private mode: nothing to clear */ }
     try {
         if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+            // 2026-05-25 (audit F3): two messages — CLEAR_API_CACHE
+            // wipes the cached responses, CLEAR_USER drops the SW's
+            // in-memory pointer to the user-id so subsequent caches
+            // bucket under 'anon' until the next login posts SET_USER.
             navigator.serviceWorker.controller.postMessage({ type: 'CLEAR_API_CACHE' });
+            navigator.serviceWorker.controller.postMessage({ type: 'CLEAR_USER' });
         }
     } catch { /* SW not registered yet — fine */ }
+};
+
+/** Tell the SW which user is currently logged in so its API cache
+ *  keys responses per-user. Called after restoreSession() resolves
+ *  STATE.user and after every successful pullFromServer. Idempotent
+ *  on the SW side — the worker just overwrites its in-memory pointer.
+ *
+ *  2026-05-25 (audit F3): without this the SW's per-user cache key
+ *  was always 'anon' (it tried to key off the Authorization header,
+ *  which this app never sends — auth is cookie-only). A shared device
+ *  served the previous user's /api/data response from cache. */
+export const announceUserToSW = (userId: string | null | undefined): void => {
+    if (!userId) return;
+    try {
+        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+            navigator.serviceWorker.controller.postMessage({
+                type: 'SET_USER',
+                userId,
+            });
+        }
+    } catch { /* SW not registered yet — first paint handles it on next pull */ }
 };
 
 /** Centralized fetch wrapper that:

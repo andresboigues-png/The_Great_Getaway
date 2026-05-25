@@ -102,37 +102,39 @@ self.addEventListener('activate', (event) => {
 //
 // For authenticated API responses we want per-user isolation: a shared
 // device where Alice logs out + Bob logs in must not serve Bob a stale
-// /api/data with Alice's trips. We extract a short hash of the
-// Authorization header and prefix the cache key with it. No-auth
-// requests get an "anon" bucket; auth'd ones get a deterministic
-// per-user bucket.
+// /api/data with Alice's trips.
 //
-// We use a `crypto.subtle.digest` SHA-256 (truncated to 16 hex chars)
-// rather than the raw JWT so the cache key doesn't leak the token via
-// devtools. Per-token is fine because tokens are stable per session +
-// rotate on logout, so the cache renews naturally.
-async function _userKeyFor(request) {
-    const auth = request.headers.get('Authorization') || '';
-    if (!auth) return 'anon';
-    try {
-        const enc = new TextEncoder().encode(auth);
-        const buf = await crypto.subtle.digest('SHA-256', enc);
-        const hex = Array.from(new Uint8Array(buf)).slice(0, 8)
-            .map((b) => b.toString(16).padStart(2, '0')).join('');
-        return `u-${hex}`;
-    } catch {
-        // crypto.subtle not available in this context — bucket all
-        // auth'd users under one key. Multi-user-device safety degrades
-        // but the cache still works for the single-user common case.
-        return 'auth';
-    }
+// 2026-05-25 (audit F3): the original implementation keyed off the
+// `Authorization` header — which this app NEVER sends (auth is via
+// HttpOnly cookie). Every authenticated user shared the `anon` bucket
+// and logout+login on a shared device served the previous user's
+// /api/data response from cache. Privacy leak.
+//
+// Fix: the client (api.ts, after restoreSession / login / pullFromServer)
+// postMessages its `STATE.user.id` to the SW; on logout it posts
+// CLEAR_USER. The SW keeps `_currentUserId` in worker-scope and uses
+// it as the cache key prefix. Offline reads still work for the SAME
+// user that originally cached the response — different user, different
+// bucket, no cross-contamination.
+//
+// On SW boot `_currentUserId` is null → 'anon' bucket. On first
+// successful auth message → switches to that user's bucket. On
+// CLEAR_USER → back to null (logout state).
+let _currentUserId = null;
+
+function _userKey() {
+    if (!_currentUserId) return 'anon';
+    // Sanitise: the user.id arrives from a postMessage (so it's been
+    // through the network at some point, but the boundary here is
+    // worker-scope, not a network channel). Reject anything with URL-
+    // encoded delimiters that would corrupt the cache key URL.
+    const safe = String(_currentUserId).replace(/[^A-Za-z0-9_-]/g, '');
+    return `u-${safe}`;
 }
 
 async function _cachedApiResponse(request) {
-    const userKey = await _userKeyFor(request);
+    const userKey = _userKey();
     const cache = await caches.open(API_CACHE);
-    // Cache key: append the user hash to the URL so different users
-    // store independently.
     const url = new URL(request.url);
     url.searchParams.set('_u', userKey);
     return cache.match(url.toString());
@@ -140,7 +142,7 @@ async function _cachedApiResponse(request) {
 
 async function _putApiResponse(request, response) {
     if (!response || !response.ok) return;
-    const userKey = await _userKeyFor(request);
+    const userKey = _userKey();
     const url = new URL(request.url);
     url.searchParams.set('_u', userKey);
     const cache = await caches.open(API_CACHE);
@@ -263,6 +265,24 @@ self.addEventListener('message', (event) => {
         // cache so the next user on the same device doesn't see
         // Alice's trips while Bob's request is in flight.
         caches.delete(API_CACHE).catch(() => { /* best-effort */ });
+        return;
+    }
+    if (data.type === 'SET_USER') {
+        // 2026-05-25 (audit F3): client announces who's logged in so the
+        // SW can key its API cache per-user. Without this every user
+        // shared the `anon` bucket and a shared-device logout+login
+        // served the previous user's /api/data from cache.
+        if (data.userId && typeof data.userId === 'string') {
+            _currentUserId = data.userId;
+        }
+        return;
+    }
+    if (data.type === 'CLEAR_USER') {
+        // Logout — drop the per-user key. The CLEAR_API_CACHE message
+        // (which the same logout path also fires) wipes the buckets;
+        // this resets the in-memory pointer so subsequent /api/data
+        // GETs cache under 'anon' until the next SET_USER lands.
+        _currentUserId = null;
         return;
     }
     if (data.type === 'SKIP_WAITING') {

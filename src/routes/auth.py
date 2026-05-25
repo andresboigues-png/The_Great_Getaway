@@ -98,6 +98,18 @@ def google_auth():
         and token.startswith("test:")
     ):
         user_id = token[len("test:"):] or "test-user-1"
+        # 2026-05-25 (audit 8.4 security): previously this path accepted
+        # ANY user_id after the `test:` prefix — including the Google
+        # `sub` of a real user. If GG_ALLOW_TEST_LOGIN=1 ever leaked to
+        # prod (env-var misconfig, CI/CD bleed, etc.), an attacker who
+        # knew a real user's sub could log in as them instantly. Now
+        # the user_id must start with the literal `test-` prefix; any
+        # other shape → 400, no row written, no token issued. This
+        # caps the blast radius even when the gate is mis-set.
+        if not user_id.startswith("test-"):
+            return jsonify({
+                "error": "Test-mode user_id must start with `test-` prefix",
+            }), 400
         email = f"{user_id}@test.local"
         name = body.get("name") or "Test User"
         picture = ""

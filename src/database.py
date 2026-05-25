@@ -295,6 +295,13 @@ def init_db():
                 currency TEXT,
                 euro_value REAL,
                 receipt_url TEXT,
+                -- 2026-05-25 (audit S1): split map (JSON {name: pct}) +
+                -- settlement flag. Pre-this-migration, both fields were
+                -- frontend-only — every /api/data refresh wiped them so
+                -- expenses with uneven splits collapsed to equal share
+                -- and settlement rows double-counted. Now persisted.
+                splits TEXT CHECK(splits IS NULL OR json_valid(splits)),
+                is_settlement INTEGER NOT NULL DEFAULT 0,
                 FOREIGN KEY(trip_id) REFERENCES trips(id) ON DELETE CASCADE
             )
         ''')
@@ -389,6 +396,15 @@ def init_db():
                 label TEXT,
                 amount REAL,
                 currency TEXT DEFAULT 'EUR',
+                -- 2026-05-25 (audit B1): filter columns the frontend
+                -- always sent but the schema dropped. Without them a
+                -- "Food → Sara → €500" budget reloaded as a generic
+                -- "all categories → everyone → €500" and aggregated
+                -- ALL expenses on the trip, showing fake overspend.
+                category_id TEXT,
+                owner_name TEXT,
+                original_amount REAL,
+                original_currency TEXT,
                 FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
                 FOREIGN KEY(trip_id) REFERENCES trips(id) ON DELETE SET NULL
             )
