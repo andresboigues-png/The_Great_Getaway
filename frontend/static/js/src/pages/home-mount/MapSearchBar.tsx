@@ -14,6 +14,8 @@
 // useEffect runs, this component's JSX has committed so the
 // document.getElementById lookups succeed.
 
+import { t } from '../../i18n.js';
+
 export function MapSearchBar() {
     return (
         <div
@@ -42,7 +44,7 @@ export function MapSearchBar() {
                     id="homeMapSearchInput"
                     type="search"
                     autoComplete="off"
-                    placeholder="Search any place on the map…"
+                    placeholder={t('home.searchMapPlaceholder')}
                     className="flex-1 min-w-0 border-0 outline-0 bg-transparent py-1.5 px-0 text-[0.95rem] text-brand-navy font-semibold"
                 />
                 <button

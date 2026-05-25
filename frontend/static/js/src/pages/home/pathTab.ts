@@ -24,6 +24,7 @@
 
 import { esc, formatDayDate, shortPlaceName } from '../../utils.js';
 import { resolveSelectedDayId } from './pathSelection.js';
+import { t, tn } from '../../i18n.js';
 
 /** Per-day collapse state for the path-card option stacks. Persists
  *  across re-renders in localStorage so a user who's hidden a day's
@@ -272,11 +273,14 @@ export function buildPathTabHtml(ctx: PathTabContext): string {
     }
     const totalDays = numberedDays.length;
     const selectedIsAnchor = selectedDay?.dayNumber === 0;
+    // 2026-05-24: i18n — summary line under the chip strip. Three
+    // shapes (Hub focus, day focus, no selection) each get their own
+    // pluralised template.
     const summaryText = selectedIsAnchor
-        ? `Trip Hub · ${totalDays} day${totalDays === 1 ? '' : 's'} planned`
+        ? tn('path.summaryHub', totalDays, { count: totalDays })
         : (selectedDay
-            ? `Day ${selectedDay.dayNumber} of ${totalDays}`
-            : `${totalDays} day${totalDays === 1 ? '' : 's'} planned`);
+            ? t('path.summaryDay', { day: selectedDay.dayNumber, total: totalDays })
+            : tn('path.summaryNone', totalDays, { count: totalDays }));
     // Today's local date in YYYY-MM-DD — used to flag the day chip
     // that matches the user's actual calendar today. Built once per
     // render, not per chip.

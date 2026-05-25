@@ -179,9 +179,20 @@ export function HomeHeader({ activeTrip, poiPillsVisible, onTogglePoiPills }: Ho
                         })}
                     </div>
                 ) : null}
-                <p>
-                    You have <strong>{tripExpenses.length}</strong> expenses recorded for {activeTrip.name}.
-                </p>
+                {/* 2026-05-24: i18n — the stat line was hardcoded
+                    English. Now uses a `{count}` + `{trip}` t() key
+                    so every locale can phrase it naturally. */}
+                <p
+                    dangerouslySetInnerHTML={{
+                        __html: t('home.tripStatsLine', {
+                            count: `<strong>${tripExpenses.length}</strong>`,
+                            trip: activeTrip.name || '',
+                        }),
+                    }}
+                />
+                {/* Original English fallback preserved as comment for
+                    grep-discoverability of the source phrase:
+                    "You have <strong>N</strong> expenses recorded for X." */}
             </div>
 
             {/* Action row — POI toggle + Maps link + Share button.

@@ -494,8 +494,28 @@ function GeneralPillsSection() {
                         >
                             <span className="poi-filter-row__icon">{c.icon}</span>
                             <div className="poi-filter-row__body">
-                                <div className="poi-filter-row__label">{c.label}</div>
-                                <div className="poi-filter-row__hint">{c.tooltip}</div>
+                                <div className="poi-filter-row__label">
+                                    {c.label}
+                                    {/* 2026-05-24: each pill used to render
+                                        a full-paragraph tooltip below the
+                                        label — readable but ate ~40% of the
+                                        screen on mobile when stacked. Now
+                                        the description is hidden behind an
+                                        ⓘ button: tap to surface it as a
+                                        toast, otherwise the row stays
+                                        compact. */}
+                                    {c.tooltip ? (
+                                        <button
+                                            type="button"
+                                            className="poi-filter-row__info-btn"
+                                            aria-label={`About ${c.label}`}
+                                            title={c.tooltip}
+                                            onClick={() => showLiquidAlert(`${c.icon} ${c.label} — ${c.tooltip}`)}
+                                        >
+                                            ⓘ
+                                        </button>
+                                    ) : null}
+                                </div>
                             </div>
                             <select
                                 className="poi-anchor-mode"

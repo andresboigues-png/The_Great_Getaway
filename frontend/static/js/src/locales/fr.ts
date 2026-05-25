@@ -649,6 +649,7 @@ export const fr: Translations = {
         uploading: 'Téléversement…',
         uploadFailed: 'Échec du téléversement — réessaie.',
         smartFiltersBadge: 'Filtres intelligents',
+        clearFiltersBtn: 'Effacer les filtres',
         filterAllCategories: 'Toutes les catégories',
         filterEveryone: 'Tout le monde',
         sortNewestFirst: 'Plus récents',
@@ -735,6 +736,25 @@ export const fr: Translations = {
         mapsBtnTitle: 'Ouvrir l\'emplacement de ce voyage dans Google Maps',
         shareBtnLabel: 'Partager',
         shareBtnTitle: 'Partager ce voyage',
+        tripStatsLine: 'Tu as {count} dépenses enregistrées pour {trip}.',
+        daysOfAdventure: {
+            one: '{count} Jour d\'aventure',
+            other: '{count} Jours d\'aventure',
+        },
+        tabPath: 'Itinéraire',
+        tabCompanions: 'Compagnons',
+        searchMapPlaceholder: 'Rechercher un lieu sur la carte…',
+    },
+    path: {
+        summaryHub: {
+            one: 'Trip Hub · {count} jour planifié',
+            other: 'Trip Hub · {count} jours planifiés',
+        },
+        summaryDay: 'Jour {day} sur {total}',
+        summaryNone: {
+            one: '{count} jour planifié',
+            other: '{count} jours planifiés',
+        },
     },
     share: {
         chooserTitle: 'Partager "{name}"',

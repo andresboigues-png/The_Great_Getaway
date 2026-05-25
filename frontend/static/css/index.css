@@ -3864,10 +3864,12 @@ body.is-signed-out #sidebarOverlay {
     -webkit-tap-highlight-color: transparent;
 }
 .mobile-bottom-nav__item span {
-    /* Override the .nav-item base font-size which would shrink
-       the label to 0.9rem and eat the icon's bottom anchor. */
-    font-size: 0.65rem;
-    font-weight: 700;
+    /* 2026-05-24: text labels removed per user request — icons-only
+       reads cleaner on phones and the icons are clear enough on
+       their own (Home/To-do/AI/Expenses are universally recognisable
+       glyphs). aria-label on each <a> still announces the
+       destination for screen readers. */
+    display: none;
 }
 /* Active tab: soft glassy pill behind icon+label + a slim brand-gradient
    bar pinned to the TOP edge of the item (sits flush with the bottom-nav's
@@ -4862,6 +4864,45 @@ main#app-container.nav-anim-backward {
        on mobile so 4-line tooltips don't crowd the row. */
     .poi-filter-row__label { font-size: 0.95rem; }
     .poi-filter-row__hint { font-size: 0.72rem; }
+    /* 2026-05-24: per-pill hint moved to an ⓘ button (toast on tap).
+       Hide the inline hint paragraph here so old markup doesn't sneak
+       through. */
+    .poi-filter-row__hint { display: none; }
+}
+
+/* Inline info button on each pill row — small ⓘ chip sitting flush
+   right of the label. Tappable on mobile (32px hit area). */
+.poi-filter-row__info-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    margin-left: 6px;
+    padding: 0;
+    border-radius: 50%;
+    border: 1px solid rgba(0, 113, 227, 0.22);
+    background: rgba(0, 113, 227, 0.08);
+    color: var(--accent-blue);
+    cursor: pointer;
+    font-size: 0.78rem;
+    font-weight: 800;
+    line-height: 1;
+    vertical-align: middle;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.15s ease;
+}
+.poi-filter-row__info-btn:hover,
+.poi-filter-row__info-btn:focus-visible {
+    background: rgba(0, 113, 227, 0.18);
+    outline: none;
+}
+@media (min-width: 721px) {
+    /* On desktop the long inline hint still fits — keep it visible
+       so power users see the full explanation at a glance. The ⓘ
+       button stays visible too (harmless duplication) for users who
+       prefer a quick tap-to-see. */
+    .poi-filter-row__hint { display: block; }
 
     /* General-subtabs strip — pill row that previously scrolled
        horizontally with hidden scrollbars, which left the third tab

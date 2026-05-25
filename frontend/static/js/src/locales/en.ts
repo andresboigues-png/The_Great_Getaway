@@ -150,9 +150,14 @@ export const en = {
         themeBodySystem: 'Follow your device. Auto-switches when your OS does.',
         // ── POI / Map pill filters panel ──
         poiTitle: 'Map pill filters',
-        poiIntroVisibility: '<strong>Show on Home</strong> (the right-side switch) toggles whether each pill appears in the home map\'s pill row. Useful for hiding categories you never use so the row stays compact.',
-        poiIntroRating: '<strong>Minimum rating</strong> hides results below the chosen ★. Restaurants and Hotels default to 4★+ (rating is a meaningful quality signal there); the rest default to "Any rating".',
-        poiIntroAnchor: '<strong>Search anchor</strong> picks where each pill searches from. <em>Day-aware</em> uses the day you\'ve set as search center on the Home page (falls back to the trip\'s anchor pin). <em>Trip-wide</em> always anchors on the anchor pin so the 50 km wide search covers the whole trip — better for sparse "where are these across my whole trip" categories like Medical, Sports, Govt, Schools, Public transit.',
+        // 2026-05-24: removed literal <strong>/<em> tags — they were
+        // rendering as raw text instead of HTML (React's text renderer
+        // escapes them). Replaced with quoted emphasis ("Show on Home")
+        // which reads cleanly in every locale without needing
+        // dangerouslySetInnerHTML.
+        poiIntroVisibility: '"Show on Home" (the right-side switch) toggles whether each pill appears in the home map\'s pill row. Useful for hiding categories you never use so the row stays compact.',
+        poiIntroRating: '"Minimum rating" hides results below the chosen ★. Restaurants and Hotels default to 4★+ (rating is a meaningful quality signal there); the rest default to "Any rating".',
+        poiIntroAnchor: '"Search anchor" picks where each pill searches from. Day-aware uses the day you\'ve set as search center on the Home page (falls back to the trip\'s anchor pin). Trip-wide always anchors on the anchor pin so the 50 km wide search covers the whole trip — better for sparse categories like Medical, Sports, Govt, Schools, Public transit.',
         poiOutroNote: 'Visibility changes take effect on next Home navigation. Filter / anchor changes apply on the next pill toggle. Reset returns rating, anchor, AND visibility to the pill\'s defaults.',
         poiAnyRating: 'Any rating',
         poiAnchorDayAware: '📍 Day-aware',
@@ -790,6 +795,7 @@ export const en = {
         uploadFailed: 'Upload failed — try again.',
         // History tab — filter row.
         smartFiltersBadge: 'Smart Filters',
+        clearFiltersBtn: 'Clear Filters',
         filterAllCategories: 'All Categories',
         filterEveryone: 'Everyone',
         sortNewestFirst: 'Newest first',
@@ -895,6 +901,34 @@ export const en = {
         mapsBtnTitle: "Open this trip's location in Google Maps",
         shareBtnLabel: 'Share',
         shareBtnTitle: 'Share this trip',
+        // 2026-05-24: trip stats line below the greeting.
+        // {count} is wrapped in <strong> tags by the caller, so the
+        // translation should NOT add extra emphasis.
+        tripStatsLine: 'You have {count} expenses recorded for {trip}.',
+        // Day count line under the trip title — pluralised via tn().
+        // tn() walks the dotted key path and picks `one`/`other` based
+        // on Intl.PluralRules for the active locale.
+        daysOfAdventure: {
+            one: '{count} Day of adventure',
+            other: '{count} Days of adventure',
+        },
+        // Trip tab buttons (Path / Companions in the tab strip).
+        tabPath: 'Path',
+        tabCompanions: 'Companions',
+        // Map search input placeholder.
+        searchMapPlaceholder: 'Search any place on the map…',
+    },
+    // 2026-05-24: Path tab — summary line under the chip strip.
+    path: {
+        summaryHub: {
+            one: 'Trip Hub · {count} day planned',
+            other: 'Trip Hub · {count} days planned',
+        },
+        summaryDay: 'Day {day} of {total}',
+        summaryNone: {
+            one: '{count} day planned',
+            other: '{count} days planned',
+        },
     },
     share: {
         // Share-chooser modal — the entry point that asks "which way?"

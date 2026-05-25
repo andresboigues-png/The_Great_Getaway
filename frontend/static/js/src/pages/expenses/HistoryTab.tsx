@@ -133,15 +133,21 @@ export function HistoryTab() {
                         boxShadow: '0 20px 50px rgba(0,0,0,0.05)',
                     }}
                 >
+                    {/* 2026-05-24: header + filter cluster wrap on
+                        mobile (was overflowing the 375px viewport
+                        with all 3 chips on the right). `flex-wrap`
+                        on the outer row lets the right cluster drop
+                        below the title; the cluster itself also
+                        wraps internally for the same reason. */}
                     <div
-                        className="flex items-center justify-between mb-6"
+                        className="flex items-center justify-between mb-6 flex-wrap gap-3"
                     >
                         <h2
                             className="text-[1.8rem] font-extrabold tracking-[-0.04em] m-0"
                         >
                             {t('expenses.historyTitle')}
                         </h2>
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 flex-wrap">
                             {canUndoBatch && lastImportBatch ? (
                                 <button
                                     type="button"
@@ -153,7 +159,7 @@ export function HistoryTab() {
                                 </button>
                             ) : null}
                             <button type="button" className="btn-chip-danger" onClick={clearFilters}>
-                                Clear Filters
+                                {t('expenses.clearFiltersBtn')}
                             </button>
                             <span
                                 className="text-xs font-bold text-[#005bb8] bg-[rgba(0,113,227,0.1)] py-1.5 px-3.5 rounded-[100px] uppercase"

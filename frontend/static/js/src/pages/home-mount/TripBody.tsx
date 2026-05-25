@@ -59,6 +59,7 @@ import {
     editingDayId,
 } from './handlers.js';
 import type { Trip } from '../../types';
+import { t, tn } from '../../i18n.js';
 
 
 export interface TripBodyProps {
@@ -600,12 +601,13 @@ export function TripBody({ activeTrip }: TripBodyProps) {
                         count as a planned day — show only numbered
                         days. A brand-new trip with only the auto-stamped
                         Hub correctly reads "0 Days of adventure" now. */}
+                    {/* 2026-05-24: i18n — was hardcoded
+                        "N Day{s} of adventure". `tn()` picks the
+                        correct plural/singular form per locale. */}
                     {(() => {
                         const plannedDayCount = tripDays.filter((d: any) => (d.dayNumber || 0) > 0).length;
                         return (
-                            <span>
-                                {plannedDayCount} Day{plannedDayCount !== 1 ? 's' : ''} of adventure
-                            </span>
+                            <span>{tn('home.daysOfAdventure', plannedDayCount, { count: plannedDayCount })}</span>
                         );
                     })()}
                     <span
@@ -637,7 +639,7 @@ export function TripBody({ activeTrip }: TripBodyProps) {
                             <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
                             <circle cx="12" cy="10" r="3"></circle>
                         </svg>
-                        <span>Path</span>
+                        <span>{t('home.tabPath')}</span>
                     </button>
                     <button
                         className={`trip-tabnav__tab${activeTab === 'companions' ? ' is-active' : ''}`}
@@ -661,7 +663,7 @@ export function TripBody({ activeTrip }: TripBodyProps) {
                             <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
                             <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
                         </svg>
-                        <span>Companions</span>
+                        <span>{t('home.tabCompanions')}</span>
                     </button>
                 </nav>
             </div>
