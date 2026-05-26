@@ -198,11 +198,19 @@ def accept_friend():
 
     Kept so old clients that fire /api/friends/accept after seeing a
     `friend_request` notification still produce the right end state.
-    Idempotent — re-accepting an already-mutual pair is a no-op success."""
+    Idempotent — re-accepting an already-mutual pair is a no-op success.
+
+    Audit fix (2026-05-26): self-check matches add_friend. Pre-fix
+    `accept_friend` had no `user_id == friend_id` rejection so a
+    crafted `{friend_id: <my own id>}` created a self-follow row
+    (INSERT OR IGNORE didn't care) plus a self-notification.
+    """
     user_id = current_user_id()
     friend_id = (request.json or {}).get("friend_id")
     if not friend_id:
         return jsonify({"status": "error", "message": "Missing data"}), 400
+    if user_id == friend_id:
+        return jsonify({"status": "error", "message": "Can't accept yourself"}), 400
 
     with get_db() as conn:
         cursor = conn.cursor()
