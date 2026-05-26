@@ -144,6 +144,28 @@ def get_public_trip(trip_id):
         trip.pop('actions_hidden', None)
         trip.pop('user_id', None)
 
+        # Audit fix (2026-05-26): non-member viewers must NOT see the
+        # owner's private metadata. fetch_share_payload (the /share/
+        # endpoint) already strips these; this public-trip path had
+        # been leaking them since the helper grew the fields. Strip
+        # the same set so the two read paths converge on the same
+        # privacy contract.
+        if not is_member:
+            # Personal files + private wishlist.
+            trip['photos'] = []
+            trip['documents'] = []
+            trip['checklist'] = []
+            trip['markedPlaces'] = []
+            # linkedUserId on companions leaks the friend graph
+            # (anyone can map "Famous Person" to a real user_id and
+            # then probe /api/public-profile/<id>). Strip to bare
+            # names; non-members don't need the link.
+            trip['companions'] = [
+                {'name': c.get('name', '')}
+                for c in (trip.get('companions') or [])
+                if isinstance(c, dict)
+            ]
+
         # Owner display info (name + picture) so the read-only page can
         # show "by [Owner]". Kept tiny — just what the renderer needs.
         cursor.execute("SELECT id, name, picture FROM users WHERE id = ?", (owner_id,))
@@ -230,27 +252,47 @@ def get_public_trip(trip_id):
             LEFT JOIN users u ON u.id = m.user_id
             WHERE m.trip_id = ? AND m.invitation_status = 'accepted'
         ''', (trip_id,))
-        trip['members'] = [
-            {
-                'userId': mr['user_id'],
-                'role': mr['role'],
-                'name': mr['user_name'],
-                'picture': mr['user_picture'],
-            }
-            for mr in cursor.fetchall()
-        ]
+        # Audit fix (2026-05-26): non-members get a NAME-ONLY roster.
+        # Pre-fix this exposed every member's userId + picture to any
+        # anonymous viewer of a public trip — a trivial social-graph
+        # scrape pipeline (list trip ids → list members → call
+        # /api/public-profile/<id> for each). Members still see the
+        # full roster (they're the editors).
+        if is_member:
+            trip['members'] = [
+                {
+                    'userId': mr['user_id'],
+                    'role': mr['role'],
+                    'name': mr['user_name'],
+                    'picture': mr['user_picture'],
+                }
+                for mr in cursor.fetchall()
+            ]
+        else:
+            trip['members'] = [
+                {'name': mr['user_name']}
+                for mr in cursor.fetchall()
+            ]
 
         return jsonify({"trip": trip, "owner": owner})
 
 
 @bp.route("/api/public-profile/<user_id>", methods=["GET"])
 def get_public_profile(user_id):
-    """Fetch public profile data for a user (Name, Bio, Public Trips, etc)."""
+    """Fetch public profile data for a user (Name, Bio, Public Trips, etc).
+
+    Audit fix (2026-05-26): pre-fix this endpoint SELECTed email and
+    returned it via `dict(user_row)` to ANY anonymous caller. The route
+    has no @require_auth (intentional — anonymous profile views are a
+    product feature) so combined with email-prefix search this was a
+    trivial harvest pipeline. Drop email from the SELECT and from the
+    response payload; profile only ships name + picture + bio + status.
+    """
     with get_db() as conn:
         cursor = conn.cursor()
 
-        # Get user info
-        cursor.execute("SELECT name, email, picture, bio, status FROM users WHERE id = ?", (user_id,))
+        # Get user info — no email exposed publicly.
+        cursor.execute("SELECT name, picture, bio, status FROM users WHERE id = ?", (user_id,))
         user_row = cursor.fetchone()
         if not user_row:
             return jsonify({"error": "User not found"}), 404
