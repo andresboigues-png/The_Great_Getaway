@@ -1622,6 +1622,80 @@ def test_feed_repost_succeeds_for_other_users_post(
     assert res.status_code == 200
 
 
+def test_block_user_idempotent_and_lists(
+    client, seed_user, seed_other_user, auth_headers,
+):
+    """Audit fix (2026-05-26): /api/blocks adds the user once;
+    re-POST is a no-op success. /api/blocks GET returns the list."""
+    res = client.post(f"/api/blocks/{seed_other_user}", headers=auth_headers)
+    assert res.status_code == 200
+    # Re-POST — idempotent.
+    res2 = client.post(f"/api/blocks/{seed_other_user}", headers=auth_headers)
+    assert res2.status_code == 200
+
+    res = client.get("/api/blocks", headers=auth_headers)
+    assert res.status_code == 200
+    blocked_ids = {b["id"] for b in res.get_json()["blocks"]}
+    assert seed_other_user in blocked_ids
+
+
+def test_block_user_self_rejected(client, seed_user, auth_headers):
+    """Self-blocking is nonsensical — the route must reject it."""
+    res = client.post(f"/api/blocks/{seed_user}", headers=auth_headers)
+    assert res.status_code == 400
+
+
+def test_block_drops_existing_follow_in_both_directions(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """When A blocks B, any follow in EITHER direction is torn down.
+    Leaving a follow into a blocked user means their public activity
+    keeps surfacing in the feed actor-pool, defeating the block."""
+    # B follows A; A follows B back.
+    client.post(f"/api/follows/{seed_user}", headers=other_auth_headers)
+    client.post(f"/api/follows/{seed_other_user}", headers=auth_headers)
+    # A blocks B.
+    client.post(f"/api/blocks/{seed_other_user}", headers=auth_headers)
+    # Neither follow row should survive.
+    from database import get_db
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT 1 FROM follows WHERE "
+            "(follower_id = ? AND followee_id = ?) OR "
+            "(follower_id = ? AND followee_id = ?)",
+            (seed_user, seed_other_user, seed_other_user, seed_user),
+        ).fetchall()
+        assert rows == []
+
+
+def test_blocked_user_cannot_follow_blocker(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """Once A blocks B, B's POST /api/follows/<A> silently 404s.
+    The block isn't broadcast back as a 403 — the response shape
+    mirrors "user doesn't exist" so B can't trivially confirm the
+    block status."""
+    client.post(f"/api/blocks/{seed_other_user}", headers=auth_headers)
+    res = client.post(f"/api/follows/{seed_user}", headers=other_auth_headers)
+    assert res.status_code == 404
+
+
+def test_blocked_user_cannot_be_invited_to_blockers_trip(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """When B blocks A, A's /api/trips/invite for B silently 404s.
+    A is the inviter (planner of their own trip); B has blocked A
+    so A can't drop an invite into B's bell."""
+    client.post(f"/api/blocks/{seed_user}", headers=other_auth_headers)
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-block-invite")
+    res = client.post("/api/trips/invite", headers=auth_headers, json={
+        "trip_id": trip_id,
+        "target_user_id": seed_other_user,
+        "role": "relaxer",
+    })
+    assert res.status_code == 404
+
+
 def test_feed_repost_blocks_private_trip_from_non_friend(
     client, seed_user, seed_other_user, auth_headers, other_auth_headers,
 ):

@@ -594,6 +594,26 @@ def init_db():
             )
         ''')
 
+        # Blocks Table (2026-05-26 audit — minimal safety primitive).
+        # Symmetric: once A blocks B, B cannot follow A, invite A to
+        # a trip, comment / repost on A's shares, or send A any
+        # notification. UNIQUE(blocker_id, blocked_id) makes the
+        # block op idempotent via the composite PK. CHECK against
+        # self-block keeps the row set clean — a self-block is a
+        # nonsense state that would have undefined semantics
+        # everywhere downstream.
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS blocks (
+                blocker_id TEXT NOT NULL,
+                blocked_id TEXT NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (blocker_id, blocked_id),
+                FOREIGN KEY (blocker_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (blocked_id) REFERENCES users(id) ON DELETE CASCADE,
+                CHECK (blocker_id != blocked_id)
+            )
+        ''')
+
         # Achievements Table (FIXING_ROADMAP §4.4).
         # Per-user record of which badges have been earned. Each badge
         # is a string id from src/achievements.py's BADGES registry —
@@ -751,6 +771,15 @@ def init_db():
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_trip_days_trip_day_number "
             "ON trip_days(trip_id, day_number) "
             "WHERE trip_id IS NOT NULL AND day_number IS NOT NULL",
+            # 2026-05-26 audit safety primitive: the block-check is
+            # hit by every follow / invite / comment / notification
+            # path with `WHERE blocker_id = ? AND blocked_id = ?` or
+            # the reverse. The composite PK already covers the
+            # forward lookup; this extra index covers
+            # `WHERE blocked_id = ?` (used by `is_blocked_by` to ask
+            # "did THIS user block me?" — direction-reversed).
+            "CREATE INDEX IF NOT EXISTS idx_blocks_blocked "
+            "ON blocks(blocked_id)",
         ):
             cursor.execute(ddl)
 

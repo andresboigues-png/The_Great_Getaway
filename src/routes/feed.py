@@ -55,8 +55,19 @@ def _fire_engagement_notification(cursor, recipient_id, actor_id, kind):
     engages with a user's share. Skips self-notifications (you don't
     need to be told you liked your own post). `kind` is one of
     'share_liked' / 'share_commented' / 'share_reposted'.
+
+    Audit fix (2026-05-26): also skips when the recipient has blocked
+    the actor. The block primitive's whole point is to stop the
+    blocked user from reaching the blocker's bell — without this
+    gate, a like / comment / repost from a blocked user would slip
+    through and notify anyway. The engagement row itself can still
+    be written (the post is public; everyone can read it) but the
+    bell stays quiet.
     """
     if not recipient_id or recipient_id == actor_id:
+        return
+    from routes.blocks import is_blocked
+    if is_blocked(cursor, recipient_id, actor_id):
         return
     cursor.execute("SELECT name FROM users WHERE id = ?", (actor_id,))
     row = cursor.fetchone()

@@ -21,6 +21,7 @@ from observability import (
 )
 from routes.admin import bp as admin_bp
 from routes.auth import bp as auth_bp
+from routes.blocks import bp as blocks_bp
 from routes.budgets import bp as budgets_bp
 from routes.data import bp as data_bp
 from routes.days import bp as days_bp
@@ -100,6 +101,7 @@ limiter.init_app(app)
 # split progresses; main.py shrinks accordingly.
 app.register_blueprint(admin_bp)
 app.register_blueprint(auth_bp)
+app.register_blueprint(blocks_bp)
 app.register_blueprint(budgets_bp)
 app.register_blueprint(data_bp)
 app.register_blueprint(days_bp)

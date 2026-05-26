@@ -93,6 +93,16 @@ def follow_user(user_id):
             # 404 (not 403) so a probing client can't enumerate
             # which user_ids exist — same posture as /api/public-trip.
             return jsonify({"error": "Not found"}), 404
+        # Audit fix (2026-05-26): block-gate. If the target user has
+        # blocked the caller, the follow silently fails — 404 not
+        # 403 so the block isn't broadcast back to the blocked user.
+        # Symmetric: if the caller has blocked the target (e.g. UI
+        # didn't catch up after a previous block), the follow also
+        # fails (you can't follow someone you've blocked; the block
+        # endpoint already tears down both directions).
+        from routes.blocks import is_blocked
+        if is_blocked(cursor, user_id, caller_id) or is_blocked(cursor, caller_id, user_id):
+            return jsonify({"error": "Not found"}), 404
 
         cursor.execute(
             "INSERT OR IGNORE INTO follows (follower_id, followee_id) VALUES (?, ?)",
