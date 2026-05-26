@@ -62,6 +62,24 @@ export const clearAuthToken = (): void => {
     // those leak persistently. Clearing the blob forces a clean slate.
     try { localStorage.removeItem('theGreatEscapeState'); }
     catch { /* private mode: nothing to clear */ }
+    // 2026-05-26 (audit SY7 + SY9): also wipe the in-memory copies of
+    // user-scoped state that pullFromServer doesn't reset. The
+    // localStorage wipe above covers next-page-load, but the CURRENT
+    // session still has User A's notifications dropdown + draft expense
+    // visible to User B until the next pull lands (and even then
+    // pullFromServer doesn't touch draftExpense). Reset them inline so
+    // a logout-then-login on the same device shows no residue.
+    STATE.notifications = [];
+    STATE.draftExpense = {
+        who: '',
+        categoryId: '',
+        label: '',
+        date: '',
+        country: '',
+        value: '',
+        currency: 'EUR',
+        euroValue: '',
+    };
     try {
         if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
             // 2026-05-25 (audit F3): two messages — CLEAR_API_CACHE

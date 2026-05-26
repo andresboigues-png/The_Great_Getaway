@@ -35,12 +35,19 @@ export function spentForBudget(budget: any): number {
     return spent;
 }
 
-/** Status tier for a budget — drives the color + label across the UI. */
+/** Status tier for a budget — drives the color + label across the UI.
+ *
+ *  2026-05-26 (audit B5): the "over" gate was `spent > target`, which
+ *  meant a budget at *exactly* its limit (spent === target → pct = 100)
+ *  fell through to the `pct > 80` "near limit" branch and rendered
+ *  yellow instead of red. Tightened to `spent >= target` so hitting
+ *  the ceiling exactly is treated as "over" (the spirit of the budget
+ *  has been spent in full). */
 export function budgetStatus(budget: any) {
     const spent = spentForBudget(budget);
     const target = budget.amount || 0;
     const pct = target > 0 ? (spent / target) * 100 : 0;
-    if (target > 0 && spent > target)
+    if (target > 0 && spent >= target)
         return { tier: 'over' as const, color: '#ff3b30', label: t('budgets.statusLabelOver'), spent, target, pct };
     if (target > 0 && pct > 80)
         return { tier: 'near' as const, color: '#ff9500', label: t('budgets.statusLabelNear'), spent, target, pct };

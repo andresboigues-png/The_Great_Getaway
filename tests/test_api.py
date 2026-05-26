@@ -819,21 +819,22 @@ def test_friend_add_rejects_unknown_friend(client, seed_user, auth_headers):
 def test_friend_accept_is_follow_back_under_model_b(
     client, seed_user, seed_other_user, auth_headers,
 ):
-    """Model B: /api/friends/accept is now a façade for "follow them
-    back" rather than the second half of a pending-request dance. The
-    fabrication check from the original audit is gone — under Model B
-    "accept" without a pending is just "I want to follow them", which
-    is a legitimate first action (Twitter/Instagram model). 404 is no
-    longer the right response; success is.
+    """Model B: the legacy /api/friends/accept façade was deleted on
+    2026-05-25 (audit dead-code sweep). The replacement primitive is
+    POST /api/follows/<user_id>, which inserts a follow edge directly.
 
-    Pre-Model-B this test was test_friend_accept_rejects_fabricated_invite
-    and asserted 404. Updated here to reflect the new semantics: a
-    follow row gets inserted, and a subsequent /api/friends/list call
-    returns seed_other_user as a follow (not yet a mutual)."""
-    res = client.post("/api/friends/accept", headers=auth_headers, json={
-        "friend_id": seed_other_user,
-    })
-    assert res.status_code == 200
+    The behavioural contract pinned here — "accepting" via the new
+    route lands a row in `follows` — survives the route rename: the
+    follower_id is the caller, the followee_id is the target, and a
+    GET /api/follows/<user_id> reports the new state."""
+    res = client.post(
+        f"/api/follows/{seed_other_user}",
+        headers=auth_headers,
+        json={},
+    )
+    # /api/follows returns 201 Created on the first follow + 200 OK on a
+    # re-follow (idempotent). Either is success.
+    assert res.status_code in (200, 201)
     # And the follow edge actually landed in the follows table.
     from database import get_db
     with get_db() as conn:

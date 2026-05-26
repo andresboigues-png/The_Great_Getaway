@@ -295,7 +295,15 @@ export function ManualTab() {
                 if (person) splits[person] = val;
                 totalSplit += val;
             }
-            if (Math.abs(totalSplit - 100) > 0.5) {
+            // 2026-05-26 (audit SP2): was `> 0.5`, which silently
+            // accepted 100.49% (or 99.51%) totals. The downstream
+            // balance math then re-normalizes by the actual sum, so
+            // splits don't visually match what the user typed —
+            // confusing. Tightened to 0.01 so the form catches any
+            // human-meaningful drift while still tolerating tiny
+            // float-precision residue from the auto-equal-split
+            // helper.
+            if (Math.abs(totalSplit - 100) > 0.01) {
                 showLiquidAlert(t('validation.percentagesMustSum'));
                 return;
             }
@@ -314,6 +322,19 @@ export function ManualTab() {
             showLiquidAlert(t('validation.currencyRequired'));
             return;
         }
+        // 2026-05-26 (audit SP3): the conversion fallback used to be
+        // `CONVERSION_RATES[curr] || 1`, which silently treated any
+        // currency missing from the rate table as 1:1 EUR. A legacy
+        // record (or a typo in a paste) of `currency='ARS'` then
+        // counted 100 ARS as €100 in every balance — silent corruption
+        // with no user signal. Now we require the currency to be in the
+        // known rate table; if it isn't, abort the submit so the user
+        // can pick a supported currency from the dropdown.
+        const rate = CONVERSION_RATES[curr];
+        if (rate === undefined) {
+            showLiquidAlert(t('budgets.createUnknownCurrency', { curr }));
+            return;
+        }
 
         const countryVal = countryValue || (activeTrip ? activeTrip.country : '');
         const isEdit = !!STATE.draftExpense?.id;
@@ -327,7 +348,7 @@ export function ManualTab() {
             country: countryVal,
             value: val,
             currency: curr,
-            euroValue: val * (CONVERSION_RATES[curr] || 1),
+            euroValue: val * rate,
             splits,
             receiptUrl,
         };

@@ -378,13 +378,41 @@ def sync_data():
             cursor.execute(f"DELETE FROM budgets WHERE user_id = ? AND id NOT IN ({placeholders})", [user_id] + budget_ids)
         else:
             cursor.execute("DELETE FROM budgets WHERE user_id = ?", (user_id,))
+        # 2026-05-26 (audit B0): the bulk sync path used to write only 6
+        # of the 8 budget columns — categoryId / owner_name /
+        # original_amount / original_currency were silently NULL'd on
+        # every 15-second `/api/sync` poll, so a scoped "Lisbon → Food →
+        # Alice → €100" budget reloaded as "All trips → all categories →
+        # everyone → €100" and the frontend re-aggregated against the
+        # wrong subset of expenses. Now mirrors the per-row
+        # /api/budgets POST handler (see routes/budgets.py upsert).
         for b in budgets:
+            raw_trip_id = b.get('tripId')
+            b_trip_id = raw_trip_id if (raw_trip_id and raw_trip_id != 'all') else None
+            raw_cat = b.get('categoryId')
+            b_category_id = raw_cat if (raw_cat and raw_cat != 'all') else None
+            raw_owner = b.get('user')
+            b_owner_name = raw_owner if (raw_owner and raw_owner != 'all') else None
+            b_original_amount = b.get('originalAmount')
+            if b_original_amount is None:
+                b_original_amount = b.get('amount', 0)
+            b_original_currency = b.get('originalCurrency') or b.get('currency', 'EUR')
             cursor.execute('''
-                INSERT INTO budgets (id, user_id, trip_id, label, amount, currency)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO budgets (id, user_id, trip_id, label, amount, currency,
+                                     category_id, owner_name, original_amount, original_currency)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
-                    label=excluded.label, amount=excluded.amount, currency=excluded.currency, trip_id=excluded.trip_id
-            ''', (b['id'], user_id, b.get('tripId'), b.get('label', ''), b.get('amount', 0), b.get('currency', 'EUR')))
+                    label=excluded.label,
+                    amount=excluded.amount,
+                    currency=excluded.currency,
+                    trip_id=excluded.trip_id,
+                    category_id=excluded.category_id,
+                    owner_name=excluded.owner_name,
+                    original_amount=excluded.original_amount,
+                    original_currency=excluded.original_currency
+            ''', (b['id'], user_id, b_trip_id, b.get('label', ''),
+                  b.get('amount', 0), b.get('currency', 'EUR'),
+                  b_category_id, b_owner_name, b_original_amount, b_original_currency))
 
         # Commit budgets section before trip days.
         conn.commit()

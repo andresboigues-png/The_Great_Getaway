@@ -15,7 +15,7 @@ import { STATE, emit } from '../../state.js';
 import { showConfirmModal } from '../../utils.js';
 import { t } from '../../i18n.js';
 import { navigate } from '../../router.js';
-import { apiUrl, unarchiveTripOnServer, upsertTrip } from '../../api.js';
+import { deleteTrip, unarchiveTripOnServer, upsertTrip } from '../../api.js';
 
 /** Public-trip privacy levels (FIXING_ROADMAP — public granularity).
  *  Encoded as a 3-value string so the UI can be one select rather
@@ -99,17 +99,17 @@ export const deleteArchivedTrip = (id: string) => {
         onConfirm: async () => {
             STATE.archivedTrips = STATE.archivedTrips.filter((t) => t.id !== id);
             emit('state:changed');
-            if (STATE.user) {
-                try {
-                    await fetch(apiUrl('/api/trips/delete'), {
-                        method: 'DELETE',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ user_id: STATE.user.id, trip_id: id }),
-                    });
-                } catch (e) {
-                    /* swallowed — local state already mutated */
-                }
-            }
+            // 2026-05-26 (audit TR1): was calling the non-existent
+            // `/api/trips/delete` POST endpoint (the actual server route
+            // is DELETE /api/trips/<trip_id>). The fetch silently 404'd,
+            // local state was mutated optimistically, and the trip
+            // reappeared on the next /api/data pull — user thought the
+            // delete worked but the server row persisted. Now delegate
+            // to the api.ts `deleteTrip()` helper which targets the
+            // correct path-keyed route and uses apiFetch for cookie
+            // auth + AbortSignal hookup.
+            const p = deleteTrip(id);
+            if (p) p.catch((err) => console.error('Delete archived trip failed:', err));
             navigate('collections');
         },
     });

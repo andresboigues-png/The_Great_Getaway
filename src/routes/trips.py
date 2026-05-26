@@ -22,6 +22,7 @@ from extensions import limiter
 from helpers import (
     can_edit_trip,
     ensure_owner_member_row,
+    ensure_user_exists,
     is_trip_owner,
     trip_member_role,
 )
@@ -322,6 +323,17 @@ def invite_trip_member():
         cursor = conn.cursor()
         if not can_edit_trip(cursor, trip_id, inviter):
             return jsonify({"error": "Forbidden"}), 403
+
+        # 2026-05-26 (audit PE2): block invites to nonexistent users.
+        # Before this gate, a typo in `target_user_id` (or a malicious
+        # client supplying a junk id) silently created an orphan
+        # `trip_members` row + a notification row whose `related_id`
+        # pointed at no real user. The notification could never be read
+        # (no user to receive it), the trip_members row could never be
+        # cleaned up via the normal "decline" flow, and both leaked
+        # storage. Validate up front.
+        if not ensure_user_exists(cursor, target):
+            return jsonify({"error": "Target user not found"}), 404
 
         # Model B: trip invites are an explicit access grant, decoupled
         # from the social graph. Anyone can be invited — the rate
