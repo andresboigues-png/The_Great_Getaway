@@ -140,8 +140,18 @@ async function _cachedApiResponse(request) {
     return cache.match(url.toString());
 }
 
-async function _putApiResponse(request, response) {
+async function _putApiResponse(request, response, epochAtStart) {
     if (!response || !response.ok) return;
+    // SY2 race-closer: a fetch begun BEFORE logout can return AFTER
+    // the cache wipe completes. `caches.open` auto-recreates the
+    // deleted cache, so without this guard we'd write Alice's
+    // response into the freshly-recreated cache — visible to Alice
+    // on her next offline session, or worse, leaking into the anon
+    // bucket if `_currentUserId` had already flipped. We wait for
+    // any in-flight wipe to settle, then drop the write if the
+    // logout epoch advanced since the fetch was started.
+    await _logoutLock;
+    if (epochAtStart !== undefined && epochAtStart !== _logoutEpoch) return;
     const userKey = _userKey();
     const url = new URL(request.url);
     url.searchParams.set('_u', userKey);
@@ -161,6 +171,10 @@ async function _putApiResponse(request, response) {
  *  routes both writes + reads through `_userKeyFor`. Shell strategy
  *  calls without a keyer so all clients share the same cache. */
 async function _networkFirst(request, cacheName, keyer) {
+    // Snapshot the logout epoch at fetch start. The keyer
+    // (`_putApiResponse`) uses it to drop writes whose fetch began
+    // before a logout-triggered cache wipe — see SY2 notes there.
+    const epochAtStart = _logoutEpoch;
     try {
         const fresh = await fetch(request);
         // Only cache successful responses (avoid caching 401/500
@@ -168,7 +182,7 @@ async function _networkFirst(request, cacheName, keyer) {
         // single-use streams.
         if (fresh.ok) {
             if (keyer) {
-                await keyer(request, fresh.clone());
+                await keyer(request, fresh.clone(), epochAtStart);
             } else {
                 const cache = await caches.open(cacheName);
                 try { await cache.put(request, fresh.clone()); } catch { /* quota */ }
@@ -258,13 +272,45 @@ self.addEventListener('fetch', (event) => {
 
 // ── postMessage hooks ───────────────────────────────────────────────
 
+// 2026-05-26 (audit SY2): the logout sequence used to be two
+// fire-and-forget postMessages — CLEAR_API_CACHE started an async
+// caches.delete() and CLEAR_USER immediately reset the user pointer
+// to null. Three things could go wrong with that:
+//   1. A /api/data fetch in flight returns AFTER _currentUserId
+//      flipped to null but BEFORE the delete completes → response
+//      gets cached under the 'anon' bucket → next user on the
+//      device reads Alice's data from anon on a flaky connection.
+//   2. A fetch returns AFTER the delete completes → `caches.open`
+//      auto-recreates the cache → Alice's response lives in the
+//      "freshly wiped" cache as stale residue.
+//   3. CLEAR_USER processes before the delete even started → the
+//      pointer flips before the wipe → same as (1) but earlier.
+//
+// The fix is a two-piece interlock:
+//   * `_logoutLock` is the in-flight wipe's promise. CLEAR_USER
+//     chains off it, so the pointer flip waits for the wipe to
+//     finish before resetting. Closes (1) and (3).
+//   * `_logoutEpoch` is a monotonic counter bumped on every
+//     CLEAR_API_CACHE. `_networkFirst` snapshots it at fetch
+//     start; `_putApiResponse` awaits the lock then drops the
+//     write if the epoch advanced mid-fetch. Closes (2).
+let _logoutLock = Promise.resolve();
+let _logoutEpoch = 0;
+
 self.addEventListener('message', (event) => {
     const data = event.data || {};
     if (data.type === 'CLEAR_API_CACHE') {
         // Fired by api.ts on logout. Wipes the per-user /api/data
         // cache so the next user on the same device doesn't see
-        // Alice's trips while Bob's request is in flight.
-        caches.delete(API_CACHE).catch(() => { /* best-effort */ });
+        // Alice's trips while Bob's request is in flight. Bumping
+        // `_logoutEpoch` here invalidates any /api/* fetches that
+        // were already in flight when this message arrived — see
+        // the SY2 notes above and in `_putApiResponse`.
+        _logoutEpoch++;
+        _logoutLock = caches.delete(API_CACHE).catch(() => { /* best-effort */ });
+        if (event.waitUntil) {
+            event.waitUntil(_logoutLock);
+        }
         return;
     }
     if (data.type === 'SET_USER') {
@@ -278,11 +324,14 @@ self.addEventListener('message', (event) => {
         return;
     }
     if (data.type === 'CLEAR_USER') {
-        // Logout — drop the per-user key. The CLEAR_API_CACHE message
-        // (which the same logout path also fires) wipes the buckets;
-        // this resets the in-memory pointer so subsequent /api/data
-        // GETs cache under 'anon' until the next SET_USER lands.
-        _currentUserId = null;
+        // Logout — drop the per-user key. Wait for CLEAR_API_CACHE's
+        // wipe to settle first so we don't reset to null while the
+        // delete is mid-flight (which would race against any
+        // /api/data response landing in the wipe window).
+        const reset = _logoutLock.then(() => { _currentUserId = null; });
+        if (event.waitUntil) {
+            event.waitUntil(reset);
+        }
         return;
     }
     if (data.type === 'SKIP_WAITING') {
