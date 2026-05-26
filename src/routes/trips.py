@@ -545,6 +545,22 @@ def remove_trip_member():
         # ghost so any historical expense attribution still resolves.
         unlink_companion_user_from_trip(cursor, trip_id, target)
 
+        # Audit fix (2026-05-26): clean the kicked user's notifications
+        # for this trip. Pre-fix, after being kicked the user kept
+        # seeing trip-related notifications (trip_invite_accepted that
+        # ended their own join, trip_public broadcasts they no longer
+        # had any business with, settled_up from a trip they couldn't
+        # see). Narrow by type so we don't accidentally wipe
+        # unrelated rows whose polymorphic related_id happens to
+        # match this trip_id.
+        cursor.execute(
+            "DELETE FROM notifications WHERE user_id = ? AND related_id = ? "
+            "AND type IN ('trip_invite', 'trip_invite_accepted', "
+            " 'trip_invite_declined', 'trip_public', 'settled_up', "
+            " 'settled_up_reverted')",
+            (target, trip_id),
+        )
+
         cursor.execute("SELECT name FROM users WHERE id = ?", (actor,))
         actor_row = cursor.fetchone()
         actor_name = actor_row["name"] if actor_row else "A planner"
