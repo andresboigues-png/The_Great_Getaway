@@ -931,16 +931,33 @@ def clone_trip_from_share_token(token):
     Doesn't require the caller to be a member of the source trip —
     having the share token IS the proof of intent to share. We do
     require auth here though (the clone needs an owner).
+
+    Audit fix (2026-05-27, Trip #39): refuse to clone when the
+    source trip is archived by its owner. A share link that's
+    been left enabled on a completed trip would otherwise let a
+    fresh user create a copy of a "past" trip — confusing UX, and
+    arguably a privacy leak (the owner archived for a reason).
+    Returns 410 Gone with a clear message so the SPA can show
+    "This trip is no longer available for cloning" rather than
+    a generic 404.
     """
     user_id = current_user_id()
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT id FROM trips WHERE share_token = ?", (token,),
+            "SELECT t.id, COALESCE(tm.is_archived, t.is_archived, 0) AS is_archived "
+            "FROM trips t LEFT JOIN trip_members tm "
+            "  ON tm.trip_id = t.id AND tm.user_id = t.user_id "
+            "WHERE t.share_token = ?",
+            (token,),
         )
         row = cursor.fetchone()
         if not row:
             return jsonify({"error": "Not found"}), 404
+        if row["is_archived"]:
+            return jsonify({
+                "error": "This trip is no longer available for cloning",
+            }), 410
         new_trip_id = _clone_trip_record(cursor, row['id'], user_id)
         if not new_trip_id:
             return jsonify({"error": "Not found"}), 404

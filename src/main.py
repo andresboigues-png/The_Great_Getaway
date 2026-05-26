@@ -402,9 +402,19 @@ def _cleanup_feed_orphans():
     """Delete feed_likes and feed_comments rows older than 90 days that
     refer to a synthesised event (trip_*, friendship_*, share_*,
     repost_*) which no longer matches a live underlying record. Bookmarks
-    are exempt — saves are permanent. Returns counts for logging."""
+    are exempt — saves are permanent. Also sweeps read notifications
+    older than 30 days + revoked auth_sessions older than 30 days.
+    Returns counts for logging.
+
+    Audit fix (2026-05-27): added notification + auth_sessions sweep.
+    Pre-fix notifications accumulated forever (the list endpoint LIMIT
+    50 hid them, but the DB row count grew without bound), and revoked
+    auth_sessions rows kept piling up after per-device logout.
+    """
     deleted_likes = 0
     deleted_comments = 0
+    deleted_notifications = 0
+    deleted_sessions = 0
     try:
         with get_db() as conn:
             cursor = conn.cursor()
@@ -420,6 +430,25 @@ def _cleanup_feed_orphans():
                 "DELETE FROM feed_comments WHERE created_at < datetime('now', '-90 days')"
             )
             deleted_comments = cursor.rowcount or 0
+            # Read notifications older than 30 days. Unread rows stay
+            # so the user's bell keeps surfacing them until they
+            # acknowledge. Audit #31: pre-fix notifications grew
+            # forever — only the LIMIT 50 in /api/notifications/list
+            # hid them from the UI.
+            cursor.execute(
+                "DELETE FROM notifications WHERE is_read = 1 "
+                "AND created_at < datetime('now', '-30 days')"
+            )
+            deleted_notifications = cursor.rowcount or 0
+            # Revoked auth_sessions older than 30 days. After per-
+            # device logout (fix #50) rows pile up forever; once the
+            # JWT has expired (30-day lifetime) the row is no longer
+            # useful for the verify path.
+            cursor.execute(
+                "DELETE FROM auth_sessions WHERE revoked_at IS NOT NULL "
+                "AND revoked_at < datetime('now', '-30 days')"
+            )
+            deleted_sessions = cursor.rowcount or 0
             conn.commit()
     except sqlite3.DatabaseError as e:
         # §2.15: narrow to DB errors so the daemon thread doesn't
@@ -429,15 +458,28 @@ def _cleanup_feed_orphans():
         # full, file moved) and recoverable on the next iteration.
         # §3.8: structured logging — flows into Sentry as a breadcrumb
         # (and as an event at ERROR level).
-        logger.warning("feed orphans sweep failed: %s", e, exc_info=True)
-    if deleted_likes or deleted_comments:
+        logger.warning("background cleanup sweep failed: %s", e, exc_info=True)
+    if deleted_likes or deleted_comments or deleted_notifications or deleted_sessions:
         logger.info(
-            "feed cleanup removed %d likes + %d comments older than 90d",
+            "background cleanup removed: likes=%d comments=%d "
+            "notifications=%d sessions=%d",
             deleted_likes,
             deleted_comments,
-            extra=log_extra(deleted_likes=deleted_likes, deleted_comments=deleted_comments),
+            deleted_notifications,
+            deleted_sessions,
+            extra=log_extra(
+                deleted_likes=deleted_likes,
+                deleted_comments=deleted_comments,
+                deleted_notifications=deleted_notifications,
+                deleted_sessions=deleted_sessions,
+            ),
         )
-    return {"likes": deleted_likes, "comments": deleted_comments}
+    return {
+        "likes": deleted_likes,
+        "comments": deleted_comments,
+        "notifications": deleted_notifications,
+        "sessions": deleted_sessions,
+    }
 
 
 def _start_cleanup_thread():

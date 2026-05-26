@@ -163,7 +163,7 @@ async function init() {
     // live for the document lifetime.
     setupInstallPrompt();
 
-    setInterval(() => {
+    const syncTimerId = setInterval(() => {
         // FIXING_ROADMAP §1.8 — skip the poll when the tab isn't
         // visible. A user with the app open in a background tab was
         // previously paying for sync + notifications fetches every
@@ -174,6 +174,19 @@ async function init() {
         syncWithServer();
         fetchNotifications();
     }, 15000);
+
+    // Audit fix (2026-05-27): clear the sync interval on pagehide /
+    // beforeunload. The STATE.user guard inside the tick already
+    // turns it into a no-op after logout, but the timer keeps
+    // firing for the document lifetime — wasted CPU on long-lived
+    // background tabs, and a slow memory leak. We listen on both
+    // events because Safari sometimes doesn't fire beforeunload on
+    // mobile (pagehide is more reliable there).
+    const _stopPoll = () => {
+        clearInterval(syncTimerId);
+    };
+    window.addEventListener('pagehide', _stopPoll, { once: true });
+    window.addEventListener('beforeunload', _stopPoll, { once: true });
 }
 
 // Start the app
