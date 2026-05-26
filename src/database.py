@@ -685,6 +685,25 @@ def init_db():
             # out of the constraint via the WHERE clause.
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_feed_posts_unique_original_share "
             "ON feed_posts(user_id, trip_id) WHERE repost_of_post_id IS NULL",
+            # 2026-05-26 audit: per-user lookup indexes that were
+            # missing. Each is hit by /api/data on every poll AND by
+            # the per-user upsert/delete paths. Without these the
+            # tables full-scan even at modest user counts.
+            "CREATE INDEX IF NOT EXISTS idx_categories_user "
+            "ON categories(user_id)",
+            "CREATE INDEX IF NOT EXISTS idx_budgets_user "
+            "ON budgets(user_id)",
+            # notifications.related_id is hit by the daily trip_public
+            # dedupe and the delete_trip cleanup. Existing
+            # `(user_id, created_at)` index doesn't cover it.
+            "CREATE INDEX IF NOT EXISTS idx_notifications_related "
+            "ON notifications(related_id)",
+            # Indexes that were added in Alembic only — mirror here
+            # so fresh DBs (tests, new dev installs) get them too.
+            "CREATE INDEX IF NOT EXISTS idx_feed_posts_repost "
+            "ON feed_posts(repost_of_post_id)",
+            "CREATE INDEX IF NOT EXISTS idx_feed_comments_user "
+            "ON feed_comments(user_id)",
         ):
             cursor.execute(ddl)
 
