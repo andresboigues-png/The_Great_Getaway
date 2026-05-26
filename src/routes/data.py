@@ -380,21 +380,40 @@ def sync_data():
 
         # Sync Budgets — replace mode (delete user's budgets not in
         # the current list, then upsert the rest).
-        budgets = data.get("budgets", [])
-        budget_ids = [b['id'] for b in budgets if 'id' in b]
-        if budget_ids:
-            placeholders = ','.join(['?'] * len(budget_ids))
-            cursor.execute(f"DELETE FROM budgets WHERE user_id = ? AND id NOT IN ({placeholders})", [user_id] + budget_ids)
+        #
+        # Audit fix (2026-05-26): pre-fix, an empty/absent `budgets`
+        # key triggered an unconditional `DELETE FROM budgets WHERE
+        # user_id = ?`, wiping every budget the user had. Older
+        # clients that don't ship budgets in the sync payload were
+        # silently erasing them every 15s tick. The categories block
+        # already has the safer "absent = don't touch" semantic;
+        # mirror it: if the payload doesn't include a budgets key
+        # at all, skip the replace-mode delete; only when the key
+        # is explicitly present do we treat it as the authoritative
+        # set.
+        budgets = data.get("budgets")
+        if budgets is not None:
+            budget_ids = [b['id'] for b in budgets if 'id' in b]
+            if budget_ids:
+                placeholders = ','.join(['?'] * len(budget_ids))
+                cursor.execute(f"DELETE FROM budgets WHERE user_id = ? AND id NOT IN ({placeholders})", [user_id] + budget_ids)
+            else:
+                cursor.execute("DELETE FROM budgets WHERE user_id = ?", (user_id,))
         else:
-            cursor.execute("DELETE FROM budgets WHERE user_id = ?", (user_id,))
-        # 2026-05-26 (audit B0): the bulk sync path used to write only 6
-        # of the 8 budget columns — categoryId / owner_name /
-        # original_amount / original_currency were silently NULL'd on
-        # every 15-second `/api/sync` poll, so a scoped "Lisbon → Food →
-        # Alice → €100" budget reloaded as "All trips → all categories →
-        # everyone → €100" and the frontend re-aggregated against the
-        # wrong subset of expenses. Now mirrors the per-row
-        # /api/budgets POST handler (see routes/budgets.py upsert).
+            # 2026-05-26 (audit B0): the bulk sync path used to write only
+            # 6 of the 8 budget columns — categoryId / owner_name /
+            # original_amount / original_currency were silently NULL'd on
+            # every 15-second `/api/sync` poll, so a scoped "Lisbon → Food
+            # → Alice → €100" budget reloaded as "All trips → all
+            # categories → everyone → €100" and the frontend re-aggregated
+            # against the wrong subset of expenses. Now mirrors the per-
+            # row /api/budgets POST handler (see routes/budgets.py
+            # upsert).
+            #
+            # Audit fix #8: absent `budgets` key preserves existing
+            # rows (don't write anything). Empty `[]` is the explicit-
+            # clear (handled by the `if budgets is not None` branch).
+            budgets = []
         for b in budgets:
             raw_trip_id = b.get('tripId')
             b_trip_id = raw_trip_id if (raw_trip_id and raw_trip_id != 'all') else None
