@@ -10,6 +10,12 @@ from flask import Blueprint, jsonify, request
 
 from auth import current_user_id, require_auth
 from database import get_db, retry_on_lock
+from validators import (
+    ValidationError,
+    clean_text,
+    validate_currency,
+    validate_money,
+)
 
 
 bp = Blueprint("budgets", __name__)
@@ -25,6 +31,22 @@ def upsert_budget():
     b = data.get("budget")
     if not b:
         return jsonify({"error": "Missing data"}), 400
+    budget_id = b.get("id")
+    if not budget_id:
+        return jsonify({"error": "Missing budget id"}), 400
+
+    # Audit fix (2026-05-26): server-side validation. amount is the
+    # main vector — NaN/Inf/negative all flowed through pre-fix.
+    try:
+        amount = validate_money(b.get("amount", 0), field_name="amount")
+        currency = validate_currency(b.get("currency"))
+        label = clean_text(
+            b.get("label", ""), max_len=120, allow_newlines=False,
+            field_name="label",
+        )
+    except ValidationError as ve:
+        return jsonify({"error": str(ve)}), 400
+
     # 2026-05-25 (audit B2): the frontend's "All trips" option carries
     # tripId='all'. Writing 'all' to budgets.trip_id triggers a FK
     # constraint failure (trips.id has no 'all' row) and SQLite raises
@@ -47,8 +69,9 @@ def upsert_budget():
     # clients that don't know about these fields.
     original_amount = b.get('originalAmount')
     if original_amount is None:
-        original_amount = b.get('amount', 0)
-    original_currency = b.get('originalCurrency') or b.get('currency', 'EUR')
+        original_amount = amount
+    original_currency = b.get('originalCurrency') or currency
+
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute('''
@@ -64,8 +87,8 @@ def upsert_budget():
                 owner_name=excluded.owner_name,
                 original_amount=excluded.original_amount,
                 original_currency=excluded.original_currency
-        ''', (b['id'], user_id, trip_id, b.get('label', ''),
-              b.get('amount', 0), b.get('currency', 'EUR'),
+        ''', (budget_id, user_id, trip_id, label,
+              amount, currency,
               category_id, owner_name, original_amount, original_currency))
         conn.commit()
     return jsonify({"status": "ok"})

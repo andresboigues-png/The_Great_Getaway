@@ -12,6 +12,13 @@ from auth import current_user_id, require_auth
 from database import get_db, retry_on_lock
 from helpers import can_edit_expenses
 from observability import bind_trip_context
+from validators import (
+    ValidationError,
+    clean_text,
+    validate_currency,
+    validate_money,
+    validate_upload_url,
+)
 
 
 bp = Blueprint("expenses", __name__)
@@ -27,10 +34,56 @@ def upsert_expense():
     e = data.get("expense")
     if not e:
         return jsonify({"error": "Missing data"}), 400
-    bind_trip_context(e.get("tripId"))
+    expense_id = e.get("id")
+    if not expense_id:
+        return jsonify({"error": "Missing expense id"}), 400
+    claimed_trip_id = e.get("tripId")
+    if not claimed_trip_id:
+        return jsonify({"error": "Missing trip id"}), 400
+    bind_trip_context(claimed_trip_id)
+
+    # Audit fix (2026-05-26): server-side validation of money + free-text
+    # fields. Pre-fix the route forwarded `value`, `currency`, `who`,
+    # `label`, `receiptUrl` etc. verbatim — accepting NaN/Infinity,
+    # unknown currencies, 10 MB labels, and `receiptUrl` pointing at
+    # other users' uploads. Now every field is cleaned/range-checked,
+    # and failures collapse to 400.
+    try:
+        value = validate_money(e.get("value", 0), field_name="value")
+        currency = validate_currency(e.get("currency"))
+        euro_value = validate_money(
+            e.get("euroValue", 0), field_name="euroValue",
+        )
+        label = clean_text(
+            e.get("label", ""), max_len=200, allow_newlines=False,
+            field_name="label",
+        )
+        who = clean_text(
+            e.get("who", ""), max_len=200, allow_newlines=False,
+            field_name="who",
+        )
+        country = clean_text(
+            e.get("country", ""), max_len=120, allow_newlines=False,
+            field_name="country",
+        )
+        category_id = clean_text(
+            e.get("categoryId", ""), max_len=120, allow_newlines=False,
+            field_name="categoryId",
+        )
+        date = clean_text(
+            e.get("date", ""), max_len=32, allow_newlines=False,
+            field_name="date",
+        )
+        receipt_url = validate_upload_url(
+            e.get("receiptUrl"), user_id=user_id,
+            field_name="receiptUrl", allow_empty=True,
+        )
+    except ValidationError as ve:
+        return jsonify({"error": str(ve)}), 400
+
     with get_db() as conn:
         cursor = conn.cursor()
-        if not can_edit_expenses(cursor, e["tripId"], user_id):
+        if not can_edit_expenses(cursor, claimed_trip_id, user_id):
             return jsonify({"error": "Forbidden"}), 403
         # 2026-05-25 (audit S1): splits + isSettlement are now persisted.
         # `splits` may arrive as a dict (the frontend's shape) — serialise
@@ -65,10 +118,10 @@ def upsert_expense():
                 splits=excluded.splits,
                 is_settlement=excluded.is_settlement
             WHERE expenses.deleted_at IS NULL
-        ''', (e['id'], e['tripId'], e['who'], e.get('categoryId', ''),
-              e.get('label', ''), e.get('date', ''), e.get('country', ''),
-              e.get('value', 0), e.get('currency', 'EUR'), e.get('euroValue', 0),
-              e.get('receiptUrl'), splits_json, is_settlement))
+        ''', (expense_id, claimed_trip_id, who, category_id,
+              label, date, country,
+              value, currency, euro_value,
+              receipt_url, splits_json, is_settlement))
         conn.commit()
     return jsonify({"status": "ok"})
 
