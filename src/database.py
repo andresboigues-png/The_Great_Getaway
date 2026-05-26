@@ -4,6 +4,7 @@ import os
 import random
 import sqlite3
 import time
+from contextlib import contextmanager
 
 logger = logging.getLogger(__name__)
 
@@ -26,49 +27,79 @@ def _db_path():
 BUSY_TIMEOUT_MS = 30_000
 
 
+@contextmanager
 def get_db():
+    """Yield a sqlite3 connection with the right PRAGMAs set; release
+    the FD on context exit.
+
+    Audit fix (2026-05-26): the previous shape returned the connection
+    and relied on `with get_db() as conn:` invoking sqlite3's own
+    context manager — which commits/rolls back the transaction but
+    DOES NOT close the connection. Every request handler therefore
+    leaked a file descriptor; admin.py had been individually patched
+    with `closing(get_db())` but the other ~50 call sites hadn't.
+
+    Now `get_db` IS the context manager, so the same `with get_db()
+    as conn:` callers automatically get:
+      - PRAGMAs applied on entry
+      - transaction commit/rollback on exit (delegated to sqlite3's
+        own `with conn:` semantics)
+      - FD released in the outer `finally`
+
+    Behavior preserved for callers: an explicit `conn.commit()`
+    inside the block still commits immediately; the outer sqlite3
+    ctx manager then sees no open transaction and no-ops; the outer
+    finally then closes the connection. Read-only callers that never
+    write also work — sqlite3's ctx manager is a no-op when no
+    transaction is open.
+
+    FIXING_ROADMAP §1.4: SQLite hardening. Two PRAGMAs per
+    connection — both have to be re-set on every fresh sqlite3
+    connection because SQLite scopes PRAGMA state per-connection,
+    not per-database.
+
+    `busy_timeout` gives any contended op N milliseconds of
+    exponential-backoff retry before returning the lock error.
+    Without this, the default 0ms wait raises `database is locked`
+    the moment two writers meet — common under our 15s polling
+    interval where sync + notification-fetch can fire while a user
+    action is also writing.
+
+    `foreign_keys=ON` makes the FK constraints declared in CREATE
+    TABLE actually enforced. Until 2026-05-16 this was OFF (SQLite
+    default) because a live DB might contain pre-existing orphan
+    rows that would crash any update touching them. Phase 4 of
+    §1.4 shipped after Phase 1 (scripts/fk_audit.py) confirmed
+    zero orphans across all 28 FK relationships on the live PA DB,
+    AND Phase 4's migration (declare_foreign_keys) re-declared each
+    FK with explicit ON DELETE behaviour. With both prerequisites
+    in place, this PRAGMA can flip safely.
+
+    NOT enabled here:
+
+    - `journal_mode=WAL` — was originally part of §1.4, but removed
+      2026-05-13 after a "database disk image is malformed" incident
+      on PythonAnywhere. PA's free-tier user storage is on a NETWORKED
+      FILESYSTEM, and SQLite explicitly documents that WAL mode is
+      unsafe on networked filesystems
+      (https://www.sqlite.org/wal.html — "WAL does not work over a
+      network filesystem"). The symptom was a WAL file that grew far
+      larger than the main DB (~770KB vs ~135KB) and didn't auto-
+      checkpoint, then individual reads from Flask workers started
+      failing with the malformed-image error mid-query while the
+      sqlite3 CLI could still parse the same file. Default rollback
+      journal mode is safer on PA at the cost of readers waiting on
+      writers — busy_timeout above is what keeps that wait bounded.
+    """
     conn = sqlite3.connect(_db_path())
     conn.row_factory = sqlite3.Row
-    # FIXING_ROADMAP §1.4: SQLite hardening. Two PRAGMAs per
-    # connection — both have to be re-set on every fresh sqlite3
-    # connection because SQLite scopes PRAGMA state per-connection,
-    # not per-database.
-    #
-    # `busy_timeout` gives any contended op N milliseconds of
-    # exponential-backoff retry before returning the lock error.
-    # Without this, the default 0ms wait raises `database is locked`
-    # the moment two writers meet — common under our 15s polling
-    # interval where sync + notification-fetch can fire while a user
-    # action is also writing.
-    #
-    # `foreign_keys=ON` makes the FK constraints declared in CREATE
-    # TABLE actually enforced. Until 2026-05-16 this was OFF (SQLite
-    # default) because a live DB might contain pre-existing orphan
-    # rows that would crash any update touching them. Phase 4 of
-    # §1.4 shipped after Phase 1 (scripts/fk_audit.py) confirmed
-    # zero orphans across all 28 FK relationships on the live PA DB,
-    # AND Phase 4's migration (declare_foreign_keys) re-declared each
-    # FK with explicit ON DELETE behaviour. With both prerequisites
-    # in place, this PRAGMA can flip safely.
-    #
-    # NOT enabled here:
-    #
-    # - `journal_mode=WAL` — was originally part of §1.4, but removed
-    #   2026-05-13 after a "database disk image is malformed" incident
-    #   on PythonAnywhere. PA's free-tier user storage is on a NETWORKED
-    #   FILESYSTEM, and SQLite explicitly documents that WAL mode is
-    #   unsafe on networked filesystems
-    #   (https://www.sqlite.org/wal.html — "WAL does not work over a
-    #   network filesystem"). The symptom was a WAL file that grew far
-    #   larger than the main DB (~770KB vs ~135KB) and didn't auto-
-    #   checkpoint, then individual reads from Flask workers started
-    #   failing with the malformed-image error mid-query while the
-    #   sqlite3 CLI could still parse the same file. Default rollback
-    #   journal mode is safer on PA at the cost of readers waiting on
-    #   writers — busy_timeout above is what keeps that wait bounded.
     conn.execute(f"PRAGMA busy_timeout={BUSY_TIMEOUT_MS}")
     conn.execute("PRAGMA foreign_keys=ON")
-    return conn
+    try:
+        with conn:
+            yield conn
+    finally:
+        conn.close()
 
 
 def _is_locked_error(exc: BaseException) -> bool:

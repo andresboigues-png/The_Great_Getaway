@@ -46,13 +46,18 @@ import pytest
 
 @pytest.fixture
 def db(temp_db, seed_user, seed_other_user):
-    """Return a get_db() connection plus the two seeded user ids.
+    """Yield a sqlite3 connection plus the two seeded user ids.
 
     Reuses the existing conftest fixtures so this file inherits the
     schema-init + user-seeding machinery without duplication.
+
+    2026-05-26: `get_db()` is now a contextmanager (FD-leak fix), so
+    the fixture has to enter the context to extract the connection
+    and ensure it's closed at test teardown.
     """
     from database import get_db
-    return get_db(), seed_user, seed_other_user
+    with get_db() as conn:
+        yield conn, seed_user, seed_other_user
 
 
 # ── (1) PRAGMA layer ──────────────────────────────────────────────────

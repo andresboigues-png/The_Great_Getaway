@@ -49,15 +49,10 @@ def _is_admin(user_id: str) -> bool:
     one-row SELECT; cached implicitly by SQLite's page cache so the
     cost is negligible even on every admin request.
 
-    2026-05-20: wrapped in `with closing(...)` because the previous
-    pattern (`conn = get_db()` with no explicit close) was leaking
-    sqlite3 connection FDs — Sentry caught `OSError: [Errno 24]
-    Too many open files` on the local Mac dev server (ulimit -n
-    256). The sqlite3 connection's own __exit__ commits/rollbacks
-    but DOES NOT close — `contextlib.closing` is the right
-    helper for that."""
-    from contextlib import closing
-    with closing(get_db()) as conn:
+    2026-05-26: `get_db()` is now a contextmanager that closes the
+    connection on exit, so the `closing(...)` wrapper this function
+    used to need is no longer required."""
+    with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT email FROM users WHERE id = ?", (user_id,))
         row = cursor.fetchone()
@@ -100,11 +95,10 @@ def admin_stats():
     if not _is_admin(user_id):
         return jsonify({"error": "Forbidden"}), 403
 
-    # 2026-05-20: wrapped in `with closing(...)` to guarantee the
-    # sqlite3 connection FD is released when the handler returns.
-    # See _is_admin() above for the longer note on why this matters.
-    from contextlib import closing
-    with closing(get_db()) as conn:
+    # 2026-05-26: `get_db()` is now itself a contextmanager that
+    # releases the FD on exit, so the `closing(...)` wrapper is no
+    # longer needed.
+    with get_db() as conn:
         cursor = conn.cursor()
 
         # ── Aggregate counters ────────────────────────────────────
