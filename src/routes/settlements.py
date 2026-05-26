@@ -30,6 +30,7 @@ Cross-cutting bits:
     /api/notifications poll.
 """
 
+import math
 import secrets
 
 from flask import Blueprint, jsonify, request
@@ -39,6 +40,11 @@ from database import get_db, retry_on_lock
 from extensions import limiter
 from helpers import trip_member_role
 from observability import bind_trip_context, get_logger, log_extra
+from validators import (
+    ValidationError,
+    clean_text,
+    validate_currency,
+)
 
 
 bp = Blueprint("settlements", __name__)
@@ -128,8 +134,26 @@ def create_settlement():
         amount_f = float(amount)
     except (TypeError, ValueError):
         return jsonify({"error": "amount must be a number"}), 400
-    if amount_f <= 0:
-        return jsonify({"error": "amount must be positive"}), 400
+    # Audit fix (2026-05-26): the previous `amount_f <= 0` check was
+    # False for NaN (NaN comparisons always return False), letting a
+    # crafted `{"amount": "NaN"}` or `{"amount": "Infinity"}` slip
+    # through and corrupt every downstream sum. Now both isfinite
+    # and >0.
+    if not math.isfinite(amount_f) or amount_f <= 0:
+        return jsonify({"error": "amount must be a positive finite number"}), 400
+    if amount_f < 0.01:
+        return jsonify({"error": "amount must be at least 0.01"}), 400
+    if amount_f > 1e9:
+        return jsonify({"error": "amount exceeds the maximum allowed"}), 400
+    try:
+        currency = validate_currency(currency)
+        note = clean_text(
+            note, max_len=500, allow_newlines=True, field_name="note",
+        ) if note is not None else None
+    except ValidationError as ve:
+        return jsonify({"error": str(ve)}), 400
+    if not note:
+        note = None  # Empty string → NULL for column hygiene
     if method not in _ALLOWED_METHODS:
         method = "custom"
     if euro_value is not None:
@@ -137,6 +161,9 @@ def create_settlement():
             euro_value = float(euro_value)
         except (TypeError, ValueError):
             euro_value = None
+        else:
+            if not math.isfinite(euro_value) or euro_value < 0 or euro_value > 1e9:
+                euro_value = None
     if euro_value is None:
         # Frontend always computes via the conversion table, but if
         # it's omitted (older client / curl) we fall back to "same

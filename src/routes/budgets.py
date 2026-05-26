@@ -10,6 +10,12 @@ from flask import Blueprint, jsonify, request
 
 from auth import current_user_id, require_auth
 from database import get_db, retry_on_lock
+from validators import (
+    ValidationError,
+    clean_text,
+    validate_currency,
+    validate_money,
+)
 
 
 bp = Blueprint("budgets", __name__)
@@ -38,6 +44,19 @@ def upsert_budget():
     budget_id = b.get("id")
     if not budget_id:
         return jsonify({"error": "Missing budget id"}), 400
+
+    # Audit fix (2026-05-26): server-side validation. amount is the
+    # main vector — NaN/Inf/negative all flowed through pre-fix.
+    try:
+        amount = validate_money(b.get("amount", 0), field_name="amount")
+        currency = validate_currency(b.get("currency"))
+        label = clean_text(
+            b.get("label", ""), max_len=120, allow_newlines=False,
+            field_name="label",
+        )
+    except ValidationError as ve:
+        return jsonify({"error": str(ve)}), 400
+
     with get_db() as conn:
         cursor = conn.cursor()
         existing = cursor.execute(
@@ -53,8 +72,8 @@ def upsert_budget():
                 amount=excluded.amount,
                 currency=excluded.currency,
                 trip_id=excluded.trip_id
-        ''', (budget_id, user_id, b.get('tripId'), b.get('label', ''),
-              b.get('amount', 0), b.get('currency', 'EUR')))
+        ''', (budget_id, user_id, b.get('tripId'), label,
+              amount, currency))
         conn.commit()
     return jsonify({"status": "ok"})
 
