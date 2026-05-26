@@ -86,10 +86,21 @@ def serialize_settlement_row(row) -> dict:
     migration backfilled to the users.name at upgrade time; rows
     created after the migration carry the live snapshot from insert.
     The frontend balance math now reads these first before falling
-    back to companion-roster resolution by linkedUserId."""
+    back to companion-roster resolution by linkedUserId.
+
+    Audit fix (2026-05-26): `recordedBy` surfaces so the frontend
+    can show "recorded by X" when it differs from the payer. Older
+    rows have NULL recorded_by (pre-fix data) and the UI just
+    omits the chip."""
     # Defensive `.keys()` check — older rows pre-migration won't
     # carry the columns until alembic upgrade runs.
     keys = row.keys() if hasattr(row, 'keys') else []
+    # Reading a missing column on a sqlite3.Row raises IndexError;
+    # the try/except keeps the read path graceful for pre-migration rows.
+    try:
+        recorded_by = row["recorded_by"]
+    except (IndexError, KeyError):
+        recorded_by = None
     return {
         "id": row["id"],
         "tripId": row["trip_id"],
@@ -102,6 +113,7 @@ def serialize_settlement_row(row) -> dict:
         "euroValue": row["euro_value"],
         "method": row["method"],
         "note": row["note"],
+        "recordedBy": recorded_by,
         "createdAt": row["created_at"],
     }
 
@@ -220,11 +232,15 @@ def create_settlement():
         to_name = _name_by_id.get(to_user_id)
 
         settlement_id = _settlement_id()
+        # Audit fix (2026-05-26): stamp `recorded_by` so the audit
+        # trail captures who clicked save. Different from
+        # `from_user_id` when a planner records a settlement on
+        # behalf of others.
         cursor.execute(
             "INSERT INTO settlements "
             "(id, trip_id, from_user_id, to_user_id, from_name, to_name, "
-            " amount, currency, euro_value, method, note) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            " amount, currency, euro_value, method, note, recorded_by) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 settlement_id,
                 trip_id,
@@ -237,12 +253,15 @@ def create_settlement():
                 euro_value,
                 method,
                 note,
+                user_id,
             ),
         )
 
         # Notification to the recipient (skip self-pay where caller IS
         # the recipient — they don't need to be told something they
-        # just typed).
+        # just typed). Audit fix: include the recorder's name when
+        # they're neither party so the recipient can confirm with
+        # the actual payer ("Charlie recorded that Bob paid you...").
         if user_id != to_user_id:
             cursor.execute(
                 "SELECT name FROM users WHERE id = ?", (from_user_id,)
@@ -254,7 +273,23 @@ def create_settlement():
             )
             trip_row = cursor.fetchone()
             trip_name = (trip_row["name"] if trip_row else "the trip") or "the trip"
-            message = f"{from_name} settled {amount_f:g} {currency} with you for {trip_name}."
+            if user_id != from_user_id:
+                # Recorder is a third party — surface their name so
+                # the recipient knows to confirm with the actual payer.
+                cursor.execute(
+                    "SELECT name FROM users WHERE id = ?", (user_id,)
+                )
+                recorder_row = cursor.fetchone()
+                recorder_name = (
+                    (recorder_row["name"] if recorder_row else "Someone")
+                    or "Someone"
+                )
+                message = (
+                    f"{recorder_name} recorded that {from_name} paid you "
+                    f"{amount_f:g} {currency} for {trip_name} — confirm with them."
+                )
+            else:
+                message = f"{from_name} settled {amount_f:g} {currency} with you for {trip_name}."
             cursor.execute(
                 "INSERT INTO notifications "
                 "(user_id, type, title, related_id, message, is_read) "
