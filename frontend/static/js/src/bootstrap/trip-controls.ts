@@ -6,7 +6,7 @@
 // is easy to swap out per surface.
 
 import { STATE, emit } from '../state.js';
-import { archiveTripOnServer, deleteTrip } from '../api.js';
+import { archiveTripOnServer, deleteTrip, notifyTripPublic } from '../api.js';
 import { navigate } from '../router.js';
 import { showConfirmModal, esc } from '../utils.js';
 import { t } from '../i18n.js';
@@ -125,6 +125,15 @@ export function archiveActiveTrip() {
 
             emit('state:changed');               // saveState + updateTripSelector via subscriber
             archiveTripOnServer(trip.id);        // server delta still explicit
+            // Audit fix (2026-05-26): if the trip is public, broadcast
+            // "completed!" to every follower. Pre-fix this server route
+            // existed but had no frontend caller — the whole feature
+            // was dormant. Fire-and-forget: if the broadcast 403s
+            // (e.g. trip flipped to private mid-archive) or 429s (rate
+            // limit), the archive still succeeds.
+            if (trip.isPublic) {
+                notifyTripPublic(trip.id);
+            }
             navigate('collections');
         }
     });

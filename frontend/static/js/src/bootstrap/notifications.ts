@@ -221,8 +221,10 @@ export function renderNotificationDropdown() {
 }
 
 /** Route a clicked notification to the page that lets the user act on it.
- *  `related_id` is a user_id for friend_* / trip_public / trip_member_removed
- *  and a trip_id for trip_invite_*; for everything else we fall back to home. */
+ *  `related_id` is a user_id for friend_* / trip_member_removed,
+ *  a trip_id for trip_invite_* / trip_public / settled_up /
+ *  settled_up_reverted, and a badge_id for achievement_unlocked.
+ *  Falls back to home for unknown types. */
 export function handleNotificationClick(notification: { type?: string; related_id?: string | number; message?: string; title?: string; id?: string | number }) {
     // Close BOTH dropdowns — the user might have clicked from either
     // bell, but the navigation moves them away from the navbar so
@@ -232,7 +234,7 @@ export function handleNotificationClick(notification: { type?: string; related_i
         if (dropdown) dropdown.style.display = 'none';
     }
 
-    const relatedUserId = notification.related_id ? String(notification.related_id) : null;
+    const relatedId = notification.related_id ? String(notification.related_id) : null;
 
     switch (notification.type) {
         // Model B — all three types are "X started following you".
@@ -244,12 +246,20 @@ export function handleNotificationClick(notification: { type?: string; related_i
         case 'followed_you':
         case 'friend_request':
         case 'accepted_request':
-        case 'trip_public':
-            if (relatedUserId) {
-                navigate(PAGES.PROFILE, { userId: relatedUserId });
+            if (relatedId) {
+                navigate(PAGES.PROFILE, { userId: relatedId });
             } else {
                 navigate(PAGES.FRIENDS);
             }
+            break;
+        case 'trip_public':
+            // Audit fix (2026-05-26): `trip_public` notifications carry
+            // a TRIP id (post-2026-05-18 backend change), not a user
+            // id. The old handler routed it through PAGES.PROFILE as
+            // a user_id which 404'd every click. Now we land on the
+            // Feed page so the user can find the public trip card the
+            // notification was about.
+            navigate(PAGES.FEED);
             break;
         case 'trip_invite':
             // Same one-tap decision pattern as the companion-link invite.
