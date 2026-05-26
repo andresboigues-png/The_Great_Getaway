@@ -661,10 +661,22 @@ def init_db():
                 euro_value REAL,
                 method TEXT,
                 note TEXT,
+                -- 2026-05-26 audit #D-6: the user who actually clicked
+                -- save. Distinct from `from_user_id` because any trip
+                -- member can record a settlement "on behalf of" the
+                -- two parties ("Andre handled it for the four of us").
+                -- Pre-add there was no audit trail; a malicious
+                -- planner could fabricate "Bob paid Alice €1000"
+                -- without either party knowing. The notification body
+                -- now mentions the recorder when they're neither
+                -- party. ON DELETE SET NULL so recorder deletion
+                -- doesn't blow up the row.
+                recorded_by TEXT,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY(trip_id) REFERENCES trips(id) ON DELETE CASCADE,
                 FOREIGN KEY(from_user_id) REFERENCES users(id) ON DELETE CASCADE,
-                FOREIGN KEY(to_user_id) REFERENCES users(id) ON DELETE CASCADE
+                FOREIGN KEY(to_user_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY(recorded_by) REFERENCES users(id) ON DELETE SET NULL
             )
         ''')
 
@@ -807,7 +819,8 @@ _EXPECTED_COLUMNS = {
     ],
     "settlements": [
         "id", "trip_id", "from_user_id", "to_user_id", "amount",
-        "currency", "euro_value", "method", "note", "created_at",
+        "currency", "euro_value", "method", "note", "recorded_by",
+        "created_at",
     ],
 }
 

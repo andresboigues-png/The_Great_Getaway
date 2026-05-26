@@ -79,7 +79,20 @@ def _trip_owner_id(cursor, trip_id):
 def serialize_settlement_row(row) -> dict:
     """Shape a `settlements` row into the camelCase JSON the frontend
     reads. Kept tiny — settlements are not as field-rich as trips so
-    we don't need a helpers.py move yet."""
+    we don't need a helpers.py move yet.
+
+    Audit fix (2026-05-26): `recordedBy` surfaces so the frontend
+    can show "recorded by X" when it differs from the payer. Older
+    rows have NULL recorded_by (pre-fix data) and the UI just
+    omits the chip."""
+    # Defensive `.keys()` lookup so this still works on rows from a
+    # SELECT that pre-dates the migration (no recorded_by column yet).
+    # Reading a missing column on a sqlite3.Row raises IndexError,
+    # not None — the try/except keeps the read path graceful.
+    try:
+        recorded_by = row["recorded_by"]
+    except (IndexError, KeyError):
+        recorded_by = None
     return {
         "id": row["id"],
         "tripId": row["trip_id"],
@@ -90,6 +103,7 @@ def serialize_settlement_row(row) -> dict:
         "euroValue": row["euro_value"],
         "method": row["method"],
         "note": row["note"],
+        "recordedBy": recorded_by,
         "createdAt": row["created_at"],
     }
 
@@ -181,11 +195,15 @@ def create_settlement():
             return jsonify({"error": "toUserId is not a member of this trip"}), 400
 
         settlement_id = _settlement_id()
+        # Audit fix (2026-05-26): stamp `recorded_by` so the audit
+        # trail captures who clicked save. Different from
+        # `from_user_id` when a planner records a settlement on
+        # behalf of others.
         cursor.execute(
             "INSERT INTO settlements "
             "(id, trip_id, from_user_id, to_user_id, amount, currency, "
-            " euro_value, method, note) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            " euro_value, method, note, recorded_by) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 settlement_id,
                 trip_id,
@@ -196,12 +214,15 @@ def create_settlement():
                 euro_value,
                 method,
                 note,
+                user_id,
             ),
         )
 
         # Notification to the recipient (skip self-pay where caller IS
         # the recipient — they don't need to be told something they
-        # just typed).
+        # just typed). Audit fix: include the recorder's name when
+        # they're neither party so the recipient can confirm with
+        # the actual payer ("Charlie recorded that Bob paid you...").
         if user_id != to_user_id:
             cursor.execute(
                 "SELECT name FROM users WHERE id = ?", (from_user_id,)
@@ -213,7 +234,23 @@ def create_settlement():
             )
             trip_row = cursor.fetchone()
             trip_name = (trip_row["name"] if trip_row else "the trip") or "the trip"
-            message = f"{from_name} settled {amount_f:g} {currency} with you for {trip_name}."
+            if user_id != from_user_id:
+                # Recorder is a third party — surface their name so
+                # the recipient knows to confirm with the actual payer.
+                cursor.execute(
+                    "SELECT name FROM users WHERE id = ?", (user_id,)
+                )
+                recorder_row = cursor.fetchone()
+                recorder_name = (
+                    (recorder_row["name"] if recorder_row else "Someone")
+                    or "Someone"
+                )
+                message = (
+                    f"{recorder_name} recorded that {from_name} paid you "
+                    f"{amount_f:g} {currency} for {trip_name} — confirm with them."
+                )
+            else:
+                message = f"{from_name} settled {amount_f:g} {currency} with you for {trip_name}."
             cursor.execute(
                 "INSERT INTO notifications "
                 "(user_id, type, title, related_id, message, is_read) "
