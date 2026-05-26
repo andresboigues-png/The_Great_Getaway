@@ -427,6 +427,13 @@ def share_trip_to_feed():
         if not trip_row:
             return jsonify({"error": "Trip not found"}), 404
         is_owner = (trip_row["user_id"] == user_id)
+        # Audit fix (2026-05-26): snapshot the trip's pre-share
+        # is_public value so the unshare path can restore it. Without
+        # this, an owner who shares once + later unshares has silently
+        # flipped their trip's privacy permanently. We only need to
+        # remember the value when we're about to flip it (private →
+        # public); for already-public trips there's nothing to restore.
+        trip_was_public = bool(trip_row["is_public"])
         if not trip_row["is_public"]:
             if is_owner:
                 cursor.execute(
@@ -460,9 +467,9 @@ def share_trip_to_feed():
         # conflict-resolution path.
         cursor.execute(
             "INSERT OR IGNORE INTO feed_posts "
-            "(user_id, trip_id, repost_of_post_id, caption) "
-            "VALUES (?, ?, NULL, ?)",
-            (user_id, trip_id, caption),
+            "(user_id, trip_id, repost_of_post_id, caption, trip_was_public) "
+            "VALUES (?, ?, NULL, ?, ?)",
+            (user_id, trip_id, caption, 1 if trip_was_public else 0),
         )
         if cursor.rowcount > 0:
             # Brand-new share: INSERT actually wrote the row.
@@ -516,12 +523,27 @@ def share_status_for_trip(trip_id):
 def unshare_feed_post(post_id):
     """Delete the caller's own share (and cascade-delete any reposts of
     it). Author-only — silently no-ops on someone else's post
-    (idempotent DELETE)."""
+    (idempotent DELETE).
+
+    Audit fix (2026-05-26): restore the trip's pre-share is_public
+    value when the LAST share that auto-promoted it gets removed.
+    Pre-fix the share path silently flipped is_public 0 → 1 and the
+    unshare path didn't restore, so owners who shared once + later
+    unshared had permanently leaked their trip to the public-trip
+    surface. Now:
+      - if this share's `trip_was_public = 0` (we promoted on share)
+        AND no other original share of the same trip still exists
+        (any other user could also have shared it; if so, restoring
+        privacy would 404 their followers' click-throughs), restore
+        the trip to is_public = 0.
+      - otherwise leave is_public alone.
+    """
     user_id = current_user_id()
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT user_id FROM feed_posts WHERE id = ?",
+            "SELECT user_id, trip_id, trip_was_public, repost_of_post_id "
+            "FROM feed_posts WHERE id = ?",
             (post_id,),
         )
         row = cursor.fetchone()
@@ -556,6 +578,29 @@ def unshare_feed_post(post_id):
         # post itself.
         cursor.execute("DELETE FROM feed_posts WHERE repost_of_post_id = ?", (post_id,))
         cursor.execute("DELETE FROM feed_posts WHERE id = ?", (post_id,))
+
+        # Restore is_public ONLY when we know we flipped it AND no
+        # other original share of this trip would be invalidated.
+        # Reposts don't count toward the "other shares" check — the
+        # cascade above already removed our own reposts, and other
+        # reposts target the deleted-original post id (so the
+        # repost rows are already orphaned in a separate sense).
+        should_restore = (
+            row["repost_of_post_id"] is None  # only original shares carry the flag
+            and row["trip_was_public"] == 0
+        )
+        if should_restore:
+            cursor.execute(
+                "SELECT 1 FROM feed_posts WHERE trip_id = ? "
+                "AND repost_of_post_id IS NULL LIMIT 1",
+                (row["trip_id"],),
+            )
+            other_share = cursor.fetchone()
+            if not other_share:
+                cursor.execute(
+                    "UPDATE trips SET is_public = 0 WHERE id = ? AND user_id = ?",
+                    (row["trip_id"], user_id),
+                )
         conn.commit()
     return jsonify({"status": "unshared"})
 
