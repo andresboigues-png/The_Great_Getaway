@@ -30,7 +30,9 @@ export interface FeedEvent {
         | 'friend_joined_trip'
         | 'new_friendship'
         | 'friend_shared_trip'
-        | 'friend_reposted_trip';
+        | 'friend_reposted_trip'
+        | 'achievement_unlocked'
+        | 'settled_up';
     actor: Actor;
     trip?: TripRef;
     original_sharer?: Actor;
@@ -41,6 +43,15 @@ export interface FeedEvent {
     is_liked?: boolean;
     is_bookmarked?: boolean;
     comment_count?: number;
+    // achievement_unlocked carries the badge label/emoji on the payload
+    // so the renderer doesn't need a separate /api/achievements call.
+    badge?: { id?: string; emoji?: string; label?: string; description?: string };
+    // settled_up carries the from/to display names + the amount + the
+    // trip context (for the message body).
+    from?: { id?: string; name?: string };
+    to?: { id?: string; name?: string };
+    amount?: number;
+    currency?: string;
 }
 export interface FeedComment {
     id: number;
@@ -57,12 +68,24 @@ export const LIKE_COUNT_THRESHOLD = 3;
 // Event-type → tab membership. Posts are user-initiated, interactionable
 // (like / comment / repost). Actions are passive activity logs — nothing
 // to react to, only to bookmark.
+//
+// Audit fix (2026-05-26): added `achievement_unlocked` and `settled_up`
+// to ACTIONS_EVENT_TYPES. Pre-fix the backend was building + shipping
+// both event types in /api/feed payloads, _attach_engagement_counts
+// was setting like/comment/bookmark counters on them, the registry
+// handled their visibility checks — but the frontend tab-filter
+// sets didn't include them, so they were silently dropped by
+// `visible.filter(inActiveTab)`. Two whole event types were
+// invisible — unlocking a badge or settling a debt with a friend
+// generated a perfectly-shaped feed event that nobody could see.
 export const POSTS_EVENT_TYPES = new Set(['friend_shared_trip', 'friend_reposted_trip']);
 export const ACTIONS_EVENT_TYPES = new Set([
     'friend_created_trip',
     'friend_archived_trip',
     'friend_joined_trip',
     'new_friendship',
+    'achievement_unlocked',
+    'settled_up',
 ]);
 
 // Action-row accent palette. Picked once and reused at render time AND
@@ -152,6 +175,10 @@ export function bundleLine(bundle: { actor: any; members: FeedEvent[]; type: str
             return `${who} joined <strong style="color:#002d5b;">${n} ${noun}</strong>`;
         case 'new_friendship':
             return `You and <strong style="color:#002d5b;">${n} new people</strong> are now friends 🤝`;
+        case 'achievement_unlocked':
+            return `${who} unlocked <strong style="color:#002d5b;">${n} new badges</strong> 🏅`;
+        case 'settled_up':
+            return `${who} settled up <strong style="color:#002d5b;">${n} times</strong> 🤝`;
         default:
             return `${who} did ${n} new things`;
     }
@@ -269,6 +296,25 @@ export function eventLine(ev: any) {
                 ? t('feed.evRepostedSomeoneCountry', { who, orig, trip: tripName, country: esc(ev.trip.country) })
                 : t('feed.evRepostedSomeone', { who, orig, trip: tripName });
         }
+        case 'achievement_unlocked': {
+            const badgeLabel = ev.badge?.label
+                ? `<strong style="color:#002d5b;">${esc(ev.badge.label)}</strong>`
+                : 'a new badge';
+            const emoji = ev.badge?.emoji ? ` ${esc(ev.badge.emoji)}` : '';
+            return `${who} unlocked ${badgeLabel}${emoji}`;
+        }
+        case 'settled_up': {
+            // Settled-up events are visible only to the two parties
+            // (server-side gate); from the viewer's POV one of them
+            // is always themselves. Render "you ↔ X" symmetrically
+            // rather than picking a direction the user might find
+            // confusing.
+            const fromIsSelf = !!meId && ev.from?.id === meId;
+            const otherName = fromIsSelf
+                ? esc(ev.to?.name || 'someone')
+                : esc(ev.from?.name || 'someone');
+            return `${who} settled up with <strong style="color:#002d5b;">${otherName}</strong> on ${tripName || 'a trip'} 🤝`;
+        }
         default:
             return t('feed.evDefault', { who });
     }
@@ -285,6 +331,8 @@ export function eventAccent(type: string) {
         case 'new_friendship':        return { color: '#9b59b6', icon: '🤝' };
         case 'friend_shared_trip':    return { color: '#5856d6', icon: '📣' };
         case 'friend_reposted_trip':  return { color: '#5856d6', icon: '🔁' };
+        case 'achievement_unlocked':  return { color: '#ffd60a', icon: '🏅' };
+        case 'settled_up':            return { color: '#34c759', icon: '🤝' };
         default:                      return { color: '#8e8e93', icon: '✨' };
     }
 }
