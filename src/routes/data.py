@@ -825,4 +825,23 @@ def delete_user_data():
         )
         cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
         conn.commit()
+
+    # Audit fix (2026-05-26): also wipe the user's uploaded files
+    # from disk. Pre-fix delete_user_data only cleared DB rows —
+    # the user's photos / receipts under /static/uploads/<user_id>/
+    # survived account deletion forever, accessible to anyone who'd
+    # learned a URL. Done OUTSIDE the DB transaction (the FS op is
+    # not transactional anyway) + with try/shutil.rmtree's
+    # ignore_errors so a partial FS state can't roll the DB delete
+    # back.
+    import os
+    import shutil
+    from werkzeug.utils import secure_filename
+    from flask import current_app
+    safe_user_dir = secure_filename(user_id) or "anon"
+    user_folder = os.path.join(
+        current_app.config.get('UPLOAD_FOLDER', ''), safe_user_dir,
+    )
+    if user_folder and os.path.isdir(user_folder):
+        shutil.rmtree(user_folder, ignore_errors=True)
     return jsonify({"status": "wiped"})

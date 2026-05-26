@@ -285,7 +285,13 @@ def _fetch_day_pin_map(
     )
     if not key or lat is None or lng is None:
         return None
-    markers = [f"color:0x0071e3|label:•|{lat},{lng}"]
+    # Audit fix (2026-05-26): Google Static Maps marker labels MUST
+    # be a single alphanumeric char (A-Z, 0-9). The pre-fix value
+    # `•` was rejected — the entire URL 400'd and the per-day map
+    # silently failed for every PDF that opted into includeDayPins.
+    # Drop the label entirely (no label = default marker pin, which
+    # is what we want for a single-pin anchor map).
+    markers = [f"color:0x0071e3|{lat},{lng}"]
     for plat, plng in (extra_pins or [])[:8]:  # cap the URL size
         markers.append(f"color:0x9b59b6|size:small|{plat},{plng}")
     try:
@@ -1949,25 +1955,29 @@ def export_trip_pdf(trip_id: str):
 
     # Diagnostic — log what the builder is seeing so the dev can
     # tell at a glance why a map / section might be missing.
+    #
+    # Audit fix (2026-05-26): downgraded to DEBUG + stripped lat /
+    # lng / trip_name / country from the user-facing log line.
+    # Pre-fix this fired at INFO on every PDF build, leaking
+    # precise location data + trip identity into the prod log
+    # stream. The trip_id + counters are sufficient for triage;
+    # specific coordinates are recoverable via the DB if a real
+    # debug needs them.
     days_with_coords = sum(
         1 for d in (trip.get("days") or [])
         if isinstance(d, dict) and d.get("lat") is not None and d.get("lng") is not None
     )
-    logger.info(
-        "pdf build: trip=%s name=%r country=%r trip_lat/lng=%r/%r "
+    logger.debug(
+        "pdf build: trip=%s "
         "days_total=%d days_with_coords=%d budgets=%d companions=%d "
-        "marked_places=%d options=%r",
+        "marked_places=%d option_keys=%r",
         trip_id,
-        trip.get("name"),
-        trip.get("country"),
-        trip.get("lat"),
-        trip.get("lng"),
         len(trip.get("days") or []),
         days_with_coords,
         len(trip.get("budgets") or []),
         len(_safe_json(trip.get("companions_json"), [])),
         len(_safe_json(trip.get("marked_places_json"), [])),
-        options,
+        sorted(options.keys()) if isinstance(options, dict) else [],
     )
 
     pdf_bytes = _build_trip_pdf(trip, options)
