@@ -14,6 +14,7 @@
 import { useEffect, useRef, useSyncExternalStore } from 'react';
 import { renderUpload } from '../upload.js';
 import { ManualTab } from './ManualTab.js';
+import { t } from '../../i18n.js';
 import {
     getUploadMode,
     setUploadMode,
@@ -59,20 +60,20 @@ function UploadModeSwitch({ mode, onChange }: UploadModeSwitchProps) {
     return (
         <div
             role="radiogroup"
-            aria-label="Upload mode"
+            aria-label={t('upload.modeSwitchAria')}
             className="flex bg-[rgba(0,113,227,0.06)] border border-[rgba(0,113,227,0.18)] rounded-full p-1 gap-1 mt-0 mx-auto mb-6 w-fit"
         >
             <SwitchButton
                 active={mode === 'manual'}
                 onClick={() => onChange('manual')}
-                label="One at a time"
-                hint="Type a single expense by hand"
+                label={t('upload.modeManualLabel')}
+                hint={t('upload.modeManualHint')}
             />
             <SwitchButton
                 active={mode === 'batch'}
                 onClick={() => onChange('batch')}
-                label="From a spreadsheet"
-                hint="Import multiple expenses from a CSV/XLSX file"
+                label={t('upload.modeBatchLabel')}
+                hint={t('upload.modeBatchHint')}
             />
         </div>
     );

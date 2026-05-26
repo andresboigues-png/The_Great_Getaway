@@ -130,13 +130,13 @@ function buildDayCardBody(
                </svg>
            </div>`
         : `<div style="background: var(--gradient-title); color: white; width: 48px; height: 48px; border-radius: 14px; display: flex; flex-direction: column; align-items: center; justify-content: center; flex-shrink:0; box-shadow: 0 8px 18px rgba(0,113,227,0.15);">
-               <span style="font-size: 0.6rem; font-weight: 800; text-transform: uppercase; opacity: 0.85; letter-spacing: 0.05em; line-height:1;">Day</span>
+               <span style="font-size: 0.6rem; font-weight: 800; text-transform: uppercase; opacity: 0.85; letter-spacing: 0.05em; line-height:1;">${esc(t('pathTab.dayBadgeLabel'))}</span>
                <span style="font-size: 1.25rem; font-weight: 800; line-height: 1.05;">${day.dayNumber}</span>
            </div>`;
-    const title = isAnchor ? 'Trip Hub' : esc(day.name || `Day ${day.dayNumber}`);
+    const title = isAnchor ? t('pathTab.hubTitle') : esc(day.name || t('tripMedia.dayBucketDay', { n: day.dayNumber }));
     const subtitleParts: string[] = [];
     if (isAnchor) {
-        subtitleParts.push(activeTrip && activeTrip.country ? esc(shortPlaceName(activeTrip.country)) : 'Where the trip begins');
+        subtitleParts.push(activeTrip && activeTrip.country ? esc(shortPlaceName(activeTrip.country)) : esc(t('pathTab.hubSubtitleFallback')));
         // Trip-wide doc/photo counts on Anchor (its long-standing role).
         const docs = (activeTrip.documents || []).filter((d: any) => d.dayId === day.id);
         const photos = (activeTrip.photos || []).filter((p: any) => p.dayId === day.id);
@@ -145,9 +145,9 @@ function buildDayCardBody(
         if (totalPhotos) subtitleParts.push(`<span style="background:rgba(52,199,89,0.12); color:#1a6b3c; padding:2px 8px; border-radius:999px; font-size:0.7rem; font-weight:800;">📸 ${totalPhotos}</span>`);
         if (totalDocs) subtitleParts.push(`<span style="background:rgba(88,86,214,0.12); color:#5856d6; padding:2px 8px; border-radius:999px; font-size:0.7rem; font-weight:800;">📎 ${totalDocs}</span>`);
     } else {
-        subtitleParts.push(`📅 ${formatDayDate(day.date) || 'Set date'}`);
-        if (day.lat) subtitleParts.push(`<span style="color: #005bb8;">📍 Location set</span>`);
-        else subtitleParts.push(`<span class="day-card__pin-hint">📌 Pin this day</span>`);
+        subtitleParts.push(`📅 ${formatDayDate(day.date) || t('pathTab.setDatePlaceholder')}`);
+        if (day.lat) subtitleParts.push(`<span style="color: #005bb8;">${esc(t('pathTab.locationSet'))}</span>`);
+        else subtitleParts.push(`<span class="day-card__pin-hint">${esc(t('pathTab.pinThisDay'))}</span>`);
         // Weather slot — populated async by applyWeatherChips() after
         // the trip's forecast lands. Empty by default so days that have
         // no forecast (past dates, beyond the API's 10-day window) just
@@ -160,7 +160,7 @@ function buildDayCardBody(
     // condensed by design, no preview body.
     const notesPreview = (isSelected && day.notes && !isAnchor) ? `
         <div style="margin-top: 12px; padding: 12px 14px; background: rgba(0,113,227,0.04); border-radius: 14px; border-left: 3px solid var(--accent-blue);">
-            <div style="font-size: 0.7rem; font-weight: 800; text-transform: uppercase; color: #005bb8; margin-bottom: 4px; letter-spacing: 0.05em;">Journal preview</div>
+            <div style="font-size: 0.7rem; font-weight: 800; text-transform: uppercase; color: #005bb8; margin-bottom: 4px; letter-spacing: 0.05em;">${esc(t('pathTab.journalPreviewLabel'))}</div>
             <p style="margin: 0; font-size: 0.9rem; line-height: 1.45; color: #002d5b; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${esc(day.notes)}</p>
         </div>
     ` : '';
@@ -177,7 +177,7 @@ function buildDayCardBody(
     // it to a down-chevron when the panel is hidden.
     const chevronBtn = `
         <button type="button" class="path-card-collapse-btn" data-day-id="${esc(day.id)}"
-            aria-label="Toggle options for ${esc(title)}" title="Hide / show options">
+            aria-label="${esc(t('pathTab.toggleOptionsAria', { title }))}" title="${esc(t('pathTab.toggleOptionsTitle'))}">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <polyline points="6 15 12 9 18 15"></polyline>
             </svg>
@@ -225,31 +225,31 @@ function buildOptionsStack(
     // checklist takes the gold-gradient primary slot. Numbered days:
     // Open Full Plan stays the primary action.
     if (isAnchor) {
-        buttons.push(`<button class="path-primary-btn path-primary-btn--anchor path-checklist-btn" data-day-id="${esc(day.id)}">📝 Trip checklist</button>`);
+        buttons.push(`<button class="path-primary-btn path-primary-btn--anchor path-checklist-btn" data-day-id="${esc(day.id)}">${esc(t('pathTab.btnChecklist'))}</button>`);
     } else {
-        buttons.push(`<button class="path-primary-btn day-detail-btn" data-day-id="${esc(day.id)}">📋 Open Full Plan</button>`);
+        buttons.push(`<button class="path-primary-btn day-detail-btn" data-day-id="${esc(day.id)}">${esc(t('pathTab.btnOpenFullPlan'))}</button>`);
     }
     if (editingDayId === day.id) {
         // Mid pin-edit: present save + cancel as the next two buttons.
-        buttons.push(`<button class="day-action-btn day-action-btn--success day-pin-save-btn" data-day-id="${esc(day.id)}">Save pin</button>`);
-        buttons.push(`<button class="day-action-btn day-action-btn--danger-fill day-pin-delete-btn" data-day-id="${esc(day.id)}">Cancel pin edit</button>`);
+        buttons.push(`<button class="day-action-btn day-action-btn--success day-pin-save-btn" data-day-id="${esc(day.id)}">${esc(t('pathTab.btnSavePin'))}</button>`);
+        buttons.push(`<button class="day-action-btn day-action-btn--danger-fill day-pin-delete-btn" data-day-id="${esc(day.id)}">${esc(t('pathTab.btnCancelPinEdit'))}</button>`);
     } else {
         const pinLabel = day.lat
-            ? (isAnchor ? '📍 Edit anchor pin' : '📍 Edit pin')
-            : (isAnchor ? '📍 Set anchor pin' : '📍 Add pin');
-        buttons.push(`<button class="day-action-btn day-action-btn--neutral day-pin-toggle-btn" data-day-id="${esc(day.id)}"><span>${pinLabel}</span></button>`);
+            ? (isAnchor ? t('pathTab.btnEditAnchorPin') : t('pathTab.btnEditPin'))
+            : (isAnchor ? t('pathTab.btnSetAnchorPin') : t('pathTab.btnAddPin'));
+        buttons.push(`<button class="day-action-btn day-action-btn--neutral day-pin-toggle-btn" data-day-id="${esc(day.id)}"><span>${esc(pinLabel)}</span></button>`);
     }
     if (isAnchor) {
         // Documents + Photos used to be top-level trip tabs; moved here
         // so the trip tab nav stays focused on Path / Companions and
         // the trip-wide media live where they conceptually belong —
         // under the Anchor hub.
-        buttons.push(`<button class="day-action-btn day-action-btn--neutral path-documents-btn" data-day-id="${esc(day.id)}"><span>📎 Documents</span></button>`);
-        buttons.push(`<button class="day-action-btn day-action-btn--neutral path-photos-btn" data-day-id="${esc(day.id)}"><span>📸 Photos</span></button>`);
+        buttons.push(`<button class="day-action-btn day-action-btn--neutral path-documents-btn" data-day-id="${esc(day.id)}"><span>${esc(t('pathTab.btnDocuments'))}</span></button>`);
+        buttons.push(`<button class="day-action-btn day-action-btn--neutral path-photos-btn" data-day-id="${esc(day.id)}"><span>${esc(t('pathTab.btnPhotos'))}</span></button>`);
     } else {
         // Numbered-day-only options. Journaling + Delete.
-        buttons.push(`<button class="day-action-btn day-action-btn--neutral day-journaling-btn" data-day-id="${esc(day.id)}"><span>✍️ Journaling</span></button>`);
-        buttons.push(`<button class="day-action-btn day-action-btn--danger day-delete-btn" data-day-id="${esc(day.id)}"><span>🗑️ Delete day</span></button>`);
+        buttons.push(`<button class="day-action-btn day-action-btn--neutral day-journaling-btn" data-day-id="${esc(day.id)}"><span>${esc(t('pathTab.btnJournaling'))}</span></button>`);
+        buttons.push(`<button class="day-action-btn day-action-btn--danger day-delete-btn" data-day-id="${esc(day.id)}"><span>${esc(t('pathTab.btnDeleteDay'))}</span></button>`);
     }
     return `<div class="path-options-stack">${buttons.join('')}</div>`;
 }
@@ -269,7 +269,7 @@ export function buildPathTabHtml(ctx: PathTabContext): string {
     // Empty state — no days yet (shouldn't happen since Anchor is
     // stamped on trip create, but defensive).
     if (sortedDays.length === 0) {
-        return `<div class="card glass" style="padding:28px; border-radius:18px; text-align:center; color:var(--text-secondary);">No days yet — create some.</div>`;
+        return `<div class="card glass" style="padding:28px; border-radius:18px; text-align:center; color:var(--text-secondary);">${esc(t('pathTab.emptyState'))}</div>`;
     }
     const totalDays = numberedDays.length;
     const selectedIsAnchor = selectedDay?.dayNumber === 0;
@@ -299,15 +299,15 @@ export function buildPathTabHtml(ctx: PathTabContext): string {
         const isToday = !isGen && d.date === todayStr;
         const cls = `path-chip${isGen ? ' path-chip--anchor' : ''}${isToday ? ' path-chip--today' : ''}${isSel ? ' is-selected' : ''}`;
         const tooltip = isGen
-            ? 'Trip Hub — your trip\'s home base'
-            : `${isToday ? 'Today · ' : ''}Day ${d.dayNumber}${d.name ? ' — ' + d.name : ''}${d.date ? ' · ' + (formatDayDate(d.date) || d.date) : ''}`;
+            ? t('pathTab.chipHubTooltip')
+            : `${isToday ? t('pathTab.chipTodayPrefix') + ' · ' : ''}${t('tripMedia.dayBucketDay', { n: d.dayNumber })}${d.name ? ' — ' + d.name : ''}${d.date ? ' · ' + (formatDayDate(d.date) || d.date) : ''}`;
         const inner = isGen
             ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15 8.5 22 9.3 17 14.3 18.2 21.3 12 18 5.8 21.3 7 14.3 2 9.3 9 8.5"/></svg>`
             : String(d.dayNumber);
         return `<button type="button" class="${cls}" data-path-chip-day-id="${esc(d.id)}" title="${esc(tooltip)}" aria-label="${esc(tooltip)}" aria-pressed="${isSel}">${inner}</button>`;
     }).join('');
     const addChip = tripIsEditable
-        ? `<button type="button" class="path-chip path-chip--add" id="pathAddDayChip" title="Add a new day" aria-label="Add a new day">+</button>`
+        ? `<button type="button" class="path-chip path-chip--add" id="pathAddDayChip" title="${esc(t('pathTab.addNewDay'))}" aria-label="${esc(t('pathTab.addNewDay'))}">+</button>`
         : '';
     // Prev/Next nav — disabled at the ends of the list.
     const idx = sortedDays.findIndex(d => d.id === selectedId);
@@ -349,14 +349,14 @@ export function buildPathTabHtml(ctx: PathTabContext): string {
     const rowClass = `path-cards-row${soloAnchor ? ' path-cards-row--solo-anchor' : ''}`;
     return `
         <div class="path-strip">
-            <button type="button" class="path-nav-btn" id="pathPrevBtn" title="Previous day" aria-label="Previous day" ${prevDisabled ? 'disabled' : ''}>
+            <button type="button" class="path-nav-btn" id="pathPrevBtn" title="${esc(t('pathTab.previousDay'))}" aria-label="${esc(t('pathTab.previousDay'))}" ${prevDisabled ? 'disabled' : ''}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
             </button>
-            <div class="path-chips" role="group" aria-label="Trip days">
+            <div class="path-chips" role="group" aria-label="${esc(t('pathTab.tripDaysGroupAria'))}">
                 ${chipsHtml}
                 ${addChip}
             </div>
-            <button type="button" class="path-nav-btn" id="pathNextBtn" title="Next day" aria-label="Next day" ${nextDisabled ? 'disabled' : ''}>
+            <button type="button" class="path-nav-btn" id="pathNextBtn" title="${esc(t('pathTab.nextDay'))}" aria-label="${esc(t('pathTab.nextDay'))}" ${nextDisabled ? 'disabled' : ''}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
             </button>
         </div>

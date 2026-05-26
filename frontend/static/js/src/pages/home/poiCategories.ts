@@ -1,6 +1,8 @@
 // pages/home/poiCategories.ts — POI pill catalogue + place
 // classification helpers extracted from home.ts (Phase B1 third
 // slice).
+
+import { t } from '../../i18n.js';
 //
 // What lives here:
 //   - POI_CATEGORIES: the source-of-truth list of POI pills the
@@ -55,7 +57,6 @@ export type PoiCategory = {
     label: string;
     color: string;
     defaultMinRating: number;
-    tooltip: string;
     useAnchorAlways?: boolean;
     /** Types passed as additional `type=` parameters to nearbySearch.
      *  Adding entries here multiplies API requests on the home map
@@ -102,16 +103,16 @@ export const POI_CATEGORIES: PoiCategory[] = [
         'ramen_restaurant', 'breakfast_restaurant', 'brunch_restaurant',
         'buffet_restaurant', 'cafeteria', 'dessert_restaurant', 'diner',
         'vegan_restaurant', 'vegetarian_restaurant',
-    ], searchStrategy: 'distance', icon: '🍽️', label: 'Restaurants',     color: '#ff9500', defaultMinRating: 4, tooltip: 'Closest restaurants (≤60) to the search center — defaults to 4★+, tweak in Settings → General' },
+    ], searchStrategy: 'distance', icon: '🍽️', label: 'Restaurants',     color: '#ff9500', defaultMinRating: 4 },
     { key: 'supermarkets',placesType: 'supermarket', guessTypes: [
         'grocery_or_supermarket', 'grocery_store', 'convenience_store',
         'food_store', 'market',
-    ],    searchStrategy: 'distance', icon: '🛒', label: 'Supermarkets',    color: '#34c759', defaultMinRating: 0, tooltip: 'Closest supermarkets and grocery stores' },
+    ],    searchStrategy: 'distance', icon: '🛒', label: 'Supermarkets',    color: '#34c759', defaultMinRating: 0 },
     { key: 'hotels',      placesType: 'lodging', guessTypes: [
         'hotel', 'motel', 'hostel', 'bed_and_breakfast',
         'resort_hotel', 'extended_stay_hotel', 'guest_house', 'inn',
         'cottage', 'campground', 'rv_park', 'private_guest_room',
-    ],        searchStrategy: 'distance', icon: '🛏️', label: 'Hotels',          color: '#5856d6', defaultMinRating: 4, tooltip: 'Closest hotels and lodging — defaults to 4★+' },
+    ],        searchStrategy: 'distance', icon: '🛏️', label: 'Hotels',          color: '#5856d6', defaultMinRating: 4 },
     // sights / parks / worship: epicenter-aware. People often
     // plan these per-day ("what attractions are near today's
     // pin"), so the user-picked day epicenter is the right
@@ -123,15 +124,15 @@ export const POI_CATEGORIES: PoiCategory[] = [
         'planetarium', 'opera_house', 'concert_hall', 'philharmonic_hall',
         'performing_arts_theater', 'sculpture',
         'aquarium', 'zoo', 'amusement_park', 'theme_park', 'water_park',
-    ], searchStrategy: 'wide',     icon: '🏖️', label: 'Sights',          color: '#a460ed', defaultMinRating: 0, tooltip: 'Tourist attractions across the wider trip area (50 km)' },
+    ], searchStrategy: 'wide',     icon: '🏖️', label: 'Sights',          color: '#a460ed', defaultMinRating: 0 },
     { key: 'parks',       placesType: 'park', guessTypes: [
         'national_park', 'state_park', 'garden', 'botanical_garden',
         'wildlife_park', 'wildlife_refuge', 'beach', 'natural_feature',
         'hiking_area',
-    ],               searchStrategy: 'wide',     icon: '🌳', label: 'Parks',           color: '#1a6b3c', defaultMinRating: 0, tooltip: 'Parks and gardens across the wider trip area' },
+    ],               searchStrategy: 'wide',     icon: '🌳', label: 'Parks',           color: '#1a6b3c', defaultMinRating: 0 },
     { key: 'worship',     placesType: 'church', guessTypes: [
         'mosque', 'synagogue', 'temple', 'hindu_temple', 'place_of_worship',
-    ],             searchStrategy: 'wide',     icon: '⛪', label: 'Worship',         color: '#a460ed', defaultMinRating: 0, tooltip: 'Churches and places of worship across the wider trip area' },
+    ],             searchStrategy: 'wide',     icon: '⛪', label: 'Worship',         color: '#a460ed', defaultMinRating: 0 },
 
     // useAnchorAlways: sparse, trip-wide-concept categories.
     // There's not many to find, and "where are the hospitals
@@ -143,25 +144,52 @@ export const POI_CATEGORIES: PoiCategory[] = [
         'doctor', 'dental_clinic', 'medical_lab', 'physiotherapist',
         'wellness_center', 'drugstore', 'chiropractor', 'skin_care_clinic',
         'spa', 'massage',
-    ],           extraPlacesTypes: ['pharmacy'], extraKeywords: ['pharmacy', 'drugstore'], searchStrategy: 'wide', useAnchorAlways: true, icon: '🏥', label: 'Medical',         color: '#ff3b30', defaultMinRating: 0, tooltip: 'Hospitals, doctors, pharmacies, drugstores and clinics across the wider trip area. Vets are excluded — they live on the Pets pill.' },
-    { key: 'pets',        placesType: 'veterinary_care',    extraPlacesTypes: ['pet_store'], searchStrategy: 'wide', useAnchorAlways: true, icon: '🐾', label: 'Pets',           color: '#a460ed', defaultMinRating: 0, tooltip: 'Vets and pet stores across the wider trip area' },
+    ],           extraPlacesTypes: ['pharmacy'], extraKeywords: ['pharmacy', 'drugstore'], searchStrategy: 'wide', useAnchorAlways: true, icon: '🏥', label: 'Medical',         color: '#ff3b30', defaultMinRating: 0 },
+    { key: 'pets',        placesType: 'veterinary_care',    extraPlacesTypes: ['pet_store'], searchStrategy: 'wide', useAnchorAlways: true, icon: '🐾', label: 'Pets',           color: '#a460ed', defaultMinRating: 0 },
     { key: 'schools',     placesType: 'school', guessTypes: [
         'university', 'primary_school', 'secondary_school', 'preschool',
-    ],             searchStrategy: 'wide', useAnchorAlways: true, icon: '🎓', label: 'Schools',         color: '#0071e3', defaultMinRating: 0, tooltip: 'Schools and universities. Always searches the wider trip area.' },
+    ],             searchStrategy: 'wide', useAnchorAlways: true, icon: '🎓', label: 'Schools',         color: '#0071e3', defaultMinRating: 0 },
     { key: 'sports',      placesType: 'stadium', guessTypes: [
         'golf_course', 'gym', 'fitness_center', 'sports_complex',
         'swimming_pool', 'sports_club', 'sports_activity_location',
         'arena', 'athletic_field',
-    ],            searchStrategy: 'wide', useAnchorAlways: true, icon: '🏟️', label: 'Sports',          color: '#ff2d55', defaultMinRating: 0, tooltip: 'Stadiums and gyms. Always searches the wider trip area — they\'re landmarks, you want them all.' },
+    ],            searchStrategy: 'wide', useAnchorAlways: true, icon: '🏟️', label: 'Sports',          color: '#ff2d55', defaultMinRating: 0 },
     { key: 'transit',     placesType: 'transit_station', guessTypes: [
         'train_station', 'subway_station', 'light_rail_station',
         'airport', 'airport_terminal', 'transit_depot', 'taxi_stand',
-    ],    extraPlacesTypes: ['ferry_terminal'], searchStrategy: 'wide', useAnchorAlways: true, icon: '🚉', label: 'Public transport', color: '#0a3d6b', defaultMinRating: 0, tooltip: 'Train, metro, light rail, smaller commuter stations + ferry terminals. For the dotted ferry-route lines and subway/bus geometry over water and on land, switch the map to Road view via the controls in the top-right corner — those route lines only render on the road map type, not on satellite. Bus stops are excluded because Google\'s API uses the same `bus_station` type for both hub terminals and street-corner stops.' },
+    ],    extraPlacesTypes: ['ferry_terminal'], searchStrategy: 'wide', useAnchorAlways: true, icon: '🚉', label: 'Public transport', color: '#0a3d6b', defaultMinRating: 0 },
     { key: 'traffic',     placesType: 'gas_station', guessTypes: [
         'parking', 'rest_stop', 'electric_vehicle_charging_station',
         'truck_stop',
-    ],        searchStrategy: 'wide', useAnchorAlways: true, icon: '🛣️', label: 'Roads & traffic', color: '#0a3d6b', defaultMinRating: 0, tooltip: 'Highway / arterial road names + live Google traffic congestion + gas stations across the wider trip area' },
+    ],        searchStrategy: 'wide', useAnchorAlways: true, icon: '🛣️', label: 'Roads & traffic', color: '#0a3d6b', defaultMinRating: 0 },
 ];
+
+
+/** Resolve the per-pill info tooltip for a POI category. Looks the
+ *  string up via t() under the `poiTooltips.<key>` namespace, so the
+ *  tooltip text follows the active locale instead of being pinned to
+ *  English at module-evaluation time. Returns an empty string if the
+ *  pill's key isn't in the known set (defensive — every shipped
+ *  category in POI_CATEGORIES has a matching locale entry, so the
+ *  empty-string branch is only reachable if a new pill is added
+ *  without updating the locales). */
+export function getPoiTooltip(catKey: string): string {
+    switch (catKey) {
+        case 'restaurants':  return t('poiTooltips.restaurants');
+        case 'supermarkets': return t('poiTooltips.supermarkets');
+        case 'hotels':       return t('poiTooltips.hotels');
+        case 'sights':       return t('poiTooltips.sights');
+        case 'parks':        return t('poiTooltips.parks');
+        case 'worship':      return t('poiTooltips.worship');
+        case 'medical':      return t('poiTooltips.medical');
+        case 'pets':         return t('poiTooltips.pets');
+        case 'schools':      return t('poiTooltips.schools');
+        case 'sports':       return t('poiTooltips.sports');
+        case 'transit':      return t('poiTooltips.transit');
+        case 'traffic':      return t('poiTooltips.traffic');
+        default:             return '';
+    }
+}
 
 
 /** Lowercase substrings that strongly imply a place is a pharmacy

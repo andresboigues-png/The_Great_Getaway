@@ -37,7 +37,7 @@ import { STATE, emit } from '../../state.js';
 import { generateId, showConfirmModal, showLiquidAlert, esc } from '../../utils.js';
 import { showModal } from '../../components/Modal.js';
 import { syncCategories, apiFetch } from '../../api.js';
-import { POI_CATEGORIES } from '../home.js';
+import { POI_CATEGORIES, getPoiTooltip } from '../home.js';
 import { setTheme } from '../../theme.js';
 import { t, getLocale, setLocale, type Locale } from '../../i18n.js';
 import {
@@ -422,8 +422,12 @@ function GeneralPillsSection() {
     // (was a 3-second toast which auto-dismissed before the user
     // could finish reading the longer descriptions). Title shows
     // the pill icon + name; body shows the full tooltip text.
-    const openPoiInfoModal = (c: { key: string; label: string; icon: string; tooltip?: string }) => {
-        const tooltip = c.tooltip || '';
+    const openPoiInfoModal = (c: { key: string; label: string; icon: string }) => {
+        // Tooltip text is locale-scoped — resolves through the
+        // shared `getPoiTooltip(key)` helper so the modal body
+        // reflects the active i18n locale, not the English copy
+        // that used to live inline on the POI_CATEGORIES entries.
+        const tooltip = getPoiTooltip(c.key);
         const innerHTML = `
             <div style="text-align:left;">
                 <div style="display:flex; align-items:center; gap:14px; padding:18px 22px; background:linear-gradient(135deg, var(--accent-blue) 0%, #5856d6 100%); color:white; border-top-left-radius: var(--radius-3xl); border-top-right-radius: var(--radius-3xl);">
@@ -540,17 +544,24 @@ function GeneralPillsSection() {
                                         toast was too short for the longer
                                         paragraphs and disappeared before
                                         the user could finish reading. */}
-                                    {c.tooltip ? (
-                                        <button
-                                            type="button"
-                                            className="poi-filter-row__info-btn"
-                                            aria-label={`About ${c.label}`}
-                                            title={c.tooltip}
-                                            onClick={() => openPoiInfoModal(c)}
-                                        >
-                                            ⓘ
-                                        </button>
-                                    ) : null}
+                                    {(() => {
+                                        // Look the tooltip up once per render —
+                                        // the chip is hidden when the pill has no
+                                        // translation (defensive; today every
+                                        // shipped pill has a poiTooltips entry).
+                                        const tooltip = getPoiTooltip(c.key);
+                                        return tooltip ? (
+                                            <button
+                                                type="button"
+                                                className="poi-filter-row__info-btn"
+                                                aria-label={t('settings.poiInfoBtnAria', { name: c.label })}
+                                                title={tooltip}
+                                                onClick={() => openPoiInfoModal(c)}
+                                            >
+                                                ⓘ
+                                            </button>
+                                        ) : null;
+                                    })()}
                                 </div>
                             </div>
                             <select

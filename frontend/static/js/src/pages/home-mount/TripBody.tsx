@@ -423,8 +423,8 @@ export function TripBody({ activeTrip }: TripBodyProps) {
                         type="button"
                         id="mobileTripSwitcherBtn"
                         className="mobile-trip-switcher"
-                        aria-label="Switch trip"
-                        title="Switch trip"
+                        aria-label={t('tripActions.switchTrip')}
+                        title={t('tripActions.switchTrip')}
                     >
                         <svg
                             width="18"
@@ -445,7 +445,7 @@ export function TripBody({ activeTrip }: TripBodyProps) {
                     </button>
                     <button
                         id="resetMapViewBtn"
-                        title="Reset the map view to show the whole trip"
+                        title={t('tripActions.resetMapView')}
                         onClick={onResetMapView}
                     >
                         <h2
@@ -458,8 +458,8 @@ export function TripBody({ activeTrip }: TripBodyProps) {
                         <button
                             id="editTripBtn"
                             className="icon-btn-square"
-                            title="Edit trip name and location"
-                            aria-label="Edit trip name and location"
+                            title={t('tripActions.editTrip')}
+                            aria-label={t('tripActions.editTrip')}
                             onClick={() => openEditTripModal(activeTrip)}
                         >
                             <svg
@@ -489,8 +489,8 @@ export function TripBody({ activeTrip }: TripBodyProps) {
                     <button
                         id="downloadTripPdfBtn"
                         className="icon-btn-square"
-                        title="Download trip plan as PDF"
-                        aria-label="Download trip plan as PDF"
+                        title={t('tripActions.downloadPdf')}
+                        aria-label={t('tripActions.downloadPdf')}
                         onClick={() => openPdfExportModal(activeTrip)}
                         style={{ ['--accent' as any]: '52,199,89' }}
                     >
@@ -538,13 +538,13 @@ export function TripBody({ activeTrip }: TripBodyProps) {
                             }}
                             title={
                                 activeTrip.actionsHidden
-                                    ? "Trip actions are silenced — click to make them visible in friends' Actions feeds"
-                                    : "Silence trip actions — hide create / archive / join events from friends' Actions feeds"
+                                    ? t('tripActions.silenceOnTitle')
+                                    : t('tripActions.silenceOffTitle')
                             }
                             aria-label={
                                 activeTrip.actionsHidden
-                                    ? 'Unsilence trip actions'
-                                    : 'Silence trip actions'
+                                    ? t('tripActions.silenceOnAria')
+                                    : t('tripActions.silenceOffAria')
                             }
                             aria-pressed={activeTrip.actionsHidden ? 'true' : 'false'}
                             onClick={onSilenceTrip}
@@ -700,12 +700,12 @@ function CompanionsCard({ activeTrip, tripIsManageable, isActive, onRoster }: Co
         : (activeTrip.members || []).length;
     const ctaLabel = tripIsManageable
         ? companionCount > 0
-            ? '✏️ Edit travel companions'
-            : '➕ Add travel companions'
-        : '👁 See trip members';
+            ? t('companions.cardCtaEdit')
+            : t('companions.cardCtaAdd')
+        : t('companions.cardCtaSee');
     const ctaTitle = tripIsManageable
-        ? 'Pick which account companions are on this trip'
-        : 'See who is on this trip';
+        ? t('companions.cardCtaManageTitle')
+        : t('companions.cardCtaSeeTitle');
 
     return (
         <div
@@ -733,9 +733,11 @@ function CompanionsCard({ activeTrip, tripIsManageable, isActive, onRoster }: Co
                         </svg>
                     </div>
                     <div className="trip-companions-card__heading">
-                        <h3 className="trip-companions-card__title">Travel companions</h3>
+                        <h3 className="trip-companions-card__title">{t('companions.cardTitle')}</h3>
                         <p className="trip-companions-card__subtitle">
-                            {companionCount} {companionCount === 1 ? 'person' : 'people'} on this trip
+                            {companionCount === 1
+                                ? t('companions.cardSubtitleOne', { count: companionCount })
+                                : t('companions.cardSubtitleOther', { count: companionCount })}
                         </p>
                     </div>
                     <span className="trip-companions-card__count">{companionCount}</span>
@@ -787,7 +789,7 @@ function MemberChipsPanel({
             name:
                 findTripCompanionByLinkedUser(activeTrip, owner.userId)?.name ||
                 owner.name ||
-                'Owner',
+                t('companions.fallbackOwnerName'),
             role: owner.role,
             picture: owner.picture ?? null,
             isOwner: true,
@@ -825,8 +827,8 @@ function MemberChipsPanel({
             <div className="trip-companions-card__chips">
                 <div className="trip-companions-card__empty">
                     {tripIsManageable
-                        ? 'No companions added yet. Tap the button below to invite friends or add unlinked names.'
-                        : 'You are the only one on this trip so far.'}
+                        ? t('companions.cardEmptyManager')
+                        : t('companions.cardEmptyViewer')}
                 </div>
             </div>
         );

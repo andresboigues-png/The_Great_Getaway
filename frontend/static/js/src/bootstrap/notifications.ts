@@ -58,6 +58,98 @@ function notificationAccent(type: string) {
     }
 }
 
+/** Localize an English notification message body for display. Server
+ *  inserts notifications with pre-formatted English copy in the
+ *  `message` column (see src/routes/{follows,trips,feed,settlements,
+ *  notifications}.py); we can't change that without a schema migration
+ *  to ship structured slot data alongside, so this function parses the
+ *  English template per `type`, extracts the variable slots, and
+ *  re-renders the message through t() in the active locale.
+ *
+ *  Designed to be defensive: if the type isn't known OR the regex
+ *  doesn't match (server format drifted), the original English message
+ *  is returned untouched. Net effect = same UI as before for unknown
+ *  rows + localized rendering for the 11 documented patterns.
+ *
+ *  Pattern catalogue (matches the Python sources):
+ *    - followed_you / friend_request / accepted_request:
+ *        "{actor} started following you."
+ *    - trip_public:
+ *        "{actor} completed their trip to {trip} and made it public!"
+ *    - trip_invite:
+ *        "{actor} invited you to {trip} as a {Role}."
+ *        Role is one of: Planner / Budgeteer / Relaxer.
+ *    - trip_invite_accepted:  "{actor} joined {trip}."
+ *    - trip_invite_declined:  "{actor} declined the invite to {trip}."
+ *    - trip_member_removed:   "{actor} removed you from {trip}."
+ *    - share_liked / share_commented / share_reposted:
+ *        "{actor} liked|commented on|reposted your share."
+ *    - settled_up:
+ *        "{from} settled {amount} {currency} with you for {trip}."
+ */
+export function localizeNotificationMessage(type: string | undefined, message: string | undefined): string {
+    const raw = message ?? '';
+    if (!raw || !type) return raw;
+    // Map of regex → t() builder. Each entry returns null if the
+    // regex doesn't match, otherwise the localized string.
+    type Match = (m: string) => string | null;
+    const handlers: Record<string, Match> = {
+        followed_you:        (m) => _matchActor(m, /^(.+?) started following you\.?$/, 'notifications.msgFollowedYou'),
+        friend_request:      (m) => _matchActor(m, /^(.+?) started following you\.?$/, 'notifications.msgFollowedYou'),
+        accepted_request:    (m) => _matchActor(m, /^(.+?) started following you\.?$/, 'notifications.msgFollowedYou'),
+        trip_public:         (m) => _matchActorTrip(m, /^(.+?) completed their trip to (.+?) and made it public!$/, 'notifications.msgTripPublic'),
+        trip_invite_accepted:(m) => _matchActorTrip(m, /^(.+?) joined (.+?)\.?$/, 'notifications.msgTripAccepted'),
+        trip_invite_declined:(m) => _matchActorTrip(m, /^(.+?) declined the invite to (.+?)\.?$/, 'notifications.msgTripDeclined'),
+        trip_member_removed: (m) => _matchActorTrip(m, /^(.+?) removed you from (.+?)\.?$/, 'notifications.msgTripMemberRemoved'),
+        share_liked:         (m) => _matchActor(m, /^(.+?) liked your share\.?$/, 'notifications.msgShareLiked'),
+        share_commented:     (m) => _matchActor(m, /^(.+?) commented on your share\.?$/, 'notifications.msgShareCommented'),
+        share_reposted:      (m) => _matchActor(m, /^(.+?) reposted your share\.?$/, 'notifications.msgShareReposted'),
+        trip_invite:         (m) => {
+            // "{actor} invited you to {trip} as a {Role}."
+            const re = /^(.+?) invited you to (.+?) as a (Planner|Budgeteer|Relaxer)\.?$/;
+            const found = re.exec(m);
+            if (!found) return null;
+            const [, actor, trip, role] = found;
+            const roleLocalized = role === 'Planner' ? t('companions.rolePlanner')
+                : role === 'Budgeteer' ? t('companions.roleBudgeteer')
+                : t('companions.roleRelaxer');
+            return t('notifications.msgTripInvite', { actor: actor!, trip: trip!, role: roleLocalized });
+        },
+        settled_up:          (m) => {
+            // "{from} settled {amount} {currency} with you for {trip}."
+            // Amount is a number formatted by Python's `:g` so it may be
+            // an integer ("50") or a decimal ("50.5"); capture loosely.
+            const re = /^(.+?) settled ([\d.,]+) (\S+) with you for (.+?)\.?$/;
+            const found = re.exec(m);
+            if (!found) return null;
+            const [, from, amount, currency, trip] = found;
+            return t('notifications.msgSettledUp', { from: from!, amount: amount!, currency: currency!, trip: trip! });
+        },
+    };
+    const fn = handlers[type];
+    if (!fn) return raw;
+    const localized = fn(raw);
+    return localized ?? raw;
+}
+
+/** Helper for the simple "{actor} VERB" patterns. */
+function _matchActor(message: string, re: RegExp, key: 'notifications.msgFollowedYou' | 'notifications.msgShareLiked' | 'notifications.msgShareCommented' | 'notifications.msgShareReposted'): string | null {
+    const found = re.exec(message);
+    if (!found) return null;
+    const actor = found[1];
+    if (!actor) return null;
+    return t(key, { actor });
+}
+
+/** Helper for the "{actor} VERB {trip}" patterns. */
+function _matchActorTrip(message: string, re: RegExp, key: 'notifications.msgTripPublic' | 'notifications.msgTripAccepted' | 'notifications.msgTripDeclined' | 'notifications.msgTripMemberRemoved'): string | null {
+    const found = re.exec(message);
+    if (!found) return null;
+    const [, actor, trip] = found;
+    if (!actor || !trip) return null;
+    return t(key, { actor, trip });
+}
+
 /** Human-readable title fallback when the row didn't ship one.
  *  2026-05-25 (audit): titles now route through t() so notifications
  *  display in the user's chosen locale. */
@@ -121,7 +213,7 @@ export function renderNotificationDropdown() {
                 <span class="notification-item__dot"></span>
                 ${esc(n.title || notificationDefaultTitle(n.type))}
             </div>
-            <div class="notification-item__message">${esc(n.message)}</div>
+            <div class="notification-item__message">${esc(localizeNotificationMessage(n.type, n.message))}</div>
             <div class="notification-item__time">${new Date(n.created_at).toLocaleDateString(getIntlLocale(), { month: 'short', day: 'numeric' })}</div>
         </div>
     `).join('');

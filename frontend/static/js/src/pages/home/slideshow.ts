@@ -132,30 +132,34 @@ export function setupSlideshow(activeTrip: any): SlideshowController {
         }
     } catch (_) { /* sessionStorage unavailable */ }
 
-    /** Build an INTERLEAVED roster of (image, quote) and
-     *  (image, fact) pairs for every country in the discovered
-     *  set. The slideshow timer cycles through them every 6s
-     *  so the user sees BOTH the travel quote AND the
-     *  population/capital fact for each country on rotation —
-     *  no more "facts never appear" because of a single-element
-     *  pick + a fragile localStorage toggle. Roster is
-     *  reshuffled each render so reload still rolls a fresh
-     *  order. */
+    /** Build the roster — one (image, fact) pair per country in
+     *  the discovered set. The on-screen text used to alternate
+     *  between an inspirational quote ("Sweet Home Alabama") and
+     *  the population/capital fact, but per user feedback the
+     *  inspirational quotes felt off-topic (not population-
+     *  related; sometimes even ambiguous about which country
+     *  they referred to). Now we only push the population fact
+     *  — every text the user sees corresponds 1:1 to the country
+     *  whose image is on screen, and the fact itself names that
+     *  country explicitly ("Did you know that Portugal has a
+     *  population of …"). Each country's image and fact are
+     *  pushed as a single pair, so post-shuffle the image and
+     *  text indices stay aligned. Roster is reshuffled each
+     *  render so reload rolls a fresh order. */
     const refreshSlideshowMedia = () => {
         const data = getMediaForTrip(activeTrip, [...discoveredCodes]);
         const pairs: { img: string; text: string }[] = [];
         for (let i = 0; i < data.images.length; i++) {
             const img = data.images[i];
-            const q = data.quotes[i];
             const f = data.facts[i];
-            if (img && q) pairs.push({ img, text: q });
+            // Only the population/capital fact lands on screen;
+            // the legacy `q` field is intentionally ignored here.
             if (img && f) pairs.push({ img, text: f });
         }
-        // Shuffle so the order doesn't rigidly read country-
-        // by-country (Italy quote → Italy fact → France quote
-        // → France fact); a mixed shuffle feels like a
-        // magazine roster. Length-checked swap target so
-        // noUncheckedIndexedAccess sees defined values.
+        // Shuffle multi-country rosters so the order doesn't
+        // rigidly read Italy → France → Spain on every cycle.
+        // Length-checked swap target so noUncheckedIndexedAccess
+        // sees defined values.
         for (let i = pairs.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             const a = pairs[i]!;

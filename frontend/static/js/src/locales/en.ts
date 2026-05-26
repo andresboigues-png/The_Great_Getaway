@@ -97,6 +97,22 @@ export const en = {
         titleNewRepost: 'New repost',
         titleAlert: 'Alert',
         titleGeneric: 'Notification',
+        // ── Notification message BODIES (localized via reverse-parse).
+        // The server inserts pre-formatted English in the `message`
+        // column for every notification type; the frontend extracts the
+        // {actor}/{trip}/{role}/etc. slots from that English string and
+        // re-renders the message via these keys. Keep `{actor}` /
+        // `{trip}` / `{role}` placeholders intact in translations.
+        msgFollowedYou: '{actor} started following you.',
+        msgTripPublic: '{actor} completed their trip to {trip} and made it public!',
+        msgTripInvite: '{actor} invited you to {trip} as a {role}.',
+        msgTripAccepted: '{actor} joined {trip}.',
+        msgTripDeclined: '{actor} declined the invite to {trip}.',
+        msgTripMemberRemoved: '{actor} removed you from {trip}.',
+        msgShareLiked: '{actor} liked your share.',
+        msgShareCommented: '{actor} commented on your share.',
+        msgShareReposted: '{actor} reposted your share.',
+        msgSettledUp: '{from} settled {amount} {currency} with you for {trip}.',
     },
     // 2026-05-25: sidebar (hamburger drawer) chrome — header + section
     // dividers + close button. The nav items themselves reuse `nav.*`
@@ -214,6 +230,10 @@ export const en = {
         // 2026-05-25: ⓘ info modal opened from each pill row.
         poiInfoModalSubtitle: 'About this pill',
         poiInfoModalClose: 'Got it',
+        // aria-label on the ⓘ button next to each pill name in the
+        // Settings → General → Map pills list. `{name}` interpolates
+        // the pill's translated label (Restaurants / Hotels / …).
+        poiInfoBtnAria: 'About {name}',
         // ── Reset / Data management ──
         resetTripsTitle: 'Trips & Days',
         resetTripsBody: 'Remove all trips, itineraries, and daily logs.',
@@ -1046,6 +1066,46 @@ export const en = {
         guideStep9: 'Complete a trip to your Collections',
         guideStep10: 'Follow friends + share trips on your Feed',
     },
+    // Path tab — day card bodies, options stack, chip strip, prev/next
+    // nav (pages/home/pathTab.ts). The Path tab is the chip-strip-plus-
+    // card view that replaced the vertical day-by-day timeline.
+    pathTab: {
+        // Day card body.
+        dayBadgeLabel: 'Day',
+        hubTitle: 'Trip Hub',
+        hubSubtitleFallback: 'Where the trip begins',
+        setDatePlaceholder: 'Set date',
+        locationSet: '📍 Location set',
+        pinThisDay: '📌 Pin this day',
+        journalPreviewLabel: 'Journal preview',
+        toggleOptionsAria: 'Toggle options for {title}',
+        toggleOptionsTitle: 'Hide / show options',
+        // Options-stack buttons. Primary slot varies by card type
+        // (Hub = checklist, numbered day = open full plan).
+        btnChecklist: '📝 Trip checklist',
+        btnOpenFullPlan: '📋 Open Full Plan',
+        btnSavePin: 'Save pin',
+        btnCancelPinEdit: 'Cancel pin edit',
+        btnEditAnchorPin: '📍 Edit anchor pin',
+        btnSetAnchorPin: '📍 Set anchor pin',
+        btnEditPin: '📍 Edit pin',
+        btnAddPin: '📍 Add pin',
+        btnDocuments: '📎 Documents',
+        btnPhotos: '📸 Photos',
+        btnJournaling: '✍️ Journaling',
+        btnDeleteDay: '🗑️ Delete day',
+        // Empty state when no days exist (defensive — anchor is
+        // auto-stamped on trip create).
+        emptyState: 'No days yet — create some.',
+        // Chip strip — hub / day chip tooltips, today prefix,
+        // add-day chip, prev/next nav, group aria-label.
+        chipHubTooltip: "Trip Hub — your trip's home base",
+        chipTodayPrefix: 'Today',
+        addNewDay: 'Add a new day',
+        previousDay: 'Previous day',
+        nextDay: 'Next day',
+        tripDaysGroupAria: 'Trip days',
+    },
     // 2026-05-24: Path tab — summary line under the chip strip.
     path: {
         summaryHub: {
@@ -1095,6 +1155,32 @@ export const en = {
         // Members panel title attributes (owner vs non-owner).
         chipsManageTitle: 'Manage trip companions',
         chipsSeeTitle: "See who's on this trip",
+        // Trip-page Companions card (home-mount/TripBody.tsx).
+        cardTitle: 'Travel companions',
+        cardSubtitleOne: '{count} person on this trip',
+        cardSubtitleOther: '{count} people on this trip',
+        cardCtaEdit: '✏️ Edit travel companions',
+        cardCtaAdd: '➕ Add travel companions',
+        cardCtaSee: '👁 See trip members',
+        cardCtaManageTitle: 'Pick which account companions are on this trip',
+        cardCtaSeeTitle: 'See who is on this trip',
+        cardEmptyManager: 'No companions added yet. Tap the button below to invite friends or add unlinked names.',
+        cardEmptyViewer: 'You are the only one on this trip so far.',
+        // Fallback name for an owner whose record has no name field.
+        fallbackOwnerName: 'Owner',
+    },
+    // Trip-header action buttons (home-mount/TripBody.tsx).
+    tripActions: {
+        switchTrip: 'Switch trip',
+        resetMapView: 'Reset the map view to show the whole trip',
+        editTrip: 'Edit trip name and location',
+        downloadPdf: 'Download trip plan as PDF',
+        // Silence-trip-actions button has on/off states with distinct
+        // tooltip + aria-label copy each.
+        silenceOnTitle: "Trip actions are silenced — click to make them visible in friends' Actions feeds",
+        silenceOffTitle: "Silence trip actions — hide create / archive / join events from friends' Actions feeds",
+        silenceOnAria: 'Unsilence trip actions',
+        silenceOffAria: 'Silence trip actions',
     },
     share: {
         // Share-chooser modal — the entry point that asks "which way?"
@@ -1207,6 +1293,23 @@ export const en = {
         otherPlaces: 'Other places',
         aiSuggestions: 'AI suggestions',
         other: 'Other',
+    },
+    // Tooltips for the per-pill info button in Settings → General →
+    // Map pills. Each key matches a POI_CATEGORIES entry's `key`
+    // field (see frontend/static/js/src/pages/home/poiCategories.ts).
+    poiTooltips: {
+        restaurants: 'Closest restaurants (≤60) to the search center — defaults to 4★+, tweak in Settings → General',
+        supermarkets: 'Closest supermarkets and grocery stores',
+        hotels: 'Closest hotels and lodging — defaults to 4★+',
+        sights: 'Tourist attractions across the wider trip area (50 km)',
+        parks: 'Parks and gardens across the wider trip area',
+        worship: 'Churches and places of worship across the wider trip area',
+        medical: 'Hospitals, doctors, pharmacies, drugstores and clinics across the wider trip area. Vets are excluded — they live on the Pets pill.',
+        pets: 'Vets and pet stores across the wider trip area',
+        schools: 'Schools and universities. Always searches the wider trip area.',
+        sports: "Stadiums and gyms. Always searches the wider trip area — they're landmarks, you want them all.",
+        transit: "Train, metro, light rail, smaller commuter stations + ferry terminals. For the dotted ferry-route lines and subway/bus geometry over water and on land, switch the map to Road view via the controls in the top-right corner — those route lines only render on the road map type, not on satellite. Bus stops are excluded because Google's API uses the same `bus_station` type for both hub terminals and street-corner stops.",
+        traffic: 'Highway / arterial road names + live Google traffic congestion + gas stations across the wider trip area',
     },
     // Day-detail modal (pages/home/dayDetailModal.ts). The single modal
     // handles BOTH the trip anchor (Trip Hub) AND any numbered day; some
@@ -1489,6 +1592,14 @@ export const en = {
     },
     // Upload tab (pages/upload.ts) — Excel/CSV import for bulk expenses.
     upload: {
+        // Mode-switch on the Expenses Upload tab (UploadTab.tsx).
+        // Two-position toggle: "One at a time" (manual single-row
+        // entry) vs "From a spreadsheet" (Excel/CSV batch import).
+        modeSwitchAria: 'Upload mode',
+        modeManualLabel: 'One at a time',
+        modeManualHint: 'Type a single expense by hand',
+        modeBatchLabel: 'From a spreadsheet',
+        modeBatchHint: 'Import multiple expenses from a CSV/XLSX file',
         pageTitle: 'Upload Data',
         sectionHeading: 'Excel Upload',
         labelImportFormat: 'Import Format',

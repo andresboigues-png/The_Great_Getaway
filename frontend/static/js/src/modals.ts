@@ -17,6 +17,7 @@ import { navigate } from './router.js';
 import { ROLE_PLANNER } from './permissions.js';
 import { showModal } from './components/Modal.js';
 import { t, tn } from './i18n.js';
+import { localizeNotificationMessage } from './bootstrap/notifications.js';
 
 // Trip-roster modals moved to ./modals/companions.ts in the B1 split.
 // Re-exported here so existing imports (`from '../modals.js'`) keep
@@ -964,16 +965,18 @@ export const openTripInviteResponseModal = (notification: { related_id?: string 
     if (!tripId) return;
 
     // The notification.message arrives PRE-FORMATTED from the server with
-    // trip + role names already filled in; we display it as-is. Only the
-    // structural copy (title, explanatory paragraph, button labels) is
-    // translated locally.
+    // trip + role names already filled in. We pipe it through the shared
+    // localizer (bootstrap/notifications.ts) so the trip-invite body
+    // renders in the user's chosen locale instead of the English
+    // template the server inserted.
+    const localizedMessage = localizeNotificationMessage('trip_invite', notification.message);
     const { root, close } = showModal({
         variant: 'glass-light',
         cardStyle: 'width: 440px;',
         innerHTML: `
             <h2 style="margin: 0 0 var(--space-2); font-size: var(--font-2xl); color: #002d5b; font-weight: 800; letter-spacing: -0.03em;">${esc(t('modals.inviteTitle'))}</h2>
             <p style="margin: 0 0 var(--space-5); font-size: var(--font-base); color: rgba(0,0,0,0.6); line-height: 1.5;">
-                ${esc(notification.message || '')}
+                ${esc(localizedMessage)}
             </p>
             <p style="margin: 0 0 var(--space-5); font-size: var(--font-sm); color: rgba(0,0,0,0.5);">
                 ${esc(t('modals.inviteBody'))}

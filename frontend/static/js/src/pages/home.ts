@@ -30,7 +30,7 @@
 // Re-exports for external consumers — the React Home itself imports
 // from these helpers directly, so this file is purely a façade for
 // the cross-page surface.
-export { POI_CATEGORIES } from './home/poiCategories.js';
+export { POI_CATEGORIES, getPoiTooltip } from './home/poiCategories.js';
 export { stopHomeSlideshow } from './home/slideshow.js';
 export { openPdfPreview, looksLikePdfUrl } from './home/lightbox.js';
 export { updateShareBtnVisualState, openShareToFeedModal } from './home/shareModal.js';

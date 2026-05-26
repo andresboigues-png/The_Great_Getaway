@@ -13,7 +13,7 @@
 // Settings → General).
 
 import { STATE } from '../../state.js';
-import { POI_CATEGORIES } from '../home/poiCategories.js';
+import { POI_CATEGORIES, getPoiTooltip } from '../home/poiCategories.js';
 
 
 export interface PoiPillsRowProps {
@@ -39,7 +39,7 @@ export function PoiPillsRow({ visible }: PoiPillsRowProps) {
                     className="map-poi-toggle"
                     data-poi={c.key}
                     aria-pressed="false"
-                    title={c.tooltip}
+                    title={getPoiTooltip(c.key)}
                 >
                     {c.icon} <span>{c.label}</span>
                 </button>

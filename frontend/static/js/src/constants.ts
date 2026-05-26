@@ -258,7 +258,7 @@ export const DESTINATION_DATA: Record<string, { i: string; q: string; f: string 
     "Barbados": { i: "1469854523086-cc02fe5d8800", q: "Barbados is waiting for you.", f: "Did you know that Barbados has a population of about 287 thousand people? Its capital city is Bridgetown." },
     "Belarus": { i: "1469854523086-cc02fe5d8800", q: "Belarus is waiting for you.", f: "Did you know that Belarus has a population of about 9.5 million people? Its capital city is Minsk." },
     "Belgium": { i: "1490642220353-d023b6b27e8a", q: "Heart of Europe.", f: "Did you know that Belgium has a population of about 11 million people? Its capital city is Bruxelles." },
-    "Belize": { i: "1469854523086-cc02fe5d8800", q: "Belize is waiting for you.", f: "Did you know that Belgium has a population of about 383 thousand people? Its capital city is Belmopan." },
+    "Belize": { i: "1469854523086-cc02fe5d8800", q: "Belize is waiting for you.", f: "Did you know that Belize has a population of about 383 thousand people? Its capital city is Belmopan." },
     "Benin": { i: "1469854523086-cc02fe5d8800", q: "Benin is waiting for you.", f: "Did you know that Benin has a population of about 11 million people? Its capital city is Porto-Novo." },
     "Bhutan": { i: "1469854523086-cc02fe5d8800", q: "Bhutan is waiting for you.", f: "Did you know that Bhutan has a population of about 754 thousand people? Its capital city is Thimphu." },
     "Bolivia": { i: "1469854523086-cc02fe5d8800", q: "Bolivia is waiting for you.", f: "Did you know that Bolivia has a population of about 11 million people? Its capital city is La Paz." },
