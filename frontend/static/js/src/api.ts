@@ -437,6 +437,22 @@ export function unarchiveTripOnServer(tripId: string) {
     return _post(`/api/trips/${tripId}/unarchive`, {});
 }
 
+/** Broadcast "I completed my public trip!" to every follower. The
+ *  server route (/api/notifications/trip_public) is rate-limited at
+ *  5/hour, deduped per (trip, day), and verifies that the trip is
+ *  both owned by the caller AND `is_public=1` — silently rejects
+ *  with 403 otherwise. Callers should fire-and-forget; the broadcast
+ *  is best-effort and shouldn't block the archive UX.
+ *
+ *  Audit fix (2026-05-26): pre-fix this route was fully implemented
+ *  server-side but had NO frontend caller, so the entire
+ *  "completed and public" notification feature was dormant. Wired
+ *  into archiveActiveTrip below when the trip is `isPublic`. */
+export function notifyTripPublic(tripId: string) {
+    if (!STATE.user) return;
+    return _post('/api/notifications/trip_public', { trip_id: tripId });
+}
+
 /** Deep-copy a trip the caller can see (their own archived trip OR a
  *  trip they're a member of OR a public trip) into a fresh draft
  *  owned by them. Server returns `{ tripId }` for the new clone.
