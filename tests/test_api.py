@@ -5566,23 +5566,31 @@ def _seed_shareable_trip(
     share_views: int = 0,
     created_at: str | None = None,
 ):
-    """Insert a trip with a share_token so /api/feed/explore picks it up.
-    `created_at` defaults to "now" via the column default; pass an
-    explicit ISO string to test the recency_factor decay."""
+    """Insert a trip with a share_token AND is_public=1 so
+    /api/feed/explore picks it up. `created_at` defaults to "now" via
+    the column default; pass an explicit ISO string to test the
+    recency_factor decay.
+
+    Audit fix (2026-05-26): Explore now requires is_public=1 in
+    addition to share_token (otherwise one-off share-link grants would
+    leak into the public discovery feed). The fixture sets both so
+    pre-fix tests keep their semantic.
+    """
     from database import get_db
     with get_db() as conn:
         if created_at:
             conn.execute(
                 "INSERT INTO trips (id, user_id, name, country, country_code, "
-                "share_token, share_views, created_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                "is_public, share_token, share_views, created_at) "
+                "VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)",
                 (trip_id, owner_id, name, country, country_code,
                  f"tok-{trip_id}", share_views, created_at),
             )
         else:
             conn.execute(
                 "INSERT INTO trips (id, user_id, name, country, country_code, "
-                "share_token, share_views) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "is_public, share_token, share_views) "
+                "VALUES (?, ?, ?, ?, ?, 1, ?, ?)",
                 (trip_id, owner_id, name, country, country_code,
                  f"tok-{trip_id}", share_views),
             )
@@ -5640,6 +5648,27 @@ def test_explore_excludes_trips_without_share_token(
         conn.commit()
     items = client.get("/api/feed/explore", headers=auth_headers).get_json()["items"]
     assert not any(i["tripId"] == "exp-private" for i in items)
+
+
+def test_explore_excludes_share_token_trips_without_is_public(
+    client, seed_user, seed_other_user, auth_headers,
+):
+    """Audit fix (2026-05-26): a trip with a share_token but
+    is_public=0 represents a one-off share link the owner generated
+    for a specific recipient — it must NOT surface in the global
+    Explore feed for every signed-in user. Only trips with BOTH
+    share_token AND is_public=1 are discoverable."""
+    from database import get_db
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO trips (id, user_id, name, country, is_public, share_token) "
+            "VALUES (?, ?, ?, ?, 0, ?)",
+            ("exp-one-off-share", seed_other_user, "One-off", "Anywhere",
+             "tok-one-off-share"),
+        )
+        conn.commit()
+    items = client.get("/api/feed/explore", headers=auth_headers).get_json()["items"]
+    assert not any(i["tripId"] == "exp-one-off-share" for i in items)
 
 
 def test_explore_ranks_unvisited_countries_higher(

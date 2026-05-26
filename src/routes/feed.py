@@ -244,6 +244,16 @@ def explore_feed():
         # member-of. The trip_members exclusion prevents a planner
         # who's been invited to someone else's trip from seeing it
         # listed in their Explore feed (they're already in it).
+        #
+        # Audit fix (2026-05-26): require BOTH `is_public = 1` AND
+        # `share_token IS NOT NULL`. Pre-fix the filter was share_token
+        # alone, which leaked private trips that the owner had
+        # generated a one-off share link for (intending to send to
+        # a single recipient) into every signed-in user's Explore
+        # feed — and exposed the share_token alongside, so rotating
+        # the link did nothing because the new one re-leaked on the
+        # next poll. With `is_public = 1` the only trips listed are
+        # the ones the owner has intentionally marked discoverable.
         cursor.execute(
             """
             SELECT t.id, t.user_id AS owner_id, t.name, t.country, t.country_code,
@@ -251,7 +261,8 @@ def explore_feed():
                    u.name AS owner_name, u.picture AS owner_picture
             FROM trips t
             JOIN users u ON u.id = t.user_id
-            WHERE t.share_token IS NOT NULL
+            WHERE t.is_public = 1
+              AND t.share_token IS NOT NULL
               AND t.user_id != ?
               AND t.id NOT IN (
                   SELECT trip_id FROM trip_members
