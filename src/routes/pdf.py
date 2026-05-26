@@ -1859,6 +1859,30 @@ def export_trip_pdf(trip_id: str):
     caller can't read the trip; 404 if it doesn't exist."""
     user_id = current_user_id()
     options = request.json or {}
+
+    # Audit fix (2026-05-26): hard cap the options payload size +
+    # bound any caller-supplied arrays so a crafted request can't
+    # stall the worker. PA's free tier is single-process / single-
+    # thread; one 5 MB aiPlan tied up the box for everyone pre-fix.
+    # 64 KB is generous enough for a 30-day aiPlan with verbose
+    # entries.
+    try:
+        opts_size = len(json.dumps(options))
+    except (TypeError, ValueError):
+        return jsonify({"error": "Invalid options payload"}), 400
+    if opts_size > 64 * 1024:
+        return jsonify({"error": "Options payload too large"}), 413
+    # The `aiPlan` array is the most common DoS vector — caller-
+    # supplied, no schema constraint, no per-element cap. 100 entries
+    # is well beyond any realistic plan length (longest legit trip
+    # ~365 days × maybe a handful of suggestions each → < 100 per
+    # day at most; the PDF only renders the trip's days anyway).
+    if "aiPlan" in options:
+        if not isinstance(options["aiPlan"], list):
+            options["aiPlan"] = []
+        elif len(options["aiPlan"]) > 100:
+            options["aiPlan"] = options["aiPlan"][:100]
+
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute(
