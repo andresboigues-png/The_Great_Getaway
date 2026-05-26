@@ -182,25 +182,33 @@ def serialize_trip_row(row):
     `user_id` in the dict so the caller can still compare against
     the current viewer for role logic.
     """
+    # Audit fix (2026-05-26): wrap every json.loads with a defensive
+    # try/except. The CHECK(json_valid) constraint on each column
+    # rejects bad writes, but pre-constraint rows on prod (or any
+    # future schema drift where a column gets repurposed) would
+    # 500 the entire /api/data response. Each parse falls back to
+    # the column's documented "empty" shape — [] for arrays, None
+    # for scalars / shapeless blobs.
+    def _safe_json(raw, default):
+        if not raw:
+            return default
+        try:
+            return json.loads(raw)
+        except (json.JSONDecodeError, TypeError, ValueError):
+            return default
+
     t = dict(row)
     t['ownerId'] = t.get('user_id')
     t['isPublic'] = bool(t.pop('is_public', 0))
     t['placeId'] = t.pop('place_id', None)
-    viewport_raw = t.pop('viewport_json', None)
-    t['viewport'] = json.loads(viewport_raw) if viewport_raw else None
-    types_raw = t.pop('place_types', None)
-    t['placeTypes'] = json.loads(types_raw) if types_raw else None
+    t['viewport'] = _safe_json(t.pop('viewport_json', None), None)
+    t['placeTypes'] = _safe_json(t.pop('place_types', None), None)
     t['countryCode'] = t.pop('country_code', None)
-    companions_raw = t.pop('companions_json', None)
-    t['companions'] = json.loads(companions_raw) if companions_raw else []
-    marked_raw = t.pop('marked_places_json', None)
-    t['markedPlaces'] = json.loads(marked_raw) if marked_raw else []
-    documents_raw = t.pop('documents_json', None)
-    t['documents'] = json.loads(documents_raw) if documents_raw else []
-    photos_raw = t.pop('photos_json', None)
-    t['photos'] = json.loads(photos_raw) if photos_raw else []
-    checklist_raw = t.pop('checklist_json', None)
-    t['checklist'] = json.loads(checklist_raw) if checklist_raw else []
+    t['companions'] = _safe_json(t.pop('companions_json', None), [])
+    t['markedPlaces'] = _safe_json(t.pop('marked_places_json', None), [])
+    t['documents'] = _safe_json(t.pop('documents_json', None), [])
+    t['photos'] = _safe_json(t.pop('photos_json', None), [])
+    t['checklist'] = _safe_json(t.pop('checklist_json', None), [])
     # §4.3 multi-country: discovered ISO codes the trip touches. Stored
     # as a JSON array of upper-case 2-letter codes (e.g. ["PT", "ES"]).
     # Defensively coerce non-list shapes (legacy bad data) to an empty
