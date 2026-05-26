@@ -807,3 +807,52 @@ def delete_feed_comment(comment_id):
         cursor.execute("DELETE FROM feed_comments WHERE id = ?", (comment_id,))
         conn.commit()
     return jsonify({"status": "ok", "event_id": event_id})
+
+
+@bp.route("/api/feed/comment/<int:comment_id>", methods=["PATCH"])
+@require_auth
+@limiter.limit("60/minute")
+@retry_on_lock()
+def edit_feed_comment(comment_id):
+    """Edit a comment's body. Author-only.
+
+    Audit fix (2026-05-26): pre-fix the only way to fix a typo was
+    to DELETE the comment and re-post — which destroyed the thread's
+    chronological position AND lost any (future) reactions on the
+    original. Now an in-place edit. Same 500-char silent-truncation
+    contract as the create path so existing UI gracefully handles
+    a paste that's too long.
+
+    Visibility re-checked at edit time so a comment whose underlying
+    event has gone private (trip flipped, unfriend) can't be edited
+    further — same posture as the comment-create path.
+    """
+    user_id = current_user_id()
+    data = request.json or {}
+    body = (data.get("body") or "").strip()
+    if not body:
+        return jsonify({"error": "Empty comment"}), 400
+    body = body[:500]
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT user_id, event_id FROM feed_comments WHERE id = ?",
+            (comment_id,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"error": "Not found"}), 404
+        if row["user_id"] != user_id:
+            return jsonify({"error": "Forbidden"}), 403
+        event_id = row["event_id"]
+        if not _caller_can_see_event(cursor, event_id, user_id):
+            return jsonify({"error": "Unknown or unauthorised event"}), 404
+        cursor.execute(
+            "UPDATE feed_comments SET body = ? WHERE id = ?",
+            (body, comment_id),
+        )
+        conn.commit()
+    return jsonify({
+        "status": "ok",
+        "comment": {"id": comment_id, "body": body, "eventId": event_id},
+    })
