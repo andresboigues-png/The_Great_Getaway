@@ -183,7 +183,8 @@ function renderTabsNav(trip: any, activeTab: SettlementTab): string {
 }
 
 function renderTripTab(trip: any, tripIsEditable: boolean): string {
-    const { balances } = computeTripBalances(trip);
+    const { balances, removedFromRoster } = computeTripBalances(trip);
+    const removedSet = new Set(removedFromRoster || []);
     const debts = simplifyDebts(balances);
     const board = computeLeaderboard(trip);
     const totalPaid = board.reduce((s, b) => s + b.paid, 0);
@@ -252,12 +253,22 @@ function renderTripTab(trip: any, tripIsEditable: boolean): string {
             .map(([person, bal]) => {
                 const isCredit = bal > 0.01;
                 const isDebt = bal < -0.01;
+                // Audit fix (2026-05-26): show a "(removed)" tag when
+                // this name is in the balance roster only because of
+                // historical expenses — the companion has since been
+                // removed from the trip. Pre-fix these rows were
+                // silently dropped from the balance entirely; now they
+                // surface so the user can see why the math is what it is.
+                const isRemoved = removedSet.has(person);
+                const removedTag = isRemoved
+                    ? `<span style="margin-left:6px; padding:1px 6px; border-radius:6px; background:rgba(0,0,0,0.06); color:var(--text-secondary); font-size:0.7rem; font-weight:700; text-transform:uppercase;">removed</span>`
+                    : '';
                 return `
             <div style="display:flex; align-items:center; gap:14px; padding:12px 14px; background: var(--card-bg); border:1px solid var(--border-subtle); border-radius:14px;">
                 <div style="width:34px; height:34px; border-radius:50%; background: ${isCredit ? 'rgba(52,199,89,0.18)' : isDebt ? 'rgba(255,59,48,0.18)' : 'var(--surface-subtle)'}; color: ${isCredit ? '#1a6b3c' : isDebt ? '#a30000' : 'var(--text-secondary)'}; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:0.95rem; flex-shrink:0;">
                     ${esc(person.charAt(0).toUpperCase())}
                 </div>
-                <div style="flex:1; min-width:0; font-weight:800; color: var(--text-brand-navy); font-size:0.95rem; overflow:hidden; text-overflow:ellipsis;">${esc(person)}</div>
+                <div style="flex:1; min-width:0; font-weight:800; color: var(--text-brand-navy); font-size:0.95rem; overflow:hidden; text-overflow:ellipsis;">${esc(person)}${removedTag}</div>
                 <div style="font-weight:800; color: ${isCredit ? '#1a6b3c' : isDebt ? '#a30000' : 'var(--text-secondary)'}; font-size:1rem;">
                     ${isCredit ? '+' : ''}${formatHome(bal, 'EUR')}
                 </div>
