@@ -358,6 +358,29 @@ def _enrich_itinerary(itinerary: list, destination: str) -> list:
     return itinerary
 
 
+@bp.route("/api/fx-rates", methods=["GET"])
+@limiter.limit("60/minute")
+def get_fx_rates():
+    """Server-side FX rate cache (audit fix 2026-05-26).
+
+    Returns `{ "rates": {"USD": 0.92, "GBP": 1.16, ...} }` where each
+    value is the rate to convert 1 unit of that currency into EUR.
+    Backed by Frankfurter (free, ECB-derived) with a 24h server-side
+    cache.
+
+    Replaces the frontend's frozen `CONVERSION_RATES` table in
+    constants.ts — pre-fix that table was 17 currencies frozen at
+    bundle build time, last edited ~2024. Currencies missing from
+    it (EGP, IDR, KRW, MXN's many siblings) silently fell back to
+    rate=1, storing e.g. an EGP 100 expense as €100. The endpoint
+    is anonymous (no @require_auth) because rates are not
+    user-specific and the page-load path benefits from cached
+    responses; we rate-limit at 60/minute to prevent abuse.
+    """
+    from fx_rates import get_all_rates_eur
+    return jsonify({"rates": get_all_rates_eur()})
+
+
 @bp.route("/api/config", methods=["GET"])
 def get_config():
     """Expose ONLY non-sensitive client config — currently the public

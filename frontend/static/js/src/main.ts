@@ -27,7 +27,7 @@ import './tailwind.css';
 import { STATE, loadState, subscribe } from './state.js';
 import { initThemeManager } from './theme.js';
 import { loadLocale, getLocale } from './i18n.js';
-import { syncWithServer, pullFromServer, fetchNotifications } from './api.js';
+import { syncWithServer, pullFromServer, fetchNotifications, refreshFxRates } from './api.js';
 import { navigate } from './router.js';
 import { PAGES, EVENTS } from './constants.js';
 
@@ -73,6 +73,16 @@ async function init() {
     } catch (err) {
         console.error('i18n: failed to load active locale, falling back to en:', err);
     }
+
+    // Audit fix (2026-05-26): pull fresh FX rates from the server.
+    // The static CONVERSION_RATES table in constants.ts is ~2 years
+    // old and missing ~100 currencies (they fell back to rate=1 —
+    // EGP 100 was being stored as €100). Server caches the
+    // Frankfurter response for 24h so this is one cheap call.
+    // Anonymous endpoint, so we fire it before restoreSession.
+    // Fire-and-forget: any error just leaves the static table in
+    // place, which is the pre-fix behaviour.
+    refreshFxRates();
 
     // Check session: apiFetch attaches the stored JWT (if any). The server
     // returns logged_in:true with the user payload when the token is still
