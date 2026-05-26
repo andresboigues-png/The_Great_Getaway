@@ -75,6 +75,51 @@ def ensure_user_exists(cursor, user_id):
     return cursor.fetchone() is not None
 
 
+def unlink_companion_user_from_trip(cursor, trip_id, user_id):
+    """Strip the `linkedUserId` reference from any companion entry on
+    the given trip that points at `user_id`. The companion row itself
+    stays (the name might still be meaningful as a ghost companion);
+    only the user-account link is severed.
+
+    Used by /api/trips/invite/respond decline + /api/trips/members/
+    remove paths so a declined-or-kicked user doesn't keep showing
+    up as ⏳ Pending forever on the owner's companion picker.
+
+    Audit fix (2026-05-26): pre-fix decline only deleted the
+    trip_members row, leaving companions_json untouched; the picker
+    rendered the dangling link as Pending in perpetuity. Idempotent
+    — re-running on a trip that doesn't reference the user is a
+    no-op."""
+    if not trip_id or not user_id:
+        return
+    cursor.execute(
+        "SELECT companions_json FROM trips WHERE id = ?", (trip_id,),
+    )
+    row = cursor.fetchone()
+    if not row or not row["companions_json"]:
+        return
+    try:
+        companions = json.loads(row["companions_json"])
+    except (json.JSONDecodeError, TypeError):
+        return
+    if not isinstance(companions, list):
+        return
+    changed = False
+    for c in companions:
+        if not isinstance(c, dict):
+            continue
+        if c.get("linkedUserId") == user_id:
+            c.pop("linkedUserId", None)
+            # Drop any link-state metadata that might be hanging around.
+            c.pop("linkStatus", None)
+            changed = True
+    if changed:
+        cursor.execute(
+            "UPDATE trips SET companions_json = ? WHERE id = ?",
+            (json.dumps(companions), trip_id),
+        )
+
+
 def unwrap_legacy_plan_text(s):
     """Some legacy trip_days rows have morning/afternoon/evening stored
     as JSON-encoded strings (`'""'` for empty, `'"foo"'` for non-empty)

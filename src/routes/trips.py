@@ -25,6 +25,7 @@ from helpers import (
     ensure_user_exists,
     is_trip_owner,
     trip_member_role,
+    unlink_companion_user_from_trip,
 )
 from observability import bind_trip_context
 
@@ -454,6 +455,12 @@ def respond_trip_invite():
                 "DELETE FROM trip_members WHERE trip_id = ? AND user_id = ?",
                 (trip_id, user_id),
             )
+            # Audit fix (2026-05-26): strip the companion's linkedUserId
+            # so the owner's picker doesn't render the declined invitee
+            # as ⏳ Pending forever. The companion's name entry stays
+            # — the owner may still want a ghost companion under that
+            # name and re-inviting via a fresh link is the cleaner UX.
+            unlink_companion_user_from_trip(cursor, trip_id, user_id)
             msg = f"{responder_name} declined the invite to {trip_name}."
             note_type = "trip_invite_declined"
 
@@ -495,6 +502,11 @@ def remove_trip_member():
             "DELETE FROM trip_members WHERE trip_id = ? AND user_id = ?",
             (trip_id, target),
         )
+        # Audit fix (2026-05-26): same companion-cleanup as the decline
+        # path — without this the kicked user keeps showing on the
+        # owner's picker as ⏳ Pending. Companion name stays as a
+        # ghost so any historical expense attribution still resolves.
+        unlink_companion_user_from_trip(cursor, trip_id, target)
 
         cursor.execute("SELECT name FROM users WHERE id = ?", (actor,))
         actor_row = cursor.fetchone()
