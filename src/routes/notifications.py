@@ -75,18 +75,27 @@ def notify_trip_public():
     with get_db() as conn:
         cursor = conn.cursor()
 
-        # Trip must exist AND be owned by the caller. The audit
-        # finding was that anyone could send a notification claiming
-        # to be about any trip; now the server resolves the trip
-        # name itself + verifies ownership.
+        # Trip must exist, be owned by the caller, AND actually be
+        # marked public. The audit finding was that anyone could send
+        # a notification claiming to be about any trip; the server
+        # now resolves the trip name itself + verifies ownership.
+        #
+        # Audit fix (2026-05-26): also require `is_public = 1`. Pre-
+        # fix, a user could call /api/notifications/trip_public for
+        # a trip that was still private, spamming every follower with
+        # "completed and made public" while clicking through hit a
+        # 404 (the trip is private to the follower). Now the broadcast
+        # is gated to trips that are genuinely public — matches the
+        # message body's claim.
         cursor.execute(
-            "SELECT name FROM trips WHERE id = ? AND user_id = ?",
+            "SELECT name FROM trips WHERE id = ? AND user_id = ? AND is_public = 1",
             (trip_id, user_id),
         )
         trip_row = cursor.fetchone()
         if not trip_row:
             return jsonify({
-                "status": "error", "message": "Trip not found or not yours",
+                "status": "error",
+                "message": "Trip not found, not yours, or not public",
             }), 403
         trip_name = trip_row["name"] or "a trip"
 

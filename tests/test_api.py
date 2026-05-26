@@ -2130,7 +2130,11 @@ def test_notifications_trip_public_creates_notification(
     client, seed_user, seed_other_user, auth_headers, other_auth_headers,
 ):
     """Marking a trip public fans out notifications to friends. The
-    sender's call returns 200; the receiver's /list reflects the new row."""
+    sender's call returns 200; the receiver's /list reflects the new row.
+
+    Audit fix (2026-05-26): the trip must actually be is_public=1
+    before the broadcast goes out, so create the test trip with
+    `public=True`."""
     # Befriend so the notification has a recipient.
     client.post("/api/friends/add", headers=auth_headers, json={
         "friend_id": seed_other_user,
@@ -2138,12 +2142,25 @@ def test_notifications_trip_public_creates_notification(
     client.post("/api/friends/accept", headers=other_auth_headers, json={
         "friend_id": seed_user,
     })
-    trip_id = _create_trip(client, auth_headers, trip_id="trip-public-notif")
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-public-notif", public=True)
     res = client.post("/api/notifications/trip_public", headers=auth_headers, json={
         "trip_id": trip_id,
         "trip_name": "Public Trip",
     })
     assert res.status_code == 200
+
+
+def test_notifications_trip_public_rejects_private_trip(
+    client, seed_user, auth_headers,
+):
+    """Audit fix (2026-05-26): /api/notifications/trip_public must
+    refuse to fan out when the trip is_public=0. Pre-fix this was a
+    free "spam followers about a private trip" channel."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-still-private", public=False)
+    res = client.post("/api/notifications/trip_public", headers=auth_headers, json={
+        "trip_id": trip_id,
+    })
+    assert res.status_code == 403
 
 
 # ── /api/config + /api/generate_itinerary ───────────────────────────────────
