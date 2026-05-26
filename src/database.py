@@ -704,6 +704,16 @@ def init_db():
             "ON feed_posts(repost_of_post_id)",
             "CREATE INDEX IF NOT EXISTS idx_feed_comments_user "
             "ON feed_comments(user_id)",
+            # 2026-05-26 audit: prevent duplicate (trip_id, day_number)
+            # rows. Frontend has a band-aid dedupe but the underlying
+            # race (two browser tabs adding the same day) wasn't
+            # prevented at the DB level. Partial UNIQUE so NULL
+            # day_numbers (shouldn't happen, but if they do) don't
+            # collide. Migration b1d2e3f4c5a7 cleans pre-existing
+            # duplicates on prod DBs before adding the index.
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_trip_days_trip_day_number "
+            "ON trip_days(trip_id, day_number) "
+            "WHERE trip_id IS NOT NULL AND day_number IS NOT NULL",
         ):
             cursor.execute(ddl)
 

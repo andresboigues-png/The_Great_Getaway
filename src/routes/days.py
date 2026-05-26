@@ -8,6 +8,8 @@ card; the 422 in delete_day is belt-and-braces in case a stale client
 or a curl-wielding user fires the request anyway.
 """
 
+import sqlite3
+
 from flask import Blueprint, jsonify, request
 
 from auth import current_user_id, require_auth
@@ -44,6 +46,24 @@ def upsert_day():
     if not claimed_trip_id:
         return jsonify({"error": "Missing trip id"}), 400
     bind_trip_context(claimed_trip_id)
+
+    # Audit fix (2026-05-26): validate day_number bounds. Pre-fix the
+    # route happily stored `dayNumber: -5` or `dayNumber: 999999`,
+    # which then broke the renumber heuristic and the "Add Day"
+    # modal's "Day N+1" suggestion (modals.ts:843 computes maxDayNumber
+    # + 1, which goes catastrophic with extreme values). Cap at a
+    # generous 999 — no trip is longer than 999 days.
+    day_number = d.get("dayNumber")
+    if day_number is not None:
+        try:
+            day_number_int = int(day_number)
+        except (TypeError, ValueError):
+            return jsonify({"error": "dayNumber must be an integer"}), 400
+        if day_number_int < 0:
+            return jsonify({"error": "dayNumber must be non-negative"}), 400
+        if day_number_int > 999:
+            return jsonify({"error": "dayNumber must be 999 or less"}), 400
+        d['dayNumber'] = day_number_int
     with get_db() as conn:
         cursor = conn.cursor()
         existing = cursor.execute(
@@ -52,29 +72,43 @@ def upsert_day():
         gate_trip_id = existing["trip_id"] if existing else claimed_trip_id
         if not can_edit_trip(cursor, gate_trip_id, user_id):
             return jsonify({"error": "Forbidden"}), 403
-        cursor.execute('''
-            INSERT INTO trip_days (id, trip_id, day_number, date, name, morning, afternoon, evening, tip, lat, lng)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET
-                day_number=excluded.day_number,
-                date=excluded.date,
-                name=excluded.name,
-                morning=excluded.morning,
-                afternoon=excluded.afternoon,
-                evening=excluded.evening,
-                tip=excluded.tip,
-                lat=excluded.lat,
-                lng=excluded.lng
-        ''', (day_id, claimed_trip_id, d.get('dayNumber'), d.get('date'), d.get('name'),
-              # Plain text — see /api/sync in main.py for the json.dumps fix.
-              d.get('morning', d.get('plan', {}).get('morning', '')) or '',
-              d.get('afternoon', d.get('plan', {}).get('afternoon', '')) or '',
-              d.get('evening', d.get('plan', {}).get('evening', '')) or '',
-              d.get('tip', d.get('notes', '')),
-              d.get('lat'),
-              # §2.4 — `or` drops lng=0 (prime meridian). Explicit
-              # is-not-None instead.
-              d['lng'] if d.get('lng') is not None else d.get('lon')))
+        try:
+            cursor.execute('''
+                INSERT INTO trip_days (id, trip_id, day_number, date, name, morning, afternoon, evening, tip, lat, lng)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    day_number=excluded.day_number,
+                    date=excluded.date,
+                    name=excluded.name,
+                    morning=excluded.morning,
+                    afternoon=excluded.afternoon,
+                    evening=excluded.evening,
+                    tip=excluded.tip,
+                    lat=excluded.lat,
+                    lng=excluded.lng
+            ''', (day_id, claimed_trip_id, d.get('dayNumber'), d.get('date'), d.get('name'),
+                  # Plain text — see /api/sync in main.py for the json.dumps fix.
+                  d.get('morning', d.get('plan', {}).get('morning', '')) or '',
+                  d.get('afternoon', d.get('plan', {}).get('afternoon', '')) or '',
+                  d.get('evening', d.get('plan', {}).get('evening', '')) or '',
+                  d.get('tip', d.get('notes', '')),
+                  d.get('lat'),
+                  # §2.4 — `or` drops lng=0 (prime meridian). Explicit
+                  # is-not-None instead.
+                  d['lng'] if d.get('lng') is not None else d.get('lon')))
+        except sqlite3.IntegrityError as exc:
+            # Audit fix (2026-05-26): the new partial UNIQUE on
+            # (trip_id, day_number) can fire when two clients race
+            # to insert the same day_number. Surface a 409 rather
+            # than a generic 500 so the frontend can resync + pick
+            # a fresh day_number; the alternative would be a
+            # confused user seeing "internal error" on a routine
+            # multi-tab/multi-planner edit.
+            if "idx_trip_days_trip_day_number" in str(exc):
+                return jsonify({
+                    "error": "A day with that day_number already exists on this trip",
+                }), 409
+            raise
         conn.commit()
     return jsonify({"status": "ok"})
 
