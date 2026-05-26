@@ -406,7 +406,14 @@ def init_db():
                 original_amount REAL,
                 original_currency TEXT,
                 FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
-                FOREIGN KEY(trip_id) REFERENCES trips(id) ON DELETE SET NULL
+                FOREIGN KEY(trip_id) REFERENCES trips(id) ON DELETE SET NULL,
+                -- 2026-05-26 (audit B6): a user can't have two budgets
+                -- with the same scope — the spend-against-target sum
+                -- doesn't know to split between them, so the same
+                -- expenses double-counted under both. Constraint added
+                -- via migration e4f5a6b7c8d9; mirrored here for fresh
+                -- installs that skip the migration chain.
+                UNIQUE(user_id, trip_id, category_id, owner_name)
             )
         ''')
 

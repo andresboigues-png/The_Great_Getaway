@@ -335,6 +335,33 @@ def invite_trip_member():
         if not ensure_user_exists(cursor, target):
             return jsonify({"error": "Target user not found"}), 404
 
+        # 2026-05-26 (audit PE1): block silent role changes on accepted
+        # members. The ON CONFLICT clause used to write
+        # `role = excluded.role` unconditionally — so an owner could
+        # "re-invite" an already-accepted Relaxer as a Planner, and the
+        # role flipped without sending a "you've been promoted"
+        # notification. The accepted member wouldn't know their
+        # permissions changed until they next opened the app and tried
+        # an action that suddenly worked (or didn't). Now: if the
+        # target is already an accepted member, only re-fire the invite
+        # if the role matches what they already have (idempotent — fine
+        # to re-send the invite notification without changing anything).
+        # If the role differs, return 409 Conflict telling the caller
+        # to use a dedicated change-role endpoint (which we will add
+        # in Batch C — for now, the only path forward is remove the
+        # member then re-invite with the new role).
+        cursor.execute(
+            "SELECT role, invitation_status FROM trip_members "
+            "WHERE trip_id = ? AND user_id = ?",
+            (trip_id, target),
+        )
+        existing = cursor.fetchone()
+        if existing and existing["invitation_status"] == "accepted" and existing["role"] != role:
+            return jsonify({
+                "error": "Member already accepted with a different role",
+                "current_role": existing["role"],
+            }), 409
+
         # Model B: trip invites are an explicit access grant, decoupled
         # from the social graph. Anyone can be invited — the rate
         # limiter at the route level + the per-trip "must be planner"
@@ -347,7 +374,14 @@ def invite_trip_member():
             "INSERT INTO trip_members (trip_id, user_id, role, is_archived, invitation_status, invited_by) "
             "VALUES (?, ?, ?, 0, 'pending', ?) "
             "ON CONFLICT(trip_id, user_id) DO UPDATE SET "
-            "  role = excluded.role, "
+            # Only change role on pending re-invites (the member hasn't
+            # accepted yet, so the owner can fix a typo in role). Once
+            # accepted, the role is locked here — see the 409 gate
+            # above; a separate change-role endpoint will handle that
+            # case explicitly with a notification to the affected
+            # member.
+            "  role = CASE WHEN trip_members.invitation_status = 'accepted' "
+            "              THEN trip_members.role ELSE excluded.role END, "
             "  invitation_status = CASE WHEN trip_members.invitation_status = 'accepted' "
             "                           THEN 'accepted' ELSE 'pending' END, "
             "  invited_by = excluded.invited_by",
@@ -677,6 +711,16 @@ def _clone_trip_record(cursor, source_trip_id, new_owner_id):
     )
     for d in cursor.fetchall():
         new_day_id = _generate_trip_id()
+        # 2026-05-26 (audit TR2): clone strips day dates. The source
+        # trip's dates are anchored to whenever the original journey
+        # happened ("Paris Mar 1-7" archived from 2025). Copying them
+        # verbatim into a brand-new clone left the path dated in the
+        # past and refused to auto-update when the user changed the
+        # trip's dates (the date-shift logic only runs when the trip
+        # already has dates AND the user explicitly re-dates). NULLing
+        # them on clone lets the frontend's date-assignment logic
+        # populate fresh dates based on the new owner's chosen start —
+        # which is the user expectation for a cloned template.
         cursor.execute('''
             INSERT INTO trip_days (
                 id, trip_id, day_number, date, name,
@@ -687,7 +731,7 @@ def _clone_trip_record(cursor, source_trip_id, new_owner_id):
             new_day_id,
             new_trip_id,
             d['day_number'],
-            d['date'],
+            None,
             d['name'],
             d['morning'],
             d['afternoon'],

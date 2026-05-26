@@ -21,16 +21,64 @@ import { getTripCompanionNames } from '../../companions.js';
 import { showModal } from '../../components/Modal.js';
 import { t } from '../../i18n.js';
 
-/** Sum (in EUR) the trip/category/user-filtered expenses for a budget. */
+/** Sum (in EUR) the trip/category/user-filtered expenses for a budget.
+ *
+ *  2026-05-26 (audit B4): now split-aware on per-person budgets. The
+ *  old version added `e.euroValue` whole for any expense where Alice
+ *  was the payer (`e.who === budget.user`). For shared expenses this
+ *  overstated Alice's spend because the others paid her back via the
+ *  split — a €100 dinner split 50/50 with Bob counts as €100 against
+ *  Alice's budget despite Alice only owing €50. The corrected rule:
+ *
+ *    - If a `user`-scoped budget AND the expense has splits, use that
+ *      person's share — `(e.euroValue * splits[budget.user]) / sum(splits)`.
+ *      The denom is the actual sum of split percentages, not a hard
+ *      100, so the same normalization rule the balance math uses
+ *      (settlement/balances.ts) applies here too — a 33/33/33 (99%)
+ *      custom split aggregates to the right per-person share.
+ *    - If a `user`-scoped budget AND the expense has NO splits but
+ *      `e.who === budget.user`, the payer ate the whole expense; count
+ *      the full euroValue.
+ *    - If the budget has no user scope (or `user='all'`), splits are
+ *      irrelevant — count the full euroValue. The trip+category gate
+ *      above is the only filter.
+ *
+ *  Per-trip "All categories → everyone" overall budgets are unaffected
+ *  by this change (they still count the trip's total spend, which is
+ *  correct: the trip's spend is the sum of all expenses, regardless of
+ *  who paid).
+ */
 export function spentForBudget(budget: any): number {
+    const personScope: string | null =
+        budget.user && budget.user !== 'all' ? budget.user : null;
     let spent = 0;
     for (const e of STATE.expenses || []) {
         if (e.isSettlement) continue;
         if (budget.tripId && budget.tripId !== 'all' && e.tripId !== budget.tripId) continue;
         if (budget.categoryId && budget.categoryId !== 'all' && e.categoryId !== budget.categoryId)
             continue;
-        if (budget.user && budget.user !== 'all' && e.who !== budget.user) continue;
-        spent += e.euroValue || 0;
+        const euroValue = e.euroValue || 0;
+        if (!personScope) {
+            spent += euroValue;
+            continue;
+        }
+        // Person-scoped budget: count the budget-holder's SHARE of the
+        // expense, not the gross amount paid. Splits dict keys are
+        // companion names; if the budget holder isn't in the splits
+        // dict the expense isn't theirs to count.
+        const splits = e.splits;
+        if (splits && Object.keys(splits).length > 0) {
+            const pct = splits[personScope];
+            if (pct === undefined) continue; // budget-holder isn't on this split
+            const denom = Object.values(splits).reduce((a: number, b: any) => a + (Number(b) || 0), 0);
+            if (denom <= 0) continue;
+            spent += (euroValue * pct) / denom;
+            continue;
+        }
+        // No splits dict: legacy expense, count if the payer matches.
+        if (e.who === personScope) {
+            spent += euroValue;
+        }
     }
     return spent;
 }

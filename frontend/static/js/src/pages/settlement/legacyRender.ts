@@ -871,13 +871,66 @@ export function openManualSettleModal(tripId: string): void {
             showLiquidAlert(t('settlement.toastSenderEqualsReceiver'));
             return;
         }
-        // The method + note flow into /api/settlements when both
-        // parties have linkedUserIds (see settleDebt step 2). They
-        // get dropped silently for the legacy companion-by-name path
-        // since there's no server-side record to attach them to.
-        settleDebt(tripId, from, to, amount, home, { method, note });
-        close();
+        // 2026-05-26 (audit S5): warn when the entered amount exceeds
+        // the actual outstanding debt from `from` → `to`. Without this
+        // check, typing €60 when only €30 is owed silently flipped the
+        // balance — Bob now owes Alice €30 — and the user thought
+        // they'd settled the debt cleanly. Now we compute the
+        // pairwise outstanding via simplifyDebts() on the current trip
+        // balance map and pop a confirm if amount > owed (any positive
+        // owed; the value-of-zero case is "settling a fictional debt"
+        // which is also worth confirming). Confirms always settle as
+        // requested — this is a UX nudge, not a hard gate.
+        const owed = _pairwiseOwed(trip, from, to, home);
+        const proceed = () => {
+            // The method + note flow into /api/settlements when both
+            // parties have linkedUserIds (see settleDebt step 2). They
+            // get dropped silently for the legacy companion-by-name path
+            // since there's no server-side record to attach them to.
+            settleDebt(tripId, from, to, amount, home, { method, note });
+            close();
+        };
+        if (amount > owed + 0.005) {
+            showConfirmModal({
+                title: t('settlement.overpayConfirmTitle'),
+                message: owed > 0.005
+                    ? t('settlement.overpayConfirmBody', {
+                        amount: formatHome(amount, home),
+                        owed: formatHome(owed, home),
+                        from,
+                        to,
+                    })
+                    : t('settlement.overpayConfirmBodyNone', {
+                        amount: formatHome(amount, home),
+                        from,
+                        to,
+                    }),
+                confirmText: t('settlement.overpayConfirmBtn'),
+                onConfirm: proceed,
+            });
+            return;
+        }
+        proceed();
     };
+}
+
+
+/** Compute how much `from` net-owes `to` on a trip, in the user's
+ *  home currency. Drives the overpayment warning on the manual-settle
+ *  modal (audit S5). Walks the simplified-debt graph since pairwise
+ *  netting can hide behind a chain (Alice owes Bob via Charlie etc.);
+ *  if the direct from→to edge exists, that's the answer, otherwise 0
+ *  (no direct debt; the user is paying into a chain we can't simplify
+ *  without re-running netting from scratch). */
+function _pairwiseOwed(trip: any, from: string, to: string, home: string): number {
+    if (!trip) return 0;
+    const { balances } = computeTripBalances(trip);
+    const debts = simplifyDebts(balances);
+    const edge = debts.find(d => d.from === from && d.to === to);
+    if (!edge) return 0;
+    // `amount` from simplifyDebts is in EUR. Convert to the user's
+    // home currency for the comparison + UI display. EUR → home.
+    return convertCurrency(edge.amount, 'EUR', home);
 }
 
 export function openEditSettlementModal(id: string): void {

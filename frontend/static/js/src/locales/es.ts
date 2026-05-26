@@ -395,6 +395,10 @@ export const es: Translations = {
         methodWise: 'Wise',
         methodPayPal: 'PayPal',
         methodCustom: 'Otro',
+        overpayConfirmTitle: '¿Pagar más de lo debido?',
+        overpayConfirmBody: 'Estás saldando {amount} de {from} a {to}, pero solo {owed} está pendiente. El excedente invertirá el saldo — {to} pasará a deberle a {from}. ¿Continuar?',
+        overpayConfirmBodyNone: 'Estás saldando {amount} de {from} a {to}, pero actualmente no se debe nada en esa dirección. Esto creará una deuda en sentido contrario — {to} le deberá a {from}. ¿Continuar?',
+        overpayConfirmBtn: 'Saldar igualmente',
     },
     budgets: {
         title: 'Presupuestos',

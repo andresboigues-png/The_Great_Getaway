@@ -400,6 +400,10 @@ export const fr: Translations = {
         methodWise: 'Wise',
         methodPayPal: 'PayPal',
         methodCustom: 'Autre',
+        overpayConfirmTitle: 'Payer plus que dû ?',
+        overpayConfirmBody: "Tu règles {amount} de {from} vers {to}, mais seulement {owed} reste dû. L'excédent inversera le solde — {to} devra alors à {from}. Continuer ?",
+        overpayConfirmBodyNone: "Tu règles {amount} de {from} vers {to}, mais rien n'est dû dans ce sens actuellement. Cela créera une dette en sens inverse — {to} devra à {from}. Continuer ?",
+        overpayConfirmBtn: 'Régler quand même',
     },
     budgets: {
         title: 'Budgets',

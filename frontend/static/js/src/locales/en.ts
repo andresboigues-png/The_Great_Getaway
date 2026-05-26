@@ -478,6 +478,14 @@ export const en = {
         methodWise: 'Wise',
         methodPayPal: 'PayPal',
         methodCustom: 'Custom',
+        // 2026-05-26 (audit S5): overpayment confirm — fires when the
+        // typed manual-settle amount exceeds what's actually owed
+        // from→to. {amount} / {owed} are pre-formatted in the home
+        // currency by the call site.
+        overpayConfirmTitle: 'Pay more than owed?',
+        overpayConfirmBody: "You're settling {amount} from {from} to {to}, but only {owed} is outstanding. The extra will flip the balance — {to} will then owe {from}. Continue?",
+        overpayConfirmBodyNone: "You're settling {amount} from {from} to {to}, but nothing is currently owed in that direction. This will create a debt going the other way — {to} will owe {from}. Continue?",
+        overpayConfirmBtn: 'Settle anyway',
     },
     budgets: {
         // Page header.
