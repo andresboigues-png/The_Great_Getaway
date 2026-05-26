@@ -50,12 +50,53 @@ from feed_events import (
 )
 
 
-def _fire_engagement_notification(cursor, recipient_id, actor_id, kind):
+def _post_id_for_event(event_id):
+    """Resolve a feed_posts.id from a share-event_id. Returns the
+    integer post id when the event_id matches `share_<n>` or
+    `repost_<n>`, None otherwise. Used by the engagement-notification
+    helper (audit NF1) so the notification's `post_id` column points
+    at the right row + the unshare cascade can clean it up.
+
+    For repost_<n> we walk the chain: a repost engagement on N is
+    actually engagement on N (the repost row itself), which is fine
+    — when N is unshared, the cascade deletes its notifications, and
+    when the original is unshared the reposts get deleted first
+    (existing unshare-cascade logic on `repost_of_post_id`), so the
+    notifications attached to the repost rows also get cleaned up
+    transitively via the same DELETE."""
+    parsed = _parse_event_id(event_id)
+    if not parsed:
+        return None
+    name, *components = parsed
+    if name not in ("share", "repost"):
+        return None
+    if not components:
+        return None
+    try:
+        return int(components[0])
+    except (TypeError, ValueError):
+        return None
+
+
+def _fire_engagement_notification(cursor, recipient_id, actor_id, kind, post_id):
     """Drop a row into the existing notifications table when someone
     engages with a user's share. Skips self-notifications (you don't
     need to be told you liked your own post). `kind` is one of
     'share_liked' / 'share_commented' / 'share_reposted'.
-    """
+
+    2026-05-26 (audit NF1 + NF3): `post_id` is the feed_post that was
+    engaged with. We stash it in the dedicated `notifications.post_id`
+    column (added in migration f5a6b7c8d9e0) so two paths work:
+      - frontend routing: clicking the notification now lands on the
+        FEED entry, not the actor's profile (the post is what the
+        recipient cares about);
+      - cascade cleanup: when the share is unshared / deleted, the
+        unshare endpoint does `DELETE FROM notifications WHERE
+        post_id = ?` to clean orphans.
+
+    `related_id` still stores the actor's user_id for the "tap the
+    avatar → go to actor's profile" affordance the dropdown UI offers
+    on long-press / context menus."""
     if not recipient_id or recipient_id == actor_id:
         return
     cursor.execute("SELECT name FROM users WHERE id = ?", (actor_id,))
@@ -73,9 +114,9 @@ def _fire_engagement_notification(cursor, recipient_id, actor_id, kind):
     }.get(kind, "Feed activity")
     msg = f"{actor_name} {verb}."
     cursor.execute(
-        "INSERT INTO notifications (user_id, type, title, related_id, message, is_read) "
-        "VALUES (?, ?, ?, ?, ?, 0)",
-        (recipient_id, kind, title, actor_id, msg),
+        "INSERT INTO notifications (user_id, type, title, related_id, message, post_id, is_read) "
+        "VALUES (?, ?, ?, ?, ?, ?, 0)",
+        (recipient_id, kind, title, actor_id, msg, post_id),
     )
 
 
@@ -465,6 +506,29 @@ def unshare_feed_post(post_id):
             return jsonify({"status": "ok"})
         if row["user_id"] != user_id:
             return jsonify({"error": "Forbidden"}), 403
+        # 2026-05-26 (audit NF3): also cascade-delete the engagement
+        # notifications (share_liked / share_commented / share_reposted)
+        # that pointed at this post. Notifications.post_id was added
+        # in migration f5a6b7c8d9e0 specifically for this cleanup —
+        # otherwise the rows orphaned with related_id still pointing
+        # at a real actor user but no underlying post for the click
+        # routing to land on.
+        #
+        # Collect the post + its reposts FIRST, then delete
+        # notifications for all of them, then delete the posts. Doing
+        # it in that order means if either DELETE fails partway, we
+        # still have a referencable post_id list for retry.
+        cursor.execute(
+            "SELECT id FROM feed_posts WHERE id = ? OR repost_of_post_id = ?",
+            (post_id, post_id),
+        )
+        post_ids = [r["id"] for r in cursor.fetchall()]
+        if post_ids:
+            placeholders = ",".join(["?"] * len(post_ids))
+            cursor.execute(
+                f"DELETE FROM notifications WHERE post_id IN ({placeholders})",
+                post_ids,
+            )
         # Cascade: delete reposts pointing at this post first, then the
         # post itself.
         cursor.execute("DELETE FROM feed_posts WHERE repost_of_post_id = ?", (post_id,))
@@ -506,7 +570,11 @@ def repost_feed_post(post_id):
             (user_id, trip_id, post_id),
         )
         new_post_id = cursor.lastrowid
-        _fire_engagement_notification(cursor, original['user_id'], user_id, "share_reposted")
+        # Notify the original sharer that someone reposted them. The
+        # post_id we pass is the ORIGINAL post — that's what clicking
+        # the notification should route to (their own share that just
+        # got engagement), not the new repost row.
+        _fire_engagement_notification(cursor, original['user_id'], user_id, "share_reposted", post_id)
         conn.commit()
     return jsonify({"status": "reposted", "post_id": new_post_id})
 
@@ -543,7 +611,7 @@ def toggle_feed_like(event_id):
                 (user_id, event_id),
             )
             owner_id = _post_owner_for_event(cursor, event_id)
-            _fire_engagement_notification(cursor, owner_id, user_id, "share_liked")
+            _fire_engagement_notification(cursor, owner_id, user_id, "share_liked", _post_id_for_event(event_id))
         cursor.execute(
             "SELECT COUNT(*) AS c FROM feed_likes WHERE event_id = ?",
             (event_id,),
@@ -657,7 +725,7 @@ def add_feed_comment(event_id):
         )
         row = cursor.fetchone()
         owner_id = _post_owner_for_event(cursor, event_id)
-        _fire_engagement_notification(cursor, owner_id, user_id, "share_commented")
+        _fire_engagement_notification(cursor, owner_id, user_id, "share_commented", _post_id_for_event(event_id))
         conn.commit()
     return jsonify({
         "status": "ok",

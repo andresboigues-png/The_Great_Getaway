@@ -191,9 +191,24 @@ export function computeGlobalBalances() {
         const amount = exp.euroValue || exp.value || 0;
         if (globalBalances[exp.who] !== undefined) globalBalances[exp.who]! += amount;
         if (exp.splits && Object.keys(exp.splits).length > 0) {
-            for (const [person, pct] of Object.entries(exp.splits)) {
-                if (globalBalances[person] !== undefined)
-                    globalBalances[person]! -= amount * (Number(pct) / 100);
+            // 2026-05-26 (audit SP1): normalize the split by the ACTUAL
+            // sum, not a hard /100. A custom 33/33/33 split sums to 99%
+            // and the old code's `/100` divisor leaked 1% of every
+            // expense into phantom global debt across trips, drifting
+            // the cross-trip view away from the per-trip math (which
+            // already normalizes via computeTripBalances). Match the
+            // trip path's denom-by-actual-sum so a balance sheet built
+            // from {trip1 → trip1 view, trip2 → trip2 view, …} agrees
+            // with the global aggregate.
+            const denom = Object.values(exp.splits).reduce(
+                (a: number, b: any) => a + (Number(b) || 0),
+                0,
+            );
+            if (denom > 0) {
+                for (const [person, pct] of Object.entries(exp.splits)) {
+                    if (globalBalances[person] !== undefined)
+                        globalBalances[person]! -= (amount * Number(pct)) / denom;
+                }
             }
         } else {
             const roster = tripCompanionsById[exp.tripId] || [];

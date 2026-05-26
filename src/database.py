@@ -428,9 +428,26 @@ def init_db():
                 message TEXT,
                 is_read INTEGER DEFAULT 0,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                -- 2026-05-26 (audit NF1 + NF3): engagement
+                -- notifications (share_liked / commented / reposted)
+                -- need to know the feed_post they reference, both for
+                -- routing (click → land on the post) and for
+                -- cascade-cleanup when the underlying share is
+                -- deleted. related_id stores the ACTOR user_id; this
+                -- column stores the POST id. NULL for non-engagement
+                -- types. Migration f5a6b7c8d9e0 adds it; mirrored
+                -- here for fresh installs.
+                post_id INTEGER,
                 FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
             )
         ''')
+        # Index supporting the cascade-cleanup query on unshare —
+        # `DELETE FROM notifications WHERE post_id = ?`. Without it,
+        # an unshare scans the whole notifications table.
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_notifications_post_id "
+            "ON notifications(post_id)"
+        )
 
         # ── Feed (social / sharing layer) ──────────────────────────────
         # feed_posts: explicit, user-initiated shares + reposts. Synthesised

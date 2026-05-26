@@ -490,6 +490,13 @@ export interface Notification {
      *  the friend who made a trip public for trip_public). The click handler
      *  uses this to deep-link the user to the right page. */
     related_id?: string | number;
+    /** 2026-05-26 (audit NF1): for share-engagement notifications
+     *  (share_liked / share_commented / share_reposted), the feed_posts.id
+     *  the engagement happened on. Lets the router land the click on the
+     *  FEED entry rather than the actor's profile. NULL for any other
+     *  notification type, and for legacy share-engagement rows from
+     *  before the migration. */
+    postId?: number | null;
 }
 
 export interface AppState {

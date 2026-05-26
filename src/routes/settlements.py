@@ -138,11 +138,23 @@ def create_settlement():
         except (TypeError, ValueError):
             euro_value = None
     if euro_value is None:
-        # Frontend always computes via the conversion table, but if
-        # it's omitted (older client / curl) we fall back to "same
-        # number when currency is EUR, else None — balance math will
-        # ignore non-EUR rows it can't pivot".
-        euro_value = amount_f if currency == "EUR" else None
+        # 2026-05-26 (audit S2): we used to fall back to `amount` for
+        # EUR settlements and `None` otherwise. That meant a non-EUR
+        # settlement with a null euroValue would silently apply the
+        # raw foreign-currency amount to the balance as if it were EUR
+        # — a $120 settlement inflated Alice's debt by €120 (~20%
+        # high) instead of the converted €100. Now require an explicit
+        # euro_value for non-EUR rows; reject the request when it's
+        # missing so the client can either supply the conversion or
+        # switch currency to EUR. The EUR case still uses
+        # `amount_f` as a sane default (no conversion needed).
+        if currency == "EUR":
+            euro_value = amount_f
+        else:
+            return jsonify({
+                "error": "euroValue is required for non-EUR settlements",
+                "currency": currency,
+            }), 400
 
     with get_db() as conn:
         cursor = conn.cursor()

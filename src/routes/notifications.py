@@ -23,13 +23,24 @@ def list_notifications():
     user_id = current_user_id()
     with get_db() as conn:
         cursor = conn.cursor()
+        # 2026-05-26 (audit NF1): include post_id so the client router
+        # can land share-engagement notifications on the FEED entry
+        # they reference instead of falling through to HOME. Camel-cased
+        # in the response shape to match the rest of the API.
         cursor.execute('''
-            SELECT id, type, title, related_id, message, is_read, created_at
+            SELECT id, type, title, related_id, message, is_read, created_at, post_id
             FROM notifications
             WHERE user_id = ?
             ORDER BY created_at DESC LIMIT 50
         ''', (user_id,))
-        notifications = [dict(row) for row in cursor.fetchall()]
+        notifications = []
+        for row in cursor.fetchall():
+            d = dict(row)
+            # Promote snake_case → camelCase for the wire shape (matches
+            # the rest of the JSON API). Drop the snake-cased original
+            # to keep the payload tight + free of duplicates.
+            d['postId'] = d.pop('post_id')
+            notifications.append(d)
     return jsonify(notifications)
 
 

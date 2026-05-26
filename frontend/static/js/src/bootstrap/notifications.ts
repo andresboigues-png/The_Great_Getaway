@@ -263,6 +263,27 @@ export function handleNotificationClick(notification: { type?: string; related_i
             // reflect the new state on the next poll.
             navigate(PAGES.HOME);
             break;
+        case 'share_liked':
+        case 'share_commented':
+        case 'share_reposted': {
+            // 2026-05-26 (audit NF1): engagement notifications route to
+            // the FEED, with the post highlighted via a query param the
+            // feed page can scroll-to. Pre-this-fix the default branch
+            // dumped them on HOME with no context. `postId` is
+            // populated by the server (migration f5a6b7c8d9e0 + the
+            // _fire_engagement_notification helper); legacy rows from
+            // before the migration may not have it, in which case we
+            // fall back to FEED with no highlight (still better than
+            // HOME because at least the feed is where the engagement
+            // happened).
+            const postId = (notification as { postId?: number | null }).postId;
+            if (postId) {
+                navigate(PAGES.FEED, { highlightPostId: String(postId) });
+            } else {
+                navigate(PAGES.FEED);
+            }
+            break;
+        }
         default:
             navigate(PAGES.HOME);
             break;

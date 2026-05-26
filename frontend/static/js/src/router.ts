@@ -76,6 +76,11 @@ export function currentNavSignal(): AbortSignal | undefined {
  *  add their own keys here as new params land. */
 export interface NavigateParams {
     userId?: string;
+    /** 2026-05-26 (audit NF1): when navigating to FEED in response to a
+     *  share-engagement notification click, pass the feed_posts.id the
+     *  engagement happened on so the feed page can scroll to / outline
+     *  that card. Unset for normal navigation to FEED. */
+    highlightPostId?: string;
 }
 
 /** Direction hint for the post-mount slide-in animation on the
