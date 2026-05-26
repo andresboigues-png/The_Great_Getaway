@@ -21,16 +21,37 @@ bp = Blueprint("expenses", __name__)
 @require_auth
 @retry_on_lock()
 def upsert_expense():
-    """Create or update a single expense."""
+    """Create or update a single expense.
+
+    Audit fix (2026-05-26): IDOR via ON CONFLICT(id) DO UPDATE. The
+    permission gate must check the EXISTING row's trip_id on UPDATE,
+    not the request-supplied one — otherwise an attacker who is a
+    planner of trip A could POST `{id: <victim_expense_in_trip_B>,
+    tripId: <trip_A>, …}` and the UPDATE would rewrite the victim's
+    expense (who/label/value/etc.) because the gate only sees the
+    claimed tripId. Same shape as the /api/sync §0.5 fix in data.py:
+    SELECT the existing trip_id first; on UPDATE check against that;
+    on INSERT (no existing row) check against the claimed tripId.
+    """
     data = request.json or {}
     user_id = current_user_id()
     e = data.get("expense")
     if not e:
         return jsonify({"error": "Missing data"}), 400
-    bind_trip_context(e.get("tripId"))
+    expense_id = e.get("id")
+    if not expense_id:
+        return jsonify({"error": "Missing expense id"}), 400
+    claimed_trip_id = e.get("tripId")
+    if not claimed_trip_id:
+        return jsonify({"error": "Missing trip id"}), 400
+    bind_trip_context(claimed_trip_id)
     with get_db() as conn:
         cursor = conn.cursor()
-        if not can_edit_expenses(cursor, e["tripId"], user_id):
+        existing = cursor.execute(
+            "SELECT trip_id FROM expenses WHERE id = ?", (expense_id,),
+        ).fetchone()
+        gate_trip_id = existing["trip_id"] if existing else claimed_trip_id
+        if not can_edit_expenses(cursor, gate_trip_id, user_id):
             return jsonify({"error": "Forbidden"}), 403
         cursor.execute('''
             INSERT INTO expenses (id, trip_id, who, category_id, label, date, country, value, currency, euro_value, receipt_url)
@@ -45,7 +66,7 @@ def upsert_expense():
                 currency=excluded.currency,
                 euro_value=excluded.euro_value,
                 receipt_url=excluded.receipt_url
-        ''', (e['id'], e['tripId'], e['who'], e.get('categoryId', ''),
+        ''', (expense_id, claimed_trip_id, e.get('who'), e.get('categoryId', ''),
               e.get('label', ''), e.get('date', ''), e.get('country', ''),
               e.get('value', 0), e.get('currency', 'EUR'), e.get('euroValue', 0),
               e.get('receiptUrl')))

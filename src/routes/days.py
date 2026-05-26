@@ -23,16 +23,34 @@ bp = Blueprint("days", __name__)
 @require_auth
 @retry_on_lock()
 def upsert_day():
-    """Create or update a single trip day."""
+    """Create or update a single trip day.
+
+    Audit fix (2026-05-26): IDOR via ON CONFLICT(id) DO UPDATE. On an
+    UPDATE path, the permission gate must check the EXISTING row's
+    trip_id rather than the request-supplied one — otherwise an
+    attacker who is a planner of trip A could POST `{id: <victim_day>,
+    tripId: <trip_A>, …}` and rewrite the victim's day. Same fix
+    pattern as /api/expenses.
+    """
     data = request.json or {}
     user_id = current_user_id()
     d = data.get("day")
     if not d:
         return jsonify({"error": "Missing data"}), 400
-    bind_trip_context(d.get("tripId"))
+    day_id = d.get("id")
+    if not day_id:
+        return jsonify({"error": "Missing day id"}), 400
+    claimed_trip_id = d.get("tripId")
+    if not claimed_trip_id:
+        return jsonify({"error": "Missing trip id"}), 400
+    bind_trip_context(claimed_trip_id)
     with get_db() as conn:
         cursor = conn.cursor()
-        if not can_edit_trip(cursor, d.get("tripId"), user_id):
+        existing = cursor.execute(
+            "SELECT trip_id FROM trip_days WHERE id = ?", (day_id,),
+        ).fetchone()
+        gate_trip_id = existing["trip_id"] if existing else claimed_trip_id
+        if not can_edit_trip(cursor, gate_trip_id, user_id):
             return jsonify({"error": "Forbidden"}), 403
         cursor.execute('''
             INSERT INTO trip_days (id, trip_id, day_number, date, name, morning, afternoon, evening, tip, lat, lng)
@@ -47,7 +65,7 @@ def upsert_day():
                 tip=excluded.tip,
                 lat=excluded.lat,
                 lng=excluded.lng
-        ''', (d['id'], d.get('tripId'), d.get('dayNumber'), d.get('date'), d.get('name'),
+        ''', (day_id, claimed_trip_id, d.get('dayNumber'), d.get('date'), d.get('name'),
               # Plain text — see /api/sync in main.py for the json.dumps fix.
               d.get('morning', d.get('plan', {}).get('morning', '')) or '',
               d.get('afternoon', d.get('plan', {}).get('afternoon', '')) or '',

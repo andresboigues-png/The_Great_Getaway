@@ -279,10 +279,18 @@ def sync_data():
             )
 
             # Expenses inside archived trips — gate per-row by role on the
-            # trip (which exists by now since we just upserted it).
+            # trip. Audit fix (2026-05-26): mirror the §0.5 active-expenses
+            # fix below. On UPDATE we MUST check the existing row's
+            # trip_id, not the surrounding trip's, because the attacker
+            # can pass a victim's expense id (whose trip_id is different)
+            # under the cover of `t['id']` being a trip they DO control.
             if 'expenses' in t:
                 for e in t['expenses']:
-                    if not can_edit_trip(cursor, t['id'], user_id):
+                    existing = cursor.execute(
+                        "SELECT trip_id FROM expenses WHERE id = ?", (e['id'],),
+                    ).fetchone()
+                    gate_trip_id = existing['trip_id'] if existing else t['id']
+                    if not can_edit_expenses(cursor, gate_trip_id, user_id):
                         continue
                     cursor.execute('''
                         INSERT INTO expenses (id, trip_id, who, category_id, label, date, country, value, currency, euro_value, receipt_url)
@@ -358,6 +366,20 @@ def sync_data():
         else:
             cursor.execute("DELETE FROM budgets WHERE user_id = ?", (user_id,))
         for b in budgets:
+            # Audit fix (2026-05-26): IDOR via ON CONFLICT(id) DO UPDATE.
+            # Without verifying that the existing row belongs to the
+            # caller, an attacker could include a victim's budget id
+            # in their sync payload and rewrite label/amount/trip_id.
+            # user_id column itself isn't in the SET clause, so
+            # ownership is preserved — but every other field is
+            # attacker-controlled. Skip silently on mismatch (the
+            # whole-batch sync should remain idempotent for honest
+            # callers).
+            existing = cursor.execute(
+                "SELECT user_id FROM budgets WHERE id = ?", (b['id'],),
+            ).fetchone()
+            if existing and existing['user_id'] != user_id:
+                continue
             cursor.execute('''
                 INSERT INTO budgets (id, user_id, trip_id, label, amount, currency)
                 VALUES (?, ?, ?, ?, ?, ?)
@@ -368,9 +390,23 @@ def sync_data():
         # Commit budgets section before trip days.
         conn.commit()
 
-        # Sync Trip Days
+        # Sync Trip Days. Audit fix (2026-05-26):
+        #   1. The loop previously had NO permission check at all —
+        #      any authenticated user could write trip_days for any
+        #      trip_id. Now gated by `can_edit_trip` per row.
+        #   2. ON CONFLICT(id) DO UPDATE rewrites the existing row's
+        #      content; on UPDATE we MUST check the EXISTING row's
+        #      trip_id, not the claimed one, otherwise an attacker
+        #      with planner access to trip A can rewrite trip B's day
+        #      by passing `{id: <victim_day>, tripId: <trip_A>}`.
         trip_days = data.get("trip_days", [])
         for d in trip_days:
+            existing = cursor.execute(
+                "SELECT trip_id FROM trip_days WHERE id = ?", (d['id'],),
+            ).fetchone()
+            gate_trip_id = existing['trip_id'] if existing else d.get('tripId')
+            if not can_edit_trip(cursor, gate_trip_id, user_id):
+                continue
             cursor.execute('''
                 INSERT INTO trip_days (id, trip_id, day_number, date, name, morning, afternoon, evening, tip, lat, lng)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
