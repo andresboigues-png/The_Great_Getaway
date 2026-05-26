@@ -278,7 +278,18 @@ def delete_settlement(settlement_id):
         retract it
     The recipient (`to_user_id`) intentionally CANNOT delete because
     a recipient quietly un-receiving money would leave the payer
-    thinking the debt is settled when it isn't."""
+    thinking the debt is settled when it isn't.
+
+    Audit fix (2026-05-26): notify the recipient when a settlement
+    they received gets deleted. Pre-fix the recipient saw the
+    "Sara paid you €45" notification on creation, then the
+    settlement silently vanished from their balance — they'd see
+    the debt resurface without knowing why. Now we drop a
+    `settled_up_reverted` notification so the recipient learns the
+    payer (or trip owner) took it back. The deleter is excluded
+    from their own notification (no point telling them what they
+    just did).
+    """
     user_id = current_user_id()
     with get_db() as conn:
         cursor = conn.cursor()
@@ -295,6 +306,36 @@ def delete_settlement(settlement_id):
             return jsonify({"error": "Forbidden"}), 403
 
         cursor.execute("DELETE FROM settlements WHERE id = ?", (settlement_id,))
+
+        # Notify the recipient (skip if they're the one deleting,
+        # which can happen when the recipient is the trip owner and
+        # the row was logged on their behalf). Resolve display names
+        # for the message body, same shape as the create path.
+        recipient_id = row["to_user_id"]
+        if recipient_id and recipient_id != user_id:
+            cursor.execute(
+                "SELECT name FROM users WHERE id = ?", (row["from_user_id"],)
+            )
+            payer_row = cursor.fetchone()
+            payer_name = (payer_row["name"] if payer_row else "Someone") or "Someone"
+            cursor.execute(
+                "SELECT name FROM trips WHERE id = ?", (row["trip_id"],)
+            )
+            trip_row = cursor.fetchone()
+            trip_name = (trip_row["name"] if trip_row else "the trip") or "the trip"
+            amount = row["amount"]
+            currency = row["currency"] or ""
+            message = (
+                f"{payer_name} reverted a settlement of "
+                f"{amount:g} {currency} on {trip_name}."
+            )
+            cursor.execute(
+                "INSERT INTO notifications "
+                "(user_id, type, title, related_id, message, is_read) "
+                "VALUES (?, 'settled_up_reverted', 'Settlement reverted', ?, ?, 0)",
+                (recipient_id, row["trip_id"], message),
+            )
+
         conn.commit()
 
     logger.info(
