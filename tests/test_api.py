@@ -3247,6 +3247,7 @@ def test_invite_trip_member_does_not_demote_accepted_planner(
         assert row["invitation_status"] == "accepted"
 
 
+
 def test_invite_trip_member_404_on_unknown_target(
     client, seed_user, auth_headers,
 ):

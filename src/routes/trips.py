@@ -406,6 +406,8 @@ def invite_trip_member():
         # (no user to receive it), the trip_members row could never be
         # cleaned up via the normal "decline" flow, and both leaked
         # storage. Validate up front.
+        # (Also covers the pre-fix FK-violation 500 from the cherry-picked
+        # 51c6346 — same gate, same posture.)
         if not ensure_user_exists(cursor, target):
             return jsonify({"error": "Target user not found"}), 404
         # Audit fix (2026-05-26): block-gate. If the target has
