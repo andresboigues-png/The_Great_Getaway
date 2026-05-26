@@ -596,38 +596,18 @@ def _generate_trip_id() -> str:
     generateId() produces (now crypto.randomUUID-backed). Server-side
     we use secrets.token_hex(5)[:9] which is 9 hex chars = a-z subset
     of the alphanumeric space and ≈ 36 bits of entropy. Partial UNIQUE
-    index on the trips PK catches the astronomically-rare collision."""
-    import secrets
+    index on the trips PK catches the astronomically-rare collision —
+    but the audit (2026-05-26) flagged that 36 bits implies a
+    birthday-style ~3% collision rate at 1 M trips. Callers SHOULD
+    use `_insert_with_retry_on_id_collision` rather than letting the
+    INSERT 500 on collision."""
     return secrets.token_hex(5)[:9]
 
 
-def _clone_trip_record(cursor, source_trip_id, new_owner_id):
-    """Deep-copy a single trip + its trip_days + markedPlaces into a
-    new trip owned by `new_owner_id`. The caller is responsible for
-    visibility (must verify source_trip_id is readable to the user
-    BEFORE calling this — clones bypass the per-trip permission gate
-    on the source by design, because the WHOLE POINT is to give the
-    user their own copy).
-
-    Returns the new trip_id on success, or None if source not found.
-    """
-    cursor.execute(
-        "SELECT id, name, country, country_code, place_id, lat, lng, "
-        "       viewport_json, place_types, "
-        "       marked_places_json, trip_countries_json, cover_url "
-        "FROM trips WHERE id = ?",
-        (source_trip_id,),
-    )
-    src = cursor.fetchone()
-    if not src:
-        return None
-
-    # New IDs everywhere. We never re-use the source's trip_id or
-    # day ids; doing so would risk collisions with the source's
-    # owner's existing records.
-    new_trip_id = _generate_trip_id()
+def _clone_trip_attempt(cursor, src, new_owner_id, new_trip_id):
+    """One INSERT attempt for the clone's trip row, factored so the
+    caller can retry on the rare PK collision from `_generate_trip_id`."""
     new_name = f"{src['name'] or 'Trip'} (copy)"
-
     cursor.execute('''
         INSERT INTO trips (
             id, user_id, name, country, country_code,
@@ -665,6 +645,57 @@ def _clone_trip_record(cursor, source_trip_id, new_owner_id):
         src['cover_url'],
     ))
 
+
+def _clone_trip_record(cursor, source_trip_id, new_owner_id):
+    """Deep-copy a single trip + its trip_days + markedPlaces into a
+    new trip owned by `new_owner_id`. The caller is responsible for
+    visibility (must verify source_trip_id is readable to the user
+    BEFORE calling this — clones bypass the per-trip permission gate
+    on the source by design, because the WHOLE POINT is to give the
+    user their own copy).
+
+    Returns the new trip_id on success, or None if source not found.
+
+    Audit fix (2026-05-26): retry on `_generate_trip_id` collision.
+    The generator returns 9 hex chars (36 bits) so birthday-style
+    collisions are non-negligible at scale; pre-fix a collision
+    propagated as IntegrityError → 500. Now we retry up to 5 times
+    with a freshly generated id; after that the operator has bigger
+    problems (PRNG broken, or DB has accumulated enough trips that
+    the entropy budget is exhausted — at which point we should
+    widen `_generate_trip_id` and stop truncating).
+    """
+    import sqlite3
+    cursor.execute(
+        "SELECT id, name, country, country_code, place_id, lat, lng, "
+        "       viewport_json, place_types, "
+        "       marked_places_json, trip_countries_json, cover_url "
+        "FROM trips WHERE id = ?",
+        (source_trip_id,),
+    )
+    src = cursor.fetchone()
+    if not src:
+        return None
+
+    # New IDs everywhere. We never re-use the source's trip_id or
+    # day ids; doing so would risk collisions with the source's
+    # owner's existing records.
+    new_trip_id = None
+    for _attempt in range(5):
+        candidate = _generate_trip_id()
+        try:
+            _clone_trip_attempt(cursor, src, new_owner_id, candidate)
+            new_trip_id = candidate
+            break
+        except sqlite3.IntegrityError:
+            # PK collision on the trips table — extremely unlikely
+            # at 36 bits but possible. Try again with a fresh id.
+            continue
+    if new_trip_id is None:
+        # 5 collisions in a row is so improbable it indicates a real
+        # bug; bail with None and let the caller surface a 500.
+        return None
+
     # Owner membership row so the clone shows up in /api/data's
     # member-list UNION on next pull.
     ensure_owner_member_row(cursor, new_trip_id, new_owner_id)
@@ -672,7 +703,8 @@ def _clone_trip_record(cursor, source_trip_id, new_owner_id):
     # Days. Each day gets a fresh id (generated server-side via the
     # same _generate_trip_id helper, since day ids share the
     # 9-char shape). Plan text + tip + pin are copied as-is —
-    # they're the "what to do" content.
+    # they're the "what to do" content. Same collision-retry pattern
+    # as the trip row above.
     cursor.execute(
         "SELECT day_number, date, name, morning, afternoon, evening, "
         "       tip, lat, lng "
@@ -680,26 +712,46 @@ def _clone_trip_record(cursor, source_trip_id, new_owner_id):
         (source_trip_id,),
     )
     for d in cursor.fetchall():
-        new_day_id = _generate_trip_id()
-        cursor.execute('''
-            INSERT INTO trip_days (
-                id, trip_id, day_number, date, name,
-                morning, afternoon, evening, tip,
-                lat, lng
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (
-            new_day_id,
-            new_trip_id,
-            d['day_number'],
-            d['date'],
-            d['name'],
-            d['morning'],
-            d['afternoon'],
-            d['evening'],
-            d['tip'],
-            d['lat'],
-            d['lng'],
-        ))
+        inserted = False
+        for _attempt in range(5):
+            candidate_day_id = _generate_trip_id()
+            try:
+                cursor.execute('''
+                    INSERT INTO trip_days (
+                        id, trip_id, day_number, date, name,
+                        morning, afternoon, evening, tip,
+                        lat, lng
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    candidate_day_id,
+                    new_trip_id,
+                    d['day_number'],
+                    d['date'],
+                    d['name'],
+                    d['morning'],
+                    d['afternoon'],
+                    d['evening'],
+                    d['tip'],
+                    d['lat'],
+                    d['lng'],
+                ))
+                inserted = True
+                break
+            except sqlite3.IntegrityError:
+                # day_id collision (same 36-bit space as trip_id),
+                # OR the new UNIQUE(trip_id, day_number) firing if
+                # the source trip had a duplicate of its own (which
+                # the b1d2e3f4c5a7 migration should have cleaned —
+                # but be defensive on prod data we haven't migrated
+                # yet). Retry with a fresh day_id; if the failure
+                # is actually day_number-based, the retry won't help
+                # but at most we'll burn 5 attempts before giving up.
+                continue
+        if not inserted:
+            # 5 collisions per day is incredibly unlikely; bail to
+            # let the caller surface a clean error rather than a
+            # half-copied trip.
+            return None
 
     return new_trip_id
 
