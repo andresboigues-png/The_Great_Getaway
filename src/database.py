@@ -312,7 +312,14 @@ def init_db():
 
         # Expenses Table — receipt_url added post-baseline (FUTURE_
         # FEATURES #3) for the 📎 attach-receipt flow on the expense
-        # form.
+        # form. 2026-05-26: splits_json + is_settlement added so
+        # the frontend's load-bearing split-percentage map (which
+        # drives ALL balance math) survives sign-in on a new device.
+        # Pre-add, splits lived only in localStorage and were silently
+        # wiped by every /api/data poll that rebuilt STATE.expenses
+        # from the server, producing wildly wrong balance numbers
+        # across devices. is_settlement carries the PATH B settle-up
+        # flag so settled debts stop resurrecting on every sign-in.
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS expenses (
                 id TEXT PRIMARY KEY,
@@ -326,6 +333,9 @@ def init_db():
                 currency TEXT,
                 euro_value REAL,
                 receipt_url TEXT,
+                splits_json TEXT
+                    CHECK(splits_json IS NULL OR json_valid(splits_json)),
+                is_settlement INTEGER DEFAULT 0,
                 FOREIGN KEY(trip_id) REFERENCES trips(id) ON DELETE CASCADE
             )
         ''')
@@ -768,6 +778,7 @@ _EXPECTED_COLUMNS = {
     "expenses": [
         "id", "trip_id", "who", "category_id", "label", "date",
         "country", "value", "currency", "euro_value", "receipt_url",
+        "splits_json", "is_settlement",
     ],
     "friends": ["user_id", "friend_id", "status", "created_at"],
     "companions": ["user_id", "name", "linked_user_id", "link_status"],

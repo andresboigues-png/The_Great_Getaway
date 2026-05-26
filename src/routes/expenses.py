@@ -6,6 +6,8 @@ money without also being able to rename the trip or change the
 itinerary.
 """
 
+import json
+
 from flask import Blueprint, jsonify, request
 
 from auth import current_user_id, require_auth
@@ -92,6 +94,31 @@ def upsert_expense():
     except ValidationError as ve:
         return jsonify({"error": str(ve)}), 400
 
+    # Audit fix (2026-05-26): persist `splits` + `isSettlement`.
+    # `splits` is a {payerName: percentage} dict the frontend uses
+    # to drive ALL balance math. Validate shape (dict of str→number
+    # in [0, 100]); reject anything that wouldn't round-trip cleanly.
+    splits_raw = e.get("splits")
+    splits_payload = None
+    if splits_raw is not None:
+        if not isinstance(splits_raw, dict):
+            return jsonify({"error": "splits must be an object"}), 400
+        validated_splits = {}
+        for key, val in splits_raw.items():
+            if not isinstance(key, str) or not key.strip():
+                continue  # Skip malformed keys (matches frontend tolerance).
+            try:
+                pct = float(val)
+            except (TypeError, ValueError):
+                return jsonify({"error": f"splits[{key}] must be a number"}), 400
+            # Allow a small tolerance (-0.001 / 100.001) so floating
+            # point round-trips don't trip the bounds.
+            if pct < -0.001 or pct > 100.001:
+                return jsonify({"error": f"splits[{key}] must be between 0 and 100"}), 400
+            validated_splits[key.strip()] = pct
+        splits_payload = json.dumps(validated_splits) if validated_splits else None
+    is_settlement = 1 if e.get("isSettlement") else 0
+
     with get_db() as conn:
         cursor = conn.cursor()
         existing = cursor.execute(
@@ -101,8 +128,8 @@ def upsert_expense():
         if not can_edit_expenses(cursor, gate_trip_id, user_id):
             return jsonify({"error": "Forbidden"}), 403
         cursor.execute('''
-            INSERT INTO expenses (id, trip_id, who, category_id, label, date, country, value, currency, euro_value, receipt_url)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO expenses (id, trip_id, who, category_id, label, date, country, value, currency, euro_value, receipt_url, splits_json, is_settlement)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 who=excluded.who,
                 category_id=excluded.category_id,
@@ -112,11 +139,13 @@ def upsert_expense():
                 value=excluded.value,
                 currency=excluded.currency,
                 euro_value=excluded.euro_value,
-                receipt_url=excluded.receipt_url
+                receipt_url=excluded.receipt_url,
+                splits_json=COALESCE(excluded.splits_json, splits_json),
+                is_settlement=excluded.is_settlement
         ''', (expense_id, claimed_trip_id, who, category_id,
               label, date, country,
               value, currency, euro_value,
-              receipt_url))
+              receipt_url, splits_payload, is_settlement))
         conn.commit()
     return jsonify({"status": "ok"})
 

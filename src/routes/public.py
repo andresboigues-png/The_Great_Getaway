@@ -211,15 +211,14 @@ def get_public_trip(trip_id):
         expenses = []
         if viewer_sees_expenses:
             cursor.execute("SELECT * FROM expenses WHERE trip_id = ?", (trip_id,))
-            expenses = [dict(r) for r in cursor.fetchall()]
-            # Translate snake_case → camelCase for the public detail
-            # surface. Same shape as routes/data.py — both reads need to
-            # match because the frontend filters by `e.tripId`.
-            for e in expenses:
-                e['tripId'] = e.pop('trip_id', None)
-                e['categoryId'] = e.pop('category_id', None)
-                e['euroValue'] = e.pop('euro_value', None)
-                e['receiptUrl'] = e.pop('receipt_url', None)
+            # Audit fix (2026-05-26): use the canonical
+            # `serialize_expense_row` so this surface picks up
+            # `splits` + `isSettlement` automatically. Pre-fix the
+            # inline shaper here had drifted from /api/data's shape
+            # and forgot the new fields entirely — a member viewing
+            # their own trip via the public route saw the splits
+            # vanish.
+            expenses = [serialize_expense_row(row) for row in cursor.fetchall()]
 
         # Inline tripDays + expenses + members on the trip object. The
         # archived-trip frontend reads these from `trip.tripDays` and

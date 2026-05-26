@@ -236,10 +236,27 @@ def serialize_trip_row(row):
 def serialize_expense_row(row):
     """Shape an `expenses` row into camelCase. Same drift-prone
     site as serialize_trip_row — extracted so /api/data and
-    /api/public-trip can both go through one canonical shaper."""
+    /api/public-trip can both go through one canonical shaper.
+
+    Audit fix (2026-05-26): surface splits_json + is_settlement so
+    the frontend's balance math sees the persisted split percentages
+    and settlement flags, not just the legacy local-only state.
+    splits_json is parsed to a dict (or {} on missing/invalid);
+    is_settlement coerces to a boolean."""
     e = dict(row)
     e['tripId'] = e.pop('trip_id', None)
     e['categoryId'] = e.pop('category_id', None)
     e['euroValue'] = e.pop('euro_value', None)
     e['receiptUrl'] = e.pop('receipt_url', None)
+    splits_raw = e.pop('splits_json', None)
+    parsed_splits = {}
+    if splits_raw:
+        try:
+            decoded = json.loads(splits_raw)
+            if isinstance(decoded, dict):
+                parsed_splits = decoded
+        except (json.JSONDecodeError, TypeError):
+            parsed_splits = {}
+    e['splits'] = parsed_splits
+    e['isSettlement'] = bool(e.pop('is_settlement', 0))
     return e

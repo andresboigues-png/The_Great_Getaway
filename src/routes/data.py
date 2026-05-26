@@ -292,16 +292,23 @@ def sync_data():
                     gate_trip_id = existing['trip_id'] if existing else t['id']
                     if not can_edit_expenses(cursor, gate_trip_id, user_id):
                         continue
+                    splits_payload = (
+                        json.dumps(e['splits'])
+                        if isinstance(e.get('splits'), dict) else None
+                    )
+                    is_settlement_flag = 1 if e.get('isSettlement') else 0
                     cursor.execute('''
-                        INSERT INTO expenses (id, trip_id, who, category_id, label, date, country, value, currency, euro_value, receipt_url)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        INSERT INTO expenses (id, trip_id, who, category_id, label, date, country, value, currency, euro_value, receipt_url, splits_json, is_settlement)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         ON CONFLICT(id) DO UPDATE SET
                             who=excluded.who,
                             label=excluded.label,
                             value=excluded.value,
                             euro_value=excluded.euro_value,
-                            receipt_url=excluded.receipt_url
-                    ''', (e['id'], t['id'], e['who'], e['categoryId'], e['label'], e['date'], e['country'], e['value'], e['currency'], e['euroValue'], e.get('receiptUrl')))
+                            receipt_url=excluded.receipt_url,
+                            splits_json=COALESCE(excluded.splits_json, splits_json),
+                            is_settlement=excluded.is_settlement
+                    ''', (e['id'], t['id'], e['who'], e['categoryId'], e['label'], e['date'], e['country'], e['value'], e['currency'], e['euroValue'], e.get('receiptUrl'), splits_payload, is_settlement_flag))
 
         # Commit archived-trips section (plus the inline archived
         # expenses) before moving to active expenses.
@@ -327,16 +334,23 @@ def sync_data():
             gate_trip_id = existing['trip_id'] if existing else e.get('tripId')
             if not can_edit_expenses(cursor, gate_trip_id, user_id):
                 continue
+            splits_payload = (
+                json.dumps(e['splits'])
+                if isinstance(e.get('splits'), dict) else None
+            )
+            is_settlement_flag = 1 if e.get('isSettlement') else 0
             cursor.execute('''
-                INSERT INTO expenses (id, trip_id, who, category_id, label, date, country, value, currency, euro_value, receipt_url)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO expenses (id, trip_id, who, category_id, label, date, country, value, currency, euro_value, receipt_url, splits_json, is_settlement)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     who=excluded.who,
                     label=excluded.label,
                     value=excluded.value,
                     euro_value=excluded.euro_value,
-                    receipt_url=excluded.receipt_url
-            ''', (e['id'], e['tripId'], e['who'], e['categoryId'], e['label'], e['date'], e['country'], e['value'], e['currency'], e['euroValue'], e.get('receiptUrl')))
+                    receipt_url=excluded.receipt_url,
+                    splits_json=COALESCE(excluded.splits_json, splits_json),
+                    is_settlement=excluded.is_settlement
+            ''', (e['id'], e['tripId'], e['who'], e['categoryId'], e['label'], e['date'], e['country'], e['value'], e['currency'], e['euroValue'], e.get('receiptUrl'), splits_payload, is_settlement_flag))
 
         # Commit active-expenses section before categories.
         conn.commit()

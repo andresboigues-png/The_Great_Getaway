@@ -328,6 +328,81 @@ def test_expense_receipt_url_round_trips(client, seed_user, auth_headers):
     assert expense["receiptUrl"] is None
 
 
+def test_expense_splits_persist_across_read(client, seed_user, auth_headers):
+    """Audit fix (2026-05-26): the frontend's `splits` field (the
+    {payer-name → percentage} map that drives ALL balance math) now
+    persists to `expenses.splits_json` and round-trips back via the
+    `serialize_expense_row` helper as `splits` on the JSON response.
+
+    Pre-fix, splits lived only in localStorage; sign-in on a fresh
+    device dropped them and balance math fell back to equal-split-
+    across-roster, producing wildly different numbers.
+    """
+    client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": "trip-splits", "name": "Splits"},
+    })
+    splits = {"Alice": 60, "Bob": 40}
+    res = client.post("/api/expenses", headers=auth_headers, json={
+        "expense": {
+            "id": "exp-splits-1", "tripId": "trip-splits",
+            "who": "Alice", "value": 100, "currency": "EUR",
+            "euroValue": 100, "label": "Dinner", "date": "2026-01-01",
+            "splits": splits,
+        },
+    })
+    assert res.status_code == 200
+
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    expense = next(e for e in data["expenses"] if e["id"] == "exp-splits-1")
+    assert expense["splits"] == splits
+
+
+def test_expense_is_settlement_persists(client, seed_user, auth_headers):
+    """Audit fix (2026-05-26): the `isSettlement` flag now persists
+    to `expenses.is_settlement` so settled debts (PATH B settle-up
+    rows) don't resurrect on every sign-in.
+    """
+    client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": "trip-settle", "name": "Settle"},
+    })
+    res = client.post("/api/expenses", headers=auth_headers, json={
+        "expense": {
+            "id": "exp-settle-1", "tripId": "trip-settle",
+            "who": "Alice", "value": 50, "currency": "EUR",
+            "euroValue": 50, "label": "Paid back",
+            "date": "2026-01-01", "isSettlement": True,
+        },
+    })
+    assert res.status_code == 200
+
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    expense = next(e for e in data["expenses"] if e["id"] == "exp-settle-1")
+    assert expense["isSettlement"] is True
+
+
+def test_expense_splits_rejects_bad_shape(client, seed_user, auth_headers):
+    """Server-side validation of the splits map: must be a dict of
+    str→number in [0, 100]. Garbage rejected with 400."""
+    client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": "trip-splits-bad", "name": "Bad"},
+    })
+    base = {
+        "id": "exp-bad-shape", "tripId": "trip-splits-bad",
+        "who": "Alice", "value": 100, "currency": "EUR",
+        "euroValue": 100, "label": "X", "date": "2026-01-01",
+    }
+    # Non-dict splits.
+    res = client.post("/api/expenses", headers=auth_headers, json={
+        "expense": {**base, "splits": [50, 50]},
+    })
+    assert res.status_code == 400
+    # Out-of-range percentage.
+    res = client.post("/api/expenses", headers=auth_headers, json={
+        "expense": {**base, "splits": {"Alice": 150}},
+    })
+    assert res.status_code == 400
+
+
 def test_expense_receipt_url_optional(client, seed_user, auth_headers):
     """Legacy expenses (no `receiptUrl` in payload) still upsert + read
     cleanly with receiptUrl=None. Backwards compat."""
