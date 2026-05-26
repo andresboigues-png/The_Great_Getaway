@@ -355,6 +355,12 @@ def invite_trip_member():
         # storage. Validate up front.
         if not ensure_user_exists(cursor, target):
             return jsonify({"error": "Target user not found"}), 404
+        # Audit fix (2026-05-26): block-gate. If the target has
+        # blocked the inviter, the invite silently fails — 404 not
+        # 403 to avoid broadcasting the block.
+        from routes.blocks import is_blocked
+        if is_blocked(cursor, target, inviter):
+            return jsonify({"error": "Target user not found"}), 404
 
         # 2026-05-26 (audit PE1): block silent role changes on accepted
         # members. The ON CONFLICT clause used to write
