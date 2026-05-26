@@ -453,6 +453,27 @@ export function notifyTripPublic(tripId: string) {
     return _post('/api/notifications/trip_public', { trip_id: tripId });
 }
 
+/** Pull the server's cached FX rate table and overlay it on top of
+ *  the static CONVERSION_RATES table (audit fix 2026-05-26). The
+ *  server fetches rates from Frankfurter once per 24h; the frontend
+ *  asks once on app boot. Fire-and-forget; if the fetch fails (no
+ *  network, server returning 500) we keep using the static table
+ *  so the conversion path doesn't crash. */
+export async function refreshFxRates(): Promise<void> {
+    try {
+        const res = await apiFetch('/api/fx-rates');
+        if (!res.ok) return;
+        const body = await res.json();
+        const rates = (body && body.rates) || {};
+        const { setLiveFxRates } = await import('./utils/currency.js');
+        setLiveFxRates(rates);
+    } catch {
+        // Network failure / parse error — stay on the static table
+        // (degraded but functional). No user-facing message: this is
+        // a quiet background refresh.
+    }
+}
+
 /** Deep-copy a trip the caller can see (their own archived trip OR a
  *  trip they're a member of OR a public trip) into a fresh draft
  *  owned by them. Server returns `{ tripId }` for the new clone.
