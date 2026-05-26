@@ -1639,6 +1639,40 @@ def test_block_user_idempotent_and_lists(
     assert seed_other_user in blocked_ids
 
 
+def test_csrf_origin_mismatch_blocks_cookie_request(client, seed_user):
+    """Audit fix (2026-05-27): a cookie-authenticated POST whose
+    Origin header points at a different host MUST be rejected (403)
+    even if the cookie is valid. This is the CSRF defense-in-depth
+    on top of SameSite=Lax."""
+    # Seed a session cookie so the request is "cookie-authenticated".
+    from auth import issue_token, AUTH_COOKIE_NAME
+    client.set_cookie(
+        key=AUTH_COOKIE_NAME, value=issue_token(seed_user), domain="localhost",
+    )
+    # Simulate a cross-origin form post — `Origin: https://evil.com`.
+    res = client.post(
+        "/api/profile/update",
+        json={"bio": "csrf attempt"},
+        headers={"Origin": "https://evil.com"},
+    )
+    assert res.status_code == 403, "CSRF origin check should block"
+
+
+def test_csrf_same_origin_request_allowed(client, seed_user):
+    """Same-origin POST with a matching Origin header passes."""
+    from auth import issue_token, AUTH_COOKIE_NAME
+    client.set_cookie(
+        key=AUTH_COOKIE_NAME, value=issue_token(seed_user), domain="localhost",
+    )
+    # Flask test-client default host is localhost
+    res = client.post(
+        "/api/profile/update",
+        json={"bio": "same origin ok"},
+        headers={"Origin": "http://localhost"},
+    )
+    assert res.status_code == 200
+
+
 def test_block_user_self_rejected(client, seed_user, auth_headers):
     """Self-blocking is nonsensical — the route must reject it."""
     res = client.post(f"/api/blocks/{seed_user}", headers=auth_headers)
@@ -3172,6 +3206,45 @@ def test_auth_google_rejects_unverified_email(client, monkeypatch):
     res = client.post("/api/auth/google", json={"token": "valid.but.unverified"})
     assert res.status_code == 401
     assert "verified" in (res.get_json().get("error") or "").lower()
+
+
+def test_invite_trip_member_does_not_demote_accepted_planner(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """Audit fix (2026-05-27): re-inviting an already-accepted member
+    with a DIFFERENT role must NOT silently demote them. Pre-fix the
+    ON CONFLICT clause set role=excluded.role unconditionally — a
+    planner re-inviting another planner "as relaxer" silently
+    stripped their planner rights with no notification.
+    """
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-no-demote")
+    # Invite as planner, have them accept.
+    client.post("/api/trips/invite", headers=auth_headers, json={
+        "trip_id": trip_id,
+        "target_user_id": seed_other_user,
+        "role": "planner",
+    })
+    client.post("/api/trips/invite/respond", headers=other_auth_headers, json={
+        "trip_id": trip_id, "accept": True,
+    })
+    # Re-invite the now-accepted member as relaxer — should be a no-op
+    # on the role.
+    client.post("/api/trips/invite", headers=auth_headers, json={
+        "trip_id": trip_id,
+        "target_user_id": seed_other_user,
+        "role": "relaxer",
+    })
+    # Verify the planner role survived.
+    from database import get_db
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT role, invitation_status FROM trip_members "
+            "WHERE trip_id = ? AND user_id = ?",
+            (trip_id, seed_other_user),
+        ).fetchone()
+        assert row["role"] == "planner", \
+            f"accepted planner was demoted to {row['role']!r}"
+        assert row["invitation_status"] == "accepted"
 
 
 def test_invite_trip_member_404_on_unknown_target(

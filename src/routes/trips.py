@@ -397,6 +397,17 @@ def invite_trip_member():
         # protect the invitee (they still received a notification
         # either way) and it blocked the legitimate "invite my cousin
         # who just signed up" path.
+        # Audit fix (2026-05-27): preserve role + invited_by on rows
+        # whose invitation_status is already 'accepted'. Pre-fix the
+        # ON CONFLICT clause set `role = excluded.role` UNCONDITIONALLY
+        # — so a planner A re-inviting a fellow planner B "as relaxer"
+        # silently demoted B with no notification. The pre-existing
+        # case-expression on invitation_status was the right shape but
+        # didn't extend to role / invited_by. Now: on an already-
+        # accepted row, keep the existing role + invited_by; on a
+        # pending row, the new invite overrides both (so the
+        # re-invite-with-different-role-while-pending case still
+        # works as expected).
         cursor.execute(
             "INSERT INTO trip_members (trip_id, user_id, role, is_archived, invitation_status, invited_by) "
             "VALUES (?, ?, ?, 0, 'pending', ?) "
@@ -411,7 +422,8 @@ def invite_trip_member():
             "              THEN trip_members.role ELSE excluded.role END, "
             "  invitation_status = CASE WHEN trip_members.invitation_status = 'accepted' "
             "                           THEN 'accepted' ELSE 'pending' END, "
-            "  invited_by = excluded.invited_by",
+            "  invited_by = CASE WHEN trip_members.invitation_status = 'accepted' "
+            "                    THEN trip_members.invited_by ELSE excluded.invited_by END",
             (trip_id, target, role, inviter),
         )
 

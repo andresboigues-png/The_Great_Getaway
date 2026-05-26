@@ -286,24 +286,20 @@ AUTH_COOKIE_MAX_AGE = 60 * 60 * 24 * JWT_LIFETIME_DAYS
 def _is_secure_request() -> bool:
     """Detect HTTPS even when running behind a reverse proxy that
     terminates TLS upstream (PythonAnywhere does this — the WSGI worker
-    sees plain http unless we honour X-Forwarded-Proto). The check is
-    deliberately permissive: any signal of HTTPS upstream → mark the
-    cookie Secure. Local dev over plain http remains http-only because
-    none of these signals fire.
+    sees plain http unless the proxy's X-Forwarded-Proto is honoured).
+
+    Audit fix (2026-05-27): we now rely on ProxyFix (configured in
+    main.py with GG_TRUSTED_PROXIES=N) to translate the trusted
+    upstream's forwarded headers into `request.is_secure` /
+    `request.scheme` / etc. BEFORE Flask sees the request. That
+    means `request.is_secure` is now the right answer — a malicious
+    client beyond the trusted proxy can NOT flip Secure on/off by
+    crafting X-Forwarded-Proto themselves; ProxyFix only honours
+    the hop closest to us. Local dev over plain http remains
+    http-only because ProxyFix sees no forwarded-proto from the
+    Werkzeug dev server.
     """
-    if request.is_secure:
-        return True
-    if request.headers.get("X-Forwarded-Proto", "").lower() == "https":
-        return True
-    # Belt-and-suspenders: some hosts use X-Forwarded-Ssl or
-    # Forwarded: proto=https. Cheap to check, no false-positive risk on
-    # plain http localhost.
-    if request.headers.get("X-Forwarded-Ssl", "").lower() == "on":
-        return True
-    forwarded = request.headers.get("Forwarded", "")
-    if "proto=https" in forwarded.lower():
-        return True
-    return False
+    return request.is_secure
 
 
 def set_auth_cookie(response, token: str) -> None:
