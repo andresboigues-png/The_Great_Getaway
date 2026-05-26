@@ -1639,6 +1639,75 @@ def test_block_user_idempotent_and_lists(
     assert seed_other_user in blocked_ids
 
 
+def test_per_device_logout_doesnt_kill_other_devices(client, seed_user):
+    """Audit fix (2026-05-27): pre-fix logout bumped the user's
+    single token_jti — every device the user had signed in on died
+    at once. Now each `issue_token` mints a unique per-session jti,
+    so revoking one session leaves the others alive.
+    """
+    from auth import issue_token
+    # Simulate two devices signed in.
+    phone_token = issue_token(seed_user, device_label="iPhone Safari")
+    laptop_token = issue_token(seed_user, device_label="Chrome MacOS")
+
+    # Both should authenticate /api/user-status to start.
+    r1 = client.get("/api/user-status", headers={"Authorization": f"Bearer {phone_token}"})
+    r2 = client.get("/api/user-status", headers={"Authorization": f"Bearer {laptop_token}"})
+    assert r1.get_json()["logged_in"] is True
+    assert r2.get_json()["logged_in"] is True
+
+    # Logout via the laptop's token — revoke that session only.
+    out = client.post(
+        "/api/auth/logout",
+        headers={"Authorization": f"Bearer {laptop_token}"},
+    )
+    assert out.status_code == 200
+
+    # Phone still authenticated.
+    r1b = client.get("/api/user-status", headers={"Authorization": f"Bearer {phone_token}"})
+    assert r1b.get_json()["logged_in"] is True, "phone session should survive laptop logout"
+    # Laptop session is dead.
+    r2b = client.get("/api/user-status", headers={"Authorization": f"Bearer {laptop_token}"})
+    assert r2b.get_json()["logged_in"] is False, "laptop session must be revoked"
+
+
+def test_list_and_revoke_sessions(client, seed_user):
+    """The /api/auth/sessions GET returns the caller's active rows;
+    DELETE /api/auth/sessions/<id> revokes one (idempotent)."""
+    from auth import issue_token
+    # Create two sessions.
+    phone_token = issue_token(seed_user, device_label="iPhone Safari")
+    issue_token(seed_user, device_label="Chrome MacOS")
+
+    # List via the phone's bearer.
+    res = client.get(
+        "/api/auth/sessions",
+        headers={"Authorization": f"Bearer {phone_token}"},
+    )
+    assert res.status_code == 200
+    sessions = res.get_json()["sessions"]
+    assert len(sessions) == 2
+    # The phone session should be flagged as current.
+    current = [s for s in sessions if s["isCurrent"]]
+    assert len(current) == 1
+    assert current[0]["deviceLabel"] == "iPhone Safari"
+
+    # Revoke the OTHER session by id.
+    other = [s for s in sessions if not s["isCurrent"]][0]
+    res = client.delete(
+        f"/api/auth/sessions/{other['id']}",
+        headers={"Authorization": f"Bearer {phone_token}"},
+    )
+    assert res.status_code == 200
+
+    # Re-list — should now have ONE row.
+    res = client.get(
+        "/api/auth/sessions",
+        headers={"Authorization": f"Bearer {phone_token}"},
+    )
+    assert len(res.get_json()["sessions"]) == 1
+
+
 def test_csrf_origin_mismatch_blocks_cookie_request(client, seed_user):
     """Audit fix (2026-05-27): a cookie-authenticated POST whose
     Origin header points at a different host MUST be rejected (403)

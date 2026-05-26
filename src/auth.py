@@ -93,10 +93,11 @@ def _secret() -> str:
 
 
 def _read_or_init_user_jti(user_id: str) -> str:
-    """Return the user's current `token_jti`, generating + persisting
-    one on first call. Idempotent — once a jti exists, this is a
-    single indexed lookup. The lazy-init avoids needing a data
-    backfill when the column was first added."""
+    """Legacy per-user jti store. Pre-2026-05-27 every token shared
+    this single jti, so logout-from-any-device invalidated all of
+    them. Kept around as a fallback for tokens minted before the
+    per-session move (verify_token falls back to this when no
+    auth_sessions row matches a JWT's jti)."""
     with get_db() as conn:
         cursor = conn.cursor()
         row = cursor.execute(
@@ -106,9 +107,6 @@ def _read_or_init_user_jti(user_id: str) -> str:
         if existing:
             return existing
         new_jti = secrets.token_hex(16)
-        # If the user row doesn't exist yet, the UPDATE is a silent
-        # no-op; the caller (issue_token) is invoked AFTER the user
-        # row is created by /api/auth/google, so this is fine.
         cursor.execute(
             "UPDATE users SET token_jti = ? WHERE id = ?", (new_jti, user_id),
         )
@@ -117,10 +115,12 @@ def _read_or_init_user_jti(user_id: str) -> str:
 
 
 def bump_user_jti(user_id: str) -> str:
-    """Rotate the user's `token_jti` — invalidates every JWT we've
-    ever issued them. Used by `/api/auth/logout` so a real logout
-    actually invalidates the token (the prior "drop client copy and
-    hope" approach left stolen tokens valid for 30 days)."""
+    """Rotate the user's legacy `token_jti`. Pre-2026-05-27 this was
+    the sole logout primitive (which invalidated every device).
+    The new logout path uses `revoke_session_by_jti` to scope the
+    revocation to one device; this function is still called on
+    logout as a belt-and-braces sweep that ALSO kills any
+    legacy-shaped tokens the user has lying around."""
     new_jti = secrets.token_hex(16)
     with get_db() as conn:
         cursor = conn.cursor()
@@ -131,14 +131,57 @@ def bump_user_jti(user_id: str) -> str:
     return new_jti
 
 
-def issue_token(user_id: str) -> str:
-    """Sign and return a JWT for the given user_id. Embeds the
-    user's current `token_jti` so `/api/auth/logout` can invalidate
-    by bumping it."""
+def _create_session(user_id: str, device_label: str | None) -> str:
+    """Create a fresh auth_sessions row + return its jti. Each call
+    yields a unique jti so devices don't share one. device_label
+    is best-effort metadata (user-agent fragment) — handy for the
+    /api/auth/sessions UI ("revoke iPhone session")."""
+    new_jti = secrets.token_hex(16)
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO auth_sessions (user_id, jti, device_label, last_seen_at) "
+            "VALUES (?, ?, ?, CURRENT_TIMESTAMP)",
+            (user_id, new_jti, (device_label or "")[:120] or None),
+        )
+        conn.commit()
+    return new_jti
+
+
+def revoke_session_by_jti(jti: str) -> bool:
+    """Stamp `revoked_at = NOW` on the session row matching `jti`.
+    Returns True iff a row was updated. Idempotent — re-revoking
+    is a no-op."""
+    if not jti:
+        return False
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE auth_sessions SET revoked_at = CURRENT_TIMESTAMP "
+            "WHERE jti = ? AND revoked_at IS NULL",
+            (jti,),
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+
+
+def issue_token(user_id: str, device_label: str | None = None) -> str:
+    """Sign and return a JWT for the given user_id.
+
+    Audit fix (2026-05-27): each token now gets a UNIQUE per-session
+    jti backed by a row in `auth_sessions`. Logout / revoke kills
+    one session without affecting others — sign in on phone +
+    laptop, log out from laptop, phone keeps working.
+
+    `device_label` is a best-effort hint for the /api/auth/sessions
+    UI (e.g. "iPhone Safari", "Chrome on Mac"). The route handler
+    derives it from the User-Agent header.
+    """
     now = datetime.now(timezone.utc)
+    new_jti = _create_session(user_id, device_label)
     payload = {
         "sub": user_id,
-        "jti": _read_or_init_user_jti(user_id),
+        "jti": new_jti,
         "iat": int(now.timestamp()),
         "exp": int((now + timedelta(days=JWT_LIFETIME_DAYS)).timestamp()),
     }
@@ -147,11 +190,25 @@ def issue_token(user_id: str) -> str:
 
 def verify_token(token: str) -> Optional[str]:
     """Return the user_id for a valid JWT, or None for
-    invalid/expired/revoked. A token is revoked when its `jti` claim
-    no longer matches the user's current `token_jti` (logout bumped
-    the column out from under it). Tokens with NO `jti` claim are
-    rejected outright — those were issued before §0.3 landed and
-    forcing re-login is the simplest cutover."""
+    invalid/expired/revoked.
+
+    Verification path (audit fix 2026-05-27):
+      1. Decode + signature check via PyJWT.
+      2. Pull (jti, user_id) from the payload — reject if either
+         missing (legacy pre-§0.3 tokens with no jti are dead).
+      3. Try the per-session table FIRST: a row in `auth_sessions`
+         with this jti is the post-fix authority. If the row
+         exists, the token is valid IFF `revoked_at IS NULL`.
+      4. If no auth_sessions row matches, fall back to the legacy
+         `users.token_jti` shared-jti scheme. This keeps existing
+         in-flight tokens (minted before this commit) working
+         until they naturally expire / get revoked via the
+         legacy bump path.
+
+    Also bumps `last_seen_at` on the session row when found, so
+    /api/auth/sessions can show "last active 12m ago" without an
+    extra round trip.
+    """
     try:
         payload = jwt.decode(token, _secret(), algorithms=[JWT_ALGORITHM])
     except jwt.PyJWTError:
@@ -160,19 +217,40 @@ def verify_token(token: str) -> Optional[str]:
     token_jti = payload.get("jti")
     if not user_id or not token_jti:
         return None
-    # Compare against the current jti stored on the user row. Cheap
-    # indexed lookup (users.id is PK). One DB hit per request — the
-    # caller (current_user_id) caches the result on `g` for the
-    # remainder of the request so multi-helper requests don't re-query.
     with get_db() as conn:
         cursor = conn.cursor()
+        # Per-session lookup first (the post-2026-05-27 path).
+        session_row = cursor.execute(
+            "SELECT id, revoked_at FROM auth_sessions WHERE jti = ?",
+            (token_jti,),
+        ).fetchone()
+        if session_row is not None:
+            if session_row["revoked_at"] is not None:
+                try:
+                    import logging
+                    logging.getLogger(__name__).info(
+                        "JWT session revoked",
+                        extra={"user_id": user_id, "jti": token_jti},
+                    )
+                except Exception:
+                    pass
+                return None
+            # Touch last_seen_at so the /api/auth/sessions UI can
+            # show "last active N min ago".
+            cursor.execute(
+                "UPDATE auth_sessions SET last_seen_at = CURRENT_TIMESTAMP "
+                "WHERE id = ?",
+                (session_row["id"],),
+            )
+            conn.commit()
+            return user_id
+
+        # Legacy fallback — match against users.token_jti for tokens
+        # minted before the per-session move.
         row = cursor.execute(
             "SELECT token_jti FROM users WHERE id = ?", (user_id,),
         ).fetchone()
     if not row:
-        # Token signed correctly for a user_id that no longer exists
-        # (e.g. user deleted, DB rolled back). Log so ghost-401s in
-        # production are diagnosable instead of silent.
         try:
             import logging
             logging.getLogger(__name__).warning(
@@ -182,14 +260,10 @@ def verify_token(token: str) -> Optional[str]:
             pass
         return None
     if row["token_jti"] != token_jti:
-        # Signature valid but jti mismatched — token was revoked (user
-        # logged out, password reset, or admin-revoked). Also worth a
-        # log so legitimate logout-on-stale-tab cases stand out from
-        # actual exploitation attempts in production telemetry.
         try:
             import logging
             logging.getLogger(__name__).info(
-                "JWT jti mismatch (revoked token)",
+                "JWT jti mismatch (revoked legacy token)",
                 extra={"user_id": user_id, "jti": token_jti},
             )
         except Exception:

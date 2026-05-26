@@ -594,6 +594,28 @@ def init_db():
             )
         ''')
 
+        # Auth Sessions Table (2026-05-27 audit #A-4 — per-device
+        # session revocation). Pre-add, every user had a single
+        # `users.token_jti` and logout bumped it — invalidating EVERY
+        # device. This table holds one row per active session so
+        # logout can revoke ONE device without nuking the others.
+        # `jti` is the JWT's session-id claim; we look it up here
+        # on every verify. `revoked_at` non-NULL = revoked = reject.
+        # Legacy JWTs (minted pre-this-change) still verify against
+        # `users.token_jti` via the fallback in auth.py.
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS auth_sessions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                jti TEXT NOT NULL UNIQUE,
+                device_label TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                last_seen_at DATETIME,
+                revoked_at DATETIME DEFAULT NULL,
+                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        ''')
+
         # Blocks Table (2026-05-26 audit — minimal safety primitive).
         # Symmetric: once A blocks B, B cannot follow A, invite A to
         # a trip, comment / repost on A's shares, or send A any
@@ -780,6 +802,12 @@ def init_db():
             # "did THIS user block me?" — direction-reversed).
             "CREATE INDEX IF NOT EXISTS idx_blocks_blocked "
             "ON blocks(blocked_id)",
+            # 2026-05-27 audit #A-4: per-user session listing for
+            # /api/auth/sessions. UNIQUE on jti is enforced by the
+            # column constraint; this index covers
+            # `WHERE user_id = ? AND revoked_at IS NULL` lookups.
+            "CREATE INDEX IF NOT EXISTS idx_auth_sessions_user "
+            "ON auth_sessions(user_id, revoked_at)",
         ):
             cursor.execute(ddl)
 
