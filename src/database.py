@@ -788,13 +788,38 @@ def init_db():
         # UNIQUE constraint on follows). Stays in init_db rather than
         # Alembic because it's a one-time-ish data backfill, not a
         # schema change.
-        try:
-            from social import migrate_friends_to_follows
-            migrate_friends_to_follows(cursor)
-        except Exception as e:
-            # Logged + swallowed — a botched migration shouldn't
-            # block the rest of init_db.
-            print(f"[init_db] friends→follows migration failed: {e}")
+        #
+        # Audit fix (2026-05-26): one-shot marker so re-boots
+        # short-circuit. Pre-fix the migration ran on EVERY init_db
+        # boot — two full table scans of `friends` + N INSERT OR
+        # IGNORE calls — even on prod DBs where it had completed
+        # years ago. The `meta` table is created (idempotent) and a
+        # `model_b_friends_migrated_at` row stamps the moment of
+        # first success; subsequent boots see the row and skip.
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS meta (
+                key TEXT PRIMARY KEY,
+                value TEXT,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        cursor.execute(
+            "SELECT value FROM meta WHERE key = 'model_b_friends_migrated_at'"
+        )
+        already_done = cursor.fetchone() is not None
+        if not already_done:
+            try:
+                from social import migrate_friends_to_follows
+                migrate_friends_to_follows(cursor)
+                cursor.execute(
+                    "INSERT OR IGNORE INTO meta (key, value) VALUES "
+                    "('model_b_friends_migrated_at', CURRENT_TIMESTAMP)"
+                )
+            except Exception as e:
+                # Logged + swallowed — a botched migration shouldn't
+                # block the rest of init_db. The marker is NOT set
+                # on failure, so the next boot retries.
+                print(f"[init_db] friends→follows migration failed: {e}")
 
         conn.commit()
 
