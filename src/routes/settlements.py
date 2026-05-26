@@ -194,29 +194,51 @@ def create_settlement():
         if not _is_accepted_member(cursor, trip_id, to_user_id):
             return jsonify({"error": "toUserId is not a member of this trip"}), 400
 
-        settlement_id = _settlement_id()
         # Audit fix (2026-05-26): stamp `recorded_by` so the audit
         # trail captures who clicked save. Different from
         # `from_user_id` when a planner records a settlement on
         # behalf of others.
-        cursor.execute(
-            "INSERT INTO settlements "
-            "(id, trip_id, from_user_id, to_user_id, amount, currency, "
-            " euro_value, method, note, recorded_by) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (
-                settlement_id,
-                trip_id,
-                from_user_id,
-                to_user_id,
-                amount_f,
-                currency,
-                euro_value,
-                method,
-                note,
-                user_id,
-            ),
-        )
+        #
+        # Audit fix (2026-05-27): retry the INSERT up to 5 times on
+        # IntegrityError. `_settlement_id` has only ~54 bits of
+        # entropy after the [:9] truncation, so PK collisions are
+        # rare but real at scale — pre-fix the route 500'd on
+        # collision; now we re-generate and retry. Same pattern as
+        # `_clone_trip_record` in trips.py.
+        import sqlite3
+        settlement_id = None
+        for _attempt in range(5):
+            candidate = _settlement_id()
+            try:
+                cursor.execute(
+                    "INSERT INTO settlements "
+                    "(id, trip_id, from_user_id, to_user_id, amount, currency, "
+                    " euro_value, method, note, recorded_by) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        candidate,
+                        trip_id,
+                        from_user_id,
+                        to_user_id,
+                        amount_f,
+                        currency,
+                        euro_value,
+                        method,
+                        note,
+                        user_id,
+                    ),
+                )
+                settlement_id = candidate
+                break
+            except sqlite3.IntegrityError:
+                continue
+        if settlement_id is None:
+            # Five collisions in a row is astronomically unlikely;
+            # surface a clean error instead of letting the next
+            # IntegrityError bubble up as a 500.
+            return jsonify({
+                "error": "Could not allocate a settlement id, please retry",
+            }), 503
 
         # Notification to the recipient (skip self-pay where caller IS
         # the recipient — they don't need to be told something they

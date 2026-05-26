@@ -7,7 +7,7 @@
 // the whole main.ts import graph.
 
 import { STATE } from '../state.js';
-import { t } from '../i18n.js';
+import { t, getIntlLocale } from '../i18n.js';
 import { navigate } from '../router.js';
 import { PAGES } from '../constants.js';
 import { esc } from '../utils.js';
@@ -120,7 +120,7 @@ export function renderNotificationDropdown() {
                 ${esc(n.title || notificationDefaultTitle(n.type))}
             </div>
             <div class="notification-item__message">${esc(n.message)}</div>
-            <div class="notification-item__time">${new Date(n.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
+            <div class="notification-item__time">${new Date(n.created_at).toLocaleDateString(getIntlLocale(), { month: 'short', day: 'numeric' })}</div>
         </div>
     `).join('');
     for (const list of lists) list.innerHTML = html;

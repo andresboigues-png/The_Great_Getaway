@@ -23,6 +23,7 @@ import { useNavigate } from '../../react/useNavigate.js';
 import { STATE, emit } from '../../state.js';
 import { CONVERSION_RATES, EVENTS } from '../../constants.js';
 import { fetchHistoricalRates } from '../../api.js';
+import { getIntlLocale } from '../../i18n.js';
 import { getHomeCurrency, currencySymbol } from '../../utils.js';
 import { EmptyState } from '../../react/components/EmptyState.js';
 import type { Expense, Category } from '../../types';
@@ -282,7 +283,7 @@ export function Insights() {
         const chartLabels = sortedDates.map((d) => {
             try {
                 const dateObj = new Date(d);
-                return dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                return dateObj.toLocaleDateString(getIntlLocale(), { month: 'short', day: 'numeric' });
             } catch (e) {
                 return d;
             }

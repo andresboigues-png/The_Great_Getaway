@@ -10,6 +10,7 @@
 
 import { STATE } from '../../state.js';
 import { esc } from '../../utils.js';
+import { getIntlLocale } from '../../i18n.js';
 
 export interface Actor {
     id: string;
@@ -224,7 +225,7 @@ export function relativeTime(iso: string | null | undefined): string {
     if (hr < 24) return `${hr}h ago`;
     const d = Math.floor(hr / 24);
     if (d < 7) return `${d}d ago`;
-    return new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return new Date(t).toLocaleDateString(getIntlLocale(), { month: 'short', day: 'numeric' });
 }
 
 /** Build the human verb line for one event. Switch-style so adding a
@@ -424,8 +425,15 @@ export function actionsRow(ev: any) {
 /** Render a single comment row for the thread. canDelete=true when
  *  the current user authored the comment — adds a small ✕ button. */
 export function commentRowHtml(c: any, canDelete: boolean) {
+    // Audit fix (2026-05-27): escape `c.id` everywhere it's
+    // interpolated. The server normally returns an auto-increment
+    // INTEGER, but the type is `any` here and a tampered API
+    // response (post-XSS-in-the-API future scenario) could put
+    // a string-with-quotes in `id`, breaking out of the
+    // `data-comment-id="..."` attribute. Defense-in-depth.
+    const idAttr = esc(c.id);
     return `
-        <div class="feed-comment-row" data-comment-id="${c.id}" style="display:flex; align-items:flex-start; gap:10px; padding:8px 0; border-bottom:1px dashed rgba(0,45,91,0.06);">
+        <div class="feed-comment-row" data-comment-id="${idAttr}" style="display:flex; align-items:flex-start; gap:10px; padding:8px 0; border-bottom:1px dashed rgba(0,45,91,0.06);">
             ${avatar(c.author, 32)}
             <div style="flex:1; min-width:0;">
                 <div style="display:flex; align-items:baseline; gap:8px; flex-wrap:wrap;">
@@ -437,7 +445,7 @@ export function commentRowHtml(c: any, canDelete: boolean) {
             ${
                 canDelete
                     ? `
-                <button type="button" class="feed-comment-delete-btn" data-comment-id="${c.id}" title="Delete your comment" aria-label="Delete comment"
+                <button type="button" class="feed-comment-delete-btn" data-comment-id="${idAttr}" title="Delete your comment" aria-label="Delete comment"
                     style="background:transparent; border:0; color:rgba(255,59,48,0.6); cursor:pointer; padding:2px 6px; font-size:0.72rem; font-weight:800; flex-shrink:0;">✕</button>`
                     : ''
             }

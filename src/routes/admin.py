@@ -93,7 +93,24 @@ def admin_stats():
     """
     user_id = current_user_id()
     if not _is_admin(user_id):
+        # Audit fix (2026-05-27): record denied attempts so prod
+        # can spot someone probing the admin surface.
+        logger.warning(
+            "admin_stats forbidden",
+            extra={"user_id": user_id, "endpoint": "admin_stats"},
+        )
         return jsonify({"error": "Forbidden"}), 403
+
+    # Audit fix (2026-05-27): structured INFO log on every admin
+    # call so prod logs record who hit what + when. Pre-fix there
+    # was no audit trail for admin operations — if an admin's
+    # session was ever compromised, there'd be no way to enumerate
+    # which user records had been viewed. The roster contains
+    # every user's email + counters, so this read IS sensitive.
+    logger.info(
+        "admin_stats accessed",
+        extra={"user_id": user_id, "endpoint": "admin_stats"},
+    )
 
     # 2026-05-26: `get_db()` is now itself a contextmanager that
     # releases the FD on exit, so the `closing(...)` wrapper is no
