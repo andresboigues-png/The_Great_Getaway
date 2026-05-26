@@ -1484,6 +1484,54 @@ def test_feed_share_status_returns_post_id_when_shared(client, seed_user, auth_h
     assert body.get("post_id")
 
 
+def test_feed_unshare_cleans_orphan_engagement_rows(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """Audit fix (2026-05-26): unshare must drop feed_likes / comments
+    / bookmarks rows keyed on the deleted post's share_<id> event_id.
+    Pre-fix these survived until the 90-day age sweep — invisible to
+    users (event was gone) but a slow DB-bloat path."""
+    # owner_friends seeds a follow so we can like / comment cleanly.
+    _befriend(client, auth_headers, other_auth_headers, seed_user, seed_other_user)
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-unshare-orphans", public=True)
+    res = client.post("/api/feed/share", headers=auth_headers, json={
+        "trip_id": trip_id,
+    })
+    post_id = res.get_json()["post_id"]
+    event_id = f"share_{post_id}"
+    client.post(f"/api/feed/like/{event_id}", headers=other_auth_headers)
+    client.post(f"/api/feed/comment/{event_id}", headers=other_auth_headers, json={"body": "nice"})
+
+    # Pre-unshare: a like + a comment exist.
+    from database import get_db
+    with get_db() as conn:
+        like = conn.execute(
+            "SELECT COUNT(*) AS c FROM feed_likes WHERE event_id = ?",
+            (event_id,),
+        ).fetchone()["c"]
+        comment = conn.execute(
+            "SELECT COUNT(*) AS c FROM feed_comments WHERE event_id = ?",
+            (event_id,),
+        ).fetchone()["c"]
+        assert like == 1
+        assert comment == 1
+
+    # Unshare → orphans should be swept.
+    res = client.delete(f"/api/feed/share/{post_id}", headers=auth_headers)
+    assert res.status_code == 200
+    with get_db() as conn:
+        like = conn.execute(
+            "SELECT COUNT(*) AS c FROM feed_likes WHERE event_id = ?",
+            (event_id,),
+        ).fetchone()["c"]
+        comment = conn.execute(
+            "SELECT COUNT(*) AS c FROM feed_comments WHERE event_id = ?",
+            (event_id,),
+        ).fetchone()["c"]
+        assert like == 0, "feed_likes should be cleaned on unshare"
+        assert comment == 0, "feed_comments should be cleaned on unshare"
+
+
 def test_feed_unshare_deletes_caller_own_post(client, seed_user, auth_headers):
     """Author can delete their own share. Cascade-deletes any reposts
     pointing at it (other tests can pin that side; here we pin the

@@ -499,9 +499,31 @@ def unshare_feed_post(post_id):
         if row["user_id"] != user_id:
             return jsonify({"error": "Forbidden"}), 403
         # Cascade: delete reposts pointing at this post first, then the
-        # post itself.
+        # post itself. Audit fix (2026-05-26): also clean
+        # feed_likes / feed_comments / feed_bookmarks rows keyed on
+        # the share_<post_id> and repost_<repost_id> event_ids that
+        # the deleted posts produced. Pre-fix these survived until
+        # the 90-day age sweep — invisible to users (events gone)
+        # but a slow DB-bloat path.
+        cursor.execute(
+            "SELECT id FROM feed_posts WHERE repost_of_post_id = ?",
+            (post_id,),
+        )
+        doomed_repost_ids = [r["id"] for r in cursor.fetchall()]
         cursor.execute("DELETE FROM feed_posts WHERE repost_of_post_id = ?", (post_id,))
         cursor.execute("DELETE FROM feed_posts WHERE id = ?", (post_id,))
+        for table in ("feed_likes", "feed_comments", "feed_bookmarks"):
+            # Original share's engagement rows.
+            cursor.execute(
+                f"DELETE FROM {table} WHERE event_id = ?",
+                (f"share_{post_id}",),
+            )
+            # Repost rows' engagement (one per repost we just cascaded).
+            for rid in doomed_repost_ids:
+                cursor.execute(
+                    f"DELETE FROM {table} WHERE event_id = ?",
+                    (f"repost_{rid}",),
+                )
 
         # Restore is_public ONLY when we know we flipped it AND no
         # other original share of this trip would be invalidated.

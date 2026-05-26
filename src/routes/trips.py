@@ -185,22 +185,59 @@ def delete_trip(trip_id):
         cursor.execute("DELETE FROM trip_days WHERE trip_id = ?", (trip_id,))
         cursor.execute("DELETE FROM budgets WHERE trip_id = ?", (trip_id,))
         cursor.execute("DELETE FROM trip_members WHERE trip_id = ?", (trip_id,))
-        # Feed posts associated with this trip — event_id has the form
-        # `trip_share_<n>` / `trip_public_<trip_id>_<n>`. We can't match
-        # on trip_id directly (event_id is opaque), so delete posts that
-        # reference this trip via `trip_id` if the schema has it
-        # (column added in feed_posts), else skip silently. The likes /
-        # comments / bookmarks cascade via FK ON DELETE.
-        try:
-            cursor.execute("DELETE FROM feed_posts WHERE trip_id = ?", (trip_id,))
-        except Exception:
-            # Older feed_posts schemas don't have trip_id — leave them.
-            # _orphan_feed cleanup task picks them up on next sweep.
-            pass
-        # Notifications keyed on the trip id (trip_public broadcast,
-        # trip_invite, etc.). related_id is polymorphic so we cast.
+        # Feed posts associated with this trip + the engagement rows
+        # keyed on their event_ids. Audit fix (2026-05-26): also
+        # clean feed_likes / feed_comments / feed_bookmarks rows
+        # keyed on the synthesized trip-event ids (trip_created_<id>,
+        # trip_archived_<id>, trip_joined_<id>_<joiner>) and on the
+        # share_<post_id> / repost_<post_id> event ids for every
+        # feed_posts row we're about to delete. Pre-fix these
+        # engagement rows survived trip deletion (no FK on event_id)
+        # and lingered until the 90-day age sweep — invisible to
+        # users (the events were gone) but a slow DB-bloat path.
+        #
+        # Bare except dropped: feed_posts.trip_id has been a column
+        # since the table existed in the audit window; if the DELETE
+        # raises, surface it so we know.
         cursor.execute(
-            "DELETE FROM notifications WHERE related_id = ?",
+            "SELECT id FROM feed_posts WHERE trip_id = ?", (trip_id,),
+        )
+        doomed_post_ids = [r["id"] for r in cursor.fetchall()]
+        cursor.execute("DELETE FROM feed_posts WHERE trip_id = ?", (trip_id,))
+
+        # Build the set of synthesized event_ids that referenced this
+        # trip. We delete engagement rows pattern-matching these so
+        # nothing keyed on a now-dead event survives.
+        # Patterns:
+        #   trip_created_<trip_id>           (single row)
+        #   trip_archived_<trip_id>          (single row)
+        #   trip_joined_<trip_id>_<user_id>  (LIKE prefix)
+        #   share_<post_id> / repost_<post_id> (one per doomed post)
+        for table in ("feed_likes", "feed_comments", "feed_bookmarks"):
+            cursor.execute(
+                f"DELETE FROM {table} WHERE event_id = ? OR event_id = ? "
+                f"OR event_id LIKE ?",
+                (
+                    f"trip_created_{trip_id}",
+                    f"trip_archived_{trip_id}",
+                    f"trip_joined_{trip_id}_%",
+                ),
+            )
+            for pid in doomed_post_ids:
+                cursor.execute(
+                    f"DELETE FROM {table} WHERE event_id IN (?, ?)",
+                    (f"share_{pid}", f"repost_{pid}"),
+                )
+        # Notifications keyed on the trip id (trip_public broadcast,
+        # trip_invite, etc.). related_id is polymorphic; constrain
+        # by type so we don't accidentally wipe unrelated rows that
+        # happen to coincidentally share the trip_id string in their
+        # own polymorphic related_id column.
+        cursor.execute(
+            "DELETE FROM notifications WHERE related_id = ? AND type IN "
+            "('trip_invite', 'trip_invite_accepted', 'trip_invite_declined', "
+            " 'trip_member_removed', 'trip_public', 'settled_up', "
+            " 'settled_up_reverted')",
             (trip_id,),
         )
         # Delete the trip row first, THEN re-evaluate the user's
