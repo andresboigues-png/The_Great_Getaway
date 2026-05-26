@@ -4,6 +4,7 @@ import secrets
 import sqlite3
 import requests
 from flask import Flask, g, render_template, request, jsonify, send_from_directory, url_for
+from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 from google.oauth2 import id_token
@@ -51,9 +52,29 @@ setup_sentry()  # No-op unless SENTRY_DSN is set in env.
 logger = get_logger(__name__)
 
 # Initialize Flask App
-app = Flask(__name__, 
+app = Flask(__name__,
             template_folder="../frontend/templates",
             static_folder="../frontend/static")
+
+# Audit fix (2026-05-27): wrap the WSGI app with ProxyFix so the
+# request's `scheme` / `host` / `client_addr` reflect the TRUSTED
+# proxy's forwarded headers, not whatever a client crafted. PA
+# terminates TLS one hop upstream, so x_for=1 + x_proto=1 + x_host=1
+# matches the real topology — anything beyond a single trusted hop
+# is rejected. The auth-cookie Secure flag previously read
+# `X-Forwarded-Proto` directly via `_is_secure_request`; with
+# ProxyFix in place, `request.is_secure` returns the right answer
+# without trusting arbitrary client headers (a malicious client
+# beyond PA's proxy can no longer flip Secure on/off by stuffing
+# the header).
+#
+# GG_TRUSTED_PROXIES env-overrides the hop count for local dev /
+# alternate hosting (gunicorn behind nginx → x_for=2, etc.).
+_trusted_proxies = int(os.getenv("GG_TRUSTED_PROXIES", "1"))
+app.wsgi_app = ProxyFix(
+    app.wsgi_app, x_for=_trusted_proxies, x_proto=_trusted_proxies,
+    x_host=_trusted_proxies, x_prefix=_trusted_proxies,
+)
 
 # Upload destination — defaults to frontend/static/uploads (under the
 # app's static_folder, so Flask serves them directly in dev). Production
@@ -215,6 +236,78 @@ def _attach_csp_nonce():
     the extra header bytes are imperceptible.
     """
     g.csp_nonce = secrets.token_urlsafe(16)
+
+
+# Audit fix (2026-05-27): CSRF defense-in-depth via Origin/Referer
+# header check on every mutating request. Pre-fix the only CSRF
+# defense was the SameSite=Lax flag on the session cookie — which
+# blocks most cross-site POSTs but has known edge cases (top-frame
+# form submissions in legacy browsers, sub-domain leakage). Now
+# we also reject any non-GET request whose Origin (preferred) or
+# Referer (fallback) doesn't match the request's own host.
+#
+# Excluded from the check:
+#   - GET / HEAD / OPTIONS — read-only, can't mutate state
+#   - /api/auth/google — the OAuth callback flow legitimately
+#     arrives without a same-origin Origin in some browser configs;
+#     it's protected by Google's signed ID-token verification, which
+#     is a stronger contract than Origin matching.
+#   - /api/fx-rates GET (no auth, read-only) and other GET routes.
+
+_CSRF_EXEMPT_PATHS = frozenset({
+    "/api/auth/google",
+})
+
+
+def _host_matches(value: str | None) -> bool:
+    """True iff the given Origin or Referer URL is same-origin with
+    the current request's host. Compares scheme+host+port (port is
+    omitted when it's the protocol default). Empty / malformed
+    inputs return False."""
+    if not value:
+        return False
+    try:
+        from urllib.parse import urlparse
+        parsed = urlparse(value)
+    except (ValueError, TypeError):
+        return False
+    if not parsed.scheme or not parsed.netloc:
+        return False
+    expected = request.host_url.rstrip("/")
+    # Origin sends `scheme://host[:port]` (no path); Referer sends
+    # the full URL. Reconstruct just the origin portion of the
+    # value to compare.
+    value_origin = f"{parsed.scheme}://{parsed.netloc}"
+    return value_origin == expected
+
+
+@app.before_request
+def _csrf_origin_check():
+    if request.method in ("GET", "HEAD", "OPTIONS"):
+        return None
+    if request.path in _CSRF_EXEMPT_PATHS:
+        return None
+    # Pure-Bearer-token requests (no cookie attached) come from
+    # non-browser clients — they can't be CSRF'd in the traditional
+    # sense because the attacker would need to know the token.
+    # Skip the Origin check for those; the JWT itself is the auth
+    # boundary.
+    if not request.cookies.get("gg_session"):
+        return None
+    origin = request.headers.get("Origin")
+    referer = request.headers.get("Referer")
+    # If a browser is making this request it will have sent at least
+    # ONE of Origin / Referer. Pure script clients (curl, the Flask
+    # test client) usually send neither — and they can't be CSRF'd
+    # because there's no browser to leak the cookie through. So we
+    # only enforce the check when at least one header is present.
+    if origin is None and referer is None:
+        return None
+    if _host_matches(origin) or _host_matches(referer):
+        return None
+    # Hard block. JSON so the frontend's fetch error handler
+    # surfaces a clean message rather than HTML.
+    return jsonify({"error": "Cross-origin request rejected"}), 403
 
 
 @app.context_processor

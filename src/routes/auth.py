@@ -33,6 +33,7 @@ bp = Blueprint("auth", __name__)
 
 
 @bp.route("/api/user-status")
+@limiter.limit("60/minute")
 def user_status():
     """Probe endpoint for the frontend to check whether the stored JWT
     is still valid on app boot. Returns the user info if so, or
@@ -219,6 +220,7 @@ def google_auth():
 
 
 @bp.route("/api/auth/logout", methods=["POST"])
+@limiter.limit("10 per minute")
 @require_auth
 @retry_on_lock()
 def logout():
