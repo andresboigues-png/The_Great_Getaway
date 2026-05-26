@@ -384,6 +384,16 @@ export async function pullFromServer() {
         for (const archived of STATE.archivedTrips) {
             archived.tripDays = STATE.tripDays.filter(d => d.tripId === archived.id);
             archived.expenses = STATE.expenses.filter(e => e.tripId === archived.id);
+            // 2026-05-26 (audit TR3): also snapshot settlements
+            // onto the archived trip on every pull. Pre-fix only
+            // expenses + tripDays survived archive; settlements
+            // were lost from the per-trip view (and cross-trip
+            // balance via STATE.settlements only sees ACTIVE
+            // trips, so archived-trip settlements vanished from
+            // there too). Snapshot here so restore can pull them
+            // back into STATE.settlements cleanly.
+            (archived as { settlements?: unknown }).settlements =
+                (STATE.settlements || []).filter(s => s.tripId === archived.id);
         }
 
         emit(EVENTS.STATE_CHANGED);          // saveState + updateTripSelector via subscriber

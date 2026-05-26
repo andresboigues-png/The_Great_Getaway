@@ -100,12 +100,25 @@ export function archiveActiveTrip() {
             trip.archivedAt = new Date().toISOString();
             trip.expenses = STATE.expenses.filter(e => e.tripId === trip.id);
             trip.tripDays = STATE.tripDays.filter(d => d.tripId === trip.id);
+            // 2026-05-26 (audit TR3): snapshot settlements onto the
+            // archived trip too. Pre-fix, settlements were left in
+            // STATE.settlements (active-only on the server side), so
+            // archiving a trip with outstanding payment history then
+            // restoring it lost the settlement record from the
+            // per-trip view until the next full /api/data pull (and
+            // cross-trip balance went stale in the meantime). Stash
+            // them on the archived trip the same way expenses + days
+            // already do.
+            (trip as { settlements?: unknown }).settlements = (STATE.settlements || []).filter(
+                s => s.tripId === trip.id,
+            );
 
             STATE.archivedTrips.push(trip);
 
             // Remove from active state to keep things clean
             STATE.expenses = STATE.expenses.filter(e => e.tripId !== trip.id);
             STATE.tripDays = STATE.tripDays.filter(d => d.tripId !== trip.id);
+            STATE.settlements = (STATE.settlements || []).filter(s => s.tripId !== trip.id);
             STATE.trips = STATE.trips.filter(t => t.id !== trip.id);
 
             STATE.activeTripId = STATE.trips.length > 0 ? STATE.trips[0]!.id : null;

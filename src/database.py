@@ -640,6 +640,18 @@ def init_db():
                 trip_id TEXT NOT NULL,
                 from_user_id TEXT NOT NULL,
                 to_user_id TEXT NOT NULL,
+                -- 2026-05-26 (audit S1 + S6): snapshot the party
+                -- display names at settlement-record time so the
+                -- balance math doesn't depend on live companion
+                -- state. Pre-fix, unlinking a companion after a
+                -- settlement was recorded made the name-resolution
+                -- helper return undefined → the settlement was
+                -- silently skipped from balance shifts → the debt
+                -- persisted in the UI as if the payment never
+                -- happened. Snapshotting at insert time keeps the
+                -- row self-describing.
+                from_name TEXT,
+                to_name TEXT,
                 amount REAL NOT NULL,
                 currency TEXT NOT NULL,
                 euro_value REAL,

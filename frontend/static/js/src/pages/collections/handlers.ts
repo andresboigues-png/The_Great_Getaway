@@ -76,6 +76,19 @@ export const restoreTrip = (id: string) => {
                 STATE.tripDays = [...STATE.tripDays, ...trip.tripDays];
                 delete trip.tripDays;
             }
+            // 2026-05-26 (audit TR3): also restore settlements that
+            // were snapshotted onto the archived trip. Without this,
+            // restoring a trip that had outstanding settlements left
+            // STATE.settlements missing those rows until the next
+            // /api/data pull, so the per-trip settlement UI rendered
+            // empty and cross-trip balance math under-counted.
+            const archivedSettlements = (trip as { settlements?: unknown }).settlements as
+                | import('../../types').Settlement[]
+                | undefined;
+            if (archivedSettlements && archivedSettlements.length > 0) {
+                STATE.settlements = [...(STATE.settlements || []), ...archivedSettlements];
+                delete (trip as { settlements?: unknown }).settlements;
+            }
 
             STATE.trips.push(trip);
             STATE.archivedTrips = STATE.archivedTrips.filter((t) => t.id !== id);

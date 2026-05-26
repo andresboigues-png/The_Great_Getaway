@@ -73,12 +73,24 @@ def _trip_owner_id(cursor, trip_id):
 def serialize_settlement_row(row) -> dict:
     """Shape a `settlements` row into the camelCase JSON the frontend
     reads. Kept tiny — settlements are not as field-rich as trips so
-    we don't need a helpers.py move yet."""
+    we don't need a helpers.py move yet.
+
+    2026-05-26 (audit S1 + S6): emit `fromName` / `toName` snapshot
+    fields alongside the ids. Legacy rows from before the snapshot
+    migration backfilled to the users.name at upgrade time; rows
+    created after the migration carry the live snapshot from insert.
+    The frontend balance math now reads these first before falling
+    back to companion-roster resolution by linkedUserId."""
+    # Defensive `.keys()` check — older rows pre-migration won't
+    # carry the columns until alembic upgrade runs.
+    keys = row.keys() if hasattr(row, 'keys') else []
     return {
         "id": row["id"],
         "tripId": row["trip_id"],
         "fromUserId": row["from_user_id"],
         "toUserId": row["to_user_id"],
+        "fromName": row["from_name"] if "from_name" in keys else None,
+        "toName": row["to_name"] if "to_name" in keys else None,
         "amount": row["amount"],
         "currency": row["currency"],
         "euroValue": row["euro_value"],
@@ -165,17 +177,34 @@ def create_settlement():
         if not _is_accepted_member(cursor, trip_id, to_user_id):
             return jsonify({"error": "toUserId is not a member of this trip"}), 400
 
+        # 2026-05-26 (audit S1 + S6): snapshot party display names at
+        # insert time. Pre-fix, the balance math resolved names from
+        # the trip's live companion roster — so if either party was
+        # unlinked from the trip after the settlement was recorded,
+        # the row was silently skipped from balance shifts and the
+        # debt persisted. Snapshotting decouples the row from later
+        # roster mutations.
+        cursor.execute(
+            "SELECT id, name FROM users WHERE id IN (?, ?)",
+            (from_user_id, to_user_id),
+        )
+        _name_by_id = {r["id"]: r["name"] for r in cursor.fetchall()}
+        from_name = _name_by_id.get(from_user_id)
+        to_name = _name_by_id.get(to_user_id)
+
         settlement_id = _settlement_id()
         cursor.execute(
             "INSERT INTO settlements "
-            "(id, trip_id, from_user_id, to_user_id, amount, currency, "
-            " euro_value, method, note) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "(id, trip_id, from_user_id, to_user_id, from_name, to_name, "
+            " amount, currency, euro_value, method, note) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 settlement_id,
                 trip_id,
                 from_user_id,
                 to_user_id,
+                from_name,
+                to_name,
                 amount_f,
                 currency,
                 euro_value,

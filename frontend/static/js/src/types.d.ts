@@ -410,6 +410,16 @@ export interface Settlement {
     fromUserId: string;
     /** Recipient's TGG user_id. */
     toUserId: string;
+    /** 2026-05-26 (audit S1 + S6): display names snapshotted at
+     *  settlement-record time. Pre-snapshot, the balance math resolved
+     *  names via the live trip companion roster — so if either party
+     *  was unlinked from the trip after the settlement was recorded,
+     *  the row was silently skipped and the debt persisted. The
+     *  balance math now reads these first, with companion-roster
+     *  lookup as a fallback for legacy rows (NULL fromName/toName).
+     *  Set by the server on insert; not editable client-side. */
+    fromName?: string | null;
+    toName?: string | null;
     /** Amount typed by the user, in `currency`. */
     amount: number;
     /** ISO 4217 code of the typed amount. */

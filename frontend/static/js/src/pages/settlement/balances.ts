@@ -53,8 +53,23 @@ export function applySettlementToBalances(
     settlement: Settlement,
     trip: any,
 ): void {
-    const fromName = findTripCompanionByLinkedUser(trip, settlement.fromUserId)?.name;
-    const toName = findTripCompanionByLinkedUser(trip, settlement.toUserId)?.name;
+    // 2026-05-26 (audit S1 + S6): prefer the snapshotted display
+    // names on the settlement row. Pre-snapshot, this helper depended
+    // entirely on findTripCompanionByLinkedUser() — so if either
+    // party had been unlinked from the trip after the settlement was
+    // recorded, the lookup returned undefined and the settlement was
+    // silently skipped from balance shifts (the debt persisted in
+    // the UI even though the payment was recorded). The server now
+    // ships `fromName` / `toName` snapshots on every new row + a
+    // backfill for legacy rows; use those first, fall back to the
+    // companion-roster lookup for any null fields the migration
+    // couldn't reach.
+    const fromName =
+        settlement.fromName ||
+        findTripCompanionByLinkedUser(trip, settlement.fromUserId)?.name;
+    const toName =
+        settlement.toName ||
+        findTripCompanionByLinkedUser(trip, settlement.toUserId)?.name;
     if (!fromName || !toName) return;
     if (balances[fromName] === undefined || balances[toName] === undefined) return;
     // euroValue is the cross-currency-normalised amount the balance
@@ -230,14 +245,24 @@ export function computeGlobalBalances() {
     // §4.5 retirement: server-side settlements across every trip the
     // viewer is a member of. We look the trip up per-settlement so the
     // name-resolution helper has the right companion list to walk.
-    // Archived trips don't carry settlements today (the table is
-    // active-trip-only) so the active STATE.trips loop covers
-    // everything.
+    //
+    // 2026-05-26 (audit SP4 + TR3): archived trips now carry a
+    // `settlements` snapshot (set by trip-controls.ts on archive +
+    // pullFromServer's archived-trip pass). Walk both the active
+    // STATE.settlements AND each archived trip's local snapshot so
+    // global balance reflects ALL settlement history, not just
+    // active-trip rows.
     const tripsById = new Map<string, any>();
     for (const t of [...STATE.trips, ...(STATE.archivedTrips || [])]) {
         tripsById.set(t.id, t);
     }
-    for (const s of STATE.settlements || []) {
+    const allSettlements: Settlement[] = [
+        ...(STATE.settlements || []),
+        ...(STATE.archivedTrips || []).flatMap(
+            (t) => ((t as { settlements?: Settlement[] }).settlements) || [],
+        ),
+    ];
+    for (const s of allSettlements) {
         const trip = tripsById.get(s.tripId);
         if (!trip) continue;
         applySettlementToBalances(globalBalances, s, trip);
