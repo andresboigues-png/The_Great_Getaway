@@ -17,6 +17,7 @@ one-file edit.
 """
 
 import os
+import secrets
 import time
 
 from flask import Blueprint, current_app, jsonify, request
@@ -125,15 +126,70 @@ def upload_file():
         return jsonify({"error": "File contents don't match expected format"}), 400
 
     filename = secure_filename(file.filename)
-    # Add timestamp to avoid collisions
-    filename = f"{int(time.time())}_{filename}"
+    # Audit fix (2026-05-26): the previous scheme produced
+    # ENUMERABLE filenames — `{int(time.time())}_{secure_filename}`.
+    # Two uploads in the same second with identical names collided
+    # (overwriting the first), AND the timestamp prefix is
+    # predictable (a ~10-bit search space per second). Anyone who
+    # learned the URL kept access forever even after their account
+    # was removed from the trip — and an enumeration scan could
+    # discover private photos by walking timestamps. Prepend
+    # `secrets.token_urlsafe(16)` (~132 bits of entropy) so URLs
+    # become effectively unguessable and collisions vanish.
+    #
+    # We keep the time prefix for chronological sortability when
+    # the operator is poking at the FS directly, but the token
+    # is what stops the enumeration attack.
+    salt = secrets.token_urlsafe(16)
+    filename = f"{int(time.time())}_{salt}_{filename}"
     # Per-user subdir — also run user_id through secure_filename so
     # a malicious token claim can't smuggle path separators (it's
     # JWT-signed, so practically can't, but defense in depth).
     safe_user_dir = secure_filename(user_id) or "anon"
     user_folder = os.path.join(current_app.config['UPLOAD_FOLDER'], safe_user_dir)
     os.makedirs(user_folder, exist_ok=True)
-    file.save(os.path.join(user_folder, filename))
+    out_path = os.path.join(user_folder, filename)
+
+    # Audit fix (2026-05-26): strip EXIF GPS from JPEG/PNG/WebP
+    # uploads before persisting. Pre-fix the file was saved bytes-
+    # verbatim — iPhone JPEG/HEIC carry GPSLatitude/Longitude tags,
+    # and anyone with the URL (public-trip viewers, share-link
+    # recipients) could exfiltrate the user's home GPS from any
+    # uploaded photo via exiftool. PIL/Pillow handles JPEG/PNG/WebP;
+    # HEIC/HEIF and PDF aren't touched (HEIC support would need
+    # pillow-heif, PDFs don't have GPS EXIF). Best-effort: if the
+    # re-encode fails for any reason (corrupted image, unsupported
+    # mode), fall back to the bytes-verbatim save so the upload
+    # still completes — the EXIF strip is defense-in-depth, not
+    # the security boundary.
+    if ext in {'.jpg', '.jpeg', '.png', '.webp'}:
+        try:
+            from PIL import Image
+            file.stream.seek(0)
+            img = Image.open(file.stream)
+            # Re-save WITHOUT the EXIF dict. PIL's save() drops EXIF
+            # by default unless explicitly passed; the `exif=b""`
+            # argument makes the strip explicit + future-proof if
+            # PIL's defaults change.
+            save_kwargs = {"exif": b""}
+            # PNG doesn't support the `exif` kwarg in all Pillow
+            # versions — strip via the `info` dict instead.
+            if img.format == "PNG":
+                save_kwargs = {}
+                # Re-encoding from a fresh Image object drops the
+                # original info/metadata anyway.
+            # Preserve format from the decoded image; falls back to
+            # the requested extension if PIL can't detect.
+            img_format = img.format or {
+                '.jpg': 'JPEG', '.jpeg': 'JPEG',
+                '.png': 'PNG', '.webp': 'WEBP',
+            }[ext]
+            img.save(out_path, format=img_format, **save_kwargs)
+        except Exception:
+            file.stream.seek(0)
+            file.save(out_path)
+    else:
+        file.save(out_path)
 
     return jsonify({
         "url": f"/static/uploads/{safe_user_dir}/{filename}",
