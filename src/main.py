@@ -288,6 +288,31 @@ def add_security_headers(response):
     response.headers.setdefault(
         "Referrer-Policy", "strict-origin-when-cross-origin",
     )
+    # Audit fix (2026-05-27): HSTS on HTTPS requests. Pre-fix the
+    # only HTTPS pinning was via the Secure cookie flag — a
+    # downgrade-to-HTTP attack would have nothing to push back
+    # against. 6 months is the standard middle ground (Google + the
+    # major preload lists ask for at least 6 months); includeSubDomains
+    # because tgg.app + every future subdomain is served by the same
+    # backend. Only set on a secure request — sending HSTS over plain
+    # HTTP would be ignored by the browser anyway, and we want local
+    # http://localhost dev to remain reachable.
+    if request.is_secure:
+        response.headers.setdefault(
+            "Strict-Transport-Security",
+            "max-age=15768000; includeSubDomains",
+        )
+    # Audit fix (2026-05-27): Cross-Origin-Opener-Policy.
+    # `same-origin` puts the document in its own browsing context
+    # group, isolating it from other tabs / popups that link back
+    # via window.opener. Without this, a malicious page opened
+    # from a Maps Place click could read window.name and other
+    # cross-context state. `same-origin-allow-popups` would be
+    # gentler but Google Sign-In already supports same-origin via
+    # the redirect flow we use, so we can pick the strict variant.
+    response.headers.setdefault(
+        "Cross-Origin-Opener-Policy", "same-origin",
+    )
     return response
 
 

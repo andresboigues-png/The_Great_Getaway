@@ -524,6 +524,44 @@ export function notifyTripPublic(tripId: string) {
     return _post('/api/notifications/trip_public', { trip_id: tripId });
 }
 
+/** Audit fix (2026-05-27 fix #50/#57): per-device session helpers.
+ *  Pre-fix logout invalidated every device the user had ever signed in
+ *  on; now sessions are per-device. These helpers power the
+ *  Settings → Sessions tab. */
+export interface AuthSession {
+    id: number;
+    deviceLabel: string | null;
+    createdAt: string;
+    lastSeenAt: string | null;
+    isCurrent: boolean;
+}
+
+export async function fetchAuthSessions(): Promise<AuthSession[]> {
+    if (!STATE.user) return [];
+    try {
+        const res = await apiFetch('/api/auth/sessions');
+        if (!res.ok) return [];
+        const body = await res.json();
+        return Array.isArray(body && body.sessions) ? body.sessions : [];
+    } catch {
+        return [];
+    }
+}
+
+export async function revokeAuthSession(sessionId: number): Promise<boolean> {
+    if (!STATE.user) return false;
+    try {
+        const res = await apiFetch(
+            `/api/auth/sessions/${encodeURIComponent(String(sessionId))}`,
+            { method: 'DELETE' },
+        );
+        return res.ok;
+    } catch {
+        return false;
+    }
+}
+
+
 /** Pull the server's cached FX rate table and overlay it on top of
  *  the static CONVERSION_RATES table (audit fix 2026-05-26). The
  *  server fetches rates from Frankfurter once per 24h; the frontend
