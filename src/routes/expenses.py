@@ -42,6 +42,13 @@ def upsert_expense():
         else:
             splits_json = None
         is_settlement = 1 if e.get('isSettlement') else 0
+        # 2026-05-26 (audit SY5): the ON CONFLICT UPDATE clause now gates
+        # on `expenses.deleted_at IS NULL` so a queued resurrection from
+        # an offline device can't undo a tombstone. For a tombstoned row
+        # the clause becomes a no-op — the existing soft-deleted row
+        # stays exactly as it was, no stale data leaks back in. New
+        # inserts (no conflict) are unaffected: they create a fresh row
+        # with deleted_at = NULL.
         cursor.execute('''
             INSERT INTO expenses (id, trip_id, who, category_id, label, date, country, value, currency, euro_value, receipt_url, splits, is_settlement)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -57,6 +64,7 @@ def upsert_expense():
                 receipt_url=excluded.receipt_url,
                 splits=excluded.splits,
                 is_settlement=excluded.is_settlement
+            WHERE expenses.deleted_at IS NULL
         ''', (e['id'], e['tripId'], e['who'], e.get('categoryId', ''),
               e.get('label', ''), e.get('date', ''), e.get('country', ''),
               e.get('value', 0), e.get('currency', 'EUR'), e.get('euroValue', 0),
@@ -82,10 +90,18 @@ def delete_expense(expense_id):
     user_id = current_user_id()
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT trip_id FROM expenses WHERE id = ?", (expense_id,))
+        # 2026-05-26 (audit SY5): we now look up `deleted_at` alongside
+        # `trip_id` so a re-delete of an already-tombstoned row stays a
+        # no-op (no UPDATE fires, the existing tombstone timestamp
+        # stands). Filter tombstoned rows out of "exists?" branch so
+        # the absent-vs-permissionless oracle equality is preserved.
+        cursor.execute(
+            "SELECT trip_id, deleted_at FROM expenses WHERE id = ?",
+            (expense_id,),
+        )
         row = cursor.fetchone()
-        if not row:
-            return jsonify({"status": "deleted"})  # idempotent (truly absent)
+        if not row or row["deleted_at"] is not None:
+            return jsonify({"status": "deleted"})  # idempotent (absent or already tombstoned)
         bind_trip_context(row["trip_id"])
         if not can_edit_expenses(cursor, row["trip_id"], user_id):
             # Caller doesn't have edit rights — return the same shape
@@ -103,6 +119,17 @@ def delete_expense(expense_id):
             # request logger (every request logs status + path) so
             # we haven't lost observability — just specificity.
             return jsonify({"status": "deleted"})
-        cursor.execute("DELETE FROM expenses WHERE id = ?", (expense_id,))
+        # 2026-05-26 (audit SY5): soft-delete via tombstone. A hard
+        # DELETE used to be reversible from any peer device whose
+        # offline queue still had the row — the next /api/sync POST
+        # would re-INSERT it. Now we stamp deleted_at; the ON CONFLICT
+        # UPDATE clause on the upsert paths skips tombstoned rows so
+        # the resurrection is silently dropped. The /api/data response
+        # filters out tombstoned rows so the row stays gone everywhere.
+        cursor.execute(
+            "UPDATE expenses SET deleted_at = CURRENT_TIMESTAMP "
+            "WHERE id = ? AND deleted_at IS NULL",
+            (expense_id,),
+        )
         conn.commit()
     return jsonify({"status": "deleted"})

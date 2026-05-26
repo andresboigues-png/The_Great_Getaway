@@ -1878,8 +1878,12 @@ def export_trip_pdf(trip_id: str):
         # Augment with optional sibling data so the PDF builder has
         # everything in one struct.
         # Date range — derived from trip_days if present.
+        # 2026-05-26 (audit SY5): all three queries below filter out
+        # tombstoned days/expenses so the PDF reflects the live trip
+        # state, not the soft-deleted residue.
         cursor.execute(
-            "SELECT MIN(date) AS f, MAX(date) AS t FROM trip_days WHERE trip_id = ?",
+            "SELECT MIN(date) AS f, MAX(date) AS t FROM trip_days "
+            "WHERE trip_id = ? AND deleted_at IS NULL",
             (trip_id,),
         )
         date_row = cursor.fetchone()
@@ -1893,7 +1897,7 @@ def export_trip_pdf(trip_id: str):
         cursor.execute(
             "SELECT id, day_number, date, name, morning, afternoon, "
             "       evening, notes, tip, lat, lng "
-            "FROM trip_days WHERE trip_id = ? "
+            "FROM trip_days WHERE trip_id = ? AND deleted_at IS NULL "
             "ORDER BY day_number ASC, date ASC",
             (trip_id,),
         )
@@ -1913,7 +1917,7 @@ def export_trip_pdf(trip_id: str):
         # Total spend across the trip — drives the cover stat tile.
         cursor.execute(
             "SELECT COALESCE(SUM(euro_value), 0) AS total "
-            "FROM expenses WHERE trip_id = ?",
+            "FROM expenses WHERE trip_id = ? AND deleted_at IS NULL",
             (trip_id,),
         )
         ts = cursor.fetchone()

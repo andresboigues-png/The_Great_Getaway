@@ -302,9 +302,22 @@ def init_db():
                 -- and settlement rows double-counted. Now persisted.
                 splits TEXT CHECK(splits IS NULL OR json_valid(splits)),
                 is_settlement INTEGER NOT NULL DEFAULT 0,
+                -- 2026-05-26 (audit SY5): soft-delete tombstone. Replaces
+                -- hard DELETE on `delete_expense` + /api/sync upsert so
+                -- a queued resurrection from an offline device can't
+                -- undo a delete that happened on a peer device. See
+                -- migration b7c8d9e0f1a2_add_tombstone_columns.
+                deleted_at TEXT,
                 FOREIGN KEY(trip_id) REFERENCES trips(id) ON DELETE CASCADE
             )
         ''')
+        # Partial index for the future tombstone-cleanup sweep — only
+        # tombstoned rows are indexed so the cost stays proportional
+        # to the soft-deleted population, not the table size.
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_expenses_deleted "
+            "ON expenses(deleted_at) WHERE deleted_at IS NOT NULL"
+        )
 
         # Friends Table — created_at is part of the CREATE TABLE
         # now (handled in the catchup revision for prod DBs).
@@ -549,9 +562,17 @@ def init_db():
                 tip TEXT,
                 lat REAL,
                 lng REAL,
+                -- 2026-05-26 (audit SY5): tombstone column — see
+                -- migration b7c8d9e0f1a2_add_tombstone_columns and the
+                -- matching comment on `expenses` above.
+                deleted_at TEXT,
                 FOREIGN KEY(trip_id) REFERENCES trips(id) ON DELETE CASCADE
             )
         ''')
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_trip_days_deleted "
+            "ON trip_days(deleted_at) WHERE deleted_at IS NOT NULL"
+        )
 
         # Follows Table (FIXING_ROADMAP §4.7).
         # One-way social graph that sits ALONGSIDE the symmetric

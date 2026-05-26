@@ -292,6 +292,9 @@ def sync_data():
                     else:
                         splits_json = None
                     is_settlement = 1 if e.get('isSettlement') else 0
+                    # 2026-05-26 (audit SY5): WHERE guard skips tombstoned
+                    # rows so a peer device's queued archived-trip state
+                    # can't resurrect an expense another device deleted.
                     cursor.execute('''
                         INSERT INTO expenses (id, trip_id, who, category_id, label, date, country, value, currency, euro_value, receipt_url, splits, is_settlement)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -303,6 +306,7 @@ def sync_data():
                             receipt_url=excluded.receipt_url,
                             splits=excluded.splits,
                             is_settlement=excluded.is_settlement
+                        WHERE expenses.deleted_at IS NULL
                     ''', (e['id'], t['id'], e['who'], e['categoryId'], e['label'], e['date'], e['country'], e['value'], e['currency'], e['euroValue'], e.get('receiptUrl'), splits_json, is_settlement))
 
         # Commit archived-trips section (plus the inline archived
@@ -338,6 +342,10 @@ def sync_data():
             else:
                 splits_json = None
             is_settlement = 1 if e.get('isSettlement') else 0
+            # 2026-05-26 (audit SY5): WHERE guard skips tombstoned rows so
+            # a peer device's queued state can't resurrect an expense
+            # another device deleted. Same shape as routes/expenses.py
+            # single-row upsert.
             cursor.execute('''
                 INSERT INTO expenses (id, trip_id, who, category_id, label, date, country, value, currency, euro_value, receipt_url, splits, is_settlement)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -349,6 +357,7 @@ def sync_data():
                     receipt_url=excluded.receipt_url,
                     splits=excluded.splits,
                     is_settlement=excluded.is_settlement
+                WHERE expenses.deleted_at IS NULL
             ''', (e['id'], e['tripId'], e['who'], e['categoryId'], e['label'], e['date'], e['country'], e['value'], e['currency'], e['euroValue'], e.get('receiptUrl'), splits_json, is_settlement))
 
         # Commit active-expenses section before categories.
@@ -420,6 +429,9 @@ def sync_data():
         # Sync Trip Days
         trip_days = data.get("trip_days", [])
         for d in trip_days:
+            # 2026-05-26 (audit SY5): WHERE guard skips tombstoned trip
+            # days — see routes/days.py for the rationale and migration
+            # b7c8d9e0f1a2_add_tombstone_columns.
             cursor.execute('''
                 INSERT INTO trip_days (id, trip_id, day_number, date, name, morning, afternoon, evening, tip, lat, lng)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -433,6 +445,7 @@ def sync_data():
                     tip=excluded.tip,
                     lat=excluded.lat,
                     lng=excluded.lng
+                WHERE trip_days.deleted_at IS NULL
             ''', (d['id'], d['tripId'], d.get('dayNumber'), d.get('date'), d.get('name'),
                   # Plain text — NOT json.dumps. Legacy code wrapped these
                   # which round-tripped empty strings as '""' and non-empty
@@ -602,11 +615,21 @@ def get_data():
         # handled by `serialize_expense_row` (shared with
         # routes/public.py so both reads stay in lockstep — pre-§3.5
         # the two had silently drifted).
+        #
+        # 2026-05-26 (audit SY5): `deleted_at IS NULL` filters out
+        # tombstoned rows so a soft-deleted expense never re-surfaces
+        # on a /api/data pull. The migration that added the column
+        # (b7c8d9e0f1a2) leaves it NULL for all pre-existing rows so
+        # this clause is backwards-compatible.
         trip_ids = [t['id'] for t in trips]
         expenses = []
         if trip_ids:
             placeholders = ','.join(['?'] * len(trip_ids))
-            cursor.execute(f"SELECT * FROM expenses WHERE trip_id IN ({placeholders})", trip_ids)
+            cursor.execute(
+                f"SELECT * FROM expenses "
+                f"WHERE trip_id IN ({placeholders}) AND deleted_at IS NULL",
+                trip_ids,
+            )
             expenses = [serialize_expense_row(row) for row in cursor.fetchall()]
 
         # §4.5 — settlements ride alongside expenses on the same /api/data
@@ -664,10 +687,16 @@ def get_data():
         } for r in budgets_rows]
 
         # Get trip days for every trip the caller can see.
+        #
+        # 2026-05-26 (audit SY5): `deleted_at IS NULL` filters out
+        # tombstoned days the same way the expenses SELECT above does.
+        # See migration b7c8d9e0f1a2_add_tombstone_columns for the
+        # rationale.
         if trip_ids:
             placeholders = ','.join(['?'] * len(trip_ids))
             cursor.execute(
-                f"SELECT * FROM trip_days WHERE trip_id IN ({placeholders})",
+                f"SELECT * FROM trip_days "
+                f"WHERE trip_id IN ({placeholders}) AND deleted_at IS NULL",
                 trip_ids,
             )
         else:

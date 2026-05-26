@@ -499,6 +499,151 @@ def test_delete_day_rejects_non_planner(
     assert res.status_code == 403
 
 
+# ── SY5: soft-delete tombstone resurrection protection ─────────────────────
+
+def test_expense_tombstone_blocks_resurrection_via_upsert(
+    client, seed_user, auth_headers,
+):
+    """SY5: a queued upsert from an offline peer CANNOT undo a deleted
+    expense. The DELETE soft-deletes (stamps deleted_at); the upsert's
+    ON CONFLICT clause has WHERE expenses.deleted_at IS NULL so the
+    UPDATE is a no-op for tombstoned rows. /api/data must keep
+    excluding the expense after the attempted resurrection."""
+    client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": "trip-sy5", "name": "Tuscany"},
+    })
+    client.post("/api/expenses", headers=auth_headers, json={
+        "expense": {
+            "id": "exp-sy5", "tripId": "trip-sy5", "who": "Me", "value": 50,
+            "currency": "EUR", "euroValue": 50, "label": "Lunch",
+            "date": "2026-01-01",
+        },
+    })
+    # Soft-delete.
+    res = client.delete("/api/expenses/exp-sy5", headers=auth_headers)
+    assert res.status_code == 200
+
+    # The row stays in the table — it's just tombstoned.
+    from database import get_db
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT deleted_at FROM expenses WHERE id = 'exp-sy5'",
+        ).fetchone()
+    assert row is not None, "soft-delete should leave the row in place"
+    assert row["deleted_at"] is not None, "soft-delete should stamp deleted_at"
+
+    # Simulate an offline peer's queued upsert with stale fields. This
+    # used to resurrect the row via ON CONFLICT UPDATE — now it MUST
+    # no-op because of the deleted_at WHERE guard.
+    client.post("/api/expenses", headers=auth_headers, json={
+        "expense": {
+            "id": "exp-sy5", "tripId": "trip-sy5", "who": "Me",
+            "value": 99,  # different value — would be obvious if resurrected
+            "currency": "EUR", "euroValue": 99, "label": "Stale Lunch",
+            "date": "2026-01-01",
+        },
+    })
+
+    # Row still tombstoned, value NOT updated.
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT deleted_at, value FROM expenses WHERE id = 'exp-sy5'",
+        ).fetchone()
+    assert row["deleted_at"] is not None, "tombstone must persist after upsert attempt"
+    assert row["value"] == 50, "stale upsert MUST NOT overwrite tombstoned row"
+
+    # /api/data omits tombstoned rows so the client's pull-from-server
+    # never re-surfaces the deleted expense.
+    data_res = client.get("/api/data", headers=auth_headers)
+    assert data_res.status_code == 200
+    expense_ids = [e["id"] for e in (data_res.get_json().get("expenses") or [])]
+    assert "exp-sy5" not in expense_ids, "/api/data must exclude tombstoned expenses"
+
+
+def test_day_tombstone_blocks_resurrection_via_upsert(
+    client, seed_user, auth_headers,
+):
+    """SY5: same resurrection-protection for trip_days as for expenses.
+    Hard-DELETE used to be undone by a queued /api/days upsert; now
+    soft-delete + the WHERE deleted_at IS NULL gate makes that a no-op."""
+    client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": "trip-sy5d", "name": "Tuscany"},
+    })
+    client.post("/api/days", headers=auth_headers, json={
+        "day": {
+            "id": "day-sy5", "tripId": "trip-sy5d", "dayNumber": 1,
+            "name": "Florence", "date": "2026-01-02",
+        },
+    })
+    res = client.delete("/api/days/day-sy5", headers=auth_headers)
+    assert res.status_code == 200
+
+    from database import get_db
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT deleted_at FROM trip_days WHERE id = 'day-sy5'",
+        ).fetchone()
+    assert row is not None and row["deleted_at"] is not None
+
+    # Attempt resurrection via a stale upsert.
+    client.post("/api/days", headers=auth_headers, json={
+        "day": {
+            "id": "day-sy5", "tripId": "trip-sy5d", "dayNumber": 1,
+            "name": "STALE NAME",  # would be obvious if resurrected
+            "date": "2026-01-02",
+        },
+    })
+
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT deleted_at, name FROM trip_days WHERE id = 'day-sy5'",
+        ).fetchone()
+    assert row["deleted_at"] is not None, "tombstone must persist"
+    assert row["name"] == "Florence", "stale upsert MUST NOT overwrite tombstoned day"
+
+    # /api/data omits tombstoned days.
+    data_res = client.get("/api/data", headers=auth_headers)
+    day_ids = [d["id"] for d in (data_res.get_json().get("tripDays") or [])]
+    assert "day-sy5" not in day_ids
+
+
+def test_expense_redelete_after_tombstone_is_idempotent(
+    client, seed_user, auth_headers,
+):
+    """SY5: DELETE on an already-tombstoned expense returns 200 without
+    re-stamping deleted_at. Belt-and-braces for clients that retry the
+    delete after a network blip; the original tombstone timestamp must
+    survive so audit trails stay accurate."""
+    client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": "trip-redel", "name": "X"},
+    })
+    client.post("/api/expenses", headers=auth_headers, json={
+        "expense": {
+            "id": "exp-redel", "tripId": "trip-redel", "who": "Me",
+            "value": 1, "currency": "EUR", "euroValue": 1,
+            "label": "X", "date": "2026-01-01",
+        },
+    })
+    client.delete("/api/expenses/exp-redel", headers=auth_headers)
+
+    from database import get_db
+    with get_db() as conn:
+        first = conn.execute(
+            "SELECT deleted_at FROM expenses WHERE id = 'exp-redel'",
+        ).fetchone()["deleted_at"]
+    assert first is not None
+
+    # Second delete — should be a no-op.
+    res = client.delete("/api/expenses/exp-redel", headers=auth_headers)
+    assert res.status_code == 200
+
+    with get_db() as conn:
+        second = conn.execute(
+            "SELECT deleted_at FROM expenses WHERE id = 'exp-redel'",
+        ).fetchone()["deleted_at"]
+    assert second == first, "re-delete must preserve original tombstone timestamp"
+
+
 # ── /api/budgets ─────────────────────────────────────────────────────────────
 # Budgets are per-user (not per-trip), so the gate is "caller owns this
 # budget row". The audit fix replaced the previous "delete by id alone"

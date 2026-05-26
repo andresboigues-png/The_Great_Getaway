@@ -153,7 +153,14 @@ def get_public_trip(trip_id):
         # Days, expenses, and the day-level photos/documents that the
         # archived renderer consumes. Mirrors the /api/data shaping so
         # the same renderer can read this payload without branching.
-        cursor.execute("SELECT * FROM trip_days WHERE trip_id = ?", (trip_id,))
+        #
+        # 2026-05-26 (audit SY5): tombstoned days/expenses are filtered
+        # out of public reads the same way they are out of /api/data,
+        # so a soft-deleted day never appears on a shared-trip URL.
+        cursor.execute(
+            "SELECT * FROM trip_days WHERE trip_id = ? AND deleted_at IS NULL",
+            (trip_id,),
+        )
         trip_days = []
         for d_row in cursor.fetchall():
             day = dict(d_row)
@@ -188,7 +195,10 @@ def get_public_trip(trip_id):
         # response object at all).
         expenses = []
         if viewer_sees_expenses:
-            cursor.execute("SELECT * FROM expenses WHERE trip_id = ?", (trip_id,))
+            cursor.execute(
+                "SELECT * FROM expenses WHERE trip_id = ? AND deleted_at IS NULL",
+                (trip_id,),
+            )
             expenses = [dict(r) for r in cursor.fetchall()]
             # Translate snake_case → camelCase for the public detail
             # surface. Same shape as routes/data.py — both reads need to
@@ -366,18 +376,20 @@ def fetch_share_payload(token):
         # rendered. Defense-in-depth: even if the template were patched
         # to render them unconditionally, an unauthorized share wouldn't
         # have the data available.
+        # 2026-05-26 (audit SY5): tombstoned days are filtered out of
+        # the public /share/<token> view — same gate as /api/data.
         if show_plans:
             cursor.execute(
                 "SELECT day_number, date, name, lat, lng, "
                 "       morning, afternoon, evening, tip "
-                "FROM trip_days WHERE trip_id = ? "
+                "FROM trip_days WHERE trip_id = ? AND deleted_at IS NULL "
                 "ORDER BY COALESCE(day_number, 0), date",
                 (row["id"],),
             )
         else:
             cursor.execute(
                 "SELECT day_number, date, name, lat, lng "
-                "FROM trip_days WHERE trip_id = ? "
+                "FROM trip_days WHERE trip_id = ? AND deleted_at IS NULL "
                 "ORDER BY COALESCE(day_number, 0), date",
                 (row["id"],),
             )
@@ -420,10 +432,14 @@ def fetch_share_payload(token):
             # mirrors the Insights page's grouping. Returns euro_value
             # so the front-page can render in the viewer's currency
             # later if we add a "convert to my currency" toggle.
+            # 2026-05-26 (audit SY5): tombstoned expenses excluded
+            # from public per-country totals — same shape as the SY5
+            # filter on the /api/data path.
             cursor.execute(
                 "SELECT COALESCE(country, '?') AS country, "
                 "       SUM(COALESCE(euro_value, 0)) AS total "
-                "FROM expenses WHERE trip_id = ? GROUP BY country",
+                "FROM expenses WHERE trip_id = ? AND deleted_at IS NULL "
+                "GROUP BY country",
                 (row["id"],),
             )
             per_country = [

@@ -703,10 +703,12 @@ def _clone_trip_record(cursor, source_trip_id, new_owner_id):
     # same _generate_trip_id helper, since day ids share the
     # 9-char shape). Plan text + tip + pin are copied as-is —
     # they're the "what to do" content.
+    # 2026-05-26 (audit SY5): clone skips tombstoned days so a
+    # soft-deleted day doesn't reincarnate in the destination trip.
     cursor.execute(
         "SELECT day_number, date, name, morning, afternoon, evening, "
         "       tip, lat, lng "
-        "FROM trip_days WHERE trip_id = ?",
+        "FROM trip_days WHERE trip_id = ? AND deleted_at IS NULL",
         (source_trip_id,),
     )
     for d in cursor.fetchall():

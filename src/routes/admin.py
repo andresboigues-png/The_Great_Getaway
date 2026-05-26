@@ -185,10 +185,15 @@ def admin_stats():
                 u.picture,
                 u.created_at,
                 (SELECT COUNT(*) FROM trips t WHERE t.user_id = u.id) AS trip_count,
+                -- 2026-05-26 (audit SY5): per-user expense count
+                -- excludes tombstoned rows so the admin dashboard
+                -- matches what the user sees in /api/data. Global
+                -- expense count above still includes tombstones for
+                -- storage-capacity tracking.
                 (SELECT COUNT(*)
                     FROM expenses e
                     JOIN trips t ON e.trip_id = t.id
-                    WHERE t.user_id = u.id) AS expense_count
+                    WHERE t.user_id = u.id AND e.deleted_at IS NULL) AS expense_count
             FROM users u
             ORDER BY u.created_at DESC
             """

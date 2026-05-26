@@ -34,6 +34,11 @@ def upsert_day():
         cursor = conn.cursor()
         if not can_edit_trip(cursor, d.get("tripId"), user_id):
             return jsonify({"error": "Forbidden"}), 403
+        # 2026-05-26 (audit SY5): WHERE guard mirrors the expense upsert —
+        # `deleted_at IS NULL` makes the ON CONFLICT UPDATE a no-op for
+        # tombstoned rows so a peer device's queued state can't bring
+        # back a day that another device already deleted. See migration
+        # b7c8d9e0f1a2_add_tombstone_columns for the column rationale.
         cursor.execute('''
             INSERT INTO trip_days (id, trip_id, day_number, date, name, morning, afternoon, evening, tip, lat, lng)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -47,6 +52,7 @@ def upsert_day():
                 tip=excluded.tip,
                 lat=excluded.lat,
                 lng=excluded.lng
+            WHERE trip_days.deleted_at IS NULL
         ''', (d['id'], d.get('tripId'), d.get('dayNumber'), d.get('date'), d.get('name'),
               # Plain text — see /api/sync in main.py for the json.dumps fix.
               d.get('morning', d.get('plan', {}).get('morning', '')) or '',
@@ -69,15 +75,29 @@ def delete_day(day_id):
     user_id = current_user_id()
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT trip_id, day_number FROM trip_days WHERE id = ?", (day_id,))
+        # 2026-05-26 (audit SY5): pull deleted_at alongside trip context
+        # so a re-delete of an already-tombstoned day is an idempotent
+        # no-op (matches the expenses route's shape).
+        cursor.execute(
+            "SELECT trip_id, day_number, deleted_at FROM trip_days WHERE id = ?",
+            (day_id,),
+        )
         row = cursor.fetchone()
-        if not row:
-            return jsonify({"status": "deleted"})  # idempotent
+        if not row or row["deleted_at"] is not None:
+            return jsonify({"status": "deleted"})  # idempotent (absent or already tombstoned)
         bind_trip_context(row["trip_id"])
         if not can_edit_trip(cursor, row["trip_id"], user_id):
             return jsonify({"error": "Forbidden"}), 403
         if int(row["day_number"] or 0) == 0:
             return jsonify({"error": "Trip Anchor (day 0) anchors the trip and can't be deleted."}), 422
-        cursor.execute("DELETE FROM trip_days WHERE id = ?", (day_id,))
+        # 2026-05-26 (audit SY5): soft-delete via tombstone — see the
+        # matching block in routes/expenses.py for the full rationale.
+        # Hard delete used to let an offline peer's queued state
+        # resurrect the day via the next /api/sync POST.
+        cursor.execute(
+            "UPDATE trip_days SET deleted_at = CURRENT_TIMESTAMP "
+            "WHERE id = ? AND deleted_at IS NULL",
+            (day_id,),
+        )
         conn.commit()
     return jsonify({"status": "deleted"})
