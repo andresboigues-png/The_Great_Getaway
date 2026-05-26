@@ -171,6 +171,7 @@ def unfollow_user(user_id):
 
 @bp.route("/api/follows/<user_id>", methods=["GET"])
 @require_auth
+@limiter.limit("120/minute")
 def get_follow_status(user_id):
     """Counts + caller's `isFollowing` flag for a single user. Used by
     the profile page on its first render. Public-profile bundles the

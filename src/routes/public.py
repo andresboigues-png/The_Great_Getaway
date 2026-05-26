@@ -17,6 +17,7 @@ from flask import Blueprint, jsonify, make_response, request
 from auth import current_user_id
 from database import get_db
 from achievements import list_user_achievements
+from extensions import limiter
 from observability import bind_trip_context
 from helpers import (
     serialize_expense_row,
@@ -29,7 +30,18 @@ from routes.follows import follower_counts, is_following
 bp = Blueprint("public", __name__)
 
 
+# Audit fix (2026-05-26): rate-limit every anonymous-readable
+# endpoint so a scripted scraper can't iterate trip IDs / user IDs /
+# share tokens at full speed to harvest metadata. 60/minute is
+# generous for legitimate viewers (a real human clicks-through at
+# most ~10x in a minute) but kills any meaningful enumeration.
+# Pre-fix these routes had no limiter, so a single attacker could
+# scan the entire public surface within minutes.
+_PUBLIC_READ_LIMIT = "60 per minute"
+
+
 @bp.route("/api/public-trip/<trip_id>", methods=["GET"])
+@limiter.limit(_PUBLIC_READ_LIMIT)
 def get_public_trip(trip_id):
     """Fetch full trip data for read-only display when the caller doesn't
     own the trip. Powers the feed-post trip-card click-through and any
@@ -278,6 +290,7 @@ def get_public_trip(trip_id):
 
 
 @bp.route("/api/public-profile/<user_id>", methods=["GET"])
+@limiter.limit(_PUBLIC_READ_LIMIT)
 def get_public_profile(user_id):
     """Fetch public profile data for a user (Name, Bio, Public Trips, etc).
 
@@ -504,6 +517,7 @@ def fetch_share_payload(token):
 
 
 @bp.route("/api/share/<token>", methods=["GET"])
+@limiter.limit(_PUBLIC_READ_LIMIT)
 def get_shared_trip(token):
     """Public read endpoint — anyone with the share token can fetch
     the stripped trip payload. Bypasses @require_auth deliberately;
