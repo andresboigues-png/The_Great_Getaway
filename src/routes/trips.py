@@ -212,7 +212,16 @@ def delete_trip(trip_id):
 def archive_trip(trip_id):
     """Per-user archive toggle — flips THIS caller's
     `trip_members.is_archived` only. Other members keep their own
-    state. Any role (incl. relaxer) can archive their own copy."""
+    state. Any role (incl. relaxer) can archive their own copy.
+
+    Audit fix (2026-05-26): stamp `completed_at = NOW` on the per-
+    user row. The friend_archived_trip feed event + achievement
+    timing now key off this column so completing a trip created
+    long ago surfaces correctly in the 30-day window (pre-fix the
+    window was checked against trips.created_at, so 31+ day old
+    trips silently vanished from the feed the moment they were
+    completed).
+    """
     bind_trip_context(trip_id)
     user_id = current_user_id()
     with get_db() as conn:
@@ -220,7 +229,9 @@ def archive_trip(trip_id):
         if trip_member_role(cursor, trip_id, user_id) is None:
             return jsonify({"error": "Forbidden"}), 403
         cursor.execute(
-            "UPDATE trip_members SET is_archived = 1 WHERE trip_id = ? AND user_id = ?",
+            "UPDATE trip_members SET is_archived = 1, "
+            "completed_at = CURRENT_TIMESTAMP "
+            "WHERE trip_id = ? AND user_id = ?",
             (trip_id, user_id),
         )
         # Mirror to legacy `trips.is_archived` only when the actor is the
@@ -273,7 +284,15 @@ def unarchive_trip(trip_id):
     """Inverse of /archive — flips THIS caller's
     `trip_members.is_archived` back to 0 so the trip returns to their
     active list on next /api/data pull. Mirrors `trips.is_archived`
-    when the actor is the owner."""
+    when the actor is the owner.
+
+    Audit fix (2026-05-26): clear `completed_at` so re-archiving
+    later stamps a fresh timestamp (matching the new completion
+    semantic from `archive_trip`). Without this, re-completing a
+    previously-completed-then-restored trip would keep the OLD
+    timestamp and the feed event would surface in the wrong
+    window.
+    """
     bind_trip_context(trip_id)
     user_id = current_user_id()
     with get_db() as conn:
@@ -281,7 +300,8 @@ def unarchive_trip(trip_id):
         if trip_member_role(cursor, trip_id, user_id) is None:
             return jsonify({"error": "Forbidden"}), 403
         cursor.execute(
-            "UPDATE trip_members SET is_archived = 0 WHERE trip_id = ? AND user_id = ?",
+            "UPDATE trip_members SET is_archived = 0, completed_at = NULL "
+            "WHERE trip_id = ? AND user_id = ?",
             (trip_id, user_id),
         )
         if is_trip_owner(cursor, trip_id, user_id):
