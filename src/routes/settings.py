@@ -14,29 +14,87 @@ from flask import Blueprint, jsonify, request
 
 from auth import current_user_id, require_auth
 from database import get_db, retry_on_lock
+from validators import (
+    ValidationError,
+    clean_text,
+    validate_currency,
+)
 
 
 bp = Blueprint("settings", __name__)
+
+
+_CATEGORY_COLOR_RE = __import__("re").compile(r"^#[0-9a-fA-F]{6}$")
 
 
 @bp.route("/api/categories", methods=["POST"])
 @require_auth
 @retry_on_lock()
 def sync_categories():
-    """Replace the category list for a user."""
+    """Replace the category list for a user.
+
+    Audit fix (2026-05-27): validate every category before the
+    DELETE+INSERT. Pre-fix the route used `cat['id']` and
+    `cat['name']` with `[]` access (KeyError → 500 on missing
+    fields), accepted unbounded name/icon/color strings, and let
+    `color` be any string including malicious payloads. Now we
+    validate shape + length first; a single bad entry rejects the
+    whole batch with 400, preserving the existing categories.
+    """
     data = request.json or {}
     user_id = current_user_id()
     categories = data.get("categories", [])
+    if not isinstance(categories, list):
+        return jsonify({"error": "categories must be a list"}), 400
+    if len(categories) > 200:
+        return jsonify({"error": "too many categories (max 200)"}), 400
+    # Pre-validate every row so a bad entry doesn't strand the user
+    # with a half-applied delete (the whole INSERT loop happens
+    # inside the same `with get_db()` context, so a raise mid-loop
+    # rolls back to the pre-DELETE state — but we'd rather catch
+    # the bad input BEFORE the transaction starts).
+    cleaned: list[tuple[str, str, str, str]] = []
+    seen_ids: set[str] = set()
+    try:
+        for cat in categories:
+            if not isinstance(cat, dict):
+                return jsonify({"error": "category entry must be an object"}), 400
+            cat_id = clean_text(
+                cat.get("id"), max_len=64, allow_newlines=False,
+                field_name="category id",
+            )
+            if not cat_id:
+                return jsonify({"error": "category id is required"}), 400
+            if cat_id in seen_ids:
+                return jsonify({"error": f"duplicate category id: {cat_id}"}), 400
+            seen_ids.add(cat_id)
+            name = clean_text(
+                cat.get("name"), max_len=64, allow_newlines=False,
+                field_name="category name",
+            )
+            if not name:
+                return jsonify({"error": "category name is required"}), 400
+            icon = clean_text(
+                cat.get("icon", ""), max_len=8, allow_newlines=False,
+                field_name="category icon",
+            )
+            color = cat.get("color", "#007aff")
+            if not isinstance(color, str) or not _CATEGORY_COLOR_RE.match(color):
+                color = "#007aff"
+            cleaned.append((cat_id, name, icon, color))
+    except ValidationError as ve:
+        return jsonify({"error": str(ve)}), 400
+
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("DELETE FROM categories WHERE user_id = ?", (user_id,))
-        for cat in categories:
+        for cat_id, name, icon, color in cleaned:
             cursor.execute(
                 """
                 INSERT INTO categories (id, user_id, name, icon, color)
                 VALUES (?, ?, ?, ?, ?)
                 """,
-                (cat['id'], user_id, cat['name'], cat.get('icon', ''), cat.get('color', '#007aff')),
+                (cat_id, user_id, name, icon, color),
             )
         conn.commit()
     return jsonify({"status": "ok"})
@@ -171,6 +229,24 @@ def update_profile():
                 return jsonify({"error": "homeCountry must be a string or null"}), 400
             scrubbed = "".join(c for c in v if ord(c) >= 0x20 and c not in "\r\n\t")
             payload["homeCountry"] = scrubbed.strip()[:120] or None
+
+    # Audit fix (2026-05-27): validate homeCurrency against the same
+    # ISO-4217 allowlist that drives the expense / settlement
+    # validation. Pre-fix this field was forwarded into the UPDATE
+    # without any check — a malicious client could store any string
+    # ("javascript:alert(1)", a 10KB payload, etc.) and the value
+    # then powered every downstream Intl.NumberFormat call. None or
+    # empty string clears the field (frontend then defaults from
+    # browser locale on next read).
+    if "homeCurrency" in payload:
+        raw_currency = payload.get("homeCurrency")
+        if raw_currency in (None, ""):
+            payload["homeCurrency"] = None
+        else:
+            try:
+                payload["homeCurrency"] = validate_currency(raw_currency)
+            except ValidationError as ve:
+                return jsonify({"error": str(ve)}), 400
 
     fields = []
     values = []

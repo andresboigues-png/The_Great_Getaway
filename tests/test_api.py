@@ -4475,10 +4475,18 @@ def test_main_cleanup_feed_orphans_runs_without_crashing(client):
     """The background cleanup function runs once on boot + every 24h.
     Pin that it doesn't crash on an empty DB — no rows to delete is the
     common case and must return zero counts cleanly. Uses the `client`
-    fixture (not `temp_db` direct) so the schema is initialised."""
+    fixture (not `temp_db` direct) so the schema is initialised.
+
+    Audit fix (2026-05-27): the sweep grew to cover notifications +
+    auth_sessions too. Both default to 0 on a fresh DB."""
     import main as main_module
     result = main_module._cleanup_feed_orphans()
-    assert result == {"likes": 0, "comments": 0}
+    assert result == {
+        "likes": 0,
+        "comments": 0,
+        "notifications": 0,
+        "sessions": 0,
+    }
 
 
 def test_main_cleanup_feed_orphans_logs_when_rows_deleted(client, caplog):
