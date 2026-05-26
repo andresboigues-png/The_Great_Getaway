@@ -1685,11 +1685,14 @@ function TodoListPanel({ activeTrip, datesSet }: TodoListPanelProps) {
                             {tn('ai.todoPanelNoneTickedTitle', allTodo.length)}
                         </h3>
                     </div>
+                    {/* todoPanelNoneTickedBody contains an inline <strong>
+                        tag highlighting "To do list" — render as HTML so
+                        the markup actually formats instead of leaking as
+                        visible <strong>…</strong> text. */}
                     <p
                         className="mt-0 mx-0 mb-3 text-secondary text-[0.9rem]"
-                    >
-                        {t('ai.todoPanelNoneTickedBody')}
-                    </p>
+                        dangerouslySetInnerHTML={{ __html: t('ai.todoPanelNoneTickedBody') }}
+                    />
                     <button
                         type="button"
                         className="btn-primary ai-pill-btn"

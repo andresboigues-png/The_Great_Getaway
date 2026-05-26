@@ -182,9 +182,9 @@ export const pt: Translations = {
         // too long for the section title box. Replaced with the
         // user-suggested "Informação de mapa" (map information).
         poiTitle: 'Informação de mapa',
-        poiIntroVisibility: '<strong>Mostrar no Início</strong> (interruptor à direita) controla se cada pílula aparece na fila de pílulas do mapa do Início. Útil para esconder categorias que nunca usas e manter a fila compacta.',
-        poiIntroRating: '<strong>Rating mínimo</strong> oculta resultados abaixo da estrela escolhida. Restaurantes e hotéis assumem 4★+ por defeito (rating é um sinal de qualidade significativo); o resto assume "Qualquer rating".',
-        poiIntroAnchor: '<strong>Âncora de pesquisa</strong> escolhe de onde cada pílula pesquisa. <em>Por dia</em> usa o dia que definiste como centro de pesquisa na página Início (recorre ao pin âncora da viagem). <em>Toda a viagem</em> ancora sempre no pin âncora, para que a pesquisa de 50 km cubra a viagem inteira — melhor para categorias dispersas como Médico, Desporto, Governo, Escolas, Transportes públicos.',
+        poiIntroVisibility: '"Mostrar no Início" (interruptor à direita) controla se cada pílula aparece na fila de pílulas do mapa do Início. Útil para esconder categorias que nunca usas e manter a fila compacta.',
+        poiIntroRating: '"Rating mínimo" oculta resultados abaixo da estrela escolhida. Restaurantes e hotéis assumem 4★+ por defeito (rating é um sinal de qualidade significativo); o resto assume "Qualquer rating".',
+        poiIntroAnchor: '"Âncora de pesquisa" escolhe de onde cada pílula pesquisa. "Por dia" usa o dia que definiste como centro de pesquisa na página Início (recorre ao pin âncora da viagem). "Toda a viagem" ancora sempre no pin âncora, para que a pesquisa de 50 km cubra a viagem inteira — melhor para categorias dispersas como Médico, Desporto, Governo, Escolas, Transportes públicos.',
         poiOutroNote: 'As alterações de visibilidade aplicam-se na próxima navegação para Início. As alterações de filtro/âncora aplicam-se na próxima ativação da pílula. Reset repõe rating, âncora E visibilidade aos valores por defeito.',
         poiAnyRating: 'Qualquer rating',
         poiAnchorDayAware: '📍 Por dia',

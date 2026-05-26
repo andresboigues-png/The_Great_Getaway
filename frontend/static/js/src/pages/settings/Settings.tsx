@@ -664,9 +664,14 @@ function GeneralAppearanceSection() {
     return (
         <div className="card glass settings-section">
             <h2 className="st-card-title-indigo">{t('settings.appearance')}</h2>
-            <p className="st-paragraph-mb-24">
-                {t('settings.themePickerSubtitle')}
-            </p>
+            {/* themePickerSubtitle contains a literal <strong> tag for
+                emphasis on "System" — render as HTML, not as a text
+                node, so the tag does NOT appear as visible markup. */}
+            <p
+                className="st-paragraph-mb-24"
+                dangerouslySetInnerHTML={{ __html: t('settings.themePickerSubtitle') }}
+            />
+
             <div className="theme-options">
                 {opt('light', t('settings.themeLight'), '☀️', t('settings.themeBodyLight'))}
                 {opt('dark', t('settings.themeDark'), '🌙', t('settings.themeBodyDark'))}

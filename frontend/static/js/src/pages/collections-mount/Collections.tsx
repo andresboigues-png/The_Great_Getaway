@@ -191,7 +191,12 @@ export function Collections() {
                                     {trip.name}
                                 </button>
                             ))}
-                            {t('collections.hintBodyOpen')}
+                            {/* hintBodyOpen contains an inline <strong>
+                                tag wrapping "Mark Complete" — render via
+                                dangerouslySetInnerHTML on a wrapper span
+                                so the bold formatting applies instead of
+                                the literal tag leaking as visible text. */}
+                            <span dangerouslySetInnerHTML={{ __html: t('collections.hintBodyOpen') }} />
                         </div>
                     </div>
                 </div>
