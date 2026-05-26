@@ -12,7 +12,7 @@ the trip see their own trip's full payload regardless of `is_public`.
 
 import json
 
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, make_response, request
 
 from auth import current_user_id
 from database import get_db
@@ -497,8 +497,39 @@ def get_shared_trip(token):
     stored value" — `secrets.token_urlsafe(16)` produces only
     URL-safe chars and 22-char length so there's no real attack via
     weird input.
+
+    Audit fix (2026-05-26): increment `share_views` on first visit
+    (deduped by cookie), mirroring the HTML route at
+    `/share/<token>` in main.py. Pre-fix the JSON endpoint read the
+    counter but never incremented it, so the owner's share-views
+    chip stayed at zero for visitors who only hit the API.
     """
     payload = fetch_share_payload(token)
     if not payload:
         return jsonify({"error": "Not found"}), 404
-    return jsonify(payload)
+
+    # Dedup by anonymous cookie. Cookie value is just "1"; we only
+    # care whether THIS browser has seen THIS token in the last 24h.
+    # Same cookie-name shape as the HTML route so visiting one then
+    # the other doesn't double-count.
+    cookie_name = f"gg_viewed_{token[:16]}"
+    has_seen = request.cookies.get(cookie_name) is not None
+    if not has_seen:
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE trips SET share_views = COALESCE(share_views, 0) + 1 "
+                "WHERE share_token = ?",
+                (token,),
+            )
+            conn.commit()
+        payload["trip"]["views"] = payload["trip"].get("views", 0) + 1
+
+    response = make_response(jsonify(payload))
+    if not has_seen:
+        response.set_cookie(
+            cookie_name, "1",
+            max_age=24 * 60 * 60,
+            httponly=True, samesite="Lax",
+        )
+    return response
