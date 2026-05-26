@@ -784,6 +784,35 @@ def init_db():
             # `WHERE user_id = ? AND revoked_at IS NULL` lookups.
             "CREATE INDEX IF NOT EXISTS idx_auth_sessions_user "
             "ON auth_sessions(user_id, revoked_at)",
+            # 2026-05-26 audit: per-user lookup indexes that were
+            # missing. Each is hit by /api/data on every poll AND by
+            # the per-user upsert/delete paths. Without these the
+            # tables full-scan even at modest user counts.
+            "CREATE INDEX IF NOT EXISTS idx_categories_user "
+            "ON categories(user_id)",
+            "CREATE INDEX IF NOT EXISTS idx_budgets_user "
+            "ON budgets(user_id)",
+            # notifications.related_id is hit by the daily trip_public
+            # dedupe and the delete_trip cleanup. Existing
+            # `(user_id, created_at)` index doesn't cover it.
+            "CREATE INDEX IF NOT EXISTS idx_notifications_related "
+            "ON notifications(related_id)",
+            # Indexes that were added in Alembic only — mirror here
+            # so fresh DBs (tests, new dev installs) get them too.
+            "CREATE INDEX IF NOT EXISTS idx_feed_posts_repost "
+            "ON feed_posts(repost_of_post_id)",
+            "CREATE INDEX IF NOT EXISTS idx_feed_comments_user "
+            "ON feed_comments(user_id)",
+            # 2026-05-26 audit: prevent duplicate (trip_id, day_number)
+            # rows. Frontend has a band-aid dedupe but the underlying
+            # race (two browser tabs adding the same day) wasn't
+            # prevented at the DB level. Partial UNIQUE so NULL
+            # day_numbers (shouldn't happen, but if they do) don't
+            # collide. Migration b1d2e3f4c5a7 cleans pre-existing
+            # duplicates on prod DBs before adding the index.
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_trip_days_trip_day_number "
+            "ON trip_days(trip_id, day_number) "
+            "WHERE trip_id IS NOT NULL AND day_number IS NOT NULL",
         ):
             cursor.execute(ddl)
 
