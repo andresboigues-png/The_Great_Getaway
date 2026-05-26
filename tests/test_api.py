@@ -2980,8 +2980,13 @@ def test_sync_budgets_replace_mode_deletes_omitted_ids(client, seed_user, auth_h
 
 
 def test_sync_budgets_empty_list_clears_all(client, seed_user, auth_headers):
-    """The empty-list branch runs an unconditional `DELETE WHERE
-    user_id = ?` (no NOT IN clause) — pin the wipe-everything path."""
+    """Explicit `budgets: []` runs an unconditional `DELETE WHERE
+    user_id = ?` — caller is asserting "the canonical set is empty".
+
+    Audit fix (2026-05-26): an ABSENT `budgets` key no longer wipes
+    everything (mirrors the categories semantic — absent = don't
+    touch). That regression test is `test_sync_absent_budgets_preserves`
+    below. This test still covers the explicit-empty-list path."""
     # Seed two budgets.
     client.post("/api/sync", headers=auth_headers, json={
         "trips": [], "expenses": [],
@@ -2991,15 +2996,42 @@ def test_sync_budgets_empty_list_clears_all(client, seed_user, auth_headers):
         ],
     })
 
-    # Sync with no `budgets` key at all → defaults to [] → DELETE
-    # WHERE user_id = ? fires unconditionally.
+    # Sync with `budgets: []` explicitly → DELETE WHERE user_id = ?
+    # fires (caller is asserting their budgets set is empty).
+    res = client.post("/api/sync", headers=auth_headers, json={
+        "trips": [], "expenses": [],
+        "budgets": [],
+    })
+    assert res.status_code == 200
+
+    pull = client.get("/api/data", headers=auth_headers)
+    assert pull.get_json()["budgets"] == []
+
+
+def test_sync_absent_budgets_preserves(client, seed_user, auth_headers):
+    """Audit fix (2026-05-26): a sync payload that OMITS the `budgets`
+    key entirely must NOT wipe the user's budgets. Pre-fix, older
+    clients that didn't ship budgets in their 15s sync tick were
+    silently erasing every budget on every poll."""
+    # Seed two budgets.
+    client.post("/api/sync", headers=auth_headers, json={
+        "trips": [], "expenses": [],
+        "budgets": [
+            {"id": "b-preserve-1", "label": "x", "amount": 1, "currency": "EUR"},
+            {"id": "b-preserve-2", "label": "y", "amount": 2, "currency": "EUR"},
+        ],
+    })
+
+    # Sync without a `budgets` key at all — budgets must SURVIVE.
     res = client.post("/api/sync", headers=auth_headers, json={
         "trips": [], "expenses": [],
     })
     assert res.status_code == 200
 
     pull = client.get("/api/data", headers=auth_headers)
-    assert pull.get_json()["budgets"] == []
+    budget_ids = {b["id"] for b in pull.get_json()["budgets"]}
+    assert "b-preserve-1" in budget_ids
+    assert "b-preserve-2" in budget_ids
 
 
 def test_legacy_trips_share_route_is_gone(client, seed_user, auth_headers):

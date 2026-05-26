@@ -358,13 +358,27 @@ def sync_data():
 
         # Sync Budgets — replace mode (delete user's budgets not in
         # the current list, then upsert the rest).
-        budgets = data.get("budgets", [])
-        budget_ids = [b['id'] for b in budgets if 'id' in b]
-        if budget_ids:
-            placeholders = ','.join(['?'] * len(budget_ids))
-            cursor.execute(f"DELETE FROM budgets WHERE user_id = ? AND id NOT IN ({placeholders})", [user_id] + budget_ids)
+        #
+        # Audit fix (2026-05-26): pre-fix, an empty/absent `budgets`
+        # key triggered an unconditional `DELETE FROM budgets WHERE
+        # user_id = ?`, wiping every budget the user had. Older
+        # clients that don't ship budgets in the sync payload were
+        # silently erasing them every 15s tick. The categories block
+        # already has the safer "absent = don't touch" semantic;
+        # mirror it: if the payload doesn't include a budgets key
+        # at all, skip the replace-mode delete; only when the key
+        # is explicitly present do we treat it as the authoritative
+        # set.
+        budgets = data.get("budgets")
+        if budgets is not None:
+            budget_ids = [b['id'] for b in budgets if 'id' in b]
+            if budget_ids:
+                placeholders = ','.join(['?'] * len(budget_ids))
+                cursor.execute(f"DELETE FROM budgets WHERE user_id = ? AND id NOT IN ({placeholders})", [user_id] + budget_ids)
+            else:
+                cursor.execute("DELETE FROM budgets WHERE user_id = ?", (user_id,))
         else:
-            cursor.execute("DELETE FROM budgets WHERE user_id = ?", (user_id,))
+            budgets = []
         for b in budgets:
             # Audit fix (2026-05-26): IDOR via ON CONFLICT(id) DO UPDATE.
             # Without verifying that the existing row belongs to the

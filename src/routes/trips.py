@@ -58,23 +58,39 @@ def upsert_trip():
         # upper-case 2-letter ISO codes before persisting. The frontend
         # sends them already-uppercased post-discovery, but be defensive
         # in case any non-browser caller (E2E harness, future mobile
-        # shell) sends lowercase. `None` and empty array both serialize
-        # to NULL so legacy rows stay null rather than carrying `[]`
-        # (the read path treats both identically).
-        countries_input = t.get('countries')
-        if isinstance(countries_input, list):
+        # shell) sends lowercase.
+        #
+        # Audit fix (2026-05-26): distinguish "absent" from "explicit
+        # empty array" so COALESCE on UPDATE can preserve the column
+        # when absent + clear it when explicitly empty. Pre-fix both
+        # paths produced `None` and the read path treated them
+        # identically; with COALESCE protection enabled below, that
+        # would make `countries: []` a no-op (preserve) rather than
+        # the documented clear.
+        #   - countries absent           → payload = None  (COALESCE preserves)
+        #   - countries = []             → payload = '[]'  (COALESCE overwrites to [])
+        #   - countries = ['PT', 'ES']   → payload = '["PT","ES"]'
+        if isinstance(t.get('countries'), list):
             normalized = [
-                c.strip().upper() for c in countries_input
+                c.strip().upper() for c in t['countries']
                 if isinstance(c, str) and len(c.strip()) == 2
             ]
             # Dedupe while preserving order — first occurrence wins, so
             # the primary country (which the client puts first) stays
             # at position 0. dict.fromkeys preserves insertion order.
             normalized = list(dict.fromkeys(normalized))
-            countries_payload = json.dumps(normalized) if normalized else None
+            countries_payload = json.dumps(normalized)  # '[]' when empty
         else:
             countries_payload = None
 
+        # Audit fix (2026-05-26): COALESCE protection on JSON columns
+        # that can be legitimately absent from a partial upsert payload.
+        # Pre-fix a frontend that posted a trip edit without sending
+        # `countries` or `checklist` (e.g. a single-field edit modal)
+        # would NULL the column. COALESCE keeps the existing value
+        # when the client passes NULL (= "don't touch") and overwrites
+        # only when the client explicitly sends data. Same pattern
+        # already applied to /api/sync's trip loop.
         cursor.execute('''
             INSERT INTO trips (id, user_id, name, country, is_archived, is_public,
                                public_show_expenses,
@@ -92,15 +108,15 @@ def upsert_trip():
                 place_id=excluded.place_id,
                 lat=excluded.lat,
                 lng=excluded.lng,
-                viewport_json=excluded.viewport_json,
-                place_types=excluded.place_types,
+                viewport_json=COALESCE(excluded.viewport_json, viewport_json),
+                place_types=COALESCE(excluded.place_types, place_types),
                 country_code=excluded.country_code,
-                companions_json=excluded.companions_json,
-                marked_places_json=excluded.marked_places_json,
-                documents_json=excluded.documents_json,
-                photos_json=excluded.photos_json,
-                checklist_json=excluded.checklist_json,
-                trip_countries_json=excluded.trip_countries_json,
+                companions_json=COALESCE(excluded.companions_json, companions_json),
+                marked_places_json=COALESCE(excluded.marked_places_json, marked_places_json),
+                documents_json=COALESCE(excluded.documents_json, documents_json),
+                photos_json=COALESCE(excluded.photos_json, photos_json),
+                checklist_json=COALESCE(excluded.checklist_json, checklist_json),
+                trip_countries_json=COALESCE(excluded.trip_countries_json, trip_countries_json),
                 cover_url=excluded.cover_url
         ''', (t['id'], owner_id, t['name'], t.get('country', ''),
               1 if t.get('isArchived') else 0,
