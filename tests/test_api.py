@@ -1497,6 +1497,69 @@ def test_feed_unshare_deletes_caller_own_post(client, seed_user, auth_headers):
     assert res.status_code == 200
 
 
+def test_feed_unshare_restores_private_trip_after_auto_publicness(
+    client, seed_user, auth_headers,
+):
+    """Audit fix (2026-05-26): /api/feed/share auto-promotes a private
+    trip to is_public=1 when the owner clicks Share. Pre-fix the
+    unshare path didn't restore — owners who shared once + later
+    unshared had permanently leaked their trip to the public-trip
+    surface. Now unshare restores is_public=0 when no other shares
+    of the same trip exist.
+    """
+    # Create a PRIVATE trip (no is_public=True).
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-restore", public=False)
+    # Share it — server auto-promotes is_public=1.
+    res = client.post("/api/feed/share", headers=auth_headers, json={
+        "trip_id": trip_id,
+    })
+    post_id = res.get_json()["post_id"]
+    # Confirm the trip is now public.
+    from database import get_db
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT is_public FROM trips WHERE id = ?", (trip_id,),
+        ).fetchone()
+        assert row["is_public"] == 1
+    # Unshare — is_public should snap back to 0.
+    res = client.delete(f"/api/feed/share/{post_id}", headers=auth_headers)
+    assert res.status_code == 200
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT is_public FROM trips WHERE id = ?", (trip_id,),
+        ).fetchone()
+        assert row["is_public"] == 0
+
+
+def test_feed_unshare_preserves_publicness_when_other_shares_exist(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """If other users have ALSO shared the same trip, unshare must
+    NOT restore is_public=0 — that would 404 their followers'
+    click-throughs. Trip stays public until the LAST share goes."""
+    # Owner creates a PRIVATE trip and shares it (auto-promotes).
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-keep-public", public=False)
+    res = client.post("/api/feed/share", headers=auth_headers, json={
+        "trip_id": trip_id,
+    })
+    owner_post_id = res.get_json()["post_id"]
+    # other_user is now a member of the (now-public) trip and ALSO
+    # shares it.
+    _seed_member("trip-keep-public", seed_other_user, role="planner")
+    client.post("/api/feed/share", headers=other_auth_headers, json={
+        "trip_id": trip_id,
+    })
+    # Owner unshares their share — trip stays public because the
+    # other user still references it.
+    client.delete(f"/api/feed/share/{owner_post_id}", headers=auth_headers)
+    from database import get_db
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT is_public FROM trips WHERE id = ?", (trip_id,),
+        ).fetchone()
+        assert row["is_public"] == 1
+
+
 def test_feed_repost_succeeds_for_other_users_post(
     client, seed_user, seed_other_user, auth_headers, other_auth_headers,
 ):

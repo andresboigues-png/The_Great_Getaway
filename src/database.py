@@ -466,6 +466,12 @@ def init_db():
                 repost_of_post_id INTEGER,
                 caption TEXT,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                -- 2026-05-26 audit #C-6: snapshot the trip's is_public
+                -- value at share-creation time. Used by the unshare
+                -- path to restore the trip's privacy when the LAST
+                -- share that flipped it gets removed. NULL = nothing
+                -- to restore (legacy row or trip was already public).
+                trip_was_public INTEGER DEFAULT NULL,
                 FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
                 FOREIGN KEY(trip_id) REFERENCES trips(id) ON DELETE CASCADE,
                 -- 2026-05-18 audit M3: CASCADE (was SET NULL). Pre-fix,
@@ -784,7 +790,7 @@ _EXPECTED_COLUMNS = {
     "companions": ["user_id", "name", "linked_user_id", "link_status"],
     "feed_posts": [
         "id", "user_id", "trip_id", "repost_of_post_id", "caption",
-        "created_at",
+        "created_at", "trip_was_public",
     ],
     "follows": ["id", "follower_id", "followee_id", "created_at"],
     "user_achievements": [
