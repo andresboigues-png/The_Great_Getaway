@@ -14,7 +14,7 @@
 import { STATE, emit } from '../../state.js';
 import { showConfirmModal } from '../../utils.js';
 import { navigate } from '../../router.js';
-import { apiUrl, unarchiveTripOnServer, upsertTrip } from '../../api.js';
+import { deleteTrip, unarchiveTripOnServer, upsertTrip } from '../../api.js';
 
 /** Public-trip privacy levels (FIXING_ROADMAP — public granularity).
  *  Encoded as a 3-value string so the UI can be one select rather
@@ -98,13 +98,15 @@ export const deleteArchivedTrip = (id: string) => {
         onConfirm: async () => {
             STATE.archivedTrips = STATE.archivedTrips.filter((t) => t.id !== id);
             emit('state:changed');
+            // Audit fix (2026-05-26): pre-fix this called the non-
+            // existent endpoint POST `/api/trips/delete` with a body
+            // payload — the real route is `DELETE /api/trips/<id>`,
+            // and the broken call's 404 was swallowed silently.
+            // Local STATE was mutated but the server kept the trip,
+            // so it resurrected on the next /api/data poll.
             if (STATE.user) {
                 try {
-                    await fetch(apiUrl('/api/trips/delete'), {
-                        method: 'DELETE',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ user_id: STATE.user.id, trip_id: id }),
-                    });
+                    await deleteTrip(id);
                 } catch (e) {
                     /* swallowed — local state already mutated */
                 }
