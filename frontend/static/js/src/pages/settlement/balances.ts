@@ -78,22 +78,39 @@ interface BalanceEntry {
 }
 
 /** Compute per-person balance for a single trip (positive = is owed,
- *  negative = owes). Splits roster falls back to (a) the trip's
- *  companion list, then (b) the names referenced by existing expenses. */
+ *  negative = owes).
+ *
+ *  Audit fix (2026-05-26): augment the roster with names referenced
+ *  by existing expenses (in `who` or `splits` keys), not just the
+ *  trip's current companion list. Pre-fix, when a companion was
+ *  removed from a trip, every expense paid by or split with that
+ *  person was SILENTLY dropped from the balance (the
+ *  `balances[exp.who] !== undefined` guard skipped them). The
+ *  expense still appeared in History but contributed nothing to
+ *  the balance — money vanished with no UI signal.
+ *
+ *  Now we union (current companions) ∪ (expense-attributed names);
+ *  the returned `roster` includes "ghost" entries for removed
+ *  companions so the balance math accounts for them. The renderer
+ *  can label entries not in the live companion list with "(removed)"
+ *  by comparing against `tripCompanionNames` returned alongside. */
 export function computeTripBalances(trip: any) {
-    if (!trip) return { balances: {}, roster: [], expenses: [] };
+    if (!trip) return { balances: {}, roster: [], expenses: [], removedFromRoster: [] };
     const tripExps = (STATE.expenses || []).filter((e) => e.tripId === trip.id);
     const tripCompanionNames = getTripCompanionNames(trip);
-    const roster =
-        tripCompanionNames.length > 0
-            ? tripCompanionNames
-            : Array.from(
-                  new Set(
-                      tripExps
-                          .flatMap((e) => [e.who, ...Object.keys(e.splits || {})])
-                          .filter(Boolean),
-                  ),
-              );
+    const expenseAttributedNames = Array.from(
+        new Set(
+            tripExps
+                .flatMap((e) => [e.who, ...Object.keys(e.splits || {})])
+                .filter(Boolean),
+        ),
+    );
+    const roster = Array.from(
+        new Set([...tripCompanionNames, ...expenseAttributedNames]),
+    );
+    const removedFromRoster = expenseAttributedNames.filter(
+        (n) => !tripCompanionNames.includes(n),
+    );
 
     const balances: Record<string, number> = {};
     roster.forEach((p) => (balances[p] = 0));
@@ -127,7 +144,7 @@ export function computeTripBalances(trip: any) {
         applySettlementToBalances(balances, settlement, trip);
     }
 
-    return { balances, roster, expenses: tripExps };
+    return { balances, roster, expenses: tripExps, removedFromRoster };
 }
 
 /** Greedy minimal-payments list. Pairs largest debtor with largest
@@ -159,7 +176,11 @@ export function simplifyDebts(balances: Record<string, number>): SettlementDebt[
 
 /** Compute the cross-trip balance map. Same shape as the per-trip
  *  one, but seeded with every name from every trip's roster (active
- *  + archived) and accumulated over EVERY expense. */
+ *  + archived) and accumulated over EVERY expense.
+ *
+ *  Audit fix (2026-05-26): also seed with every name referenced in
+ *  expenses (`who` or split keys) so removed-companion expenses
+ *  don't silently vanish — same logic as computeTripBalances. */
 export function computeGlobalBalances() {
     const globalBalances: Record<string, number> = {};
     for (const t of [...STATE.trips, ...(STATE.archivedTrips || [])]) {
@@ -169,6 +190,22 @@ export function computeGlobalBalances() {
     }
     const archivedExps = (STATE.archivedTrips || []).flatMap((t) => t.expenses || []);
     const allExpenses = [...STATE.expenses, ...archivedExps];
+
+    // Seed any expense-attributed name that isn't already in the
+    // global roster — captures removed-companion expenses so their
+    // money doesn't disappear from cross-trip balance math.
+    for (const exp of allExpenses) {
+        if (exp.who && !(exp.who in globalBalances)) {
+            globalBalances[exp.who] = 0;
+        }
+        if (exp.splits) {
+            for (const name of Object.keys(exp.splits)) {
+                if (name && !(name in globalBalances)) {
+                    globalBalances[name] = 0;
+                }
+            }
+        }
+    }
 
     const tripCompanionsById: Record<string, string[]> = {};
     for (const t of [...STATE.trips, ...(STATE.archivedTrips || [])]) {
