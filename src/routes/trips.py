@@ -22,6 +22,7 @@ from extensions import limiter
 from helpers import (
     can_edit_trip,
     ensure_owner_member_row,
+    ensure_user_exists,
     is_trip_owner,
     trip_member_role,
     unlink_companion_user_from_trip,
@@ -339,6 +340,15 @@ def invite_trip_member():
         cursor = conn.cursor()
         if not can_edit_trip(cursor, trip_id, inviter):
             return jsonify({"error": "Forbidden"}), 403
+
+        # Audit fix (2026-05-26): verify the target user exists BEFORE
+        # the INSERT. Pre-fix, a bad target_user_id raised
+        # sqlite3.IntegrityError (FK violation on trip_members.user_id
+        # → users.id) → unhandled → 500 to the caller. Now we 404
+        # cleanly with the same posture as /api/follows/<id> on an
+        # unknown id.
+        if not ensure_user_exists(cursor, target):
+            return jsonify({"error": "Target user not found"}), 404
 
         # Model B: trip invites are an explicit access grant, decoupled
         # from the social graph. Anyone can be invited — the rate

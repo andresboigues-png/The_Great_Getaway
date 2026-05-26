@@ -2905,6 +2905,7 @@ def test_auth_google_real_path_inserts_user_and_returns_token(client, monkeypatc
     fake_idinfo = {
         "sub": "google-uid-12345",
         "email": "real@example.com",
+        "email_verified": True,
         "name": "Real User",
         "picture": "https://lh3.googleusercontent.com/avatar.jpg",
     }
@@ -2944,6 +2945,7 @@ def test_auth_google_real_path_supports_credential_field(client, monkeypatch):
         return {
             "sub": "uid-cred",
             "email": "cred@example.com",
+            "email_verified": True,
             "name": "Cred User",
             "picture": "",
         }
@@ -2969,6 +2971,7 @@ def test_auth_google_real_path_returns_existing_profile_on_repeat_signin(
     fake_idinfo = {
         "sub": "returning-user",
         "email": "ret@example.com",
+        "email_verified": True,
         "name": "Returning User",
         "picture": "",
     }
@@ -3018,6 +3021,50 @@ def test_auth_google_real_path_invalid_token_returns_401(client, monkeypatch):
     res = client.post("/api/auth/google", json={"token": "expired.token"})
     assert res.status_code == 401
     assert res.get_json().get("error") == "Invalid token"
+
+
+def test_auth_google_rejects_unverified_email(client, monkeypatch):
+    """Audit fix (2026-05-26): Google ID tokens whose
+    `email_verified` is False (or absent) must be rejected. A
+    Workspace admin who email-sets an attacker account to a
+    `victim@gmail.com` address gets a VALID signature from Google
+    without the email being verified — pre-fix the server happily
+    stored the spoofed address as the canonical email for that
+    user_id.
+    """
+    monkeypatch.setenv("CLIENT_ID_GOOGLE_AUTH", "client-id-test")
+    monkeypatch.delenv("GG_ALLOW_TEST_LOGIN", raising=False)
+
+    def fake_verify_unverified(token, request, client_id):
+        return {
+            "sub": "spoofer-uid",
+            "email": "victim@gmail.com",
+            "email_verified": False,
+            "name": "Spoofer",
+            "picture": "",
+        }
+
+    import routes.auth
+    monkeypatch.setattr(routes.auth.id_token, "verify_oauth2_token", fake_verify_unverified)
+
+    res = client.post("/api/auth/google", json={"token": "valid.but.unverified"})
+    assert res.status_code == 401
+    assert "verified" in (res.get_json().get("error") or "").lower()
+
+
+def test_invite_trip_member_404_on_unknown_target(
+    client, seed_user, auth_headers,
+):
+    """Audit fix (2026-05-26): pre-fix, inviting a nonexistent user_id
+    raised sqlite3.IntegrityError on the FK → unhandled → 500. Now
+    we 404 cleanly via ensure_user_exists."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-invite-ghost")
+    res = client.post("/api/trips/invite", headers=auth_headers, json={
+        "trip_id": trip_id,
+        "target_user_id": "user-does-not-exist",
+        "role": "relaxer",
+    })
+    assert res.status_code == 404
 
 
 # ── /api/sync — archived_trips + budgets + trip_days + legacy share ──────────
@@ -5718,6 +5765,11 @@ def test_user_data_delete_rate_limited(temp_db, seed_user, seed_other_user):
 
     app.config["TESTING"] = True
     app.config["RATELIMIT_ENABLED"] = True
+    # 2026-05-26: the conftest `client` fixture flips `limiter.enabled`
+    # to False for normal tests; explicitly restore it here so the
+    # rate-limit assertion below actually fires.
+    _prev_enabled = limiter.enabled
+    limiter.enabled = True
     limiter.reset()
     try:
         with app.test_client() as c:
@@ -5730,6 +5782,7 @@ def test_user_data_delete_rate_limited(temp_db, seed_user, seed_other_user):
                 "second factory-reset within the hour must be rejected by the limiter"
     finally:
         app.config["RATELIMIT_ENABLED"] = False
+        limiter.enabled = _prev_enabled
         limiter.reset()
 
 

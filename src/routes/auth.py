@@ -144,6 +144,20 @@ def google_auth():
     try:
         idinfo = id_token.verify_oauth2_token(token, google_requests.Request(), client_id)
 
+        # Audit fix (2026-05-26): require Google to have verified the
+        # email before we trust it. `id_token.verify_oauth2_token`
+        # only checks issuer / audience / signature — it doesn't
+        # check that the email is verified. A Workspace admin who
+        # email-sets `attacker@some-domain.com` to `victim@gmail.com`
+        # (unverified) gets a valid ID token from Google; pre-fix
+        # the server stored `victim@gmail.com` as that user's
+        # canonical email + collided on the UNIQUE constraint, OR
+        # — if no prior collision — became the canonical record for
+        # the spoofed address. Reject unverified ID tokens outright.
+        if not idinfo.get('email_verified'):
+            logger.warning("Google ID token with unverified email rejected")
+            return jsonify({"error": "Email not verified by Google"}), 401
+
         user_id = idinfo['sub']
         email = idinfo['email']
         name = idinfo['name']

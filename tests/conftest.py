@@ -53,9 +53,34 @@ def client(temp_db):
     # Rate limits would otherwise interfere with the test that fires
     # many requests in a row. Disable per-test; a dedicated rate-limit
     # test re-enables and pins the behaviour.
+    #
+    # 2026-05-26: setting RATELIMIT_ENABLED alone wasn't taking effect
+    # because Flask-Limiter caches state at init_app time. Also flip
+    # the runtime `limiter.enabled` flag AND reset the per-process
+    # counter storage so leftover counts from other tests can't push
+    # this test over the limit. RESTORE the flag on teardown so the
+    # dedicated rate-limit test (which doesn't use the `client`
+    # fixture) sees a clean slate.
     app.config["RATELIMIT_ENABLED"] = False
-    with app.test_client() as client:
-        yield client
+    from extensions import limiter
+    _previous_enabled = limiter.enabled
+    limiter.enabled = False
+    try:
+        limiter.reset()
+    except Exception:
+        # In-memory backend supports reset(); other backends may not.
+        # Failure here just means we fall back to the per-request
+        # disable above, which is enough for the test_client.
+        pass
+    try:
+        with app.test_client() as client:
+            yield client
+    finally:
+        limiter.enabled = _previous_enabled
+        try:
+            limiter.reset()
+        except Exception:
+            pass
 
 
 def _ensure_schema():
