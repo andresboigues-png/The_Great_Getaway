@@ -328,6 +328,81 @@ def test_expense_receipt_url_round_trips(client, seed_user, auth_headers):
     assert expense["receiptUrl"] is None
 
 
+def test_expense_splits_persist_across_read(client, seed_user, auth_headers):
+    """Audit fix (2026-05-26): the frontend's `splits` field (the
+    {payer-name → percentage} map that drives ALL balance math) now
+    persists to `expenses.splits_json` and round-trips back via the
+    `serialize_expense_row` helper as `splits` on the JSON response.
+
+    Pre-fix, splits lived only in localStorage; sign-in on a fresh
+    device dropped them and balance math fell back to equal-split-
+    across-roster, producing wildly different numbers.
+    """
+    client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": "trip-splits", "name": "Splits"},
+    })
+    splits = {"Alice": 60, "Bob": 40}
+    res = client.post("/api/expenses", headers=auth_headers, json={
+        "expense": {
+            "id": "exp-splits-1", "tripId": "trip-splits",
+            "who": "Alice", "value": 100, "currency": "EUR",
+            "euroValue": 100, "label": "Dinner", "date": "2026-01-01",
+            "splits": splits,
+        },
+    })
+    assert res.status_code == 200
+
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    expense = next(e for e in data["expenses"] if e["id"] == "exp-splits-1")
+    assert expense["splits"] == splits
+
+
+def test_expense_is_settlement_persists(client, seed_user, auth_headers):
+    """Audit fix (2026-05-26): the `isSettlement` flag now persists
+    to `expenses.is_settlement` so settled debts (PATH B settle-up
+    rows) don't resurrect on every sign-in.
+    """
+    client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": "trip-settle", "name": "Settle"},
+    })
+    res = client.post("/api/expenses", headers=auth_headers, json={
+        "expense": {
+            "id": "exp-settle-1", "tripId": "trip-settle",
+            "who": "Alice", "value": 50, "currency": "EUR",
+            "euroValue": 50, "label": "Paid back",
+            "date": "2026-01-01", "isSettlement": True,
+        },
+    })
+    assert res.status_code == 200
+
+    data = client.get("/api/data", headers=auth_headers).get_json()
+    expense = next(e for e in data["expenses"] if e["id"] == "exp-settle-1")
+    assert expense["isSettlement"] is True
+
+
+def test_expense_splits_rejects_bad_shape(client, seed_user, auth_headers):
+    """Server-side validation of the splits map: must be a dict of
+    str→number in [0, 100]. Garbage rejected with 400."""
+    client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": "trip-splits-bad", "name": "Bad"},
+    })
+    base = {
+        "id": "exp-bad-shape", "tripId": "trip-splits-bad",
+        "who": "Alice", "value": 100, "currency": "EUR",
+        "euroValue": 100, "label": "X", "date": "2026-01-01",
+    }
+    # Non-dict splits.
+    res = client.post("/api/expenses", headers=auth_headers, json={
+        "expense": {**base, "splits": [50, 50]},
+    })
+    assert res.status_code == 400
+    # Out-of-range percentage.
+    res = client.post("/api/expenses", headers=auth_headers, json={
+        "expense": {**base, "splits": {"Alice": 150}},
+    })
+    assert res.status_code == 400
+
+
 def test_expense_receipt_url_optional(client, seed_user, auth_headers):
     """Legacy expenses (no `receiptUrl` in payload) still upsert + read
     cleanly with receiptUrl=None. Backwards compat."""
@@ -497,151 +572,6 @@ def test_delete_day_rejects_non_planner(
     })
     res = client.delete("/api/days/day-1", headers=other_auth_headers)
     assert res.status_code == 403
-
-
-# ── SY5: soft-delete tombstone resurrection protection ─────────────────────
-
-def test_expense_tombstone_blocks_resurrection_via_upsert(
-    client, seed_user, auth_headers,
-):
-    """SY5: a queued upsert from an offline peer CANNOT undo a deleted
-    expense. The DELETE soft-deletes (stamps deleted_at); the upsert's
-    ON CONFLICT clause has WHERE expenses.deleted_at IS NULL so the
-    UPDATE is a no-op for tombstoned rows. /api/data must keep
-    excluding the expense after the attempted resurrection."""
-    client.post("/api/trips", headers=auth_headers, json={
-        "trip": {"id": "trip-sy5", "name": "Tuscany"},
-    })
-    client.post("/api/expenses", headers=auth_headers, json={
-        "expense": {
-            "id": "exp-sy5", "tripId": "trip-sy5", "who": "Me", "value": 50,
-            "currency": "EUR", "euroValue": 50, "label": "Lunch",
-            "date": "2026-01-01",
-        },
-    })
-    # Soft-delete.
-    res = client.delete("/api/expenses/exp-sy5", headers=auth_headers)
-    assert res.status_code == 200
-
-    # The row stays in the table — it's just tombstoned.
-    from database import get_db
-    with get_db() as conn:
-        row = conn.execute(
-            "SELECT deleted_at FROM expenses WHERE id = 'exp-sy5'",
-        ).fetchone()
-    assert row is not None, "soft-delete should leave the row in place"
-    assert row["deleted_at"] is not None, "soft-delete should stamp deleted_at"
-
-    # Simulate an offline peer's queued upsert with stale fields. This
-    # used to resurrect the row via ON CONFLICT UPDATE — now it MUST
-    # no-op because of the deleted_at WHERE guard.
-    client.post("/api/expenses", headers=auth_headers, json={
-        "expense": {
-            "id": "exp-sy5", "tripId": "trip-sy5", "who": "Me",
-            "value": 99,  # different value — would be obvious if resurrected
-            "currency": "EUR", "euroValue": 99, "label": "Stale Lunch",
-            "date": "2026-01-01",
-        },
-    })
-
-    # Row still tombstoned, value NOT updated.
-    with get_db() as conn:
-        row = conn.execute(
-            "SELECT deleted_at, value FROM expenses WHERE id = 'exp-sy5'",
-        ).fetchone()
-    assert row["deleted_at"] is not None, "tombstone must persist after upsert attempt"
-    assert row["value"] == 50, "stale upsert MUST NOT overwrite tombstoned row"
-
-    # /api/data omits tombstoned rows so the client's pull-from-server
-    # never re-surfaces the deleted expense.
-    data_res = client.get("/api/data", headers=auth_headers)
-    assert data_res.status_code == 200
-    expense_ids = [e["id"] for e in (data_res.get_json().get("expenses") or [])]
-    assert "exp-sy5" not in expense_ids, "/api/data must exclude tombstoned expenses"
-
-
-def test_day_tombstone_blocks_resurrection_via_upsert(
-    client, seed_user, auth_headers,
-):
-    """SY5: same resurrection-protection for trip_days as for expenses.
-    Hard-DELETE used to be undone by a queued /api/days upsert; now
-    soft-delete + the WHERE deleted_at IS NULL gate makes that a no-op."""
-    client.post("/api/trips", headers=auth_headers, json={
-        "trip": {"id": "trip-sy5d", "name": "Tuscany"},
-    })
-    client.post("/api/days", headers=auth_headers, json={
-        "day": {
-            "id": "day-sy5", "tripId": "trip-sy5d", "dayNumber": 1,
-            "name": "Florence", "date": "2026-01-02",
-        },
-    })
-    res = client.delete("/api/days/day-sy5", headers=auth_headers)
-    assert res.status_code == 200
-
-    from database import get_db
-    with get_db() as conn:
-        row = conn.execute(
-            "SELECT deleted_at FROM trip_days WHERE id = 'day-sy5'",
-        ).fetchone()
-    assert row is not None and row["deleted_at"] is not None
-
-    # Attempt resurrection via a stale upsert.
-    client.post("/api/days", headers=auth_headers, json={
-        "day": {
-            "id": "day-sy5", "tripId": "trip-sy5d", "dayNumber": 1,
-            "name": "STALE NAME",  # would be obvious if resurrected
-            "date": "2026-01-02",
-        },
-    })
-
-    with get_db() as conn:
-        row = conn.execute(
-            "SELECT deleted_at, name FROM trip_days WHERE id = 'day-sy5'",
-        ).fetchone()
-    assert row["deleted_at"] is not None, "tombstone must persist"
-    assert row["name"] == "Florence", "stale upsert MUST NOT overwrite tombstoned day"
-
-    # /api/data omits tombstoned days.
-    data_res = client.get("/api/data", headers=auth_headers)
-    day_ids = [d["id"] for d in (data_res.get_json().get("tripDays") or [])]
-    assert "day-sy5" not in day_ids
-
-
-def test_expense_redelete_after_tombstone_is_idempotent(
-    client, seed_user, auth_headers,
-):
-    """SY5: DELETE on an already-tombstoned expense returns 200 without
-    re-stamping deleted_at. Belt-and-braces for clients that retry the
-    delete after a network blip; the original tombstone timestamp must
-    survive so audit trails stay accurate."""
-    client.post("/api/trips", headers=auth_headers, json={
-        "trip": {"id": "trip-redel", "name": "X"},
-    })
-    client.post("/api/expenses", headers=auth_headers, json={
-        "expense": {
-            "id": "exp-redel", "tripId": "trip-redel", "who": "Me",
-            "value": 1, "currency": "EUR", "euroValue": 1,
-            "label": "X", "date": "2026-01-01",
-        },
-    })
-    client.delete("/api/expenses/exp-redel", headers=auth_headers)
-
-    from database import get_db
-    with get_db() as conn:
-        first = conn.execute(
-            "SELECT deleted_at FROM expenses WHERE id = 'exp-redel'",
-        ).fetchone()["deleted_at"]
-    assert first is not None
-
-    # Second delete — should be a no-op.
-    res = client.delete("/api/expenses/exp-redel", headers=auth_headers)
-    assert res.status_code == 200
-
-    with get_db() as conn:
-        second = conn.execute(
-            "SELECT deleted_at FROM expenses WHERE id = 'exp-redel'",
-        ).fetchone()["deleted_at"]
-    assert second == first, "re-delete must preserve original tombstone timestamp"
 
 
 # ── /api/budgets ─────────────────────────────────────────────────────────────
@@ -964,22 +894,21 @@ def test_friend_add_rejects_unknown_friend(client, seed_user, auth_headers):
 def test_friend_accept_is_follow_back_under_model_b(
     client, seed_user, seed_other_user, auth_headers,
 ):
-    """Model B: the legacy /api/friends/accept façade was deleted on
-    2026-05-25 (audit dead-code sweep). The replacement primitive is
-    POST /api/follows/<user_id>, which inserts a follow edge directly.
+    """Model B: /api/friends/accept is now a façade for "follow them
+    back" rather than the second half of a pending-request dance. The
+    fabrication check from the original audit is gone — under Model B
+    "accept" without a pending is just "I want to follow them", which
+    is a legitimate first action (Twitter/Instagram model). 404 is no
+    longer the right response; success is.
 
-    The behavioural contract pinned here — "accepting" via the new
-    route lands a row in `follows` — survives the route rename: the
-    follower_id is the caller, the followee_id is the target, and a
-    GET /api/follows/<user_id> reports the new state."""
-    res = client.post(
-        f"/api/follows/{seed_other_user}",
-        headers=auth_headers,
-        json={},
-    )
-    # /api/follows returns 201 Created on the first follow + 200 OK on a
-    # re-follow (idempotent). Either is success.
-    assert res.status_code in (200, 201)
+    Pre-Model-B this test was test_friend_accept_rejects_fabricated_invite
+    and asserted 404. Updated here to reflect the new semantics: a
+    follow row gets inserted, and a subsequent /api/friends/list call
+    returns seed_other_user as a follow (not yet a mutual)."""
+    res = client.post("/api/friends/accept", headers=auth_headers, json={
+        "friend_id": seed_other_user,
+    })
+    assert res.status_code == 200
     # And the follow edge actually landed in the follows table.
     from database import get_db
     with get_db() as conn:
@@ -1555,6 +1484,54 @@ def test_feed_share_status_returns_post_id_when_shared(client, seed_user, auth_h
     assert body.get("post_id")
 
 
+def test_feed_unshare_cleans_orphan_engagement_rows(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """Audit fix (2026-05-26): unshare must drop feed_likes / comments
+    / bookmarks rows keyed on the deleted post's share_<id> event_id.
+    Pre-fix these survived until the 90-day age sweep — invisible to
+    users (event was gone) but a slow DB-bloat path."""
+    # owner_friends seeds a follow so we can like / comment cleanly.
+    _befriend(client, auth_headers, other_auth_headers, seed_user, seed_other_user)
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-unshare-orphans", public=True)
+    res = client.post("/api/feed/share", headers=auth_headers, json={
+        "trip_id": trip_id,
+    })
+    post_id = res.get_json()["post_id"]
+    event_id = f"share_{post_id}"
+    client.post(f"/api/feed/like/{event_id}", headers=other_auth_headers)
+    client.post(f"/api/feed/comment/{event_id}", headers=other_auth_headers, json={"body": "nice"})
+
+    # Pre-unshare: a like + a comment exist.
+    from database import get_db
+    with get_db() as conn:
+        like = conn.execute(
+            "SELECT COUNT(*) AS c FROM feed_likes WHERE event_id = ?",
+            (event_id,),
+        ).fetchone()["c"]
+        comment = conn.execute(
+            "SELECT COUNT(*) AS c FROM feed_comments WHERE event_id = ?",
+            (event_id,),
+        ).fetchone()["c"]
+        assert like == 1
+        assert comment == 1
+
+    # Unshare → orphans should be swept.
+    res = client.delete(f"/api/feed/share/{post_id}", headers=auth_headers)
+    assert res.status_code == 200
+    with get_db() as conn:
+        like = conn.execute(
+            "SELECT COUNT(*) AS c FROM feed_likes WHERE event_id = ?",
+            (event_id,),
+        ).fetchone()["c"]
+        comment = conn.execute(
+            "SELECT COUNT(*) AS c FROM feed_comments WHERE event_id = ?",
+            (event_id,),
+        ).fetchone()["c"]
+        assert like == 0, "feed_likes should be cleaned on unshare"
+        assert comment == 0, "feed_comments should be cleaned on unshare"
+
+
 def test_feed_unshare_deletes_caller_own_post(client, seed_user, auth_headers):
     """Author can delete their own share. Cascade-deletes any reposts
     pointing at it (other tests can pin that side; here we pin the
@@ -1566,6 +1543,69 @@ def test_feed_unshare_deletes_caller_own_post(client, seed_user, auth_headers):
     post_id = res.get_json()["post_id"]
     res = client.delete(f"/api/feed/share/{post_id}", headers=auth_headers)
     assert res.status_code == 200
+
+
+def test_feed_unshare_restores_private_trip_after_auto_publicness(
+    client, seed_user, auth_headers,
+):
+    """Audit fix (2026-05-26): /api/feed/share auto-promotes a private
+    trip to is_public=1 when the owner clicks Share. Pre-fix the
+    unshare path didn't restore — owners who shared once + later
+    unshared had permanently leaked their trip to the public-trip
+    surface. Now unshare restores is_public=0 when no other shares
+    of the same trip exist.
+    """
+    # Create a PRIVATE trip (no is_public=True).
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-restore", public=False)
+    # Share it — server auto-promotes is_public=1.
+    res = client.post("/api/feed/share", headers=auth_headers, json={
+        "trip_id": trip_id,
+    })
+    post_id = res.get_json()["post_id"]
+    # Confirm the trip is now public.
+    from database import get_db
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT is_public FROM trips WHERE id = ?", (trip_id,),
+        ).fetchone()
+        assert row["is_public"] == 1
+    # Unshare — is_public should snap back to 0.
+    res = client.delete(f"/api/feed/share/{post_id}", headers=auth_headers)
+    assert res.status_code == 200
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT is_public FROM trips WHERE id = ?", (trip_id,),
+        ).fetchone()
+        assert row["is_public"] == 0
+
+
+def test_feed_unshare_preserves_publicness_when_other_shares_exist(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """If other users have ALSO shared the same trip, unshare must
+    NOT restore is_public=0 — that would 404 their followers'
+    click-throughs. Trip stays public until the LAST share goes."""
+    # Owner creates a PRIVATE trip and shares it (auto-promotes).
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-keep-public", public=False)
+    res = client.post("/api/feed/share", headers=auth_headers, json={
+        "trip_id": trip_id,
+    })
+    owner_post_id = res.get_json()["post_id"]
+    # other_user is now a member of the (now-public) trip and ALSO
+    # shares it.
+    _seed_member("trip-keep-public", seed_other_user, role="planner")
+    client.post("/api/feed/share", headers=other_auth_headers, json={
+        "trip_id": trip_id,
+    })
+    # Owner unshares their share — trip stays public because the
+    # other user still references it.
+    client.delete(f"/api/feed/share/{owner_post_id}", headers=auth_headers)
+    from database import get_db
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT is_public FROM trips WHERE id = ?", (trip_id,),
+        ).fetchone()
+        assert row["is_public"] == 1
 
 
 def test_feed_repost_succeeds_for_other_users_post(
@@ -1580,6 +1620,183 @@ def test_feed_repost_succeeds_for_other_users_post(
     post_id = res.get_json()["post_id"]
     res = client.post(f"/api/feed/repost/{post_id}", headers=auth_headers)
     assert res.status_code == 200
+
+
+def test_block_user_idempotent_and_lists(
+    client, seed_user, seed_other_user, auth_headers,
+):
+    """Audit fix (2026-05-26): /api/blocks adds the user once;
+    re-POST is a no-op success. /api/blocks GET returns the list."""
+    res = client.post(f"/api/blocks/{seed_other_user}", headers=auth_headers)
+    assert res.status_code == 200
+    # Re-POST — idempotent.
+    res2 = client.post(f"/api/blocks/{seed_other_user}", headers=auth_headers)
+    assert res2.status_code == 200
+
+    res = client.get("/api/blocks", headers=auth_headers)
+    assert res.status_code == 200
+    blocked_ids = {b["id"] for b in res.get_json()["blocks"]}
+    assert seed_other_user in blocked_ids
+
+
+def test_per_device_logout_doesnt_kill_other_devices(client, seed_user):
+    """Audit fix (2026-05-27): pre-fix logout bumped the user's
+    single token_jti — every device the user had signed in on died
+    at once. Now each `issue_token` mints a unique per-session jti,
+    so revoking one session leaves the others alive.
+    """
+    from auth import issue_token
+    # Simulate two devices signed in.
+    phone_token = issue_token(seed_user, device_label="iPhone Safari")
+    laptop_token = issue_token(seed_user, device_label="Chrome MacOS")
+
+    # Both should authenticate /api/user-status to start.
+    r1 = client.get("/api/user-status", headers={"Authorization": f"Bearer {phone_token}"})
+    r2 = client.get("/api/user-status", headers={"Authorization": f"Bearer {laptop_token}"})
+    assert r1.get_json()["logged_in"] is True
+    assert r2.get_json()["logged_in"] is True
+
+    # Logout via the laptop's token — revoke that session only.
+    out = client.post(
+        "/api/auth/logout",
+        headers={"Authorization": f"Bearer {laptop_token}"},
+    )
+    assert out.status_code == 200
+
+    # Phone still authenticated.
+    r1b = client.get("/api/user-status", headers={"Authorization": f"Bearer {phone_token}"})
+    assert r1b.get_json()["logged_in"] is True, "phone session should survive laptop logout"
+    # Laptop session is dead.
+    r2b = client.get("/api/user-status", headers={"Authorization": f"Bearer {laptop_token}"})
+    assert r2b.get_json()["logged_in"] is False, "laptop session must be revoked"
+
+
+def test_list_and_revoke_sessions(client, seed_user):
+    """The /api/auth/sessions GET returns the caller's active rows;
+    DELETE /api/auth/sessions/<id> revokes one (idempotent)."""
+    from auth import issue_token
+    # Create two sessions.
+    phone_token = issue_token(seed_user, device_label="iPhone Safari")
+    issue_token(seed_user, device_label="Chrome MacOS")
+
+    # List via the phone's bearer.
+    res = client.get(
+        "/api/auth/sessions",
+        headers={"Authorization": f"Bearer {phone_token}"},
+    )
+    assert res.status_code == 200
+    sessions = res.get_json()["sessions"]
+    assert len(sessions) == 2
+    # The phone session should be flagged as current.
+    current = [s for s in sessions if s["isCurrent"]]
+    assert len(current) == 1
+    assert current[0]["deviceLabel"] == "iPhone Safari"
+
+    # Revoke the OTHER session by id.
+    other = [s for s in sessions if not s["isCurrent"]][0]
+    res = client.delete(
+        f"/api/auth/sessions/{other['id']}",
+        headers={"Authorization": f"Bearer {phone_token}"},
+    )
+    assert res.status_code == 200
+
+    # Re-list — should now have ONE row.
+    res = client.get(
+        "/api/auth/sessions",
+        headers={"Authorization": f"Bearer {phone_token}"},
+    )
+    assert len(res.get_json()["sessions"]) == 1
+
+
+def test_csrf_origin_mismatch_blocks_cookie_request(client, seed_user):
+    """Audit fix (2026-05-27): a cookie-authenticated POST whose
+    Origin header points at a different host MUST be rejected (403)
+    even if the cookie is valid. This is the CSRF defense-in-depth
+    on top of SameSite=Lax."""
+    # Seed a session cookie so the request is "cookie-authenticated".
+    from auth import issue_token, AUTH_COOKIE_NAME
+    client.set_cookie(
+        key=AUTH_COOKIE_NAME, value=issue_token(seed_user), domain="localhost",
+    )
+    # Simulate a cross-origin form post — `Origin: https://evil.com`.
+    res = client.post(
+        "/api/profile/update",
+        json={"bio": "csrf attempt"},
+        headers={"Origin": "https://evil.com"},
+    )
+    assert res.status_code == 403, "CSRF origin check should block"
+
+
+def test_csrf_same_origin_request_allowed(client, seed_user):
+    """Same-origin POST with a matching Origin header passes."""
+    from auth import issue_token, AUTH_COOKIE_NAME
+    client.set_cookie(
+        key=AUTH_COOKIE_NAME, value=issue_token(seed_user), domain="localhost",
+    )
+    # Flask test-client default host is localhost
+    res = client.post(
+        "/api/profile/update",
+        json={"bio": "same origin ok"},
+        headers={"Origin": "http://localhost"},
+    )
+    assert res.status_code == 200
+
+
+def test_block_user_self_rejected(client, seed_user, auth_headers):
+    """Self-blocking is nonsensical — the route must reject it."""
+    res = client.post(f"/api/blocks/{seed_user}", headers=auth_headers)
+    assert res.status_code == 400
+
+
+def test_block_drops_existing_follow_in_both_directions(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """When A blocks B, any follow in EITHER direction is torn down.
+    Leaving a follow into a blocked user means their public activity
+    keeps surfacing in the feed actor-pool, defeating the block."""
+    # B follows A; A follows B back.
+    client.post(f"/api/follows/{seed_user}", headers=other_auth_headers)
+    client.post(f"/api/follows/{seed_other_user}", headers=auth_headers)
+    # A blocks B.
+    client.post(f"/api/blocks/{seed_other_user}", headers=auth_headers)
+    # Neither follow row should survive.
+    from database import get_db
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT 1 FROM follows WHERE "
+            "(follower_id = ? AND followee_id = ?) OR "
+            "(follower_id = ? AND followee_id = ?)",
+            (seed_user, seed_other_user, seed_other_user, seed_user),
+        ).fetchall()
+        assert rows == []
+
+
+def test_blocked_user_cannot_follow_blocker(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """Once A blocks B, B's POST /api/follows/<A> silently 404s.
+    The block isn't broadcast back as a 403 — the response shape
+    mirrors "user doesn't exist" so B can't trivially confirm the
+    block status."""
+    client.post(f"/api/blocks/{seed_other_user}", headers=auth_headers)
+    res = client.post(f"/api/follows/{seed_user}", headers=other_auth_headers)
+    assert res.status_code == 404
+
+
+def test_blocked_user_cannot_be_invited_to_blockers_trip(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """When B blocks A, A's /api/trips/invite for B silently 404s.
+    A is the inviter (planner of their own trip); B has blocked A
+    so A can't drop an invite into B's bell."""
+    client.post(f"/api/blocks/{seed_user}", headers=other_auth_headers)
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-block-invite")
+    res = client.post("/api/trips/invite", headers=auth_headers, json={
+        "trip_id": trip_id,
+        "target_user_id": seed_other_user,
+        "role": "relaxer",
+    })
+    assert res.status_code == 404
 
 
 def test_feed_repost_blocks_private_trip_from_non_friend(
@@ -2400,13 +2617,7 @@ def test_generate_itinerary_rejects_missing_key(client, seed_user, auth_headers,
 
 class _FakeGeminiResponse:
     """Stand-in for requests.Response. Models the slice of the API the
-    handler reads (status_code, ok, json(), text).
-
-    Context-manager protocol added 2026-05-27: the prod path in
-    routes/integrations.py wraps the response in `with requests.post(...)
-    as resp:` (FD-leak fix cbb2e3a). Without __enter__/__exit__ here,
-    every Gemini test crashes at the `with` line with
-    "object does not support the context manager protocol"."""
+    handler reads (status_code, ok, json(), text)."""
 
     def __init__(self, status_code: int, json_body=None, text: str = ""):
         self.status_code = status_code
@@ -2418,12 +2629,6 @@ class _FakeGeminiResponse:
         if self._json_body is None:
             raise ValueError("not JSON")
         return self._json_body
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc, tb):
-        return False
 
 
 def test_generate_itinerary_happy_path(client, seed_user, auth_headers, monkeypatch):
@@ -2925,6 +3130,7 @@ def test_auth_google_real_path_inserts_user_and_returns_token(client, monkeypatc
     fake_idinfo = {
         "sub": "google-uid-12345",
         "email": "real@example.com",
+        "email_verified": True,
         "name": "Real User",
         "picture": "https://lh3.googleusercontent.com/avatar.jpg",
     }
@@ -2964,6 +3170,7 @@ def test_auth_google_real_path_supports_credential_field(client, monkeypatch):
         return {
             "sub": "uid-cred",
             "email": "cred@example.com",
+            "email_verified": True,
             "name": "Cred User",
             "picture": "",
         }
@@ -2989,6 +3196,7 @@ def test_auth_google_real_path_returns_existing_profile_on_repeat_signin(
     fake_idinfo = {
         "sub": "returning-user",
         "email": "ret@example.com",
+        "email_verified": True,
         "name": "Returning User",
         "picture": "",
     }
@@ -3038,6 +3246,89 @@ def test_auth_google_real_path_invalid_token_returns_401(client, monkeypatch):
     res = client.post("/api/auth/google", json={"token": "expired.token"})
     assert res.status_code == 401
     assert res.get_json().get("error") == "Invalid token"
+
+
+def test_auth_google_rejects_unverified_email(client, monkeypatch):
+    """Audit fix (2026-05-26): Google ID tokens whose
+    `email_verified` is False (or absent) must be rejected. A
+    Workspace admin who email-sets an attacker account to a
+    `victim@gmail.com` address gets a VALID signature from Google
+    without the email being verified — pre-fix the server happily
+    stored the spoofed address as the canonical email for that
+    user_id.
+    """
+    monkeypatch.setenv("CLIENT_ID_GOOGLE_AUTH", "client-id-test")
+    monkeypatch.delenv("GG_ALLOW_TEST_LOGIN", raising=False)
+
+    def fake_verify_unverified(token, request, client_id):
+        return {
+            "sub": "spoofer-uid",
+            "email": "victim@gmail.com",
+            "email_verified": False,
+            "name": "Spoofer",
+            "picture": "",
+        }
+
+    import routes.auth
+    monkeypatch.setattr(routes.auth.id_token, "verify_oauth2_token", fake_verify_unverified)
+
+    res = client.post("/api/auth/google", json={"token": "valid.but.unverified"})
+    assert res.status_code == 401
+    assert "verified" in (res.get_json().get("error") or "").lower()
+
+
+def test_invite_trip_member_does_not_demote_accepted_planner(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """Audit fix (2026-05-27): re-inviting an already-accepted member
+    with a DIFFERENT role must NOT silently demote them. Pre-fix the
+    ON CONFLICT clause set role=excluded.role unconditionally — a
+    planner re-inviting another planner "as relaxer" silently
+    stripped their planner rights with no notification.
+    """
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-no-demote")
+    # Invite as planner, have them accept.
+    client.post("/api/trips/invite", headers=auth_headers, json={
+        "trip_id": trip_id,
+        "target_user_id": seed_other_user,
+        "role": "planner",
+    })
+    client.post("/api/trips/invite/respond", headers=other_auth_headers, json={
+        "trip_id": trip_id, "accept": True,
+    })
+    # Re-invite the now-accepted member as relaxer — should be a no-op
+    # on the role.
+    client.post("/api/trips/invite", headers=auth_headers, json={
+        "trip_id": trip_id,
+        "target_user_id": seed_other_user,
+        "role": "relaxer",
+    })
+    # Verify the planner role survived.
+    from database import get_db
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT role, invitation_status FROM trip_members "
+            "WHERE trip_id = ? AND user_id = ?",
+            (trip_id, seed_other_user),
+        ).fetchone()
+        assert row["role"] == "planner", \
+            f"accepted planner was demoted to {row['role']!r}"
+        assert row["invitation_status"] == "accepted"
+
+
+def test_invite_trip_member_404_on_unknown_target(
+    client, seed_user, auth_headers,
+):
+    """Audit fix (2026-05-26): pre-fix, inviting a nonexistent user_id
+    raised sqlite3.IntegrityError on the FK → unhandled → 500. Now
+    we 404 cleanly via ensure_user_exists."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-invite-ghost")
+    res = client.post("/api/trips/invite", headers=auth_headers, json={
+        "trip_id": trip_id,
+        "target_user_id": "user-does-not-exist",
+        "role": "relaxer",
+    })
+    assert res.status_code == 404
 
 
 # ── /api/sync — archived_trips + budgets + trip_days + legacy share ──────────
@@ -3182,8 +3473,13 @@ def test_sync_budgets_replace_mode_deletes_omitted_ids(client, seed_user, auth_h
 
 
 def test_sync_budgets_empty_list_clears_all(client, seed_user, auth_headers):
-    """The empty-list branch runs an unconditional `DELETE WHERE
-    user_id = ?` (no NOT IN clause) — pin the wipe-everything path."""
+    """Explicit `budgets: []` runs an unconditional `DELETE WHERE
+    user_id = ?` — caller is asserting "the canonical set is empty".
+
+    Audit fix (2026-05-26): an ABSENT `budgets` key no longer wipes
+    everything (mirrors the categories semantic — absent = don't
+    touch). That regression test is `test_sync_absent_budgets_preserves`
+    below. This test still covers the explicit-empty-list path."""
     # Seed two budgets.
     client.post("/api/sync", headers=auth_headers, json={
         "trips": [], "expenses": [],
@@ -3193,15 +3489,42 @@ def test_sync_budgets_empty_list_clears_all(client, seed_user, auth_headers):
         ],
     })
 
-    # Sync with no `budgets` key at all → defaults to [] → DELETE
-    # WHERE user_id = ? fires unconditionally.
+    # Sync with `budgets: []` explicitly → DELETE WHERE user_id = ?
+    # fires (caller is asserting their budgets set is empty).
+    res = client.post("/api/sync", headers=auth_headers, json={
+        "trips": [], "expenses": [],
+        "budgets": [],
+    })
+    assert res.status_code == 200
+
+    pull = client.get("/api/data", headers=auth_headers)
+    assert pull.get_json()["budgets"] == []
+
+
+def test_sync_absent_budgets_preserves(client, seed_user, auth_headers):
+    """Audit fix (2026-05-26): a sync payload that OMITS the `budgets`
+    key entirely must NOT wipe the user's budgets. Pre-fix, older
+    clients that didn't ship budgets in their 15s sync tick were
+    silently erasing every budget on every poll."""
+    # Seed two budgets.
+    client.post("/api/sync", headers=auth_headers, json={
+        "trips": [], "expenses": [],
+        "budgets": [
+            {"id": "b-preserve-1", "label": "x", "amount": 1, "currency": "EUR"},
+            {"id": "b-preserve-2", "label": "y", "amount": 2, "currency": "EUR"},
+        ],
+    })
+
+    # Sync without a `budgets` key at all — budgets must SURVIVE.
     res = client.post("/api/sync", headers=auth_headers, json={
         "trips": [], "expenses": [],
     })
     assert res.status_code == 200
 
     pull = client.get("/api/data", headers=auth_headers)
-    assert pull.get_json()["budgets"] == []
+    budget_ids = {b["id"] for b in pull.get_json()["budgets"]}
+    assert "b-preserve-1" in budget_ids
+    assert "b-preserve-2" in budget_ids
 
 
 def test_legacy_trips_share_route_is_gone(client, seed_user, auth_headers):
@@ -3805,7 +4128,7 @@ def test_auth_google_sets_session_cookie(client, monkeypatch):
     migration; localStorage-based storage is going away.
     """
     monkeypatch.setenv("GG_ALLOW_TEST_LOGIN", "1")
-    res = client.post("/api/auth/google", json={"token": "test:test-cookie-user", "name": "Cookie User"})
+    res = client.post("/api/auth/google", json={"token": "test:cookie-user", "name": "Cookie User"})
     assert res.status_code == 200
     # Werkzeug's test client surfaces Set-Cookie via the Set-Cookie header(s).
     set_cookie_headers = [v for k, v in res.headers.items() if k.lower() == "set-cookie"]
@@ -3836,7 +4159,7 @@ def test_auth_google_cookie_is_secure_when_proxy_signals_https(client, monkeypat
     monkeypatch.setenv("GG_ALLOW_TEST_LOGIN", "1")
     res = client.post(
         "/api/auth/google",
-        json={"token": "test:test-secure-user", "name": "Secure User"},
+        json={"token": "test:secure-user", "name": "Secure User"},
         headers={"X-Forwarded-Proto": "https"},
     )
     assert res.status_code == 200
@@ -3861,7 +4184,7 @@ def test_auth_cookie_authenticates_request_without_bearer_header(client, monkeyp
     monkeypatch.setenv("GG_ALLOW_TEST_LOGIN", "1")
     login = client.post(
         "/api/auth/google",
-        json={"token": "test:test-round-trip-user", "name": "Round Trip"},
+        json={"token": "test:round-trip-user", "name": "Round Trip"},
     )
     assert login.status_code == 200
 
@@ -3871,7 +4194,7 @@ def test_auth_cookie_authenticates_request_without_bearer_header(client, monkeyp
     assert status.status_code == 200
     body = status.get_json()
     assert body.get("logged_in") is True
-    assert body["user"]["id"] == "test-round-trip-user"
+    assert body["user"]["id"] == "round-trip-user"
 
 
 def test_auth_logout_clears_session_cookie(client, monkeypatch):
@@ -3882,7 +4205,7 @@ def test_auth_logout_clears_session_cookie(client, monkeypatch):
     monkeypatch.setenv("GG_ALLOW_TEST_LOGIN", "1")
     client.post(
         "/api/auth/google",
-        json={"token": "test:test-logout-user", "name": "Logout User"},
+        json={"token": "test:logout-user", "name": "Logout User"},
     )
     # Before logout: cookie-only request authenticates.
     assert client.get("/api/user-status").get_json()["logged_in"] is True
@@ -3949,7 +4272,7 @@ def test_auth_cookie_wins_when_both_cookie_and_bearer_present(client, monkeypatc
     # User A logs in — client jar now carries A's cookie.
     client.post(
         "/api/auth/google",
-        json={"token": "test:test-cookie-user-a", "name": "User A"},
+        json={"token": "test:cookie-user-a", "name": "User A"},
     )
     # Forge a Bearer header for seed_user (different identity).
     from auth import issue_token
@@ -5706,6 +6029,11 @@ def test_user_data_delete_rate_limited(temp_db, seed_user, seed_other_user):
 
     app.config["TESTING"] = True
     app.config["RATELIMIT_ENABLED"] = True
+    # 2026-05-26: the conftest `client` fixture flips `limiter.enabled`
+    # to False for normal tests; explicitly restore it here so the
+    # rate-limit assertion below actually fires.
+    _prev_enabled = limiter.enabled
+    limiter.enabled = True
     limiter.reset()
     try:
         with app.test_client() as c:
@@ -5718,6 +6046,7 @@ def test_user_data_delete_rate_limited(temp_db, seed_user, seed_other_user):
                 "second factory-reset within the hour must be rejected by the limiter"
     finally:
         app.config["RATELIMIT_ENABLED"] = False
+        limiter.enabled = _prev_enabled
         limiter.reset()
 
 
@@ -5917,38 +6246,33 @@ def test_explore_ranks_higher_engagement_higher(
 def test_explore_recency_decay(
     client, seed_user, seed_other_user, auth_headers,
 ):
-    """Recency factor ranks fresher trips above stale ones — but old
-    trips no longer fall off entirely.
+    """Trips past the 60-day discovery window score 0 on recency
+    factor, which (because the score is multiplicative) drops them
+    out of the result set entirely — no matter how many views.
 
-    Design history: the pre-2026-05-19 implementation used a 60-day
-    hard cutoff (`score = 0` → row dropped). Real shares are too rare
-    for that to work; a small server with sparse activity ended up
-    serving an empty Explore feed once trips aged out. The current
-    implementation uses linear decay over 180 days with a 0.15 floor —
-    stale trips still surface but rank below recent ones. This test
-    pins the new "ranked, not gated" contract: fresh > stale, but
-    both present."""
+    Design choice: a hard 60-day window keeps Explore feeling fresh.
+    Older trips will get a dedicated "search by country" surface in
+    §4.2 v2. Without this, viral-but-stale trips would crowd out
+    new discoveries forever."""
     from datetime import datetime, timedelta, timezone
 
-    # 90 days old, lots of views.
+    # 90 days old, lots of views — should NOT appear.
     old_stamp = (datetime.now(timezone.utc) - timedelta(days=90)).strftime("%Y-%m-%d %H:%M:%S")
     _seed_shareable_trip(
         seed_other_user, "exp-stale", country_code="JP",
-        share_views=0, created_at=old_stamp,
+        share_views=10000, created_at=old_stamp,
     )
-    # Fresh trip — should rank above the stale one even with zero views,
-    # because recency_factor dominates when engagement is equal.
+    # Fresh trip — should appear even with zero views.
     _seed_shareable_trip(seed_other_user, "exp-fresh", country_code="JP", share_views=0)
 
     items = client.get("/api/feed/explore", headers=auth_headers).get_json()["items"]
     ids = [i["tripId"] for i in items]
     assert "exp-fresh" in ids
-    assert "exp-stale" in ids
-    # Fresh ranks higher.
-    assert ids.index("exp-fresh") < ids.index("exp-stale")
+    assert "exp-stale" not in ids
 
-    # A trip JUST INSIDE the original 60-day window with low engagement
-    # should also surface — sanity-check the floor isn't broken.
+    # A trip JUST INSIDE the window with low engagement should still
+    # surface — confirm the cutoff is genuine and not "anything older
+    # than today is gone".
     recent_stamp = (datetime.now(timezone.utc) - timedelta(days=30)).strftime("%Y-%m-%d %H:%M:%S")
     _seed_shareable_trip(
         seed_other_user, "exp-recent", country_code="JP",

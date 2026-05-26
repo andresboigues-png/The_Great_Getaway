@@ -22,7 +22,9 @@ from auth import (
     current_user_id,
     issue_token,
     require_auth,
+    revoke_session_by_jti,
     set_auth_cookie,
+    verify_token as _verify_token,
 )
 from database import get_db, retry_on_lock
 from extensions import limiter
@@ -130,7 +132,7 @@ def google_auth():
         # caller (e.g. the existing E2E `getAuthForApi` helper) that
         # extracts it from the response and replays it as Authorization
         # in subsequent calls.
-        token = issue_token(user_id)
+        token = issue_token(user_id, device_label=(request.headers.get("User-Agent") or "")[:120] or None)
         response = make_response(jsonify({
             "status": "success",
             "token": token,
@@ -190,7 +192,7 @@ def google_auth():
         # the Playwright `getAuthForApi` helper) keep working without
         # any client-side change. The frontend stops READING this
         # field in the same slice but the surface stays compatible.
-        token = issue_token(user_id)
+        token = issue_token(user_id, device_label=(request.headers.get("User-Agent") or "")[:120] or None)
         response = make_response(jsonify({
             "status": "success",
             "token": token,
@@ -216,31 +218,114 @@ def google_auth():
         return jsonify({"error": "Invalid token"}), 401
 
 
+def _extract_current_jti() -> str | None:
+    """Decode the request's JWT just enough to pull its `jti` claim.
+    Used by the logout / session-revoke routes to identify WHICH
+    session to revoke. We don't fully `verify_token` here because
+    that'd add a DB round-trip we don't need — the @require_auth
+    decorator on the route has already done that work."""
+    from auth import _extract_token
+    import jwt as _jwt
+    from auth import _secret, JWT_ALGORITHM
+    token = _extract_token()
+    if not token:
+        return None
+    try:
+        payload = _jwt.decode(token, _secret(), algorithms=[JWT_ALGORITHM])
+    except _jwt.PyJWTError:
+        return None
+    return payload.get("jti")
+
+
 @bp.route("/api/auth/logout", methods=["POST"])
 @require_auth
 @retry_on_lock()
 def logout():
-    """Server-side logout — bumps the user's `token_jti` so every
-    JWT we've ever issued them is rejected on the next request, AND
-    clears the HttpOnly session cookie so the browser stops attaching
-    it.
+    """Server-side logout — revoke THIS session's auth_sessions row
+    so the caller's device can no longer authenticate, then clear
+    the HttpOnly session cookie.
 
-    FIXING_ROADMAP §0.3: before this endpoint existed, logout just
-    dropped the JWT from the client's localStorage. A stolen copy
-    of the token (XSS, lost device, leaked log) stayed valid for
-    its 30-day lifetime. Now logout actually invalidates.
+    Audit fix (2026-05-27): pre-fix this bumped the user's single
+    `token_jti` which invalidated EVERY device the user had ever
+    signed in on. Now we revoke only the current session; other
+    devices keep working.
 
-    FIXING_ROADMAP §0.4 v2: also clears the `gg_session` cookie. The
-    jti bump alone would expire the token at the server, but the
-    browser would still send the (now-invalid) cookie on every
-    request — wasting a verify round-trip + producing 401s on every
-    poll until the cookie naturally expires. Clearing it tells the
-    browser to stop sending.
+    For legacy tokens (minted before the per-session move, no
+    auth_sessions row exists), the jti will fall through the
+    session-revoke + still get bumped on `users.token_jti` so the
+    legacy verify-fallback path also rejects. Belt-and-braces.
     """
     user_id = current_user_id()
     if not user_id:
         return jsonify({"error": "Unauthorized"}), 401
-    bump_user_jti(user_id)
+    jti = _extract_current_jti()
+    revoked = revoke_session_by_jti(jti) if jti else False
+    if not revoked:
+        # No matching session row → this is a legacy token. Bump
+        # the user-wide jti so the fallback verify path rejects it.
+        # Trade-off: legacy users get the all-devices logout
+        # behaviour for one more cycle until they re-login + get
+        # a per-session token.
+        bump_user_jti(user_id)
     response = make_response(jsonify({"status": "logged_out"}))
     clear_auth_cookie(response)
     return response
+
+
+@bp.route("/api/auth/sessions", methods=["GET"])
+@require_auth
+@limiter.limit("30 per minute")
+def list_sessions():
+    """Return the caller's active auth_sessions rows so the
+    Settings page can show "Signed in on these devices". Sorted
+    most-recently-active first.
+
+    Audit fix (2026-05-27): pre-fix users had no visibility into
+    where their account was signed in — a stolen token sat valid
+    for 30 days with no recourse beyond a full logout (which used
+    to invalidate every device). Now they can see + revoke
+    individually.
+    """
+    user_id = current_user_id()
+    current_jti = _extract_current_jti()
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, jti, device_label, created_at, last_seen_at "
+            "FROM auth_sessions WHERE user_id = ? AND revoked_at IS NULL "
+            "ORDER BY COALESCE(last_seen_at, created_at) DESC",
+            (user_id,),
+        )
+        rows = cursor.fetchall()
+    return jsonify({
+        "sessions": [
+            {
+                "id": r["id"],
+                "deviceLabel": r["device_label"],
+                "createdAt": r["created_at"],
+                "lastSeenAt": r["last_seen_at"],
+                "isCurrent": r["jti"] == current_jti,
+            }
+            for r in rows
+        ],
+    })
+
+
+@bp.route("/api/auth/sessions/<int:session_id>", methods=["DELETE"])
+@require_auth
+@limiter.limit("30 per minute")
+@retry_on_lock()
+def revoke_session(session_id):
+    """Revoke a specific auth_sessions row by id. Caller must own
+    the session. Idempotent — revoking an already-revoked or
+    missing session returns success."""
+    user_id = current_user_id()
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE auth_sessions SET revoked_at = CURRENT_TIMESTAMP "
+            "WHERE id = ? AND user_id = ? AND revoked_at IS NULL",
+            (session_id, user_id),
+        )
+        conn.commit()
+    return jsonify({"status": "revoked"})

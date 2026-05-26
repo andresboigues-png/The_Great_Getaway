@@ -312,7 +312,14 @@ def init_db():
 
         # Expenses Table — receipt_url added post-baseline (FUTURE_
         # FEATURES #3) for the 📎 attach-receipt flow on the expense
-        # form.
+        # form. 2026-05-26: splits_json + is_settlement added so
+        # the frontend's load-bearing split-percentage map (which
+        # drives ALL balance math) survives sign-in on a new device.
+        # Pre-add, splits lived only in localStorage and were silently
+        # wiped by every /api/data poll that rebuilt STATE.expenses
+        # from the server, producing wildly wrong balance numbers
+        # across devices. is_settlement carries the PATH B settle-up
+        # flag so settled debts stop resurrecting on every sign-in.
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS expenses (
                 id TEXT PRIMARY KEY,
@@ -326,29 +333,12 @@ def init_db():
                 currency TEXT,
                 euro_value REAL,
                 receipt_url TEXT,
-                -- 2026-05-25 (audit S1): split map (JSON {name: pct}) +
-                -- settlement flag. Pre-this-migration, both fields were
-                -- frontend-only — every /api/data refresh wiped them so
-                -- expenses with uneven splits collapsed to equal share
-                -- and settlement rows double-counted. Now persisted.
-                splits TEXT CHECK(splits IS NULL OR json_valid(splits)),
-                is_settlement INTEGER NOT NULL DEFAULT 0,
-                -- 2026-05-26 (audit SY5): soft-delete tombstone. Replaces
-                -- hard DELETE on `delete_expense` + /api/sync upsert so
-                -- a queued resurrection from an offline device can't
-                -- undo a delete that happened on a peer device. See
-                -- migration b7c8d9e0f1a2_add_tombstone_columns.
-                deleted_at TEXT,
+                splits_json TEXT
+                    CHECK(splits_json IS NULL OR json_valid(splits_json)),
+                is_settlement INTEGER DEFAULT 0,
                 FOREIGN KEY(trip_id) REFERENCES trips(id) ON DELETE CASCADE
             )
         ''')
-        # Partial index for the future tombstone-cleanup sweep — only
-        # tombstoned rows are indexed so the cost stays proportional
-        # to the soft-deleted population, not the table size.
-        cursor.execute(
-            "CREATE INDEX IF NOT EXISTS idx_expenses_deleted "
-            "ON expenses(deleted_at) WHERE deleted_at IS NOT NULL"
-        )
 
         # Friends Table — created_at is part of the CREATE TABLE
         # now (handled in the catchup revision for prod DBs).
@@ -449,24 +439,8 @@ def init_db():
                 label TEXT,
                 amount REAL,
                 currency TEXT DEFAULT 'EUR',
-                -- 2026-05-25 (audit B1): filter columns the frontend
-                -- always sent but the schema dropped. Without them a
-                -- "Food → Sara → €500" budget reloaded as a generic
-                -- "all categories → everyone → €500" and aggregated
-                -- ALL expenses on the trip, showing fake overspend.
-                category_id TEXT,
-                owner_name TEXT,
-                original_amount REAL,
-                original_currency TEXT,
                 FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
-                FOREIGN KEY(trip_id) REFERENCES trips(id) ON DELETE SET NULL,
-                -- 2026-05-26 (audit B6): a user can't have two budgets
-                -- with the same scope — the spend-against-target sum
-                -- doesn't know to split between them, so the same
-                -- expenses double-counted under both. Constraint added
-                -- via migration e4f5a6b7c8d9; mirrored here for fresh
-                -- installs that skip the migration chain.
-                UNIQUE(user_id, trip_id, category_id, owner_name)
+                FOREIGN KEY(trip_id) REFERENCES trips(id) ON DELETE SET NULL
             )
         ''')
 
@@ -481,26 +455,9 @@ def init_db():
                 message TEXT,
                 is_read INTEGER DEFAULT 0,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                -- 2026-05-26 (audit NF1 + NF3): engagement
-                -- notifications (share_liked / commented / reposted)
-                -- need to know the feed_post they reference, both for
-                -- routing (click → land on the post) and for
-                -- cascade-cleanup when the underlying share is
-                -- deleted. related_id stores the ACTOR user_id; this
-                -- column stores the POST id. NULL for non-engagement
-                -- types. Migration f5a6b7c8d9e0 adds it; mirrored
-                -- here for fresh installs.
-                post_id INTEGER,
                 FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
             )
         ''')
-        # Index supporting the cascade-cleanup query on unshare —
-        # `DELETE FROM notifications WHERE post_id = ?`. Without it,
-        # an unshare scans the whole notifications table.
-        cursor.execute(
-            "CREATE INDEX IF NOT EXISTS idx_notifications_post_id "
-            "ON notifications(post_id)"
-        )
 
         # ── Feed (social / sharing layer) ──────────────────────────────
         # feed_posts: explicit, user-initiated shares + reposts. Synthesised
@@ -518,6 +475,12 @@ def init_db():
                 repost_of_post_id INTEGER,
                 caption TEXT,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                -- 2026-05-26 audit #C-6: snapshot the trip's is_public
+                -- value at share-creation time. Used by the unshare
+                -- path to restore the trip's privacy when the LAST
+                -- share that flipped it gets removed. NULL = nothing
+                -- to restore (legacy row or trip was already public).
+                trip_was_public INTEGER DEFAULT NULL,
                 FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
                 FOREIGN KEY(trip_id) REFERENCES trips(id) ON DELETE CASCADE,
                 -- 2026-05-18 audit M3: CASCADE (was SET NULL). Pre-fix,
@@ -602,17 +565,9 @@ def init_db():
                 tip TEXT,
                 lat REAL,
                 lng REAL,
-                -- 2026-05-26 (audit SY5): tombstone column — see
-                -- migration b7c8d9e0f1a2_add_tombstone_columns and the
-                -- matching comment on `expenses` above.
-                deleted_at TEXT,
                 FOREIGN KEY(trip_id) REFERENCES trips(id) ON DELETE CASCADE
             )
         ''')
-        cursor.execute(
-            "CREATE INDEX IF NOT EXISTS idx_trip_days_deleted "
-            "ON trip_days(deleted_at) WHERE deleted_at IS NOT NULL"
-        )
 
         # Follows Table (FIXING_ROADMAP §4.7).
         # One-way social graph that sits ALONGSIDE the symmetric
@@ -636,6 +591,48 @@ def init_db():
                 UNIQUE(follower_id, followee_id),
                 FOREIGN KEY(follower_id) REFERENCES users(id) ON DELETE CASCADE,
                 FOREIGN KEY(followee_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        ''')
+
+        # Auth Sessions Table (2026-05-27 audit #A-4 — per-device
+        # session revocation). Pre-add, every user had a single
+        # `users.token_jti` and logout bumped it — invalidating EVERY
+        # device. This table holds one row per active session so
+        # logout can revoke ONE device without nuking the others.
+        # `jti` is the JWT's session-id claim; we look it up here
+        # on every verify. `revoked_at` non-NULL = revoked = reject.
+        # Legacy JWTs (minted pre-this-change) still verify against
+        # `users.token_jti` via the fallback in auth.py.
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS auth_sessions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                jti TEXT NOT NULL UNIQUE,
+                device_label TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                last_seen_at DATETIME,
+                revoked_at DATETIME DEFAULT NULL,
+                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        ''')
+
+        # Blocks Table (2026-05-26 audit — minimal safety primitive).
+        # Symmetric: once A blocks B, B cannot follow A, invite A to
+        # a trip, comment / repost on A's shares, or send A any
+        # notification. UNIQUE(blocker_id, blocked_id) makes the
+        # block op idempotent via the composite PK. CHECK against
+        # self-block keeps the row set clean — a self-block is a
+        # nonsense state that would have undefined semantics
+        # everywhere downstream.
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS blocks (
+                blocker_id TEXT NOT NULL,
+                blocked_id TEXT NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (blocker_id, blocked_id),
+                FOREIGN KEY (blocker_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (blocked_id) REFERENCES users(id) ON DELETE CASCADE,
+                CHECK (blocker_id != blocked_id)
             )
         ''')
 
@@ -701,27 +698,27 @@ def init_db():
                 trip_id TEXT NOT NULL,
                 from_user_id TEXT NOT NULL,
                 to_user_id TEXT NOT NULL,
-                -- 2026-05-26 (audit S1 + S6): snapshot the party
-                -- display names at settlement-record time so the
-                -- balance math doesn't depend on live companion
-                -- state. Pre-fix, unlinking a companion after a
-                -- settlement was recorded made the name-resolution
-                -- helper return undefined → the settlement was
-                -- silently skipped from balance shifts → the debt
-                -- persisted in the UI as if the payment never
-                -- happened. Snapshotting at insert time keeps the
-                -- row self-describing.
-                from_name TEXT,
-                to_name TEXT,
                 amount REAL NOT NULL,
                 currency TEXT NOT NULL,
                 euro_value REAL,
                 method TEXT,
                 note TEXT,
+                -- 2026-05-26 audit #D-6: the user who actually clicked
+                -- save. Distinct from `from_user_id` because any trip
+                -- member can record a settlement "on behalf of" the
+                -- two parties ("Andre handled it for the four of us").
+                -- Pre-add there was no audit trail; a malicious
+                -- planner could fabricate "Bob paid Alice €1000"
+                -- without either party knowing. The notification body
+                -- now mentions the recorder when they're neither
+                -- party. ON DELETE SET NULL so recorder deletion
+                -- doesn't blow up the row.
+                recorded_by TEXT,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY(trip_id) REFERENCES trips(id) ON DELETE CASCADE,
                 FOREIGN KEY(from_user_id) REFERENCES users(id) ON DELETE CASCADE,
-                FOREIGN KEY(to_user_id) REFERENCES users(id) ON DELETE CASCADE
+                FOREIGN KEY(to_user_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY(recorded_by) REFERENCES users(id) ON DELETE SET NULL
             )
         ''')
 
@@ -786,6 +783,31 @@ def init_db():
             "ON feed_posts(repost_of_post_id)",
             "CREATE INDEX IF NOT EXISTS idx_feed_comments_user "
             "ON feed_comments(user_id)",
+            # 2026-05-26 audit: prevent duplicate (trip_id, day_number)
+            # rows. Frontend has a band-aid dedupe but the underlying
+            # race (two browser tabs adding the same day) wasn't
+            # prevented at the DB level. Partial UNIQUE so NULL
+            # day_numbers (shouldn't happen, but if they do) don't
+            # collide. Migration b1d2e3f4c5a7 cleans pre-existing
+            # duplicates on prod DBs before adding the index.
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_trip_days_trip_day_number "
+            "ON trip_days(trip_id, day_number) "
+            "WHERE trip_id IS NOT NULL AND day_number IS NOT NULL",
+            # 2026-05-26 audit safety primitive: the block-check is
+            # hit by every follow / invite / comment / notification
+            # path with `WHERE blocker_id = ? AND blocked_id = ?` or
+            # the reverse. The composite PK already covers the
+            # forward lookup; this extra index covers
+            # `WHERE blocked_id = ?` (used by `is_blocked_by` to ask
+            # "did THIS user block me?" — direction-reversed).
+            "CREATE INDEX IF NOT EXISTS idx_blocks_blocked "
+            "ON blocks(blocked_id)",
+            # 2026-05-27 audit #A-4: per-user session listing for
+            # /api/auth/sessions. UNIQUE on jti is enforced by the
+            # column constraint; this index covers
+            # `WHERE user_id = ? AND revoked_at IS NULL` lookups.
+            "CREATE INDEX IF NOT EXISTS idx_auth_sessions_user "
+            "ON auth_sessions(user_id, revoked_at)",
         ):
             cursor.execute(ddl)
 
@@ -865,12 +887,13 @@ _EXPECTED_COLUMNS = {
     "expenses": [
         "id", "trip_id", "who", "category_id", "label", "date",
         "country", "value", "currency", "euro_value", "receipt_url",
+        "splits_json", "is_settlement",
     ],
     "friends": ["user_id", "friend_id", "status", "created_at"],
     "companions": ["user_id", "name", "linked_user_id", "link_status"],
     "feed_posts": [
         "id", "user_id", "trip_id", "repost_of_post_id", "caption",
-        "created_at",
+        "created_at", "trip_was_public",
     ],
     "follows": ["id", "follower_id", "followee_id", "created_at"],
     "user_achievements": [
@@ -878,7 +901,8 @@ _EXPECTED_COLUMNS = {
     ],
     "settlements": [
         "id", "trip_id", "from_user_id", "to_user_id", "amount",
-        "currency", "euro_value", "method", "note", "created_at",
+        "currency", "euro_value", "method", "note", "recorded_by",
+        "created_at",
     ],
 }
 
