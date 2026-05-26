@@ -381,6 +381,15 @@ def init_db():
                 user_id TEXT,
                 role TEXT DEFAULT 'planner',
                 is_archived INTEGER DEFAULT 0,
+                -- 2026-05-26 audit #C-26: the moment THIS member
+                -- archived their copy. Distinct from `is_archived`
+                -- (which is just a boolean) so the feed event +
+                -- achievement timing can use the actual completion
+                -- moment instead of trips.created_at (which fired
+                -- the 30-day window check on a stale date). NULL
+                -- when the row was never archived OR was archived
+                -- before this column existed.
+                completed_at DATETIME DEFAULT NULL,
                 invitation_status TEXT DEFAULT 'accepted',
                 invited_by TEXT,
                 PRIMARY KEY(trip_id, user_id),

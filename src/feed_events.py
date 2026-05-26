@@ -312,27 +312,37 @@ def _build_friend_created_trip(cursor, ctx: FeedContext) -> list:
 
 
 def _build_friend_archived_trip(cursor, ctx: FeedContext) -> list:
-    """Actor's trip got archived (= they marked it complete). Falls
-    back to created_at since we don't have an archived_at column —
-    archive ordering is good-enough by trip-creation time.
+    """Actor's trip got archived (= they marked it complete).
+
+    Audit fix (2026-05-26): timestamp + window check both moved to
+    `trip_members.completed_at`. Pre-fix the event used
+    `t.created_at` for both, so a trip created 31+ days ago that
+    the owner completed today was INVISIBLE in followers' feed —
+    the 30-day window check rejected the row immediately. Also
+    the sort order was wrong: completing an old trip surfaced it
+    in the FAR PAST of the feed (next to its creation date) rather
+    than NOW.
+
+    Fallback: rows with completed_at IS NULL (legacy archives that
+    pre-date this column) fall back to `t.created_at` so we don't
+    break the back-catalog entirely on deploy day.
 
     2026-05-18 audit H1: read the OWNER's per-user archive flag on
-    trip_members rather than the legacy trips.is_archived mirror.
-    Same semantic ("owner archived their trip → 'friend_archived' card
-    on followers' feeds"), but decoupled from the column slated for
-    deprecation."""
+    trip_members rather than the legacy trips.is_archived mirror."""
     if not ctx.actor_ids:
         return []
     placeholders = ",".join(["?"] * len(ctx.actor_ids))
     cursor.execute(f'''
-        SELECT t.id, t.user_id, t.name, t.country, t.created_at
+        SELECT t.id, t.user_id, t.name, t.country, t.created_at,
+               tm.completed_at,
+               COALESCE(tm.completed_at, t.created_at) AS when_ts
         FROM trips t
         JOIN trip_members tm ON tm.trip_id = t.id AND tm.user_id = t.user_id
         WHERE t.user_id IN ({placeholders})
           AND COALESCE(tm.is_archived, 0) = 1
           AND COALESCE(t.actions_hidden, 0) = 0
-          AND t.created_at >= datetime('now', '-30 days')
-        ORDER BY t.created_at DESC
+          AND COALESCE(tm.completed_at, t.created_at) >= datetime('now', '-30 days')
+        ORDER BY COALESCE(tm.completed_at, t.created_at) DESC
     ''', ctx.actor_ids)
     events = []
     for row in cursor.fetchall():
@@ -344,7 +354,7 @@ def _build_friend_archived_trip(cursor, ctx: FeedContext) -> list:
             "type": "friend_archived_trip",
             "actor": actor,
             "trip": {"id": row["id"], "name": row["name"], "country": row["country"]},
-            "when": row["created_at"],
+            "when": row["when_ts"],
         })
     return events
 
