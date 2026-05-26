@@ -119,6 +119,15 @@ async function _userKeyFor(request) {
     }
 }
 
+// Audit fix (2026-05-27, Frontend #2): API cache entries get a
+// max age. Pre-fix the SW would serve a stale /api/data response
+// from the cache indefinitely on network miss — a year-old
+// snapshot of trips, expenses, settlements could land on the page.
+// 10 minutes is generous for the legitimate offline case ("user
+// opens app on a plane, sees the last poll") while keeping
+// genuinely stale data out of the view.
+const API_CACHE_MAX_AGE_MS = 10 * 60 * 1000;
+
 async function _cachedApiResponse(request) {
     const userKey = await _userKeyFor(request);
     const cache = await caches.open(API_CACHE);
@@ -126,7 +135,24 @@ async function _cachedApiResponse(request) {
     // store independently.
     const url = new URL(request.url);
     url.searchParams.set('_u', userKey);
-    return cache.match(url.toString());
+    const cached = await cache.match(url.toString());
+    if (!cached) return null;
+    // Reject if older than the configured max age. We persist the
+    // cache-put timestamp via a custom `x-sw-cached-at` header
+    // added in `_putApiResponse` (Response headers are immutable
+    // on the wire but the cached copy is a clone we control).
+    const cachedAtHeader = cached.headers.get('x-sw-cached-at');
+    if (cachedAtHeader) {
+        const cachedAt = Number(cachedAtHeader);
+        if (Number.isFinite(cachedAt) && (Date.now() - cachedAt) > API_CACHE_MAX_AGE_MS) {
+            // Stale — evict + return null so the caller can choose
+            // what to do (`_networkFirst` propagates the network
+            // error rather than serving the stale page).
+            try { await cache.delete(url.toString()); } catch { /* ignore */ }
+            return null;
+        }
+    }
+    return cached;
 }
 
 async function _putApiResponse(request, response) {
@@ -135,7 +161,29 @@ async function _putApiResponse(request, response) {
     const url = new URL(request.url);
     url.searchParams.set('_u', userKey);
     const cache = await caches.open(API_CACHE);
-    try { await cache.put(url.toString(), response); } catch { /* quota */ }
+    // Wrap the response so we can attach the `x-sw-cached-at`
+    // timestamp header — `Response` is immutable on the
+    // network-loaded path but we control the clone here. Read the
+    // body once, then construct a fresh Response with the original
+    // status + headers + a NEW header on top. Skip wrapping if
+    // reading the body fails (e.g. opaque response).
+    try {
+        const body = await response.clone().arrayBuffer();
+        const headers = new Headers(response.headers);
+        headers.set('x-sw-cached-at', String(Date.now()));
+        const stamped = new Response(body, {
+            status: response.status,
+            statusText: response.statusText,
+            headers,
+        });
+        await cache.put(url.toString(), stamped);
+    } catch {
+        // Body unreadable — fall back to caching the response
+        // as-is so we at least have something for the offline
+        // path. Without the timestamp it'll never expire, but
+        // that matches the pre-fix behaviour.
+        try { await cache.put(url.toString(), response); } catch { /* quota */ }
+    }
 }
 
 // ── Strategy implementations ────────────────────────────────────────
