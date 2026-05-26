@@ -192,10 +192,14 @@ def get_follow_status(user_id):
     Opt-in `?include=lists` adds the three "Your network" buckets to
     the response: `mutuals` (= friends), `followersOnly`, and
     `followingOnly`. Each is a list of {id, name, email, picture}
-    dicts. Buckets are mutually exclusive by construction (a mutual
-    never appears in followersOnly/followingOnly). The Friends page
-    passes the flag; the profile page omits it so the response stays
-    counts-only for that surface.
+    dicts.
+
+    Audit fix (2026-05-26): `?include=lists` is gated to SELF only
+    — pre-fix it returned the full follower/following list (with
+    emails) of ANY user the caller named, so any authenticated user
+    could dump the entire social graph + every linked email by
+    iterating user IDs. The Friends page (the legitimate consumer)
+    only ever calls this for the signed-in user.
     """
     from flask import request as _req
     caller_id = current_user_id()
@@ -211,7 +215,7 @@ def get_follow_status(user_id):
             "followers": counts["followers"],
             "following": counts["following"],
         }
-        if include_lists:
+        if include_lists and caller_id == user_id:
             from social import network_lists
             payload.update(network_lists(cursor, user_id))
     return jsonify(payload)
