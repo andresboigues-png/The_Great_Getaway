@@ -1582,6 +1582,33 @@ def test_feed_repost_succeeds_for_other_users_post(
     assert res.status_code == 200
 
 
+def test_feed_repost_blocks_private_trip_from_non_friend(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """Audit fix (2026-05-26): pre-fix any authed user could enumerate
+    feed_posts.id and repost a PRIVATE friend's share. Now reposting
+    a private trip's share requires the caller to be friends with the
+    author (or a member of the trip). Public trips remain repostable
+    by anyone (Twitter-style spread)."""
+    # other_user creates + shares a PRIVATE trip (no is_public flag).
+    trip_id = _create_trip(client, other_auth_headers, trip_id="trip-private-share", public=False)
+    res = client.post("/api/feed/share", headers=other_auth_headers, json={
+        "trip_id": trip_id,
+    })
+    # /api/feed/share auto-promotes is_public=1 today (a separate
+    # bug — fix #20 — but that's the current behaviour we have to
+    # account for in this test). Force the trip back to private so
+    # we're testing the actual non-public repost gate.
+    from database import get_db
+    with get_db() as conn:
+        conn.execute("UPDATE trips SET is_public = 0 WHERE id = ?", (trip_id,))
+        conn.commit()
+    post_id = res.get_json()["post_id"]
+    # seed_user is NOT friends with seed_other_user.
+    res = client.post(f"/api/feed/repost/{post_id}", headers=auth_headers)
+    assert res.status_code == 404
+
+
 def test_feed_repost_rejects_self_repost(client, seed_user, auth_headers):
     """Reposting your own post is a no-op + returns status: 'same_user'.
     Without this gate, the feed could fill with self-reposts."""

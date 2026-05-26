@@ -556,14 +556,49 @@ def repost_feed_post(post_id):
     """Repost an existing feed_post. Creates a new feed_post pointing
     at the original via repost_of_post_id. Idempotent per (caller,
     original_post). Drops a `share_reposted` notification on the
-    immediate parent."""
+    immediate parent.
+
+    Audit fix (2026-05-26): visibility gate. Pre-fix the route only
+    checked the source post exists + isn't the caller's own — it
+    did NOT check the caller is allowed to see the underlying trip.
+    Since `feed_posts.id` is an auto-increment integer, any
+    authenticated user could enumerate ids and repost any PRIVATE
+    friend's share into their own followers' feed.
+
+    Gate matches the trip's public/private posture:
+      - trip is_public=1: anyone can repost (Twitter model — public
+        sharing is meant to spread beyond the author's friend
+        graph, which is the whole point of Explore-style discovery)
+      - trip is_public=0: caller must be friends with the author
+        OR a member of the trip — same set as `_caller_can_see_event`
+        for share/repost events
+
+    404-not-403 on rejection to avoid leaking post-id existence to
+    enumeration probes.
+    """
     user_id = current_user_id()
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT trip_id, user_id FROM feed_posts WHERE id = ?", (post_id,))
+        cursor.execute(
+            "SELECT fp.trip_id, fp.user_id, fp.repost_of_post_id, "
+            "       COALESCE(t.is_public, 0) AS is_public "
+            "FROM feed_posts fp LEFT JOIN trips t ON t.id = fp.trip_id "
+            "WHERE fp.id = ?",
+            (post_id,),
+        )
         original = cursor.fetchone()
         if not original:
             return jsonify({"error": "Post not found"}), 404
+        if not original['is_public']:
+            # Private trip — fall back to the canonical friend-of-
+            # author visibility check used by like / comment.
+            event_id = (
+                f"repost_{post_id}"
+                if original['repost_of_post_id'] is not None
+                else f"share_{post_id}"
+            )
+            if not _caller_can_see_event(cursor, event_id, user_id):
+                return jsonify({"error": "Unknown or unauthorised event"}), 404
         if original['user_id'] == user_id:
             # Reposting your own original is meaningless.
             return jsonify({"status": "same_user", "post_id": post_id})
