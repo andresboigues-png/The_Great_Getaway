@@ -9,6 +9,7 @@ import { STATE, emit } from '../state.js';
 import { archiveTripOnServer, deleteTrip } from '../api.js';
 import { navigate } from '../router.js';
 import { showConfirmModal, esc } from '../utils.js';
+import { t } from '../i18n.js';
 import { EVENTS, PAGES } from '../constants.js';
 import { canDelete } from '../permissions.js';
 
@@ -85,9 +86,9 @@ export function archiveActiveTrip() {
     // moment, not a filing exercise. Confirm button paints green
     // (#34c759) instead of the default destructive red.
     showConfirmModal({
-        title: "Complete this trip?",
-        message: "It moves into your Collections as a completed memory. You can revisit it anytime, and reopen it later if you need to.",
-        confirmText: "Complete",
+        title: t('errors.completeTripTitle'),
+        message: t('errors.completeTripBody'),
+        confirmText: t('errors.completeTripConfirmBtn'),
         confirmColor: "#34c759",
         onConfirm: () => {
             trip.isArchived = true;
@@ -125,18 +126,18 @@ export function deleteActiveTrip(): void {
     // can't trigger a forbidden delete.
     if (!canDelete(trip)) {
         showConfirmModal({
-            title: "Owner only",
-            message: "Only the trip's owner can delete it. You can mark your own copy complete from the navbar instead.",
-            confirmText: "OK",
+            title: t('errors.deleteOwnerOnlyTitle'),
+            message: t('errors.deleteOwnerOnly'),
+            confirmText: t('errors.ownerOnlyConfirmBtn'),
             onConfirm: () => {},
         });
         return;
     }
 
     showConfirmModal({
-        title: "Delete Trip?",
-        message: `Are you sure you want to delete "${trip.name}" permanently? This will remove all associated expenses and days.`,
-        confirmText: "Delete Permanently",
+        title: t('errors.permaDeleteTitle'),
+        message: t('errors.permaDeleteBody', { name: trip.name }),
+        confirmText: t('errors.permaDeleteConfirmBtn'),
         onConfirm: async () => {
             STATE.trips = STATE.trips.filter(t => t.id !== trip.id);
             STATE.expenses = STATE.expenses.filter(e => e.tripId !== trip.id);

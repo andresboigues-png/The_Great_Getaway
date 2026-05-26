@@ -504,7 +504,7 @@ function PrivacySelect({ trip }: { trip: Trip }) {
             <select
                 className="trip-privacy-select"
                 data-trip-id={trip.id}
-                aria-label="Trip visibility"
+                aria-label={t('archivedDetail.visibilityAria')}
                 defaultValue={initial}
                 onChange={(e) => toggleTripPrivacy(trip.id, e.target.value as any)}
                 style={{
@@ -528,9 +528,12 @@ function PrivacySelect({ trip }: { trip: Trip }) {
                     backgroundSize: '8px',
                 }}
             >
-                <option value="private">🔒 Private</option>
-                <option value="public-plan">🌍 Public — plan only</option>
-                <option value="public-full">🌍 Public — incl. expenses</option>
+                {/* Privacy labels share the same `archivedDetail.visibility*`
+                    keys used by the archived-trip detail page, so the two
+                    surfaces stay in sync — translating one updates both. */}
+                <option value="private">{t('archivedDetail.visibilityPrivate')}</option>
+                <option value="public-plan">{t('archivedDetail.visibilityPublicPlan')}</option>
+                <option value="public-full">{t('archivedDetail.visibilityPublicAll')}</option>
             </select>
         </div>
     );

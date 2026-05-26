@@ -34,6 +34,7 @@
 
 import { INSPIRATIONAL_PAIRS } from '../../constants.js';
 import { getMediaForTrip } from '../../utils.js';
+import { localizeFact } from '../../utils/place-names.js';
 
 
 // One shared timer for the whole module. router.ts calls
@@ -152,9 +153,13 @@ export function setupSlideshow(activeTrip: any): SlideshowController {
         for (let i = 0; i < data.images.length; i++) {
             const img = data.images[i];
             const f = data.facts[i];
-            // Only the population/capital fact lands on screen;
-            // the legacy `q` field is intentionally ignored here.
-            if (img && f) pairs.push({ img, text: f });
+            // Only the population/capital fact lands on screen; the
+            // legacy `q` field is intentionally ignored here. The fact
+            // is shipped in English from DESTINATION_DATA so we run it
+            // through localizeFact() to pick up the active locale's
+            // surrounding template (slot values like country name and
+            // capital pass through unchanged).
+            if (img && f) pairs.push({ img, text: localizeFact(f) });
         }
         // Shuffle multi-country rosters so the order doesn't
         // rigidly read Italy → France → Spain on every cycle.

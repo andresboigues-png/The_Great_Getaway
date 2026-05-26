@@ -3127,6 +3127,33 @@ body.is-signed-out .trip-controls-popover {
         flex: 1;
         min-width: 0;
     }
+    /* 2026-05-26: privacy-select pill mobile fit.
+       Translated labels are longer than English ("🌍 Pública — incl.
+       despesas" / "🌍 Public — plan uniquement" run ~30% wider). The
+       select sits in a fixed-width pill, so without a min-width: 0 +
+       text overflow rule the longest option pushes the pill past the
+       row's available width and clips the chevron. Force the pill to
+       respect its parent's flex slot, and let the select itself
+       truncate with ellipsis when the active option is too long. The
+       full label is still visible in the open dropdown — only the
+       collapsed pill truncates, which the user can verify via the
+       dropdown itself. */
+    .trip-privacy-select {
+        max-width: 100%;
+        text-overflow: ellipsis;
+        overflow: hidden;
+        white-space: nowrap;
+    }
+    .collections-row__public-toggle {
+        max-width: 100%;
+        overflow: hidden;
+    }
+}
+/* Desktop + mobile shared: keep the select chevron from being torn
+   off the right edge by a long label. min-width: 0 lets the select
+   collapse below its content's natural width inside the flex pill. */
+.trip-privacy-select {
+    min-width: 0;
 }
 /* (.day-plan-tab__count + active/empty states, .day-plan-panes /
    __pane + .is-active, .day-plan-pane textarea.plan-input (+ :focus),

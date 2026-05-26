@@ -82,10 +82,10 @@ function _wireDateRangeValidation(
         endEl.min = startEl.value || '';
         if (startEl.value && endEl.value && endEl.value < startEl.value) {
             if (hintEl) {
-                hintEl.textContent = 'End date must be on or after the start date.';
+                hintEl.textContent = t('errors.dateRangeInvalid');
                 hintEl.style.color = '#a82424';
             }
-            endEl.setCustomValidity('End date must be on or after the start date.');
+            endEl.setCustomValidity(t('errors.dateRangeInvalid'));
         } else {
             if (hintEl) {
                 hintEl.textContent = _origHint;
@@ -172,7 +172,7 @@ function _wirePlacePicker(
             setHintTone('success');
         } else {
             submitBtn.disabled = true;
-            hint.textContent = 'Pick a suggestion to confirm the location.';
+            hint.textContent = t('errors.placePickerHint');
             setHintTone(null);
         }
     };
@@ -188,7 +188,7 @@ function _wirePlacePicker(
 
     // @ts-ignore — google is injected globally
     if (typeof google === 'undefined' || !google.maps || !google.maps.places) {
-        hint.textContent = '⚠ Google Maps failed to load. Check your API key + billing.';
+        hint.textContent = t('errors.googleMapsFailed');
         setHintTone('warn');
         // Manual escape hatch — accept whatever they typed.
         placeInput.oninput = () => {

@@ -6,6 +6,7 @@ import { API_BASE_URL, EVENTS, PAGES, type PageName } from './constants.js';
 import { validateServerData } from './schemas.js';
 import { normalizeTripCompanions } from './companions.js';
 import { showLiquidAlert } from './utils.js';
+import { t } from './i18n.js';
 
 // All fetch URLs are built via apiUrl() so the API_BASE_URL constant is the
 // single point that needs to change when the backend isn't co-located with
@@ -205,7 +206,7 @@ export async function syncWithServer() {
         // Success path — if we'd previously warned the user about an
         // outage, let them know we're back.
         if (_syncOfflineToastShown) {
-            showLiquidAlert('Back online — your changes are saved.');
+            showLiquidAlert(t('errors.backOnline'));
         }
         _syncConsecutiveFailures = 0;
         _syncOfflineToastShown = false;
@@ -223,8 +224,8 @@ export async function syncWithServer() {
             _syncOfflineToastShown = true;
             showLiquidAlert(
                 navigator.onLine === false
-                    ? "You're offline — changes will sync when you're back."
-                    : "Can't reach the server — we'll keep retrying.",
+                    ? t('errors.offline')
+                    : t('errors.serverUnreachable'),
             );
         }
     }

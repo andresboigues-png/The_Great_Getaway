@@ -24,6 +24,7 @@
 import { useState } from 'react';
 import { followUser, unfollowUser } from '../../api.js';
 import { showLiquidAlert } from '../../utils.js';
+import { t } from '../../i18n.js';
 
 
 export interface FollowButtonProps {
@@ -55,7 +56,7 @@ export function FollowButton({ targetUserId, initialIsFollowing, onFollowersChan
         if (apiResult.error || !apiResult.state) {
             // Server rejected — revert visual state + toast the user.
             setIsFollowing(wasFollowing);
-            showLiquidAlert(apiResult.error || 'Could not update follow state');
+            showLiquidAlert(apiResult.error || t('errors.followUpdateFailed'));
             return;
         }
         // Dispatch authoritative followers count to the parent so

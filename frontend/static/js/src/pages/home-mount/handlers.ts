@@ -25,6 +25,7 @@
 
 import { STATE, emit } from '../../state.js';
 import { showLiquidAlert, showConfirmModal, generateId } from '../../utils.js';
+import { t } from '../../i18n.js';
 import { upsertDay, deleteDayOnServer } from '../../api.js';
 import { navigate } from '../../router.js';
 import { clearSelectedDay, getSelectedDayId } from '../home/pathSelection.js';
@@ -277,14 +278,14 @@ export const deleteDay = (dayId: string): void => {
     // belt-and-braces in case some old in-memory STATE / external
     // call site reaches deleteDay with a day-0 id.
     if (Number(day.dayNumber) === 0) {
-        showLiquidAlert("Trip Hub can't be deleted — it's the trip's home base.");
+        showLiquidAlert(t('errors.tripHubCannotDelete'));
         return;
     }
 
     showConfirmModal({
-        title: `Delete Day ${day.dayNumber}?`,
-        message: "This removes the day and all its journaling, photos, and documents. This can't be undone.",
-        confirmText: 'Delete Day',
+        title: t('errors.deleteDayTitle', { n: day.dayNumber }),
+        message: t('errors.deleteDayBody'),
+        confirmText: t('errors.deleteDayConfirmBtn'),
         onConfirm: async () => {
             const tripId = day.tripId;
             STATE.tripDays = STATE.tripDays.filter((d) => d.id !== dayId);

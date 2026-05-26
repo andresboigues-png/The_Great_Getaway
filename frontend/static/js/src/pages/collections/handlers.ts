@@ -13,6 +13,7 @@
 
 import { STATE, emit } from '../../state.js';
 import { showConfirmModal } from '../../utils.js';
+import { t } from '../../i18n.js';
 import { navigate } from '../../router.js';
 import { apiUrl, unarchiveTripOnServer, upsertTrip } from '../../api.js';
 
@@ -60,9 +61,9 @@ export const restoreTrip = (id: string) => {
     if (!trip) return;
 
     showConfirmModal({
-        title: 'Restore Trip?',
-        message: 'This will move the trip back to your active list.',
-        confirmText: 'Restore',
+        title: t('errors.restoreTripTitle'),
+        message: t('errors.restoreTripBody'),
+        confirmText: t('errors.restoreTripConfirmBtn'),
         onConfirm: () => {
             trip.isArchived = false;
 
@@ -92,9 +93,9 @@ export const restoreTrip = (id: string) => {
 
 export const deleteArchivedTrip = (id: string) => {
     showConfirmModal({
-        title: 'Delete Permanently?',
-        message: 'This trip and all its memories will be gone forever.',
-        confirmText: 'Delete',
+        title: t('errors.deleteTripTitle'),
+        message: t('errors.deleteTripBody'),
+        confirmText: t('errors.deleteTripConfirmBtn'),
         onConfirm: async () => {
             STATE.archivedTrips = STATE.archivedTrips.filter((t) => t.id !== id);
             emit('state:changed');

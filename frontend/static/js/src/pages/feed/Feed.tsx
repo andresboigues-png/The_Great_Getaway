@@ -283,7 +283,7 @@ export function Feed() {
         const result = await postFeedComment(eventId, body);
         if (!result.ok || !result.body?.comment) {
             input.value = body;
-            showLiquidAlert("Couldn't post comment — try again.");
+            showLiquidAlert(t('errors.commentPostFailed'));
             return;
         }
         const newComment = result.body.comment as FeedComment;
@@ -315,7 +315,7 @@ export function Feed() {
         );
         const result = await deleteFeedComment(commentId);
         if (!result.ok) {
-            showLiquidAlert("Couldn't delete — try again in a moment.");
+            showLiquidAlert(t('errors.deleteFailed'));
         }
     };
 

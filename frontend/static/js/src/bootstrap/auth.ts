@@ -8,6 +8,7 @@ import { STATE, emit } from '../state.js';
 import { apiUrl, apiFetch, clearAuthToken, syncWithServer, pullFromServer, announceUserToSW } from '../api.js';
 import { navigate } from '../router.js';
 import { showLiquidAlert } from '../utils.js';
+import { t } from '../i18n.js';
 import { updateUserUI } from '../pages/profile.js';
 import { attemptPendingClone, hasPendingCloneIntent } from './clone-intent.js';
 
@@ -88,7 +89,7 @@ async function handleGoogleLogin(response: { credential?: string; [key: string]:
         navigate(target as Parameters<typeof navigate>[0]);
     } catch (e) {
         console.error("Google Login Failed:", e);
-        showLiquidAlert('Login failed — please try again.');
+        showLiquidAlert(t('errors.loginFailed'));
     }
 }
 

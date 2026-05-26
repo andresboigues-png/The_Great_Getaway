@@ -15,6 +15,8 @@
 
 import { STATE } from './state.js';
 import { PAGES, type PageName } from './constants.js';
+import { t } from './i18n.js';
+import { esc } from './utils.js';
 // stopHomeSlideshow stays a STATIC import because it's called at
 // the top of every navigate() to halt home's empty-state slideshow
 // timer — pulling it via a dynamic import would round-trip through
@@ -288,7 +290,7 @@ export function navigate(
             mount(content);
         }).catch(() => {
             clearReactMount();
-            content.innerHTML = '<div style="padding:48px;text-align:center;color:#5a5a5e;">Failed to load this page. Refresh to retry.</div>';
+            content.innerHTML = `<div style="padding:48px;text-align:center;color:#5a5a5e;">${esc(t('errors.pageLoadFailed'))}</div>`;
         });
     });
 

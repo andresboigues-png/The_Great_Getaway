@@ -17,6 +17,7 @@ import { STATE, emit } from '../state.js';
 import { cloneTripFromShareToken, pullFromServer } from '../api.js';
 import { navigate } from '../router.js';
 import { showLiquidAlert } from '../utils.js';
+import { t } from '../i18n.js';
 import { EVENTS, PAGES } from '../constants.js';
 
 export const CLONE_INTENT_KEY = 'gg_clone_from_share';
@@ -45,7 +46,7 @@ export async function attemptPendingClone(): Promise<void> {
         const res = await cloneTripFromShareToken(token);
         try { sessionStorage.removeItem(CLONE_INTENT_KEY); } catch { /* ignored */ }
         if (!res?.ok || !res.body?.tripId) {
-            showLiquidAlert("Couldn't clone that trip. Try again from Collections.");
+            showLiquidAlert(t('errors.cloneFailedFromCollections'));
             return;
         }
         const newTripId = res.body.tripId;
@@ -57,7 +58,7 @@ export async function attemptPendingClone(): Promise<void> {
         await pullFromServer();
         STATE.activeTripId = newTripId;
         emit(EVENTS.STATE_CHANGED);
-        showLiquidAlert('Trip cloned! Edit your draft on Home.');
+        showLiquidAlert(t('errors.cloneSuccess'));
         navigate(PAGES.HOME);
     } catch (e) {
         console.error('Pending clone failed:', e);

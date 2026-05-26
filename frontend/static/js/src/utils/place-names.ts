@@ -6,6 +6,50 @@
 // card all see the same resolution.
 
 import { TRAVEL_DATA_DEFAULT, DESTINATION_DATA } from '../constants.js';
+import { t } from '../i18n.js';
+
+/** Localize a population/capital fact from DESTINATION_DATA. The source
+ *  data ships English ("Did you know that {name} has a population of
+ *  about {N} {unit} people? Its capital city is {capital}.") for 240+
+ *  countries / US states; translating each one would mean ~960
+ *  translated strings. Instead the English fact is parsed at render
+ *  time to extract the slot values, then re-formatted with a translated
+ *  template from `facts.country` / `facts.state` so only the surrounding
+ *  phrasing varies per locale.
+ *
+ *  Returns the original English fact unchanged if parsing fails — the
+ *  one row that doesn't match would otherwise leak as raw English
+ *  template text, which still beats a blank or a malformed string. */
+export function localizeFact(englishFact: string): string {
+    if (!englishFact) return englishFact;
+    // Country pattern: "Did you know that {name} has a population of
+    // about {N} {unit} people? Its capital city is {capital}."
+    const countryRe = /^Did you know that (.+?) has a population of about (\S+) (million|thousand) people\? Its capital city is (.+?)\.$/;
+    // US-state pattern: "Did you know that the {name} State has a
+    // population of about {N} {unit} people? Its biggest city is {x}."
+    const stateRe = /^Did you know that the (.+?) State has a population of about (\S+) (million|thousand) people\? Its biggest city is (.+?)\.$/;
+    const localizeUnit = (u: string) =>
+        u === 'million' ? t('facts.unitMillion') : t('facts.unitThousand');
+    const stateMatch = stateRe.exec(englishFact);
+    if (stateMatch) {
+        const [, name, n, unit, biggest] = stateMatch;
+        return t('facts.state', { name: name!, n: n!, unit: localizeUnit(unit!), biggest: biggest! });
+    }
+    const countryMatch = countryRe.exec(englishFact);
+    if (countryMatch) {
+        const [, name, n, unit, capital] = countryMatch;
+        return t('facts.country', { name: name!, n: n!, unit: localizeUnit(unit!), capital: capital! });
+    }
+    // Generic fallback inserted by getMediaForTrip below — already
+    // English-template-shaped but the {label} value needs to flow
+    // through to the locale's version of the same phrase.
+    const fallbackRe = /^Did you know\? (.+?) is full of hidden gems waiting to be explored\.$/;
+    const fbMatch = fallbackRe.exec(englishFact);
+    if (fbMatch) {
+        return t('facts.genericFallback', { label: fbMatch[1]! });
+    }
+    return englishFact;
+}
 
 // Build a case-insensitive lookup once at module load. Google's
 // `formatted_address` gives us "United States" but the dataset is keyed

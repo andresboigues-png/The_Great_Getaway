@@ -114,6 +114,61 @@ export const en = {
         msgShareReposted: '{actor} reposted your share.',
         msgSettledUp: '{from} settled {amount} {currency} with you for {trip}.',
     },
+    // Connectivity / error toasts surfaced by api.ts on the offline →
+    // online → server-unreachable transitions, and login / clone /
+    // delete / map-load failures across the app.
+    errors: {
+        backOnline: 'Back online — your changes are saved.',
+        offline: "You're offline — changes will sync when you're back.",
+        serverUnreachable: "Can't reach the server — we'll keep retrying.",
+        loginFailed: 'Login failed — please try again.',
+        cloneFailedFromCollections: "Couldn't clone that trip. Try again from Collections.",
+        cloneSuccess: 'Trip cloned! Edit your draft on Home.',
+        followUpdateFailed: 'Could not update follow state',
+        commentPostFailed: "Couldn't post comment — try again.",
+        deleteFailed: "Couldn't delete — try again in a moment.",
+        tripHubCannotDelete: "Trip Hub can't be deleted — it's the trip's home base.",
+        dateRangeInvalid: 'End date must be on or after the start date.',
+        placePickerHint: 'Pick a suggestion to confirm the location.',
+        googleMapsFailed: '⚠ Google Maps failed to load. Check your API key + billing.',
+        pageLoadFailed: 'Failed to load this page. Refresh to retry.',
+        // Confirm-modal copy.
+        completeTripBody: 'It moves into your Collections as a completed memory. You can revisit it anytime, and reopen it later if you need to.',
+        deleteOwnerOnly: "Only the trip's owner can delete it. You can mark your own copy complete from the navbar instead.",
+        deleteDayBody: "This removes the day and all its journaling, photos, and documents. This can't be undone.",
+        // Confirm-dialog titles + confirm-button copy.
+        deleteDayTitle: 'Delete Day {n}?',
+        deleteDayConfirmBtn: 'Delete Day',
+        restoreTripTitle: 'Restore this trip?',
+        restoreTripConfirmBtn: 'Restore',
+        deleteTripTitle: 'Delete this trip?',
+        deleteTripConfirmBtn: 'Delete',
+        deleteOwnerOnlyTitle: 'Only owners can delete',
+        completeTripTitle: 'Complete this trip?',
+        completeTripConfirmBtn: 'Complete',
+        // Trip-controls — permanent delete copy.
+        permaDeleteTitle: 'Delete Trip?',
+        permaDeleteBody: 'Are you sure you want to delete "{name}" permanently? This will remove all associated expenses and days.',
+        permaDeleteConfirmBtn: 'Delete Permanently',
+        ownerOnlyConfirmBtn: 'OK',
+        restoreTripBody: 'This will move the trip back to your active list.',
+        deleteTripBody: 'This trip and all its memories will be gone forever.',
+    },
+    // Population/capital facts rendered on the home-page hero slideshow.
+    // The English source data lives in DESTINATION_DATA[].f as a fixed
+    // template ("Did you know that {name} has a population of about {N}
+    // {unit} people? Its capital city is {capital}."). We parse out the
+    // slot values at render time and feed them through the templates
+    // below so the surrounding phrase follows the active locale —
+    // 240+ facts stay in one place (the data file) without needing a
+    // 240×4 translation table.
+    facts: {
+        country: 'Did you know that {name} has a population of about {n} {unit} people? Its capital city is {capital}.',
+        state: 'Did you know that the {name} State has a population of about {n} {unit} people? Its biggest city is {biggest}.',
+        unitMillion: 'million',
+        unitThousand: 'thousand',
+        genericFallback: 'Did you know? {label} is full of hidden gems waiting to be explored.',
+    },
     // 2026-05-25: sidebar (hamburger drawer) chrome — header + section
     // dividers + close button. The nav items themselves reuse `nav.*`
     // keys above.
