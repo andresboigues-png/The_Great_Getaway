@@ -436,12 +436,21 @@ def share_trip_to_feed():
         # a private trip still get the 400 since they shouldn't be
         # flipping the owner's privacy without consent.
         cursor.execute(
-            "SELECT user_id, is_public FROM trips WHERE id = ?",
+            "SELECT user_id, is_public, is_archived FROM trips WHERE id = ?",
             (trip_id,),
         )
         trip_row = cursor.fetchone()
         if not trip_row:
             return jsonify({"error": "Trip not found"}), 404
+        # R3-Round 3 fix: refuse to publish an archived trip to the
+        # feed unless the caller is the OWNER unarchiving in the same
+        # flow. Pre-fix a relaxer / planner on an archived trip could
+        # surface it to the feed days after the owner considered it
+        # closed, which felt like a betrayal of "completed = done."
+        if trip_row["is_archived"]:
+            return jsonify({
+                "error": "Trip is archived — unarchive before sharing to feed",
+            }), 409
         is_owner = (trip_row["user_id"] == user_id)
         # Audit fix (2026-05-26): snapshot the trip's pre-share
         # is_public value so the unshare path can restore it. Without
@@ -708,7 +717,8 @@ def repost_feed_post(post_id):
         cursor = conn.cursor()
         cursor.execute(
             "SELECT fp.trip_id, fp.user_id, fp.repost_of_post_id, "
-            "       COALESCE(t.is_public, 0) AS is_public "
+            "       COALESCE(t.is_public, 0) AS is_public, "
+            "       t.id AS trip_exists "
             "FROM feed_posts fp LEFT JOIN trips t ON t.id = fp.trip_id "
             "WHERE fp.id = ?",
             (post_id,),
@@ -716,6 +726,17 @@ def repost_feed_post(post_id):
         original = cursor.fetchone()
         if not original:
             return jsonify({"error": "Post not found"}), 404
+        # R3-Round 3 fix: feed_posts.trip_id is FK ON DELETE CASCADE,
+        # but a race window exists where the trip is deleted between
+        # source-share and this repost call (CASCADE hasn't fired
+        # yet from this connection's perspective). Without this guard
+        # the repost row would land with a dangling trip_id; the
+        # cascade then later cleans it up but the optimistic UI
+        # already showed "reposted." Return 410 so the client surfaces
+        # "this trip is no longer available" instead of a silent
+        # success that disappears on next poll.
+        if not original['trip_exists']:
+            return jsonify({"error": "Trip no longer available"}), 410
         if not original['is_public']:
             # Private trip — fall back to the canonical friend-of-
             # author visibility check used by like / comment.

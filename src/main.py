@@ -707,8 +707,16 @@ def share_page(token):
                 "WHERE share_token = ?",
                 (token,),
             )
+            # R3-Round 3 fix: only mutate the payload when the UPDATE
+            # actually wrote a row. If the owner revoked the token
+            # between fetch_share_payload and this UPDATE (microsecond
+            # race), rowcount=0 — pre-fix the payload still showed
+            # `+1` views, a phantom increment the visitor would see
+            # in their session that never made it to DB.
+            row_count = cursor.rowcount
             conn.commit()
-        payload["trip"]["views"] = payload["trip"].get("views", 0) + 1
+        if row_count == 1:
+            payload["trip"]["views"] = payload["trip"].get("views", 0) + 1
 
     # Build the OG description from what's in the payload — keep it
     # short (LinkedIn caps around 200 chars) and lead with the most
