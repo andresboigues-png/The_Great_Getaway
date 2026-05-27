@@ -862,7 +862,7 @@ def list_feed_comments(event_id):
         # Filter out comments authored by users the caller has
         # blocked.
         cursor.execute('''
-            SELECT c.id, c.user_id, c.body, c.created_at,
+            SELECT c.id, c.user_id, c.body, c.created_at, c.edited_at,
                    u.name AS user_name, u.picture AS user_picture
             FROM feed_comments c
             LEFT JOIN users u ON u.id = c.user_id
@@ -879,6 +879,10 @@ def list_feed_comments(event_id):
             "author": {"id": r["user_id"], "name": r["user_name"], "picture": r["user_picture"]},
             "body": r["body"],
             "when": r["created_at"],
+            # R3-Round 2: surfaces a non-null timestamp when the comment
+            # has been edited; the renderer shows "(edited)" next to it.
+            # Null = never edited.
+            "editedAt": r["edited_at"],
         }
         for r in rows
     ])
@@ -1073,8 +1077,13 @@ def edit_feed_comment(comment_id):
         event_id = row["event_id"]
         if not _caller_can_see_event(cursor, event_id, user_id):
             return jsonify({"error": "Unknown or unauthorised event"}), 404
+        # R3-Round 2: stamp edited_at so readers see "(edited)" next
+        # to comments that have been changed. The on-block / on-delete
+        # cleanup paths don't care about edited_at; only the renderer
+        # reads it.
         cursor.execute(
-            "UPDATE feed_comments SET body = ? WHERE id = ?",
+            "UPDATE feed_comments SET body = ?, edited_at = CURRENT_TIMESTAMP "
+            "WHERE id = ?",
             (body, comment_id),
         )
         conn.commit()

@@ -584,6 +584,44 @@ def respond_trip_invite():
         if not row:
             return jsonify({"error": "No pending invitation"}), 404
         inviter_id = row["invited_by"]
+        # R3-Round 2 #18: re-verify the inviter still has authority on
+        # the trip. Pre-fix the invite stayed valid even after the
+        # inviter was kicked or self-left the trip — the invitee
+        # accepted into a trip whose inviter had no role on it
+        # anymore. Reject + cancel the stale invite so the invitee
+        # gets a clean signal instead of a confusing "you're now
+        # a member of a trip you don't recognise" state. Owner is
+        # always considered authoritative even if their member row
+        # is missing (legacy data).
+        cursor.execute(
+            "SELECT user_id FROM trips WHERE id = ?", (trip_id,),
+        )
+        trip_owner_row = cursor.fetchone()
+        if not trip_owner_row:
+            # Trip itself gone — cancel + 404.
+            cursor.execute(
+                "DELETE FROM trip_members WHERE trip_id = ? AND user_id = ?",
+                (trip_id, user_id),
+            )
+            conn.commit()
+            return jsonify({"error": "Trip no longer exists"}), 404
+        trip_owner_id = trip_owner_row["user_id"]
+        inviter_still_authoritative = (
+            inviter_id is None  # invited_by NULL = system / legacy — OK
+            or inviter_id == trip_owner_id  # owner is always authoritative
+            or can_edit_trip(cursor, trip_id, inviter_id)
+        )
+        if not inviter_still_authoritative:
+            # Stale invite — cancel it; the inviter no longer has
+            # the authority to bring this user onto the trip.
+            cursor.execute(
+                "DELETE FROM trip_members WHERE trip_id = ? AND user_id = ?",
+                (trip_id, user_id),
+            )
+            conn.commit()
+            return jsonify({
+                "error": "Invitation is no longer valid",
+            }), 410
 
         cursor.execute("SELECT name FROM users WHERE id = ?", (user_id,))
         responder_row = cursor.fetchone()

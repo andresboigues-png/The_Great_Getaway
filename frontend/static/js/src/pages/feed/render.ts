@@ -483,6 +483,7 @@ export function commentRowHtml(c: any, canDelete: boolean) {
                 <div style="display:flex; align-items:baseline; gap:8px; flex-wrap:wrap;">
                     <strong style="color:#002d5b; font-size:0.85rem;">${esc(c.author?.name || 'Someone')}</strong>
                     <span style="font-size:0.7rem; color:var(--text-secondary); font-weight:600; text-transform:uppercase; letter-spacing:0.06em;">${esc(relativeTime(c.when))}</span>
+                    ${c.editedAt ? `<span style="font-size:0.65rem; color:var(--text-secondary); font-style:italic; opacity:0.7;" title="${esc(c.editedAt)}">(edited)</span>` : ''}
                 </div>
                 <div style="font-size:0.88rem; color:#002d5b; line-height:1.4; margin-top:2px; white-space:pre-wrap; word-wrap:break-word;">${esc(c.body || '')}</div>
             </div>

@@ -543,6 +543,10 @@ def init_db():
                 user_id TEXT NOT NULL,
                 body TEXT NOT NULL,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                -- R3-Round 2 fix: stamped on every PATCH so the renderer
+                -- can show "(edited)" next to comments whose body has
+                -- changed. NULL = never edited.
+                edited_at DATETIME,
                 FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
             )
         ''')
@@ -905,7 +909,7 @@ _EXPECTED_COLUMNS = {
     ],
     "feed_likes": ["user_id", "event_id", "created_at"],
     "feed_bookmarks": ["user_id", "event_id", "created_at"],
-    "feed_comments": ["id", "event_id", "user_id", "body", "created_at"],
+    "feed_comments": ["id", "event_id", "user_id", "body", "created_at", "edited_at"],
     "follows": ["id", "follower_id", "followee_id", "created_at"],
     "user_achievements": [
         "id", "user_id", "badge_id", "earned_at", "context_json",

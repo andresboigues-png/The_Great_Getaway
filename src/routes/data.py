@@ -669,6 +669,12 @@ def sync_data():
 @bp.route("/api/data", methods=["GET"])
 @limiter.limit("60/minute")
 @require_auth
+# R3-Round 2 fix: /api/data is a WRITER (it calls
+# check_user_achievements + notify_achievements + conn.commit() in
+# the body) but pre-fix it had no @retry_on_lock — a concurrent
+# /api/sync writer holding the lock past busy_timeout would 500
+# this route. Same shape as the other writers in this blueprint.
+@retry_on_lock()
 def get_data():
     """Fetch all data for a user, including shared trips.
 
