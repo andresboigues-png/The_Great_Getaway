@@ -110,12 +110,22 @@ function _scaffoldTripDays(
 ): import('./types').TripDay[] {
         const created: import('./types').TripDay[] = [];
     if (!startDate || !endDate) return created;
-    const start = new Date(startDate + 'T00:00:00');
-    const end = new Date(endDate + 'T00:00:00');
+    // R3-Fix #10: pre-fix this parsed `startDate + 'T00:00:00'` as LOCAL
+    // midnight, then `d.toISOString().split('T')[0]` extracted UTC date —
+    // every iteration's stored date was shifted by the user's TZ offset
+    // on positive-UTC zones (Tokyo user starting "2024-03-25" stored
+    // day_1 as "2024-03-24"), and DST transitions duplicated one date
+    // while skipping the next (Mar 25-30 in Lisbon DST: day_4 came out
+    // as 2024-03-27 a second time, Mar 28 missing). Now: parse and
+    // increment in UTC throughout (`Z` suffix + setUTCDate), so the
+    // ISO date string matches what the user picked regardless of zone
+    // or DST.
+    const start = new Date(startDate + 'T00:00:00Z');
+    const end = new Date(endDate + 'T00:00:00Z');
     if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) return created;
 
     let dayNumber = startDayNumber;
-    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
         const iso = d.toISOString().split('T')[0] ?? '';
         /** @type {import('./types').TripDay} */
         const day = {
@@ -638,11 +648,15 @@ export const openEditTripModal = (trip: any) => {
             const newStart = startInput.value;
             const oldStart = numberedDays[0]!.date || '';
             if (newStart && newStart !== oldStart) {
-                const start = new Date(newStart + 'T00:00:00');
+                // R3-Fix #10: same UTC-everywhere fix as _scaffoldTripDays.
+                // Pre-fix the local-parse + UTC-emit pattern silently
+                // shifted every day's stored date by the user's TZ
+                // offset on a rebase.
+                const start = new Date(newStart + 'T00:00:00Z');
                 if (!isNaN(start.getTime())) {
                     for (const day of numberedDays) {
                         const d = new Date(start);
-                        d.setDate(d.getDate() + (day.dayNumber - 1));
+                        d.setUTCDate(d.getUTCDate() + (day.dayNumber - 1));
                         const newDate = d.toISOString().split('T')[0] ?? '';
                         if (day.date !== newDate) {
                             day.date = newDate;

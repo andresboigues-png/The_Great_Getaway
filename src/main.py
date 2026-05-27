@@ -508,12 +508,27 @@ def _cleanup_feed_orphans():
                            OR event_id LIKE 'trip\\_%\\_' || t.id || '\\_%' ESCAPE '\\'
                     )
                 )
-                -- 365-day age backstop for any rows whose event_id
-                -- shape we don't cover above (friendship_*, future
-                -- types). 365d ≫ the 30d feed display window so
-                -- evergreen engagement isn't touched, but rows
-                -- never get to accumulate forever.
-                OR created_at < datetime('now', '-365 days')
+                -- 365-day age backstop for rows whose event_id shape
+                -- isn't covered above (friendship_*, achievement_*,
+                -- future types). R3-Fix #9: pre-fix this read
+                -- `OR created_at < datetime('now', '-365 days')`
+                -- which matched EVERY row regardless of event_id —
+                -- including legitimate engagement on known event
+                -- shapes whose parent record was still very much
+                -- alive. Result: a 365d+1 day-old like on a still-
+                -- public share got wiped. Now: only fires when the
+                -- event_id is none of the known prefixes (catches
+                -- truly-orphaned future shapes without harming the
+                -- known ones, which already have their orphan
+                -- predicate above).
+                OR (
+                    event_id NOT LIKE 'share\\_%' ESCAPE '\\'
+                    AND event_id NOT LIKE 'repost\\_%' ESCAPE '\\'
+                    AND event_id NOT LIKE 'settled\\_up\\_%' ESCAPE '\\'
+                    AND event_id NOT LIKE 'achievement\\_%' ESCAPE '\\'
+                    AND event_id NOT LIKE 'trip\\_%' ESCAPE '\\'
+                    AND created_at < datetime('now', '-365 days')
+                )
             """
             cursor.execute(f"DELETE FROM feed_likes WHERE {orphan_where}")
             deleted_likes = cursor.rowcount or 0
