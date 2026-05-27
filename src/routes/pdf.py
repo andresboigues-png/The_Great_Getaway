@@ -167,6 +167,16 @@ def _safe_latlng(lat, lng):
     return safe_lat, safe_lng
 
 
+def _place_label_for_index(i: int) -> str:
+    """Map a 0-based marker index to its display label.
+    R3-Round 3 fix: pre-fix the >26 case rendered "" on the map and
+    "·" in the legend, both useless. Now wrap A-Z so index 26 → A,
+    27 → B, etc. Accepts that two pins on a 30-marker trip will
+    share a label — honest ambiguity beats invisible labels. Callers
+    can read each card's name below for disambiguation."""
+    return chr(ord("A") + (i % 26))
+
+
 def _can_read_trip(cursor, trip_id: str, user_id: str) -> bool:
     """True if the caller can read this trip for export. Owner +
     accepted members qualify. We don't restrict to editors — even
@@ -1805,7 +1815,14 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
             plng = p.get("lng")
             if plat is None or plng is None:
                 continue
-            label = chr(ord("A") + i) if i < 26 else ""
+            # R3-Round 3 fix: past 26 places, cycle back through A-Z
+            # so each pin gets a meaningful label (A, B, ..., Z, A, B,
+            # ...). Pre-fix the >26 case used "" on the map and "·"
+            # in the legend — visually indistinguishable from each
+            # other. The wrap is honest about ambiguity (two pins
+            # both labelled "A") which is acceptable past 26: rare
+            # case, and the user can read each card's name below.
+            label = _place_label_for_index(i)
             place_pins.append((plat, plng, label))
         if place_pins:
             places_map_png = _fetch_overview_pins_map(
@@ -1836,7 +1853,7 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
                 continue
             nm = p.get("name") or ""
             addr = p.get("address") or p.get("vicinity") or ""
-            label = chr(ord("A") + i) if i < 26 else "·"
+            label = _place_label_for_index(i)
             # Left column = a small letter badge matching the map pin
             letter_para = rl.Paragraph(
                 f'<para alignment="center"><font color="white" size="13"><b>{_esc(label)}</b></font></para>',
@@ -1872,12 +1889,27 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
             ]))
             story.append(rl.KeepTogether([place_card, rl.Spacer(1, 0.18 * rl.cm)]))
 
-    if not any(opt(k) for k in (
+    # R3-Round 3 fix: also fire the cover-only hint when the user
+    # selected sections but every one is empty (a freshly-created
+    # trip with 0 days / 0 expenses / 0 todos / 0 companions / 0
+    # marked places, all default-included). Pre-fix this rendered
+    # as a silent 1-page cover with no explanation — the user
+    # thought the export was broken. The `or` branch counts
+    # actually-renderable content.
+    has_renderable_content = (
+        len(days_renderable) > 0
+        or len(todos) > 0
+        or len(budgets) > 0
+        or len(companions) > 0
+        or len(marked_places) > 0
+    )
+    no_sections_selected = not any(opt(k) for k in (
         "includeDays", "includeTodos", "includeBudgets",
         "includeCompanions", "includeMarkedPlaces",
-    )):
-        # No content sections selected — make the cover the only
-        # page and add a soft hint.
+    ))
+    if no_sections_selected or not has_renderable_content:
+        # No content sections selected, OR every selected section is
+        # empty — render the cover as the only page + a soft hint.
         story.append(rl.Spacer(1, 1.0 * rl.cm))
         story.append(rl.Paragraph(
             "<i>You chose a cover-only export. Re-run with more "
@@ -1886,7 +1918,24 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
             styles["muted"],
         ))
 
-    doc.build(story)
+    # R3-Round 3 fix: wrap doc.build in try/except. A pathological
+    # per-day notes field (~30k+ chars) can raise ReportLab's
+    # LayoutError if a single Paragraph won't fit on one page, and
+    # pre-fix that propagated as an unhandled 500 with a stack trace.
+    # Now: surface a friendly 500 with operator-actionable text +
+    # log the underlying error for forensics.
+    try:
+        doc.build(story)
+    except Exception as e:
+        from observability import get_logger
+        get_logger(__name__).warning(
+            "PDF doc.build failed: %s", e,
+        )
+        raise RuntimeError(
+            "PDF generation failed — likely a section too long to fit "
+            "on one page. Try shortening the longest note or splitting "
+            "the trip."
+        ) from e
     return buf.getvalue()
 
 
