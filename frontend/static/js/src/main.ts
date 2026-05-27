@@ -27,6 +27,8 @@ import './tailwind.css';
 import { STATE, loadState, subscribe } from './state.js';
 import { initThemeManager } from './theme.js';
 import { loadLocale, getLocale, t } from './i18n.js';
+import { drainOutbox } from './outbox.js';
+import { showConfirmModal } from './components/ConfirmModal.js';
 import { syncWithServer, pullFromServer, fetchNotifications, refreshFxRates } from './api.js';
 import { navigate } from './router.js';
 import { PAGES, EVENTS } from './constants.js';
@@ -286,7 +288,7 @@ async function init() {
     // → user sees the staleEdit toast on next inline interaction).
     window.addEventListener('online', () => {
         if (STATE.user) {
-            import('./outbox.js').then(m => m.drainOutbox()).catch(() => { /* best-effort */ });
+            drainOutbox().catch(() => { /* best-effort */ });
             syncWithServer();
             fetchNotifications();
         }
@@ -300,7 +302,7 @@ async function init() {
     if (typeof navigator !== 'undefined' && navigator.onLine !== false) {
         setTimeout(() => {
             if (STATE.user) {
-                import('./outbox.js').then(m => m.drainOutbox()).catch(() => { /* best-effort */ });
+                drainOutbox().catch(() => { /* best-effort */ });
             }
         }, 2000);
     }
@@ -370,8 +372,17 @@ if ('serviceWorker' in navigator) {
                     if (!navigator.serviceWorker.controller) return;
                     if (_promptShown) return;
                     _promptShown = true;
+                    // R8-B5: showConfirmModal now a static import (top
+                    // of file). Pre-fix the dynamic-import was
+                    // ineffective code-splitting — ConfirmModal is
+                    // statically imported by utils.ts, which is in
+                    // the entry bundle — and produced an INEFFECTIVE_
+                    // DYNAMIC_IMPORT warning on every build. The
+                    // try/catch stays so a future refactor that
+                    // genuinely lazy-loads ConfirmModal doesn't crash
+                    // on a load failure; native confirm is the last-
+                    // resort fallback.
                     try {
-                        const { showConfirmModal } = await import('./components/ConfirmModal.js');
                         showConfirmModal({
                             title: t('pwa.updateAvailableTitle'),
                             message: t('pwa.updateAvailable'),
@@ -380,10 +391,6 @@ if ('serviceWorker' in navigator) {
                             onConfirm: () => waiting.postMessage({ type: 'SKIP_WAITING' }),
                         });
                     } catch (e) {
-                        // If the modal chunk failed to load (offline,
-                        // SW evicted, transient bundle hiccup), fall
-                        // back to the legacy confirm so the user can
-                        // still trigger the update. Edge case only.
                         console.warn('[pwa] confirm modal failed, falling back to native', e);
                         const accept = window.confirm(t('pwa.updateAvailable'));
                         if (accept) waiting.postMessage({ type: 'SKIP_WAITING' });

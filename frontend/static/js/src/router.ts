@@ -257,6 +257,29 @@ export function navigate(
     const savedScrollY = window.scrollY;
     const willBeSamePage = currentPage === page;
 
+    // R8-B5: nav-state DOM mutation moved INTO the loader's .then()
+    // so visual + semantic + actually-mounted page stay in lockstep.
+    // Pre-fix the active-class + aria-current updates fired
+    // SYNCHRONOUSLY here, but the page mount waited for the async
+    // chunk. On fast double-taps (A → B) or when B's chunk loaded
+    // slower than A's cached chunk, screen readers announced
+    // `aria-current=page` for B while the rendered tree was still
+    // A. Worse: any tap on still-mounted A page fired A's handlers
+    // with the aborted signal → "save failed" toasts the user
+    // didn't cause. Helper hoisted so success + fallback paths share
+    // the same nav-state writes.
+    const _applyNavState = (forPage: PageName) => {
+        document.querySelectorAll('.nav-item, .sidebar-rail__item').forEach(item => {
+            const isActive = item.getAttribute('data-page') === forPage;
+            item.classList.toggle('active', isActive);
+            if (isActive) {
+                item.setAttribute('aria-current', 'page');
+            } else {
+                item.removeAttribute('aria-current');
+            }
+        });
+    };
+
     const loader = PAGE_LOADERS[page] ?? PAGE_LOADERS[PAGES.HOME];
     loader().then((mount) => {
         // Re-check that the route hasn't changed under us (the user
@@ -269,6 +292,10 @@ export function navigate(
         clearReactMount();
         content.innerHTML = '';
         mount(content, params ?? undefined);
+        // R8-B5: nav-state writes land HERE — after the mount has
+        // actually happened. ScreenReader announces aria-current
+        // matching the rendered tree, not the in-flight target.
+        _applyNavState(page);
         // Slide-in animation hook for swipe-driven nav. Caller (the
         // mobile swipe handler) passes a direction so the new page
         // enters from the side the swipe came from, matching the
@@ -293,30 +320,28 @@ export function navigate(
             clearReactMount();
             content.innerHTML = '';
             mount(content);
+            // R8-B5: nav-state reflects the ACTUAL mounted page
+            // (HOME) — not the page the user originally clicked.
+            // Hash also corrects below outside the .catch so deep-
+            // link state matches.
+            _applyNavState(PAGES.HOME);
+            isInternalNav = true;
+            window.location.hash = PAGES.HOME;
         }).catch(() => {
             clearReactMount();
             content.innerHTML = `<div style="padding:48px;text-align:center;color:#5a5a5e;">${esc(t('errors.pageLoadFailed'))}</div>`;
         });
     });
 
-    // Update active nav state. Phase 3A swapped inline onclick="" for
-    // data-page=""; we match against that now. Covers both the top
-    // navbar `.nav-item` links AND the new sidebar-rail items so the
-    // active-page highlight follows the user across both surfaces.
-    // R3-Round 3 fix: also set `aria-current="page"` on the matching
-    // link so screen readers announce which tab is active (visual-only
-    // .active class was opaque to assistive tech).
-    document.querySelectorAll('.nav-item, .sidebar-rail__item').forEach(item => {
-        const isActive = item.getAttribute('data-page') === page;
-        item.classList.toggle('active', isActive);
-        if (isActive) {
-            item.setAttribute('aria-current', 'page');
-        } else {
-            item.removeAttribute('aria-current');
-        }
-    });
-
-    // Update hash for deep linking / persistence on refresh
+    // Update hash for deep linking / persistence on refresh. The
+    // hash update STAYS synchronous (not deferred to .then()) so
+    // the guard inside the .then() — "if window.location.hash
+    // !== page, drop this mount" — can detect a SUBSEQUENT
+    // navigate() call. If we deferred the hash, two rapid
+    // navigates would both pass the guard, both mount, second
+    // wins via natural ordering but the first's React tree
+    // would briefly paint + double-fetch any of its async
+    // effects.
     isInternalNav = true;
     window.location.hash = page;
 
