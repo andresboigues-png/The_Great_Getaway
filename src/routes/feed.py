@@ -408,11 +408,20 @@ def share_trip_to_feed():
     user_id = current_user_id()
     data = request.json or {}
     trip_id = data.get("trip_id")
-    caption = (data.get("caption") or "").strip()
-    if caption:
-        caption = caption[:280]
+    # R2 audit fix: distinguish "caption key absent" (don't touch
+    # the stored value on re-share) from "caption key present
+    # but empty" (explicit clear). Pre-fix both collapsed to None
+    # and the re-share path only fired UPDATE when `caption is
+    # not None`, so users could NEVER clear a caption — only
+    # replace it. Track `caption_provided` separately.
+    caption_provided = "caption" in data
+    raw_caption = (data.get("caption") or "").strip()
+    if raw_caption:
+        caption = raw_caption[:280]
+    elif caption_provided:
+        caption = None  # explicit clear
     else:
-        caption = None
+        caption = None  # absent — re-share path will skip the UPDATE
     if not trip_id:
         return jsonify({"error": "Missing trip_id"}), 400
     with get_db() as conn:
@@ -484,19 +493,34 @@ def share_trip_to_feed():
             conn.commit()
             return jsonify({"status": "shared", "post_id": post_id})
         # IGNORE'd — there's already an original share for this
-        # (user, trip). Update the caption if the caller sent one
-        # (re-share with a new message), then return the existing id.
+        # (user, trip). Update caption + refresh the
+        # `trip_was_public` snapshot, then return the existing id.
         cursor.execute(
             "SELECT id FROM feed_posts WHERE user_id = ? AND trip_id = ? "
             "AND repost_of_post_id IS NULL",
             (user_id, trip_id),
         )
         existing = cursor.fetchone()
-        if caption is not None:
+        # R2 audit fix: caption update now uses caption_provided so
+        # explicit empty (clear) is honoured; absent key leaves the
+        # stored value alone.
+        if caption_provided:
             cursor.execute(
                 "UPDATE feed_posts SET caption = ? WHERE id = ?",
                 (caption, existing['id']),
             )
+        # R2 audit fix: also refresh trip_was_public on the IGNORE'd
+        # path. Pre-fix the snapshot was only written on first INSERT
+        # and never updated. Sequence: share (snapshot=0), manually
+        # flip trip back to private, re-share → INSERT-OR-IGNORE
+        # no-ops and snapshot stays 0, so a later unshare wrongly
+        # restores public state (or fails to restore at all, depending
+        # on the path). Now the snapshot tracks the MOST RECENT
+        # share's pre-state.
+        cursor.execute(
+            "UPDATE feed_posts SET trip_was_public = ? WHERE id = ?",
+            (1 if trip_was_public else 0, existing['id']),
+        )
         conn.commit()
     return jsonify({"status": "already_shared", "post_id": existing['id']})
 
@@ -595,13 +619,23 @@ def unshare_feed_post(post_id):
         doomed_repost_ids = [r["id"] for r in cursor.fetchall()]
         cursor.execute("DELETE FROM feed_posts WHERE repost_of_post_id = ?", (post_id,))
         cursor.execute("DELETE FROM feed_posts WHERE id = ?", (post_id,))
+        # R2 audit fix: pick the correct event-id prefix for the
+        # row being deleted. Pre-fix the cleanup always used
+        # `share_<post_id>` — but when the caller is deleting their
+        # own REPOST (this endpoint accepts any post they own), the
+        # repost's engagement is keyed under `repost_<post_id>`,
+        # not `share_<post_id>`. Orphans persisted until the daily
+        # cleanup sweep.
+        self_prefix = "repost" if row["repost_of_post_id"] is not None else "share"
         for table in ("feed_likes", "feed_comments", "feed_bookmarks"):
-            # Original share's engagement rows.
             cursor.execute(
                 f"DELETE FROM {table} WHERE event_id = ?",
-                (f"share_{post_id}",),
+                (f"{self_prefix}_{post_id}",),
             )
             # Repost rows' engagement (one per repost we just cascaded).
+            # These are always `repost_<id>` — the cascade only catches
+            # rows with repost_of_post_id = post_id, which by definition
+            # are reposts.
             for rid in doomed_repost_ids:
                 cursor.execute(
                     f"DELETE FROM {table} WHERE event_id = ?",
