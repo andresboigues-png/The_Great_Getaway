@@ -52,7 +52,7 @@
 // a fresh sw.js fetch since the activate handler now sees a stranger
 // (v2 → v3 → wipe everything not in CURRENT_CACHES). Belt-and-braces
 // for the n-th cached-bundle regression.
-const SW_VERSION = 'v4';
+const SW_VERSION = 'v5';
 const SHELL_CACHE = `gg-shell-${SW_VERSION}`;
 const API_CACHE = `gg-api-${SW_VERSION}`;
 const UPLOADS_CACHE = `gg-uploads-${SW_VERSION}`;
@@ -257,16 +257,34 @@ async function _networkFirst(request, cacheName, keyer) {
 /** Cache-first, then network. Used for /static/uploads/* — URLs are
  *  stable + immutable so a cache hit is always correct. Network fetch
  *  happens once per URL (first request) and the result lives in cache
- *  forever (until cache eviction or SW_VERSION bump). */
-async function _cacheFirst(request, cacheName) {
+ *  forever (until cache eviction or SW_VERSION bump).
+ *
+ *  R3-Fix #7: uploads were previously a single shared cache across
+ *  ALL users on the device. Alice viewed a receipt → got it cached.
+ *  She logged out, Bob logged in, and Bob hitting the same URL got
+ *  Alice's bytes back from the cache WITHOUT contacting the server,
+ *  bypassing the auth gate at main.py:802. The fix: scope the
+ *  cache key by current user (same `?_u=u-<userId>` trick as the
+ *  API cache). Anonymous viewers (share-page recipients) still
+ *  share the 'anon' bucket — that's correct, those URLs were already
+ *  public via the trip's is_public=1 reference. */
+async function _cacheFirst(request, cacheName, perUser) {
     const cache = await caches.open(cacheName);
-    const cached = await cache.match(request);
+    const cacheKey = perUser ? _scopedCacheKey(request) : request;
+    const cached = await cache.match(cacheKey);
     if (cached) return cached;
     const fresh = await fetch(request);
     if (fresh.ok) {
-        try { await cache.put(request, fresh.clone()); } catch { /* quota */ }
+        try { await cache.put(cacheKey, fresh.clone()); } catch { /* quota */ }
     }
     return fresh;
+}
+
+function _scopedCacheKey(request) {
+    const userKey = _userKey();
+    const url = new URL(request.url);
+    url.searchParams.set('_u', userKey);
+    return url.toString();
 }
 
 // ── Routing ─────────────────────────────────────────────────────────
@@ -284,8 +302,11 @@ self.addEventListener('fetch', (event) => {
     if (request.method !== 'GET') return;
 
     // /static/uploads/* — cache-first (stable URLs, big offline win).
+    // R3-Fix #7: per-user scoping — pass `true` so the cache key
+    // carries the current user. Prevents Alice→Bob cross-user
+    // upload leakage on shared devices.
     if (url.pathname.startsWith('/static/uploads/')) {
-        event.respondWith(_cacheFirst(request, UPLOADS_CACHE));
+        event.respondWith(_cacheFirst(request, UPLOADS_CACHE, true));
         return;
     }
 
@@ -354,8 +375,20 @@ self.addEventListener('message', (event) => {
         // `_logoutEpoch` here invalidates any /api/* fetches that
         // were already in flight when this message arrived — see
         // the SY2 notes above and in `_putApiResponse`.
+        //
+        // R3-Fix #7: also wipe UPLOADS_CACHE. Pre-fix the upload
+        // cache was a single shared bucket across all users on the
+        // device — Alice's receipts persisted in cache across logout
+        // → next user could fetch the same URL and the SW served
+        // Alice's bytes from local cache, bypassing the server auth
+        // gate. The per-user scoping in _cacheFirst above prevents
+        // NEW writes from leaking; this wipe ensures the historic
+        // residue (anything cached pre-R3-Fix-#7 ship) is purged.
         _logoutEpoch++;
-        _logoutLock = caches.delete(API_CACHE).catch(() => { /* best-effort */ });
+        _logoutLock = Promise.all([
+            caches.delete(API_CACHE),
+            caches.delete(UPLOADS_CACHE),
+        ]).catch(() => { /* best-effort */ });
         if (event.waitUntil) {
             event.waitUntil(_logoutLock);
         }

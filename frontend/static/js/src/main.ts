@@ -300,8 +300,67 @@ if (document.readyState === 'loading') {
 // feature-check just keeps non-supporting environments quiet).
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch((err) => {
-            console.warn('[sw] registration failed', err);
+        navigator.serviceWorker.register('/sw.js', { scope: '/' })
+            .then((registration) => {
+                // R3-Fix #8: PWA update notification flow. Pre-fix the
+                // register was fire-and-forget — when app.bundle.js
+                // changed server-side, the running tab silently kept
+                // the old code until every tab/PWA window closed (Sofia's
+                // 4-day bfcache restore: stale UI forever). The SW already
+                // has a SKIP_WAITING handler ready; we just need to wire
+                // updatefound → user prompt → SKIP_WAITING → reload.
+                //
+                // Flow:
+                //   1. SW detects new version → `updatefound` fires.
+                //   2. The installing SW reaches `installed` state.
+                //   3. If there's an existing controller (= we're not a
+                //      fresh install), show the user a toast.
+                //   4. On user accept, postMessage SKIP_WAITING.
+                //   5. Listen for `controllerchange` and reload.
+                const tryPrompt = () => {
+                    const waiting = registration.waiting;
+                    if (!waiting) return;
+                    // Only prompt if a controller already runs (otherwise
+                    // this is the first install — no "update").
+                    if (!navigator.serviceWorker.controller) return;
+                    const accept = window.confirm(
+                        'A new version of The Great Getaway is available. Reload to update?',
+                    );
+                    if (accept) waiting.postMessage({ type: 'SKIP_WAITING' });
+                };
+                // If a waiting SW was already present at boot (e.g.
+                // page reload after a previous miss), prompt now.
+                if (registration.waiting && navigator.serviceWorker.controller) {
+                    tryPrompt();
+                }
+                registration.addEventListener('updatefound', () => {
+                    const installing = registration.installing;
+                    if (!installing) return;
+                    installing.addEventListener('statechange', () => {
+                        if (installing.state === 'installed') tryPrompt();
+                    });
+                });
+                // Reload once the new SW takes control. Guarded so we
+                // only reload once per session (some browsers fire
+                // controllerchange twice during a single update).
+                let _reloaded = false;
+                navigator.serviceWorker.addEventListener('controllerchange', () => {
+                    if (_reloaded) return;
+                    _reloaded = true;
+                    window.location.reload();
+                });
+            })
+            .catch((err) => {
+                console.warn('[sw] registration failed', err);
+            });
+    });
+
+    // Also check for an SW update on bfcache restore — Sofia's 4-day
+    // app-switcher resume should detect a server-side new version.
+    window.addEventListener('pageshow', (e) => {
+        if (!e.persisted) return;
+        navigator.serviceWorker.getRegistration()?.then((reg) => {
+            reg?.update().catch(() => { /* best-effort */ });
         });
     });
 }
