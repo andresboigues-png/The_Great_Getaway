@@ -26,6 +26,22 @@ from werkzeug.utils import secure_filename
 from auth import current_user_id, require_auth
 from extensions import limiter
 
+# R3-Round 4 fix: register pillow-heif at import time so PIL.Image
+# can open HEIC/HEIF files (iPhone "Most Compatible" off default).
+# Without this, HEIC bytes-verbatim saved AND retained EXIF/GPS.
+# Module-level so the registration happens once per worker boot
+# (registering on every request is a wasted no-op + small CPU hit).
+# Optional: if the dep isn't installed (older deploy or build
+# environment without libheif), HEIC uploads continue to fall
+# through to the explicit-reject branch from R3-Round 3 B1 with
+# the "switch to JPEG" message.
+try:
+    import pillow_heif
+    pillow_heif.register_heif_opener()
+    _HEIF_AVAILABLE = True
+except Exception:
+    _HEIF_AVAILABLE = False
+
 
 bp = Blueprint("media", __name__)
 
@@ -162,23 +178,32 @@ def upload_file():
     # mode), fall back to the bytes-verbatim save so the upload
     # still completes — the EXIF strip is defense-in-depth, not
     # the security boundary.
-    # R3-Round 3 fix: explicit HEIC/HEIF rejection. The magic-number
-    # gate above ACCEPTS the file (so the upload reaches here) but
-    # without `pillow-heif` installed PIL can't open it and the
-    # existing fall-through stored bytes-verbatim — EXIF/GPS would
-    # leak. Rather than silently degrading, tell the user to convert
-    # to JPEG so the iOS "Most Compatible" setting becomes a real
-    # affordance. The /api/upload-photo flow is symmetric; this
-    # branch handles both since the ext sniff is the same shape.
+    # R3-Round 4 fix: HEIC/HEIF now flow through the PIL re-encode
+    # path when pillow-heif is registered (see module top). The
+    # registered opener teaches PIL.Image.open() the HEIF container;
+    # the existing EXIF-strip + decompression-bomb cap apply
+    # identically. We re-save as JPEG so downstream renderers (which
+    # may not know HEIC) get a universally-supported file. Without
+    # pillow-heif we still reject with the R3-Round 3 friendly
+    # message so the user has actionable feedback.
     if ext in {'.heic', '.heif'}:
-        return jsonify({
-            "error": (
-                "HEIC photos aren't supported yet. On iPhone, switch "
-                "Settings → Camera → Formats to 'Most Compatible' so "
-                "new shots upload as JPEG."
-            ),
-        }), 415
-    if ext in {'.jpg', '.jpeg', '.png', '.webp'}:
+        if not _HEIF_AVAILABLE:
+            return jsonify({
+                "error": (
+                    "HEIC photos aren't supported yet. On iPhone, switch "
+                    "Settings → Camera → Formats to 'Most Compatible' so "
+                    "new shots upload as JPEG."
+                ),
+            }), 415
+        # Re-route through the PIL branch below with `.jpg` so the
+        # bytes land as JPEG on disk. The on-disk filename keeps the
+        # `.heic` extension (callers reference it via the returned
+        # URL), but the bytes are a re-encoded JPEG — Pillow handles
+        # the format conversion automatically. Cleaner long-term:
+        # rewrite the extension too, but that breaks anyone whose
+        # client tracks the URL by extension match.
+        pass
+    if ext in {'.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif'}:
         try:
             from PIL import Image
             # R2 audit fix: decompression-bomb DoS. Without a pixel
@@ -220,11 +245,22 @@ def upload_file():
                 if icc_profile:
                     save_kwargs["icc_profile"] = icc_profile
             # Preserve format from the decoded image; falls back to
-            # the requested extension if PIL can't detect.
-            img_format = img.format or {
+            # the requested extension if PIL can't detect. HEIC/HEIF
+            # are forced to JPEG because most downstream renderers
+            # (browsers, lightbox, PDF builder) don't know HEIC; the
+            # extension-to-format map below collapses both to JPEG.
+            ext_to_format = {
                 '.jpg': 'JPEG', '.jpeg': 'JPEG',
                 '.png': 'PNG', '.webp': 'WEBP',
-            }[ext]
+                '.heic': 'JPEG', '.heif': 'JPEG',
+            }
+            img_format = ext_to_format.get(ext) or img.format or 'JPEG'
+            # If we're converting HEIC → JPEG we MUST pass the EXIF
+            # strip kwarg (HEIC carries different metadata containers,
+            # the empty `exif=b""` below kills both EXIF + XMP for the
+            # JPEG output).
+            if ext in ('.heic', '.heif') and img_format == 'JPEG':
+                save_kwargs['exif'] = b""
             img.save(out_path, format=img_format, **save_kwargs)
         except Image.DecompressionBombError:
             # R2 audit fix: REFUSE the upload on a decompression

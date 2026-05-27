@@ -32,3 +32,12 @@ reportlab
 # Pin explicitly so the install is deterministic regardless of
 # reportlab's resolution.
 Pillow>=10.0
+
+# R3-Round 4 fix: HEIC/HEIF decoder so iPhone "Most Compatible"
+# off uploads (the default for newer iPhones) flow through PIL's
+# EXIF strip pipeline. Without this, HEIC uploads were rejected at
+# /api/upload with a "switch to JPEG" message (R3-Round 3 B1). With
+# pillow-heif registered, iOS users no longer have to change their
+# camera setting — HEIC uploads work end-to-end and get EXIF
+# stripped just like JPEG.
+pillow-heif

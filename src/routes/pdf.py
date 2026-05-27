@@ -114,6 +114,88 @@ def _rl():
     return ns
 
 
+# R3-Round 4 fix: register a Unicode-capable font for non-Latin
+# content. Reportlab's built-in Helvetica covers Latin-Extended-A
+# only — Arabic ("أحمد"), CJK ("陈太太"), Cyrillic ("Дмитрий") etc.
+# render as missing-glyph squares OR get silently stripped by
+# _strip_emoji below, surfacing as "Untitled companion" in the
+# PDF. We try a list of common system paths for a Unicode TTF;
+# on PA the standard DejaVu Sans path resolves. If nothing is
+# found, we fall back to Helvetica (Latin-only — same pre-fix
+# behaviour, no regression).
+#
+# `_UNICODE_FONT` / `_UNICODE_FONT_BOLD` / `_UNICODE_FONT_OBLIQUE`
+# carry the registered font names if registration succeeded; the
+# call sites below use `_font(bold=True)` etc. to pick the right
+# name without scattering try/except blocks across 16 call sites.
+_UNICODE_FONT: str | None = None
+_UNICODE_FONT_BOLD: str | None = None
+_UNICODE_FONT_OBLIQUE: str | None = None
+
+_FONT_CANDIDATES = [
+    # Linux (PA + most distros).
+    (
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Oblique.ttf",
+        "DejaVuSans",
+    ),
+    # macOS dev (Arial Unicode covers nearly all Unicode planes;
+    # no separate bold/italic so we re-use the regular for those).
+    (
+        "/Library/Fonts/Arial Unicode.ttf",
+        "/Library/Fonts/Arial Unicode.ttf",
+        "/Library/Fonts/Arial Unicode.ttf",
+        "ArialUnicode",
+    ),
+]
+
+
+def _try_register_unicode_font() -> None:
+    global _UNICODE_FONT, _UNICODE_FONT_BOLD, _UNICODE_FONT_OBLIQUE
+    if _UNICODE_FONT is not None:
+        return  # already registered
+    import os
+    try:
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.pdfbase.ttfonts import TTFont
+    except Exception:
+        return  # reportlab missing — caller will fall back to Helvetica
+    for reg_path, bold_path, oblique_path, name in _FONT_CANDIDATES:
+        if not os.path.isfile(reg_path):
+            continue
+        try:
+            pdfmetrics.registerFont(TTFont(name, reg_path))
+            if os.path.isfile(bold_path):
+                pdfmetrics.registerFont(TTFont(f"{name}-Bold", bold_path))
+            if os.path.isfile(oblique_path):
+                pdfmetrics.registerFont(TTFont(f"{name}-Oblique", oblique_path))
+            _UNICODE_FONT = name
+            _UNICODE_FONT_BOLD = f"{name}-Bold" if os.path.isfile(bold_path) else name
+            _UNICODE_FONT_OBLIQUE = f"{name}-Oblique" if os.path.isfile(oblique_path) else name
+            logger.info("PDF unicode font registered: %s", name)
+            return
+        except Exception as e:
+            logger.warning("PDF unicode font registration failed for %s: %s", name, e)
+            continue
+
+
+def _font(*, bold: bool = False, oblique: bool = False) -> str:
+    """Return the name of the active font for the requested style.
+    Unicode-capable when the registration succeeded, Helvetica
+    otherwise."""
+    _try_register_unicode_font()
+    if bold and oblique:
+        # No combined glyph in our DejaVu / Arial Unicode set —
+        # prefer bold over oblique.
+        return _UNICODE_FONT_BOLD or "Helvetica-BoldOblique"
+    if bold:
+        return _UNICODE_FONT_BOLD or "Helvetica-Bold"
+    if oblique:
+        return _UNICODE_FONT_OBLIQUE or "Helvetica-Oblique"
+    return _UNICODE_FONT or "Helvetica"
+
+
 # ── brand palette (kept close to the web --accent-* variables) ──
 _BRAND_NAVY = "#001a33"
 _BRAND_BLUE = "#0071e3"
@@ -407,7 +489,7 @@ def _styles(rl):
         "hero": rl.ParagraphStyle(
             "GGHero",
             parent=base["Heading1"],
-            fontName="Helvetica-Bold",
+            fontName=_font(bold=True),
             fontSize=48,
             leading=52,
             textColor=_BRAND_NAVY,
@@ -417,7 +499,7 @@ def _styles(rl):
         "heroSub": rl.ParagraphStyle(
             "GGHeroSub",
             parent=base["BodyText"],
-            fontName="Helvetica",
+            fontName=_font(),
             fontSize=14,
             leading=20,
             textColor=_TEXT_SECONDARY,
@@ -427,7 +509,7 @@ def _styles(rl):
         "kicker": rl.ParagraphStyle(
             "GGKicker",
             parent=base["BodyText"],
-            fontName="Helvetica-Bold",
+            fontName=_font(bold=True),
             fontSize=10,
             leading=12,
             textColor=_BRAND_BLUE,
@@ -442,7 +524,7 @@ def _styles(rl):
         "sectionNumber": rl.ParagraphStyle(
             "GGSectionNumber",
             parent=base["BodyText"],
-            fontName="Helvetica-Bold",
+            fontName=_font(bold=True),
             fontSize=36,
             leading=40,
             textColor=_BRAND_BLUE,
@@ -452,7 +534,7 @@ def _styles(rl):
         "sectionTitle": rl.ParagraphStyle(
             "GGSectionTitle",
             parent=base["BodyText"],
-            fontName="Helvetica-Bold",
+            fontName=_font(bold=True),
             fontSize=24,
             leading=28,
             textColor=_BRAND_NAVY,
@@ -462,7 +544,7 @@ def _styles(rl):
         "sectionKicker": rl.ParagraphStyle(
             "GGSectionKicker",
             parent=base["BodyText"],
-            fontName="Helvetica",
+            fontName=_font(),
             fontSize=11,
             leading=16,
             textColor=_TEXT_SECONDARY,
@@ -474,7 +556,7 @@ def _styles(rl):
         "dayKicker": rl.ParagraphStyle(
             "GGDayKicker",
             parent=base["BodyText"],
-            fontName="Helvetica-Bold",
+            fontName=_font(bold=True),
             fontSize=9,
             leading=11,
             textColor=_BRAND_BLUE,
@@ -484,7 +566,7 @@ def _styles(rl):
         "dayTitle": rl.ParagraphStyle(
             "GGDayTitle",
             parent=base["BodyText"],
-            fontName="Helvetica-Bold",
+            fontName=_font(bold=True),
             fontSize=18,
             leading=21,
             textColor=_BRAND_NAVY,
@@ -494,7 +576,7 @@ def _styles(rl):
         "slotLabel": rl.ParagraphStyle(
             "GGSlotLabel",
             parent=base["BodyText"],
-            fontName="Helvetica-Bold",
+            fontName=_font(bold=True),
             fontSize=8.5,
             leading=11,
             textColor=_BRAND_PURPLE,
@@ -507,7 +589,7 @@ def _styles(rl):
         "slotItemTitle": rl.ParagraphStyle(
             "GGSlotItemTitle",
             parent=base["BodyText"],
-            fontName="Helvetica-Bold",
+            fontName=_font(bold=True),
             fontSize=12,
             leading=15,
             textColor=_BRAND_NAVY,
@@ -519,7 +601,7 @@ def _styles(rl):
         "body": rl.ParagraphStyle(
             "GGBody",
             parent=base["BodyText"],
-            fontName="Helvetica",
+            fontName=_font(),
             fontSize=10.5,
             leading=15,
             textColor=_TEXT_PRIMARY,
@@ -529,7 +611,7 @@ def _styles(rl):
         "muted": rl.ParagraphStyle(
             "GGMuted",
             parent=base["BodyText"],
-            fontName="Helvetica",
+            fontName=_font(),
             fontSize=9.5,
             leading=13,
             textColor=_TEXT_SECONDARY,
@@ -539,7 +621,7 @@ def _styles(rl):
         "tip": rl.ParagraphStyle(
             "GGTip",
             parent=base["BodyText"],
-            fontName="Helvetica-Oblique",
+            fontName=_font(oblique=True),
             fontSize=9.5,
             leading=13,
             textColor=_BRAND_BLUE,
@@ -551,7 +633,7 @@ def _styles(rl):
         "stat": rl.ParagraphStyle(
             "GGStat",
             parent=base["BodyText"],
-            fontName="Helvetica-Bold",
+            fontName=_font(bold=True),
             fontSize=24,
             leading=26,
             textColor=_BRAND_NAVY,
@@ -560,7 +642,7 @@ def _styles(rl):
         "statLabel": rl.ParagraphStyle(
             "GGStatLabel",
             parent=base["BodyText"],
-            fontName="Helvetica-Bold",
+            fontName=_font(bold=True),
             fontSize=8,
             leading=10,
             textColor=_BRAND_BLUE,
@@ -572,7 +654,7 @@ def _styles(rl):
         "tocItem": rl.ParagraphStyle(
             "GGTocItem",
             parent=base["BodyText"],
-            fontName="Helvetica-Bold",
+            fontName=_font(bold=True),
             fontSize=10,
             leading=14,
             textColor=_BRAND_NAVY,
@@ -582,7 +664,7 @@ def _styles(rl):
         "tocItemSub": rl.ParagraphStyle(
             "GGTocItemSub",
             parent=base["BodyText"],
-            fontName="Helvetica",
+            fontName=_font(),
             fontSize=8.5,
             leading=11,
             textColor=_TEXT_SECONDARY,
@@ -692,20 +774,34 @@ def _image_aspect(png_bytes: bytes) -> float:
 
 
 def _strip_emoji(text: str) -> str:
-    """Drop emoji + wide-Unicode glyphs that Helvetica can't render.
-    Reportlab's built-in PDF fonts (Helvetica, Times, Courier) cover
-    Latin-Extended-A; everything above that — including all emoji,
-    CJK, most math symbols — renders as the fallback "missing glyph"
-    box (the ■ the user saw in their PDF was actually a 🥐 or 🥗
-    in their day notes).
-
-    Strategy: keep ASCII + Latin-1 + Latin-Extended-A (covers PT/ES/
-    FR/IT accented chars) plus a curated list of typography glyphs
-    (en/em dash, smart quotes, ellipsis, bullets, arrows). Strip
-    the rest. The day-note labels ("Breakfast:", "Sights:") carry
-    the meaning without the decorative emoji."""
+    """Drop emoji + wide-Unicode glyphs the active font can't render.
+    R3-Round 4 fix: when a Unicode-capable font (DejaVu / Arial
+    Unicode) registered successfully, we ONLY strip true emoji
+    codepoints (≥ U+1F000) and keep all letter/symbol Unicode —
+    so Arabic / CJK / Cyrillic / Greek / Hebrew companion names
+    and trip titles render correctly instead of getting murdered
+    to the empty string + falling back to "Untitled companion."
+    When no Unicode font registered (rare on PA — DejaVu is
+    pre-installed), we fall back to the old conservative strip
+    so squares don't appear in the output."""
     if not text:
         return ""
+    _try_register_unicode_font()
+    if _UNICODE_FONT:
+        # Unicode font present — strip ONLY actual emoji + private-use
+        # planes. Letters / symbols / punctuation across every script
+        # are kept. Emoji range: U+1F000-U+1FFFF covers the bulk
+        # (musical, mahjong, dingbats, faces, food, transport, flags).
+        # U+2600-U+27BF covers older miscellaneous symbols and
+        # dingbats that may be partial-coverage in DejaVu.
+        def _is_emoji(cp: int) -> bool:
+            return (
+                0x1F000 <= cp <= 0x1FFFF
+                or 0xE000 <= cp <= 0xF8FF  # Private Use Area
+            )
+        return "".join(ch for ch in text if not _is_emoji(ord(ch))).strip()
+    # Fallback (no Unicode font): keep ASCII + Latin-1 + Latin-
+    # Extended-A plus a curated set of typography glyphs.
     keep_extra = {
         0x2013, 0x2014,  # – —
         0x2018, 0x2019, 0x201C, 0x201D,  # smart quotes
@@ -781,7 +877,7 @@ def _companion_card(rl, styles, page_w, margin_lr, name: str, role: str = "", ch
         f'<para alignment="center"><font color="white" size="15"><b>{_esc(initials)}</b></font></para>',
         rl.ParagraphStyle(
             "GGAvatar",
-            fontName="Helvetica-Bold",
+            fontName=_font(bold=True),
             fontSize=15,
             leading=18,
             alignment=1,
@@ -941,7 +1037,7 @@ def _day_card(rl, styles, page_w, margin_lr, day: dict, day_map_png: bytes | Non
     # Same visual language as the marked-places A/B/C letter badge.
     badge_para = rl.Paragraph(
         f'<para alignment="center"><font color="white" size="22"><b>{_esc(badge_label or "•")}</b></font></para>',
-        rl.ParagraphStyle("GGDayBadge", fontName="Helvetica-Bold",
+        rl.ParagraphStyle("GGDayBadge", fontName=_font(bold=True),
                           fontSize=22, leading=24, alignment=1,
                           textColor=rl.colors.white),
     )
@@ -1857,7 +1953,7 @@ def _build_trip_pdf(trip_row: dict, options: dict) -> bytes:
             # Left column = a small letter badge matching the map pin
             letter_para = rl.Paragraph(
                 f'<para alignment="center"><font color="white" size="13"><b>{_esc(label)}</b></font></para>',
-                rl.ParagraphStyle("GGLetter", fontName="Helvetica-Bold",
+                rl.ParagraphStyle("GGLetter", fontName=_font(bold=True),
                                   fontSize=13, leading=15, alignment=1,
                                   textColor=rl.colors.white),
             )
