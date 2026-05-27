@@ -4465,7 +4465,12 @@ def test_auth_logout_clears_session_cookie(client, monkeypatch):
     # Before logout: cookie-only request authenticates.
     assert client.get("/api/user-status").get_json()["logged_in"] is True
 
-    logout = client.post("/api/auth/logout")
+    # R2 audit fix: cookie-authenticated POST now REQUIRES at least
+    # one of Origin/Referer (real browsers always send one); previously
+    # we allowed "both missing" through as test-client compat which left
+    # a real CSRF bypass under privacy extensions that strip both. Test
+    # client mimics a same-origin browser by passing Origin explicitly.
+    logout = client.post("/api/auth/logout", headers={"Origin": "http://localhost"})
     assert logout.status_code == 200
 
     # Logout must emit a Set-Cookie that deletes gg_session — max_age=0

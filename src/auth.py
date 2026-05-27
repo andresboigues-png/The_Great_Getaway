@@ -36,6 +36,7 @@ jar. `_extract_token` walks cookie first, then header.
 
 import os
 import secrets
+import sqlite3
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 from typing import Optional
@@ -177,17 +178,41 @@ def _create_session(user_id: str, device_label: str | None) -> str:
     yields a unique jti so devices don't share one. device_label
     is a coarse "Chrome on macOS"-style summary derived from the
     User-Agent — kept human-useful for /api/auth/sessions ("revoke
-    iPhone session") without leaking the full UA fingerprint."""
-    new_jti = secrets.token_hex(16)
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute(
-            "INSERT INTO auth_sessions (user_id, jti, device_label, last_seen_at) "
-            "VALUES (?, ?, ?, CURRENT_TIMESTAMP)",
-            (user_id, new_jti, _summarize_ua(device_label)),
-        )
-        conn.commit()
-    return new_jti
+    iPhone session") without leaking the full UA fingerprint.
+
+    R2 audit fix: retry on the (vanishingly unlikely) jti UNIQUE
+    collision. Pre-fix a hash collision in `secrets.token_hex(16)`
+    raised `sqlite3.IntegrityError: UNIQUE constraint failed:
+    auth_sessions.jti` mid-login → 500 to the user with no
+    fallback. 128 bits of randomness makes this essentially
+    impossible at app scale, but the retry costs nothing and
+    closes the hard-fail path. 3 attempts ≫ any plausible
+    collision frequency.
+    """
+    summarized = _summarize_ua(device_label)
+    last_exc: BaseException | None = None
+    for _attempt in range(3):
+        new_jti = secrets.token_hex(16)
+        try:
+            with get_db() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "INSERT INTO auth_sessions (user_id, jti, device_label, last_seen_at) "
+                    "VALUES (?, ?, ?, CURRENT_TIMESTAMP)",
+                    (user_id, new_jti, summarized),
+                )
+                conn.commit()
+            return new_jti
+        except sqlite3.IntegrityError as exc:
+            # Only retry on jti UNIQUE; other IntegrityErrors
+            # (FK failure for user_id, etc.) propagate.
+            if "auth_sessions.jti" not in str(exc):
+                raise
+            last_exc = exc
+            continue
+    # 3-in-a-row 128-bit collisions: something is structurally wrong
+    # (PRNG broken, sqlite hash compromised). Surface rather than spin.
+    raise last_exc or sqlite3.IntegrityError("jti collision retry exhausted")
 
 
 def revoke_session_by_jti(jti: str) -> bool:

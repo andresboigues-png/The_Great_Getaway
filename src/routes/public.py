@@ -304,6 +304,23 @@ def get_public_profile(user_id):
     with get_db() as conn:
         cursor = conn.cursor()
 
+        # R2 audit fix: block-aware response when the caller is
+        # signed in. If either side blocks the other we return 404
+        # (matches the /api/follows/<id> response shape — never
+        # leak the block state via differential codes). Anonymous
+        # callers fall through to the normal public-profile path,
+        # since blocking is between two known identities.
+        caller_id = current_user_id()
+        if caller_id and caller_id != user_id:
+            cursor.execute(
+                "SELECT 1 FROM blocks WHERE "
+                "(blocker_id = ? AND blocked_id = ?) OR "
+                "(blocker_id = ? AND blocked_id = ?) LIMIT 1",
+                (caller_id, user_id, user_id, caller_id),
+            )
+            if cursor.fetchone():
+                return jsonify({"error": "User not found"}), 404
+
         # Get user info — no email exposed publicly.
         cursor.execute("SELECT name, picture, bio, status FROM users WHERE id = ?", (user_id,))
         user_row = cursor.fetchone()

@@ -292,17 +292,25 @@ def _csrf_origin_check():
     # sense because the attacker would need to know the token.
     # Skip the Origin check for those; the JWT itself is the auth
     # boundary.
-    if not request.cookies.get("gg_session"):
+    has_cookie = bool(request.cookies.get("gg_session"))
+    if not has_cookie:
         return None
     origin = request.headers.get("Origin")
     referer = request.headers.get("Referer")
-    # If a browser is making this request it will have sent at least
-    # ONE of Origin / Referer. Pure script clients (curl, the Flask
-    # test client) usually send neither — and they can't be CSRF'd
-    # because there's no browser to leak the cookie through. So we
-    # only enforce the check when at least one header is present.
+    # R2 audit fix: when the request carries the gg_session cookie
+    # (so we're past the Bearer-only short-circuit above), require
+    # at least ONE of Origin / Referer to be present AND match.
+    # Pre-fix we allowed "both missing" through as test-client
+    # compat — that left a real bypass: a privacy extension that
+    # strips both headers on a victim's browser turned every
+    # mutating cookie-auth POST into a free CSRF. Test clients
+    # don't carry the session cookie (they use the Authorization
+    # header), so they fall into the Bearer short-circuit above
+    # and are unaffected.
     if origin is None and referer is None:
-        return None
+        return jsonify({
+            "error": "Cross-origin request rejected (missing Origin/Referer)",
+        }), 403
     if _host_matches(origin) or _host_matches(referer):
         return None
     # Hard block. JSON so the frontend's fetch error handler

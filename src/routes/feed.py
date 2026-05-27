@@ -307,6 +307,10 @@ def explore_feed():
         # the link did nothing because the new one re-leaked on the
         # next poll. With `is_public = 1` the only trips listed are
         # the ones the owner has intentionally marked discoverable.
+        # R2 audit fix: block-aware Explore. Pre-fix a blocked
+        # user's public trips kept appearing on the blocker's
+        # Explore page (name, picture, country chip — and one
+        # click away to their full public profile).
         cursor.execute(
             """
             SELECT t.id, t.user_id AS owner_id, t.name, t.country, t.country_code,
@@ -321,8 +325,11 @@ def explore_feed():
                   SELECT trip_id FROM trip_members
                   WHERE user_id = ? AND invitation_status = 'accepted'
               )
+              AND t.user_id NOT IN (
+                  SELECT blocked_id FROM blocks WHERE blocker_id = ?
+              )
             """,
-            (user_id, user_id),
+            (user_id, user_id, user_id),
         )
         rows = cursor.fetchall()
 
@@ -730,6 +737,20 @@ def toggle_feed_like(event_id):
                 "DELETE FROM feed_likes WHERE user_id = ? AND event_id = ?",
                 (user_id, event_id),
             )
+            # R2 audit fix: also clean the matching share_liked
+            # notification on the recipient's bell. Pre-fix the
+            # notification persisted after un-like, so A's bell
+            # kept showing "B liked your share" even after B
+            # un-liked. Tied by (post_id, actor) so we don't
+            # nuke other actors' likes on the same post.
+            unlike_post_id = _post_id_for_event(event_id)
+            if unlike_post_id is not None:
+                cursor.execute(
+                    "DELETE FROM notifications "
+                    "WHERE type = 'share_liked' "
+                    "  AND post_id = ? AND related_id = ?",
+                    (unlike_post_id, user_id),
+                )
         else:
             cursor.execute(
                 "INSERT OR IGNORE INTO feed_likes (user_id, event_id) VALUES (?, ?)",
@@ -793,14 +814,23 @@ def list_feed_comments(event_id):
         cursor = conn.cursor()
         if not _caller_can_see_event(cursor, event_id, user_id):
             return jsonify({"error": "Unknown or unauthorised event"}), 404
+        # R2 audit fix: block-aware comment list. Pre-fix, after A
+        # blocks B, B's old comments on shared events were still
+        # visible in A's view. The block primitive's promise that
+        # "B cannot reach A" was broken for historical content.
+        # Filter out comments authored by users the caller has
+        # blocked.
         cursor.execute('''
             SELECT c.id, c.user_id, c.body, c.created_at,
                    u.name AS user_name, u.picture AS user_picture
             FROM feed_comments c
             LEFT JOIN users u ON u.id = c.user_id
             WHERE c.event_id = ?
+              AND c.user_id NOT IN (
+                  SELECT blocked_id FROM blocks WHERE blocker_id = ?
+              )
             ORDER BY c.created_at ASC, c.id ASC
-        ''', (event_id,))
+        ''', (event_id, user_id))
         rows = cursor.fetchall()
     return jsonify([
         {
@@ -869,7 +899,19 @@ def add_feed_comment(event_id):
 @retry_on_lock()
 def delete_feed_comment(comment_id):
     """Delete a comment. Author-only — silently no-ops on someone else's
-    comment to keep DELETE idempotent."""
+    comment to keep DELETE idempotent.
+
+    R2 audit fix: ALSO allow the post / trip owner to moderate
+    engagement on their own share. Pre-fix only the author could
+    delete; a friend's spammy / hostile comment had to be lived
+    with (or the whole post unshared) — the post owner had no
+    moderation affordance. Resolution: resolve the comment's event
+    to its owner (feed_posts for share_/repost_, trips for trip_*)
+    and allow that owner to delete too.
+    Also clean up the matching 'share_commented' notification on
+    the post owner's bell — pre-fix the notification persisted
+    pointing at a deleted comment.
+    """
     user_id = current_user_id()
     with get_db() as conn:
         cursor = conn.cursor()
@@ -880,10 +922,45 @@ def delete_feed_comment(comment_id):
         row = cursor.fetchone()
         if not row:
             return jsonify({"status": "ok", "event_id": None})
-        if row["user_id"] != user_id:
-            return jsonify({"error": "Forbidden"}), 403
         event_id = row["event_id"]
+        comment_author = row["user_id"]
+        if comment_author != user_id:
+            # Check post-owner / trip-owner moderation right.
+            post_id = _post_id_for_event(event_id)
+            moderator_ok = False
+            if post_id is not None:
+                cursor.execute(
+                    "SELECT user_id FROM feed_posts WHERE id = ?", (post_id,),
+                )
+                p = cursor.fetchone()
+                if p and p["user_id"] == user_id:
+                    moderator_ok = True
+            elif event_id.startswith("trip_"):
+                # trip_*_<id> — owner can moderate. Walk the registry
+                # to extract the trip id; fall back to a substring
+                # match against live trips owned by the caller.
+                cursor.execute(
+                    "SELECT id FROM trips WHERE user_id = ?", (user_id,),
+                )
+                for tr in cursor.fetchall():
+                    if tr["id"] in event_id:
+                        moderator_ok = True
+                        break
+            if not moderator_ok:
+                return jsonify({"error": "Forbidden"}), 403
         cursor.execute("DELETE FROM feed_comments WHERE id = ?", (comment_id,))
+        # Clean any matching 'share_commented' notification on the
+        # original recipient (post owner) so the bell doesn't show
+        # an engagement that no longer exists. related_id stores the
+        # actor id; post_id stores the feed_posts.id.
+        post_id_for_notif = _post_id_for_event(event_id)
+        if post_id_for_notif is not None:
+            cursor.execute(
+                "DELETE FROM notifications "
+                "WHERE type = 'share_commented' "
+                "  AND post_id = ? AND related_id = ?",
+                (post_id_for_notif, comment_author),
+            )
         conn.commit()
     return jsonify({"status": "ok", "event_id": event_id})
 
