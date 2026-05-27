@@ -33,7 +33,15 @@ export function showLiquidAlert(msg: string): void {
     alert.setAttribute('role', 'status');
     alert.setAttribute('aria-live', 'polite');
     alert.setAttribute('aria-atomic', 'true');
-    alert.innerHTML = `<span>⚠️ ${msg}</span>`;
+    // R8-B2: textContent, not innerHTML. Pre-fix server-supplied
+    // strings (badge labels from the AI/achievement APIs, error
+    // messages from /api/upload, future routes that might echo a
+    // username or currency code) interpolated into innerHTML
+    // unescaped — defense-in-depth XSS sink. textContent is safe
+    // by construction and the toast doesn't need any markup.
+    const span = document.createElement('span');
+    span.textContent = `⚠️ ${msg}`;
+    alert.appendChild(span);
     document.body.appendChild(alert);
 
     // Two-frame nudge — the element needs to land in the DOM at its

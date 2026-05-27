@@ -161,7 +161,36 @@ export function enqueueMutation(
         attempts: 0,
     };
     const items = _readAll();
-    items.push(item);
+    // R8-B1: dedupe by (method, url). Pre-fix, N offline edits to
+    // the same row enqueued N items, each carrying the SAME stale
+    // clientUpdatedAt (because the rebind only happens on a
+    // successful POST response — which never came offline). On
+    // replay, the FIRST item committed and stamped the row to T1;
+    // items #2..N then carried the now-stale T0 → 409 → kept in
+    // queue → eventually dropped after MAX_ATTEMPTS, but the
+    // SERVER state was the FIRST (oldest) edit's content, not the
+    // user's latest. UX: user edits "Hawaii" → "Hawai'i" → "Hawai'i
+    // 2026" offline, comes online, server has "Hawaii".
+    //
+    // Dedupe replaces the prior queued item's body so the queue
+    // always holds the LATEST mutation for any (method, url) pair.
+    // Preserves enqueuedAt so the 7-day TTL still measures from
+    // the FIRST offline attempt (a long-stale edit should still
+    // expire even if the user keeps refining it).
+    const existingIdx = items.findIndex(i =>
+        i.method === item.method && i.url === item.url,
+    );
+    if (existingIdx >= 0) {
+        const prev = items[existingIdx]!;
+        items[existingIdx] = {
+            ...item,
+            id: prev.id,
+            enqueuedAt: prev.enqueuedAt,
+            attempts: prev.attempts,
+        };
+    } else {
+        items.push(item);
+    }
     // Cap: evict oldest if we're over the limit. Items list is
     // append-only at enqueue time so .slice(-MAX) takes the newest.
     const capped = items.length > MAX_ITEMS ? items.slice(-MAX_ITEMS) : items;
@@ -204,7 +233,32 @@ export function clearOutbox(): void {
  *  Returns a summary { drained, dropped, remaining } so callers
  *  can log + display.
  */
+// R8-B1: in-flight mutex. Pre-fix the boot setTimeout(2s) drain
+// and the `online` event listener could fire concurrently — both
+// read the queue, both fetch item X, server processes both
+// (creates → duplicate-id retry; deletes → second is 404 →
+// silently dropped as 4xx-non-409). Module-level guard ensures
+// at most one drain at a time; the bypassed call no-ops and
+// returns a marker result.
+let _draining = false;
+
 export async function drainOutbox(): Promise<{
+    drained: number;
+    dropped: number;
+    remaining: number;
+}> {
+    if (_draining) {
+        return { drained: 0, dropped: 0, remaining: _readAll().length };
+    }
+    _draining = true;
+    try {
+        return await _drainOutboxImpl();
+    } finally {
+        _draining = false;
+    }
+}
+
+async function _drainOutboxImpl(): Promise<{
     drained: number;
     dropped: number;
     remaining: number;

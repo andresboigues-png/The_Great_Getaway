@@ -1,2 +1,2 @@
 var e=`--kb-offset`,t=!1;function n(){if(typeof window>`u`)return 0;let e=window.visualViewport;if(!e)return 0;let t=window.innerHeight-e.height-e.offsetTop;return t>60?Math.round(t):0}function r(){let t=n();document.documentElement.style.setProperty(e,`${t}px`)}function i(){if(t||typeof window>`u`||!window.visualViewport)return;t=!0;let e=window.visualViewport;e.addEventListener(`resize`,r),e.addEventListener(`scroll`,r),r()}export{i as initKeyboardAvoidance};
-//# sourceMappingURL=keyboard-avoidance-WvArhsdq.js.map
+//# sourceMappingURL=keyboard-avoidance-DBwiu-MA.js.map

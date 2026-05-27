@@ -500,23 +500,59 @@ def proxy_place_photo(photo_name: str):
     return response
 
 
+# R8-B2: per-user AI cap moved INSIDE the route (was a Flask-Limiter
+# decorator). Two reasons:
+#   1. The limiter decrements its bucket BEFORE the route body runs,
+#      so transient backend failures (Gemini 502, all-keys-cooled,
+#      JSON parse error) burned the user's daily quota — they'd
+#      legitimately generate 5 things, the server flakes 3, user
+#      shows 5/20 in their head but limiter shows 8/20. They'd hit
+#      "rate limit" around generation 12 and have no idea why.
+#   2. The cap was supposed to "ensure no single user can drain
+#      the shared 6-key pool" (R6-B1 docstring), but applied UNIFORMLY
+#      including to BYO-key users whose requests don't touch the
+#      host pool at all. Power users were unfairly capped.
+#
+# In-memory accounting per-process — resets on worker restart
+# (matches the achievement throttle pattern from R5-B3). The
+# per-IP 10/hour decorator stays as the anonymous-abuse safety net.
+_AI_DAILY_CAP_PER_USER = 20
+_AI_LRU_MAX = 1024
+_ai_user_counts: dict[str, tuple[int, int]] = {}
+
+
+def _ai_count_for_user(user_id: str) -> int:
+    """Returns today's count for the user. Auto-resets when the day
+    rolls over. Bounded growth via LRU-style oldest-eviction."""
+    from datetime import date
+    today_ord = date.today().toordinal()
+    entry = _ai_user_counts.get(user_id)
+    if entry is None or entry[1] != today_ord:
+        return 0
+    return entry[0]
+
+
+def _ai_increment_for_user(user_id: str) -> None:
+    """Bump the user's count for today. Called only AFTER a successful
+    host-pool generation (BYO calls bypass)."""
+    from datetime import date
+    today_ord = date.today().toordinal()
+    entry = _ai_user_counts.get(user_id)
+    if entry is None or entry[1] != today_ord:
+        _ai_user_counts[user_id] = (1, today_ord)
+    else:
+        _ai_user_counts[user_id] = (entry[0] + 1, today_ord)
+    # Cap dict size — evict a random older entry if over limit.
+    if len(_ai_user_counts) > _AI_LRU_MAX:
+        # Drop the entry with the oldest day_ord (or earliest
+        # alphabetical if tied — deterministic enough).
+        oldest = min(_ai_user_counts, key=lambda k: _ai_user_counts[k][1])
+        if oldest != user_id:
+            del _ai_user_counts[oldest]
+
+
 @bp.route("/api/generate_itinerary", methods=["POST"])
 @limiter.limit("10 per hour")
-# R6-B1 fix: SECOND limit, keyed on user_id, layered ON TOP of the
-# default per-IP limit above. Pre-fix the per-IP limit was the only
-# defense — a single bad actor cycling IPs (VPN, mobile NAT, cloud
-# rotation) could legally drain the entire 6-key host pool in one
-# afternoon, locking every other user out of the AI feature for
-# the rest of the day. The user's standing mandate ("the AI api
-# key system should be the same for every user", "we have 6 keys
-# that allow ALL users in the platform to use the AI feature")
-# requires that no single user be able to monopolise the pool.
-# 20/day per user is generous for genuine multi-trip planning
-# (each planning session is ~3-5 generations) but caps abuse.
-@limiter.limit(
-    "20/day",
-    key_func=lambda: f"ai:user:{current_user_id() or 'anon'}",
-)
 @require_auth
 def generate_itinerary():
     """Call Gemini API to generate a structured JSON itinerary.
@@ -617,10 +653,31 @@ def generate_itinerary():
     import re
     _GEMINI_KEY_RE = re.compile(r"^AIzaSy[A-Za-z0-9_-]{33}$")
     keys_to_try: list[tuple[int, str]] = []
-    if user_key and _GEMINI_KEY_RE.match(user_key):
+    using_byo = bool(user_key and _GEMINI_KEY_RE.match(user_key))
+    if using_byo:
         keys_to_try.append((0, user_key))  # slot 0 = BYO
     else:
         keys_to_try = _available_host_keys()
+
+    # R8-B2: per-user daily cap on host-pool usage. Pre-fix this was
+    # a @limiter.limit() decorator that counted FAILURES + applied
+    # to BYO users. Now: only checked on the host-pool path, only
+    # counts on success (incremented post-response below), with a
+    # friendly 429 message the frontend can surface.
+    requesting_user_id = current_user_id() or "anon"
+    if not using_byo:
+        used_today = _ai_count_for_user(requesting_user_id)
+        if used_today >= _AI_DAILY_CAP_PER_USER:
+            return jsonify({
+                "error": (
+                    f"You've used today's {_AI_DAILY_CAP_PER_USER} AI "
+                    "generations. Add your own Gemini API key in Settings "
+                    "to keep generating (free for personal use), or come "
+                    "back tomorrow."
+                ),
+                "host_keys": _pool_status(),
+                "userCapHit": True,
+            }), 429
 
     if not keys_to_try:
         return jsonify({
@@ -868,14 +925,19 @@ def generate_itinerary():
         logger.info(
             "ai.generated",
             extra=log_extra(
-                user_id=current_user_id() or "anon",
+                user_id=requesting_user_id,
                 slot=slot,
                 model=model,
                 num_days_requested=num_days,
                 days_returned=days_count,
-                byo=bool(user_key),
+                byo=using_byo,
             ),
         )
+        # R8-B2: bump the per-user daily counter ONLY on success +
+        # ONLY when the host pool was used. BYO calls are uncapped
+        # by design (the user is spending their own quota).
+        if not using_byo:
+            _ai_increment_for_user(requesting_user_id)
         # Include the pool snapshot on success too so the frontend
         # bar refreshes after every generation — useful when one
         # request silently drains the last available slot.

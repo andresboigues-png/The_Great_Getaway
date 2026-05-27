@@ -37,6 +37,7 @@ import { esc } from '../utils.js';
 import { navigate } from '../router.js';
 import { showModal } from '../components/Modal.js';
 import { t } from '../i18n.js';
+import { clearOutbox } from '../outbox.js';
 
 
 export interface ProfileFriend {
@@ -80,16 +81,22 @@ export const logout = async () => {
         STATE.notifications = [];
         STATE.notificationsTotalUnread = 0;
         STATE.savedFormats = [];
-        // R7-F1: wipe the offline-mutation outbox on logout. Any
-        // pending replays would 401 against the new session anyway
-        // (the JWT just rotated via /api/auth/logout's token_jti
-        // bump), and they belong semantically to the old user —
-        // replaying them under the next user who logs in on this
-        // device would be a privacy violation.
-        try {
-            const { clearOutbox } = await import('../outbox.js');
-            clearOutbox();
-        } catch { /* best-effort */ }
+        // R8-B3: also wipe per-user categories on logout. Pre-fix
+        // STATE.categories was intentionally kept "shared by
+        // anonymous + logged-in" — but a user A who created a
+        // CUSTOM category while OFFLINE (in STATE, never synced to
+        // server) would leak that category into user B's session
+        // on a shared device. Safer to clear; the next sync pulls
+        // the server's authoritative set anyway.
+        STATE.categories = [];
+        // R7-F1 / R8-B3: wipe the offline-mutation outbox on logout.
+        // Pre-R8 this was a dynamic await import('../outbox.js')
+        // that resolved AFTER STATE.user=null — a race window where
+        // user B could log in mid-resolution and have their fresh
+        // outbox cleared. Now a synchronous static import (top of
+        // file) so the wipe happens in the same tick as the
+        // STATE clear.
+        try { clearOutbox(); } catch { /* best-effort */ }
         STATE.draftExpense = {
             who: '', categoryId: '', label: '', date: '',
             country: '', value: '', currency: 'EUR', euroValue: ''

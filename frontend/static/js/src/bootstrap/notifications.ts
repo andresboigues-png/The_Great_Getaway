@@ -276,7 +276,16 @@ export function handleNotificationClick(notification: { type?: string; related_i
     // Fire-and-forget — local state flips optimistically inside
     // markNotificationRead, and a server failure reconciles on the
     // next /api/notifications/list poll.
-    if (notification.id !== undefined && notification.id !== null) {
+    //
+    // R8-B3: SKIP for trip_invite — the click opens an accept/decline
+    // modal. With R7-F4's back-button-closes-modal hook, a user who
+    // tapped a trip_invite and swiped back to think about it would
+    // see the invite vanish from the bell with no decision made.
+    // Defer mark-read until the modal's action handler runs (the
+    // accept/decline routes already remove the notification server-
+    // side, so the bell catches up on the next poll).
+    const isTripInvite = notification.type === 'trip_invite';
+    if (!isTripInvite && notification.id !== undefined && notification.id !== null) {
         markNotificationRead(notification.id);
     }
 
