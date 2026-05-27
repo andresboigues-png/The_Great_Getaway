@@ -648,10 +648,23 @@ def get_data():
             # home + collections cards. shareShowCost mirrors the
             # privacy toggle so the modal can reflect the current state.
             # ALL owner-only — must not leak through serialize_trip_row.
-            t['shareToken'] = t.pop('share_token', None)
-            t['shareViews'] = int(t.pop('share_views', 0) or 0)
-            t['shareShowCost'] = bool(t.pop('share_show_cost', 0))
-            t['shareShowPlans'] = bool(t.pop('share_show_plans', 0))
+            #
+            # R3-Fix #3: pre-fix every accepted trip member saw the owner's
+            # share_token in their /api/data response. A non-owner planner
+            # could re-share the public URL the owner intentionally kept
+            # private. Now: gate share_* fields on caller==owner; non-owners
+            # see None/0/False so the UI renders the "no share link" state
+            # (which is the truth from their perspective — only the owner
+            # controls the link).
+            is_owner = (t.get('ownerId') == user_id)
+            raw_token = t.pop('share_token', None)
+            raw_views = t.pop('share_views', 0)
+            raw_show_cost = t.pop('share_show_cost', 0)
+            raw_show_plans = t.pop('share_show_plans', 0)
+            t['shareToken'] = raw_token if is_owner else None
+            t['shareViews'] = int(raw_views or 0) if is_owner else 0
+            t['shareShowCost'] = bool(raw_show_cost) if is_owner else False
+            t['shareShowPlans'] = bool(raw_show_plans) if is_owner else False
 
             # Per-user archive + role from the pre-fetched lookup table.
             # Owners may not have a row yet on legacy data — fall back

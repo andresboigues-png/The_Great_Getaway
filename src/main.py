@@ -799,43 +799,48 @@ def manifest():
 # subdirectory (which may not be the same path on prod).
 @app.route("/static/uploads/<path:relpath>")
 def serve_upload(relpath: str):
-    from auth import current_user_id, verify_token, _extract_token
+    from auth import current_user_id
 
-    # Re-derive the caller id without invoking @require_auth — we want
-    # to fall through to the anonymous branch on missing/expired token
-    # rather than 401 immediately. `_extract_token` returns the raw JWT
-    # from cookie or Authorization; `verify_token` re-checks
-    # auth_sessions revocation.
-    caller_id = None
-    try:
-        token = _extract_token(request)
-        if token:
-            payload = verify_token(token)
-            if payload:
-                caller_id = payload.get("sub")
-    except Exception:
-        caller_id = None
+    # R3-Fix #1: pre-fix this called `_extract_token(request)` but the
+    # helper takes ZERO arguments, raising TypeError. The bare
+    # `except Exception` swallowed it, so every authenticated request
+    # silently fell into the anonymous branch and 404'd for the file's
+    # own owner. `current_user_id()` does cookie+bearer extraction +
+    # verify_token + auth_sessions revocation check internally, returns
+    # the user_id string (NOT a dict — `payload.get("sub")` would have
+    # AttributeError'd too).
+    caller_id = current_user_id()
 
     if caller_id:
         return send_from_directory(UPLOAD_FOLDER, relpath)
 
     # Anonymous branch — only allow when at least one is_public=1 trip
-    # references the file. We match on the canonical `/static/uploads/<relpath>`
-    # form because that's what cover_url / photos_json store. Use LIKE
-    # with a leading `%` so we catch the column whether it stores the
-    # absolute URL or just the relative path.
-    needle = f"%/static/uploads/{relpath}"
+    # references the file. R3-Fix #22: pre-fix the LIKE pattern was
+    # `%/static/uploads/<relpath>` — non-anchored, so a malicious trip
+    # owner who plants `"https://attacker.example/static/uploads/<victim>/<file>"`
+    # in their public trip's photos_json would have the LIKE match and
+    # serve the victim's private file to anonymous viewers. The fix:
+    #   - cover_url: exact-equality match (it's a single string column).
+    #   - photos_json / documents_json: require the path to be wrapped
+    #     in JSON-string quotes — `"/static/uploads/<relpath>"` — so
+    #     a polluted scheme-prefixed string like
+    #     `"https://attacker/static/uploads/<...>"` no longer matches.
+    # An attacker who plants the EXACT canonical form still leaks (they
+    # could just link directly anyway), but the narrowing closes the
+    # generic-substring exposure.
+    needle_exact = f"/static/uploads/{relpath}"
+    needle_json = f'%"/static/uploads/{relpath}"%'
     from database import get_db
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute(
             "SELECT 1 FROM trips "
             "WHERE is_public = 1 AND ("
-            "  cover_url LIKE ? OR "
+            "  cover_url = ? OR "
             "  COALESCE(photos_json, '') LIKE ? OR "
             "  COALESCE(documents_json, '') LIKE ?"
             ") LIMIT 1",
-            (needle, needle, needle),
+            (needle_exact, needle_json, needle_json),
         )
         if cursor.fetchone():
             return send_from_directory(UPLOAD_FOLDER, relpath)

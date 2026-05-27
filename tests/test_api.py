@@ -3550,6 +3550,53 @@ def test_invite_trip_member_does_not_demote_accepted_planner(
 
 
 
+def test_share_token_hidden_from_non_owner_members(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """R3-Fix #3: pre-fix, every accepted trip member saw the owner's
+    share_token (+ shareViews/shareShowCost/shareShowPlans) in their
+    /api/data response. A non-owner planner could re-share the public
+    URL the owner intentionally kept private. Now: non-owners see
+    None/0/False for all four share_* fields; only the owner sees the
+    real values."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-share-leak")
+    # Owner generates a share token.
+    res = client.post(
+        f"/api/trips/{trip_id}/share", headers=auth_headers,
+        json={"showCost": True, "showPlans": True},
+    )
+    assert res.status_code == 200
+    owner_token = res.get_json()["token"]
+    assert owner_token  # sanity
+
+    # Invite + accept the other user as planner (so they're an accepted
+    # trip member — the exact case where the leak fired pre-fix).
+    client.post("/api/trips/invite", headers=auth_headers, json={
+        "trip_id": trip_id,
+        "target_user_id": seed_other_user,
+        "role": "planner",
+    })
+    client.post("/api/trips/invite/respond", headers=other_auth_headers, json={
+        "trip_id": trip_id, "accept": True,
+    })
+
+    # Owner sees the real share state.
+    owner_data = client.get("/api/data", headers=auth_headers).get_json()
+    owner_trip = next(t for t in owner_data["trips"] if t["id"] == trip_id)
+    assert owner_trip["shareToken"] == owner_token
+    assert owner_trip["shareShowCost"] is True
+    assert owner_trip["shareShowPlans"] is True
+
+    # Accepted-member non-owner gets None / False for everything.
+    member_data = client.get("/api/data", headers=other_auth_headers).get_json()
+    member_trip = next(t for t in member_data["trips"] if t["id"] == trip_id)
+    assert member_trip["shareToken"] is None, \
+        f"share_token leaked to non-owner member: {member_trip['shareToken']!r}"
+    assert member_trip["shareViews"] == 0
+    assert member_trip["shareShowCost"] is False
+    assert member_trip["shareShowPlans"] is False
+
+
 def test_invite_trip_member_404_on_unknown_target(
     client, seed_user, auth_headers,
 ):
