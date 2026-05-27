@@ -38,6 +38,7 @@ from flask import Blueprint, jsonify, request
 from auth import current_user_id, require_auth
 from database import get_db, retry_on_lock
 from extensions import limiter
+from fx_rates import compute_euro_value, get_rate_eur
 from helpers import trip_member_role
 from observability import bind_trip_context, get_logger, log_extra
 from validators import (
@@ -188,24 +189,31 @@ def create_settlement():
         else:
             if not math.isfinite(euro_value) or euro_value < 0 or euro_value > 1e9:
                 euro_value = None
-    if euro_value is None:
-        # 2026-05-26 (audit S2): we used to fall back to `amount` for
-        # EUR settlements and `None` otherwise. That meant a non-EUR
-        # settlement with a null euroValue would silently apply the
-        # raw foreign-currency amount to the balance as if it were EUR
-        # — a $120 settlement inflated Alice's debt by €120 (~20%
-        # high) instead of the converted €100. Now require an explicit
-        # euro_value for non-EUR rows; reject the request when it's
-        # missing so the client can either supply the conversion or
-        # switch currency to EUR. The EUR case still uses
-        # `amount_f` as a sane default (no conversion needed).
-        if currency == "EUR":
-            euro_value = amount_f
-        else:
+    # R3-Fix #6: derive euro_value server-side from live FX. Pre-fix
+    # the route trusted the client euroValue verbatim (with only a
+    # range check). Now: if currency == EUR or we have a live rate,
+    # OVERRIDE the client number with the server-derived value. The
+    # cold path (no live rate, uncommon currency) still uses the
+    # client hint as a fallback — same posture as compute_euro_value.
+    server_euro_value = compute_euro_value(
+        amount_f, currency,
+        client_euro_value=euro_value,
+    )
+    # 2026-05-26 (audit S2): for non-EUR settlements, also require
+    # that we ACTUALLY converted via a live rate (or that the
+    # client supplied an explicit euroValue). A raw amount-to-EUR
+    # fallback would silently apply the foreign amount as if it
+    # were EUR. compute_euro_value's cold path returns the value
+    # 1:1 when there's no rate AND no client hint — we still
+    # reject in that case for non-EUR currencies.
+    if currency != "EUR":
+        rate = get_rate_eur(currency)
+        if rate is None and euro_value is None:
             return jsonify({
                 "error": "euroValue is required for non-EUR settlements",
                 "currency": currency,
             }), 400
+    euro_value = server_euro_value
 
     with get_db() as conn:
         cursor = conn.cursor()

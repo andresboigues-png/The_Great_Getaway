@@ -11,6 +11,7 @@ from flask import Blueprint, jsonify, request
 from auth import current_user_id, require_auth
 from database import get_db, retry_on_lock
 from extensions import limiter
+from fx_rates import compute_euro_value
 from helpers import can_edit_expenses
 from observability import bind_trip_context
 from validators import (
@@ -53,8 +54,20 @@ def upsert_expense():
     try:
         value = validate_money(e.get("value", 0), field_name="value")
         currency = validate_currency(e.get("currency"))
-        euro_value = validate_money(
+        # R3-Fix #6: derive euro_value server-side from the live FX
+        # cache. Pre-fix the client euroValue was stored verbatim —
+        # a buggy or malicious client posting
+        # `{value:1, currency:"JPY", euroValue:1000000}` had that
+        # number flow into balance math, achievements, PDF totals,
+        # Insights aggregates forever. `compute_euro_value` overrides
+        # the client value when a live rate exists; falls back to
+        # the client's hint only on the cold path (no rate available,
+        # Frankfurter down + uncommon code).
+        client_euro_value = validate_money(
             e.get("euroValue", 0), field_name="euroValue",
+        )
+        euro_value = compute_euro_value(
+            value, currency, client_euro_value=client_euro_value,
         )
         label = clean_text(
             e.get("label", ""), max_len=200, allow_newlines=False,

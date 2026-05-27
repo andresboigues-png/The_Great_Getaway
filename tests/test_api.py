@@ -1375,6 +1375,53 @@ def test_user_data_delete_wipes_trips_and_expenses(client, seed_user, auth_heade
     assert pull.status_code == 401
 
 
+def test_expense_euro_value_recomputed_server_side(
+    client, seed_user, auth_headers,
+):
+    """R3-Fix #6: pre-fix /api/expenses stored client-supplied
+    `euroValue` verbatim — a buggy or malicious client could post
+    `{value:1, currency:"USD", euroValue:1000000}` and that million-
+    euro hit landed in balance math and PDF totals. Now: when a live
+    FX rate exists (or currency is EUR), the server overrides the
+    client number with its own computation. The client hint is only
+    accepted on the cold path (Frankfurter down + uncommon code).
+    """
+    # Pre-seed an FX rate so we can predict the server's recompute.
+    # USD's rate to EUR is ~0.92 (current live, but for the test
+    # we control it by injecting into the cache directly).
+    import fx_rates
+    fx_rates._cache = {"EUR": 1.0, "USD": 0.5}  # 1 USD = 0.5 EUR
+    fx_rates._cache_set_at = __import__('time').time()
+    try:
+        trip_id = _create_trip(
+            client, auth_headers, trip_id="trip-eur-recompute",
+        )
+        # Client lies about euroValue — sends 999 for a $100 expense.
+        res = client.post("/api/expenses", headers=auth_headers, json={
+            "expense": {
+                "id": "exp-eur-recompute",
+                "tripId": trip_id, "who": "Me",
+                "value": 100, "currency": "USD",
+                "euroValue": 999,  # lie — should be 50 at 0.5 rate
+                "label": "lunch", "date": "2026-05-12",
+            },
+        })
+        assert res.status_code == 200
+        # Server should have ignored the client's 999 and recomputed
+        # from the live rate: 100 USD × 0.5 = 50 EUR.
+        from database import get_db
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT euro_value FROM expenses WHERE id = ?",
+                ("exp-eur-recompute",),
+            ).fetchone()
+            assert row["euro_value"] == 50.0, \
+                f"server didn't recompute euro_value: got {row['euro_value']!r}"
+    finally:
+        fx_rates._cache = {}
+        fx_rates._cache_set_at = 0.0
+
+
 def test_budget_upsert_rejects_cross_user_id(
     client, seed_user, seed_other_user, auth_headers, other_auth_headers,
 ):

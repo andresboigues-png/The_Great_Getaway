@@ -29,7 +29,69 @@ from helpers import (
     serialize_trip_row,
     unwrap_legacy_plan_text,
 )
-from validators import clean_companions as _clean_companions_raw
+from fx_rates import compute_euro_value
+from validators import (
+    ValidationError,
+    clean_companions as _clean_companions_raw,
+    clean_text,
+    validate_currency,
+    validate_money,
+)
+
+
+def _validate_sync_expense(e: dict) -> dict | None:
+    """R3-Fix #11 + #6: per-row validation for /api/sync expense
+    loops. Pre-fix both loops took every field verbatim — NaN/Inf
+    values, unknown currencies, 10 MB labels, and client-trusted
+    `euroValue` all flowed through. The per-row /api/expenses POST
+    has had this hardening since R2; the bulk-sync loops were missed.
+
+    Returns a validated dict ready for INSERT, OR None when any
+    field fails validation (caller should skip the row — bulk paths
+    can't 400 the whole batch over one bad row).
+    """
+    try:
+        value = validate_money(e.get('value', 0), field_name="value")
+        currency = validate_currency(e.get('currency'))
+        # R3-Fix #6: server-side euro_value derivation.
+        client_euro_value = validate_money(
+            e.get('euroValue', 0), field_name="euroValue",
+        )
+        euro_value = compute_euro_value(
+            value, currency, client_euro_value=client_euro_value,
+        )
+        label = clean_text(
+            e.get('label', ''), max_len=200, allow_newlines=False,
+            field_name="label",
+        )
+        who = clean_text(
+            e.get('who', ''), max_len=200, allow_newlines=False,
+            field_name="who",
+        )
+        country = clean_text(
+            e.get('country', '') or '', max_len=120, allow_newlines=False,
+            field_name="country",
+        )
+        category_id = clean_text(
+            e.get('categoryId', '') or '', max_len=120, allow_newlines=False,
+            field_name="categoryId",
+        )
+        date = clean_text(
+            e.get('date', '') or '', max_len=32, allow_newlines=False,
+            field_name="date",
+        )
+    except ValidationError:
+        return None
+    return {
+        'value': value,
+        'currency': currency,
+        'euro_value': euro_value,
+        'label': label,
+        'who': who,
+        'country': country,
+        'category_id': category_id,
+        'date': date,
+    }
 
 
 def _cleaned_companions_for_sync(cursor, trip_id, raw):
@@ -272,11 +334,18 @@ def sync_data():
                     -- clients that don't send the field would wipe
                     -- the stored multi-country array on every tick.
                     trip_countries_json=COALESCE(excluded.trip_countries_json, trip_countries_json),
-                    companions_json=excluded.companions_json,
-                    marked_places_json=excluded.marked_places_json,
-                    documents_json=excluded.documents_json,
-                    photos_json=excluded.photos_json,
-                    cover_url=excluded.cover_url
+                    -- R3-Fix #11: COALESCE protection backported to the
+                    -- archived path. The active-trips block above already
+                    -- had this (R2 fix); the archived sibling was missed
+                    -- and an older client that didn't ship these fields
+                    -- in its `archived_trips[i]` payload null-overwrote
+                    -- the column on every 15-second /api/sync poll —
+                    -- losing all 50 photos / companions / marked places.
+                    companions_json=COALESCE(excluded.companions_json, companions_json),
+                    marked_places_json=COALESCE(excluded.marked_places_json, marked_places_json),
+                    documents_json=COALESCE(excluded.documents_json, documents_json),
+                    photos_json=COALESCE(excluded.photos_json, photos_json),
+                    cover_url=COALESCE(excluded.cover_url, cover_url)
             ''', (t['id'], user_id, t['name'], t['country'],
                   1 if t.get('isPublic') else 0,
                   1 if t.get('publicShowExpenses') else 0,
@@ -323,6 +392,15 @@ def sync_data():
                     gate_trip_id = existing['trip_id'] if existing else t['id']
                     if not can_edit_trip(cursor, gate_trip_id, user_id):
                         continue
+                    # R3-Fix #11 + #6: validate every field + recompute
+                    # euro_value server-side. Pre-fix this loop took the
+                    # client's values verbatim — NaN/Inf, unknown
+                    # currencies, 10MB labels, and client-trusted euroValue
+                    # all flowed through. Bad rows are silently skipped
+                    # (bulk paths can't 400 the whole batch).
+                    cleaned = _validate_sync_expense(e)
+                    if cleaned is None:
+                        continue
                     # 2026-05-25 (audit S1): persist splits + is_settlement.
                     splits_raw = e.get('splits')
                     if isinstance(splits_raw, dict) and splits_raw:
@@ -334,19 +412,32 @@ def sync_data():
                     # 2026-05-26 (audit SY5): WHERE guard skips tombstoned
                     # rows so a peer device's queued archived-trip state
                     # can't resurrect an expense another device deleted.
+                    #
+                    # R3-Fix #11: SET clause now includes category_id /
+                    # date / country / currency (active path included
+                    # them since R2 audit fix; archived sibling was
+                    # missed → editing those fields on an archived
+                    # expense silently no-op'd on reload).
                     cursor.execute('''
                         INSERT INTO expenses (id, trip_id, who, category_id, label, date, country, value, currency, euro_value, receipt_url, splits, is_settlement)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         ON CONFLICT(id) DO UPDATE SET
                             who=excluded.who,
+                            category_id=excluded.category_id,
                             label=excluded.label,
+                            date=excluded.date,
+                            country=excluded.country,
                             value=excluded.value,
+                            currency=excluded.currency,
                             euro_value=excluded.euro_value,
                             receipt_url=excluded.receipt_url,
                             splits=excluded.splits,
                             is_settlement=excluded.is_settlement
                         WHERE expenses.deleted_at IS NULL
-                    ''', (e['id'], gate_trip_id, e['who'], e['categoryId'], e['label'], e['date'], e['country'], e['value'], e['currency'], e['euroValue'], e.get('receiptUrl'), splits_json, is_settlement))
+                    ''', (e['id'], gate_trip_id, cleaned['who'], cleaned['category_id'],
+                          cleaned['label'], cleaned['date'], cleaned['country'],
+                          cleaned['value'], cleaned['currency'], cleaned['euro_value'],
+                          e.get('receiptUrl'), splits_json, is_settlement))
 
         # Commit archived-trips section (plus the inline archived
         # expenses) before moving to active expenses.
@@ -371,6 +462,11 @@ def sync_data():
             ).fetchone()
             gate_trip_id = existing['trip_id'] if existing else e.get('tripId')
             if not can_edit_expenses(cursor, gate_trip_id, user_id):
+                continue
+            # R3-Fix #11 + #6: validate every field + recompute euro_value
+            # server-side. Silently skip rows that fail validation.
+            cleaned = _validate_sync_expense(e)
+            if cleaned is None:
                 continue
             # 2026-05-25 (audit S1): persist splits + is_settlement here too,
             # so a bulk-sync path doesn't silently strip them.
@@ -401,7 +497,10 @@ def sync_data():
                     splits=excluded.splits,
                     is_settlement=excluded.is_settlement
                 WHERE expenses.deleted_at IS NULL
-            ''', (e['id'], e['tripId'], e['who'], e['categoryId'], e['label'], e['date'], e['country'], e['value'], e['currency'], e['euroValue'], e.get('receiptUrl'), splits_json, is_settlement))
+            ''', (e['id'], e['tripId'], cleaned['who'], cleaned['category_id'],
+                  cleaned['label'], cleaned['date'], cleaned['country'],
+                  cleaned['value'], cleaned['currency'], cleaned['euro_value'],
+                  e.get('receiptUrl'), splits_json, is_settlement))
 
         # Commit active-expenses section before categories.
         conn.commit()

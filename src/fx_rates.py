@@ -170,3 +170,59 @@ def get_all_rates_eur() -> dict[str, float]:
     key has a number")."""
     _maybe_refresh()
     return {k: v for k, v in _cache.items() if v is not None}
+
+
+def compute_euro_value(
+    value: float,
+    currency: str,
+    client_euro_value: Optional[float] = None,
+) -> float:
+    """R3-Fix #6: server-side euro_value derivation. Pre-fix every
+    expense / settlement write trusted the client-supplied euroValue
+    verbatim — a malicious or buggy client posting
+    `{value:1, currency:"JPY", euroValue:1000000}` had that number
+    propagate to balance math, achievements, PDF totals, and
+    Insights aggregates forever.
+
+    The contract this helper enforces:
+
+      - EUR: euro_value == value (no conversion).
+      - Currency with a live rate in cache: euro_value = value * rate.
+        Client-supplied value is IGNORED — server is authoritative.
+      - Unknown currency / no live rate (Frankfurter down + cold
+        cache + uncommon code): fall back to the client's value if
+        provided, else return value (1:1 fallback) — both are
+        degraded but better than refusing the write outright. A
+        warning is logged so operators can see the cold path is
+        firing.
+
+    `value` is assumed pre-validated (positive finite via
+    validate_money). `currency` is assumed pre-validated via
+    validate_currency (so we know it's in _ALLOWED_CURRENCIES). The
+    helper rounds to 4 decimal places to match the storage precision
+    the existing per-row writes use.
+    """
+    if not currency:
+        return float(value)
+    code = currency.upper()
+    if code == "EUR":
+        return float(value)
+    rate = get_rate_eur(code)
+    if rate is not None and rate > 0:
+        return round(float(value) * float(rate), 4)
+    # Cold path: no live rate. Accept client hint if present, else
+    # fall back to value (degraded — caller may want to track this
+    # via a separate signal).
+    logger.warning(
+        "compute_euro_value: no live rate for %s — using client hint %r "
+        "(value=%r)",
+        code, client_euro_value, value,
+    )
+    if client_euro_value is not None:
+        try:
+            cev = float(client_euro_value)
+            if cev == cev and cev != float("inf") and cev != float("-inf") and cev >= 0:
+                return cev
+        except (TypeError, ValueError):
+            pass
+    return float(value)
