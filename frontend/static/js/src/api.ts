@@ -1260,8 +1260,23 @@ export async function fetchNotifications() {
     if (!STATE.user) return;
     try {
         const res = await apiFetch('/api/notifications/list');
-        const notifications = await res.json();
-        STATE.notifications = notifications;
+        const body = await res.json();
+        // R5-B5: response shape changed from a bare array to
+        // `{notifications: [...], totalUnread: N}` so the badge can
+        // count past the LIMIT 50 truncation. Tolerate the old
+        // shape (bare array) on the off-chance a stale SW serves a
+        // pre-deploy cached response.
+        if (Array.isArray(body)) {
+            STATE.notifications = body;
+            STATE.notificationsTotalUnread = body.filter((n: { is_read: 0 | 1 | boolean }) =>
+                !n.is_read).length;
+        } else {
+            STATE.notifications = body.notifications || [];
+            STATE.notificationsTotalUnread = typeof body.totalUnread === 'number'
+                ? body.totalUnread
+                : STATE.notifications.filter((n: { is_read: 0 | 1 | boolean }) =>
+                    !n.is_read).length;
+        }
         emit(EVENTS.NOTIFICATIONS_CHANGED);
     } catch (e) {
         console.error("Failed to fetch notifications:", e);
@@ -1277,9 +1292,45 @@ export async function markNotificationsRead() {
             body: JSON.stringify({})
         });
         STATE.notifications.forEach(n => n.is_read = 1);
+        STATE.notificationsTotalUnread = 0;
         emit(EVENTS.NOTIFICATIONS_CHANGED);
     } catch (e) {
         console.error("Failed to mark notifications read:", e);
+    }
+}
+
+/** R5-B5: mark a single notification as read. Called from
+ *  handleNotificationClick so clicking through to act on one
+ *  notification doesn't require the user to also tap "Mark all
+ *  read" (which would obliterate unread rows they haven't seen).
+ *  Optimistic — flips the local row's is_read + decrements the
+ *  unread counter before the server round-trip. Silent on
+ *  failure (the next /api/notifications/list poll will reconcile).
+ */
+export async function markNotificationRead(notificationId: number | string) {
+    if (!STATE.user || notificationId === undefined || notificationId === null) return;
+    // Local optimistic update — find + flip the row, decrement
+    // the unread counter. Skip if already read so a double-tap
+    // doesn't double-decrement.
+    const row = STATE.notifications.find(n => String(n.id) === String(notificationId));
+    if (row && !row.is_read) {
+        row.is_read = 1;
+        if (typeof STATE.notificationsTotalUnread === 'number'
+            && STATE.notificationsTotalUnread > 0) {
+            STATE.notificationsTotalUnread -= 1;
+        }
+        emit(EVENTS.NOTIFICATIONS_CHANGED);
+    }
+    try {
+        await apiFetch(`/api/notifications/${notificationId}/read`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({}),
+        });
+    } catch (e) {
+        // Server unreachable — local state already reflects the
+        // intent; next poll will reconcile if the write failed.
+        console.error("Failed to mark notification read:", e);
     }
 }
 

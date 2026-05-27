@@ -25,7 +25,21 @@ def list_notifications():
     R2 audit fix: 120/min rate limit. Pre-fix this was hammered with
     no cap; the bell-poll cadence is ~15s (~4/min in steady state)
     so 120/min covers tab-switching + multi-tab + retries with
-    headroom."""
+    headroom.
+
+    R5-B5: response is now `{notifications: [...], totalUnread: N}`
+    so the bell badge can show the TRUE unread count even when it
+    exceeds the LIMIT 50 truncation point. Pre-fix the frontend
+    counted `STATE.notifications.filter(unread)` which capped at
+    50 — a user with 80 unread saw the badge as "50" and "Mark all
+    read" silently wiped the 30 they'd never seen.
+
+    Backward-compat note: legacy callers that read the raw array
+    keep working — when the response is shaped `{notifications,
+    totalUnread}` we send a top-level object; the api.ts client
+    reads `.notifications`. Server-only callers that test against
+    a bare list (none today) would need updating.
+    """
     user_id = current_user_id()
     with get_db() as conn:
         cursor = conn.cursor()
@@ -47,7 +61,18 @@ def list_notifications():
             # to keep the payload tight + free of duplicates.
             d['postId'] = d.pop('post_id')
             notifications.append(d)
-    return jsonify(notifications)
+        # R5-B5: total unread (uncapped) so the badge is honest at
+        # >50 unread. Cheap one-row aggregate.
+        cursor.execute(
+            "SELECT COUNT(*) AS c FROM notifications "
+            "WHERE user_id = ? AND is_read = 0",
+            (user_id,),
+        )
+        total_unread = cursor.fetchone()["c"]
+    return jsonify({
+        "notifications": notifications,
+        "totalUnread": total_unread,
+    })
 
 
 @bp.route("/api/notifications/read", methods=["POST"])
@@ -66,6 +91,40 @@ def read_notifications():
         cursor.execute("UPDATE notifications SET is_read = 1 WHERE user_id = ?", (user_id,))
         conn.commit()
     return jsonify({"status": "success"})
+
+
+@bp.route("/api/notifications/<int:notification_id>/read", methods=["POST"])
+@limiter.limit("120/minute")
+@require_auth
+@retry_on_lock()
+def read_single_notification(notification_id):
+    """R5-B5: mark a SINGLE notification as read. Pre-fix the only
+    way to clear the bell badge was the global "Mark all read"
+    button (`/api/notifications/read`), which obliterated unread
+    rows the user hadn't even seen yet. Clicking through a
+    notification now silently marks just-that-one as read so the
+    badge reflects "what I haven't acted on yet" instead of
+    "unseen-OR-already-clicked-but-others-still-unread".
+
+    Ownership gate is implicit via the WHERE user_id = ? clause —
+    a forged id pointing at someone else's notification matches
+    zero rows and 204s silently (no information leak about the
+    existence of other users' rows).
+
+    Idempotent — already-read or unknown id both return 204.
+    """
+    user_id = current_user_id()
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE notifications SET is_read = 1 "
+            "WHERE id = ? AND user_id = ?",
+            (notification_id, user_id),
+        )
+        conn.commit()
+    # 204 No Content — the client knows the id it asked about and
+    # we have nothing else to say. Keeps the wire shape tight.
+    return ("", 204)
 
 
 @bp.route("/api/notifications/trip_public", methods=["POST"])

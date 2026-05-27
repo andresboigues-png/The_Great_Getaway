@@ -563,6 +563,11 @@ export interface AppState {
     archivedTrips: Trip[];
     activeDetailId: string | null;
     notifications: Notification[];
+    /** R5-B5: true total of unread notifications for the user,
+     *  uncapped by the list endpoint's LIMIT 50. The bell badge
+     *  reads this so a user with 80 unread sees "80" instead of
+     *  "50" (which "Mark all read" would then silently wipe). */
+    notificationsTotalUnread?: number;
     /** Optional custom column mapping built up in the upload wizard. */
     customFormat?: { variable: string; column: string }[];
     /** Saved map camera state per trip+page key (e.g. "tripId_ai"). */

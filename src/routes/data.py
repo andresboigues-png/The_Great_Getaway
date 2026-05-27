@@ -1124,6 +1124,22 @@ def delete_user_data():
         cursor.execute("DELETE FROM categories WHERE user_id = ?", (user_id,))
         cursor.execute("DELETE FROM budgets WHERE user_id = ?", (user_id,))
         cursor.execute("DELETE FROM notifications WHERE user_id = ?", (user_id,))
+        # R5-B5: cross-user sweep. Pre-fix the DELETE above only
+        # wiped notifications sent TO the deleting user. But OTHER
+        # users had notifications referencing the deleter (e.g. a
+        # `followed_you` row in B's bell whose `related_id` is now-
+        # deleted A). On click those navigated to /profile/A which
+        # 404'd silently. Sweep them too, keyed on the notification
+        # types whose `related_id` is a user_id (per the click
+        # handler routing in bootstrap/notifications.ts). Trip- and
+        # post-keyed types are handled by trip-delete and post-delete
+        # respectively.
+        cursor.execute(
+            "DELETE FROM notifications "
+            "WHERE related_id = ? AND type IN "
+            "('followed_you', 'friend_request', 'accepted_request')",
+            (user_id,),
+        )
         # Friends table is symmetric — drop both sides of every relation
         # involving the caller.
         cursor.execute(

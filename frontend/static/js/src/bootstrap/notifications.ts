@@ -12,6 +12,7 @@ import { navigate } from '../router.js';
 import { PAGES } from '../constants.js';
 import { esc } from '../utils.js';
 import { openTripInviteResponseModal } from '../modals.js';
+import { markNotificationRead } from '../api.js';
 
 /**
  * R3-Round 2 fix: server emits SQLite-naive UTC timestamps
@@ -37,7 +38,15 @@ export function updateNotificationUI() {
     // time — CSS media query hides the other — but both stay in sync so
     // a viewport resize doesn't lose unread state. Same dual-instance
     // pattern as the trip selector / complete + delete buttons.
-    const unread = (STATE.notifications || []).filter(n => !n.is_read).length;
+    // R5-B5: prefer the server's authoritative `notificationsTotalUnread`
+    // when present (uncapped). Pre-fix the badge counted from the local
+    // notifications array which is LIMIT 50 from the server — a user
+    // with 80 unread saw "9+" but "Mark all read" silently wiped 80
+    // including the 30 they could never see in the dropdown. Falls back
+    // to the local-filter count on legacy responses.
+    const unread = typeof STATE.notificationsTotalUnread === 'number'
+        ? STATE.notificationsTotalUnread
+        : (STATE.notifications || []).filter(n => !n.is_read).length;
     const display = unread > 0 ? 'flex' : 'none';
     const text = unread > 9 ? '9+' : String(unread);
     for (const id of ['notificationBadge', 'notificationBadgeDesktop']) {
@@ -259,6 +268,16 @@ export function handleNotificationClick(notification: { type?: string; related_i
     for (const id of ['notificationDropdown', 'notificationDropdownDesktop']) {
         const dropdown = document.getElementById(id);
         if (dropdown) dropdown.style.display = 'none';
+    }
+
+    // R5-B5: mark just this notification as read. Pre-fix the only
+    // way to clear the bell badge was the global "Mark all read"
+    // button which wiped unread rows the user hadn't acted on yet.
+    // Fire-and-forget — local state flips optimistically inside
+    // markNotificationRead, and a server failure reconciles on the
+    // next /api/notifications/list poll.
+    if (notification.id !== undefined && notification.id !== null) {
+        markNotificationRead(notification.id);
     }
 
     const relatedId = notification.related_id ? String(notification.related_id) : null;

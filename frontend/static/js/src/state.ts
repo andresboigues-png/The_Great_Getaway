@@ -66,6 +66,7 @@ export const STATE: AppState = {
     archivedTrips: [],   // Array of completed trips
     activeDetailId: null, // Store ID for detail views (e.g. archived trip detail)
     notifications: [],
+    notificationsTotalUnread: 0,
     /** User preferences.
      *  - `mapDefaultPois` is legacy from when only some pills were
      *    visible by default (now all are; field kept for backward

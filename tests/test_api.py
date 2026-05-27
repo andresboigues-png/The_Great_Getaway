@@ -3154,12 +3154,17 @@ def test_friends_list_returns_accepted(
 
 # ── /api/notifications ───────────────────────────────────────────────────────
 
-def test_notifications_list_returns_array(client, seed_user, auth_headers):
-    """Empty roster on a fresh user is fine; pin the shape."""
+def test_notifications_list_returns_envelope(client, seed_user, auth_headers):
+    """R5-B5: response shape is `{notifications: [...], totalUnread: N}`
+    so the bell badge can show the true unread count even when it
+    exceeds the LIMIT 50 truncation. Empty roster on a fresh user
+    returns 0 totalUnread + empty notifications list."""
     res = client.get("/api/notifications/list", headers=auth_headers)
     assert res.status_code == 200
     body = res.get_json()
-    assert isinstance(body, list)
+    assert isinstance(body, dict), "response is an object envelope, not a bare array"
+    assert isinstance(body["notifications"], list)
+    assert body["totalUnread"] == 0
 
 
 def test_notifications_read_marks_all(client, seed_user, auth_headers):
@@ -3167,6 +3172,118 @@ def test_notifications_read_marks_all(client, seed_user, auth_headers):
     Idempotent — calling it on an already-empty roster still 200s."""
     res = client.post("/api/notifications/read", headers=auth_headers)
     assert res.status_code == 200
+
+
+def test_notifications_single_read_marks_only_target(
+    client, seed_user, auth_headers,
+):
+    """R5-B5: POST /api/notifications/<id>/read flips just-one row,
+    leaves others unread. Pre-fix the only mark-as-read endpoint was
+    global so clicking through one notification meant wiping the
+    badge for ALL unread (including ones the user hadn't seen yet).
+    """
+    from database import get_db
+    with get_db() as conn:
+        c = conn.cursor()
+        c.execute(
+            "INSERT INTO notifications (user_id, type, title, message, is_read) "
+            "VALUES (?, 'followed_you', 't1', 'm1', 0), "
+            "       (?, 'followed_you', 't2', 'm2', 0)",
+            (seed_user, seed_user),
+        )
+        conn.commit()
+        # Grab the inserted ids in deterministic order.
+        rows = c.execute(
+            "SELECT id FROM notifications WHERE user_id = ? "
+            "ORDER BY id ASC",
+            (seed_user,),
+        ).fetchall()
+    id_first, id_second = rows[0]["id"], rows[1]["id"]
+
+    res = client.post(
+        f"/api/notifications/{id_first}/read",
+        headers=auth_headers,
+    )
+    assert res.status_code == 204
+
+    listed = client.get(
+        "/api/notifications/list", headers=auth_headers,
+    ).get_json()
+    by_id = {n["id"]: n for n in listed["notifications"]}
+    assert by_id[id_first]["is_read"] == 1, "target row marked read"
+    assert by_id[id_second]["is_read"] == 0, "non-target row stays unread"
+    assert listed["totalUnread"] == 1, "totalUnread decremented"
+
+
+def test_notifications_single_read_other_users_row_no_op(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """R5-B5: forging another user's notification id is a silent
+    no-op (the WHERE user_id = ? clause matches zero rows). 204
+    either way so the response leaks no info about row existence."""
+    from database import get_db
+    with get_db() as conn:
+        c = conn.cursor()
+        c.execute(
+            "INSERT INTO notifications (user_id, type, title, message, is_read) "
+            "VALUES (?, 'followed_you', 't', 'm', 0)",
+            (seed_other_user,),
+        )
+        conn.commit()
+        other_row_id = c.execute(
+            "SELECT id FROM notifications WHERE user_id = ?",
+            (seed_other_user,),
+        ).fetchone()["id"]
+
+    # seed_user tries to mark seed_other_user's notification — silently no-ops.
+    res = client.post(
+        f"/api/notifications/{other_row_id}/read",
+        headers=auth_headers,
+    )
+    assert res.status_code == 204
+
+    # The row is still unread for the rightful owner.
+    listed = client.get(
+        "/api/notifications/list", headers=other_auth_headers,
+    ).get_json()
+    by_id = {n["id"]: n for n in listed["notifications"]}
+    assert by_id[other_row_id]["is_read"] == 0
+
+
+def test_delete_user_data_wipes_cross_user_followed_you_notifications(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """R5-B5: when user A deletes their account, B's bell mustn't
+    keep a `followed_you` notification whose related_id is now-
+    deleted A (the click handler would 404 silently on /profile/A).
+    """
+    from database import get_db
+    with get_db() as conn:
+        c = conn.cursor()
+        c.execute(
+            "INSERT INTO notifications "
+            "(user_id, type, title, message, related_id, is_read) "
+            "VALUES (?, 'followed_you', 'New follower', "
+            "'A started following you.', ?, 0)",
+            (seed_other_user, seed_user),
+        )
+        conn.commit()
+
+    res = client.delete("/api/user-data", headers=auth_headers)
+    assert res.status_code in (200, 204)
+
+    # B's bell shouldn't have the now-dangling notification.
+    listed = client.get(
+        "/api/notifications/list", headers=other_auth_headers,
+    ).get_json()
+    dangling = [
+        n for n in listed["notifications"]
+        if n["type"] == "followed_you" and n["related_id"] == seed_user
+    ]
+    assert not dangling, (
+        "follower-keyed notification pointing at a now-deleted "
+        "user must be swept on account delete"
+    )
 
 
 def test_notifications_trip_public_creates_notification(
