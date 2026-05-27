@@ -795,6 +795,28 @@ export async function deleteFeedComment(commentId: string | number) {
     }
 }
 
+/** Audit fix (2026-05-27 fix #60): edit one of your own comments in place.
+ *  Pairs with the PATCH /api/feed/comment/<id> server route (fix #35).
+ *  Pre-fix the only way to fix a typo was delete + re-post, which lost
+ *  the comment's chronological position. Author-only on the server; body
+ *  is silently truncated to 500 chars to mirror the create path. */
+export async function editFeedComment(commentId: string | number, body: string) {
+    if (!STATE.user) return { ok: false, status: 0, body: null };
+    try {
+        const res = await apiFetch(`/api/feed/comment/${commentId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ body }),
+        });
+        let payload = null;
+        try { payload = await res.json(); } catch { /* not JSON */ }
+        return { ok: res.ok, status: res.status, body: payload };
+    } catch (e) {
+        console.error('editFeedComment failed:', e);
+        return { ok: false, status: 0, body: null };
+    }
+}
+
 /** Phase 3 — invite a friend (linked-companion's user_id) to a trip with a role.
  *  Server creates a pending member row + fires `trip_invite` notification. */
 export function inviteTripMember(tripId: string, targetUserId: string, role: string) {

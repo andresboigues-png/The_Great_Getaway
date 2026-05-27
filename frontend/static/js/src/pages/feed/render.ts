@@ -478,8 +478,12 @@ export function commentRowHtml(c: any, canDelete: boolean) {
             ${
                 canDelete
                     ? `
-                <button type="button" class="feed-comment-delete-btn" data-comment-id="${idAttr}" title="Delete your comment" aria-label="Delete comment"
-                    style="background:transparent; border:0; color:rgba(255,59,48,0.6); cursor:pointer; padding:2px 6px; font-size:0.72rem; font-weight:800; flex-shrink:0;">✕</button>`
+                <div style="display:flex; align-items:center; gap:4px; flex-shrink:0;">
+                    <button type="button" class="feed-comment-edit-btn" data-comment-id="${idAttr}" title="Edit your comment" aria-label="Edit comment"
+                        style="background:transparent; border:0; color:rgba(0,113,227,0.65); cursor:pointer; padding:2px 6px; font-size:0.78rem; font-weight:800;">✎</button>
+                    <button type="button" class="feed-comment-delete-btn" data-comment-id="${idAttr}" title="Delete your comment" aria-label="Delete comment"
+                        style="background:transparent; border:0; color:rgba(255,59,48,0.6); cursor:pointer; padding:2px 6px; font-size:0.72rem; font-weight:800;">✕</button>
+                </div>`
                     : ''
             }
         </div>

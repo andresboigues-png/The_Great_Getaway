@@ -48,6 +48,7 @@ import {
     fetchFeedComments,
     postFeedComment,
     deleteFeedComment,
+    editFeedComment,
     unshareFeedPost,
     type ExploreFeedItem,
 } from '../../api.js';
@@ -319,6 +320,31 @@ export function Feed() {
         }
     };
 
+    // Audit fix (2026-05-27, fix #60): in-place comment edit. Pairs
+    // with PATCH /api/feed/comment/<id> shipped in fix #35. Optimistic
+    // local update + cache write — same posture as onCommentDelete.
+    // On server failure we roll back by replaying the cached row.
+    const onCommentEdit = async (eventId: string, commentId: number, body: string) => {
+        const existing = getCachedThread(eventId) || [];
+        const original = existing.find((c) => c.id === commentId);
+        const updated = existing.map((c) =>
+            c.id === commentId ? { ...c, body } : c,
+        );
+        setCachedThread(eventId, updated);
+        setThreads((prev) => ({ ...prev, [eventId]: updated }));
+        const result = await editFeedComment(commentId, body);
+        if (!result.ok) {
+            // Roll back to the cached original (or refetch if we
+            // somehow lost the row in flight).
+            const rolledBack = original
+                ? existing.map((c) => (c.id === commentId ? original : c))
+                : existing;
+            setCachedThread(eventId, rolledBack);
+            setThreads((prev) => ({ ...prev, [eventId]: rolledBack }));
+            showLiquidAlert("Couldn't save — try again in a moment.");
+        }
+    };
+
     const onUnshare = (postId: number) => {
         showConfirmModal({
             title: t('feed.toastUnshareConfirmTitle'),
@@ -474,6 +500,7 @@ export function Feed() {
                         onToggleComment={onToggleComment}
                         onCommentSubmit={onCommentSubmit}
                         onCommentDelete={onCommentDelete}
+                        onCommentEdit={onCommentEdit}
                         onUnshare={onUnshare}
                         onRepost={onRepost}
                     />
@@ -506,6 +533,7 @@ interface FeedListBodyProps {
     onToggleComment: (eventId: string) => void;
     onCommentSubmit: (eventId: string, body: string, input: HTMLInputElement) => void;
     onCommentDelete: (eventId: string, commentId: number) => void;
+    onCommentEdit: (eventId: string, commentId: number, body: string) => void;
     onUnshare: (postId: number) => void;
     onRepost: (postId: number, btn: HTMLButtonElement) => void;
 }
@@ -531,6 +559,7 @@ function FeedListBody(props: FeedListBodyProps) {
         onToggleComment,
         onCommentSubmit,
         onCommentDelete,
+        onCommentEdit,
         onUnshare,
         onRepost,
     } = props;
@@ -750,6 +779,7 @@ function FeedListBody(props: FeedListBodyProps) {
                         onToggleComment={onToggleComment}
                         onCommentSubmit={onCommentSubmit}
                         onCommentDelete={onCommentDelete}
+                        onCommentEdit={onCommentEdit}
                         onUnshare={onUnshare}
                         onRepost={onRepost}
                     />
@@ -834,6 +864,7 @@ interface EventCardProps {
     onToggleComment: (eventId: string) => void;
     onCommentSubmit: (eventId: string, body: string, input: HTMLInputElement) => void;
     onCommentDelete: (eventId: string, commentId: number) => void;
+    onCommentEdit: (eventId: string, commentId: number, body: string) => void;
     onUnshare: (postId: number) => void;
     onRepost: (postId: number, btn: HTMLButtonElement) => void;
 }
@@ -849,6 +880,7 @@ function EventCard(props: EventCardProps) {
         onToggleComment,
         onCommentSubmit,
         onCommentDelete,
+        onCommentEdit,
         onUnshare,
         onRepost,
     } = props;
@@ -1030,6 +1062,7 @@ function EventCard(props: EventCardProps) {
                             eventId={ev.id}
                             comments={threadComments || []}
                             onDelete={(commentId) => onCommentDelete(ev.id, commentId)}
+                            onEdit={(commentId, body) => onCommentEdit(ev.id, commentId, body)}
                             onSubmit={(body, input) => onCommentSubmit(ev.id, body, input)}
                         />
                     )}
@@ -1045,12 +1078,19 @@ interface CommentThreadProps {
     eventId: string;
     comments: FeedComment[];
     onDelete: (commentId: number) => void;
+    onEdit: (commentId: number, body: string) => void;
     onSubmit: (body: string, input: HTMLInputElement) => void;
 }
 
-function CommentThread({ eventId, comments, onDelete, onSubmit }: CommentThreadProps) {
+function CommentThread({ eventId, comments, onDelete, onEdit, onSubmit }: CommentThreadProps) {
     const meId = STATE.user?.id;
     const inputRef = useRef<HTMLInputElement | null>(null);
+    // Audit fix (2026-05-27, fix #60): edit-in-place state. When set,
+    // the matching comment row renders an input + Save/Cancel instead
+    // of the static commentRowHtml. Submit calls onEdit which is the
+    // optimistic update path in the parent.
+    const [editingId, setEditingId] = useState<number | null>(null);
+
     useEffect(() => {
         inputRef.current?.focus();
     }, []);
@@ -1065,35 +1105,64 @@ function CommentThread({ eventId, comments, onDelete, onSubmit }: CommentThreadP
     };
 
     const listRef = useRef<HTMLDivElement | null>(null);
-    // Delete-button delegation: commentRowHtml emits a button with
-    // .feed-comment-delete-btn + data-comment-id. We catch its click
-    // here to bridge back into React state.
+    // Delete + edit-button delegation: commentRowHtml emits buttons
+    // with .feed-comment-{delete,edit}-btn + data-comment-id. We catch
+    // their clicks here to bridge back into React state.
     useEffect(() => {
         const root = listRef.current;
         if (!root) return;
         const handler = (e: MouseEvent) => {
             const target = e.target as HTMLElement | null;
-            const btn = target?.closest('.feed-comment-delete-btn') as HTMLElement | null;
-            if (!btn) return;
-            const id = Number(btn.dataset.commentId);
-            if (Number.isFinite(id)) onDelete(id);
+            const delBtn = target?.closest('.feed-comment-delete-btn') as HTMLElement | null;
+            if (delBtn) {
+                const id = Number(delBtn.dataset.commentId);
+                if (Number.isFinite(id)) onDelete(id);
+                return;
+            }
+            const editBtn = target?.closest('.feed-comment-edit-btn') as HTMLElement | null;
+            if (editBtn) {
+                const id = Number(editBtn.dataset.commentId);
+                if (Number.isFinite(id)) setEditingId(id);
+            }
         };
         root.addEventListener('click', handler);
         return () => root.removeEventListener('click', handler);
     }, [onDelete]);
 
+    const renderRow = (c: FeedComment) => {
+        const isMine = c.author?.id === meId;
+        if (isMine && editingId === c.id) {
+            return (
+                <CommentEditRow
+                    key={c.id}
+                    comment={c}
+                    onSave={(body) => {
+                        setEditingId(null);
+                        if (body && body !== c.body) onEdit(c.id, body);
+                    }}
+                    onCancel={() => setEditingId(null)}
+                />
+            );
+        }
+        return (
+            <div
+                key={c.id}
+                dangerouslySetInnerHTML={{ __html: commentRowHtml(c, isMine) }}
+            />
+        );
+    };
+
     return (
         <>
-            <div
-                ref={listRef}
-                className="feed-comment-list"
-                dangerouslySetInnerHTML={{
-                    __html:
-                        comments.length > 0
-                            ? comments.map((c) => commentRowHtml(c, c.author?.id === meId)).join('')
-                            : `<div style="font-size:0.82rem; color:var(--text-secondary); padding:6px 0;">${t('feed.commentsEmpty')}</div>`,
-                }}
-            />
+            <div ref={listRef} className="feed-comment-list">
+                {comments.length > 0 ? (
+                    comments.map((c) => renderRow(c))
+                ) : (
+                    <div className="text-[0.82rem] text-secondary py-1.5 px-0">
+                        {t('feed.commentsEmpty')}
+                    </div>
+                )}
+            </div>
             <form
                 data-event-id={eventId}
                 onSubmit={handleSubmit}
@@ -1118,6 +1187,114 @@ function CommentThread({ eventId, comments, onDelete, onSubmit }: CommentThreadP
                 </button>
             </form>
         </>
+    );
+}
+
+
+// ── Comment edit row (input + save/cancel) ─────────────────────
+// Audit fix (2026-05-27, fix #60): renders inside CommentThread in
+// place of the static commentRowHtml when the user taps the pencil
+// affordance. Submit closes the editor + fires the optimistic edit
+// in the parent. ESC cancels. Body capped at 500 to mirror the
+// create + server-side limits.
+interface CommentEditRowProps {
+    comment: FeedComment;
+    onSave: (body: string) => void;
+    onCancel: () => void;
+}
+
+function CommentEditRow({ comment, onSave, onCancel }: CommentEditRowProps) {
+    const inputRef = useRef<HTMLInputElement | null>(null);
+    useEffect(() => {
+        const el = inputRef.current;
+        if (!el) return;
+        el.focus();
+        // Place caret at end so the user can append without
+        // re-positioning. Pre-fix the input selected-all on focus
+        // which made appends require a click-to-deselect first.
+        const len = el.value.length;
+        try { el.setSelectionRange(len, len); } catch { /* old browsers */ }
+    }, []);
+
+    const submit = () => {
+        const v = (inputRef.current?.value || '').trim().slice(0, 500);
+        onSave(v);
+    };
+
+    const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            submit();
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            onCancel();
+        }
+    };
+
+    return (
+        <div
+            className="feed-comment-row"
+            data-comment-id={comment.id}
+            style={{
+                display: 'flex',
+                gap: '10px',
+                padding: '8px 0',
+                borderBottom: '1px dashed rgba(0,45,91,0.06)',
+                alignItems: 'center',
+            }}
+        >
+            <input
+                ref={inputRef}
+                type="text"
+                defaultValue={comment.body || ''}
+                maxLength={500}
+                onKeyDown={onKeyDown}
+                style={{
+                    flex: 1,
+                    minWidth: 0,
+                    padding: '6px 10px',
+                    border: '1px solid rgba(0,45,91,0.12)',
+                    borderRadius: '999px',
+                    fontSize: '0.85rem',
+                    background: 'rgba(0,113,227,0.04)',
+                    color: 'var(--text-brand-navy)',
+                    fontFamily: 'inherit',
+                }}
+            />
+            <button
+                type="button"
+                onClick={submit}
+                style={{
+                    background: 'var(--accent-blue, #0071e3)',
+                    color: '#fff',
+                    border: 0,
+                    borderRadius: '999px',
+                    padding: '6px 14px',
+                    fontSize: '0.78rem',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    flexShrink: 0,
+                }}
+            >
+                Save
+            </button>
+            <button
+                type="button"
+                onClick={onCancel}
+                style={{
+                    background: 'transparent',
+                    color: 'var(--text-secondary)',
+                    border: 0,
+                    padding: '6px 8px',
+                    fontSize: '0.78rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    flexShrink: 0,
+                }}
+            >
+                Cancel
+            </button>
+        </div>
     );
 }
 
