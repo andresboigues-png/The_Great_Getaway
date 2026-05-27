@@ -352,7 +352,16 @@ def get_public_profile(user_id):
             "FROM trips t "
             "LEFT JOIN trip_members tm "
             "  ON tm.trip_id = t.id AND tm.user_id = t.user_id "
-            "WHERE t.user_id = ? AND t.is_public = 1",
+            "WHERE t.user_id = ? AND t.is_public = 1 "
+            # R3-Round 3 fix: hard cap at 100. Pre-fix Diego's 80+
+            # public trips all shipped on every public-profile read
+            # (with viewport_json + place_types JSON parsed for each)
+            # — multiple kB per row, totaling several hundred kB
+            # before the trip-card renderer downsamples to thumbnails.
+            # 100 is well above the realistic ceiling; a deeper
+            # browse needs its own paginated surface.
+            "ORDER BY t.created_at DESC "
+            "LIMIT 100",
             (user_id,),
         )
         trips = []
@@ -403,6 +412,28 @@ def get_public_profile(user_id):
 # ── Share-via-link public read (FIXING_ROADMAP §4.1) ─────────────────
 
 
+# R3-Round 3 fix: bucket the share-views count for the anon-recipient
+# surface. Returns an integer that the template can render directly;
+# small values stay exact, larger ones round down to a privacy-
+# preserving bucket. Buckets chosen so the user still gets a sense
+# of momentum without exposing the precise viral curve.
+_VIEW_BUCKETS = (10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000)
+
+
+def _bucket_share_views(n: int) -> int:
+    if n <= 0:
+        return 0
+    if n < _VIEW_BUCKETS[0]:
+        return n  # exact value for the first 9 views
+    chosen = _VIEW_BUCKETS[0]
+    for b in _VIEW_BUCKETS:
+        if n >= b:
+            chosen = b
+        else:
+            break
+    return chosen
+
+
 def fetch_share_payload(token):
     """Look up the trip by share_token and shape the public payload.
     Shared with the /share/<token> HTML route in main.py (no point in
@@ -445,7 +476,15 @@ def fetch_share_payload(token):
             "viewport": (
                 json.loads(row["viewport_json"]) if row["viewport_json"] else None
             ),
-            "views": int(row["share_views"] or 0),
+            # R3-Round 3 fix: coarse-bucket the views count to anon
+            # share recipients. Pre-fix the precise number leaked a
+            # fingerprintable engagement curve to anyone with the URL
+            # (competitor / stalker / employer could tell whether a
+            # share was viral). Buckets preserve the "is this popular?"
+            # signal without revealing the exact count. The owner
+            # still sees the exact value via /api/data's shareViews
+            # (gated to owner in R3-Fix #3).
+            "views": _bucket_share_views(int(row["share_views"] or 0)),
         }
         show_cost = bool(row["share_show_cost"])
         show_plans = bool(row["share_show_plans"])
@@ -566,7 +605,11 @@ def get_shared_trip(token):
     # care whether THIS browser has seen THIS token in the last 24h.
     # Same cookie-name shape as the HTML route so visiting one then
     # the other doesn't double-count.
-    cookie_name = f"gg_viewed_{token[:16]}"
+    # R3-Round 3 fix: hash the token before using it as a cookie name
+    # suffix — pre-fix 16 chars of the share_token leaked in plain
+    # text via `Set-Cookie`. Same change as the HTML route in main.py.
+    import hashlib
+    cookie_name = f"gg_viewed_{hashlib.sha256(token.encode()).hexdigest()[:16]}"
     has_seen = request.cookies.get(cookie_name) is not None
     if not has_seen:
         with get_db() as conn:

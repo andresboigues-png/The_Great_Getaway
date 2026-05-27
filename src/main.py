@@ -689,7 +689,15 @@ def share_page(token):
     # has seen THIS token in the last 24h. The cookie is httponly so
     # JS can't tamper with it; samesite=lax so it follows link clicks
     # from chat apps.
-    cookie_name = f"gg_viewed_{token[:16]}"
+    # R3-Round 3 fix: hash the token before using it as a cookie
+    # name suffix. Pre-fix the first 16 chars of the share_token
+    # rode in plain text in the `Set-Cookie` header — a determined
+    # observer (SW debug, browser DevTools, network log) could lift
+    # ~16/22 = 73% of the token from a single share-page response.
+    # SHA-256 keeps the dedup property (same token → same cookie
+    # name → same dedup window) without leaking any source bytes.
+    import hashlib
+    cookie_name = f"gg_viewed_{hashlib.sha256(token.encode()).hexdigest()[:16]}"
     has_seen = request.cookies.get(cookie_name) is not None
     if not has_seen:
         with get_db() as conn:

@@ -60,9 +60,13 @@ _ALLOWED_METHODS = {"cash", "revolut", "bank_transfer", "wise", "paypal", "custo
 
 
 def _settlement_id() -> str:
-    """9-char crypto-grade id, matching the frontend's generateId
-    convention so settlements interleave with expense rows visually."""
-    return secrets.token_urlsafe(8)[:9]
+    """11-char crypto-grade id. R3-Round 3 fix: stopped truncating
+    `token_urlsafe(8)[:9]` (~54 bits) — the deliberate slice threw
+    away free entropy with no benefit. Full token_urlsafe(8) is 11
+    chars / ~64 bits, still visually short enough to interleave with
+    expense rows (which use 9-char ids from the frontend's
+    generateId) without being mistaken for a different shape."""
+    return secrets.token_urlsafe(8)
 
 
 def _is_accepted_member(cursor, trip_id, user_id):
