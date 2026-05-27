@@ -48,6 +48,7 @@ import {
 } from '../../constants.js';
 import { generateId, showLiquidAlert } from '../../utils.js';
 import { upsertExpense, uploadMedia } from '../../api.js';
+import { convertCurrency } from '../../utils/currency.js';
 import { navigate } from '../../router.js';
 import { t } from '../../i18n.js';
 import type { Expense } from '../../types';
@@ -336,6 +337,16 @@ export function ManualTab() {
             return;
         }
 
+        // R2 audit fix: euroValue MUST be computed via convertCurrency
+        // so the live FX overlay wins over the 2-year-stale static
+        // CONVERSION_RATES table. Pre-fix the display path used live
+        // rates but the storage path here used `val * rate` (static),
+        // so an EGP 100 expense rendered as ~€1.84 but PERSISTED as
+        // €100 (rate=1 for EGP in the stale table). Settlement /
+        // balance math then read the stored euroValue → permanently
+        // wrong. The `rate !== undefined` check above stays as a
+        // user-friendly gate against unknown currencies; the actual
+        // conversion routes through the overlay-aware helper.
         const countryVal = countryValue || (activeTrip ? activeTrip.country : '');
         const isEdit = !!STATE.draftExpense?.id;
         const expense: Expense = {
@@ -348,7 +359,7 @@ export function ManualTab() {
             country: countryVal,
             value: val,
             currency: curr,
-            euroValue: val * rate,
+            euroValue: convertCurrency(val, curr, 'EUR'),
             splits,
             receiptUrl,
         };

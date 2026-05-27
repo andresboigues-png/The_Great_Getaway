@@ -7,6 +7,7 @@
 
 import { STATE, emit } from '../../state.js';
 import { CONVERSION_RATES, EVENTS } from '../../constants.js';
+import { convertCurrency } from '../../utils/currency.js';
 import {
     generateId,
     q,
@@ -233,7 +234,11 @@ export const openCreateBudgetModal = () => {
             statusEl.style.color = '#ff3b30';
             return;
         }
-        const eurAmt = curr === 'EUR' ? amt : amt * rate;
+        // R2 audit fix: route through convertCurrency so the live FX
+        // overlay wins over the stale static `rate` constant above.
+        // The `rate` lookup stays as a known-currency gate; the
+        // actual conversion goes through the overlay-aware helper.
+        const eurAmt = convertCurrency(amt, curr, 'EUR');
         const budget = {
             id: generateId(),
             tripId: (q(root, '#newBudTrip') as HTMLSelectElement).value,

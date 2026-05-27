@@ -1,5 +1,5 @@
 import { STATE, emit } from '../state.js';
-import { CONVERSION_RATES } from '../constants.js';
+import { convertCurrency } from '../utils/currency.js';
 import { generateId, q, showLiquidAlert, esc } from '../utils.js';
 import { syncWithServer } from '../api.js';
 import { navigate } from '../router.js';
@@ -557,7 +557,13 @@ export function renderUpload() {
                         country,
                         value,
                         currency,
-                        euroValue: value * (CONVERSION_RATES[currency] || 1),
+                        // R2 audit fix: route through convertCurrency so the
+                        // live FX overlay wins over the stale static table.
+                        // Pre-fix the static `CONVERSION_RATES[currency] || 1`
+                        // would silently coerce missing currencies to 1:1 EUR
+                        // (100 EGP stored as €100) and even for known codes
+                        // shipped 2-year-old rates.
+                        euroValue: convertCurrency(value, currency, 'EUR'),
                         splits: splits ?? undefined,
                     };
                     if (isSettlement) expense.isSettlement = true;

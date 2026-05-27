@@ -22,6 +22,7 @@ import { useActiveTrip } from '../../react/TripContext.js';
 import { useNavigate } from '../../react/useNavigate.js';
 import { STATE, emit } from '../../state.js';
 import { CONVERSION_RATES, EVENTS } from '../../constants.js';
+import { convertCurrency } from '../../utils/currency.js';
 import { fetchHistoricalRates } from '../../api.js';
 import { getIntlLocale } from '../../i18n.js';
 import { getHomeCurrency, currencySymbol } from '../../utils.js';
@@ -119,24 +120,37 @@ export function Insights() {
         sortedCountries,
     } = useMemo(() => {
         const convertedExps: ConvertedExpense[] = tripExps.map((e: Expense) => {
-            // Step 1: Get value in EUR
-            let rateToEur = CONVERSION_RATES[e.currency] || 1;
+            // Step 1: Get value in EUR.
+            // R2 audit fix: the static CONVERSION_RATES fallback runs
+            // against a ~2-year-stale baked table. For 'current' mode
+            // use the live FX overlay (convertCurrency); for 'at_trip'
+            // mode the historical rateCache wins when available, and
+            // the LAST-resort fallback also goes through the live
+            // overlay rather than the stale baked table.
+            let euroVal: number;
             if (mode === 'at_trip') {
                 const cacheKey = `${e.date}_${e.currency}_EUR`;
-                if (rateCache && rateCache[cacheKey]) rateToEur = rateCache[cacheKey];
+                if (rateCache && rateCache[cacheKey]) {
+                    euroVal = e.euroValue || e.value * rateCache[cacheKey];
+                } else {
+                    euroVal = e.euroValue || convertCurrency(e.value, e.currency, 'EUR');
+                }
+            } else {
+                euroVal = e.euroValue || convertCurrency(e.value, e.currency, 'EUR');
             }
-            const euroVal = e.euroValue || e.value * rateToEur;
-            // Step 2: Convert EUR to target insightCurrency
+            // Step 2: Convert EUR to target insightCurrency.
             let targetVal = euroVal;
             if (targetCurr !== 'EUR') {
-                let eurToTargetRate = 1 / (CONVERSION_RATES[targetCurr] || 1);
                 if (mode === 'at_trip') {
                     const targetCacheKeyInv = `${e.date}_${targetCurr}_EUR`;
                     if (rateCache && rateCache[targetCacheKeyInv]) {
-                        eurToTargetRate = 1 / rateCache[targetCacheKeyInv];
+                        targetVal = euroVal / rateCache[targetCacheKeyInv];
+                    } else {
+                        targetVal = convertCurrency(euroVal, 'EUR', targetCurr);
                     }
+                } else {
+                    targetVal = convertCurrency(euroVal, 'EUR', targetCurr);
                 }
-                targetVal = euroVal * eurToTargetRate;
             }
             return { ...e, displayValue: targetVal };
         });
