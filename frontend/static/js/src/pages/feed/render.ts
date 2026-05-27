@@ -46,10 +46,16 @@ export interface FeedEvent {
     // achievement_unlocked carries the badge label/emoji on the payload
     // so the renderer doesn't need a separate /api/achievements call.
     badge?: { id?: string; emoji?: string; label?: string; description?: string };
-    // settled_up carries the from/to display names + the amount + the
-    // trip context (for the message body).
-    from?: { id?: string; name?: string };
-    to?: { id?: string; name?: string };
+    // settled_up carries the recipient on top of the standard `actor`
+    // field above (which IS the payer for these events — server
+    // emits ev.actor + ev.recipient). R2 audit fix: pre-fix the type
+    // declared `from`/`to` here which never existed on the wire —
+    // the server (src/feed_events.py::_build_settled_up) has always
+    // emitted `actor`/`recipient`. The render code below was reading
+    // `ev.from`/`ev.to` and silently rendering "settled up with
+    // someone" for every payment, with the self-attribution branch
+    // always wrong.
+    recipient?: Actor;
     amount?: number;
     currency?: string;
 }
@@ -309,10 +315,15 @@ export function eventLine(ev: any) {
             // is always themselves. Render "you ↔ X" symmetrically
             // rather than picking a direction the user might find
             // confusing.
-            const fromIsSelf = !!meId && ev.from?.id === meId;
-            const otherName = fromIsSelf
-                ? esc(ev.to?.name || 'someone')
-                : esc(ev.from?.name || 'someone');
+            // R2 audit fix: server keys are `actor` (the payer) +
+            // `recipient` (the receiver). Pre-fix we read `from`/`to`
+            // which never existed on the wire, so otherName always
+            // fell through to the 'someone' default and the self-
+            // attribution branch was always false.
+            const actorIsSelf = !!meId && ev.actor.id === meId;
+            const otherName = actorIsSelf
+                ? esc(ev.recipient?.name || 'someone')
+                : esc(ev.actor.name || 'someone');
             return `${who} settled up with <strong style="color:#002d5b;">${otherName}</strong> on ${tripName || 'a trip'} 🤝`;
         }
         default:

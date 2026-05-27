@@ -64,12 +64,27 @@ export function applySettlementToBalances(
     // backfill for legacy rows; use those first, fall back to the
     // companion-roster lookup for any null fields the migration
     // couldn't reach.
-    const fromName =
-        settlement.fromName ||
-        findTripCompanionByLinkedUser(trip, settlement.fromUserId)?.name;
-    const toName =
-        settlement.toName ||
-        findTripCompanionByLinkedUser(trip, settlement.toUserId)?.name;
+    //
+    // R2 audit fix: the server's snapshot uses `users.name` (the FULL
+    // Google display name, e.g. "Alice Smith"), but the OWNER's
+    // companion entry is stored under their FIRST NAME only (the
+    // self-stamp at api.ts ~286 splits on whitespace). So for any
+    // settlement where the trip owner is a party, `settlement.fromName`
+    // would be "Alice Smith" but `balances["Alice Smith"]` is undefined
+    // (roster only has "Alice"), and the settlement was silently
+    // dropped from balance math — the debt stayed visible after
+    // payment. Resolution: when the snapshot name misses, try the
+    // companion-lookup, which IS keyed on the roster-side name.
+    let fromName: string | undefined = settlement.fromName || undefined;
+    if (!fromName || balances[fromName] === undefined) {
+        const found = findTripCompanionByLinkedUser(trip, settlement.fromUserId)?.name;
+        if (found && balances[found] !== undefined) fromName = found;
+    }
+    let toName: string | undefined = settlement.toName || undefined;
+    if (!toName || balances[toName] === undefined) {
+        const found = findTripCompanionByLinkedUser(trip, settlement.toUserId)?.name;
+        if (found && balances[found] !== undefined) toName = found;
+    }
     if (!fromName || !toName) return;
     if (balances[fromName] === undefined || balances[toName] === undefined) return;
     // euroValue is the cross-currency-normalised amount the balance
@@ -77,8 +92,8 @@ export function applySettlementToBalances(
     // euroValue is null (older / non-EUR rows that pre-date the
     // server's conversion logic).
     const amount = settlement.euroValue || settlement.amount || 0;
-    balances[fromName] += amount;
-    balances[toName] -= amount;
+    balances[fromName]! += amount;
+    balances[toName]! -= amount;
 }
 
 /** A single debt → creditor settlement edge produced by simplifyDebts. */
@@ -215,8 +230,32 @@ export function computeGlobalBalances() {
             if (!(name in globalBalances)) globalBalances[name] = 0;
         }
     }
-    const archivedExps = (STATE.archivedTrips || []).flatMap((t) => t.expenses || []);
-    const allExpenses = [...STATE.expenses, ...archivedExps];
+    // R2 audit fix: STATE.expenses already contains EVERY expense
+    // from EVERY trip (active + archived) because /api/data returns
+    // them all into one bucket. The per-archived-trip `t.expenses`
+    // snapshot at api.ts:420 is `STATE.expenses.filter(...)` — same
+    // rows. Pre-fix `[...STATE.expenses, ...archivedExps]` doubled
+    // every archived-trip expense in the cross-trip view: a €100
+    // hotel on an archived trip showed as €200 of phantom debt in
+    // the global tab. Dedupe by id; STATE.expenses is the source of
+    // truth, the archived snapshot is convenience for the
+    // archived-trip detail view only.
+    const seenIds = new Set<string>();
+    const allExpenses: typeof STATE.expenses = [];
+    for (const e of STATE.expenses) {
+        if (!seenIds.has(e.id)) {
+            seenIds.add(e.id);
+            allExpenses.push(e);
+        }
+    }
+    for (const t of STATE.archivedTrips || []) {
+        for (const e of (t.expenses || [])) {
+            if (!seenIds.has(e.id)) {
+                seenIds.add(e.id);
+                allExpenses.push(e);
+            }
+        }
+    }
 
     // Seed any expense-attributed name that isn't already in the
     // global roster — captures removed-companion expenses so their
@@ -293,12 +332,30 @@ export function computeGlobalBalances() {
     for (const t of [...STATE.trips, ...(STATE.archivedTrips || [])]) {
         tripsById.set(t.id, t);
     }
-    const allSettlements: Settlement[] = [
-        ...(STATE.settlements || []),
-        ...(STATE.archivedTrips || []).flatMap(
-            (t) => ((t as { settlements?: Settlement[] }).settlements) || [],
-        ),
-    ];
+    // R2 audit fix: dedupe settlements by id. STATE.settlements is
+    // already the master list pulled from /api/data; the per-archived
+    // -trip snapshot at api.ts:429 is `STATE.settlements.filter(...)`
+    // — same rows. Pre-fix the concat doubled every archived-trip
+    // settlement → debt direction was reversed twice → net effect is
+    // the settlement counted ZERO times in the global view. Either
+    // way the global balance disagreed with the per-trip view.
+    const seenSettlements = new Set<string>();
+    const allSettlements: Settlement[] = [];
+    for (const s of (STATE.settlements || [])) {
+        if (!seenSettlements.has(s.id)) {
+            seenSettlements.add(s.id);
+            allSettlements.push(s);
+        }
+    }
+    for (const t of (STATE.archivedTrips || [])) {
+        const snap = ((t as { settlements?: Settlement[] }).settlements) || [];
+        for (const s of snap) {
+            if (!seenSettlements.has(s.id)) {
+                seenSettlements.add(s.id);
+                allSettlements.push(s);
+            }
+        }
+    }
     for (const s of allSettlements) {
         const trip = tripsById.get(s.tripId);
         if (!trip) continue;
