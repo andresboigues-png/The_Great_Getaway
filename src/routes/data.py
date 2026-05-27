@@ -280,9 +280,23 @@ def sync_data():
 
             # Expenses inside archived trips — gate per-row by role on the
             # trip (which exists by now since we just upserted it).
+            #
+            # R2 audit fix: IDOR via cross-trip expense-id smuggling.
+            # The ACTIVE expense loop below (~line 329) gates on the
+            # EXISTING row's trip_id; this archived branch gated only
+            # on the client-claimed `t['id']`. A planner on trip A
+            # could POST archived_trips:[{id:'A', expenses:[{id:'<expense
+            # in trip B>', value:0, ...}]}] and the ON CONFLICT UPDATE
+            # would rewrite the trip-B expense fields while trip_id
+            # stayed at B. Mirror the active-loop pattern: SELECT
+            # existing trip_id, gate on THAT for UPDATEs.
             if 'expenses' in t:
                 for e in t['expenses']:
-                    if not can_edit_trip(cursor, t['id'], user_id):
+                    existing = cursor.execute(
+                        "SELECT trip_id FROM expenses WHERE id = ?", (e['id'],),
+                    ).fetchone()
+                    gate_trip_id = existing['trip_id'] if existing else t['id']
+                    if not can_edit_trip(cursor, gate_trip_id, user_id):
                         continue
                     # 2026-05-25 (audit S1): persist splits + is_settlement.
                     splits_raw = e.get('splits')
@@ -307,7 +321,7 @@ def sync_data():
                             splits=excluded.splits,
                             is_settlement=excluded.is_settlement
                         WHERE expenses.deleted_at IS NULL
-                    ''', (e['id'], t['id'], e['who'], e['categoryId'], e['label'], e['date'], e['country'], e['value'], e['currency'], e['euroValue'], e.get('receiptUrl'), splits_json, is_settlement))
+                    ''', (e['id'], gate_trip_id, e['who'], e['categoryId'], e['label'], e['date'], e['country'], e['value'], e['currency'], e['euroValue'], e.get('receiptUrl'), splits_json, is_settlement))
 
         # Commit archived-trips section (plus the inline archived
         # expenses) before moving to active expenses.

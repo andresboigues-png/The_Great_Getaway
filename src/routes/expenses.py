@@ -104,7 +104,23 @@ def upsert_expense():
 
     with get_db() as conn:
         cursor = conn.cursor()
-        if not can_edit_expenses(cursor, claimed_trip_id, user_id):
+        # R2 audit fix: IDOR via claimed-tripId. /api/sync's active expense
+        # loop (data.py) was hardened to look up the EXISTING row's
+        # trip_id and gate the permission check on THAT — but the
+        # single-row /api/expenses POST kept gating on the client-claimed
+        # tripId. Planner-on-trip-A could POST {id: <expense-in-trip-B>,
+        # tripId: <A>} and the ON CONFLICT UPDATE would rewrite trip-B's
+        # expense fields (the SET clause doesn't touch trip_id, but
+        # who/value/currency/euro_value/etc. all overwrite). Mirror the
+        # sync pattern: SELECT the existing trip_id first, prefer that
+        # for the permission check on UPDATEs; INSERTs (no existing row)
+        # gate on the claimed trip as before.
+        cursor.execute(
+            "SELECT trip_id FROM expenses WHERE id = ?", (expense_id,),
+        )
+        existing = cursor.fetchone()
+        gate_trip_id = existing["trip_id"] if existing else claimed_trip_id
+        if not can_edit_expenses(cursor, gate_trip_id, user_id):
             return jsonify({"error": "Forbidden"}), 403
         # 2026-05-25 (audit S1): splits + isSettlement are now persisted.
         # `splits` may arrive as a dict (the frontend's shape) — serialise

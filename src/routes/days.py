@@ -58,7 +58,20 @@ def upsert_day():
         d['dayNumber'] = day_number_int
     with get_db() as conn:
         cursor = conn.cursor()
-        if not can_edit_trip(cursor, claimed_trip_id, user_id):
+        # R2 audit fix: IDOR via claimed-tripId — same shape as the
+        # expenses fix. Gate the permission check on the EXISTING row's
+        # trip_id when the day already exists; only INSERTs fall back to
+        # the client-claimed trip. Without this, a planner on trip A
+        # could POST {id: <day-in-trip-B>, tripId: <A>, dayNumber: 99}
+        # and rewrite day-B's contents (the SET clause overwrites
+        # day_number / date / name / morning / afternoon / evening /
+        # tip / lat / lng).
+        cursor.execute(
+            "SELECT trip_id FROM trip_days WHERE id = ?", (day_id,),
+        )
+        existing = cursor.fetchone()
+        gate_trip_id = existing["trip_id"] if existing else claimed_trip_id
+        if not can_edit_trip(cursor, gate_trip_id, user_id):
             return jsonify({"error": "Forbidden"}), 403
         try:
             # 2026-05-26 (audit SY5): WHERE guard mirrors the expense

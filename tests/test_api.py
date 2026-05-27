@@ -1199,6 +1199,113 @@ def test_sync_does_not_let_caller_take_over_someone_elses_trip(
     assert found["name"] == "Original Name"  # NOT "HIJACKED"
 
 
+def test_expenses_single_row_upsert_blocks_cross_trip_hijack(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """R2 audit fix: /api/expenses POST gated on the client-claimed
+    tripId, so a planner on trip A could rewrite an expense in trip B
+    by POSTing {id: <B-expense>, tripId: <A>}. The fix gates on the
+    EXISTING row's trip_id when the row exists."""
+    # Victim creates trip + expense
+    client.post("/api/trips", headers=other_auth_headers, json={
+        "trip": {"id": "trip-victim", "name": "Victim"},
+    })
+    client.post("/api/expenses", headers=other_auth_headers, json={
+        "expense": {
+            "id": "exp-victim", "tripId": "trip-victim", "who": "Owner",
+            "value": 100, "currency": "EUR", "euroValue": 100,
+            "label": "Dinner", "date": "2026-05-12",
+        },
+    })
+    # Attacker has their own trip
+    client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": "trip-attacker", "name": "Attacker"},
+    })
+    # Attacker tries to rewrite victim's expense by claiming attacker tripId
+    res = client.post("/api/expenses", headers=auth_headers, json={
+        "expense": {
+            "id": "exp-victim", "tripId": "trip-attacker", "who": "PWNED",
+            "value": 0, "currency": "EUR", "euroValue": 0,
+            "label": "hijacked", "date": "2026-01-01",
+        },
+    })
+    assert res.status_code == 403, "cross-trip expense hijack must be forbidden"
+    # Victim's row must be untouched
+    pull = client.get("/api/data", headers=other_auth_headers)
+    found = next(e for e in pull.get_json()["expenses"] if e["id"] == "exp-victim")
+    assert found["label"] == "Dinner"
+    assert found["value"] == 100
+
+
+def test_days_single_row_upsert_blocks_cross_trip_hijack(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """R2 audit fix: same shape as the expenses fix for /api/days."""
+    client.post("/api/trips", headers=other_auth_headers, json={
+        "trip": {"id": "trip-victim-d", "name": "Victim"},
+    })
+    client.post("/api/days", headers=other_auth_headers, json={
+        "day": {
+            "id": "day-victim", "tripId": "trip-victim-d",
+            "dayNumber": 1, "name": "Arrival", "date": "2026-05-12",
+        },
+    })
+    client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": "trip-attacker-d", "name": "Attacker"},
+    })
+    res = client.post("/api/days", headers=auth_headers, json={
+        "day": {
+            "id": "day-victim", "tripId": "trip-attacker-d",
+            "dayNumber": 99, "name": "PWNED", "date": "2030-01-01",
+        },
+    })
+    assert res.status_code == 403, "cross-trip day hijack must be forbidden"
+    pull = client.get("/api/data", headers=other_auth_headers)
+    found = next(d for d in pull.get_json()["tripDays"] if d["id"] == "day-victim")
+    assert found["name"] == "Arrival"
+
+
+def test_sync_archived_expense_loop_blocks_cross_trip_hijack(
+    client, seed_user, seed_other_user, auth_headers, other_auth_headers,
+):
+    """R2 audit fix: the archived-trips inner expense loop in /api/sync
+    had the same IDOR shape as the single-row /api/expenses POST. The
+    active-expense loop in /api/sync was fixed earlier; the archived
+    branch was missed until now."""
+    # Victim creates trip + expense
+    client.post("/api/trips", headers=other_auth_headers, json={
+        "trip": {"id": "trip-archived-victim", "name": "Victim"},
+    })
+    client.post("/api/expenses", headers=other_auth_headers, json={
+        "expense": {
+            "id": "exp-archived-victim", "tripId": "trip-archived-victim", "who": "Owner",
+            "value": 250, "currency": "EUR", "euroValue": 250,
+            "label": "Hotel", "date": "2026-05-12",
+        },
+    })
+    # Attacker fires /api/sync with archived_trips smuggling victim's expense id
+    res = client.post("/api/sync", headers=auth_headers, json={
+        "trips": [],
+        "expenses": [],
+        "archived_trips": [{
+            "id": "trip-attacker-smuggle", "name": "Smuggle", "country": "X",
+            "expenses": [{
+                "id": "exp-archived-victim", "who": "PWNED",
+                "categoryId": "c1", "label": "hijacked",
+                "date": "2030-01-01", "country": "X",
+                "value": 0, "currency": "EUR", "euroValue": 0,
+            }],
+        }],
+    })
+    # Sync returns 200 (partial-write semantics), but the victim's
+    # row must be UNTOUCHED
+    pull = client.get("/api/data", headers=other_auth_headers)
+    found = next(e for e in pull.get_json()["expenses"] if e["id"] == "exp-archived-victim")
+    assert found["label"] == "Hotel", \
+        f"archived-loop IDOR hijack must not rewrite victim row, got: {found}"
+    assert found["value"] == 250
+
+
 # ── /api/user-data DELETE (factory reset) ────────────────────────────────────
 
 def test_user_data_delete_wipes_trips_and_expenses(client, seed_user, auth_headers):
