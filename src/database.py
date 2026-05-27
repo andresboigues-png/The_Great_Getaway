@@ -46,50 +46,13 @@ def get_db():
         own `with conn:` semantics)
       - FD released in the outer `finally`
 
-    Behavior preserved for callers: an explicit `conn.commit()`
-    inside the block still commits immediately; the outer sqlite3
-    ctx manager then sees no open transaction and no-ops; the outer
-    finally then closes the connection. Read-only callers that never
-    write also work — sqlite3's ctx manager is a no-op when no
-    transaction is open.
-
     FIXING_ROADMAP §1.4: SQLite hardening. Two PRAGMAs per
     connection — both have to be re-set on every fresh sqlite3
     connection because SQLite scopes PRAGMA state per-connection,
-    not per-database.
-
-    `busy_timeout` gives any contended op N milliseconds of
-    exponential-backoff retry before returning the lock error.
-    Without this, the default 0ms wait raises `database is locked`
-    the moment two writers meet — common under our 15s polling
-    interval where sync + notification-fetch can fire while a user
-    action is also writing.
-
-    `foreign_keys=ON` makes the FK constraints declared in CREATE
-    TABLE actually enforced. Until 2026-05-16 this was OFF (SQLite
-    default) because a live DB might contain pre-existing orphan
-    rows that would crash any update touching them. Phase 4 of
-    §1.4 shipped after Phase 1 (scripts/fk_audit.py) confirmed
-    zero orphans across all 28 FK relationships on the live PA DB,
-    AND Phase 4's migration (declare_foreign_keys) re-declared each
-    FK with explicit ON DELETE behaviour. With both prerequisites
-    in place, this PRAGMA can flip safely.
-
-    NOT enabled here:
-
-    - `journal_mode=WAL` — was originally part of §1.4, but removed
-      2026-05-13 after a "database disk image is malformed" incident
-      on PythonAnywhere. PA's free-tier user storage is on a NETWORKED
-      FILESYSTEM, and SQLite explicitly documents that WAL mode is
-      unsafe on networked filesystems
-      (https://www.sqlite.org/wal.html — "WAL does not work over a
-      network filesystem"). The symptom was a WAL file that grew far
-      larger than the main DB (~770KB vs ~135KB) and didn't auto-
-      checkpoint, then individual reads from Flask workers started
-      failing with the malformed-image error mid-query while the
-      sqlite3 CLI could still parse the same file. Default rollback
-      journal mode is safer on PA at the cost of readers waiting on
-      writers — busy_timeout above is what keeps that wait bounded.
+    not per-database. journal_mode=WAL deliberately NOT set: PA's
+    networked-filesystem storage broke under WAL with a 2026-05-13
+    "database disk image is malformed" incident. Default rollback
+    journal + bounded busy_timeout is the safe combo.
     """
     conn = sqlite3.connect(_db_path())
     conn.row_factory = sqlite3.Row
@@ -312,14 +275,7 @@ def init_db():
 
         # Expenses Table — receipt_url added post-baseline (FUTURE_
         # FEATURES #3) for the 📎 attach-receipt flow on the expense
-        # form. 2026-05-26: splits_json + is_settlement added so
-        # the frontend's load-bearing split-percentage map (which
-        # drives ALL balance math) survives sign-in on a new device.
-        # Pre-add, splits lived only in localStorage and were silently
-        # wiped by every /api/data poll that rebuilt STATE.expenses
-        # from the server, producing wildly wrong balance numbers
-        # across devices. is_settlement carries the PATH B settle-up
-        # flag so settled debts stop resurrecting on every sign-in.
+        # form.
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS expenses (
                 id TEXT PRIMARY KEY,
@@ -333,12 +289,29 @@ def init_db():
                 currency TEXT,
                 euro_value REAL,
                 receipt_url TEXT,
-                splits_json TEXT
-                    CHECK(splits_json IS NULL OR json_valid(splits_json)),
-                is_settlement INTEGER DEFAULT 0,
+                -- 2026-05-25 (audit S1): split map (JSON {name: pct}) +
+                -- settlement flag. Pre-this-migration, both fields were
+                -- frontend-only — every /api/data refresh wiped them so
+                -- expenses with uneven splits collapsed to equal share
+                -- and settlement rows double-counted. Now persisted.
+                splits TEXT CHECK(splits IS NULL OR json_valid(splits)),
+                is_settlement INTEGER NOT NULL DEFAULT 0,
+                -- 2026-05-26 (audit SY5): soft-delete tombstone. Replaces
+                -- hard DELETE on `delete_expense` + /api/sync upsert so
+                -- a queued resurrection from an offline device can't
+                -- undo a delete that happened on a peer device. See
+                -- migration b7c8d9e0f1a2_add_tombstone_columns.
+                deleted_at TEXT,
                 FOREIGN KEY(trip_id) REFERENCES trips(id) ON DELETE CASCADE
             )
         ''')
+        # Partial index for the future tombstone-cleanup sweep — only
+        # tombstoned rows are indexed so the cost stays proportional
+        # to the soft-deleted population, not the table size.
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_expenses_deleted "
+            "ON expenses(deleted_at) WHERE deleted_at IS NOT NULL"
+        )
 
         # Friends Table — created_at is part of the CREATE TABLE
         # now (handled in the catchup revision for prod DBs).
@@ -381,15 +354,6 @@ def init_db():
                 user_id TEXT,
                 role TEXT DEFAULT 'planner',
                 is_archived INTEGER DEFAULT 0,
-                -- 2026-05-26 audit #C-26: the moment THIS member
-                -- archived their copy. Distinct from `is_archived`
-                -- (which is just a boolean) so the feed event +
-                -- achievement timing can use the actual completion
-                -- moment instead of trips.created_at (which fired
-                -- the 30-day window check on a stale date). NULL
-                -- when the row was never archived OR was archived
-                -- before this column existed.
-                completed_at DATETIME DEFAULT NULL,
                 invitation_status TEXT DEFAULT 'accepted',
                 invited_by TEXT,
                 PRIMARY KEY(trip_id, user_id),
@@ -439,8 +403,24 @@ def init_db():
                 label TEXT,
                 amount REAL,
                 currency TEXT DEFAULT 'EUR',
+                -- 2026-05-25 (audit B1): filter columns the frontend
+                -- always sent but the schema dropped. Without them a
+                -- "Food → Sara → €500" budget reloaded as a generic
+                -- "all categories → everyone → €500" and aggregated
+                -- ALL expenses on the trip, showing fake overspend.
+                category_id TEXT,
+                owner_name TEXT,
+                original_amount REAL,
+                original_currency TEXT,
                 FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
-                FOREIGN KEY(trip_id) REFERENCES trips(id) ON DELETE SET NULL
+                FOREIGN KEY(trip_id) REFERENCES trips(id) ON DELETE SET NULL,
+                -- 2026-05-26 (audit B6): a user can't have two budgets
+                -- with the same scope — the spend-against-target sum
+                -- doesn't know to split between them, so the same
+                -- expenses double-counted under both. Constraint added
+                -- via migration e4f5a6b7c8d9; mirrored here for fresh
+                -- installs that skip the migration chain.
+                UNIQUE(user_id, trip_id, category_id, owner_name)
             )
         ''')
 
@@ -455,9 +435,26 @@ def init_db():
                 message TEXT,
                 is_read INTEGER DEFAULT 0,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                -- 2026-05-26 (audit NF1 + NF3): engagement
+                -- notifications (share_liked / commented / reposted)
+                -- need to know the feed_post they reference, both for
+                -- routing (click → land on the post) and for
+                -- cascade-cleanup when the underlying share is
+                -- deleted. related_id stores the ACTOR user_id; this
+                -- column stores the POST id. NULL for non-engagement
+                -- types. Migration f5a6b7c8d9e0 adds it; mirrored
+                -- here for fresh installs.
+                post_id INTEGER,
                 FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
             )
         ''')
+        # Index supporting the cascade-cleanup query on unshare —
+        # `DELETE FROM notifications WHERE post_id = ?`. Without it,
+        # an unshare scans the whole notifications table.
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_notifications_post_id "
+            "ON notifications(post_id)"
+        )
 
         # ── Feed (social / sharing layer) ──────────────────────────────
         # feed_posts: explicit, user-initiated shares + reposts. Synthesised
@@ -475,12 +472,6 @@ def init_db():
                 repost_of_post_id INTEGER,
                 caption TEXT,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                -- 2026-05-26 audit #C-6: snapshot the trip's is_public
-                -- value at share-creation time. Used by the unshare
-                -- path to restore the trip's privacy when the LAST
-                -- share that flipped it gets removed. NULL = nothing
-                -- to restore (legacy row or trip was already public).
-                trip_was_public INTEGER DEFAULT NULL,
                 FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
                 FOREIGN KEY(trip_id) REFERENCES trips(id) ON DELETE CASCADE,
                 -- 2026-05-18 audit M3: CASCADE (was SET NULL). Pre-fix,
@@ -565,9 +556,17 @@ def init_db():
                 tip TEXT,
                 lat REAL,
                 lng REAL,
+                -- 2026-05-26 (audit SY5): tombstone column — see
+                -- migration b7c8d9e0f1a2_add_tombstone_columns and the
+                -- matching comment on `expenses` above.
+                deleted_at TEXT,
                 FOREIGN KEY(trip_id) REFERENCES trips(id) ON DELETE CASCADE
             )
         ''')
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_trip_days_deleted "
+            "ON trip_days(deleted_at) WHERE deleted_at IS NOT NULL"
+        )
 
         # Follows Table (FIXING_ROADMAP §4.7).
         # One-way social graph that sits ALONGSIDE the symmetric
@@ -698,27 +697,27 @@ def init_db():
                 trip_id TEXT NOT NULL,
                 from_user_id TEXT NOT NULL,
                 to_user_id TEXT NOT NULL,
+                -- 2026-05-26 (audit S1 + S6): snapshot the party
+                -- display names at settlement-record time so the
+                -- balance math doesn't depend on live companion
+                -- state. Pre-fix, unlinking a companion after a
+                -- settlement was recorded made the name-resolution
+                -- helper return undefined → the settlement was
+                -- silently skipped from balance shifts → the debt
+                -- persisted in the UI as if the payment never
+                -- happened. Snapshotting at insert time keeps the
+                -- row self-describing.
+                from_name TEXT,
+                to_name TEXT,
                 amount REAL NOT NULL,
                 currency TEXT NOT NULL,
                 euro_value REAL,
                 method TEXT,
                 note TEXT,
-                -- 2026-05-26 audit #D-6: the user who actually clicked
-                -- save. Distinct from `from_user_id` because any trip
-                -- member can record a settlement "on behalf of" the
-                -- two parties ("Andre handled it for the four of us").
-                -- Pre-add there was no audit trail; a malicious
-                -- planner could fabricate "Bob paid Alice €1000"
-                -- without either party knowing. The notification body
-                -- now mentions the recorder when they're neither
-                -- party. ON DELETE SET NULL so recorder deletion
-                -- doesn't blow up the row.
-                recorded_by TEXT,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY(trip_id) REFERENCES trips(id) ON DELETE CASCADE,
                 FOREIGN KEY(from_user_id) REFERENCES users(id) ON DELETE CASCADE,
-                FOREIGN KEY(to_user_id) REFERENCES users(id) ON DELETE CASCADE,
-                FOREIGN KEY(recorded_by) REFERENCES users(id) ON DELETE SET NULL
+                FOREIGN KEY(to_user_id) REFERENCES users(id) ON DELETE CASCADE
             )
         ''')
 
@@ -764,42 +763,13 @@ def init_db():
             # out of the constraint via the WHERE clause.
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_feed_posts_unique_original_share "
             "ON feed_posts(user_id, trip_id) WHERE repost_of_post_id IS NULL",
-            # 2026-05-26 audit: per-user lookup indexes that were
-            # missing. Each is hit by /api/data on every poll AND by
-            # the per-user upsert/delete paths. Without these the
-            # tables full-scan even at modest user counts.
-            "CREATE INDEX IF NOT EXISTS idx_categories_user "
-            "ON categories(user_id)",
-            "CREATE INDEX IF NOT EXISTS idx_budgets_user "
-            "ON budgets(user_id)",
-            # notifications.related_id is hit by the daily trip_public
-            # dedupe and the delete_trip cleanup. Existing
-            # `(user_id, created_at)` index doesn't cover it.
-            "CREATE INDEX IF NOT EXISTS idx_notifications_related "
-            "ON notifications(related_id)",
-            # Indexes that were added in Alembic only — mirror here
-            # so fresh DBs (tests, new dev installs) get them too.
-            "CREATE INDEX IF NOT EXISTS idx_feed_posts_repost "
-            "ON feed_posts(repost_of_post_id)",
-            "CREATE INDEX IF NOT EXISTS idx_feed_comments_user "
-            "ON feed_comments(user_id)",
-            # 2026-05-26 audit: prevent duplicate (trip_id, day_number)
-            # rows. Frontend has a band-aid dedupe but the underlying
-            # race (two browser tabs adding the same day) wasn't
-            # prevented at the DB level. Partial UNIQUE so NULL
-            # day_numbers (shouldn't happen, but if they do) don't
-            # collide. Migration b1d2e3f4c5a7 cleans pre-existing
-            # duplicates on prod DBs before adding the index.
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_trip_days_trip_day_number "
-            "ON trip_days(trip_id, day_number) "
-            "WHERE trip_id IS NOT NULL AND day_number IS NOT NULL",
-            # 2026-05-26 audit safety primitive: the block-check is
-            # hit by every follow / invite / comment / notification
-            # path with `WHERE blocker_id = ? AND blocked_id = ?` or
-            # the reverse. The composite PK already covers the
-            # forward lookup; this extra index covers
-            # `WHERE blocked_id = ?` (used by `is_blocked_by` to ask
-            # "did THIS user block me?" — direction-reversed).
+            # 2026-05-26 audit safety primitive: the block-check is hit
+            # by every follow / invite / comment / notification path
+            # with `WHERE blocker_id = ? AND blocked_id = ?` or the
+            # reverse. The composite PK already covers the forward
+            # lookup; this extra index covers `WHERE blocked_id = ?`
+            # (used by `is_blocked_by` to ask "did THIS user block
+            # me?" — direction-reversed).
             "CREATE INDEX IF NOT EXISTS idx_blocks_blocked "
             "ON blocks(blocked_id)",
             # 2026-05-27 audit #A-4: per-user session listing for
@@ -816,38 +786,13 @@ def init_db():
         # UNIQUE constraint on follows). Stays in init_db rather than
         # Alembic because it's a one-time-ish data backfill, not a
         # schema change.
-        #
-        # Audit fix (2026-05-26): one-shot marker so re-boots
-        # short-circuit. Pre-fix the migration ran on EVERY init_db
-        # boot — two full table scans of `friends` + N INSERT OR
-        # IGNORE calls — even on prod DBs where it had completed
-        # years ago. The `meta` table is created (idempotent) and a
-        # `model_b_friends_migrated_at` row stamps the moment of
-        # first success; subsequent boots see the row and skip.
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS meta (
-                key TEXT PRIMARY KEY,
-                value TEXT,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-        cursor.execute(
-            "SELECT value FROM meta WHERE key = 'model_b_friends_migrated_at'"
-        )
-        already_done = cursor.fetchone() is not None
-        if not already_done:
-            try:
-                from social import migrate_friends_to_follows
-                migrate_friends_to_follows(cursor)
-                cursor.execute(
-                    "INSERT OR IGNORE INTO meta (key, value) VALUES "
-                    "('model_b_friends_migrated_at', CURRENT_TIMESTAMP)"
-                )
-            except Exception as e:
-                # Logged + swallowed — a botched migration shouldn't
-                # block the rest of init_db. The marker is NOT set
-                # on failure, so the next boot retries.
-                print(f"[init_db] friends→follows migration failed: {e}")
+        try:
+            from social import migrate_friends_to_follows
+            migrate_friends_to_follows(cursor)
+        except Exception as e:
+            # Logged + swallowed — a botched migration shouldn't
+            # block the rest of init_db.
+            print(f"[init_db] friends→follows migration failed: {e}")
 
         conn.commit()
 
@@ -887,13 +832,12 @@ _EXPECTED_COLUMNS = {
     "expenses": [
         "id", "trip_id", "who", "category_id", "label", "date",
         "country", "value", "currency", "euro_value", "receipt_url",
-        "splits_json", "is_settlement",
     ],
     "friends": ["user_id", "friend_id", "status", "created_at"],
     "companions": ["user_id", "name", "linked_user_id", "link_status"],
     "feed_posts": [
         "id", "user_id", "trip_id", "repost_of_post_id", "caption",
-        "created_at", "trip_was_public",
+        "created_at",
     ],
     "follows": ["id", "follower_id", "followee_id", "created_at"],
     "user_achievements": [
@@ -901,8 +845,7 @@ _EXPECTED_COLUMNS = {
     ],
     "settlements": [
         "id", "trip_id", "from_user_id", "to_user_id", "amount",
-        "currency", "euro_value", "method", "note", "recorded_by",
-        "created_at",
+        "currency", "euro_value", "method", "note", "created_at",
     ],
 }
 
