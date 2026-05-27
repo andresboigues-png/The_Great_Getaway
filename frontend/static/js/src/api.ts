@@ -7,6 +7,7 @@ import { validateServerData } from './schemas.js';
 import { normalizeTripCompanions } from './companions.js';
 import { showLiquidAlert } from './utils.js';
 import { t } from './i18n.js';
+import { enqueueMutation } from './outbox.js';
 
 // All fetch URLs are built via apiUrl() so the API_BASE_URL constant is the
 // single point that needs to change when the backend isn't co-located with
@@ -200,8 +201,26 @@ export async function apiFetch(path: string, options: RequestInit = {}): Promise
     try {
         res = await fetch(url, merged);
     } catch (e) {
-        // Network-level failure (offline, DNS, CORS). Log + rethrow so
-        // callers' try/catch still runs.
+        // Network-level failure (offline, DNS, CORS, or AbortError
+        // from the 20s timeout). R7-F1: enqueue the request in the
+        // outbox if it's a replayable mutation, then rethrow so the
+        // caller's catch (which has the optimistic-UI rollback
+        // logic) still runs. The outbox helper bails silently for
+        // non-mutations (GET / AI / auth / sync) so it's safe to
+        // call unconditionally.
+        try {
+            // exactOptionalPropertyTypes: build the object so undefined
+            // keys are absent (not present-and-undefined).
+            const enq: { method?: string; headers?: HeadersInit; body?: string } = {};
+            if (options.method !== undefined) enq.method = options.method;
+            if (options.headers !== undefined) enq.headers = options.headers;
+            if (typeof options.body === 'string') enq.body = options.body;
+            enqueueMutation(url, enq);
+        } catch (oe) {
+            // localStorage disabled / private browsing — defensive,
+            // don't let the queue helper crash the user's tap.
+            console.warn('[apiFetch] outbox enqueue failed:', oe);
+        }
         console.error('[apiFetch] network failure', { url, method: options.method || 'GET', err: String(e) });
         throw e;
     }

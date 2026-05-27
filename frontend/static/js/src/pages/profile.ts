@@ -78,7 +78,18 @@ export const logout = async () => {
         STATE.activities = [];
         STATE.photos = [];
         STATE.notifications = [];
+        STATE.notificationsTotalUnread = 0;
         STATE.savedFormats = [];
+        // R7-F1: wipe the offline-mutation outbox on logout. Any
+        // pending replays would 401 against the new session anyway
+        // (the JWT just rotated via /api/auth/logout's token_jti
+        // bump), and they belong semantically to the old user —
+        // replaying them under the next user who logs in on this
+        // device would be a privacy violation.
+        try {
+            const { clearOutbox } = await import('../outbox.js');
+            clearOutbox();
+        } catch { /* best-effort */ }
         STATE.draftExpense = {
             who: '', categoryId: '', label: '', date: '',
             country: '', value: '', currency: 'EUR', euroValue: ''

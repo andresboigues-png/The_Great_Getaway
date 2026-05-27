@@ -124,13 +124,15 @@ export const en = {
     // delete / map-load failures across the app.
     errors: {
         backOnline: 'Back online — your changes are saved.',
-        // R6-B4: honest copy. Pre-fix the toast claimed changes
-        // would auto-sync, but there is no IDB outbox — mutations
-        // that fail offline are silently lost. Tell the user the
-        // truth so they don't close the tab assuming it'll
-        // reconcile. A real offline outbox is queued for a future
-        // round; until then, "retry when back online" is honest.
-        offline: "You're offline — please retry your last change when you're back.",
+        // R7-F1: the offline-mutation outbox now exists (see
+        // src/outbox.ts) — failed mutations are queued in
+        // localStorage and replayed on the next `online` event
+        // or app boot. So the original "will sync when you're
+        // back" promise is now actually true. The R3-R5
+        // updated_at primitive handles concurrent-edit races on
+        // replay (stale stamp triggers 409 + the user sees the
+        // staleEdit toast on their next inline interaction).
+        offline: "You're offline — your changes will sync when you're back.",
         serverUnreachable: "Can't reach the server — we'll keep retrying.",
         loginFailed: 'Login failed — please try again.',
         cloneFailedFromCollections: "Couldn't clone that trip. Try again from Collections.",

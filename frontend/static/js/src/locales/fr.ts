@@ -102,7 +102,7 @@ export const fr: Translations = {
     },
     errors: {
         backOnline: 'De retour en ligne — tes modifications sont enregistrées.',
-        offline: "Tu es hors ligne — réessaie ta dernière modification quand tu reviens.",
+        offline: "Tu es hors ligne — tes modifications se synchroniseront à ton retour.",
         serverUnreachable: "Impossible d'atteindre le serveur — on continue d'essayer.",
         loginFailed: 'Échec de la connexion — réessaie.',
         cloneFailedFromCollections: 'Impossible de cloner ce voyage. Réessaie depuis Collections.',

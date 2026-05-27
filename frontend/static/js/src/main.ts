@@ -267,12 +267,36 @@ async function init() {
     // R2 audit fix: also fire an immediate sync when the browser
     // transitions from offline → online. Pre-fix the user waited
     // up to 15s for the next tick after connectivity restored.
+    //
+    // R7-F1: drain the offline mutation outbox BEFORE the full sync.
+    // Order matters — the outbox holds per-row mutations the user
+    // made while offline; replaying them first means the next
+    // syncWithServer + /api/data poll sees the user's already-
+    // committed work, not stale state that would get overwritten.
+    // Drain is fire-and-forget; failures stay queued for the next
+    // online event. The R3-R5 updated_at primitive handles any
+    // concurrent edit races (replayed write → 409 → kept in queue
+    // → user sees the staleEdit toast on next inline interaction).
     window.addEventListener('online', () => {
         if (STATE.user) {
+            import('./outbox.js').then(m => m.drainOutbox()).catch(() => { /* best-effort */ });
             syncWithServer();
             fetchNotifications();
         }
     });
+
+    // R7-F1: on app boot, also drain once. A user who closed the
+    // tab while offline (with queued mutations) re-opens online —
+    // there's no `online` event in this case because they were
+    // already online when the page loaded. Run after a short delay
+    // so the initial paint + auth check have settled.
+    if (typeof navigator !== 'undefined' && navigator.onLine !== false) {
+        setTimeout(() => {
+            if (STATE.user) {
+                import('./outbox.js').then(m => m.drainOutbox()).catch(() => { /* best-effort */ });
+            }
+        }, 2000);
+    }
 
     // Clear the interval on pagehide / beforeunload. The
     // STATE.user guard inside the tick already turns it into a
