@@ -35,6 +35,7 @@ Frankfurter's free quota).
 from __future__ import annotations
 
 import logging
+import threading
 import time
 from typing import Optional
 
@@ -56,6 +57,15 @@ _FRANKFURTER_LATEST = "https://api.frankfurter.app/latest?from=EUR"
 # Module-private cache.
 _cache: dict[str, Optional[float]] = {}
 _cache_set_at: float = 0.0
+# Audit fix (2026-05-27, fix #61): per-worker re-entrant lock so
+# concurrent _maybe_refresh() calls within the same Python process
+# don't dogpile Frankfurter. Without this, a cold worker that
+# receives 10 simultaneous /api/data polls fires 10 parallel
+# refreshes — burns Frankfurter quota, wastes sockets, and racy
+# writes to _cache could land in any order. The lock is per-process
+# (cross-worker dedup would need an external Redis lock — not worth
+# the complexity for a 24h-TTL value).
+_refresh_lock = threading.RLock()
 
 
 def _refresh() -> None:
@@ -99,7 +109,17 @@ def _refresh() -> None:
 
 
 def _maybe_refresh() -> None:
-    if not _cache or (time.time() - _cache_set_at) > _TTL_SECONDS:
+    # Fast-path no-op under the read view: most calls find a warm
+    # cache and avoid the lock entirely.
+    if _cache and (time.time() - _cache_set_at) <= _TTL_SECONDS:
+        return
+    # Lock + double-check inside the critical section. A concurrent
+    # caller that won the race to refresh has already populated
+    # _cache by the time we get the lock; the second check skips
+    # the redundant fetch.
+    with _refresh_lock:
+        if _cache and (time.time() - _cache_set_at) <= _TTL_SECONDS:
+            return
         _refresh()
 
 

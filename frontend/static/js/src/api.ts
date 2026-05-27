@@ -524,6 +524,54 @@ export function notifyTripPublic(tripId: string) {
     return _post('/api/notifications/trip_public', { trip_id: tripId });
 }
 
+/** Audit fix (2026-05-27 fix #36/#59): block primitive helpers.
+ *  Powers the Settings → Blocked-users tab + the per-row block
+ *  affordance on profile cards. Block / unblock are idempotent
+ *  per the server route. */
+export interface BlockedUser {
+    id: string;
+    name: string | null;
+    picture: string | null;
+    createdAt: string;
+}
+
+export async function fetchBlockedUsers(): Promise<BlockedUser[]> {
+    if (!STATE.user) return [];
+    try {
+        const res = await apiFetch('/api/blocks');
+        if (!res.ok) return [];
+        const body = await res.json();
+        return Array.isArray(body && body.blocks) ? body.blocks : [];
+    } catch {
+        return [];
+    }
+}
+
+export async function blockUser(userId: string): Promise<boolean> {
+    if (!STATE.user) return false;
+    try {
+        const res = await apiFetch(`/api/blocks/${encodeURIComponent(userId)}`, {
+            method: 'POST',
+        });
+        return res.ok;
+    } catch {
+        return false;
+    }
+}
+
+export async function unblockUser(userId: string): Promise<boolean> {
+    if (!STATE.user) return false;
+    try {
+        const res = await apiFetch(`/api/blocks/${encodeURIComponent(userId)}`, {
+            method: 'DELETE',
+        });
+        return res.ok;
+    } catch {
+        return false;
+    }
+}
+
+
 /** Audit fix (2026-05-27 fix #50/#57): per-device session helpers.
  *  Pre-fix logout invalidated every device the user had ever signed in
  *  on; now sessions are per-device. These helpers power the
