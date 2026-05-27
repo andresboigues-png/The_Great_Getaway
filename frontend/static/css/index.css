@@ -5577,5 +5577,26 @@ main#app-container.nav-anim-backward {
     font-size: 0.85rem;
 }
 
+/* R3-Round 2 fix: lift every icon-button-shaped affordance to the
+   WCAG/Apple-HIG 44×44 minimum on mobile. Pre-fix the trip-card
+   actions (Edit / PDF / Silence / Switch / Complete / Delete /
+   close-X) were 32-36 px, well below the touch-target floor — Sofia
+   on iPhone Mini routinely mistapped Archive vs Delete. The five
+   classes (icon-btn-square, icon-btn-circle, icon-action-btn,
+   icon-x-btn, mobile-trip-switcher) each have their visual sizing
+   defined elsewhere — this override grows them at mobile widths
+   without disturbing the desktop look. */
+@media (max-width: 720px) {
+    .icon-btn-square,
+    .icon-btn-circle,
+    .icon-action-btn,
+    .icon-x-btn,
+    .mobile-trip-switcher,
+    .lb-nav-btn--close {
+        min-width: var(--tap-min);
+        min-height: var(--tap-min);
+    }
+}
+
 } /* end @layer legacy */
 

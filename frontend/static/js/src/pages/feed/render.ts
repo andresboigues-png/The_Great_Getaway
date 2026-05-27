@@ -199,8 +199,14 @@ export function avatar(
 ): string {
     const initial = (user?.name || '?').charAt(0).toUpperCase();
     const fallback = `<div style="width:${size}px; height:${size}px; border-radius:50%; background: var(--gradient-day); color:white; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:${Math.round(size * 0.4)}px; flex-shrink:0; box-shadow: 0 2px 8px rgba(0,113,227,0.18);">${esc(initial)}</div>`;
+    // R3-Round 2 fix: `loading="lazy"` + explicit width/height defer
+    // off-viewport avatar fetches and let the browser reserve layout
+    // space (kills CLS as the network resolves). On Yuki's slow 3G
+    // Pixel the feed first-paint was queueing 100+ Google avatars
+    // simultaneously pre-fix; lazy + intersection-observer in the
+    // browser cuts that to whatever's actually on screen.
     const inner = user?.picture
-        ? `<img src="${esc(user.picture)}" alt="" referrerpolicy="no-referrer"
+        ? `<img src="${esc(user.picture)}" alt="" referrerpolicy="no-referrer" loading="lazy" decoding="async" width="${size}" height="${size}"
             onerror="this.outerHTML=this.dataset.fallback;"
             data-fallback="${esc(fallback)}"
             style="width:${size}px; height:${size}px; border-radius:50%; object-fit:cover; flex-shrink:0; border:2px solid rgba(255,255,255,0.6); box-shadow: 0 2px 8px rgba(0,45,91,0.12);">`

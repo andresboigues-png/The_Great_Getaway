@@ -180,7 +180,7 @@ export function openFriendsListModal(friends: ProfileFriend[]) {
     const rowHtml = (f: ProfileFriend) => {
         const initial = (f.name || f.email || '?').charAt(0).toUpperCase();
         const avatar = f.picture
-            ? `<img src="${esc(f.picture)}" alt="" referrerpolicy="no-referrer" style="width:40px; height:40px; border-radius:50%; object-fit:cover; flex-shrink:0;">`
+            ? `<img src="${esc(f.picture)}" alt="" referrerpolicy="no-referrer" loading="lazy" decoding="async" width="40" height="40" style="width:40px; height:40px; border-radius:50%; object-fit:cover; flex-shrink:0;">`
             : `<div style="width:40px; height:40px; border-radius:50%; background: var(--gradient-day); color:white; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:1rem; flex-shrink:0;">${esc(initial)}</div>`;
         return `
             <button type="button" class="profile-friend-row" data-user-id="${esc(f.id)}"

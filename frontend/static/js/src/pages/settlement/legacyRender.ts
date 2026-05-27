@@ -705,6 +705,19 @@ export async function settleDebt(
         showLiquidAlert(t('settlement.toastAmountInvalid'));
         return;
     }
+    // R3-Round 2 fix: explicit offline check. The settle flow POSTs
+    // to /api/settlements (PATH A below) — without this gate the
+    // submit blocks for ~30s on a metro / plane connection until the
+    // fetch errors out, leaving the modal open with no feedback. The
+    // api.ts offline toast only fires after two consecutive /api/sync
+    // failures, not for one-shot writes. navigator.onLine is the
+    // browser's best-effort signal — false positives possible (it
+    // returns true when on a captive wifi with no DNS) but false
+    // negatives are very rare, so an "offline" reading is reliable.
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        showLiquidAlert(t('errors.offline'));
+        return;
+    }
     const euroValue = convertCurrency(amount, currency, 'EUR');
 
     const trip = STATE.trips.find((tr) => tr.id === tripId);
