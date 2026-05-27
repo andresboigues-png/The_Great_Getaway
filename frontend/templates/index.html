@@ -5,12 +5,44 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>The Great Getaway</title>
+
+    <!-- R9-F3: resource hints. These belong as early as possible in
+         <head> so the browser can start the DNS+TCP+TLS handshake to
+         third-party origins WHILE the rest of the head parses. On
+         cellular, TLS handshake is often 200-400ms — preconnecting
+         in parallel with the rest of the head means the Sentry /
+         Google / jsdelivr / Maps scripts below find a warm
+         connection when they request bytes. The `crossorigin` attr
+         matters: omitting it for fonts/scripts that ARE cross-
+         origin makes the preconnect open a SEPARATE connection (the
+         scripts then re-handshake), defeating the optimization.
+         googleusercontent.com is the user-avatar CDN; preconnecting
+         shaves first-render time on the navbar's logged-in user
+         chip. -->
+    <link rel="preconnect" href="https://js-de.sentry-cdn.com" crossorigin>
+    <link rel="preconnect" href="https://accounts.google.com" crossorigin>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <link rel="preconnect" href="https://maps.googleapis.com" crossorigin>
+    <link rel="preconnect" href="https://maps.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
+
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/index.css') }}?v={{ css_version }}">
     <!-- §0.4 follow-up: Tailwind v4 utility layer. Emitted by Vite
          (config in vite.config.js → assetFileNames) at a stable
          path; cache-busted via mtime same as the JS bundle. -->
     <link rel="stylesheet" href="{{ url_for('static', filename='js/assets/main.css') }}?v={{ tailwind_css_version }}">
+    <!-- R9-F3: modulepreload kicks off the entry bundle fetch in
+         parallel with the parse-blocking script tags below.
+         Without this, the browser only starts fetching
+         app.bundle.js after it finishes parsing the head's sync
+         scripts (Sentry, Maps). On cellular this can shave
+         300-500ms off TTI. The matching type="module" tag further
+         down the head still runs after parse — it just finds
+         bytes already in cache. `as=script` form omitted because
+         modulepreload is module-specific and the as= attribute is
+         forbidden by spec for this rel. -->
+    <link rel="modulepreload" href="{{ url_for('static', filename='js/app.bundle.js') }}">
 
     <!-- PWA: installable on iOS/Android, standalone display, themed nav.
          Icon raster set lives in /static/icons/ (generated from
