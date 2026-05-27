@@ -39,7 +39,7 @@ from auth import current_user_id, require_auth
 from database import get_db, retry_on_lock
 from extensions import limiter
 from fx_rates import compute_euro_value, get_rate_eur
-from helpers import trip_member_role
+from helpers import is_trip_archived_for, trip_member_role
 from observability import bind_trip_context, get_logger, log_extra
 from validators import (
     ValidationError,
@@ -223,6 +223,14 @@ def create_settlement():
             return jsonify({"error": "fromUserId is not a member of this trip"}), 400
         if not _is_accepted_member(cursor, trip_id, to_user_id):
             return jsonify({"error": "toUserId is not a member of this trip"}), 400
+        # R3-Fix #18: archive write gate. Recording a new settlement
+        # on an archived trip would re-trigger balance math + the
+        # settled_up feed event; the user already considered the
+        # trip "closed."
+        if is_trip_archived_for(cursor, trip_id, user_id):
+            return jsonify({
+                "error": "Trip is archived — unarchive to record new settlements",
+            }), 409
 
         # 2026-05-26 (audit S1 + S6): snapshot party display names at
         # insert time. Pre-fix, the balance math resolved names from

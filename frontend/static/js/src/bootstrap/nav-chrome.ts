@@ -59,11 +59,37 @@ export function wireNavChrome(): void {
         const overlay = document.getElementById('sidebarOverlay');
         sidebar?.classList.toggle('open');
         overlay?.classList.toggle('open');
+        const isOpen = !!sidebar?.classList.contains('open');
         if (hamburgerBtn && sidebar) {
             hamburgerBtn.setAttribute(
-                'aria-expanded',
-                sidebar.classList.contains('open') ? 'true' : 'false',
+                'aria-expanded', isOpen ? 'true' : 'false',
             );
+        }
+        // R3-Fix #19: when the sidebar is open it's the only visible
+        // surface — the rest of the page must be inert to keyboard +
+        // screen reader so Tab/TalkBack swipe don't escape into the
+        // navbar/main/bottom-nav behind the drawer. Modal.ts has the
+        // same pattern via its focus trap; the sidebar drawer is
+        // morally a modal dialog so we mirror it.
+        const navbar = document.querySelector('.navbar') as HTMLElement | null;
+        const mainEl = document.getElementById('app-container');
+        const bottomNav = document.querySelector('.mobile-bottom-nav') as HTMLElement | null;
+        for (const el of [navbar, mainEl, bottomNav]) {
+            if (!el) continue;
+            if (isOpen) {
+                el.setAttribute('inert', '');
+                el.setAttribute('aria-hidden', 'true');
+            } else {
+                el.removeAttribute('inert');
+                el.removeAttribute('aria-hidden');
+            }
+        }
+        // Move focus into the drawer on open; restore to hamburger on close.
+        if (isOpen) {
+            const close = document.getElementById('sidebarClose');
+            (close as HTMLElement | null)?.focus();
+        } else {
+            hamburgerBtn?.focus();
         }
     };
 
@@ -135,7 +161,14 @@ export function wireNavChrome(): void {
             btn.setAttribute('aria-expanded', isHidden ? 'true' : 'false');
             if (isHidden) {
                 renderNotificationDropdown();
-                markNotificationsRead(); // Mark all as read when opening the list
+                // R3-Fix #20: don't auto-mark-read on open. The previous
+                // shape fired markNotificationsRead() the instant ANY
+                // bell opened, so screen-reader users (Eduardo persona)
+                // never got to hear the "unread" state — the badge had
+                // already been cleared by the time the dropdown rendered.
+                // Now: keep the unread tag until the user either clicks
+                // a row (handled in the delegated click handler) or
+                // taps "Mark all read" explicitly.
             }
         });
     }

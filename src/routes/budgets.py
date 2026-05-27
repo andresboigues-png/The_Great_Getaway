@@ -10,6 +10,8 @@ from flask import Blueprint, jsonify, request
 
 from auth import current_user_id, require_auth
 from database import get_db, retry_on_lock
+from extensions import limiter
+from helpers import is_trip_archived_for
 from validators import (
     ValidationError,
     clean_text,
@@ -22,6 +24,7 @@ bp = Blueprint("budgets", __name__)
 
 
 @bp.route("/api/budgets", methods=["POST"])
+@limiter.limit("60 per minute")
 @require_auth
 @retry_on_lock()
 def upsert_budget():
@@ -112,6 +115,13 @@ def upsert_budget():
             # vs not at all — 403 collapsed to 404 keeps the anti-
             # enumeration posture consistent with /api/expenses etc.
             return jsonify({"error": "Not found"}), 404
+        # R3-Fix #18: archive write gate. Only enforced when the
+        # budget is trip-scoped — global ("all trips") budgets aren't
+        # tied to a single trip lifecycle.
+        if trip_id and is_trip_archived_for(cursor, trip_id, user_id):
+            return jsonify({
+                "error": "Trip is archived — unarchive to edit",
+            }), 409
         cursor.execute('''
             INSERT INTO budgets (id, user_id, trip_id, label, amount, currency,
                                  category_id, owner_name, original_amount, original_currency)
@@ -135,6 +145,7 @@ def upsert_budget():
 
 
 @bp.route("/api/budgets/<budget_id>", methods=["DELETE"])
+@limiter.limit("30 per minute")
 @require_auth
 @retry_on_lock()
 def delete_budget(budget_id):

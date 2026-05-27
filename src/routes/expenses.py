@@ -12,7 +12,7 @@ from auth import current_user_id, require_auth
 from database import get_db, retry_on_lock
 from extensions import limiter
 from fx_rates import compute_euro_value
-from helpers import can_edit_expenses
+from helpers import can_edit_expenses, is_trip_archived_for
 from observability import bind_trip_context
 from validators import (
     ValidationError,
@@ -137,6 +137,14 @@ def upsert_expense():
         gate_trip_id = existing["trip_id"] if existing else claimed_trip_id
         if not can_edit_expenses(cursor, gate_trip_id, user_id):
             return jsonify({"error": "Forbidden"}), 403
+        # R3-Fix #18: refuse writes to a trip the caller has archived
+        # for themselves. The /api/sync bulk path is exempt (it's the
+        # catch-up channel for archived state from a freshly-installed
+        # device); only the per-row /api/expenses POST consults this.
+        if is_trip_archived_for(cursor, gate_trip_id, user_id):
+            return jsonify({
+                "error": "Trip is archived — unarchive to edit",
+            }), 409
         # 2026-05-25 (audit S1): splits + isSettlement are now persisted.
         # `splits` may arrive as a dict (the frontend's shape) — serialise
         # to JSON for storage. None / missing = legacy equal-share fallback.

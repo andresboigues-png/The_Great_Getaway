@@ -4182,7 +4182,12 @@ main#app-container.nav-anim-backward {
         right: 12px !important;
         width: auto !important;
         max-width: none !important;
+        /* R3-Fix #21: dvh fallback for the bell dropdown. Without it,
+           iOS Safari with the URL bar visible hides the last row(s) of
+           a long notification list behind the dynamic chrome with no
+           scroll affordance left. */
         max-height: calc(100vh - 80px);
+        max-height: calc(100dvh - 80px);
     }
 
     /* ── Profile page: stack 2-col header on mobile ───────────────
@@ -5056,7 +5061,11 @@ main#app-container.nav-anim-backward {
     border: 0;
     padding: 0;
     max-width: 92vw;
+    /* R3-Fix #21: dvh fallback. With 92vh only, iOS Safari rotation
+       portrait→landscape mid-gallery reshows the URL bar and the
+       photo clips off the bottom. */
     max-height: 92vh;
+    max-height: 92dvh;
     position: relative;
 }
 
@@ -5067,7 +5076,9 @@ main#app-container.nav-anim-backward {
 .lb-img {
     display: block;
     max-width: 92vw;
+    /* R3-Fix #21: dvh fallback (see .lightbox-card above). */
     max-height: 92vh;
+    max-height: 92dvh;
     border-radius: 18px;
     object-fit: contain;
     box-shadow: 0 30px 80px rgba(0, 0, 0, 0.4);

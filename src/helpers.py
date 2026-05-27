@@ -203,6 +203,34 @@ def can_edit_expenses(cursor, trip_id, user_id):
     return role in ("planner", "budgeteer")
 
 
+def is_trip_archived_for(cursor, trip_id, user_id) -> bool:
+    """R3-Fix #18: per-user archive write gate. Returns True iff the
+    caller's `trip_members.is_archived` is 1 for this trip — meaning
+    they've completed it from their perspective. Used by per-row
+    write routes (/api/expenses, /api/days, /api/budgets,
+    /api/settlements) to refuse post-archive edits that would
+    oscillate achievements and regress balance math.
+
+    NOT applied at /api/sync — bulk sync is the catch-up path for
+    archived state itself (a clean-install device must be able to
+    POST archived trips + their expenses in one batch).
+    """
+    cursor.execute(
+        "SELECT is_archived FROM trip_members "
+        "WHERE trip_id = ? AND user_id = ?",
+        (trip_id, user_id),
+    )
+    row = cursor.fetchone()
+    if not row:
+        # No member row — defer to the legacy mirror on trips.is_archived
+        # so writes to a freshly-created trip whose member backfill hasn't
+        # landed yet aren't blocked.
+        cursor.execute("SELECT is_archived FROM trips WHERE id = ?", (trip_id,))
+        trow = cursor.fetchone()
+        return bool(trow and trow["is_archived"])
+    return bool(row["is_archived"])
+
+
 def is_trip_owner(cursor, trip_id, user_id):
     cursor.execute("SELECT user_id FROM trips WHERE id = ?", (trip_id,))
     row = cursor.fetchone()

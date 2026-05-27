@@ -14,10 +14,12 @@ from flask import Blueprint, jsonify, request
 
 from auth import current_user_id, require_auth
 from database import get_db, retry_on_lock
+from extensions import limiter
 from helpers import (
     _extract_upload_paths as _extract_upload_paths,
     can_edit_trip,
     delete_upload_files,
+    is_trip_archived_for,
 )
 from observability import bind_trip_context
 
@@ -26,6 +28,7 @@ bp = Blueprint("days", __name__)
 
 
 @bp.route("/api/days", methods=["POST"])
+@limiter.limit("120 per minute")
 @require_auth
 @retry_on_lock()
 def upsert_day():
@@ -77,6 +80,11 @@ def upsert_day():
         gate_trip_id = existing["trip_id"] if existing else claimed_trip_id
         if not can_edit_trip(cursor, gate_trip_id, user_id):
             return jsonify({"error": "Forbidden"}), 403
+        # R3-Fix #18: archive write gate (per-row only; sync exempt).
+        if is_trip_archived_for(cursor, gate_trip_id, user_id):
+            return jsonify({
+                "error": "Trip is archived — unarchive to edit",
+            }), 409
         try:
             # 2026-05-26 (audit SY5): WHERE guard mirrors the expense
             # upsert — `deleted_at IS NULL` makes the ON CONFLICT UPDATE a
@@ -126,6 +134,7 @@ def upsert_day():
 
 
 @bp.route("/api/days/<day_id>", methods=["DELETE"])
+@limiter.limit("60 per minute")
 @require_auth
 @retry_on_lock()
 def delete_day(day_id):

@@ -60,6 +60,7 @@ def _cleaned_companions(cursor, trip_id, raw):
 
 
 @bp.route("/api/trips", methods=["POST"])
+@limiter.limit("60 per minute")
 @require_auth
 @retry_on_lock()
 def upsert_trip():
@@ -182,6 +183,7 @@ def upsert_trip():
 
 
 @bp.route("/api/trips/<trip_id>", methods=["DELETE"])
+@limiter.limit("10 per minute")
 @require_auth
 @retry_on_lock()
 def delete_trip(trip_id):
@@ -297,6 +299,7 @@ def delete_trip(trip_id):
 
 
 @bp.route("/api/trips/<trip_id>/archive", methods=["POST"])
+@limiter.limit("30 per minute")
 @require_auth
 @retry_on_lock()
 def archive_trip(trip_id):
@@ -337,6 +340,7 @@ def archive_trip(trip_id):
 
 
 @bp.route("/api/trips/<trip_id>/silence", methods=["POST"])
+@limiter.limit("30 per minute")
 @require_auth
 @retry_on_lock()
 def silence_trip_actions(trip_id):
@@ -368,6 +372,7 @@ def silence_trip_actions(trip_id):
 
 
 @bp.route("/api/trips/<trip_id>/unarchive", methods=["POST"])
+@limiter.limit("30 per minute")
 @require_auth
 @retry_on_lock()
 def unarchive_trip(trip_id):
@@ -537,6 +542,7 @@ def invite_trip_member():
 
 
 @bp.route("/api/trips/invite/respond", methods=["POST"])
+@limiter.limit("30 per minute")
 @require_auth
 @retry_on_lock()
 def respond_trip_invite():
@@ -605,6 +611,7 @@ def respond_trip_invite():
 
 
 @bp.route("/api/trips/members/remove", methods=["POST"])
+@limiter.limit("30 per minute")
 @require_auth
 @retry_on_lock()
 def remove_trip_member():

@@ -207,16 +207,26 @@ export function renderNotificationDropdown() {
     // to the WRONG row (or undefined). Switching to the row's stable
     // `id` removes that race entirely; the click handler looks up by
     // id instead of `STATE.notifications[idx]`.
-    const html = notes.map(n => `
-        <div class="notification-item ${n.is_read ? '' : 'unread'}" data-notification-id="${esc(String(n.id))}" role="button" tabindex="0">
-            <div class="notification-item__title" style="--accent: ${notificationAccent(n.type)};">
-                <span class="notification-item__dot"></span>
-                ${esc(n.title || notificationDefaultTitle(n.type))}
+    // R3-Fix #20: aria-label conveys unread state in the accessible
+    // name so screen-reader users get told (e.g. "Unread. Ana invited
+    // you to Paris.") instead of just the message body. Color + dot
+    // are visual-only signals.
+    const html = notes.map(n => {
+        const title = n.title || notificationDefaultTitle(n.type);
+        const message = localizeNotificationMessage(n.type, n.message);
+        const unreadPrefix = n.is_read ? '' : 'Unread. ';
+        const ariaLabel = `${unreadPrefix}${title}. ${message}`;
+        return `
+            <div class="notification-item ${n.is_read ? '' : 'unread'}" data-notification-id="${esc(String(n.id))}" role="button" tabindex="0" aria-label="${esc(ariaLabel)}">
+                <div class="notification-item__title" style="--accent: ${notificationAccent(n.type)};">
+                    <span class="notification-item__dot" aria-hidden="true"></span>
+                    ${esc(title)}
+                </div>
+                <div class="notification-item__message">${esc(message)}</div>
+                <div class="notification-item__time">${new Date(n.created_at).toLocaleDateString(getIntlLocale(), { month: 'short', day: 'numeric' })}</div>
             </div>
-            <div class="notification-item__message">${esc(localizeNotificationMessage(n.type, n.message))}</div>
-            <div class="notification-item__time">${new Date(n.created_at).toLocaleDateString(getIntlLocale(), { month: 'short', day: 'numeric' })}</div>
-        </div>
-    `).join('');
+        `;
+    }).join('');
     for (const list of lists) list.innerHTML = html;
 }
 
