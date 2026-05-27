@@ -477,7 +477,9 @@ def share_trip_to_feed():
         if not trip_row["is_public"]:
             if is_owner:
                 cursor.execute(
-                    "UPDATE trips SET is_public = 1 WHERE id = ?",
+                    "UPDATE trips SET is_public = 1, "
+                    "updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now') "
+                    "WHERE id = ?",
                     (trip_id,),
                 )
             else:
@@ -677,7 +679,9 @@ def unshare_feed_post(post_id):
             other_share = cursor.fetchone()
             if not other_share:
                 cursor.execute(
-                    "UPDATE trips SET is_public = 0 WHERE id = ? AND user_id = ?",
+                    "UPDATE trips SET is_public = 0, "
+                    "updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now') "
+                    "WHERE id = ? AND user_id = ?",
                     (row["trip_id"], user_id),
                 )
         conn.commit()
@@ -1102,8 +1106,14 @@ def edit_feed_comment(comment_id):
         # to comments that have been changed. The on-block / on-delete
         # cleanup paths don't care about edited_at; only the renderer
         # reads it.
+        # R4-B4: ms-precision stamp so a second edit within the same
+        # wall-clock second still advances the value (matches the
+        # updated_at primitive on trips/expenses/budgets/days). Pre-fix
+        # CURRENT_TIMESTAMP was 1-sec precision — quick successive
+        # typos collapsed to the same `edited_at`.
         cursor.execute(
-            "UPDATE feed_comments SET body = ?, edited_at = CURRENT_TIMESTAMP "
+            "UPDATE feed_comments SET body = ?, "
+            "edited_at = strftime('%Y-%m-%d %H:%M:%f', 'now') "
             "WHERE id = ?",
             (body, comment_id),
         )

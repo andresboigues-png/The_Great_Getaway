@@ -1438,6 +1438,188 @@ def test_expense_stale_clientUpdatedAt_returns_409(
     assert found["value"] == 11
 
 
+def test_trip_stale_clientUpdatedAt_returns_409(
+    client, seed_user, auth_headers,
+):
+    """R3-Round 5 B1 mirror of the expense test above. POST /api/trips
+    with a stale `clientUpdatedAt` returns 409 + `current` so the
+    losing client can re-render against fresh state and retry."""
+    # First write — no clientUpdatedAt (new row).
+    res = client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": "trip-stale", "name": "Florence", "country": "Italy"},
+    })
+    assert res.status_code == 200
+    first_updated_at = res.get_json().get("updatedAt")
+    assert first_updated_at, "first write should return updatedAt"
+
+    # Second write WITHOUT clientUpdatedAt — legacy path, accepted.
+    res2 = client.post("/api/trips", headers=auth_headers, json={
+        "trip": {"id": "trip-stale", "name": "Florence 2", "country": "Italy"},
+    })
+    assert res2.status_code == 200
+    second_updated_at = res2.get_json().get("updatedAt")
+    assert second_updated_at and second_updated_at != first_updated_at, \
+        "updatedAt should advance on each write"
+
+    # Third write WITH the now-stale first_updated_at → 409.
+    res3 = client.post("/api/trips", headers=auth_headers, json={
+        "trip": {
+            "id": "trip-stale", "name": "Florence 99", "country": "Italy",
+            "clientUpdatedAt": first_updated_at,
+        },
+    })
+    assert res3.status_code == 409
+    body = res3.get_json()
+    assert "current" in body, "409 should include the live row"
+    # And the row is unchanged from the second write.
+    pull = client.get("/api/data", headers=auth_headers).get_json()
+    found = next(t for t in pull["trips"] if t["id"] == "trip-stale")
+    assert found["name"] == "Florence 2", \
+        "stale write should not have overwritten the second write"
+
+
+def test_budget_stale_clientUpdatedAt_returns_409(
+    client, seed_user, auth_headers,
+):
+    """R3-Round 5 B2 mirror of the expense test. Budgets gate on
+    clientUpdatedAt the same way."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-budget-stale")
+    res = client.post("/api/budgets", headers=auth_headers, json={
+        "budget": {
+            "id": "bud-stale", "tripId": trip_id,
+            "amount": 100, "currency": "EUR",
+            "originalAmount": 100, "originalCurrency": "EUR",
+            "categoryId": "all", "user": "all",
+        },
+    })
+    assert res.status_code == 200
+    first_updated_at = res.get_json().get("updatedAt")
+    assert first_updated_at
+
+    res2 = client.post("/api/budgets", headers=auth_headers, json={
+        "budget": {
+            "id": "bud-stale", "tripId": trip_id,
+            "amount": 200, "currency": "EUR",
+            "originalAmount": 200, "originalCurrency": "EUR",
+            "categoryId": "all", "user": "all",
+        },
+    })
+    assert res2.status_code == 200
+    assert res2.get_json().get("updatedAt") != first_updated_at
+
+    res3 = client.post("/api/budgets", headers=auth_headers, json={
+        "budget": {
+            "id": "bud-stale", "tripId": trip_id,
+            "amount": 999, "currency": "EUR",
+            "originalAmount": 999, "originalCurrency": "EUR",
+            "categoryId": "all", "user": "all",
+            "clientUpdatedAt": first_updated_at,
+        },
+    })
+    assert res3.status_code == 409
+    assert "current" in res3.get_json()
+    # Row unchanged from second write.
+    pull = client.get("/api/data", headers=auth_headers).get_json()
+    found = next(b for b in pull["budgets"] if b["id"] == "bud-stale")
+    assert found["amount"] == 200
+
+
+def test_day_stale_clientUpdatedAt_returns_409(
+    client, seed_user, auth_headers,
+):
+    """R3-Round 5 B3 mirror. /api/days gate on clientUpdatedAt."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-day-stale")
+    res = client.post("/api/days", headers=auth_headers, json={
+        "day": {
+            "id": "day-stale", "tripId": trip_id, "dayNumber": 1,
+            "date": "2026-05-12", "name": "Day 1",
+            "plan": {"morning": "first", "afternoon": "", "evening": ""},
+        },
+    })
+    assert res.status_code == 200
+    first_updated_at = res.get_json().get("updatedAt")
+    assert first_updated_at
+
+    res2 = client.post("/api/days", headers=auth_headers, json={
+        "day": {
+            "id": "day-stale", "tripId": trip_id, "dayNumber": 1,
+            "date": "2026-05-12", "name": "Day 1",
+            "plan": {"morning": "second", "afternoon": "", "evening": ""},
+        },
+    })
+    assert res2.status_code == 200
+    assert res2.get_json().get("updatedAt") != first_updated_at
+
+    res3 = client.post("/api/days", headers=auth_headers, json={
+        "day": {
+            "id": "day-stale", "tripId": trip_id, "dayNumber": 1,
+            "date": "2026-05-12", "name": "Day 1",
+            "plan": {"morning": "stale", "afternoon": "", "evening": ""},
+            "clientUpdatedAt": first_updated_at,
+        },
+    })
+    assert res3.status_code == 409
+    assert "current" in res3.get_json()
+    pull = client.get("/api/data", headers=auth_headers).get_json()
+    found = next(d for d in pull["tripDays"] if d["id"] == "day-stale")
+    # The day's plan is stored as morning/afternoon/evening at the
+    # top level (not nested in `plan`) on the /api/data shape.
+    morning = (
+        found.get("plan", {}).get("morning")
+        if isinstance(found.get("plan"), dict)
+        else found.get("morning")
+    )
+    assert morning == "second", \
+        "stale write should not have overwritten the second write"
+
+
+def test_sync_bumps_updated_at_so_subsequent_post_sees_advancement(
+    client, seed_user, auth_headers,
+):
+    """R4-B1 regression test: /api/sync UPDATEs must stamp updated_at
+    on the rows they rewrite. Pre-fix the sync path silently rewrote
+    expense / trip / budget / day fields without bumping the stamp —
+    the next single-row POST then saw stored == client (both stale),
+    passed the R3-R4/R3-R5 gate, and blind-overwrote whatever the
+    sync had just delivered. This test pins the fix by asserting
+    that an /api/sync UPDATE moves the stored updated_at forward."""
+    trip_id = _create_trip(client, auth_headers, trip_id="trip-sync-stamp")
+    # First, POST an expense to seed it with a known updatedAt.
+    res = client.post("/api/expenses", headers=auth_headers, json={
+        "expense": {
+            "id": "exp-sync-stamp", "tripId": trip_id, "who": "Me",
+            "value": 10, "currency": "EUR", "euroValue": 10,
+            "label": "first", "date": "2026-05-12",
+        },
+    })
+    assert res.status_code == 200
+    first_updated_at = res.get_json()["updatedAt"]
+
+    # Now bulk-sync the SAME row through /api/sync with a different label.
+    # The sync UPDATE should bump updated_at — pre-R4-B1 it would NOT.
+    sync_payload = {
+        "trips": [], "archived_trips": [], "categories": [],
+        "trip_days": [], "budgets": [],
+        "expenses": [{
+            "id": "exp-sync-stamp", "tripId": trip_id, "who": "Me",
+            "value": 22, "currency": "EUR", "euroValue": 22,
+            "label": "via-sync", "date": "2026-05-12",
+        }],
+    }
+    sync_res = client.post("/api/sync", headers=auth_headers, json=sync_payload)
+    assert sync_res.status_code in (200, 204)
+
+    # Pull and check the stored updated_at advanced past first_updated_at.
+    pull = client.get("/api/data", headers=auth_headers).get_json()
+    found = next(e for e in pull["expenses"] if e["id"] == "exp-sync-stamp")
+    assert found["label"] == "via-sync", "sync UPDATE should have landed"
+    assert found.get("updatedAt"), "expense should expose updatedAt"
+    assert found["updatedAt"] > first_updated_at, (
+        "sync UPDATE must bump updated_at, otherwise the R3-R4 stale-edit "
+        "gate can be silently bypassed by a sync poll racing a POST"
+    )
+
+
 def test_expense_euro_value_recomputed_server_side(
     client, seed_user, auth_headers,
 ):

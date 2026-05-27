@@ -551,6 +551,23 @@ async function _upsertWithUpdatedAt(url: string, key: string, obj: any) {
             body: JSON.stringify(payload),
         });
         if (res.status === 409) {
+            // R4-B6: consume the response body BEFORE the early
+            // return — Chrome treats unread streams as a leak. The
+            // server packs the live row in `body.current`; we copy
+            // its updatedAt back into the caller's obj so a retry
+            // from the same modal sends a current stamp instead of
+            // looping forever on the stale one.
+            const conflictBody = await res.json().catch(() => null);
+            const cur = conflictBody && conflictBody.current;
+            // Server endpoints vary — /api/trips ships the raw DB
+            // row (snake_case `updated_at`), others may serialize
+            // through helpers.py which renames to camelCase. Accept
+            // either form so the rebind survives a future
+            // serializer refactor without silently losing stamps.
+            const liveStamp = cur && (cur.updatedAt || cur.updated_at);
+            if (liveStamp && obj && typeof obj === 'object') {
+                obj.updatedAt = liveStamp;
+            }
             showLiquidAlert(t('errors.staleEdit'));
             // Fresh state from server so the UI reflects what
             // actually persisted. Fire-and-forget.
@@ -582,6 +599,13 @@ async function _upsertWithUpdatedAtJson(url: string, key: string, obj: any): Pro
         let body: any = null;
         try { body = await res.json(); } catch { /* not JSON */ }
         if (res.status === 409) {
+            // R4-B6: same rebind pattern as _upsertWithUpdatedAt so
+            // a retry from the day modal carries a current stamp.
+            const cur = body && body.current;
+            const liveStamp = cur && (cur.updatedAt || cur.updated_at);
+            if (liveStamp && obj && typeof obj === 'object') {
+                obj.updatedAt = liveStamp;
+            }
             showLiquidAlert(t('errors.staleEdit'));
             pullFromServer().catch(() => { /* best-effort */ });
         } else if (res.ok && body && body.updatedAt && obj && typeof obj === 'object') {

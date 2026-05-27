@@ -42,6 +42,27 @@ try:
 except Exception:
     _HEIF_AVAILABLE = False
 
+# R4-B3: hoist the decompression-bomb defenses out of the request
+# handler. `Image.MAX_IMAGE_PIXELS` and `warnings.simplefilter` BOTH
+# mutate process-wide state — running them inside the handler meant
+# they leaked into every other Pillow caller across the worker (PDF
+# builder, test helpers, any background script). Doing it once at
+# module import time gives the same protection without the leak.
+try:
+    import warnings as _warnings
+    from PIL import Image as _PILImageBootstrap
+    # 25M px ≈ 5000×5000 — generous for any phone camera, tight enough
+    # to refuse a 30k×30k bomb (~3.6GB raw pixels). The default ~178M
+    # px PIL ships with is too loose for a public upload surface.
+    _PILImageBootstrap.MAX_IMAGE_PIXELS = 25_000_000
+    # Convert the WARNING into an exception so the upload handler can
+    # actually catch + reject the bomb instead of silently logging.
+    _warnings.simplefilter('error', _PILImageBootstrap.DecompressionBombWarning)
+except Exception:
+    # Pillow missing at boot is a fatal config error in prod, but
+    # don't crash test imports that mock it out.
+    pass
+
 
 bp = Blueprint("media", __name__)
 
@@ -206,17 +227,9 @@ def upload_file():
     if ext in {'.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif'}:
         try:
             from PIL import Image
-            # R2 audit fix: decompression-bomb DoS. Without a pixel
-            # cap, a crafted 30k × 30k PNG (~100KB compressed) decodes
-            # to ~3.6GB of raw pixels and OOMs the worker. PIL's
-            # built-in DecompressionBombWarning fires at ~178M px by
-            # default but is a WARNING, not an exception; we tighten
-            # to 25M px (≈ 5000×5000, generous for any phone camera)
-            # AND turn it into a hard error rather than the silent
-            # fall-through-to-file.save() the old code did.
-            import warnings
-            Image.MAX_IMAGE_PIXELS = 25_000_000
-            warnings.simplefilter('error', Image.DecompressionBombWarning)
+            # R4-B3: the MAX_IMAGE_PIXELS cap + DecompressionBombWarning
+            # → Error conversion now live at module top (see lines ~45-58)
+            # so they don't leak process-wide state on every request.
             file.stream.seek(0)
             img = Image.open(file.stream)
             # Trigger decode validation early so DecompressionBomb

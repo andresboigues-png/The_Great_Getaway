@@ -35,30 +35,56 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
+def _column_exists(table: str, column: str) -> bool:
+    """R4-B5: guard ADD COLUMN with PRAGMA table_info so a re-run
+    of this migration is a no-op rather than an `OperationalError:
+    duplicate column name`. Without this, a half-completed upgrade
+    (e.g. the 3rd ALTER fails) leaves alembic_version stuck at the
+    previous revision; the operator's next `alembic upgrade head`
+    blows up on the FIRST ALTER (which IS already applied) instead
+    of resuming from the failed one."""
+    bind = op.get_bind()
+    rows = bind.exec_driver_sql(f"PRAGMA table_info({table})").fetchall()
+    return any(r[1] == column for r in rows)
+
+
 def upgrade() -> None:
     # SQLite ALTER TABLE ADD COLUMN can't take a non-constant
     # DEFAULT, so the column is added nullable and backfilled in a
     # second statement. Going forward, the per-row routes stamp it
-    # explicitly via `CURRENT_TIMESTAMP` (see routes/{expenses,
-    # budgets, trips, days}.py).
-    op.execute("ALTER TABLE trips ADD COLUMN updated_at DATETIME")
-    op.execute("UPDATE trips SET updated_at = COALESCE(created_at, CURRENT_TIMESTAMP)")
+    # explicitly via `strftime('%Y-%m-%d %H:%M:%f', 'now')` (see
+    # routes/{expenses, budgets, trips, days}.py).
+    if not _column_exists("trips", "updated_at"):
+        op.execute("ALTER TABLE trips ADD COLUMN updated_at DATETIME")
+        op.execute("UPDATE trips SET updated_at = COALESCE(created_at, CURRENT_TIMESTAMP)")
 
-    op.execute("ALTER TABLE expenses ADD COLUMN updated_at DATETIME")
-    # expenses has no created_at column, so backfill to a constant
-    # past timestamp. New rows post-deploy will get a real stamp via
-    # the per-row INSERT path.
-    op.execute("UPDATE expenses SET updated_at = CURRENT_TIMESTAMP")
+    if not _column_exists("expenses", "updated_at"):
+        op.execute("ALTER TABLE expenses ADD COLUMN updated_at DATETIME")
+        # expenses has no created_at column, so backfill to a constant
+        # past timestamp. New rows post-deploy will get a real stamp via
+        # the per-row INSERT path.
+        op.execute("UPDATE expenses SET updated_at = CURRENT_TIMESTAMP")
 
-    op.execute("ALTER TABLE budgets ADD COLUMN updated_at DATETIME")
-    op.execute("UPDATE budgets SET updated_at = CURRENT_TIMESTAMP")
+    if not _column_exists("budgets", "updated_at"):
+        op.execute("ALTER TABLE budgets ADD COLUMN updated_at DATETIME")
+        op.execute("UPDATE budgets SET updated_at = CURRENT_TIMESTAMP")
 
-    op.execute("ALTER TABLE trip_days ADD COLUMN updated_at DATETIME")
-    op.execute("UPDATE trip_days SET updated_at = CURRENT_TIMESTAMP")
+    if not _column_exists("trip_days", "updated_at"):
+        op.execute("ALTER TABLE trip_days ADD COLUMN updated_at DATETIME")
+        op.execute("UPDATE trip_days SET updated_at = CURRENT_TIMESTAMP")
 
 
 def downgrade() -> None:
-    op.execute("ALTER TABLE trips DROP COLUMN updated_at")
-    op.execute("ALTER TABLE expenses DROP COLUMN updated_at")
-    op.execute("ALTER TABLE budgets DROP COLUMN updated_at")
-    op.execute("ALTER TABLE trip_days DROP COLUMN updated_at")
+    # Symmetric guard — only drop if present, so a partial downgrade
+    # can resume cleanly. SQLite DROP COLUMN was added in 3.35.0; on
+    # older runtimes alembic will surface an OperationalError which
+    # is still safer than the old behaviour (crashing on the second
+    # DROP because the first already succeeded).
+    if _column_exists("trips", "updated_at"):
+        op.execute("ALTER TABLE trips DROP COLUMN updated_at")
+    if _column_exists("expenses", "updated_at"):
+        op.execute("ALTER TABLE expenses DROP COLUMN updated_at")
+    if _column_exists("budgets", "updated_at"):
+        op.execute("ALTER TABLE budgets DROP COLUMN updated_at")
+    if _column_exists("trip_days", "updated_at"):
+        op.execute("ALTER TABLE trip_days DROP COLUMN updated_at")

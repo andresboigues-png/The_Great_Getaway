@@ -256,7 +256,15 @@ def sync_data():
                     documents_json=COALESCE(excluded.documents_json, documents_json),
                     photos_json=COALESCE(excluded.photos_json, photos_json),
                     checklist_json=COALESCE(excluded.checklist_json, checklist_json),
-                    cover_url=excluded.cover_url
+                    cover_url=excluded.cover_url,
+                    -- R4-B1: bump updated_at on every sync UPDATE so the
+                    -- R3-R5 stale-edit gate in /api/trips can detect that
+                    -- this row moved since the client last read it.
+                    -- Pre-fix, sync polls rewrote the row's fields but
+                    -- left updated_at frozen — the next /api/trips POST
+                    -- saw stored == client (both stale) and passed the
+                    -- gate, blind-overwriting the sync-delivered state.
+                    updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now')
             ''', (t['id'], user_id, t['name'], t['country'],
                   1 if t.get('is_archived') else 0,
                   1 if t.get('isPublic') else 0,
@@ -345,7 +353,9 @@ def sync_data():
                     marked_places_json=COALESCE(excluded.marked_places_json, marked_places_json),
                     documents_json=COALESCE(excluded.documents_json, documents_json),
                     photos_json=COALESCE(excluded.photos_json, photos_json),
-                    cover_url=COALESCE(excluded.cover_url, cover_url)
+                    cover_url=COALESCE(excluded.cover_url, cover_url),
+                    -- R4-B1: see active-trips block above for rationale.
+                    updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now')
             ''', (t['id'], user_id, t['name'], t['country'],
                   1 if t.get('isPublic') else 0,
                   1 if t.get('publicShowExpenses') else 0,
@@ -432,7 +442,13 @@ def sync_data():
                             euro_value=excluded.euro_value,
                             receipt_url=excluded.receipt_url,
                             splits=excluded.splits,
-                            is_settlement=excluded.is_settlement
+                            is_settlement=excluded.is_settlement,
+                            -- R4-B1: bump updated_at on every sync UPDATE
+                            -- so the R3-R4 stale-edit gate in /api/expenses
+                            -- can detect that this row moved since the
+                            -- client last read it. See trips block above
+                            -- for the full rationale.
+                            updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now')
                         WHERE expenses.deleted_at IS NULL
                     ''', (e['id'], gate_trip_id, cleaned['who'], cleaned['category_id'],
                           cleaned['label'], cleaned['date'], cleaned['country'],
@@ -495,7 +511,9 @@ def sync_data():
                     euro_value=excluded.euro_value,
                     receipt_url=excluded.receipt_url,
                     splits=excluded.splits,
-                    is_settlement=excluded.is_settlement
+                    is_settlement=excluded.is_settlement,
+                    -- R4-B1: see archived-expenses block above for rationale.
+                    updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now')
                 WHERE expenses.deleted_at IS NULL
             ''', (e['id'], e['tripId'], cleaned['who'], cleaned['category_id'],
                   cleaned['label'], cleaned['date'], cleaned['country'],
@@ -627,7 +645,11 @@ def sync_data():
                     category_id=excluded.category_id,
                     owner_name=excluded.owner_name,
                     original_amount=excluded.original_amount,
-                    original_currency=excluded.original_currency
+                    original_currency=excluded.original_currency,
+                    -- R4-B1: bump updated_at so the R3-R5 stale-edit
+                    -- gate in /api/budgets can detect a sync poll that
+                    -- moved the row.
+                    updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now')
                 WHERE budgets.user_id = ?
             ''', (b['id'], user_id, b_trip_id, b.get('label', ''),
                   b.get('amount', 0), b.get('currency', 'EUR'),
@@ -655,7 +677,11 @@ def sync_data():
                     evening=excluded.evening,
                     tip=excluded.tip,
                     lat=excluded.lat,
-                    lng=excluded.lng
+                    lng=excluded.lng,
+                    -- R4-B1: bump updated_at so the R3-R5 stale-edit
+                    -- gate in /api/days can detect a sync poll that
+                    -- moved the row.
+                    updated_at=strftime('%Y-%m-%d %H:%M:%f', 'now')
                 WHERE trip_days.deleted_at IS NULL
             ''', (d['id'], d['tripId'], d.get('dayNumber'), d.get('date'), d.get('name'),
                   # Plain text — NOT json.dumps. Legacy code wrapped these

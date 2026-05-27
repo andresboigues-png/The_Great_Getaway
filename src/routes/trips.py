@@ -375,7 +375,9 @@ def archive_trip(trip_id):
         # working without a parallel sweep.
         if is_trip_owner(cursor, trip_id, user_id):
             cursor.execute(
-                "UPDATE trips SET is_archived = 1 WHERE id = ? AND user_id = ?",
+                "UPDATE trips SET is_archived = 1, "
+                "updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now') "
+                "WHERE id = ? AND user_id = ?",
                 (trip_id, user_id),
             )
         conn.commit()
@@ -407,7 +409,9 @@ def silence_trip_actions(trip_id):
         if not is_trip_owner(cursor, trip_id, user_id):
             return jsonify({"error": "Forbidden"}), 403
         cursor.execute(
-            "UPDATE trips SET actions_hidden = ? WHERE id = ?",
+            "UPDATE trips SET actions_hidden = ?, "
+            "updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now') "
+            "WHERE id = ?",
             (1 if hidden else 0, trip_id),
         )
         conn.commit()
@@ -444,7 +448,9 @@ def unarchive_trip(trip_id):
         )
         if is_trip_owner(cursor, trip_id, user_id):
             cursor.execute(
-                "UPDATE trips SET is_archived = 0 WHERE id = ? AND user_id = ?",
+                "UPDATE trips SET is_archived = 0, "
+                "updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now') "
+                "WHERE id = ? AND user_id = ?",
                 (trip_id, user_id),
             )
         conn.commit()
@@ -824,7 +830,8 @@ def create_share_link(trip_id):
         # on share_token catches the lottery-ticket case anyway.
         token = secrets.token_urlsafe(16)
         cursor.execute(
-            "UPDATE trips SET share_token = ?, share_show_cost = ?, share_show_plans = ? "
+            "UPDATE trips SET share_token = ?, share_show_cost = ?, share_show_plans = ?, "
+            "updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now') "
             "WHERE id = ?",
             (token, 1 if show_cost else 0, 1 if show_plans else 0, trip_id),
         )
@@ -853,7 +860,8 @@ def revoke_share_link(trip_id):
         if not is_trip_owner(cursor, trip_id, user_id):
             return jsonify({"error": "Forbidden"}), 403
         cursor.execute(
-            "UPDATE trips SET share_token = NULL, share_show_cost = 0, share_show_plans = 0 "
+            "UPDATE trips SET share_token = NULL, share_show_cost = 0, share_show_plans = 0, "
+            "updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now') "
             "WHERE id = ?",
             (trip_id,),
         )

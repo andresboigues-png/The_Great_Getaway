@@ -26,7 +26,7 @@ import './tailwind.css';
 
 import { STATE, loadState, subscribe } from './state.js';
 import { initThemeManager } from './theme.js';
-import { loadLocale, getLocale } from './i18n.js';
+import { loadLocale, getLocale, t } from './i18n.js';
 import { syncWithServer, pullFromServer, fetchNotifications, refreshFxRates } from './api.js';
 import { navigate } from './router.js';
 import { PAGES, EVENTS } from './constants.js';
@@ -323,9 +323,10 @@ if ('serviceWorker' in navigator) {
                     // Only prompt if a controller already runs (otherwise
                     // this is the first install — no "update").
                     if (!navigator.serviceWorker.controller) return;
-                    const accept = window.confirm(
-                        'A new version of The Great Getaway is available. Reload to update?',
-                    );
+                    // R4-B4: routed through t() so non-EN users see
+                    // their locale at the most-disruptive moment
+                    // (a forced reload). Key lives in `pwa.*`.
+                    const accept = window.confirm(t('pwa.updateAvailable'));
                     if (accept) waiting.postMessage({ type: 'SKIP_WAITING' });
                 };
                 // If a waiting SW was already present at boot (e.g.

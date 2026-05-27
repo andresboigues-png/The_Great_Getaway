@@ -137,6 +137,9 @@ export const fr: Translations = {
         restoreTripBody: 'Cela remet le voyage dans ta liste active.',
         deleteTripBody: 'Ce voyage et tous ses souvenirs seront perdus pour toujours.',
     },
+    pwa: {
+        updateAvailable: "Une nouvelle version de The Great Getaway est disponible. Recharger pour mettre à jour ?",
+    },
     facts: {
         country: "Savais-tu que {name} compte environ {n} {unit} d'habitants ? Sa capitale est {capital}.",
         state: "Savais-tu que l'État de {name} compte environ {n} {unit} d'habitants ? Sa plus grande ville est {biggest}.",

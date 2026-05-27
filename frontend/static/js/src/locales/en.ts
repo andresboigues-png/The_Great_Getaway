@@ -165,6 +165,12 @@ export const en = {
         restoreTripBody: 'This will move the trip back to your active list.',
         deleteTripBody: 'This trip and all its memories will be gone forever.',
     },
+    // R4-B4: PWA service-worker update prompt. Routed through t() so
+    // non-EN users don't see English copy at the most-disruptive
+    // moment (forced reload).
+    pwa: {
+        updateAvailable: 'A new version of The Great Getaway is available. Reload to update?',
+    },
     // Population/capital facts rendered on the home-page hero slideshow.
     // The English source data lives in DESTINATION_DATA[].f as a fixed
     // template ("Did you know that {name} has a population of about {N}

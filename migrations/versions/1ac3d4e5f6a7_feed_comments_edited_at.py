@@ -25,11 +25,20 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
+def _column_exists(table: str, column: str) -> bool:
+    """R4-B5: same idempotency guard as 1bd4e5f6a7b8 — a re-run of
+    this migration must be a no-op, not a `duplicate column name`
+    crash that leaves alembic_version stuck."""
+    bind = op.get_bind()
+    rows = bind.exec_driver_sql(f"PRAGMA table_info({table})").fetchall()
+    return any(r[1] == column for r in rows)
+
+
 def upgrade() -> None:
-    op.execute(
-        "ALTER TABLE feed_comments ADD COLUMN edited_at DATETIME"
-    )
+    if not _column_exists("feed_comments", "edited_at"):
+        op.execute("ALTER TABLE feed_comments ADD COLUMN edited_at DATETIME")
 
 
 def downgrade() -> None:
-    op.execute("ALTER TABLE feed_comments DROP COLUMN edited_at")
+    if _column_exists("feed_comments", "edited_at"):
+        op.execute("ALTER TABLE feed_comments DROP COLUMN edited_at")
