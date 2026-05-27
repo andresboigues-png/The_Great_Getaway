@@ -259,6 +259,72 @@ def _place_label_for_index(i: int) -> str:
     return chr(ord("A") + (i % 26))
 
 
+# R3-Round 4 fix: in-memory cache for Static Maps responses keyed
+# on the request params. Mariana's 30-tab PDF burst routinely hits
+# the same trip-cover map 30 times because each export request is
+# independent — at $2/1000 calls + a few hundred kB of bandwidth
+# each, that's both money and time wasted. The cache is process-
+# level (PA is single-process; multi-worker plans get parallel
+# caches, which is fine — eventual convergence). LRU-evicted at
+# 200 entries (~400 KB at 2 KB avg per cover PNG). TTL 1 hour so
+# a multi-export session reuses; old entries naturally roll out
+# under churn.
+import collections
+import hashlib as _hashlib
+import threading as _threading
+
+_MAP_CACHE_MAX = 200
+_MAP_CACHE_TTL_SECONDS = 60 * 60
+_map_cache: "collections.OrderedDict[str, tuple[float, bytes]]" = collections.OrderedDict()
+_map_cache_lock = _threading.Lock()
+
+
+def _map_cache_key(url: str, params) -> str:
+    """SHA-1 of `url + sorted-params`. Accepts dict OR list of (k, v)
+    tuples (Google Static Maps uses repeated `markers` keys so the
+    overview/day-pin paths pass tuple lists). Excludes the API key so
+    a key rotation doesn't invalidate the entire cache, and so the
+    same map content with or without the key string yields the same
+    cache hit."""
+    # Normalise to list of (k, v) pairs, drop API key, sort.
+    if isinstance(params, dict):
+        pairs = list(params.items())
+    else:
+        pairs = list(params)
+    pairs = [(str(k), str(v)) for k, v in pairs if k != "key"]
+    pairs.sort()
+    payload = url + "?" + "&".join(f"{k}={v}" for k, v in pairs)
+    return _hashlib.sha1(payload.encode()).hexdigest()
+
+
+def _map_cache_get(key: str) -> bytes | None:
+    with _map_cache_lock:
+        entry = _map_cache.get(key)
+        if entry is None:
+            return None
+        ts, content = entry
+        import time as _time
+        if (_time.time() - ts) > _MAP_CACHE_TTL_SECONDS:
+            # Evict stale.
+            _map_cache.pop(key, None)
+            return None
+        # Move to end (LRU touch).
+        _map_cache.move_to_end(key)
+        return content
+
+
+def _map_cache_put(key: str, content: bytes) -> None:
+    if not content:
+        return
+    import time as _time
+    with _map_cache_lock:
+        _map_cache[key] = (_time.time(), content)
+        _map_cache.move_to_end(key)
+        # Evict oldest until under the cap.
+        while len(_map_cache) > _MAP_CACHE_MAX:
+            _map_cache.popitem(last=False)
+
+
 def _can_read_trip(cursor, trip_id: str, user_id: str) -> bool:
     """True if the caller can read this trip for export. Owner +
     accepted members qualify. We don't restrict to editors — even
@@ -298,6 +364,15 @@ def _fetch_cover_map(lat: float | None, lng: float | None, place_id: str | None)
             "maptype": "roadmap",
             "key": key,
         }
+        # R3-Round 4 fix: cache by content hash. Mariana's 30-tab PDF
+        # burst would otherwise refetch the identical cover map 30
+        # times (~$0.06 + ~6 MB bandwidth saved per session).
+        cache_key = _map_cache_key(
+            "https://maps.googleapis.com/maps/api/staticmap", params,
+        )
+        cached = _map_cache_get(cache_key)
+        if cached is not None:
+            return cached
         # 2026-05-20: wrap in `with` so the response socket is
         # released immediately. Without it the keep-alive socket
         # stays in the requests-library pool until GC; under heavy
@@ -315,6 +390,7 @@ def _fetch_cover_map(lat: float | None, lng: float | None, place_id: str | None)
                     _scrub_key((res.text or "")[:300]),
                 )
                 return None
+            _map_cache_put(cache_key, res.content)
             return res.content
     except Exception as e:
         logger.warning("pdf cover map: fetch failed: %s", e)
@@ -380,6 +456,15 @@ def _fetch_overview_pins_map(
             marker = f"color:0x0071e3|label:{safe_label}|{plat},{plng}" if safe_label \
                 else f"color:0x0071e3|{plat},{plng}"
             params.append(("markers", marker))
+        # R3-Round 4 fix: content-hash cache. Same overview map for
+        # identical pin set hits cache instead of re-fetching from
+        # Google.
+        cache_key = _map_cache_key(
+            "https://maps.googleapis.com/maps/api/staticmap", params,
+        )
+        cached = _map_cache_get(cache_key)
+        if cached is not None:
+            return cached
         # 2026-05-20: see note on the cover-map fetch above —
         # `with requests.get(...)` releases the socket immediately
         # on exit to keep the FD pool from growing under heavy
@@ -400,6 +485,7 @@ def _fetch_overview_pins_map(
                 "pdf overview map: fetched %d pin(s), %d bytes",
                 len(pins), len(res.content),
             )
+            _map_cache_put(cache_key, res.content)
             return res.content
     except Exception as e:
         logger.warning("pdf overview map: fetch failed: %s", e)
@@ -445,6 +531,16 @@ def _fetch_day_pin_map(
         ]
         for m in markers:
             params.append(("markers", m))
+        # R3-Round 4 fix: same content-hash cache as the other two
+        # fetchers above. Per-day pin maps are particularly cacheable
+        # across export sessions because the underlying coords don't
+        # change without a trip edit.
+        cache_key = _map_cache_key(
+            "https://maps.googleapis.com/maps/api/staticmap", params,
+        )
+        cached = _map_cache_get(cache_key)
+        if cached is not None:
+            return cached
         # 2026-05-20: `with` releases the socket on exit (FD-leak fix).
         with requests.get(
             "https://maps.googleapis.com/maps/api/staticmap",
@@ -453,6 +549,7 @@ def _fetch_day_pin_map(
         ) as res:
             if not res.ok:
                 return None
+            _map_cache_put(cache_key, res.content)
             return res.content
     except Exception:
         return None
