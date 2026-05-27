@@ -12,4 +12,4 @@ import{$t as e,Ft as t,It as n,Rt as r,Vt as i,en as a,ot as o,q as s,x as c}fro
                 </div>
             </form>
         `});i(u,`#cancelEditCatBtn`).onclick=()=>d(),i(u,`#editCategoryForm`).onsubmit=e=>{e.preventDefault();let t=i(u,`#editCatIcon`).value,n=i(u,`#editCatName`).value.trim(),r=i(u,`#editCatColor`).value;n&&(l.icon=t,l.name=n,l.color=r,a(`state:changed`),s(),d(),o(`personalization`),setTimeout(()=>y(`categories`),50))}}export{p as a,m as c,v as i,g as l,x as n,_ as o,y as r,h as s,b as t};
-//# sourceMappingURL=settings-CIQ5SPgM.js.map
+//# sourceMappingURL=settings-wIezwoqX.js.map

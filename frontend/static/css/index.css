@@ -4406,7 +4406,15 @@ main#app-container.nav-anim-backward {
     .modal-overlay {
         /* Anchor the card to the bottom; sheet rises from there. */
         align-items: flex-end !important;
-        padding: 0 !important;
+        /* R7-F2 keyboard avoidance: padding-bottom lifts the sheet
+           above the iOS on-screen keyboard. --kb-offset is set by
+           the visualViewport listener in keyboard-avoidance.ts and
+           defaults to 0px when the keyboard is closed (so the
+           sheet sits flush against the bottom edge as before).
+           padding-bottom (not transform) preserves the sheet's
+           internal scroll height so the user can still scroll
+           tall forms inside the lifted sheet. */
+        padding: 0 0 var(--kb-offset, 0px) 0 !important;
     }
 
     /* Descendant selector (.modal-overlay .card-glass-modal) so the

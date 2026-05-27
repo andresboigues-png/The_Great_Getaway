@@ -62,6 +62,13 @@ async function init() {
     // Cheap (one attribute set + one media-query listen), runs once.
     initThemeManager();
 
+    // R7-F2 — start the visualViewport keyboard-avoidance shim so
+    // bottom-sheet modals lift above the iOS on-screen keyboard
+    // instead of hiding their submit button under it. Idempotent +
+    // bails on browsers without visualViewport support. Cheap (one
+    // measurement + two passive listeners).
+    import('./keyboard-avoidance.js').then(m => m.initKeyboardAvoidance()).catch(() => { /* best-effort */ });
+
     // i18n session 2 — locales beyond 'en' load lazily as separate
     // chunks. Await the active locale's load BEFORE the first paint
     // so t() resolves synchronously to the right strings (no flash
@@ -341,17 +348,46 @@ if ('serviceWorker' in navigator) {
                 //      fresh install), show the user a toast.
                 //   4. On user accept, postMessage SKIP_WAITING.
                 //   5. Listen for `controllerchange` and reload.
-                const tryPrompt = () => {
+                // R7-F3: replaced window.confirm with the app's own
+                // showConfirmModal. Pre-fix iOS Safari rate-limited
+                // sequential native dialogs — after a couple of
+                // confirms, Safari shows a "Block more dialogs"
+                // checkbox; once a user ticks it, they never see
+                // update prompts again on that device (bundle stays
+                // stale forever). The in-app modal also looks branded
+                // + reads the localized copy at render time.
+                //
+                // Module-level dedupe: only one prompt at a time per
+                // page session even if updatefound fires more than
+                // once. Prevents a double-modal stack from a tab
+                // that's been backgrounded for a while.
+                let _promptShown = false;
+                const tryPrompt = async () => {
                     const waiting = registration.waiting;
                     if (!waiting) return;
                     // Only prompt if a controller already runs (otherwise
                     // this is the first install — no "update").
                     if (!navigator.serviceWorker.controller) return;
-                    // R4-B4: routed through t() so non-EN users see
-                    // their locale at the most-disruptive moment
-                    // (a forced reload). Key lives in `pwa.*`.
-                    const accept = window.confirm(t('pwa.updateAvailable'));
-                    if (accept) waiting.postMessage({ type: 'SKIP_WAITING' });
+                    if (_promptShown) return;
+                    _promptShown = true;
+                    try {
+                        const { showConfirmModal } = await import('./components/ConfirmModal.js');
+                        showConfirmModal({
+                            title: t('pwa.updateAvailableTitle'),
+                            message: t('pwa.updateAvailable'),
+                            confirmText: t('pwa.updateAvailableReload'),
+                            confirmColor: 'var(--accent-blue)',
+                            onConfirm: () => waiting.postMessage({ type: 'SKIP_WAITING' }),
+                        });
+                    } catch (e) {
+                        // If the modal chunk failed to load (offline,
+                        // SW evicted, transient bundle hiccup), fall
+                        // back to the legacy confirm so the user can
+                        // still trigger the update. Edge case only.
+                        console.warn('[pwa] confirm modal failed, falling back to native', e);
+                        const accept = window.confirm(t('pwa.updateAvailable'));
+                        if (accept) waiting.postMessage({ type: 'SKIP_WAITING' });
+                    }
                 };
                 // If a waiting SW was already present at boot (e.g.
                 // page reload after a previous miss), prompt now.

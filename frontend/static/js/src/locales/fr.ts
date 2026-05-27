@@ -139,6 +139,8 @@ export const fr: Translations = {
     },
     pwa: {
         updateAvailable: "Une nouvelle version de The Great Getaway est disponible. Recharger pour mettre à jour ?",
+        updateAvailableTitle: 'Mise à jour disponible',
+        updateAvailableReload: 'Recharger',
     },
     facts: {
         country: "Savais-tu que {name} compte environ {n} {unit} d'habitants ? Sa capitale est {capital}.",

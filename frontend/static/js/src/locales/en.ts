@@ -178,6 +178,12 @@ export const en = {
     // moment (forced reload).
     pwa: {
         updateAvailable: 'A new version of The Great Getaway is available. Reload to update?',
+        // R7-F3: title + button label for the in-app confirm modal
+        // that replaced window.confirm. Pre-fix the native dialog
+        // was rate-limited by iOS Safari (after a couple of confirms,
+        // Safari shows a "Block more dialogs" checkbox).
+        updateAvailableTitle: 'Update available',
+        updateAvailableReload: 'Reload',
     },
     // Population/capital facts rendered on the home-page hero slideshow.
     // The English source data lives in DESTINATION_DATA[].f as a fixed
