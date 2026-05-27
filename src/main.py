@@ -636,6 +636,69 @@ def _asset_version(rel_path: str) -> str:
         return "0"
 
 
+@app.route("/healthz")
+@limiter.limit("60/minute")
+def healthz():
+    """R9-F4: liveness + readiness probe for uptime monitors.
+    Returns 200 + a small JSON envelope when the app is alive and
+    the DB responds to a trivial SELECT. Returns 503 if the DB
+    ping fails — useful for monitors to alert on "WSGI is up but
+    something downstream is broken" (e.g. PA filesystem hiccup,
+    alembic migration mid-flight, sqlite locked by a long write).
+
+    No auth — this endpoint is intentionally public so external
+    monitors (UptimeRobot, Better Uptime, Pingdom, etc.) can poll
+    without holding a session token. Response carries NO sensitive
+    info: just status + release SHA (already public via Sentry
+    breadcrumbs in production errors) + alembic head (already
+    public via the migrations dir in the repo). No user counts,
+    no env vars, no path info.
+
+    Rate-limited to 60/min/IP so a misconfigured monitor (or a
+    bored actor) can't hammer it into a writer-lock contention
+    storm. UptimeRobot's free tier polls every 5 min anyway.
+
+    Operator note: alert on (status != 'ok') OR (HTTP != 200) —
+    don't alert on 'release' or 'alembicHead' value changes
+    (those flap on every deploy + may be missing in some
+    environments).
+    """
+    from observability import resolve_release
+    from database import get_db
+    release = resolve_release() or "unknown"
+    # DB ping — cheapest query that exercises the connection +
+    # confirms the FD is real (not a stale PA worker socket).
+    db_ok = False
+    alembic_head = None
+    try:
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT 1")
+            cursor.fetchone()
+            # Pull the current alembic revision (best-effort —
+            # absent on a pre-migrations DB, which is also valid).
+            try:
+                cursor.execute(
+                    "SELECT version_num FROM alembic_version LIMIT 1"
+                )
+                row = cursor.fetchone()
+                alembic_head = row["version_num"] if row else None
+            except Exception:
+                pass
+            db_ok = True
+    except Exception as e:
+        # Don't leak the exception text — could include a path or
+        # connection string fragment. Log it for operator triage.
+        from observability import get_logger
+        get_logger("gg.health").warning("healthz db ping failed: %s", e)
+    payload = {
+        "status": "ok" if db_ok else "degraded",
+        "release": release,
+        "alembicHead": alembic_head,
+    }
+    return jsonify(payload), (200 if db_ok else 503)
+
+
 @app.route("/")
 def home():
     """Serve the main Single Page Application (SPA) index file."""

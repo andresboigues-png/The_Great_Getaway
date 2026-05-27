@@ -5349,6 +5349,36 @@ def test_main_csp_uses_script_nonce_not_unsafe_inline(client):
         f"script-src-elem missing 'nonce-...' replacement: {script_src_elem!r}"
 
 
+def test_healthz_returns_ok_envelope(client):
+    """R9-F4: /healthz is the public liveness probe for uptime
+    monitors (UptimeRobot, Better Uptime, etc). Returns 200 + JSON
+    when the app is alive and DB responds. Pins:
+      - 200 status (NOT redirect, NOT 401 — no auth)
+      - JSON envelope with `status: "ok"` on a healthy DB
+      - includes `release` (best-effort SHA) + `alembicHead`
+      - no sensitive info leaked (envs, paths, user counts)
+    """
+    res = client.get("/healthz")
+    assert res.status_code == 200, \
+        "healthz must be unauthenticated and return 200 when DB is reachable"
+    body = res.get_json()
+    assert isinstance(body, dict), "envelope, not bare value"
+    assert body["status"] == "ok"
+    # These keys must be present (values may be None / unknown);
+    # the monitor needs to know its schema is stable.
+    assert "release" in body
+    assert "alembicHead" in body
+    # Defensive: confirm we didn't accidentally leak any secret-
+    # shaped key. Whitelist the response shape — anything else is
+    # a regression that needs a human review.
+    extra_keys = set(body.keys()) - {"status", "release", "alembicHead"}
+    assert not extra_keys, (
+        f"healthz response shape drifted; extra keys {extra_keys}. "
+        "If you're adding fields, double-check none of them carry "
+        "sensitive info (this endpoint is public)."
+    )
+
+
 def test_main_csp_nonce_matches_inline_script_tags(client):
     """§0.4 v2: the same nonce value must appear in BOTH the CSP header
     AND every inline `<script>` tag in the rendered HTML — otherwise the
