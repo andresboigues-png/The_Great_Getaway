@@ -69,6 +69,23 @@ export const clearAuthToken = (): void => {
     // visible to User B until the next pull lands (and even then
     // pullFromServer doesn't touch draftExpense). Reset them inline so
     // a logout-then-login on the same device shows no residue.
+    //
+    // R2 audit fix (2026-05-27): EXTENDED reset coverage. The earlier
+    // SY7+SY9 fix only wiped notifications + draftExpense. Six more
+    // user-scoped STATE fields survived logout and leaked across
+    // accounts on shared devices:
+    //   - geminiApiKey   → next user's AI generation would be billed
+    //                       against the previous user's quota
+    //                       (FINANCIAL leak, not just privacy)
+    //   - preferences    → POI pill filters / map anchoring / theme
+    //                       carried across user boundaries
+    //   - settlements    → previous user's settlement history visible
+    //                       on the Settlements page until next pull
+    //   - achievements   → trophies of previous user shown to new
+    //   - lastImportBatch → "Undo last import" chip referenced a
+    //                       previous user's batch
+    //   - rateMode       → expense-display setting carried across
+    //   - insightCurrency → Insights target currency carried across
     STATE.notifications = [];
     STATE.draftExpense = {
         who: '',
@@ -79,6 +96,23 @@ export const clearAuthToken = (): void => {
         value: '',
         currency: 'EUR',
         euroValue: '',
+    };
+    STATE.geminiApiKey = '';
+    STATE.settlements = [];
+    STATE.achievements = [];
+    STATE.lastImportBatch = null;
+    STATE.rateMode = 'at_trip';
+    STATE.insightCurrency = 'EUR';
+    // `preferences` is reset to defaults rather than wiped — POI pills
+    // would otherwise render with `undefined` keys until the next pull
+    // lands, blanking the entire pill row.
+    STATE.preferences = {
+        mapDefaultPois: ['sights', 'parks', 'transit'],
+        poiFilters: {},
+        pillEpicenters: {},
+        poiAnchoring: {},
+        poiVisible: {},
+        enabledPois: {},
     };
     try {
         if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
