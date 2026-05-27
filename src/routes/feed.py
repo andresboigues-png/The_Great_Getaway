@@ -328,6 +328,14 @@ def explore_feed():
               AND t.user_id NOT IN (
                   SELECT blocked_id FROM blocks WHERE blocker_id = ?
               )
+            -- R5-B6 perf: cap the candidate set at 200 most-recent
+            -- pre-Python-rank. The 180-day recency_factor decay means
+            -- the top 24 (the slice the caller takes) is essentially
+            -- always inside the 200 most-recent shares; ranking
+            -- every public trip system-wide was an unbounded scan
+            -- that didn't scale past a few thousand shares.
+            ORDER BY t.created_at DESC
+            LIMIT 200
             """,
             (user_id, user_id, user_id),
         )

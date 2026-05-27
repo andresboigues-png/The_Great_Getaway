@@ -681,7 +681,13 @@ def share_page(token):
             cost=None,
             og_description="This trip's share link has expired or been revoked.",
             og_image_url=url_for("static", filename="favicon.svg", _external=True),
-            canonical_url=request.url,
+            # R5-B6: canonical url is the clean /share/<token> path.
+        # Pre-fix this was `request.url`, which reflected any
+        # visitor-appended query string (e.g. /share/<token>?utm=x)
+        # into the rendered og:url metatag AND into the clone-CTA
+        # href (where the trailing-slash split yielded a polluted
+        # "<token>?utm=x" pseudo-token that broke the clone flow).
+        canonical_url=url_for("share_page", token=token, _external=True),
         ), 404
 
     # Dedup by anonymous cookie. The cookie value is just "1" — we
@@ -757,7 +763,13 @@ def share_page(token):
         cost=payload["cost"],
         og_description=og_description,
         og_image_url=og_image_url,
-        canonical_url=request.url,
+        # R5-B6: canonical url is the clean /share/<token> path.
+        # Pre-fix this was `request.url`, which reflected any
+        # visitor-appended query string (e.g. /share/<token>?utm=x)
+        # into the rendered og:url metatag AND into the clone-CTA
+        # href (where the trailing-slash split yielded a polluted
+        # "<token>?utm=x" pseudo-token that broke the clone flow).
+        canonical_url=url_for("share_page", token=token, _external=True),
     ))
     # R3-Fix #15: don't let intermediaries (CDNs, corp proxies,
     # transparent ISP caches) hold a copy of this response. The
@@ -770,6 +782,13 @@ def share_page(token):
             cookie_name, "1",
             max_age=24 * 60 * 60,
             httponly=True, samesite="Lax",
+            # R5-B6: Secure flag so the token-hash cookie doesn't
+            # leak in cleartext if a visitor's first contact is
+            # over http (captive portals, injected http img tags
+            # downgrading the connection). HSTS protects most
+            # users post-first-visit, but the first visit on a
+            # fresh host can still be plain http.
+            secure=request.is_secure,
         )
     return response
 

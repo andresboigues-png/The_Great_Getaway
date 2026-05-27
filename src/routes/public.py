@@ -627,6 +627,7 @@ def get_shared_trip(token):
     import hashlib
     cookie_name = f"gg_viewed_{hashlib.sha256(token.encode()).hexdigest()[:16]}"
     has_seen = request.cookies.get(cookie_name) is not None
+    incremented = False
     if not has_seen:
         with get_db() as conn:
             cursor = conn.cursor()
@@ -635,14 +636,29 @@ def get_shared_trip(token):
                 "WHERE share_token = ?",
                 (token,),
             )
+            # R5-B6: gate the in-payload bump + Set-Cookie on rowcount.
+            # If the owner revoked between fetch_share_payload (which
+            # SELECTed by share_token + got a hit) and this UPDATE,
+            # rowcount is 0 — we shouldn't fake-increment the view
+            # counter in the response OR set the dedup cookie (the
+            # cookie would block a re-share later if the owner
+            # re-issues the same trip's token, which is rare but
+            # possible). Mirrors the HTML route's gate in main.py.
+            incremented = cursor.rowcount == 1
             conn.commit()
-        payload["trip"]["views"] = payload["trip"].get("views", 0) + 1
+        if incremented:
+            payload["trip"]["views"] = payload["trip"].get("views", 0) + 1
 
     response = make_response(jsonify(payload))
-    if not has_seen:
+    if incremented:
         response.set_cookie(
             cookie_name, "1",
             max_age=24 * 60 * 60,
             httponly=True, samesite="Lax",
+            # R5-B6: Secure flag prevents the token-hash from leaking
+            # in clear over an http downgrade (captive portals,
+            # injected http img tags). HSTS protects most users but
+            # first-contact on a fresh host can still be plain http.
+            secure=request.is_secure,
         )
     return response

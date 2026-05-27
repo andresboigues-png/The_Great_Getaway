@@ -237,6 +237,53 @@ def is_trip_owner(cursor, trip_id, user_id):
     return bool(row and row["user_id"] == user_id)
 
 
+def batch_trip_roles(cursor, user_id: str) -> dict[str, str]:
+    """R5-B4: one-query pull of every trip_id → role for this user.
+    Used by bulk paths (/api/sync) to gate per-row writes without
+    the classic N+1 (`can_edit_trip(cursor, t.id, user_id)` runs
+    2 queries each — at 20 archived trips × 30 expenses that's
+    ~1200 extra round-trips, all on a single connection holding
+    the writer lock).
+
+    Returns {trip_id: role} for every accepted member row. Owners
+    are stamped 'planner' even if their member row is missing —
+    same fallback as `trip_member_role`. Trips the user doesn't
+    appear on at all are simply absent from the dict.
+    """
+    if not user_id:
+        return {}
+    roles: dict[str, str] = {}
+    cursor.execute(
+        "SELECT trip_id, role FROM trip_members "
+        "WHERE user_id = ? AND invitation_status = 'accepted'",
+        (user_id,),
+    )
+    for r in cursor.fetchall():
+        roles[r["trip_id"]] = r["role"]
+    # Owner fallback — every trip the user owns gets 'planner' even
+    # if the member-row backfill hasn't landed yet (matches the
+    # single-trip helper's defensive behaviour).
+    cursor.execute("SELECT id FROM trips WHERE user_id = ?", (user_id,))
+    for r in cursor.fetchall():
+        roles.setdefault(r["id"], "planner")
+    return roles
+
+
+def batch_editable_trip_ids(cursor, user_id: str) -> set[str]:
+    """R5-B4: set of trip_ids the user can edit at planner level
+    (rename, add days, metadata). Equivalent to running
+    `can_edit_trip` on every trip — but in one query."""
+    return {tid for tid, role in batch_trip_roles(cursor, user_id).items()
+            if role == "planner"}
+
+
+def batch_expense_writable_trip_ids(cursor, user_id: str) -> set[str]:
+    """R5-B4: set of trip_ids the user can edit expenses on.
+    Planners + budgeteers; relaxers excluded."""
+    return {tid for tid, role in batch_trip_roles(cursor, user_id).items()
+            if role in ("planner", "budgeteer")}
+
+
 def ensure_user_exists(cursor, user_id):
     """Audit gate — used by friend-add / invite flows so callers can't
     create rows referencing nonexistent user_ids."""

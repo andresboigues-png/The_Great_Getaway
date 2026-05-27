@@ -381,6 +381,17 @@ function ArchivedCard({ trip }: { trip: Trip }) {
                         src={trip.coverUrl}
                         alt=""
                         data-cover-thumb
+                        /* R5-B6 perf: lazy + async decode + intrinsic
+                         * size so the browser reserves layout space
+                         * and doesn't fire 50 parallel cover fetches
+                         * before first paint on a 50-trip Collections
+                         * page. Other surfaces (todo markers, feed
+                         * avatars) already had loading="lazy"; this
+                         * was the outlier. */
+                        loading="lazy"
+                        decoding="async"
+                        width={60}
+                        height={60}
                         className="archived-card-cover w-[60px] h-[60px] rounded-[12px] object-cover shrink-0 shadow-[0_4px_12px_rgba(0,0,0,0.08)] border border-[rgba(0,0,0,0.06)]"
                     />
                 )}

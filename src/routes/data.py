@@ -21,8 +21,8 @@ from auth import current_user_id, require_auth
 from database import get_db, retry_on_lock
 from extensions import limiter
 from helpers import (
-    can_edit_expenses,
-    can_edit_trip,
+    batch_editable_trip_ids,
+    batch_expense_writable_trip_ids,
     ensure_owner_member_row,
     ensure_user_exists,
     serialize_expense_row,
@@ -180,6 +180,19 @@ def sync_data():
         if not ensure_user_exists(cursor, user_id):
             return jsonify({"error": "Unauthorized"}), 401
 
+        # R5-B4: preload the user's editor sets in ONE query each
+        # (instead of running can_edit_trip + can_edit_expenses per
+        # row of every loop below — each of those internally fires
+        # 2 SQL round-trips, so on a 20-archived-trip x 30-expense
+        # payload the pre-fix loop ran ~1200 extra queries). With
+        # these sets the per-row gate is a Python `in` check.
+        # New trips (not in the existing-trips table at all) are
+        # implicitly creator-owned via the INSERT path, so missing
+        # from these sets is fine — the existence check below uses
+        # the per-row SELECT to decide insert-vs-update.
+        editable_trip_ids = batch_editable_trip_ids(cursor, user_id)
+        expense_writable_trip_ids = batch_expense_writable_trip_ids(cursor, user_id)
+
         # Sync Trips. For existing rows we gate on the trip's editor
         # set (owner + invited planners), not raw user_id equality —
         # FIXING_ROADMAP §1.10. Pre-fix, a planner who wasn't the
@@ -195,7 +208,8 @@ def sync_data():
         for t in trips:
             cursor.execute("SELECT user_id FROM trips WHERE id = ?", (t["id"],))
             existing = cursor.fetchone()
-            if existing and not can_edit_trip(cursor, t['id'], user_id):
+            # R5-B4: set lookup instead of can_edit_trip's 2-query call.
+            if existing and t['id'] not in editable_trip_ids:
                 # Trip exists and caller isn't a planner — skip silently
                 # rather than 403 the whole batch (preserves partial sync
                 # of legitimately-editable rows).
@@ -283,6 +297,14 @@ def sync_data():
                   json.dumps(t['checklist']) if isinstance(t.get('checklist'), list) else None,
                   t.get('coverUrl')))
             ensure_owner_member_row(cursor, t['id'], user_id)
+            # R5-B4: the trip just landed (insert OR planner-allowed
+            # update). Add to both ACL sets so the expenses loop later
+            # in the same /api/sync call can gate against it — without
+            # this a brand-new trip + its expenses in ONE payload
+            # would silently drop the expenses (preloaded set was
+            # snapshotted BEFORE this insert).
+            editable_trip_ids.add(t['id'])
+            expense_writable_trip_ids.add(t['id'])
             # 2026-05-18 audit H1: mirror the payload's is_archived to
             # THIS caller's trip_members row (the post-deprecation
             # source of truth for the achievement queries + feed
@@ -305,7 +327,8 @@ def sync_data():
         for t in archived_trips:
             cursor.execute("SELECT user_id FROM trips WHERE id = ?", (t["id"],))
             existing = cursor.fetchone()
-            if existing and not can_edit_trip(cursor, t['id'], user_id):
+            # R5-B4: set lookup instead of can_edit_trip's 2-query call.
+            if existing and t['id'] not in editable_trip_ids:
                 continue
 
             # Same trip_countries_json normalization as the active path.
@@ -372,6 +395,11 @@ def sync_data():
                   json.dumps(t['photos']) if isinstance(t.get('photos'), list) else None,
                   t.get('coverUrl')))
             ensure_owner_member_row(cursor, t['id'], user_id)
+            # R5-B4: same ACL-set top-up as the active loop, so a
+            # brand-new archived trip + its expenses in ONE payload
+            # gates correctly in the inner expenses loop below.
+            editable_trip_ids.add(t['id'])
+            expense_writable_trip_ids.add(t['id'])
             # 2026-05-18 audit H1: archived-trips loop unconditionally
             # flips THIS caller's trip_members.is_archived to 1. The
             # legacy `trips.is_archived=1` mirror above stays during the
@@ -400,7 +428,12 @@ def sync_data():
                         "SELECT trip_id FROM expenses WHERE id = ?", (e['id'],),
                     ).fetchone()
                     gate_trip_id = existing['trip_id'] if existing else t['id']
-                    if not can_edit_trip(cursor, gate_trip_id, user_id):
+                    # R5-B4: set lookup. Note we still use the
+                    # planner-only set (editable_trip_ids), NOT the
+                    # broader expense-writable set — archived-expense
+                    # writes are gated to planners only (matching the
+                    # pre-fix can_edit_trip semantics here).
+                    if gate_trip_id not in editable_trip_ids:
                         continue
                     # R3-Fix #11 + #6: validate every field + recompute
                     # euro_value server-side. Pre-fix this loop took the
@@ -477,7 +510,9 @@ def sync_data():
                 "SELECT trip_id FROM expenses WHERE id = ?", (e['id'],),
             ).fetchone()
             gate_trip_id = existing['trip_id'] if existing else e.get('tripId')
-            if not can_edit_expenses(cursor, gate_trip_id, user_id):
+            # R5-B4: set lookup instead of can_edit_expenses' 2-query
+            # call. Expense writes allow planners + budgeteers.
+            if gate_trip_id not in expense_writable_trip_ids:
                 continue
             # R3-Fix #11 + #6: validate every field + recompute euro_value
             # server-side. Silently skip rows that fail validation.
