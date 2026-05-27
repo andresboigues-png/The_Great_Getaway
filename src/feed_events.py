@@ -758,13 +758,24 @@ def build_feed_context(cursor, user_id: str) -> FeedContext:
     includes mutuals (they're in the followed set) but also one-way
     follows, so a creator's audience sees their public activity
     even without a reciprocal social signal.
+
+    Audit fix (2026-05-27, fix #62): filter blocked users out of
+    the actor pool. The block primitive (fix #36) gated *outbound*
+    engagement notifications but didn't touch the inbound feed
+    builder — a blocked user's shares + activity could still
+    surface in the blocker's feed. Now blocking removes the
+    blocked user from the pool entirely, so their feed events
+    don't appear at all.
     """
     cursor.execute('''
         SELECT u.id, u.name, u.picture
         FROM users u
         JOIN follows f ON u.id = f.followee_id
         WHERE f.follower_id = ?
-    ''', (user_id,))
+          AND u.id NOT IN (
+              SELECT blocked_id FROM blocks WHERE blocker_id = ?
+          )
+    ''', (user_id, user_id))
     followed_rows = [dict(r) for r in cursor.fetchall()]
     followed_ids = [f["id"] for f in followed_rows]
     followed_lookup = {f["id"]: f for f in followed_rows}

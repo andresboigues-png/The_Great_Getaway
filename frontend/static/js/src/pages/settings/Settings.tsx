@@ -50,6 +50,7 @@ import {
 import { Personalization } from './Personalization.js';
 import { Developer } from './Developer.js';
 import { SessionsView } from './Sessions.js';
+import { BlocksView } from './Blocks.js';
 // Page-scoped CSS — Theme picker styles. FIXING_ROADMAP §3.1 first
 // slice: importing CSS from the page module lets Vite chunk it into
 // the Settings JS bundle, so users who never visit /settings don't
@@ -244,6 +245,7 @@ export function Settings() {
                     {tab === 'reset' && <ResetView />}
                     {tab === 'personalization' && <Personalization />}
                     {tab === 'sessions' && <SessionsView />}
+                    {tab === 'blocks' && <BlocksView />}
                     {tab === 'developer' && isAdminUser() && <Developer />}
                 </>
             )}
@@ -324,6 +326,28 @@ function MenuView() {
                 </h2>
                 <p className="st-help-text">
                     See where you're signed in and sign out of any device.
+                </p>
+                <div className="mt-5 text-accent-blue-deep font-bold text-[0.85rem]">
+                    {t('settings.cardConfigureCta')}
+                </div>
+            </button>
+
+            {/* Blocked users — added 2026-05-27 (audit fix #59). Surfaces
+                the block primitive from fix #36 so a stray "Block" tap
+                on a profile card can be reviewed + reversed without
+                going through Support. Sits beside Sessions because
+                both are account-safety affordances. */}
+            <button
+                type="button"
+                className="card-button-reset card glass management-card"
+                onClick={() => setSettingsTab('blocks')}
+            >
+                <h2 className="card-title text-accent-blue-deep m-0">
+                    Blocked users
+                </h2>
+                <p className="st-help-text">
+                    Review and unblock people you've blocked from following
+                    or interacting with you.
                 </p>
                 <div className="mt-5 text-accent-blue-deep font-bold text-[0.85rem]">
                     {t('settings.cardConfigureCta')}
