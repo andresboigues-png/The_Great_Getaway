@@ -127,6 +127,8 @@ export const en = {
         followUpdateFailed: 'Could not update follow state',
         commentPostFailed: "Couldn't post comment — try again.",
         deleteFailed: "Couldn't delete — try again in a moment.",
+        likeFailed: "Couldn't update like — try again.",
+        bookmarkFailed: "Couldn't update bookmark — try again.",
         tripHubCannotDelete: "Trip Hub can't be deleted — it's the trip's home base.",
         dateRangeInvalid: 'End date must be on or after the start date.',
         placePickerHint: 'Pick a suggestion to confirm the location.',

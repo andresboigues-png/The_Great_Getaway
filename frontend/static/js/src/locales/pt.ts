@@ -105,6 +105,8 @@ export const pt: Translations = {
         followUpdateFailed: 'Não foi possível atualizar o estado de seguidor',
         commentPostFailed: 'Não foi possível publicar o comentário — tenta novamente.',
         deleteFailed: 'Não foi possível apagar — tenta novamente daqui a pouco.',
+        likeFailed: 'Não foi possível atualizar o gosto — tenta novamente.',
+        bookmarkFailed: 'Não foi possível atualizar o marcador — tenta novamente.',
         tripHubCannotDelete: 'O Centro da Viagem não pode ser apagado — é a base da viagem.',
         dateRangeInvalid: 'A data final tem de ser igual ou posterior à data inicial.',
         placePickerHint: 'Escolhe uma sugestão para confirmar o local.',

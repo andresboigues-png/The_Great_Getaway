@@ -212,15 +212,24 @@ export function Feed() {
 
     // ── Optimistic-UI action handlers ────────────────────────────
     const onLike = async (eventId: string, btn: HTMLButtonElement) => {
-        let wasLiked = false;
+        // R2 audit fix: capture the pre-flip state so we can roll back
+        // on server failure. Pre-fix, the success branch reconciled
+        // with the server's authoritative count/state but the FAILURE
+        // branch did nothing — the optimistic flip stuck in local
+        // state while the DB stayed at the old value. Next /api/feed
+        // poll would correct it, but until then the user saw "liked"
+        // when the server still had "not liked".
+        let priorLiked: boolean | undefined = undefined;
+        let priorCount = 0;
         setEvents((prev) =>
             prev.map((ev) => {
                 if (ev.id !== eventId) return ev;
-                wasLiked = !!ev.is_liked;
+                priorLiked = !!ev.is_liked;
+                priorCount = ev.like_count || 0;
                 return {
                     ...ev,
-                    is_liked: !wasLiked,
-                    like_count: Math.max(0, (ev.like_count || 0) + (wasLiked ? -1 : 1)),
+                    is_liked: !priorLiked,
+                    like_count: Math.max(0, priorCount + (priorLiked ? -1 : 1)),
                 };
             }),
         );
@@ -234,17 +243,38 @@ export function Feed() {
                     ev.id === eventId ? { ...ev, is_liked: liked, like_count: count } : ev,
                 ),
             );
+        } else if (priorLiked !== undefined) {
+            // Rollback to the pre-flip state on failure.
+            const rollbackLiked = priorLiked;
+            const rollbackCount = priorCount;
+            setEvents((prev) =>
+                prev.map((ev) =>
+                    ev.id === eventId
+                        ? { ...ev, is_liked: rollbackLiked, like_count: rollbackCount }
+                        : ev,
+                ),
+            );
+            showLiquidAlert(t('errors.likeFailed'));
         }
     };
 
     const onBookmark = async (eventId: string, willBookmark: boolean, btn: HTMLButtonElement) => {
+        // R2 audit fix: rollback on failure, matching onLike + onCommentEdit.
         setEvents((prev) =>
             prev.map((ev) =>
                 ev.id === eventId ? { ...ev, is_bookmarked: willBookmark } : ev,
             ),
         );
         playTapPop(btn);
-        await toggleFeedBookmark(eventId);
+        const result = await toggleFeedBookmark(eventId);
+        if (!result || !result.ok) {
+            setEvents((prev) =>
+                prev.map((ev) =>
+                    ev.id === eventId ? { ...ev, is_bookmarked: !willBookmark } : ev,
+                ),
+            );
+            showLiquidAlert(t('errors.bookmarkFailed'));
+        }
     };
 
     const onToggleBundle = (bundleId: string) => {
@@ -303,6 +333,10 @@ export function Feed() {
     };
 
     const onCommentDelete = async (eventId: string, commentId: number) => {
+        // R2 audit fix: rollback on failure. Pre-fix the toast fired
+        // on failure but the local removal stuck — user thought delete
+        // worked, comment "magically reappeared" on the next /api/feed
+        // poll (server still had it).
         const existing = getCachedThread(eventId) || [];
         const updated = existing.filter((c) => c.id !== commentId);
         setCachedThread(eventId, updated);
@@ -316,6 +350,16 @@ export function Feed() {
         );
         const result = await deleteFeedComment(commentId);
         if (!result.ok) {
+            // Restore the comment + count.
+            setCachedThread(eventId, existing);
+            setThreads((prev) => ({ ...prev, [eventId]: existing }));
+            setEvents((prev) =>
+                prev.map((ev) =>
+                    ev.id === eventId
+                        ? { ...ev, comment_count: (ev.comment_count || 0) + 1 }
+                        : ev,
+                ),
+            );
             showLiquidAlert(t('errors.deleteFailed'));
         }
     };

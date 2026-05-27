@@ -110,6 +110,8 @@ export const fr: Translations = {
         followUpdateFailed: "Impossible de mettre à jour l'état de suivi",
         commentPostFailed: 'Impossible de publier le commentaire — réessaie.',
         deleteFailed: 'Impossible de supprimer — réessaie dans un instant.',
+        likeFailed: 'Impossible de mettre à jour le like — réessaie.',
+        bookmarkFailed: 'Impossible de mettre à jour le signet — réessaie.',
         tripHubCannotDelete: 'Le Centre du Voyage ne peut pas être supprimé — c\'est la base du voyage.',
         dateRangeInvalid: 'La date de fin doit être identique ou postérieure à la date de début.',
         placePickerHint: "Choisis une suggestion pour confirmer l'emplacement.",
