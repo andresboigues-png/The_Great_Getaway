@@ -1,8 +1,20 @@
 """add missing user_id / related_id indexes (audit fixes)
 
 Revision ID: a9c0d1e2f3b4
-Revises: a8b9c0d1e2f3
+Revises: b7c8d9e0f1a2
 Create Date: 2026-05-26 19:50:00.000000
+
+NOTE: down_revision re-pointed from `a8b9c0d1e2f3` → `b7c8d9e0f1a2`
+on 2026-05-27 to linearize the migration graph after merging two
+parallel audit branches. Original parent was the json_valid CHECK
+revision; new parent is the tombstone-columns revision (the actual
+last migration on the remote audit branch's chain). The chain
+now is:
+
+  ... → b7c8d9e0f1a2 (remote tip — tombstones)
+      → a9c0d1e2f3b4 (this)
+      → b1d2e3f4c5a7 → d3e4f5a6c7b9 → e4f5a6b8c9d0
+      → f5a6b7c8d9e1 → 06a7b8c9d0e2 → 17b8c9d0e1f3 (head)
 
 Three sites that the audit flagged as full-scan-per-request:
 
@@ -36,7 +48,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = 'a9c0d1e2f3b4'
-down_revision: Union[str, Sequence[str], None] = 'a8b9c0d1e2f3'
+down_revision: Union[str, Sequence[str], None] = 'b7c8d9e0f1a2'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

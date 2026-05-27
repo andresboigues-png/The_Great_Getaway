@@ -1,8 +1,16 @@
 """add feed_posts.trip_was_public for share→unshare publicness restore
 
 Revision ID: d3e4f5a6c7b9
-Revises: c2d3e4f5b6a8
+Revises: b1d2e3f4c5a7
 Create Date: 2026-05-26 21:40:00.000000
+
+NOTE: down_revision re-pointed from `c2d3e4f5b6a8` → `b1d2e3f4c5a7`
+on 2026-05-27. Original parent `c2d3e4f5b6a8` was the splits_json
+column migration from this session's audit branch; that migration
+was skipped during the merge because remote's parallel audit branch
+already added the same column under the name `splits` via revision
+`c8f1e9d2b734`. Re-anchoring to `b1d2e3f4c5a7` (trip_days UNIQUE)
+keeps the chain linear after the merge.
 
 Audit #C-6: /api/feed/share auto-promotes a private trip to is_public=1
 when the owner clicks Share. /api/feed/share unshare deletes the
@@ -31,7 +39,7 @@ from alembic import op
 
 
 revision: str = 'd3e4f5a6c7b9'
-down_revision: Union[str, Sequence[str], None] = 'c2d3e4f5b6a8'
+down_revision: Union[str, Sequence[str], None] = 'b1d2e3f4c5a7'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
