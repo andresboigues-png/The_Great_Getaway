@@ -232,6 +232,14 @@ def upload_file():
             # did, which defeated the cap). 413 = "Payload Too Large"
             # mirrors Flask's MAX_CONTENT_LENGTH 413 for the file-
             # size cap; same user message shape.
+            # R3-Round 3 fix: log the rejection with the caller's
+            # user_id and the upload's claimed filename so a
+            # repeated DoS attempt is attributable in incident review.
+            from observability import get_logger
+            get_logger(__name__).warning(
+                "upload rejected: decompression bomb from user=%s file=%r ext=%s",
+                user_id, getattr(file, 'filename', '?'), ext,
+            )
             return jsonify({
                 "error": "Image dimensions too large to process",
             }), 413

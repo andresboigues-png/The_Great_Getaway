@@ -328,7 +328,7 @@ export function HistoryTab() {
                                             title="View receipt"
                                             style={{ ['--accent' as any]: '138,86,190' }}
                                             onClick={() =>
-                                                window.open(e.receiptUrl!, '_blank', 'noopener')
+                                                window.open(e.receiptUrl!, '_blank', 'noopener,noreferrer')
                                             }
                                         >
                                             <svg
