@@ -700,6 +700,87 @@ def manifest():
     return send_from_directory(app.static_folder, "manifest.json", mimetype="application/manifest+json")
 
 
+# --- Auth-gated user uploads ---------------------------------------------
+#
+# R2 audit fix: the previous "auth-gate on /static/uploads/" task was
+# scoped only at the upload-write side (unguessable 132-bit filename via
+# `secrets.token_urlsafe(16)`). The READ side still served via Flask's
+# default static handler with zero auth — anyone holding (or guessing,
+# or harvesting from an OG-preview, browser history, server log) a URL
+# could pull the bytes.
+#
+# Stronger gate: catch /static/uploads/<user_dir>/<filename> BEFORE the
+# default static handler. Tier the access by caller identity:
+#
+#   1. Caller is signed in           → allow (trusting the unguessable
+#                                       filename + the auth wall as
+#                                       defense-in-depth; users routinely
+#                                       see receipts shared by other
+#                                       trip members and we don't want
+#                                       to query trip membership on
+#                                       every photo render).
+#   2. Caller is anonymous           → allow IFF the file is referenced
+#                                       by at least one trip with
+#                                       is_public=1. Public shares need
+#                                       to render their cover + photos
+#                                       to anonymous /share/<token>
+#                                       viewers; nothing else should
+#                                       reach anonymous callers.
+#
+# The /static/uploads route is registered explicitly so it wins over
+# Flask's default /static/<path:filename> rule. The shared base dir is
+# UPLOAD_FOLDER (which can be remapped via GG_UPLOAD_ROOT for PA), so
+# we serve from there directly rather than via the static_folder
+# subdirectory (which may not be the same path on prod).
+@app.route("/static/uploads/<path:relpath>")
+def serve_upload(relpath: str):
+    from auth import current_user_id, verify_token, _extract_token
+
+    # Re-derive the caller id without invoking @require_auth — we want
+    # to fall through to the anonymous branch on missing/expired token
+    # rather than 401 immediately. `_extract_token` returns the raw JWT
+    # from cookie or Authorization; `verify_token` re-checks
+    # auth_sessions revocation.
+    caller_id = None
+    try:
+        token = _extract_token(request)
+        if token:
+            payload = verify_token(token)
+            if payload:
+                caller_id = payload.get("sub")
+    except Exception:
+        caller_id = None
+
+    if caller_id:
+        return send_from_directory(UPLOAD_FOLDER, relpath)
+
+    # Anonymous branch — only allow when at least one is_public=1 trip
+    # references the file. We match on the canonical `/static/uploads/<relpath>`
+    # form because that's what cover_url / photos_json store. Use LIKE
+    # with a leading `%` so we catch the column whether it stores the
+    # absolute URL or just the relative path.
+    needle = f"%/static/uploads/{relpath}"
+    from database import get_db
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT 1 FROM trips "
+            "WHERE is_public = 1 AND ("
+            "  cover_url LIKE ? OR "
+            "  COALESCE(photos_json, '') LIKE ? OR "
+            "  COALESCE(documents_json, '') LIKE ?"
+            ") LIMIT 1",
+            (needle, needle, needle),
+        )
+        if cursor.fetchone():
+            return send_from_directory(UPLOAD_FOLDER, relpath)
+    # Anonymous + no public-trip reference → 404 (don't differentiate
+    # from "file doesn't exist" to avoid leaking the existence of
+    # private uploads via status-code differential).
+    from flask import abort
+    abort(404)
+
+
 # --- Authentication ---
 
 

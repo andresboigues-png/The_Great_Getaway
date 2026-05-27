@@ -960,6 +960,7 @@ def test_upload_accepts_valid_jpeg(
     # real frontend/static/uploads directory.
     import main as main_module
     monkeypatch.setitem(main_module.app.config, 'UPLOAD_FOLDER', str(tmp_path))
+    monkeypatch.setattr(main_module, 'UPLOAD_FOLDER', str(tmp_path))
     res = client.post("/api/upload", headers=auth_headers, data={
         "file": (io.BytesIO(b"\xff\xd8\xff\xe0minimal-jpeg-header"), "real.jpg"),
     })
@@ -967,6 +968,61 @@ def test_upload_accepts_valid_jpeg(
     body = res.get_json()
     assert body["name"] == "real.jpg"
     assert body["url"].startswith("/static/uploads/")
+
+
+def test_uploads_anonymous_fetch_404s_for_private_files(
+    client, seed_user, auth_headers, tmp_path, monkeypatch,
+):
+    """R2 audit fix: /static/uploads/ was being served by Flask's
+    default static handler with zero auth. Now the route requires
+    either a signed-in caller OR the file is referenced by a trip
+    with is_public=1. Verify the anonymous-private path returns 404
+    so an attacker holding a leaked URL gets nothing."""
+    import main as main_module
+    monkeypatch.setitem(main_module.app.config, 'UPLOAD_FOLDER', str(tmp_path))
+    monkeypatch.setattr(main_module, 'UPLOAD_FOLDER', str(tmp_path))
+    # Upload while signed in.
+    up = client.post("/api/upload", headers=auth_headers, data={
+        "file": (io.BytesIO(b"\xff\xd8\xff\xe0private-photo"), "private.jpg"),
+    })
+    assert up.status_code == 200
+    url = up.get_json()["url"]  # /static/uploads/<user>/<token>_private.jpg
+    # Clear the session cookie so the next fetch is anonymous.
+    client.delete_cookie("gg_session", domain="localhost")
+    res = client.get(url)
+    # File exists on disk, but no public-trip references it → 404.
+    assert res.status_code == 404, (
+        "anonymous fetch of a private upload must 404, "
+        "not leak the bytes via Flask's default static handler"
+    )
+
+
+def test_uploads_anonymous_fetch_allowed_for_public_trip_cover(
+    client, seed_user, auth_headers, tmp_path, monkeypatch,
+):
+    """A trip that is_public=1 with cover_url pointing at the upload
+    MUST be readable anonymously — public /share/<token> viewers and
+    /api/public-trip clients render the cover via <img> with no auth."""
+    import main as main_module
+    monkeypatch.setitem(main_module.app.config, 'UPLOAD_FOLDER', str(tmp_path))
+    monkeypatch.setattr(main_module, 'UPLOAD_FOLDER', str(tmp_path))
+    up = client.post("/api/upload", headers=auth_headers, data={
+        "file": (io.BytesIO(b"\xff\xd8\xff\xe0cover"), "cover.jpg"),
+    })
+    url = up.get_json()["url"]
+    # Create a public trip that uses this cover.
+    client.post("/api/trips", headers=auth_headers, json={
+        "trip": {
+            "id": "trip-public-cover", "name": "Lisbon",
+            "isPublic": True, "coverUrl": url,
+        },
+    })
+    client.delete_cookie("gg_session", domain="localhost")
+    res = client.get(url)
+    assert res.status_code == 200, (
+        "anonymous fetch of a cover from a public trip must succeed; "
+        "got %s — public sharing renders covers via <img> with no auth" % res.status_code
+    )
 
 
 # ── /api/data ────────────────────────────────────────────────────────────────
